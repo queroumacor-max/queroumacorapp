@@ -726,8 +726,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .shirt-ai-btn:disabled{opacity:.7;cursor:wait;}
 .shirt-ai-result{margin-top:12px;background:#fff;border-radius:12px;padding:12px;display:none;}
 .shirt-ai-result.show{display:block;}
-.shirt-ai-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;}
-.shirt-ai-logo-card{background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .15s;}
+.shirt-ai-result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;}
+.shirt-ai-logo-card{background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .15s;min-width:0;overflow:hidden;}
 .shirt-ai-logo-card.selected{border-color:var(--p1);background:#fff5f0;}
 .shirt-ai-logo-card svg{width:100%;height:60px;display:block;margin:0 auto 4px;}
 .shirt-ai-logo-name{font-size:10px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -5563,6 +5563,7 @@ function mktTab(el, tab) {
     const el2 = document.getElementById('mkt-' + t);
     if(el2) el2.style.display = t === tab ? 'block' : 'none';
   });
+  if (tab === 'camisetas' && typeof _aiLogoUpdateBtn === 'function') _aiLogoUpdateBtn();
 }
 
 function updateCartBadge(){
@@ -5805,10 +5806,39 @@ let _aiLogoLastName = '';
 
 let _aiLogoUrls = null;
 
+const AI_LOGO_REGEN_PRICE_BRL = 1.99;
+const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
+
+function _aiLogoGenCount(){ return parseInt(localStorage.getItem('ai_logo_gen_count') || '0', 10); }
+function _aiLogoBumpCount(){
+  const n = _aiLogoGenCount() + 1;
+  localStorage.setItem('ai_logo_gen_count', String(n));
+  return n;
+}
+
+function _aiLogoUpdateBtn(){
+  const btn = document.getElementById('ai-logo-btn');
+  if (!btn) return;
+  btn.textContent = _aiLogoGenCount() === 0
+    ? 'Gerar Logo (grátis)'
+    : 'Gerar novamente · ' + _aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL);
+}
+
 async function gerarLogoIA(){
   const input = document.getElementById('ai-logo-name');
   const name = (input.value || '').trim();
   if(!name){ toast('Digite o nome da empresa'); return; }
+
+  if (_aiLogoGenCount() >= 1) {
+    const ok = confirm(
+      'Gerar mais 3 opções de logo custa ' + _aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + '.\n\n'
+      + 'Esse valor cobre o custo da IA + processamento.\n\n'
+      + 'Deseja prosseguir?'
+    );
+    if (!ok) return;
+    toast(_aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + ' debitado · gerando...');
+  }
+
   const btn = document.getElementById('ai-logo-btn');
   btn.disabled = true;
   btn.textContent = 'Gerando com IA...';
@@ -5862,8 +5892,9 @@ async function gerarLogoIA(){
   document.getElementById('ai-logo-result').classList.add('show');
   _aiLogoSelected = 0;
   _aiLogoLastName = name;
+  _aiLogoBumpCount();
   btn.disabled = false;
-  btn.textContent = 'Gerar novamente';
+  _aiLogoUpdateBtn();
 }
 
 function selectAiLogo(el){
