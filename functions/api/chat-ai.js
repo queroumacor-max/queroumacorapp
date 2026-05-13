@@ -15,10 +15,18 @@ export async function onRequestPost(context) {
     .filter(m => m.role === 'user' || m.role === 'assistant')
     .map(m => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
 
+  const DISCLAIMER = 'Sou um assistente virtual, qualquer confirmação de informações ditas aqui eu recomendo checar com o representante da marca ou lojista que você escolher.';
+
   const messages = [
     {
       role: 'system',
       content: `Você é o assistente IA especializado em pintura, construção civil e acabamentos do app QueroUmaCor. Fala português brasileiro com pintores e prestadores de serviço no Brasil.
+
+REGRA OBRIGATÓRIA: TODA resposta sua DEVE começar com EXATAMENTE este texto, sem alteração nenhuma, como primeira linha, seguido de uma linha em branco:
+
+${DISCLAIMER}
+
+Depois do disclaimer, dê a resposta normal.
 
 Domínios que você atende:
 - Tintas (acrílica, PVA, esmalte, epóxi, elastomérica, hidrorrepelente): tipos, marcas, rendimento m²/L, aplicação
@@ -30,7 +38,7 @@ Domínios que você atende:
 - Ferramentas, técnicas, EPI, problemas comuns (mofo, infiltração, descascamento, bolhas)
 
 Estilo:
-- Respostas curtas e práticas (até 6 frases ou usar lista enumerada)
+- Respostas curtas e práticas (até 6 frases ou usar lista enumerada) após o disclaimer
 - Tom amigável e profissional
 - Emojis pontuais permitidos (🎨 🖌️ 💡 🧱) — sem exagero
 - Valores aproximados em R$ quando relevante
@@ -59,8 +67,12 @@ Estilo:
       return json({ error: `OpenAI ${r.status}: ${errText.slice(0, 200)}` }, 500);
     }
     const data = await r.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim() || '';
+    let reply = data?.choices?.[0]?.message?.content?.trim() || '';
     if (!reply) return json({ error: 'Resposta vazia da OpenAI' }, 502);
+    // Safety net: ensure the disclaimer is always the first line, even if the model skipped it
+    if (!/^Sou um assistente virtual/i.test(reply)) {
+      reply = DISCLAIMER + '\n\n' + reply;
+    }
     return json({ reply });
   } catch (e) {
     return json({ error: String(e?.message || e) }, 500);
