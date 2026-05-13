@@ -2601,8 +2601,9 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <!-- AI Logo Generator -->
       <div class="shirt-ai-logo">
         <div class="shirt-ai-logo-title">✨ Gerar Logo com IA</div>
-        <div class="shirt-ai-logo-sub">Digite o nome da sua empresa e a IA cria 3 opções de logo profissional com referências de pintura.</div>
-        <input type="text" id="ai-logo-name" class="shirt-ai-input" placeholder="Ex: Silva Pinturas" maxlength="80">
+        <div class="shirt-ai-logo-sub">Diga o texto e o estilo do logo, a IA gera 3 opções profissionais.</div>
+        <input type="text" id="ai-logo-name" class="shirt-ai-input" placeholder="Texto do logo · ex: Silva Pinturas" maxlength="80">
+        <input type="text" id="ai-logo-style" class="shirt-ai-input" placeholder="Estilo · ex: graffiti de rua, pintura, funilaria, vintage" maxlength="80">
         <button class="shirt-ai-btn" id="ai-logo-btn" onclick="gerarLogoIA()">Gerar Logo</button>
         <input type="file" id="business-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none" onchange="uploadBusinessLogo(event)">
         <button class="shirt-ai-upload-btn" id="business-logo-btn" type="button" onclick="document.getElementById('business-logo-input').click()">📤 Já tenho meu logo · Enviar</button>
@@ -5842,8 +5843,10 @@ function _aiLogoUpdateBtn(){
 
 async function gerarLogoIA(){
   const input = document.getElementById('ai-logo-name');
+  const styleInput = document.getElementById('ai-logo-style');
   const name = (input.value || '').trim();
-  if(!name){ toast('Digite o nome da empresa'); return; }
+  const style = (styleInput?.value || '').trim();
+  if(!name){ toast('Digite o texto do logo'); return; }
 
   if (_aiLogoGenCount() >= 1) {
     const ok = confirm(
@@ -5865,7 +5868,7 @@ async function gerarLogoIA(){
     const r = await fetch('/api/generate-logo', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, style })
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok && Array.isArray(data.urls) && data.urls.length) {
