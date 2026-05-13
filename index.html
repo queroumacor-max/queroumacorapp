@@ -734,11 +734,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .shirt-ai-use-btn{width:100%;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
 .shirt-builder{background:var(--white);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
 .shirt-builder-title{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px;font-family:'Syne',sans-serif;}
-.shirt-canvas{position:relative;background:var(--cream);border-radius:14px;padding:24px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;min-height:160px;}
-.shirt-img{font-size:96px;line-height:1;}
+.shirt-canvas{position:relative;background:var(--cream);border-radius:14px;padding:20px 16px 60px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;min-height:280px;overflow:hidden;}
+.shirt-mockup{position:relative;width:240px;max-width:100%;}
+.shirt-svg{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.08));}
+.shirt-chest-logo{position:absolute;left:24%;top:32%;width:22%;height:auto;max-height:22%;object-fit:contain;border-radius:4px;pointer-events:none;}
+.shirt-chest-placeholder{position:absolute;left:18%;top:34%;width:30%;height:18%;display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(0,0,0,.25);border-radius:6px;font-size:9px;color:rgba(0,0,0,.45);font-weight:600;text-align:center;line-height:1.2;padding:4px;text-transform:uppercase;letter-spacing:.3px;}
+.shirt-zoom-btn{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.95);border:1px solid var(--border);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.08);}
+.shirt-zoom-btn:hover{background:#fff;}
 .shirt-logo-overlay{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 12px;}
 .shirt-logo-chip{background:var(--ink);color:#fff;border-radius:14px;padding:4px 10px;font-size:11px;font-weight:700;}
 .shirt-logo-chip.brand{background:var(--p1);}
+.shirt-zoom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out;}
+.shirt-zoom-overlay.show{display:flex;}
+.shirt-zoom-inner{position:relative;max-width:90vw;max-height:85vh;cursor:default;}
+.shirt-zoom-inner .shirt-svg{width:min(90vw,520px);height:auto;}
+.shirt-zoom-inner .shirt-chest-logo{border-radius:8px;}
+.shirt-zoom-close{position:absolute;top:-14px;right:-14px;width:36px;height:36px;border-radius:50%;background:#fff;border:none;cursor:pointer;font-size:20px;font-weight:700;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;}
 .shirt-options{display:flex;flex-direction:column;gap:14px;}
 .shirt-opt-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .shirt-color-btn{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s;}
@@ -2589,7 +2600,22 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
 
           <!-- Preview canvas -->
           <div class="shirt-canvas" id="shirt-canvas">
-            <div class="shirt-img" id="shirt-emoji">👕</div>
+            <button class="shirt-zoom-btn" type="button" onclick="openShirtZoom()" aria-label="Ampliar">🔍</button>
+            <div class="shirt-mockup" id="shirt-mockup">
+              <svg class="shirt-svg" id="shirt-svg" viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="shirt-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity=".9"/>
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity=".55"/>
+                  </linearGradient>
+                </defs>
+                <path id="shirt-body" d="M75 50 L40 80 L20 130 L52 150 L60 145 L60 295 Q60 305 70 305 L230 305 Q240 305 240 295 L240 145 L248 150 L280 130 L260 80 L225 50 L195 60 Q150 95 105 60 Z" fill="#ffffff" stroke="#1a1a2e" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M120 50 Q150 80 180 50" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M75 50 L40 80 L20 130 L52 150 L60 145 L60 295 Q60 305 70 305 L230 305 Q240 305 240 295 L240 145 L248 150 L280 130 L260 80 L225 50 L195 60 Q150 95 105 60 Z" fill="url(#shirt-grad)" opacity=".4"/>
+              </svg>
+              <img id="shirt-chest-logo" class="shirt-chest-logo" alt="" style="display:none">
+              <div id="shirt-chest-placeholder" class="shirt-chest-placeholder">aplique seu logo</div>
+            </div>
             <div class="shirt-logo-overlay">
               <div class="shirt-logo-chip" id="shirt-logo-pintor-chip">carlos_silva</div>
               <div class="shirt-logo-chip brand" id="shirt-logo-cali-chip">× Cali Colors</div>
@@ -2691,6 +2717,13 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
   <div class="bn" id="bn-myprofile" onclick="showScreen('myprofile')">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <div class="bn-dot"></div>
+  </div>
+</div>
+
+<!-- Shirt zoom overlay -->
+<div class="shirt-zoom-overlay" id="shirt-zoom-overlay" onclick="closeShirtZoom()">
+  <div class="shirt-zoom-inner" id="shirt-zoom-inner" onclick="event.stopPropagation()">
+    <button class="shirt-zoom-close" type="button" onclick="closeShirtZoom()" aria-label="Fechar">×</button>
   </div>
 </div>
 
@@ -5681,12 +5714,36 @@ function setSizeBtn(el) {
   el.classList.add('active');
 }
 
-function setShirtColor(el, color, emoji) {
+function setShirtColor(el, color) {
   document.querySelectorAll('.shirt-color-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  const canvas = document.getElementById('shirt-canvas');
-  canvas.style.background = 'linear-gradient(135deg,' + color + ',' + color + 'dd)';
-  document.getElementById('shirt-emoji').textContent = emoji;
+  const body = document.getElementById('shirt-body');
+  if (body) {
+    body.setAttribute('fill', color);
+    const isDark = ['#1a1a2e','#000','#8338ec','#e63946'].includes(color);
+    const placeholder = document.getElementById('shirt-chest-placeholder');
+    if (placeholder) placeholder.style.color = isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.45)';
+    if (placeholder) placeholder.style.borderColor = isDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.25)';
+  }
+}
+
+function openShirtZoom() {
+  const overlay = document.getElementById('shirt-zoom-overlay');
+  const inner = document.getElementById('shirt-zoom-inner');
+  const mockup = document.getElementById('shirt-mockup');
+  if (!overlay || !inner || !mockup) return;
+  const clone = mockup.cloneNode(true);
+  inner.querySelectorAll('.shirt-mockup-clone').forEach(n => n.remove());
+  clone.classList.add('shirt-mockup-clone');
+  inner.appendChild(clone);
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeShirtZoom() {
+  const overlay = document.getElementById('shirt-zoom-overlay');
+  if (overlay) overlay.classList.remove('show');
+  document.body.style.overflow = '';
 }
 
 function setShirtStyle(style) {
@@ -5817,9 +5874,26 @@ function selectAiLogo(el){
 
 function usarLogoIA(){
   if(_aiLogoSelected === null || !_aiLogoLastName){ toast('Gere um logo primeiro'); return; }
-  const chip = document.getElementById('shirt-logo-pintor-chip');
+  const card = document.querySelectorAll('.shirt-ai-logo-card')[_aiLogoSelected];
+  let logoSrc = null;
   if (_aiLogoUrls && _aiLogoUrls[_aiLogoSelected]) {
-    chip.innerHTML = '<img src="'+escapeHtml(_aiLogoUrls[_aiLogoSelected])+'" alt="logo" style="height:18px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#fff;">' + escapeHtml(_aiLogoLastName);
+    logoSrc = _aiLogoUrls[_aiLogoSelected];
+  } else if (card) {
+    const svg = card.querySelector('svg');
+    if (svg) logoSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.outerHTML);
+  }
+
+  const chestLogo = document.getElementById('shirt-chest-logo');
+  const placeholder = document.getElementById('shirt-chest-placeholder');
+  if (chestLogo && logoSrc) {
+    chestLogo.src = logoSrc;
+    chestLogo.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  }
+
+  const chip = document.getElementById('shirt-logo-pintor-chip');
+  if (logoSrc) {
+    chip.innerHTML = '<img src="'+escapeHtml(logoSrc)+'" alt="logo" style="height:18px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#fff;">' + escapeHtml(_aiLogoLastName);
   } else {
     chip.textContent = _aiLogoLastName;
   }
@@ -5836,6 +5910,16 @@ function toggleLogo(which) {
   const chip = document.getElementById('shirt-logo-' + which + '-chip');
   btn.classList.toggle('active', logoState[which]);
   if(chip) chip.style.display = logoState[which] ? 'block' : 'none';
+  if (which === 'pintor') {
+    const chestLogo = document.getElementById('shirt-chest-logo');
+    const placeholder = document.getElementById('shirt-chest-placeholder');
+    if (chestLogo && chestLogo.src) {
+      chestLogo.style.display = logoState.pintor ? 'block' : 'none';
+      if (placeholder) placeholder.style.display = 'none';
+    } else if (placeholder) {
+      placeholder.style.display = logoState.pintor ? 'flex' : 'none';
+    }
+  }
 }
 
 function buyShirt() {
