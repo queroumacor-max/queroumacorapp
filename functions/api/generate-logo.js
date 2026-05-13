@@ -12,10 +12,14 @@ export async function onRequestPost(context) {
   const name = rawName.replace(/[^\p{L}\p{N}\s&\-.']/gu, '').trim().slice(0, 50);
   if (!name) return json({ error: 'name obrigatório' }, 400);
 
+  const rawStyle = typeof body?.style === 'string' ? body.style : '';
+  const style = rawStyle.replace(/[^\p{L}\p{N}\s,&\-.']/gu, '').trim().slice(0, 80);
+  const styleHint = style || 'modern minimalist, premium branding';
+
   const prompts = [
-    `Vector logo design for a Brazilian house painting company called "${name}". Bold geometric emblem badge style. Iconography of a paint roller and brush integrated with strong sans-serif typography. Vibrant orange (#ff6b35) and deep navy (#1a1a2e) palette. Flat 2D vector art, minimalist, premium feel, centered on pure white background, no other text, no people, no photographic elements.`,
-    `Modern circular monogram logo for a painting business named "${name}". Large prominent initials in elegant geometric sans-serif. Thin paint stroke arc accent encircling the monogram. Teal (#2ec4b6) and ink navy (#1a1a2e) colors on pure white background. Flat vector style, premium minimalist branding, centered, no other text, no extras.`,
-    `Stylish horizontal lockup logo for a painter brand named "${name}". Crisp paintbrush line-art icon to the left of the brand name in bold modern sans-serif type. Warm terracotta (#e63946) and cream tones, flat 2D vector design, premium minimalist look, white background, centered, no extra text, no people.`
+    `Logo design — bold emblem badge composition for a Brazilian small business called "${name}". Strong sans-serif typography integrated with iconic shapes. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, no people, no photographic elements, no extra text besides the brand name.`,
+    `Logo design — modern circular monogram composition for a business named "${name}". Large prominent initials. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, premium feel, no people, no extra text besides the brand name.`,
+    `Logo design — horizontal lockup composition with an icon to the left of the brand name "${name}". Crisp, premium. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, no people, no extra text besides the brand name.`
   ];
 
   try {
