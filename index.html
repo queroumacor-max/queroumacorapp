@@ -4076,6 +4076,27 @@ function moderateContent(text){
   return { approved: true, reason: null };
 }
 
+async function moderateContentAsync(text, imageUrl){
+  const local = moderateContent(text || '');
+  if (!local.approved) return { approved: false, reason: local.reason, severity: 'soft' };
+  try {
+    const r = await fetch('/api/moderate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: text || '', imageUrl: imageUrl || '' })
+    });
+    if (!r.ok) return { approved: true, reason: null };
+    const data = await r.json();
+    if (data.flagged) {
+      return { approved: false, reason: 'ai:' + (data.reasons || []).join(','), severity: data.severity || 'soft' };
+    }
+    return { approved: true, reason: null };
+  } catch(e){
+    console.warn('moderateContentAsync fail-open:', e);
+    return { approved: true, reason: null };
+  }
+}
+
 function getMediaType(file){
   if(!file) return 'image';
   if(file.type && file.type.startsWith('video/')) return 'video';
@@ -4944,6 +4965,12 @@ async function sendChatMsg(){
   if(!inp)return;
   const msg=inp.value.trim();
   if(!msg)return;
+  const mod = await moderateContentAsync(msg, null);
+  if (!mod.approved) {
+    inp.value = msg;  // devolve o texto
+    toast('Mensagem bloqueada pela moderação');
+    return;
+  }
   const body=document.getElementById('chat-body');
   const typing=document.getElementById('chat-typing');
   const div=document.createElement('div');
@@ -6395,6 +6422,13 @@ async function submitComment(btn){
   const sb = getSupabase();
   if(!sb) return;
   try {
+    const mod = await moderateContentAsync(text, null);
+    if (!mod.approved) {
+      input.value = text;  // devolve o texto
+      btn.disabled = false;
+      toast(mod.severity === 'hard' ? 'Comentário bloqueado pela moderação' : 'Comentário enviado para revisão');
+      return;
+    }
     const { data: comment, error } = await sb.from('comments').insert({ post_id: postId, user_id: currentUser.id, text: text }).select('id').single();
     if(error){ toast('Erro ao comentar'); btn.disabled = false; return; }
     // Show comment in UI
@@ -6834,7 +6868,19 @@ async function publishPost(){
     }
 
     // Content moderation check
-    const modResult = moderateContent(content);
+    const modResult = await moderateContentAsync(content, imageUrl);
+    if (!modResult.approved && modResult.severity === 'hard') {
+      // Hard block — apaga o upload e aborta
+      if (imageUrl) {
+        try {
+          const path = imageUrl.split('/posts/').pop();
+          if (path) await sb.storage.from('posts').remove([path]);
+        } catch(e){ console.warn('cleanup upload:', e); }
+      }
+      toast('Conteúdo bloqueado pela moderação (' + modResult.reason + ')');
+      btn.textContent = 'Publicar'; btn.disabled = false;
+      return;
+    }
     const postStatus = modResult.approved ? 'approved' : 'pending';
 
     // Sale data (grafiteiro)
