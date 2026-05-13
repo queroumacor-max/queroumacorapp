@@ -3547,46 +3547,64 @@ const _aiKnowledge = {
   'calculo':  'Cálculo rápido: meça comprimento × altura de cada parede. Subtraia portas (1.6m²) e janelas (2.4m²). Multiplique pelo número de demãos. Divida pelo rendimento da tinta (10m²/L). Adicione 10% de margem.'
 };
 
-function sendAiChat(){
+let _aiChatHistory = [];
+
+async function sendAiChat(){
   const input = document.getElementById('ai-chat-input');
   const text = input.value.trim();
   if(!text) return;
   input.value = '';
   const msgsEl = document.getElementById('ai-chat-msgs');
 
-  // Add user message
   msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end;"><div style="background:var(--ink);color:#fff;border-radius:14px;padding:10px 14px;font-size:13px;max-width:85%;">'+escapeHtml(text)+'</div></div>';
+  msgsEl.scrollTop = msgsEl.scrollHeight;
 
-  // Generate AI response
-  const query = text.toLowerCase();
-  let response = '';
+  const typingId = 'typing-' + Date.now();
+  msgsEl.innerHTML += '<div id="'+typingId+'" style="display:flex;gap:8px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2ec4b6,#8338ec);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">💡</div><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--muted);max-width:85%;"><span style="display:inline-block;animation:typing 1.2s infinite;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .15s;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .3s;">•</span></div></div>';
+  msgsEl.scrollTop = msgsEl.scrollHeight;
 
-  // Match against knowledge base
-  for(const [key, answer] of Object.entries(_aiKnowledge)){
-    if(query.includes(key) || query.includes(key.replace('a','á').replace('e','é'))){
-      response = answer;
-      break;
+  let reply = null;
+  let aiError = null;
+  try {
+    const r = await fetch('/api/chat-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: text, history: _aiChatHistory })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data.reply) reply = data.reply;
+    else aiError = data.error || ('HTTP ' + r.status);
+  } catch(e) {
+    aiError = String(e?.message || e);
+  }
+
+  if (!reply) {
+    console.warn('chat-ai fallback:', aiError);
+    const query = text.toLowerCase();
+    for(const [key, answer] of Object.entries(_aiKnowledge)){
+      if(query.includes(key)){ reply = answer; break; }
     }
-  }
-  // Fallback matches
-  if(!response){
-    if(query.match(/quanto|valor|cobr|preci/)) response = _aiKnowledge['preco'];
-    else if(query.match(/quant|litro|galao|lata/)) response = _aiKnowledge['rendimento'];
-    else if(query.match(/prepar|lixa|massa|antes/)) response = _aiKnowledge['preparo'];
-    else if(query.match(/umid|mofo|infiltr|vazam/)) response = _aiKnowledge['infiltracao'];
-    else if(query.match(/qual tinta|melhor tinta|tipo.*tinta/)) response = _aiKnowledge['tinta'];
-    else if(query.match(/calcul|medir|medid|area/)) response = _aiKnowledge['calculo'];
-    else if(query.match(/tend|cor|tom|paleta/)) response = _aiKnowledge['cor'];
-    else if(query.match(/ferrament|rolo|pincel|trincha/)) response = _aiKnowledge['ferramenta'];
-    else response = 'Posso ajudar com dúvidas sobre tintas, texturas, preços, preparação de paredes, cálculo de material, ferramentas e mais. Tente perguntar algo específico! 🎨';
+    if(!reply){
+      if(query.match(/quanto|valor|cobr|preci/)) reply = _aiKnowledge['preco'];
+      else if(query.match(/quant|litro|galao|lata/)) reply = _aiKnowledge['rendimento'];
+      else if(query.match(/prepar|lixa|massa|antes/)) reply = _aiKnowledge['preparo'];
+      else if(query.match(/umid|mofo|infiltr|vazam/)) reply = _aiKnowledge['infiltracao'];
+      else if(query.match(/qual tinta|melhor tinta|tipo.*tinta/)) reply = _aiKnowledge['tinta'];
+      else if(query.match(/calcul|medir|medid|area/)) reply = _aiKnowledge['calculo'];
+      else if(query.match(/tend|cor|tom|paleta/)) reply = _aiKnowledge['cor'];
+      else if(query.match(/ferrament|rolo|pincel|trincha/)) reply = _aiKnowledge['ferramenta'];
+      else reply = 'Conexão com a IA falhou no momento. Tente novamente em alguns segundos.';
+    }
+  } else {
+    _aiChatHistory.push({ role: 'user', content: text });
+    _aiChatHistory.push({ role: 'assistant', content: reply });
+    if (_aiChatHistory.length > 20) _aiChatHistory = _aiChatHistory.slice(-20);
   }
 
-  // Add AI response with small delay
-  setTimeout(() => {
-    msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2ec4b6,#8338ec);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">💡</div><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;">'+response+'</div></div>';
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-  }, 500);
-
+  const typingEl = document.getElementById(typingId);
+  if (typingEl) typingEl.remove();
+  const formatted = escapeHtml(reply).replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2ec4b6,#8338ec);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">💡</div><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
