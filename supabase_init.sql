@@ -683,3 +683,12 @@ BEGIN
       FOR ALL TO authenticated USING (auth.uid() = painter_id) WITH CHECK (auth.uid() = painter_id);
   END IF;
 END $$;
+
+-- ============================================
+-- Business logo (logo da empresa para a camiseta Cali Colors)
+-- ============================================
+DO $$
+BEGIN
+  BEGIN ALTER TABLE public.profiles ADD COLUMN business_logo_url text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN business_name text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+END $$;
