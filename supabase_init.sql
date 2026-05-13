@@ -692,3 +692,11 @@ BEGIN
   BEGIN ALTER TABLE public.profiles ADD COLUMN business_logo_url text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN business_name text; EXCEPTION WHEN duplicate_column THEN NULL; END;
 END $$;
+
+-- ============================================
+-- Profession field (pintor / funileiro / grafiteiro)
+-- ============================================
+DO $$
+BEGIN
+  BEGIN ALTER TABLE public.profiles ADD COLUMN profession text DEFAULT 'pintor'; EXCEPTION WHEN duplicate_column THEN NULL; END;
+END $$;
