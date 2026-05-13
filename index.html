@@ -734,11 +734,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .shirt-ai-use-btn{width:100%;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
 .shirt-builder{background:var(--white);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
 .shirt-builder-title{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px;font-family:'Syne',sans-serif;}
-.shirt-canvas{position:relative;background:var(--cream);border-radius:14px;padding:20px 16px 60px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;min-height:280px;overflow:hidden;}
-.shirt-mockup{position:relative;width:240px;max-width:100%;}
-.shirt-svg{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.08));}
-.shirt-chest-logo{position:absolute;left:24%;top:32%;width:22%;height:auto;max-height:22%;object-fit:contain;border-radius:4px;pointer-events:none;}
-.shirt-chest-placeholder{position:absolute;left:18%;top:34%;width:30%;height:18%;display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(0,0,0,.25);border-radius:6px;font-size:9px;color:rgba(0,0,0,.45);font-weight:600;text-align:center;line-height:1.2;padding:4px;text-transform:uppercase;letter-spacing:.3px;}
+.shirt-canvas{position:relative;background:var(--cream);border-radius:14px;padding:16px 16px 56px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;min-height:320px;overflow:hidden;}
+.shirt-mockup{position:relative;width:300px;max-width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;}
+.shirt-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.08));}
+.shirt-photo.hide{display:none;}
+.shirt-svg{position:absolute;inset:0;width:100%;height:auto;display:none;margin:auto;filter:drop-shadow(0 6px 12px rgba(0,0,0,.08));}
+.shirt-svg.show{display:block;}
+.shirt-chest-logo{position:absolute;left:30%;top:34%;width:14%;height:auto;max-height:14%;object-fit:contain;border-radius:3px;pointer-events:auto;cursor:pointer;background:transparent;}
+.shirt-cali-logo{position:absolute;right:30%;top:34%;width:14%;height:auto;max-height:14%;object-fit:contain;pointer-events:none;background:transparent;}
+.shirt-chest-placeholder{position:absolute;left:28%;top:33%;width:18%;height:15%;display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(0,0,0,.3);border-radius:5px;font-size:8px;color:rgba(0,0,0,.5);font-weight:600;text-align:center;line-height:1.1;padding:3px;text-transform:uppercase;letter-spacing:.3px;background:rgba(255,255,255,.4);}
 .shirt-zoom-btn{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.95);border:1px solid var(--border);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.08);}
 .shirt-zoom-btn:hover{background:#fff;}
 .shirt-logo-overlay{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 12px;}
@@ -2602,6 +2606,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
           <div class="shirt-canvas" id="shirt-canvas">
             <button class="shirt-zoom-btn" type="button" onclick="openShirtZoom()" aria-label="Ampliar">🔍</button>
             <div class="shirt-mockup" id="shirt-mockup">
+              <img class="shirt-photo" id="shirt-photo" src="/img/shirt-white.jpg" alt="Camiseta branca" onerror="this.classList.add('hide'); document.getElementById('shirt-svg').classList.add('show');">
               <svg class="shirt-svg" id="shirt-svg" viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="shirt-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2615,6 +2620,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
               </svg>
               <img id="shirt-chest-logo" class="shirt-chest-logo" alt="" style="display:none">
               <div id="shirt-chest-placeholder" class="shirt-chest-placeholder">aplique seu logo</div>
+              <img id="shirt-cali-logo" class="shirt-cali-logo" src="/img/cali-colors-logo.png" alt="Cali Colors" onerror="this.style.display='none';">
             </div>
             <div class="shirt-logo-overlay">
               <div class="shirt-logo-chip" id="shirt-logo-pintor-chip">carlos_silva</div>
@@ -5892,46 +5898,52 @@ async function gerarLogoIA(){
   document.getElementById('ai-logo-result').classList.add('show');
   _aiLogoSelected = 0;
   _aiLogoLastName = name;
+  _applyLogoToShirt();
   _aiLogoBumpCount();
   btn.disabled = false;
   _aiLogoUpdateBtn();
+}
+
+function _aiLogoCurrentSrc(){
+  const card = document.querySelectorAll('.shirt-ai-logo-card')[_aiLogoSelected];
+  if (_aiLogoUrls && _aiLogoUrls[_aiLogoSelected]) return _aiLogoUrls[_aiLogoSelected];
+  if (card) {
+    const svg = card.querySelector('svg');
+    if (svg) return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.outerHTML);
+  }
+  return null;
+}
+
+function _applyLogoToShirt(){
+  const logoSrc = _aiLogoCurrentSrc();
+  if (!logoSrc || !_aiLogoLastName) return;
+  const chestLogo = document.getElementById('shirt-chest-logo');
+  const placeholder = document.getElementById('shirt-chest-placeholder');
+  if (chestLogo) {
+    chestLogo.src = logoSrc;
+    chestLogo.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  }
+  const chip = document.getElementById('shirt-logo-pintor-chip');
+  if (chip) {
+    chip.innerHTML = '<img src="'+escapeHtml(logoSrc)+'" alt="logo" style="height:18px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#fff;">' + escapeHtml(_aiLogoLastName);
+    chip.style.display = 'block';
+  }
+  logoState.pintor = true;
+  const btn = document.getElementById('toggle-pintor');
+  if(btn) btn.classList.add('active');
 }
 
 function selectAiLogo(el){
   document.querySelectorAll('.shirt-ai-logo-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   _aiLogoSelected = parseInt(el.dataset.idx) || 0;
+  _applyLogoToShirt();
 }
 
 function usarLogoIA(){
   if(_aiLogoSelected === null || !_aiLogoLastName){ toast('Gere um logo primeiro'); return; }
-  const card = document.querySelectorAll('.shirt-ai-logo-card')[_aiLogoSelected];
-  let logoSrc = null;
-  if (_aiLogoUrls && _aiLogoUrls[_aiLogoSelected]) {
-    logoSrc = _aiLogoUrls[_aiLogoSelected];
-  } else if (card) {
-    const svg = card.querySelector('svg');
-    if (svg) logoSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.outerHTML);
-  }
-
-  const chestLogo = document.getElementById('shirt-chest-logo');
-  const placeholder = document.getElementById('shirt-chest-placeholder');
-  if (chestLogo && logoSrc) {
-    chestLogo.src = logoSrc;
-    chestLogo.style.display = 'block';
-    if (placeholder) placeholder.style.display = 'none';
-  }
-
-  const chip = document.getElementById('shirt-logo-pintor-chip');
-  if (logoSrc) {
-    chip.innerHTML = '<img src="'+escapeHtml(logoSrc)+'" alt="logo" style="height:18px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#fff;">' + escapeHtml(_aiLogoLastName);
-  } else {
-    chip.textContent = _aiLogoLastName;
-  }
-  chip.style.display = 'block';
-  logoState.pintor = true;
-  const btn = document.getElementById('toggle-pintor');
-  if(btn) btn.classList.add('active');
+  _applyLogoToShirt();
   toast('Logo aplicado na camiseta! 👕');
 }
 
