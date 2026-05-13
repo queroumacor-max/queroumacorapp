@@ -706,6 +706,51 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .search-result-follow{padding:7px 18px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;}
 .search-result-follow.follow{background:var(--p1);color:#fff;}
 .search-result-follow.following{background:var(--border);color:var(--ink);}
+/* Shirt customization */
+.shirt-section{display:flex;flex-direction:column;gap:14px;margin-bottom:18px;}
+.shirt-hero{background:var(--white);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.shirt-hero-title{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;font-family:'Syne',sans-serif;}
+.shirt-hero-sub{font-size:12.5px;color:var(--muted);line-height:1.4;margin-bottom:12px;}
+.shirt-preview-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.shirt-preview{background:var(--cream);border:1.5px solid var(--border);border-radius:12px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;}
+.shirt-preview:hover{border-color:var(--p1);}
+.shirt-preview.active{border-color:var(--p1);background:#fff5f0;}
+.shirt-preview-icon{font-size:24px;margin-bottom:4px;}
+.shirt-preview-label{font-size:11.5px;font-weight:700;color:var(--ink);}
+.shirt-ai-logo{background:linear-gradient(135deg,#2ec4b6,#8338ec);border-radius:16px;padding:16px;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.08);}
+.shirt-ai-logo-title{font-size:14px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:6px;font-family:'Syne',sans-serif;}
+.shirt-ai-logo-sub{font-size:11.5px;opacity:.85;margin-bottom:12px;line-height:1.4;}
+.shirt-ai-input{width:100%;border:none;border-radius:10px;padding:10px 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:rgba(255,255,255,.95);color:var(--ink);box-sizing:border-box;margin-bottom:8px;}
+.shirt-ai-input:focus{outline:2px solid rgba(255,255,255,.6);}
+.shirt-ai-btn{width:100%;background:#fff;color:#8338ec;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.shirt-ai-btn:disabled{opacity:.7;cursor:wait;}
+.shirt-ai-result{margin-top:12px;background:#fff;border-radius:12px;padding:12px;display:none;}
+.shirt-ai-result.show{display:block;}
+.shirt-ai-result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;}
+.shirt-ai-logo-card{background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:8px;text-align:center;cursor:pointer;transition:all .15s;}
+.shirt-ai-logo-card.selected{border-color:var(--p1);background:#fff5f0;}
+.shirt-ai-logo-card svg{width:100%;height:60px;display:block;margin:0 auto 4px;}
+.shirt-ai-logo-name{font-size:10px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.shirt-ai-use-btn{width:100%;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.shirt-builder{background:var(--white);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.shirt-builder-title{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px;font-family:'Syne',sans-serif;}
+.shirt-canvas{position:relative;background:var(--cream);border-radius:14px;padding:24px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;min-height:160px;}
+.shirt-img{font-size:96px;line-height:1;}
+.shirt-logo-overlay{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 12px;}
+.shirt-logo-chip{background:var(--ink);color:#fff;border-radius:14px;padding:4px 10px;font-size:11px;font-weight:700;}
+.shirt-logo-chip.brand{background:var(--p1);}
+.shirt-options{display:flex;flex-direction:column;gap:14px;}
+.shirt-opt-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.shirt-color-btn{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s;}
+.shirt-color-btn.active{border-color:var(--ink);transform:scale(1.1);}
+.shirt-size-btn{min-width:42px;padding:8px 12px;border:1.5px solid var(--border);background:var(--white);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--ink);}
+.shirt-size-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.shirt-logo-toggle{display:flex;gap:8px;flex-wrap:wrap;}
+.logo-toggle-btn{flex:1;min-width:120px;padding:9px 12px;border:1.5px solid var(--border);background:var(--white);border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--muted);}
+.logo-toggle-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.shirt-price-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+.shirt-total{font-size:22px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;}
+.shirt-buy-btn{padding:11px 18px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 4px 12px rgba(255,107,53,.3);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -2479,14 +2524,6 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
 
   <div class="mkt-body" id="mkt-body">
 
-    <!-- BANNER PROMO -->
-    <div style="background:linear-gradient(135deg,var(--p1),var(--p4));border-radius:16px;padding:16px;margin-bottom:16px;position:relative;overflow:hidden;cursor:pointer;" onclick="toast('Oferta especial! 🎉')">
-      <div style="position:absolute;top:-15px;right:-15px;width:80px;height:80px;background:rgba(255,255,255,.15);border-radius:50%;"></div>
-      <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.5px;">Oferta PRO</div>
-      <div style="font-size:17px;font-weight:800;color:#fff;margin:3px 0;font-family:'Syne',sans-serif;">10% OFF em tintas premium</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.75);">Exclusivo para assinantes PRO · Até 31/03</div>
-    </div>
-
     <!-- TINTAS (loaded from DB) -->
     <div id="mkt-tintas">
       <div class="mkt-section-title">Tintas Premium</div>
@@ -2518,20 +2555,32 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <div class="shirt-section">
         <div class="shirt-hero">
           <div class="shirt-hero-title">👕 Sua Marca Profissional</div>
-          <div class="shirt-hero-sub">Camisetas personalizadas com seu logo criado pela QueroUmaCor e da Cali Colors. Chegue com identidade nos clientes!</div>
+          <div class="shirt-hero-sub">Camisetas personalizadas com a sua marca e a da Cali Colors. Chegue com identidade nos clientes.</div>
           <div class="shirt-preview-row">
-            <div class="shirt-preview" onclick="setShirtStyle('logo-pintor')">
+            <div class="shirt-preview active" id="style-logo-pintor" onclick="setShirtStyle('logo-pintor')">
               <div class="shirt-preview-icon">🎨</div>
               <div class="shirt-preview-label">Seu Logo</div>
             </div>
-            <div class="shirt-preview" onclick="setShirtStyle('logo-cali')">
+            <div class="shirt-preview" id="style-logo-cali" onclick="setShirtStyle('logo-cali')">
               <div class="shirt-preview-icon">🏪</div>
               <div class="shirt-preview-label">Logo Cali</div>
             </div>
-            <div class="shirt-preview" onclick="setShirtStyle('logo-ambos')">
+            <div class="shirt-preview" id="style-logo-ambos" onclick="setShirtStyle('logo-ambos')">
               <div class="shirt-preview-icon">⭐</div>
               <div class="shirt-preview-label">Ambos</div>
             </div>
+          </div>
+        </div>
+
+        <!-- AI Logo Generator -->
+        <div class="shirt-ai-logo">
+          <div class="shirt-ai-logo-title">✨ Gerar Logo com IA</div>
+          <div class="shirt-ai-logo-sub">Digite o nome da sua empresa e a IA cria 3 opções de logo com referências de pintura.</div>
+          <input type="text" id="ai-logo-name" class="shirt-ai-input" placeholder="Ex: Silva Pinturas" maxlength="40">
+          <button class="shirt-ai-btn" id="ai-logo-btn" onclick="gerarLogoIA()">Gerar Logo</button>
+          <div class="shirt-ai-result" id="ai-logo-result">
+            <div class="shirt-ai-result-grid" id="ai-logo-grid"></div>
+            <button class="shirt-ai-use-btn" onclick="usarLogoIA()">Usar logo selecionado na camiseta</button>
           </div>
         </div>
 
@@ -5643,9 +5692,105 @@ function setShirtColor(el, color, emoji) {
 function setShirtStyle(style) {
   const pc = document.getElementById('shirt-logo-pintor-chip');
   const cc = document.getElementById('shirt-logo-cali-chip');
+  document.querySelectorAll('.shirt-preview').forEach(p => p.classList.remove('active'));
+  const active = document.getElementById('style-' + style);
+  if(active) active.classList.add('active');
   if(style === 'logo-pintor') { pc.style.display='block'; cc.style.display='none'; toast('Seu logo destacado!'); }
   else if(style === 'logo-cali') { pc.style.display='none'; cc.style.display='block'; toast('Logo Cali Colors destacado!'); }
   else { pc.style.display='block'; cc.style.display='block'; toast('Ambos os logos!'); }
+}
+
+// ══ AI LOGO GENERATOR ══
+const _aiLogoPalettes = [
+  ['#ff6b35','#1a1a2e','#fff5f0'],
+  ['#2ec4b6','#1a1a2e','#e8f8f6'],
+  ['#8338ec','#fff','#f3ecff'],
+  ['#e63946','#1d3557','#f1faee'],
+  ['#0077b6','#fff','#caf0f8'],
+  ['#06a77d','#1a1a2e','#e8f5e9']
+];
+const _aiLogoIcons = [
+  // paint roller
+  '<g><rect x="14" y="10" width="36" height="10" rx="2" fill="{c1}"/><rect x="28" y="20" width="8" height="6" fill="{c2}"/><rect x="24" y="26" width="16" height="22" rx="2" fill="{c1}"/><rect x="28" y="48" width="8" height="6" fill="{c2}"/></g>',
+  // paint brush
+  '<g><rect x="10" y="44" width="30" height="6" rx="2" fill="{c2}" transform="rotate(-30 25 47)"/><path d="M40 18 L52 30 L46 36 L34 24 Z" fill="{c1}"/><path d="M34 24 L40 18 L36 14 L30 20 Z" fill="{c2}"/></g>',
+  // paint bucket
+  '<g><path d="M18 22 L46 22 L42 52 L22 52 Z" fill="{c1}"/><ellipse cx="32" cy="22" rx="14" ry="3" fill="{c2}"/><path d="M22 18 Q32 8 42 18" stroke="{c2}" stroke-width="2" fill="none"/><rect x="28" y="30" width="8" height="14" fill="{c2}" opacity=".4"/></g>',
+  // color palette
+  '<g><path d="M32 12 C46 12 54 20 54 32 C54 38 50 42 44 42 L40 42 C36 42 34 44 34 48 C34 52 30 54 26 54 C18 54 12 46 12 36 C12 22 20 12 32 12 Z" fill="{c1}"/><circle cx="22" cy="24" r="3" fill="{c2}"/><circle cx="32" cy="20" r="3" fill="{c3}"/><circle cx="42" cy="24" r="3" fill="{c2}"/><circle cx="46" cy="34" r="3" fill="{c3}"/></g>',
+  // wall + roller stripe
+  '<g><rect x="8" y="14" width="48" height="36" rx="3" fill="{c3}"/><rect x="8" y="14" width="48" height="12" fill="{c1}"/><rect x="38" y="8" width="6" height="22" rx="1" fill="{c2}"/></g>',
+  // drop / paint splash
+  '<g><path d="M32 10 C40 22 46 30 46 38 C46 46 40 52 32 52 C24 52 18 46 18 38 C18 30 24 22 32 10 Z" fill="{c1}"/><circle cx="26" cy="38" r="3" fill="{c3}" opacity=".7"/></g>'
+];
+
+function _hashStr(s){
+  let h = 0;
+  for(let i=0;i<s.length;i++){ h = ((h<<5) - h) + s.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+
+function _renderAiLogoSvg(name, paletteIdx, iconIdx){
+  const palette = _aiLogoPalettes[paletteIdx % _aiLogoPalettes.length];
+  const [c1,c2,c3] = palette;
+  const icon = _aiLogoIcons[iconIdx % _aiLogoIcons.length]
+    .replaceAll('{c1}', c1).replaceAll('{c2}', c2).replaceAll('{c3}', c3);
+  const initials = name.split(/\s+/).map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'P';
+  return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+    + '<rect width="64" height="64" rx="12" fill="'+c3+'"/>'
+    + icon
+    + '<text x="32" y="60" text-anchor="middle" font-family="Syne,sans-serif" font-weight="800" font-size="7" fill="'+c1+'">'+escapeHtml(initials)+'</text>'
+    + '</svg>';
+}
+
+let _aiLogoSelected = null;
+let _aiLogoLastName = '';
+
+function gerarLogoIA(){
+  const input = document.getElementById('ai-logo-name');
+  const name = (input.value || '').trim();
+  if(!name){ toast('Digite o nome da empresa'); return; }
+  const btn = document.getElementById('ai-logo-btn');
+  btn.disabled = true;
+  btn.textContent = 'Gerando...';
+  const seed = _hashStr(name.toLowerCase());
+  const opts = [
+    { pi: seed % _aiLogoPalettes.length, ii: seed % _aiLogoIcons.length, label: name },
+    { pi: (seed + 2) % _aiLogoPalettes.length, ii: (seed + 1) % _aiLogoIcons.length, label: name },
+    { pi: (seed + 4) % _aiLogoPalettes.length, ii: (seed + 3) % _aiLogoIcons.length, label: name }
+  ];
+  setTimeout(() => {
+    const grid = document.getElementById('ai-logo-grid');
+    grid.innerHTML = opts.map((o,i) =>
+      '<div class="shirt-ai-logo-card'+(i===0?' selected':'')+'" data-idx="'+i+'" onclick="selectAiLogo(this)">'
+      + _renderAiLogoSvg(o.label, o.pi, o.ii)
+      + '<div class="shirt-ai-logo-name">'+escapeHtml(o.label)+'</div>'
+      + '</div>'
+    ).join('');
+    document.getElementById('ai-logo-result').classList.add('show');
+    _aiLogoSelected = 0;
+    _aiLogoLastName = name;
+    btn.disabled = false;
+    btn.textContent = 'Gerar novamente';
+    toast('3 logos prontos! ✨');
+  }, 700);
+}
+
+function selectAiLogo(el){
+  document.querySelectorAll('.shirt-ai-logo-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  _aiLogoSelected = parseInt(el.dataset.idx) || 0;
+}
+
+function usarLogoIA(){
+  if(_aiLogoSelected === null || !_aiLogoLastName){ toast('Gere um logo primeiro'); return; }
+  const chip = document.getElementById('shirt-logo-pintor-chip');
+  chip.textContent = _aiLogoLastName;
+  chip.style.display = 'block';
+  logoState.pintor = true;
+  const btn = document.getElementById('toggle-pintor');
+  if(btn) btn.classList.add('active');
+  toast('Logo aplicado na camiseta! 👕');
 }
 
 function toggleLogo(which) {
