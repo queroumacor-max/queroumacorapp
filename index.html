@@ -3595,6 +3595,9 @@ async function sendAiChat(){
       else if(query.match(/ferrament|rolo|pincel|trincha/)) reply = _aiKnowledge['ferramenta'];
       else reply = 'Conexão com a IA falhou no momento. Tente novamente em alguns segundos.';
     }
+    if (!/^Sou um assistente virtual/i.test(reply)) {
+      reply = 'Sou um assistente virtual, qualquer confirmação de informações ditas aqui eu recomendo checar com o representante da marca ou lojista que você escolher.\n\n' + reply;
+    }
   } else {
     _aiChatHistory.push({ role: 'user', content: text });
     _aiChatHistory.push({ role: 'assistant', content: reply });
