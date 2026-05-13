@@ -27,12 +27,11 @@ export async function onRequestPost(context) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'dall-e-3',
+          model: 'gpt-image-1',
           prompt,
           n: 1,
           size: '1024x1024',
-          quality: 'standard',
-          style: 'vivid'
+          quality: 'medium'
         })
       });
       if (!r.ok) {
@@ -40,10 +39,13 @@ export async function onRequestPost(context) {
         throw new Error(`OpenAI ${r.status}: ${errText.slice(0, 200)}`);
       }
       const data = await r.json();
-      return data?.data?.[0]?.url;
+      const item = data?.data?.[0];
+      if (item?.url) return item.url;
+      if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
+      return null;
     }));
 
-    if (urls.some(u => !u)) return json({ error: 'OpenAI não retornou URL' }, 502);
+    if (urls.some(u => !u)) return json({ error: 'OpenAI não retornou imagem' }, 502);
     return json({ urls });
   } catch (e) {
     return json({ error: String(e?.message || e) }, 500);
