@@ -17,9 +17,9 @@ export async function onRequestPost(context) {
   const styleHint = style || 'modern minimalist, premium branding';
 
   const prompts = [
-    `Logo design — bold emblem badge composition for a Brazilian small business called "${name}". Strong sans-serif typography integrated with iconic shapes. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, no people, no photographic elements, no extra text besides the brand name.`,
-    `Logo design — modern circular monogram composition for a business named "${name}". Large prominent initials. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, premium feel, no people, no extra text besides the brand name.`,
-    `Logo design — horizontal lockup composition with an icon to the left of the brand name "${name}". Crisp, premium. Visual style: ${styleHint}. Centered on pure white background, flat 2D vector art, no people, no extra text besides the brand name.`
+    `Logo design — bold emblem badge composition for a Brazilian small business called "${name}". Strong sans-serif typography integrated with iconic shapes. Visual style: ${styleHint}. Isolated subject on a fully transparent background, no rectangle or backdrop behind the logo, flat 2D vector art, no people, no photographic elements, no extra text besides the brand name.`,
+    `Logo design — modern circular monogram composition for a business named "${name}". Large prominent initials. Visual style: ${styleHint}. Isolated subject on a fully transparent background, no rectangle or backdrop behind the logo, flat 2D vector art, premium feel, no people, no extra text besides the brand name.`,
+    `Logo design — horizontal lockup composition with an icon to the left of the brand name "${name}". Crisp, premium. Visual style: ${styleHint}. Isolated subject on a fully transparent background, no rectangle or backdrop behind the logo, flat 2D vector art, no people, no extra text besides the brand name.`
   ];
 
   try {
@@ -35,7 +35,9 @@ export async function onRequestPost(context) {
           prompt,
           n: 1,
           size: '1024x1024',
-          quality: 'medium'
+          quality: 'medium',
+          background: 'transparent',
+          output_format: 'png'
         })
       });
       if (!r.ok) {
