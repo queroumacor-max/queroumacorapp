@@ -7309,6 +7309,710 @@ function shareInviteCode(view){
 
 </script>
 
+<!-- ════════════════════════════════════════════════════════════
+     COMMERCIAL IMPROVEMENTS — PHASE 1 to 4
+     Adds: analytics, subscription tiers (free/pro/premium/studio),
+     contextual paywall, trial, lead boosts, points header, 2-sided
+     referrals, WhatsApp share, onboarding checklist, public profile
+     SEO route, coupons, free shipping, bundles, cart abandonment,
+     sponsored ads.
+════════════════════════════════════════════════════════════ -->
+<style>
+.qc-tier-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 12px;}
+.qc-tier-card{background:var(--cream);border:2px solid var(--border);border-radius:14px;padding:10px;cursor:pointer;text-align:left;transition:all .15s;position:relative;}
+.qc-tier-card.selected{border-color:var(--p1);background:#fff;box-shadow:0 4px 14px rgba(255,107,53,.18);}
+.qc-tier-card.recommended::before{content:'MAIS POPULAR';position:absolute;top:-9px;right:8px;background:var(--p1);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:8px;letter-spacing:.4px;}
+.qc-tier-name{font-size:12px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.5px;}
+.qc-tier-price{font-size:18px;font-weight:800;font-family:'Syne',sans-serif;margin-top:2px;color:var(--p1);}
+.qc-tier-price small{font-size:11px;font-weight:500;color:var(--muted);}
+.qc-tier-bullets{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.4;}
+.qc-points-pill{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#ffd166,#ff9f1c);color:#222;padding:5px 9px;border-radius:18px;font-size:11px;font-weight:800;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;}
+.qc-paywall-icon{font-size:42px;text-align:center;margin:8px 0;}
+.qc-trial-badge{display:inline-block;background:linear-gradient(135deg,#06d6a0,#118ab2);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:10px;letter-spacing:.4px;margin-left:6px;}
+.qc-boost-btn{background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.qc-coupon-row{display:flex;gap:6px;margin:8px 0;}
+.qc-coupon-row input{flex:1;padding:9px 11px;border:1px solid var(--border);border-radius:10px;font-size:12px;font-family:'DM Sans',sans-serif;text-transform:uppercase;}
+.qc-coupon-row button{padding:9px 14px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;}
+.qc-free-ship-bar{background:linear-gradient(90deg,#06d6a0,#118ab2);color:#fff;padding:7px 10px;border-radius:10px;font-size:11.5px;font-weight:600;margin:6px 0;display:flex;align-items:center;gap:8px;}
+.qc-free-ship-bar-bg{flex:1;height:5px;background:rgba(255,255,255,.3);border-radius:3px;overflow:hidden;}
+.qc-free-ship-bar-fg{height:100%;background:#fff;transition:width .3s;}
+.qc-ad-slot{margin:10px 14px;border-radius:14px;overflow:hidden;position:relative;border:1px solid var(--border);background:var(--cream);}
+.qc-ad-slot img{width:100%;display:block;}
+.qc-ad-label{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.4px;text-transform:uppercase;}
+.qc-onb-step{display:flex;align-items:center;gap:10px;padding:10px;background:var(--cream);border-radius:12px;margin-bottom:6px;}
+.qc-onb-step.done{opacity:.55;}
+.qc-onb-check{width:24px;height:24px;border-radius:50%;background:#fff;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.qc-onb-step.done .qc-onb-check{background:#06d6a0;border-color:#06d6a0;color:#fff;}
+.qc-onb-progress{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:10px;}
+.qc-onb-progress-fg{height:100%;background:linear-gradient(90deg,var(--p1),#06d6a0);transition:width .3s;}
+.qc-bundle-card{display:flex;gap:10px;padding:10px;background:var(--cream);border-radius:12px;margin-bottom:8px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;}
+.qc-bundle-card:hover{border-color:var(--p1);}
+.qc-bundle-img{width:64px;height:64px;border-radius:10px;background:#ddd;flex-shrink:0;}
+.qc-bundle-info{flex:1;min-width:0;}
+.qc-bundle-name{font-size:13px;font-weight:700;color:var(--ink);}
+.qc-bundle-price{font-size:14px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;}
+.qc-bundle-discount{font-size:10px;color:var(--p6);background:rgba(6,214,160,.15);padding:1px 6px;border-radius:6px;display:inline-block;margin-top:2px;}
+.qc-paywall-feature{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:13px;color:var(--ink);}
+.qc-paywall-feature::before{content:'✓';color:#06d6a0;font-weight:800;}
+.qc-share-wa{background:#25d366;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:6px;}
+</style>
+
+<!-- New modals -->
+<div class="overlay" id="qc-tiers-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">⚡ Escolha seu plano</div>
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;">Cancele quando quiser · 7 dias grátis em qualquer plano pago</div>
+    <div class="qc-tier-grid" id="qc-tier-grid"></div>
+    <div id="qc-tier-features" style="margin:4px 0 12px;"></div>
+    <button class="pro-cta" id="qc-tier-cta" onclick="qcStartCheckout()">Começar trial grátis de 7 dias</button>
+    <div style="font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px;">Sem cobrança hoje · lembramos você antes do fim do trial</div>
+  </div>
+</div>
+
+<div class="overlay" id="qc-paywall-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="qc-paywall-icon" id="qc-paywall-icon">🔒</div>
+    <div class="sheet-title" id="qc-paywall-title">Recurso exclusivo PRO</div>
+    <div style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:10px;" id="qc-paywall-msg">Faça upgrade para destravar.</div>
+    <div id="qc-paywall-features" style="margin:8px 0;"></div>
+    <button class="pro-cta" onclick="closeModals();showModal('qc-tiers-modal');qcRenderTiers();track('paywall_upgrade_click',{feature:_paywallContext});">Iniciar trial grátis 7 dias</button>
+  </div>
+</div>
+
+<div class="overlay" id="qc-boost-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">⚡ Boost este lead</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">Torne este orçamento <b>exclusivo seu</b> por 48h. Nenhum concorrente recebe.</div>
+    <div style="background:var(--cream);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:12px;color:var(--muted);">Investimento</span><span style="font-size:22px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">R$ <span id="qc-boost-amount">12</span></span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Pintores PRO+ pagam menos. Pintores Premium ganham 5 boosts/mês.</div>
+    </div>
+    <button class="pro-cta" onclick="qcConfirmBoost()">Confirmar Boost</button>
+  </div>
+</div>
+
+<div class="overlay" id="qc-referral-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🎁 Indique e ganhe</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;text-align:center;">Você ganha <b>R$20 em crédito</b> + 100 pontos. Seu amigo ganha <b>R$20 de desconto</b>.</div>
+    <div style="background:var(--cream);border-radius:12px;padding:14px;text-align:center;margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Seu código</div>
+      <div id="qc-ref-code" style="font-size:26px;font-weight:800;font-family:'Syne',sans-serif;color:var(--ink);letter-spacing:2px;margin:4px 0;">--------</div>
+      <div style="font-size:11px;color:var(--muted);">Crédito atual: R$ <span id="qc-ref-credit">0,00</span></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="qc-share-wa" style="flex:1;justify-content:center;" onclick="qcShareReferralWA()">📲 WhatsApp</button>
+      <button onclick="qcCopyReferral()" style="flex:1;padding:9px 12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Copiar link</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:14px;">Você indicou <b id="qc-ref-count">0</b> pessoas · <b id="qc-ref-paid">0</b> ativas</div>
+  </div>
+</div>
+
+<div class="overlay" id="qc-onboarding-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="qc-onb-title">👋 Complete seu perfil</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Perfis completos recebem <b>3x mais clientes</b>.</div>
+    <div class="qc-onb-progress"><div class="qc-onb-progress-fg" id="qc-onb-progress-fg" style="width:0%"></div></div>
+    <div id="qc-onb-steps"></div>
+    <button class="pro-cta" onclick="closeModals()">Continuar depois</button>
+  </div>
+</div>
+
+<div class="overlay" id="qc-bundles-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📦 Combos do pintor</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Pacotes com tinta + acessórios — mais barato que comprar separado.</div>
+    <div id="qc-bundles-list"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// COMMERCIAL FEATURES MODULE
+// ════════════════════════════════════════════════════════════
+(function(){
+  'use strict';
+
+  // ── Analytics ──────────────────────────────────────────────
+  const QC_SESSION = (function(){
+    try {
+      let s = sessionStorage.getItem('qc_sid');
+      if(!s){ s = Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('qc_sid', s); }
+      return s;
+    } catch(e){ return 'nosess_'+Date.now(); }
+  })();
+  const _utm = (function(){
+    try {
+      const p = new URLSearchParams(location.search);
+      const u = { source:p.get('utm_source'), medium:p.get('utm_medium'), campaign:p.get('utm_campaign') };
+      if(u.source) localStorage.setItem('qc_utm', JSON.stringify(u));
+      return JSON.parse(localStorage.getItem('qc_utm')||'{}');
+    } catch(e){ return {}; }
+  })();
+  let _eventQueue = [];
+  let _flushTimer = null;
+  function flushEvents(){
+    if(_eventQueue.length === 0) return;
+    const events = _eventQueue.splice(0, _eventQueue.length);
+    try {
+      const body = JSON.stringify({ events });
+      if(navigator.sendBeacon){
+        navigator.sendBeacon('/api/analytics', new Blob([body], { type:'application/json' }));
+      } else {
+        fetch('/api/analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body, keepalive:true }).catch(()=>{});
+      }
+    } catch(e){}
+  }
+  window.track = function(event_name, props){
+    try {
+      const ev = {
+        event_name,
+        event_props: props || {},
+        session_id: QC_SESSION,
+        user_id: (window.currentUser && window.currentUser.id) || null,
+        page: location.pathname + location.hash,
+        referrer: document.referrer || null,
+        utm_source: _utm.source || null,
+        utm_medium: _utm.medium || null,
+        utm_campaign: _utm.campaign || null,
+        ts: new Date().toISOString()
+      };
+      _eventQueue.push(ev);
+      if(_flushTimer) clearTimeout(_flushTimer);
+      _flushTimer = setTimeout(flushEvents, 1500);
+      if(_eventQueue.length >= 10) flushEvents();
+    } catch(e){}
+  };
+  window.addEventListener('beforeunload', flushEvents);
+  window.addEventListener('pagehide', flushEvents);
+
+  // Patch showScreen to emit page_view
+  const _origShowScreen = window.showScreen;
+  if(typeof _origShowScreen === 'function'){
+    window.showScreen = function(n){
+      try { track('page_view', { screen: n }); } catch(e){}
+      return _origShowScreen.apply(this, arguments);
+    };
+  }
+  // Initial page view (and SEO route handling) at the end of this IIFE.
+
+  // ── Subscription tiers ─────────────────────────────────────
+  const TIERS = {
+    free:    { name:'Free',    price:0,   commission:15, leadsPerDay:3,  features:['Perfil básico','Até 3 leads/dia','Comissão 15%'] },
+    pro:     { name:'PRO',     price:39,  commission:8,  leadsPerDay:99, features:['Badge PRO ✓','Leads ilimitados','Destaque no mapa','Comissão 8%','Chat IA + Orçamento IA'] },
+    premium: { name:'Premium', price:89,  commission:5,  leadsPerDay:99, features:['Tudo do PRO','5 boosts grátis/mês','Comissão 5%','Estatísticas avançadas','Prioridade em buscas'] },
+    studio:  { name:'Studio',  price:199, commission:3,  leadsPerDay:99, features:['Tudo do Premium','Multi-perfil (equipe)','API white-label','Suporte prioritário 24h','Comissão 3%'] }
+  };
+  let _selectedTier = 'pro';
+  let _userTier = 'free';
+  let _userTrialEndsAt = null;
+
+  async function loadUserSubscription(){
+    if(!window.currentUser || !window.getSupabase) return;
+    const sb = window.getSupabase(); if(!sb) return;
+    try {
+      const { data } = await sb.from('profiles').select('subscription_tier,subscription_status,trial_ends_at,referral_code,referral_credit').eq('id', window.currentUser.id).single();
+      if(data){
+        _userTier = data.subscription_tier || 'free';
+        _userTrialEndsAt = data.trial_ends_at;
+        window._qcReferralCode = data.referral_code || '';
+        window._qcReferralCredit = Number(data.referral_credit||0);
+      }
+    } catch(e){}
+  }
+  window.qcCurrentTier = () => _userTier;
+  window.qcHasTier = (min) => {
+    const order = ['free','pro','premium','studio'];
+    return order.indexOf(_userTier) >= order.indexOf(min);
+  };
+
+  // ── Paywall contextual ─────────────────────────────────────
+  let _paywallContext = '';
+  window.qcRequirePro = function(featureLabel, minTier){
+    minTier = minTier || 'pro';
+    if(window.qcHasTier(minTier)) return true;
+    _paywallContext = featureLabel || 'feature';
+    track('paywall_view', { feature: _paywallContext, required_tier: minTier });
+    const tInfo = TIERS[minTier];
+    document.getElementById('qc-paywall-title').textContent = 'Disponível no ' + tInfo.name;
+    document.getElementById('qc-paywall-msg').textContent = featureLabel ? ('"' + featureLabel + '" requer plano ' + tInfo.name + '.') : 'Faça upgrade para destravar.';
+    const feats = document.getElementById('qc-paywall-features');
+    feats.innerHTML = tInfo.features.map(f => '<div class="qc-paywall-feature">'+f+'</div>').join('');
+    _selectedTier = minTier;
+    closeModals();
+    showModal('qc-paywall-modal');
+    return false;
+  };
+
+  window.qcRenderTiers = function(){
+    const grid = document.getElementById('qc-tier-grid');
+    if(!grid) return;
+    grid.innerHTML = Object.keys(TIERS).map(k => {
+      const t = TIERS[k];
+      const rec = k==='pro' ? 'recommended' : '';
+      const sel = k===_selectedTier ? 'selected' : '';
+      const price = t.price===0 ? 'Grátis' : ('R$'+t.price+'<small>/mês</small>');
+      return '<button class="qc-tier-card '+rec+' '+sel+'" onclick="qcSelectTier(\''+k+'\')">' +
+        '<div class="qc-tier-name">'+t.name+'</div>' +
+        '<div class="qc-tier-price">'+price+'</div>' +
+        '<div class="qc-tier-bullets">Comissão '+t.commission+'% · '+(t.leadsPerDay>=99?'∞':t.leadsPerDay)+' leads/dia</div>' +
+        '</button>';
+    }).join('');
+    qcSelectTier(_selectedTier);
+  };
+  window.qcSelectTier = function(k){
+    _selectedTier = k;
+    document.querySelectorAll('.qc-tier-card').forEach(c => c.classList.remove('selected'));
+    const cards = document.querySelectorAll('.qc-tier-card');
+    const order = ['free','pro','premium','studio'];
+    const idx = order.indexOf(k);
+    if(cards[idx]) cards[idx].classList.add('selected');
+    const t = TIERS[k];
+    document.getElementById('qc-tier-features').innerHTML = t.features.map(f => '<div class="qc-paywall-feature">'+f+'</div>').join('');
+    const cta = document.getElementById('qc-tier-cta');
+    if(k==='free'){ cta.textContent = 'Continuar grátis'; }
+    else { cta.textContent = 'Começar trial grátis de 7 dias'; }
+    track('tier_selected', { tier: k });
+  };
+
+  window.qcStartCheckout = async function(){
+    if(_selectedTier==='free'){ closeModals(); window.toast && window.toast('Você está no plano Free'); return; }
+    if(!window.currentUser){ window.toast && window.toast('Faça login primeiro'); return; }
+    track('checkout_started', { tier: _selectedTier });
+    const sb = window.getSupabase && window.getSupabase();
+    if(sb){
+      const trialEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString();
+      try {
+        await sb.from('profiles').update({
+          subscription_tier: _selectedTier,
+          subscription_status: 'trialing',
+          trial_ends_at: trialEnd
+        }).eq('id', window.currentUser.id);
+        await sb.from('subscription_events').insert({
+          user_id: window.currentUser.id,
+          event_type: 'trial_started',
+          from_tier: _userTier,
+          to_tier: _selectedTier,
+          amount: TIERS[_selectedTier].price
+        });
+        _userTier = _selectedTier; _userTrialEndsAt = trialEnd;
+      } catch(e){ console.warn('subscription update failed', e); }
+    }
+    closeModals();
+    window.toast && window.toast('🎉 Trial de 7 dias ativado!');
+    track('trial_started', { tier: _selectedTier });
+    // TODO: integrar gateway real (Mercado Pago / Stripe / Asaas) capturando cartão upfront.
+  };
+
+  // ── Lead boost ─────────────────────────────────────────────
+  let _boostQuoteId = null;
+  window.qcOpenBoost = function(quoteId, amount){
+    if(!window.qcRequirePro('Boost de Lead Exclusivo','pro')) return;
+    _boostQuoteId = quoteId;
+    const baseAmount = amount || (_userTier==='premium'?0:_userTier==='pro'?8:12);
+    document.getElementById('qc-boost-amount').textContent = baseAmount;
+    track('boost_view', { quote_id: quoteId, amount: baseAmount });
+    showModal('qc-boost-modal');
+  };
+  window.qcConfirmBoost = async function(){
+    if(!_boostQuoteId || !window.currentUser) return;
+    const sb = window.getSupabase && window.getSupabase();
+    if(!sb){ window.toast && window.toast('Erro de conexão'); return; }
+    const amount = Number(document.getElementById('qc-boost-amount').textContent);
+    const expires = new Date(Date.now()+48*60*60*1000).toISOString();
+    try {
+      await sb.from('lead_boosts').insert({
+        painter_id: window.currentUser.id,
+        quote_id: _boostQuoteId,
+        amount,
+        status: amount===0 ? 'paid' : 'pending'
+      });
+      await sb.from('quotes').update({
+        boosted_by: window.currentUser.id,
+        boost_expires_at: expires,
+        lead_type: 'exclusive',
+        is_exclusive: true
+      }).eq('id', _boostQuoteId);
+      track('boost_purchased', { quote_id: _boostQuoteId, amount });
+      closeModals();
+      window.toast && window.toast('⚡ Lead boosted! Você tem exclusividade por 48h.');
+    } catch(e){ console.warn(e); window.toast && window.toast('Erro no boost'); }
+  };
+
+  // ── Points header pill ─────────────────────────────────────
+  async function refreshPointsPill(){
+    if(!window.currentUser) return;
+    const sb = window.getSupabase && window.getSupabase(); if(!sb) return;
+    try {
+      const { data } = await sb.from('points').select('amount,type').eq('user_id', window.currentUser.id);
+      const total = (data||[]).reduce((s,p)=> s + (p.type==='debit' ? -p.amount : p.amount), 0);
+      const pill = document.getElementById('qc-points-pill');
+      if(pill){
+        pill.style.display = 'inline-flex';
+        pill.innerHTML = '⭐ <span>'+total.toLocaleString('pt-BR')+'</span>';
+        pill.dataset.total = total;
+      }
+    } catch(e){}
+  }
+  function pointsLevel(total){
+    if(total >= 5000) return { name:'Ouro', color:'#ffd700' };
+    if(total >= 1500) return { name:'Prata', color:'#c0c0c0' };
+    if(total >= 300)  return { name:'Bronze', color:'#cd7f32' };
+    return { name:'Iniciante', color:'#999' };
+  }
+  window.qcShowPointsDetail = function(){
+    const pill = document.getElementById('qc-points-pill');
+    const total = Number(pill?.dataset.total || 0);
+    const lvl = pointsLevel(total);
+    window.toast && window.toast('⭐ '+total+' pontos · Nível '+lvl.name);
+    track('points_pill_click', { total, level: lvl.name });
+  };
+  function mountPointsPill(){
+    if(document.getElementById('qc-points-pill')) return;
+    const topNav = document.querySelector('.top-nav');
+    if(!topNav) return;
+    const btn = document.createElement('button');
+    btn.id = 'qc-points-pill';
+    btn.className = 'qc-points-pill';
+    btn.style.display = 'none';
+    btn.onclick = window.qcShowPointsDetail;
+    btn.innerHTML = '⭐ 0';
+    const firstBtn = topNav.querySelector('button, .nav-btn');
+    if(firstBtn) topNav.insertBefore(btn, firstBtn);
+    else topNav.appendChild(btn);
+  }
+
+  // ── Referrals 2-sided + WhatsApp share ─────────────────────
+  function makeReferralCode(){
+    return (Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,6)).toUpperCase();
+  }
+  window.qcOpenReferral = async function(){
+    if(!window.currentUser){ window.toast && window.toast('Faça login'); return; }
+    const sb = window.getSupabase && window.getSupabase();
+    let code = window._qcReferralCode;
+    if(!code && sb){
+      code = makeReferralCode();
+      try { await sb.from('profiles').update({ referral_code: code }).eq('id', window.currentUser.id); window._qcReferralCode = code; } catch(e){}
+    }
+    document.getElementById('qc-ref-code').textContent = code || '--------';
+    document.getElementById('qc-ref-credit').textContent = (Number(window._qcReferralCredit||0)).toFixed(2).replace('.',',');
+    if(sb){
+      try {
+        const { count: total } = await sb.from('referrals').select('*', { count:'exact', head:true }).eq('referrer_id', window.currentUser.id);
+        const { count: paid } = await sb.from('referrals').select('*', { count:'exact', head:true }).eq('referrer_id', window.currentUser.id).eq('reward_status','paid');
+        document.getElementById('qc-ref-count').textContent = total||0;
+        document.getElementById('qc-ref-paid').textContent = paid||0;
+      } catch(e){}
+    }
+    track('referral_view');
+    showModal('qc-referral-modal');
+  };
+  function referralUrl(){
+    const code = window._qcReferralCode || '';
+    return location.origin + '/?ref=' + code;
+  }
+  window.qcShareReferralWA = function(){
+    const url = referralUrl();
+    const txt = 'Oi! Te indico o QueroUmaCor — o app dos pintores. Usa meu código pra ganhar R$20 de desconto: '+url;
+    track('referral_share', { channel:'whatsapp' });
+    window.open('https://wa.me/?text='+encodeURIComponent(txt), '_blank');
+  };
+  window.qcCopyReferral = function(){
+    const url = referralUrl();
+    if(navigator.clipboard){ navigator.clipboard.writeText(url).then(()=> window.toast && window.toast('Link copiado!')); }
+    else { prompt('Copie:', url); }
+    track('referral_share', { channel:'copy' });
+  };
+  window.qcShareViaWhatsApp = function(text){
+    track('whatsapp_share', { text_len: (text||'').length });
+    window.open('https://wa.me/?text='+encodeURIComponent(text||''), '_blank');
+  };
+  // Capture inbound referral code from URL on first load
+  (function captureInboundRef(){
+    try {
+      const ref = new URLSearchParams(location.search).get('ref');
+      if(ref){ localStorage.setItem('qc_inbound_ref', ref); track('referral_inbound', { code: ref }); }
+    } catch(e){}
+  })();
+
+  // ── Onboarding checklist with aha moment ───────────────────
+  async function checkOnboarding(){
+    if(!window.currentUser) return;
+    const sb = window.getSupabase && window.getSupabase(); if(!sb) return;
+    try {
+      const { data: prof } = await sb.from('profiles').select('avatar_url,city,specialties,phone,subscription_tier').eq('id', window.currentUser.id).single();
+      if(!prof) return;
+      const steps = [
+        { key:'avatar',      label:'Adicionar foto de perfil',           done: !!prof.avatar_url, action:()=>{ closeModals(); window.showScreen && window.showScreen('myprofile'); } },
+        { key:'city',        label:'Definir cidade de atendimento',      done: !!prof.city,       action:()=>{ closeModals(); window.showScreen && window.showScreen('myprofile'); } },
+        { key:'specialties', label:'Selecionar especialidades',          done: !!prof.specialties,action:()=>{ closeModals(); window.showScreen && window.showScreen('myprofile'); } },
+        { key:'phone',       label:'Confirmar WhatsApp',                 done: !!prof.phone,      action:()=>{ closeModals(); window.showScreen && window.showScreen('myprofile'); } },
+        { key:'first_post',  label:'Postar primeira obra',               done: false,             action:()=>{ closeModals(); window.showScreen && window.showScreen('feed'); } }
+      ];
+      const dismissed = localStorage.getItem('qc_onb_dismissed_at');
+      const allDone = steps.every(s => s.done);
+      if(allDone){ localStorage.setItem('qc_onb_done','1'); return; }
+      if(dismissed && (Date.now() - Number(dismissed)) < 6*60*60*1000) return; // re-show every 6h
+      renderOnboarding(steps);
+    } catch(e){}
+  }
+  function renderOnboarding(steps){
+    const cont = document.getElementById('qc-onb-steps');
+    if(!cont) return;
+    const done = steps.filter(s => s.done).length;
+    const pct = Math.round((done / steps.length) * 100);
+    document.getElementById('qc-onb-progress-fg').style.width = pct + '%';
+    cont.innerHTML = steps.map((s,i)=>
+      '<div class="qc-onb-step '+(s.done?'done':'')+'" onclick="window.__qcOnbActions['+i+']()">'
+      + '<div class="qc-onb-check">'+(s.done?'✓':(i+1))+'</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--ink);flex:1;">'+s.label+'</div>'
+      + (s.done?'':'<div style="font-size:11px;color:var(--p1);font-weight:700;">›</div>')
+      + '</div>'
+    ).join('');
+    window.__qcOnbActions = steps.map(s => s.action);
+    document.getElementById('qc-onb-title').textContent = done===0 ? '👋 Bem-vindo!' : ('Quase lá — '+pct+'%');
+    showModal('qc-onboarding-modal');
+    localStorage.setItem('qc_onb_dismissed_at', String(Date.now()));
+    track('onboarding_shown', { progress: pct });
+  }
+
+  // ── Public profile SEO route (/p/{slug}) ───────────────────
+  async function handleSeoRoute(){
+    const m = location.pathname.match(/^\/p\/([a-z0-9\-]+)$/i);
+    if(!m) return false;
+    const slug = m[1];
+    track('seo_profile_view', { slug });
+    const sb = window.getSupabase && window.getSupabase();
+    if(!sb) return false;
+    try {
+      const { data: slugRow } = await sb.from('profile_slugs').select('user_id').eq('slug', slug).single();
+      if(slugRow && slugRow.user_id && typeof window.openProfile === 'function'){
+        await window.openProfile(slugRow.user_id);
+        return true;
+      }
+    } catch(e){}
+    return false;
+  }
+
+  // ── Marketplace: coupons + free shipping bar + bundles ─────
+  const FREE_SHIPPING_THRESHOLD = 199;
+  let _appliedCoupon = null;
+  window.qcApplyCoupon = async function(){
+    const input = document.getElementById('qc-coupon-input');
+    if(!input) return;
+    const code = (input.value||'').trim().toUpperCase();
+    if(!code){ return; }
+    const sb = window.getSupabase && window.getSupabase();
+    if(!sb){ return; }
+    try {
+      const { data } = await sb.from('coupons').select('*').eq('code', code).eq('active', true).single();
+      if(!data){ window.toast && window.toast('Cupom inválido'); track('coupon_invalid', { code }); return; }
+      if(data.valid_until && new Date(data.valid_until) < new Date()){ window.toast && window.toast('Cupom expirado'); return; }
+      if(data.max_uses && data.uses_count >= data.max_uses){ window.toast && window.toast('Cupom esgotado'); return; }
+      _appliedCoupon = data;
+      window.toast && window.toast('✓ Cupom aplicado!');
+      track('coupon_applied', { code, type: data.type, value: data.value });
+      renderCartExtras();
+    } catch(e){ window.toast && window.toast('Cupom inválido'); }
+  };
+  function cartSubtotal(){
+    try {
+      const ci = JSON.parse(localStorage.getItem('quc_cart')||'[]');
+      return ci.reduce((s,i)=> s + Number(i.price||0)*(Number(i.qty||1)), 0);
+    } catch(e){ return 0; }
+  }
+  function renderCartExtras(){
+    const host = document.getElementById('qc-cart-extras');
+    if(!host) return;
+    const sub = cartSubtotal();
+    const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - sub);
+    const pct = Math.min(100, Math.round((sub / FREE_SHIPPING_THRESHOLD) * 100));
+    let coupHtml;
+    if(_appliedCoupon){
+      const valLabel = _appliedCoupon.type==='percentage' ? (_appliedCoupon.value+'% off') : ('R$'+_appliedCoupon.value+' off');
+      coupHtml = '<div style="font-size:12px;color:#06d6a0;font-weight:700;margin:4px 0;">✓ '+_appliedCoupon.code+' aplicado ('+valLabel+') <a href="#" onclick="event.preventDefault();qcClearCoupon()" style="color:var(--muted);font-weight:500;margin-left:6px;">remover</a></div>';
+    } else {
+      coupHtml = '<div class="qc-coupon-row"><input id="qc-coupon-input" placeholder="Tem cupom?"><button onclick="qcApplyCoupon()">Aplicar</button></div>';
+    }
+    let shipHtml;
+    if(remaining<=0){
+      shipHtml = '<div class="qc-free-ship-bar">🚚 Frete grátis aplicado!</div>';
+    } else {
+      shipHtml = '<div class="qc-free-ship-bar">🚚 Falta R$'+remaining.toFixed(2).replace('.',',')+' p/ frete grátis<div class="qc-free-ship-bar-bg"><div class="qc-free-ship-bar-fg" style="width:'+pct+'%"></div></div></div>';
+    }
+    host.innerHTML = shipHtml + coupHtml + '<button onclick="qcOpenBundles()" style="width:100%;padding:9px;background:transparent;border:1px dashed var(--border);border-radius:10px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;font-family:\'DM Sans\',sans-serif;margin-top:4px;">📦 Ver combos com desconto</button>';
+  }
+  window.qcClearCoupon = function(){ _appliedCoupon = null; renderCartExtras(); };
+  window.qcCouponDiscount = function(subtotal){
+    if(!_appliedCoupon) return 0;
+    if(_appliedCoupon.type==='percentage') return subtotal * (_appliedCoupon.value/100);
+    if(_appliedCoupon.type==='fixed') return Math.min(subtotal, _appliedCoupon.value);
+    return 0;
+  };
+  window.qcShippingCost = function(subtotal){
+    if(_appliedCoupon && _appliedCoupon.type==='free_shipping') return 0;
+    if(subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
+    return 19.90;
+  };
+
+  // Patch renderCartModal to inject extras host once
+  function injectCartExtrasHost(){
+    const container = document.getElementById('cart-items-container');
+    if(!container) return;
+    if(document.getElementById('qc-cart-extras')) return;
+    const host = document.createElement('div');
+    host.id = 'qc-cart-extras';
+    host.style.cssText = 'margin:8px 0;';
+    container.parentNode.insertBefore(host, container.nextSibling);
+  }
+  const _origRenderCart = window.renderCartModal;
+  if(typeof _origRenderCart === 'function'){
+    window.renderCartModal = function(){
+      const r = _origRenderCart.apply(this, arguments);
+      injectCartExtrasHost();
+      renderCartExtras();
+      return r;
+    };
+  }
+
+  // ── Bundles ────────────────────────────────────────────────
+  window.qcOpenBundles = async function(){
+    track('bundles_view');
+    const sb = window.getSupabase && window.getSupabase();
+    const list = document.getElementById('qc-bundles-list');
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;">Carregando...</div>';
+    showModal('qc-bundles-modal');
+    if(!sb){ list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;">Sem combos disponíveis.</div>'; return; }
+    try {
+      const { data } = await sb.from('product_bundles').select('*').eq('active', true).limit(10);
+      if(!data || !data.length){ list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;">Sem combos disponíveis.</div>'; return; }
+      list.innerHTML = data.map(b => {
+        const img = b.image_url ? '<div class="qc-bundle-img" style="background:url('+b.image_url+') center/cover"></div>' : '<div class="qc-bundle-img"></div>';
+        return '<div class="qc-bundle-card" onclick="qcAddBundle(\''+b.id+'\','+Number(b.price)+',\''+(b.name||'').replace(/\x27/g,"\\\x27")+'\')">'
+        + img
+        + '<div class="qc-bundle-info"><div class="qc-bundle-name">'+(b.name||'Combo')+'</div>'
+        + '<div style="font-size:11px;color:var(--muted);">'+(b.description||'')+'</div>'
+        + '<div class="qc-bundle-price">R$'+Number(b.price).toFixed(2).replace('.',',')+'</div>'
+        + (b.discount_pct?'<div class="qc-bundle-discount">-'+b.discount_pct+'%</div>':'')
+        + '</div></div>';
+      }).join('');
+    } catch(e){ list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;">Erro ao carregar combos.</div>'; }
+  };
+  window.qcAddBundle = function(bundleId, price, name){
+    try {
+      const cart = JSON.parse(localStorage.getItem('quc_cart')||'[]');
+      cart.push({ id: 'bundle:'+bundleId, name: name||'Combo', price, qty:1, is_bundle:true, bundle_id: bundleId });
+      localStorage.setItem('quc_cart', JSON.stringify(cart));
+      track('bundle_added', { bundle_id: bundleId, price });
+      window.toast && window.toast('Combo adicionado!');
+      closeModals();
+      if(typeof window.renderCartModal === 'function'){ window.renderCartModal(); showModal('cart-modal'); }
+    } catch(e){}
+  };
+
+  // ── Cart abandonment tracking ──────────────────────────────
+  let _cartTouched = false;
+  window.qcTouchCart = function(){ _cartTouched = true; };
+  async function snapshotAbandonedCart(){
+    if(!_cartTouched || !window.currentUser) return;
+    let items;
+    try { items = JSON.parse(localStorage.getItem('quc_cart')||'[]'); } catch(e){ items = []; }
+    if(!items.length) return;
+    const total = items.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0);
+    const sb = window.getSupabase && window.getSupabase(); if(!sb) return;
+    try {
+      await sb.from('cart_abandoned').insert({
+        user_id: window.currentUser.id,
+        items,
+        total
+      });
+      track('cart_abandoned', { total, items_count: items.length });
+    } catch(e){}
+  }
+  window.addEventListener('beforeunload', snapshotAbandonedCart);
+  // Hook into add-to-cart events
+  document.addEventListener('click', (e)=>{
+    const t = e.target;
+    if(t && t.textContent && /adicionar ao carrinho/i.test(t.textContent)){ _cartTouched = true; }
+  }, true);
+
+  // ── Sponsored ad slot in feed ──────────────────────────────
+  async function loadSponsoredAd(){
+    const sb = window.getSupabase && window.getSupabase(); if(!sb) return;
+    const feed = document.getElementById('screen-feed');
+    if(!feed || document.getElementById('qc-ad-slot')) return;
+    try {
+      const now = new Date().toISOString();
+      const { data } = await sb.from('sponsored_ads').select('*').eq('active', true).eq('placement','feed').lte('starts_at', now).gte('ends_at', now).limit(1);
+      if(!data || !data.length) return;
+      const ad = data[0];
+      const slot = document.createElement('div');
+      slot.id = 'qc-ad-slot';
+      slot.className = 'qc-ad-slot';
+      slot.innerHTML = '<span class="qc-ad-label">Patrocinado</span>' + (ad.image_url?'<img src="'+ad.image_url+'" alt="'+(ad.sponsor_name||'')+'">':'<div style="padding:30px;text-align:center;font-weight:700;">'+(ad.sponsor_name||'Anúncio')+'</div>');
+      slot.onclick = ()=>{
+        track('ad_click', { sponsor: ad.sponsor_name, ad_id: ad.id });
+        try { sb.rpc && sb.rpc('increment_ad_click', { ad_id_in: ad.id }); } catch(e){}
+        sb.from('sponsored_ads').update({ clicks_count: (ad.clicks_count||0)+1 }).eq('id', ad.id).then(()=>{}).catch(()=>{});
+        if(ad.target_url) window.open(ad.target_url, '_blank');
+      };
+      const insertPt = feed.querySelector('.feed-mosaic, .feed-list, .scroll-area') || feed;
+      insertPt.insertBefore(slot, insertPt.firstChild);
+      track('ad_impression', { sponsor: ad.sponsor_name, ad_id: ad.id });
+      sb.from('sponsored_ads').update({ impressions_count: (ad.impressions_count||0)+1 }).eq('id', ad.id).then(()=>{}).catch(()=>{});
+    } catch(e){}
+  }
+
+  // ── Top-nav binding for pro-banner (replace toast checkout) ─
+  function rebindProBanner(){
+    document.querySelectorAll('.pro-banner').forEach(b => {
+      b.onclick = ()=>{ track('pro_banner_click'); qcRenderTiers(); showModal('qc-tiers-modal'); };
+    });
+    // Replace legacy pro-modal CTA with new tiers modal
+    const legacyCta = document.querySelector('#pro-modal .pro-cta');
+    if(legacyCta){
+      legacyCta.textContent = 'Ver todos os planos';
+      legacyCta.onclick = ()=>{ closeModals(); qcRenderTiers(); showModal('qc-tiers-modal'); };
+    }
+  }
+
+  // ── Wire up on auth ready ─────────────────────────────────
+  async function onAuthReady(){
+    await loadUserSubscription();
+    mountPointsPill();
+    refreshPointsPill();
+    rebindProBanner();
+    loadSponsoredAd();
+    setTimeout(checkOnboarding, 1500);
+  }
+
+  // Poll briefly for currentUser to be set by initAuth, then run
+  let _waitTries = 0;
+  function waitForAuth(){
+    if(window.currentUser){ onAuthReady(); return; }
+    if(_waitTries++ > 40) return; // ~20s max
+    setTimeout(waitForAuth, 500);
+  }
+
+  // SEO route handler + initial page_view
+  window.addEventListener('DOMContentLoaded', async ()=>{
+    track('page_view', { screen: 'app_load' });
+    track('app_loaded', { utm_source: _utm.source||null });
+    waitForAuth();
+    handleSeoRoute();
+  });
+
+  // Expose for debugging
+  window.qcDebug = { TIERS, flushEvents, refreshPointsPill, loadSponsoredAd, checkOnboarding };
+})();
+</script>
+
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {

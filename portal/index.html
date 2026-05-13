@@ -71,6 +71,7 @@ const Dashboard = () => {
   const [regionData, setRegionData] = useState([]);
   const [recentMessages, setRecentMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bizKpis, setBizKpis] = useState({ mrr: 0, trials: 0, trialConv: 0, boostRev: 0, abandoned: 0 });
 
   useEffect(() => {
     (async () => {
@@ -81,6 +82,35 @@ const Dashboard = () => {
         sb.from('quotes').select('id, status, created_at').order('created_at', { ascending: false }).limit(20),
         sb.from('messages').select('id, content, created_at, sender_id').order('created_at', { ascending: false }).limit(5),
       ]);
+
+      // ── Business KPIs (subscriptions, boosts, abandoned carts) ──
+      try {
+        const nowIso = new Date().toISOString();
+        const since30 = new Date(Date.now() - 30*86400000).toISOString();
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const since24h = new Date(Date.now() - 24*3600000).toISOString();
+        const [planRes, profSubRes, subEvRes, boostRes, cartRes] = await Promise.all([
+          sb.from('plan_pricing').select('tier, price_monthly').eq('is_active', true),
+          sb.from('profiles').select('subscription_tier, subscription_status, trial_ends_at'),
+          sb.from('subscription_events').select('event_type, created_at').gte('created_at', since30),
+          sb.from('lead_boosts').select('amount, status, created_at').eq('status', 'paid').gte('created_at', monthStart),
+          sb.from('cart_abandoned').select('id', { count:'exact', head:true }).eq('recovered', false).gte('created_at', since24h),
+        ]);
+        const priceByTier = {};
+        (planRes.data || []).forEach(p => { priceByTier[p.tier] = Number(p.price_monthly) || 0; });
+        let mrr = 0, trials = 0;
+        (profSubRes.data || []).forEach(p => {
+          if (p.subscription_status === 'active' && p.subscription_tier && priceByTier[p.subscription_tier])
+            mrr += priceByTier[p.subscription_tier];
+          if (p.subscription_status === 'trialing' && p.trial_ends_at && p.trial_ends_at > nowIso) trials++;
+        });
+        const evs = subEvRes.data || [];
+        const trialStarted = evs.filter(e => e.event_type === 'trial_started').length;
+        const trialConverted = evs.filter(e => e.event_type === 'trial_converted' || e.event_type === 'trial_to_paid').length;
+        const trialConv = trialStarted > 0 ? Math.round(trialConverted / trialStarted * 100) : 0;
+        const boostRev = (boostRes.data || []).reduce((s,b) => s + (Number(b.amount) || 0), 0);
+        setBizKpis({ mrr, trials, trialConv, boostRev, abandoned: cartRes.count || 0 });
+      } catch(e){ console.warn('bizKpis error:', e?.message); }
 
       if(profilesRes.error) console.warn('Dashboard profiles error:', profilesRes.error.message);
       if(quotesRes.error) console.warn('Dashboard quotes error:', quotesRes.error.message);
@@ -132,11 +162,18 @@ const Dashboard = () => {
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
         <KPICard title="Perfis Cadastrados" value={stats.pintores.toLocaleString('pt-BR')} sub="no sistema" trend="" color={C.p6} />
         <KPICard title="Clientes" value={stats.clientes.toLocaleString('pt-BR')} sub="cadastrados" trend="" color={C.p3} />
         <KPICard title="Leads" value={stats.leads.toLocaleString('pt-BR')} sub="captados" trend="" color={C.p5} />
         <KPICard title="Orçamentos" value={stats.orcamentos.toLocaleString('pt-BR')} sub="solicitados" trend="" color={C.p1} />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16, marginBottom:24 }}>
+        <KPICard title="MRR" value={'R$ '+Number(bizKpis.mrr).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} sub="ativos/mes" trend="" color={C.p6} />
+        <KPICard title="Trials ativos" value={bizKpis.trials.toLocaleString('pt-BR')} sub="em periodo gratis" trend="" color={C.p7} />
+        <KPICard title="Conv. Trial→Pago" value={bizKpis.trialConv+'%'} sub="ultimos 30 dias" trend="" color={C.p3} />
+        <KPICard title="Receita Boosts" value={'R$ '+Number(bizKpis.boostRev).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} sub="mes corrente" trend="" color={C.p1} />
+        <KPICard title="Carrinhos abandonados" value={bizKpis.abandoned.toLocaleString('pt-BR')} sub="ultimas 24h" trend="" color={C.p4} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
         <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
@@ -1784,6 +1821,686 @@ const PedidosLoja = () => {
   );
 };
 
+// ══ ASSINATURAS ══
+const Assinaturas = () => {
+  const [rows, setRows] = useState([]);
+  const [plans, setPlans] = useState({});
+  const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [profRes, planRes] = await Promise.all([
+        window._sb.from('profiles').select('id, name, avatar_url, subscription_tier, subscription_status, trial_ends_at').not('subscription_tier','is',null).order('subscription_status'),
+        window._sb.from('plan_pricing').select('tier, price_monthly, name'),
+      ]);
+      const map = {};
+      (planRes.data || []).forEach(p => { map[p.tier] = p; });
+      setPlans(map);
+      setRows(profRes.data || []);
+    } catch(e){ console.warn('Assinaturas load:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const cancelar = async (id) => {
+    if(!confirm('Cancelar assinatura deste usuario?')) return;
+    await window._sb.from('profiles').update({ subscription_status:'canceled' }).eq('id', id);
+    load();
+  };
+  const forcarUpgrade = async (id, current) => {
+    const tiers = Object.keys(plans);
+    if(!tiers.length) return alert('Sem planos cadastrados');
+    const novo = prompt('Tier alvo ('+tiers.join('/')+')', current || tiers[0]);
+    if(!novo || !plans[novo]) return;
+    await window._sb.from('profiles').update({ subscription_tier:novo, subscription_status:'active' }).eq('id', id);
+    load();
+  };
+  const concederDias = async (id, current) => {
+    const dias = parseInt(prompt('Quantos dias gratis adicionais?', '7'));
+    if(!dias || dias <= 0) return;
+    const base = current ? new Date(current) : new Date();
+    const novo = new Date(base.getTime() + dias*86400000).toISOString();
+    await window._sb.from('profiles').update({ subscription_status:'trialing', trial_ends_at: novo }).eq('id', id);
+    load();
+  };
+
+  const filtered = rows.filter(r => filter==='all' ? true : (r.subscription_status||'').toLowerCase() === filter);
+  const statusColor = { trialing:C.p7, active:C.p6, canceled:C.muted, past_due:C.p4 };
+  const filtros = [['all','Todos'],['trialing','Trialing'],['active','Active'],['canceled','Canceled'],['past_due','Past Due']];
+
+  return (
+    <div style={{ background:C.white, borderRadius:16, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+        <div style={{ fontWeight:700, color:C.ink }}>💳 Assinaturas ({filtered.length})</div>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {filtros.map(([k,l]) => (
+            <button key={k} onClick={()=>setFilter(k)} style={{ background: filter===k?C.p1:C.cream, color: filter===k?'#fff':C.ink, border:'none', borderRadius:8, padding:'6px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando assinaturas...</div> :
+       filtered.length === 0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:30 }}>Nenhuma assinatura nesse filtro.</div> : (
+      <div style={{ overflowX:'auto' }}>
+      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:800 }}>
+        <thead><tr style={{ borderBottom:'2px solid '+C.border }}>
+          {['Usuario','Plano','Status','Trial ate','MRR','Acoes'].map(h => (
+            <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {filtered.map(r => {
+            const plan = plans[r.subscription_tier];
+            const mrr = (r.subscription_status === 'active' && plan) ? Number(plan.price_monthly) : 0;
+            const st = (r.subscription_status||'').toLowerCase();
+            return (
+              <tr key={r.id} style={{ borderBottom:'1px solid '+C.border }}>
+                <td style={{ padding:'10px 12px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background:C.p1+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, color:C.p1, fontSize:13 }}>
+                      {r.avatar_url ? <img src={r.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (r.name||'?')[0]}
+                    </div>
+                    <span style={{ fontWeight:600 }}>{r.name || '—'}</span>
+                  </div>
+                </td>
+                <td style={{ padding:'10px 12px' }}>{plan?.name || r.subscription_tier || '—'}</td>
+                <td style={{ padding:'10px 12px' }}><span style={{ background:(statusColor[st]||C.muted)+'22', color:statusColor[st]||C.muted, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{st || '—'}</span></td>
+                <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{r.trial_ends_at ? new Date(r.trial_ends_at).toLocaleDateString('pt-BR') : '—'}</td>
+                <td style={{ padding:'10px 12px', fontWeight:700, color:C.p1 }}>R$ {mrr.toFixed(2).replace('.',',')}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    <button onClick={()=>forcarUpgrade(r.id, r.subscription_tier)} style={{ background:C.p3, color:'#fff', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Upgrade</button>
+                    <button onClick={()=>concederDias(r.id, r.trial_ends_at)} style={{ background:C.p7, color:C.ink, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>+Dias grátis</button>
+                    <button onClick={()=>cancelar(r.id)} style={{ background:C.p4, color:'#fff', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Cancelar</button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      )}
+    </div>
+  );
+};
+
+// ══ PLANOS (plan_pricing CRUD) ══
+const Planos = () => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const blank = { tier:'', name:'', price_monthly:'', commission_pct:'', features:'[]', max_leads_per_day:'', is_active:true };
+  const [form, setForm] = useState(blank);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await window._sb.from('plan_pricing').select('*').order('price_monthly');
+      setRows(data || []);
+    } catch(e){ console.warn('Planos load:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    let features = [];
+    try { features = JSON.parse(form.features || '[]'); } catch(e){ return alert('Features deve ser JSON valido'); }
+    const payload = {
+      tier: form.tier.trim(), name: form.name.trim(),
+      price_monthly: parseFloat(String(form.price_monthly).replace(',','.')) || 0,
+      commission_pct: parseFloat(String(form.commission_pct).replace(',','.')) || 0,
+      features, max_leads_per_day: parseInt(form.max_leads_per_day) || null, is_active: !!form.is_active,
+    };
+    if(!payload.tier || !payload.name) return alert('Tier e nome obrigatorios');
+    try {
+      if(editing) await window._sb.from('plan_pricing').update(payload).eq('tier', editing);
+      else await window._sb.from('plan_pricing').insert(payload);
+      setEditing(null); setForm(blank); load();
+    } catch(e){ alert('Erro: '+e.message); }
+  };
+  const edit = (p) => { setEditing(p.tier); setForm({ tier:p.tier||'', name:p.name||'', price_monthly:p.price_monthly||'', commission_pct:p.commission_pct||'', features: JSON.stringify(p.features||[]), max_leads_per_day:p.max_leads_per_day||'', is_active: p.is_active!==false }); };
+  const del = async (tier) => { if(!confirm('Excluir plano '+tier+'?')) return; await window._sb.from('plan_pricing').delete().eq('tier', tier); load(); };
+
+  const inp = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
+  const lbl = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
+
+  return (
+    <div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, marginBottom:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>{editing ? 'Editar Plano: '+editing : 'Novo Plano'}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Tier *</label><input value={form.tier} disabled={!!editing} onChange={e=>setForm({...form,tier:e.target.value})} style={inp} placeholder="basic, pro, premium" /></div>
+          <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={inp} placeholder="Plano Pro" /></div>
+          <div><label style={lbl}>Preço mensal (R$)</label><input value={form.price_monthly} onChange={e=>setForm({...form,price_monthly:e.target.value})} style={inp} placeholder="49.90" /></div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Comissão (%)</label><input value={form.commission_pct} onChange={e=>setForm({...form,commission_pct:e.target.value})} style={inp} placeholder="10" /></div>
+          <div><label style={lbl}>Max leads/dia</label><input value={form.max_leads_per_day} onChange={e=>setForm({...form,max_leads_per_day:e.target.value})} style={inp} placeholder="10" /></div>
+          <div style={{ display:'flex', alignItems:'flex-end' }}><label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13 }}><input type="checkbox" checked={form.is_active} onChange={e=>setForm({...form,is_active:e.target.checked})} /> Ativo</label></div>
+        </div>
+        <div style={{ marginBottom:12 }}><label style={lbl}>Features (JSON)</label><textarea value={form.features} onChange={e=>setForm({...form,features:e.target.value})} style={{...inp, minHeight:60, fontFamily:'monospace'}} placeholder='["Recurso 1","Recurso 2"]' /></div>
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+          {editing && <button onClick={()=>{ setEditing(null); setForm(blank); }} style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'8px 18px', fontSize:13, cursor:'pointer', color:C.muted }}>Cancelar</button>}
+          <button onClick={save} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{editing?'Salvar':'Criar Plano'}</button>
+        </div>
+      </div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>📦 Planos cadastrados</div>
+        {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando...</div> :
+         rows.length===0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:20 }}>Nenhum plano cadastrado.</div> : (
+        <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:700 }}>
+          <thead><tr style={{ borderBottom:'2px solid '+C.border }}>
+            {['Tier','Nome','Preço/mes','Comissão','Max leads/dia','Features','Ativo','Acoes'].map(h => (
+              <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {rows.map(p => (
+              <tr key={p.tier} style={{ borderBottom:'1px solid '+C.border }}>
+                <td style={{ padding:'10px 12px', fontWeight:700 }}>{p.tier}</td>
+                <td style={{ padding:'10px 12px' }}>{p.name}</td>
+                <td style={{ padding:'10px 12px', color:C.p1, fontWeight:700 }}>R$ {Number(p.price_monthly||0).toFixed(2).replace('.',',')}</td>
+                <td style={{ padding:'10px 12px' }}>{Number(p.commission_pct||0).toFixed(1)}%</td>
+                <td style={{ padding:'10px 12px' }}>{p.max_leads_per_day ?? '—'}</td>
+                <td style={{ padding:'10px 12px', fontSize:11, color:C.muted }}>{(p.features||[]).length} itens</td>
+                <td style={{ padding:'10px 12px' }}>{p.is_active ? <span style={{ background:C.p6+'22', color:C.p6, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Sim</span> : <span style={{ color:C.muted, fontSize:11 }}>Não</span>}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  <button onClick={()=>edit(p)} style={{ background:C.cream, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600, marginRight:6 }}>Editar</button>
+                  <button onClick={()=>del(p.tier)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, color:'#e63946' }}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ══ CUPONS ══
+const Cupons = () => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const blank = { code:'', type:'percent', value:'', min_order:'', max_uses:'', valid_until:'', active:true };
+  const [form, setForm] = useState(blank);
+
+  const load = async () => {
+    setLoading(true);
+    try { const { data } = await window._sb.from('coupons').select('*').order('created_at', { ascending:false }); setRows(data||[]); }
+    catch(e){ console.warn('Cupons load:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const gen = () => Math.random().toString(36).slice(2,8).toUpperCase();
+  const save = async () => {
+    const code = (form.code || gen()).toUpperCase();
+    const payload = {
+      code, type: form.type,
+      value: parseFloat(String(form.value).replace(',','.')) || 0,
+      min_order: parseFloat(String(form.min_order).replace(',','.')) || 0,
+      max_uses: parseInt(form.max_uses) || null,
+      valid_until: form.valid_until || null,
+      active: !!form.active,
+    };
+    try {
+      if(editing) await window._sb.from('coupons').update(payload).eq('id', editing);
+      else await window._sb.from('coupons').insert(payload);
+      setEditing(null); setForm(blank); load();
+    } catch(e){ alert('Erro: '+e.message); }
+  };
+  const edit = (c) => { setEditing(c.id); setForm({ code:c.code||'', type:c.type||'percent', value:c.value||'', min_order:c.min_order||'', max_uses:c.max_uses||'', valid_until: c.valid_until ? c.valid_until.slice(0,10) : '', active: c.active!==false }); };
+  const del = async (id) => { if(!confirm('Excluir cupom?')) return; await window._sb.from('coupons').delete().eq('id', id); load(); };
+
+  const inp = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
+  const lbl = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
+
+  return (
+    <div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, marginBottom:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>{editing ? 'Editar Cupom' : 'Novo Cupom'}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Código (vazio = gerar)</label><input value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} style={inp} placeholder="PROMO10" /></div>
+          <div><label style={lbl}>Tipo</label><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inp}><option value="percent">% Percentual</option><option value="fixed">R$ Fixo</option><option value="free_shipping">Frete grátis</option></select></div>
+          <div><label style={lbl}>Valor</label><input value={form.value} onChange={e=>setForm({...form,value:e.target.value})} style={inp} placeholder="10" /></div>
+          <div><label style={lbl}>Pedido mín. (R$)</label><input value={form.min_order} onChange={e=>setForm({...form,min_order:e.target.value})} style={inp} placeholder="0" /></div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Max usos</label><input value={form.max_uses} onChange={e=>setForm({...form,max_uses:e.target.value})} style={inp} placeholder="100" /></div>
+          <div><label style={lbl}>Válido até</label><input type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})} style={inp} /></div>
+          <div style={{ display:'flex', alignItems:'flex-end' }}><label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13 }}><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})} /> Ativo</label></div>
+        </div>
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+          {editing && <button onClick={()=>{ setEditing(null); setForm(blank); }} style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'8px 18px', fontSize:13, cursor:'pointer', color:C.muted }}>Cancelar</button>}
+          <button onClick={save} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{editing?'Salvar':'Criar Cupom'}</button>
+        </div>
+      </div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>🎟️ Cupons ({rows.length})</div>
+        {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando...</div> :
+         rows.length===0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:20 }}>Nenhum cupom cadastrado.</div> : (
+        <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:800 }}>
+          <thead><tr style={{ borderBottom:'2px solid '+C.border }}>
+            {['Código','Tipo','Valor','Pedido min','Usos','Válido até','Ativo','Acoes'].map(h => (
+              <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {rows.map(c => {
+              const pct = c.max_uses ? Math.min(100, Math.round((c.uses_count||0) / c.max_uses * 100)) : 0;
+              return (
+                <tr key={c.id} style={{ borderBottom:'1px solid '+C.border }}>
+                  <td style={{ padding:'10px 12px', fontFamily:'monospace', fontWeight:700, color:C.p1 }}>{c.code}</td>
+                  <td style={{ padding:'10px 12px' }}>{c.type}</td>
+                  <td style={{ padding:'10px 12px' }}>{c.type==='percent' ? (c.value+'%') : ('R$ '+Number(c.value||0).toFixed(2).replace('.',','))}</td>
+                  <td style={{ padding:'10px 12px' }}>R$ {Number(c.min_order||0).toFixed(2).replace('.',',')}</td>
+                  <td style={{ padding:'10px 12px', minWidth:120 }}>
+                    <div style={{ fontSize:11 }}>{c.uses_count||0}{c.max_uses?'/'+c.max_uses:''}</div>
+                    {c.max_uses && <div style={{ background:C.border, borderRadius:3, height:5, marginTop:3 }}><div style={{ background:pct>=100?C.p4:C.p6, height:5, borderRadius:3, width:pct+'%' }}></div></div>}
+                  </td>
+                  <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{c.valid_until ? new Date(c.valid_until).toLocaleDateString('pt-BR') : '—'}</td>
+                  <td style={{ padding:'10px 12px' }}>{c.active ? <span style={{ background:C.p6+'22', color:C.p6, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Sim</span> : <span style={{ color:C.muted, fontSize:11 }}>Não</span>}</td>
+                  <td style={{ padding:'10px 12px' }}>
+                    <button onClick={()=>edit(c)} style={{ background:C.cream, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600, marginRight:6 }}>Editar</button>
+                    <button onClick={()=>del(c.id)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, color:'#e63946' }}>×</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ══ ANUNCIOS PATROCINADOS ══
+const Anuncios = () => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const blank = { sponsor_name:'', image_url:'', target_url:'', placement:'feed', starts_at:'', ends_at:'', active:true };
+  const [form, setForm] = useState(blank);
+
+  const load = async () => {
+    setLoading(true);
+    try { const { data } = await window._sb.from('sponsored_ads').select('*').order('created_at', { ascending:false }); setRows(data||[]); }
+    catch(e){ console.warn('Anuncios load:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if(!form.sponsor_name.trim()) return alert('Sponsor obrigatorio');
+    const payload = { ...form, starts_at: form.starts_at || null, ends_at: form.ends_at || null };
+    try {
+      if(editing) await window._sb.from('sponsored_ads').update(payload).eq('id', editing);
+      else await window._sb.from('sponsored_ads').insert(payload);
+      setEditing(null); setForm(blank); load();
+    } catch(e){ alert('Erro: '+e.message); }
+  };
+  const edit = (a) => { setEditing(a.id); setForm({ sponsor_name:a.sponsor_name||'', image_url:a.image_url||'', target_url:a.target_url||'', placement:a.placement||'feed', starts_at: a.starts_at ? a.starts_at.slice(0,10) : '', ends_at: a.ends_at ? a.ends_at.slice(0,10) : '', active: a.active!==false }); };
+  const del = async (id) => { if(!confirm('Excluir anuncio?')) return; await window._sb.from('sponsored_ads').delete().eq('id', id); load(); };
+
+  const inp = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
+  const lbl = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
+
+  return (
+    <div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, marginBottom:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>{editing?'Editar Anúncio':'Novo Anúncio'}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Sponsor *</label><input value={form.sponsor_name} onChange={e=>setForm({...form,sponsor_name:e.target.value})} style={inp} /></div>
+          <div><label style={lbl}>Posição</label><select value={form.placement} onChange={e=>setForm({...form,placement:e.target.value})} style={inp}><option value="feed">Feed</option><option value="sidebar">Sidebar</option><option value="store">Loja</option><option value="banner">Banner topo</option></select></div>
+          <div><label style={lbl}>URL destino</label><input value={form.target_url} onChange={e=>setForm({...form,target_url:e.target.value})} style={inp} placeholder="https://..." /></div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>URL imagem</label><input value={form.image_url} onChange={e=>setForm({...form,image_url:e.target.value})} style={inp} placeholder="https://.../banner.png" /></div>
+          <div><label style={lbl}>Início</label><input type="date" value={form.starts_at} onChange={e=>setForm({...form,starts_at:e.target.value})} style={inp} /></div>
+          <div><label style={lbl}>Fim</label><input type="date" value={form.ends_at} onChange={e=>setForm({...form,ends_at:e.target.value})} style={inp} /></div>
+          <div style={{ display:'flex', alignItems:'flex-end' }}><label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13 }}><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})} /> Ativo</label></div>
+        </div>
+        {form.image_url && <div style={{ marginBottom:12 }}><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Preview</div><img src={form.image_url} style={{ maxHeight:90, borderRadius:8, border:'1px solid '+C.border }} /></div>}
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+          {editing && <button onClick={()=>{ setEditing(null); setForm(blank); }} style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'8px 18px', fontSize:13, cursor:'pointer', color:C.muted }}>Cancelar</button>}
+          <button onClick={save} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{editing?'Salvar':'Criar'}</button>
+        </div>
+      </div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>📣 Anúncios ({rows.length})</div>
+        {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando...</div> :
+         rows.length===0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:20 }}>Nenhum anúncio cadastrado.</div> : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:14 }}>
+          {rows.map(a => {
+            const imp = a.impressions_count || 0, clk = a.clicks_count || 0;
+            const ctr = imp > 0 ? (clk/imp*100).toFixed(2) : '0.00';
+            return (
+              <div key={a.id} style={{ background:C.cream, borderRadius:10, overflow:'hidden', border:'1px solid '+C.border }}>
+                {a.image_url ? <img src={a.image_url} style={{ width:'100%', height:120, objectFit:'cover', display:'block' }} /> : <div style={{ width:'100%', height:120, background:C.border, display:'flex', alignItems:'center', justifyContent:'center', color:C.muted, fontSize:12 }}>sem imagem</div>}
+                <div style={{ padding:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <div style={{ fontWeight:700, fontSize:13 }}>{a.sponsor_name}</div>
+                    <span style={{ background:a.active?C.p6+'22':C.border, color:a.active?C.p6:C.muted, borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:600 }}>{a.active?'Ativo':'Off'}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:C.muted, marginBottom:8 }}>{a.placement}</div>
+                  <div style={{ display:'flex', gap:10, fontSize:11, marginBottom:10 }}>
+                    <div><b>{imp.toLocaleString('pt-BR')}</b> impr.</div>
+                    <div><b>{clk.toLocaleString('pt-BR')}</b> clicks</div>
+                    <div style={{ color:C.p1, fontWeight:700 }}>CTR {ctr}%</div>
+                  </div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={()=>edit(a)} style={{ flex:1, background:C.white, border:'1px solid '+C.border, borderRadius:6, padding:'5px', fontSize:11, cursor:'pointer', fontWeight:600 }}>Editar</button>
+                    <button onClick={()=>del(a.id)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:6, padding:'5px 10px', fontSize:11, cursor:'pointer', color:'#e63946' }}>×</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ══ ANALYTICS PRO (funil + eventos + UTM) ══
+const AnalyticsPro = () => {
+  const [events, setEvents] = useState([]);
+  const [funnel, setFunnel] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const since = new Date(Date.now() - 30*86400000).toISOString();
+        const { data } = await window._sb.from('analytics_events').select('event_name, utm_source, created_at').gte('created_at', since).limit(20000);
+        const evs = data || [];
+        setEvents(evs);
+
+        const stages = ['signup','first_post','first_quote_sent','first_quote_accepted','first_payment'];
+        const stageLabels = { signup:'Cadastro', first_post:'Primeiro Post', first_quote_sent:'Primeiro Orçamento', first_quote_accepted:'Orçamento Aceito', first_payment:'Primeiro Pagamento' };
+        const counts = {};
+        stages.forEach(s => { counts[s] = evs.filter(e => e.event_name === s).length; });
+        const base = counts[stages[0]] || 1;
+        setFunnel(stages.map(s => ({ key:s, label:stageLabels[s], n:counts[s], pct: Math.round(counts[s]/base*100) })));
+      } catch(e){ console.warn('AnalyticsPro:', e?.message); }
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <div style={{ padding:20, color:C.muted }}>Carregando analytics avançado...</div>;
+  if (events.length === 0) return (
+    <div style={{ background:C.white, borderRadius:16, padding:40, textAlign:'center', color:C.muted, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+      Nenhum evento de analytics nos últimos 30 dias.
+    </div>
+  );
+
+  // Daily series
+  const byDay = {};
+  events.forEach(e => {
+    if(!e.created_at) return;
+    const d = e.created_at.slice(0,10);
+    byDay[d] = (byDay[d] || 0) + 1;
+  });
+  const days = Object.keys(byDay).sort();
+  const maxDay = Math.max(...Object.values(byDay), 1);
+
+  // Top events
+  const evCount = {};
+  events.forEach(e => { evCount[e.event_name] = (evCount[e.event_name]||0)+1; });
+  const topEvents = Object.entries(evCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // UTM
+  const utmCount = {};
+  events.forEach(e => { const u = e.utm_source || '(direct)'; utmCount[u] = (utmCount[u]||0)+1; });
+  const utmList = Object.entries(utmCount).sort((a,b)=>b[1]-a[1]);
+  const utmTotal = utmList.reduce((s,[,n])=>s+n, 0) || 1;
+
+  return (
+    <div>
+      <div style={{ background:C.white, borderRadius:16, padding:20, marginBottom:16, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:16 }}>📊 Eventos por dia (últimos 30 dias)</div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:3, height:120 }}>
+          {days.map(d => (
+            <div key={d} title={d+': '+byDay[d]} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+              <div style={{ background:C.p1, borderRadius:3, width:'100%', height: Math.max(4, byDay[d]/maxDay*100)+'px' }}></div>
+              <div style={{ fontSize:9, color:C.muted, transform:'rotate(-60deg)', transformOrigin:'center', whiteSpace:'nowrap' }}>{d.slice(5)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16, marginBottom:16 }}>
+        <div style={{ background:C.white, borderRadius:16, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontWeight:700, marginBottom:16 }}>🎯 Funil de Conversão</div>
+          {funnel.map((s,i) => (
+            <div key={s.key} style={{ marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                <span style={{ fontSize:13 }}>{i+1}. {s.label}</span>
+                <span style={{ fontSize:13, fontWeight:700 }}>{s.n.toLocaleString('pt-BR')} <span style={{ color:C.muted, fontWeight:400 }}>({s.pct}%)</span></span>
+              </div>
+              <div style={{ background:C.border, borderRadius:4, height:8 }}><div style={{ background:C.p1, height:8, borderRadius:4, width: Math.max(s.pct,2)+'%' }}></div></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:C.white, borderRadius:16, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontWeight:700, marginBottom:16 }}>🏆 Top Eventos</div>
+          {topEvents.map(([n,c]) => (
+            <div key={n} style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:12 }}>
+              <span style={{ color:C.ink }}>{n}</span>
+              <span style={{ fontWeight:700 }}>{c.toLocaleString('pt-BR')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ background:C.white, borderRadius:16, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:16 }}>🌐 UTM Source breakdown</div>
+        {utmList.map(([s,n]) => {
+          const pct = Math.round(n/utmTotal*100);
+          return (
+            <div key={s} style={{ marginBottom:10 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
+                <span>{s}</span><span style={{ fontWeight:700 }}>{n.toLocaleString('pt-BR')} ({pct}%)</span>
+              </div>
+              <div style={{ background:C.border, borderRadius:3, height:6 }}><div style={{ background:C.p5, height:6, borderRadius:3, width: Math.max(pct,1)+'%' }}></div></div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ══ BUNDLES ══
+const Bundles = () => {
+  const [rows, setRows] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const blank = { name:'', description:'', product_ids:'[]', price:'', discount_pct:'', image_url:'', active:true };
+  const [form, setForm] = useState(blank);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [bRes, pRes] = await Promise.all([
+        window._sb.from('product_bundles').select('*').order('created_at', { ascending:false }),
+        window._sb.from('products').select('id, name'),
+      ]);
+      setRows(bRes.data || []); setProducts(pRes.data || []);
+    } catch(e){ console.warn('Bundles load:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    let product_ids = [];
+    try { product_ids = JSON.parse(form.product_ids || '[]'); } catch(e){ return alert('product_ids deve ser JSON'); }
+    if(!form.name.trim()) return alert('Nome obrigatorio');
+    const payload = {
+      name: form.name.trim(), description: form.description, product_ids,
+      price: parseFloat(String(form.price).replace(',','.')) || 0,
+      discount_pct: parseFloat(String(form.discount_pct).replace(',','.')) || 0,
+      image_url: form.image_url, active: !!form.active,
+    };
+    try {
+      if(editing) await window._sb.from('product_bundles').update(payload).eq('id', editing);
+      else await window._sb.from('product_bundles').insert(payload);
+      setEditing(null); setForm(blank); load();
+    } catch(e){ alert('Erro: '+e.message); }
+  };
+  const edit = (b) => { setEditing(b.id); setForm({ name:b.name||'', description:b.description||'', product_ids: JSON.stringify(b.product_ids||[]), price:b.price||'', discount_pct:b.discount_pct||'', image_url:b.image_url||'', active:b.active!==false }); };
+  const del = async (id) => { if(!confirm('Excluir bundle?')) return; await window._sb.from('product_bundles').delete().eq('id', id); load(); };
+
+  const inp = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
+  const lbl = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
+  const prodName = (id) => (products.find(p => p.id === id) || {}).name || id;
+
+  return (
+    <div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, marginBottom:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>{editing?'Editar Bundle':'Novo Bundle'}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={inp} placeholder="Kit Pintor Iniciante" /></div>
+          <div><label style={lbl}>Preço (R$)</label><input value={form.price} onChange={e=>setForm({...form,price:e.target.value})} style={inp} /></div>
+          <div><label style={lbl}>Desconto (%)</label><input value={form.discount_pct} onChange={e=>setForm({...form,discount_pct:e.target.value})} style={inp} /></div>
+        </div>
+        <div style={{ marginBottom:12 }}><label style={lbl}>Descrição</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} style={{...inp, minHeight:50}} /></div>
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr', gap:12, marginBottom:12 }}>
+          <div><label style={lbl}>Produtos (JSON array de IDs)</label><textarea value={form.product_ids} onChange={e=>setForm({...form,product_ids:e.target.value})} style={{...inp, minHeight:50, fontFamily:'monospace', fontSize:11}} placeholder='["id1","id2"]' /></div>
+          <div><label style={lbl}>URL imagem</label><input value={form.image_url} onChange={e=>setForm({...form,image_url:e.target.value})} style={inp} /></div>
+          <div style={{ display:'flex', alignItems:'flex-end' }}><label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13 }}><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})} /> Ativo</label></div>
+        </div>
+        <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+          {editing && <button onClick={()=>{ setEditing(null); setForm(blank); }} style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'8px 18px', fontSize:13, cursor:'pointer', color:C.muted }}>Cancelar</button>}
+          <button onClick={save} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{editing?'Salvar':'Criar Bundle'}</button>
+        </div>
+      </div>
+      <div style={{ background:C.white, borderRadius:14, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight:700, marginBottom:12 }}>📦 Bundles ({rows.length})</div>
+        {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando...</div> :
+         rows.length===0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:20 }}>Nenhum bundle cadastrado.</div> : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:14 }}>
+          {rows.map(b => (
+            <div key={b.id} style={{ background:C.cream, borderRadius:10, overflow:'hidden', border:'1px solid '+C.border }}>
+              {b.image_url ? <img src={b.image_url} style={{ width:'100%', height:120, objectFit:'cover', display:'block' }} /> : <div style={{ width:'100%', height:120, background:C.border, display:'flex', alignItems:'center', justifyContent:'center', color:C.muted, fontSize:12 }}>sem imagem</div>}
+              <div style={{ padding:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ fontWeight:700, fontSize:14 }}>{b.name}</div>
+                  <span style={{ background:b.active?C.p6+'22':C.border, color:b.active?C.p6:C.muted, borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:600 }}>{b.active?'Ativo':'Off'}</span>
+                </div>
+                <div style={{ fontSize:11, color:C.muted, margin:'4px 0 8px' }}>{b.description}</div>
+                <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>
+                  {(b.product_ids||[]).slice(0,3).map(prodName).join(', ')}{(b.product_ids||[]).length>3?'...':''}
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <span style={{ color:C.p1, fontWeight:700 }}>R$ {Number(b.price||0).toFixed(2).replace('.',',')}</span>
+                  {b.discount_pct > 0 && <span style={{ background:C.p4, color:'#fff', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>-{b.discount_pct}%</span>}
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button onClick={()=>edit(b)} style={{ flex:1, background:C.white, border:'1px solid '+C.border, borderRadius:6, padding:'5px', fontSize:11, cursor:'pointer', fontWeight:600 }}>Editar</button>
+                  <button onClick={()=>del(b.id)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:6, padding:'5px 10px', fontSize:11, cursor:'pointer', color:'#e63946' }}>×</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ══ INDICAÇÕES (referrals) ══
+const Indicacoes = () => {
+  const [rows, setRows] = useState([]);
+  const [profiles, setProfiles] = useState({});
+  const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await window._sb.from('referrals').select('*').order('created_at', { ascending:false });
+      const refs = data || [];
+      setRows(refs);
+      const ids = [...new Set(refs.flatMap(r => [r.referrer_id, r.referred_id]).filter(Boolean))];
+      if(ids.length) {
+        const { data: profs } = await window._sb.from('profiles').select('id, name, avatar_url').in('id', ids);
+        const map = {}; (profs||[]).forEach(p => { map[p.id] = p; });
+        setProfiles(map);
+      }
+    } catch(e){ console.warn('Indicacoes:', e?.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const marcarPago = async (id) => {
+    if(!confirm('Marcar indicação como paga?')) return;
+    try {
+      await window._sb.from('referrals').update({ reward_status:'paid', reward_paid_at: new Date().toISOString() }).eq('id', id);
+      load();
+    } catch(e){ alert('Erro: '+e.message); }
+  };
+
+  const filtered = rows.filter(r => filter==='all' ? true : (r.reward_status||'pending') === filter);
+  const filtros = [['all','Todas'],['pending','Pendentes'],['eligible','Elegíveis'],['paid','Pagas']];
+  const statusColor = { pending:C.p7, eligible:C.p3, paid:C.p6 };
+
+  return (
+    <div style={{ background:C.white, borderRadius:16, padding:20, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+        <div style={{ fontWeight:700 }}>🤝 Indicações ({filtered.length})</div>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {filtros.map(([k,l]) => (
+            <button key={k} onClick={()=>setFilter(k)} style={{ background: filter===k?C.p1:C.cream, color: filter===k?'#fff':C.ink, border:'none', borderRadius:8, padding:'6px 12px', fontSize:12, cursor:'pointer', fontWeight:600 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {loading ? <div style={{ color:C.muted, fontSize:13 }}>Carregando indicações...</div> :
+       filtered.length === 0 ? <div style={{ color:C.muted, fontSize:13, textAlign:'center', padding:30 }}>Nenhuma indicação nesse filtro.</div> : (
+      <div style={{ overflowX:'auto' }}>
+      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:800 }}>
+        <thead><tr style={{ borderBottom:'2px solid '+C.border }}>
+          {['Quem indicou','Indicado','Recompensa','Status','Criada','Paga em','Acoes'].map(h => (
+            <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {filtered.map(r => {
+            const referrer = profiles[r.referrer_id] || {};
+            const referred = profiles[r.referred_id] || {};
+            const st = r.reward_status || 'pending';
+            return (
+              <tr key={r.id} style={{ borderBottom:'1px solid '+C.border }}>
+                <td style={{ padding:'10px 12px', fontWeight:600 }}>{referrer.name || (r.referrer_id ? r.referrer_id.slice(0,8) : '—')}</td>
+                <td style={{ padding:'10px 12px' }}>{referred.name || (r.referred_id ? r.referred_id.slice(0,8) : '—')}</td>
+                <td style={{ padding:'10px 12px', color:C.p1, fontWeight:700 }}>R$ {Number(r.reward_amount||0).toFixed(2).replace('.',',')}</td>
+                <td style={{ padding:'10px 12px' }}><span style={{ background:(statusColor[st]||C.muted)+'22', color:statusColor[st]||C.muted, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{st}</span></td>
+                <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '—'}</td>
+                <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{r.reward_paid_at ? new Date(r.reward_paid_at).toLocaleDateString('pt-BR') : '—'}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  {st !== 'paid' && <button onClick={()=>marcarPago(r.id)} style={{ background:C.p6, color:'#fff', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Marcar pago</button>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
+      )}
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -1797,8 +2514,15 @@ const PAGES_DEF = [
   { id:'camisetas', icon:'👕', label:'Camisetas Personalizadas', section:'LOJA', component:<Camisetas /> },
   { id:'cursos', icon:'📚', label:'Cursos', section:'LOJA', component:<CursosList /> },
   { id:'marketing', icon:'📣', label:'Marketing / Ads', section:'LOJA', component:<MarketingPage /> },
+  { id:'bundles', icon:'📦', label:'Bundles', section:'LOJA', component:<Bundles /> },
   { id:'moderacao', icon:'🛡️', label:'Moderação', section:'PRINCIPAL', component:<Moderacao /> },
+  { id:'assinaturas', icon:'💳', label:'Assinaturas', section:'COMERCIAL', component:<Assinaturas /> },
+  { id:'planos', icon:'🏷️', label:'Planos', section:'COMERCIAL', component:<Planos /> },
+  { id:'cupons', icon:'🎟️', label:'Cupons', section:'COMERCIAL', component:<Cupons /> },
+  { id:'anuncios', icon:'📣', label:'Anúncios', section:'COMERCIAL', component:<Anuncios /> },
+  { id:'indicacoes', icon:'🤝', label:'Indicações', section:'COMERCIAL', component:<Indicacoes /> },
   { id:'analytics', icon:'📈', label:'Analytics', section:'DADOS', component:<Analytics /> },
+  { id:'analytics-pro', icon:'🎯', label:'Analytics Pro', section:'DADOS', component:<AnalyticsPro /> },
   { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesList /> },
 ];
 
