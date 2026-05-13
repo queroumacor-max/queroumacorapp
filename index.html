@@ -766,6 +766,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .shirt-price-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
 .shirt-total{font-size:22px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;}
 .shirt-buy-btn{padding:11px 18px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;box-shadow:0 4px 12px rgba(255,107,53,.3);}
+/* Cart */
+#cart-items-container{max-height:48vh;overflow-y:auto;margin:4px -4px 0;padding:0 4px;}
+.cart-item{display:flex;align-items:center;gap:12px;padding:10px;background:var(--cream);border-radius:12px;margin-bottom:8px;}
+.cart-item-icon{width:48px;height:48px;border-radius:10px;flex-shrink:0;background:#ddd;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);}
+.cart-item-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.cart-item-name{font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cart-item-vol{font-size:11.5px;color:var(--muted);}
+.cart-item-price{font-size:14px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;white-space:nowrap;}
+.cart-remove{width:28px;height:28px;border-radius:50%;background:#fff;border:1px solid var(--border);font-size:16px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;padding:0;transition:all .12s;}
+.cart-remove:hover{background:#fee;color:#e63946;border-color:#e63946;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -5588,7 +5598,15 @@ function renderCartModal(){
   container.innerHTML = cartItems.map((item, i) => {
     total += Number(item.price || 0);
     const bg = item.color_gradient ? 'linear-gradient(135deg,'+item.color_gradient+')' : (item.color_hex || '#ddd');
-    return '<div class="cart-item"><div class="cart-item-icon" style="background:'+bg+'"></div><div class="cart-item-name">'+item.name+' '+(item.volume||'')+'</div><div class="cart-item-price">R$'+Number(item.price).toFixed(2).replace('.',',')+'</div><button class="cart-remove" onclick="removeFromCart('+i+')">×</button></div>';
+    return '<div class="cart-item">'
+      + '<div class="cart-item-icon" style="background:'+bg+'"></div>'
+      + '<div class="cart-item-info">'
+        + '<div class="cart-item-name">'+escapeHtml(item.name||'')+'</div>'
+        + (item.volume ? '<div class="cart-item-vol">'+escapeHtml(item.volume)+'</div>' : '')
+      + '</div>'
+      + '<div class="cart-item-price">R$'+Number(item.price).toFixed(2).replace('.',',')+'</div>'
+      + '<button class="cart-remove" onclick="removeFromCart('+i+')" aria-label="Remover">×</button>'
+    + '</div>';
   }).join('');
   document.getElementById('cart-total').textContent = 'R$' + total.toFixed(2).replace('.',',');
 }
