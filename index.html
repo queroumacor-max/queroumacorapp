@@ -724,6 +724,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .shirt-ai-input:focus{outline:2px solid rgba(255,255,255,.6);}
 .shirt-ai-btn{width:100%;background:#fff;color:#8338ec;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;}
 .shirt-ai-btn:disabled{opacity:.7;cursor:wait;}
+.shirt-ai-upload-btn{width:100%;background:rgba(255,255,255,.18);color:#fff;border:1px dashed rgba(255,255,255,.6);border-radius:10px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px;}
+.shirt-ai-upload-btn:hover{background:rgba(255,255,255,.28);}
+.shirt-ai-upload-btn:disabled{opacity:.7;cursor:wait;}
 .shirt-ai-result{margin-top:12px;background:#fff;border-radius:12px;padding:12px;display:none;}
 .shirt-ai-result.show{display:block;}
 .shirt-ai-result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px;}
@@ -2601,6 +2604,8 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
         <div class="shirt-ai-logo-sub">Digite o nome da sua empresa e a IA cria 3 opções de logo profissional com referências de pintura.</div>
         <input type="text" id="ai-logo-name" class="shirt-ai-input" placeholder="Ex: Silva Pinturas" maxlength="80">
         <button class="shirt-ai-btn" id="ai-logo-btn" onclick="gerarLogoIA()">Gerar Logo</button>
+        <input type="file" id="business-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none" onchange="uploadBusinessLogo(event)">
+        <button class="shirt-ai-upload-btn" id="business-logo-btn" type="button" onclick="document.getElementById('business-logo-input').click()">📤 Já tenho meu logo · Enviar</button>
         <div class="shirt-ai-result" id="ai-logo-result">
           <div class="shirt-ai-result-grid" id="ai-logo-grid"></div>
           <button class="shirt-ai-use-btn" onclick="usarLogoIA()">Usar logo selecionado na camiseta</button>
@@ -3253,6 +3258,7 @@ function showScreen(n){
   if(n==='notif') loadNotifications();
   if(n==='pedidos') loadPedidos();
   if(n==='avaliar') loadAvaliarScreen();
+  if(n==='camisetas') loadBusinessLogo();
 }
 
 
@@ -5949,6 +5955,88 @@ function usarLogoIA(){
   if(_aiLogoSelected === null || !_aiLogoLastName){ toast('Gere um logo primeiro'); return; }
   _applyLogoToShirt();
   toast('Logo aplicado na camiseta! 👕');
+}
+
+function _applyOwnLogoToShirt(url, label){
+  const chestLogo = document.getElementById('shirt-chest-logo');
+  const placeholder = document.getElementById('shirt-chest-placeholder');
+  if (chestLogo) {
+    chestLogo.src = url;
+    chestLogo.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+  }
+  const chip = document.getElementById('shirt-logo-pintor-chip');
+  if (chip) {
+    chip.innerHTML = '<img src="'+escapeHtml(url)+'" alt="logo" style="height:18px;vertical-align:middle;margin-right:6px;border-radius:3px;background:#fff;">' + escapeHtml(label || 'Seu logo');
+    chip.style.display = 'block';
+  }
+  logoState.pintor = true;
+}
+
+async function uploadBusinessLogo(ev){
+  const file = ev?.target?.files?.[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Selecione um arquivo de imagem'); return; }
+  if(file.size > 5 * 1024 * 1024){ toast('Imagem muito grande (máx 5MB)'); return; }
+
+  const btn = document.getElementById('business-logo-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+  let publicUrl = null;
+  const sb = getSupabase();
+  if (sb && currentUser) {
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+      const path = currentUser.id + '/business_logo.' + ext;
+      const { error: upErr } = await sb.storage.from('posts').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+      publicUrl = urlData?.publicUrl ? urlData.publicUrl + '?t=' + Date.now() : null;
+      if (publicUrl) {
+        const { error: profErr } = await sb.from('profiles').update({ business_logo_url: publicUrl }).eq('id', currentUser.id);
+        if (profErr) console.warn('profile update business_logo_url:', profErr.message);
+      }
+    } catch(e){
+      console.warn('Storage upload failed, falling back to local:', e?.message || e);
+    }
+  } else {
+    console.warn('Sem sessão; usando preview local apenas');
+  }
+
+  if (!publicUrl) {
+    publicUrl = await new Promise((res) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(file);
+    });
+  }
+
+  try { localStorage.setItem('business_logo_url', publicUrl); } catch(e){}
+
+  _applyOwnLogoToShirt(publicUrl, document.getElementById('ai-logo-name')?.value?.trim() || 'Seu logo');
+
+  if(btn){ btn.disabled = false; btn.textContent = '📤 Trocar meu logo'; }
+  ev.target.value = '';
+  toast('Logo enviado e aplicado! ✅');
+}
+
+async function loadBusinessLogo(){
+  let url = null;
+  const sb = getSupabase();
+  if (sb && currentUser) {
+    try {
+      const { data: prof } = await sb.from('profiles').select('business_logo_url, business_name').eq('id', currentUser.id).single();
+      if (prof?.business_logo_url) url = prof.business_logo_url;
+    } catch(e){}
+  }
+  if (!url) {
+    try { url = localStorage.getItem('business_logo_url'); } catch(e){}
+  }
+  if (url) {
+    _applyOwnLogoToShirt(url, null);
+    const btn = document.getElementById('business-logo-btn');
+    if(btn) btn.textContent = '📤 Trocar meu logo';
+  }
 }
 
 function toggleLogo(which) {
