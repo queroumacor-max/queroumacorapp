@@ -28,16 +28,20 @@ CREATE TABLE IF NOT EXISTS public.products (
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access to products
+DROP POLICY IF EXISTS "Products are viewable by everyone" ON public.products;
 CREATE POLICY "Products are viewable by everyone" ON public.products
   FOR SELECT USING (true);
 
 -- Allow authenticated users to manage products (portal admin)
+DROP POLICY IF EXISTS "Authenticated users can insert products" ON public.products;
 CREATE POLICY "Authenticated users can insert products" ON public.products
   FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can update products" ON public.products;
 CREATE POLICY "Authenticated users can update products" ON public.products
   FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated users can delete products" ON public.products;
 CREATE POLICY "Authenticated users can delete products" ON public.products
   FOR DELETE TO authenticated USING (true);
 
@@ -278,10 +282,12 @@ VALUES ('posts', 'posts', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow authenticated users to upload to posts bucket
+DROP POLICY IF EXISTS "Users can upload to posts bucket" ON storage.objects;
 CREATE POLICY "Users can upload to posts bucket" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (bucket_id = 'posts');
 
 -- Allow public read from posts bucket
+DROP POLICY IF EXISTS "Public read posts bucket" ON storage.objects;
 CREATE POLICY "Public read posts bucket" ON storage.objects
   FOR SELECT USING (bucket_id = 'posts');
 
@@ -329,9 +335,11 @@ CREATE TABLE IF NOT EXISTS public.announcements (
 
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Announcements viewable by everyone" ON public.announcements;
 CREATE POLICY "Announcements viewable by everyone" ON public.announcements
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can manage announcements" ON public.announcements;
 CREATE POLICY "Authenticated users can manage announcements" ON public.announcements
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
@@ -349,15 +357,19 @@ CREATE TABLE IF NOT EXISTS public.orders (
 
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own orders" ON public.orders;
 CREATE POLICY "Users can view own orders" ON public.orders
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own orders" ON public.orders;
 CREATE POLICY "Users can create own orders" ON public.orders
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Authenticated users can view all orders" ON public.orders;
 CREATE POLICY "Authenticated users can view all orders" ON public.orders
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can update orders" ON public.orders;
 CREATE POLICY "Authenticated users can update orders" ON public.orders
   FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
@@ -406,7 +418,15 @@ END $$;
 -- REPLICA IDENTITY FULL is REQUIRED for Realtime + RLS to work together
 -- Without it, Supabase cannot evaluate RLS policies on realtime events
 ALTER TABLE public.messages REPLICA IDENTITY FULL;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+  END IF;
+END $$;
 
 -- Index for faster conversation queries
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
@@ -428,9 +448,11 @@ CREATE TABLE IF NOT EXISTS public.reviews (
 
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Reviews viewable by everyone" ON public.reviews;
 CREATE POLICY "Reviews viewable by everyone" ON public.reviews
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can create reviews" ON public.reviews;
 CREATE POLICY "Users can create reviews" ON public.reviews
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = reviewer_id);
 
