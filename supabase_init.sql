@@ -73,6 +73,7 @@ END $$;
 DO $$
 BEGIN
   BEGIN ALTER TABLE public.profiles ADD COLUMN tag text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN email text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN city text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN state text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN phone text; EXCEPTION WHEN duplicate_column THEN NULL; END;
