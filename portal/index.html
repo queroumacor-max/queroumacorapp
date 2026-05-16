@@ -134,18 +134,34 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
   );
 };
 
+// O update direto em profiles de outra pessoa falha silenciosamente
+// por RLS (unica policy de UPDATE e auth.uid() = id). Por isso vai
+// pelo endpoint com service role.
+const setPortalAccess = async (id, action) => {
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { alert('Sessao expirada. Entre novamente.'); return false; }
+  const r = await fetch('/api/admin-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: session.access_token, action, userId: id })
+  });
+  let res = {};
+  try { res = await r.json(); } catch (_) {}
+  if (!r.ok || !res.ok) {
+    alert('Nao foi possivel atualizar o acesso ao portal: ' + (res.error || ('HTTP ' + r.status)));
+    return false;
+  }
+  return true;
+};
+
 const promoteToPortal = async (id, after) => {
   if (!confirm('Promover este perfil a usuario do portal? Ele passara a ter acesso ao portal administrativo.')) return;
-  const { error } = await window._sb.from('profiles').update({ portal_access: true }).eq('id', id);
-  if (error) { alert('Erro ao promover: ' + error.message); return; }
-  if (after) after();
+  if (await setPortalAccess(id, 'promote') && after) after();
 };
 
 const revokePortal = async (id, after) => {
   if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-  const { error } = await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
-  if (error) { alert('Erro: ' + error.message); return; }
-  if (after) after();
+  if (await setPortalAccess(id, 'revoke') && after) after();
 };
 
 const Logo = () => (
@@ -1955,8 +1971,7 @@ const PortalUsersList = () => {
 
   const revokeAccess = async (id) => {
     if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-    await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
-    fetchUsers();
+    if (await setPortalAccess(id, 'revoke')) fetchUsers();
   };
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando usuarios do portal...</div>;

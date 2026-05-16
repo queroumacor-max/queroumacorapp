@@ -107,6 +107,19 @@ END $$;
 -- ============================================
 -- Profiles table - ensure read/write works
 -- ============================================
+-- Funcao auxiliar: o caller atual tem portal_access? SECURITY DEFINER
+-- ignora RLS de profiles, evitando recursao (42P17) quando usada em
+-- policies da propria tabela profiles. Definida antes das policies.
+CREATE OR REPLACE FUNCTION public.is_portal_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND portal_access = true
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_portal_admin() TO authenticated;
+
 -- Allow everyone to read profiles (needed for search, feed, etc.)
 DO $$
 BEGIN
@@ -130,13 +143,15 @@ BEGIN
   END IF;
   -- Portal admins (portal_access = true) can update any profile.
   -- Needed for verificar pintor, promover a usuario do portal e revogar acesso.
+  -- Usa funcao SECURITY DEFINER para evitar recursao infinita (42P17):
+  -- uma policy em profiles que faz subquery em profiles entra em loop.
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Portal admins can update any profile'
   ) THEN
     CREATE POLICY "Portal admins can update any profile" ON public.profiles
       FOR UPDATE TO authenticated
-      USING (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true))
-      WITH CHECK (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true));
+      USING (public.is_portal_admin())
+      WITH CHECK (public.is_portal_admin());
   END IF;
 END $$;
 
