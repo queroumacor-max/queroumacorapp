@@ -36,6 +36,14 @@ export async function onRequestPost(context) {
     patch = { portal_access: action === 'promote' };
   } else if (action === 'verify') {
     patch = { verified: body?.value === true };
+  } else if (action === 'set_pro') {
+    const enable = body?.value === true;
+    patch = {
+      is_pro: enable,
+      pro_expires_at: enable
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        : null
+    };
   } else if (action === 'set_role') {
     const m = ROLE_MAP[typeof body?.roleKey === 'string' ? body.roleKey : ''];
     if (!m) return json({ error: 'roleKey invalido' }, 400);
