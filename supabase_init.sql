@@ -907,18 +907,23 @@ DO $$
 BEGIN
   ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_type_check;
 
-  -- Normaliza sinonimos conhecidos antes de aplicar o CHECK
-  UPDATE public.profiles SET user_type = 'grafiteiro'
-    WHERE lower(btrim(user_type)) IN ('graffiti','grafite','muralista','grafiteiro/muralista');
-  UPDATE public.profiles SET user_type = 'automotivo'
-    WHERE lower(btrim(user_type)) IN ('funilaria','automotiva','pintor automotivo');
-
-  -- Qualquer valor ainda fora da lista (ex.: '', 'pro', lixo) vira NULL
-  -- (o app e o portal tratam NULL como cliente)
-  UPDATE public.profiles SET user_type = NULL
-    WHERE user_type IS NOT NULL
-      AND lower(btrim(user_type)) NOT IN
-        ('cliente','pintor','grafiteiro','automotivo','funileiro','admin');
+  -- Canoniza TODA linha antes do CHECK (case-insensitive): valor valido
+  -- minusculo/sem espacos, sinonimo mapeado, ou NULL. O CHECK e
+  -- case-sensitive, entao 'Pintor' precisa virar 'pintor'.
+  UPDATE public.profiles
+  SET user_type = CASE
+    WHEN lower(btrim(user_type)) IN
+         ('cliente','pintor','grafiteiro','automotivo','funileiro','admin')
+      THEN lower(btrim(user_type))
+    WHEN lower(btrim(user_type)) IN
+         ('graffiti','grafite','muralista','grafiteiro/muralista')
+      THEN 'grafiteiro'
+    WHEN lower(btrim(user_type)) IN
+         ('funilaria','automotiva','pintor automotivo')
+      THEN 'automotivo'
+    ELSE NULL
+  END
+  WHERE user_type IS NOT NULL;
 
   ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_type_check
     CHECK (user_type IS NULL OR user_type IN ('cliente','pintor','grafiteiro','automotivo','funileiro','admin'));
