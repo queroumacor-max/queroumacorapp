@@ -647,7 +647,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .mkt-tab.active{background:var(--p1);color:#fff;border-color:var(--p1);}
 .mkt-body{padding:16px;}
 .mkt-section-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--ink);margin-bottom:14px;}
-.mkt-products{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.mkt-products{display:flex;flex-direction:column;gap:8px;}
+.mkt-search-wrap{padding:0 0 12px;}
+.mkt-search-input{width:100%;box-sizing:border-box;padding:11px 14px;border-radius:24px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:14px;outline:none;font-family:'DM Sans',sans-serif;}
+.mkt-search-input::placeholder{color:rgba(255,255,255,.5);}
+.mkt-row{display:flex;align-items:center;gap:12px;background:var(--white);border-radius:14px;padding:10px;box-shadow:0 1px 6px rgba(0,0,0,.06);cursor:pointer;transition:.12s;}
+.mkt-row:active{transform:scale(.99);}
+.mkt-row-ic{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.mkt-row-info{flex:1;min-width:0;}
+.mkt-row-name{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.25;}
+.mkt-row-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.mkt-row-price{font-size:15px;font-weight:800;color:var(--p1);margin-top:2px;}
+.mkt-row-add{flex-shrink:0;padding:9px 12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.mkt-row-add:active{opacity:.85;}
 .mkt-card{background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07);cursor:pointer;transition:.15s;}
 .mkt-card:active{transform:scale(.98);}
 .mkt-swatch{height:110px;display:flex;align-items:center;justify-content:center;font-size:42px;position:relative;}
