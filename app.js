@@ -1957,17 +1957,16 @@ function setMode(mode){
   const isPro = isProfessionalRole(mode);
   if(modePintor) modePintor.classList.toggle('active',isPro);
   if(modeCliente) modeCliente.classList.toggle('active',mode==='cliente');
-  document.getElementById('view-pintor').style.display=isPro?'block':'none';
-  document.getElementById('view-cliente').style.display=mode==='cliente'?'block':'none';
-  // Update grid title per role
-  const gridTitle = document.querySelector('#view-pintor > div > div:first-child');
-  if(gridTitle && isPro){
-    const titles = {pintor:'Meu Negócio',grafiteiro:'Meu Estúdio',automotivo:'Minha Garagem'};
-    gridTitle.textContent = titles[mode]||'Meu Negócio';
-  }
+  // Visao unica e completa para todos os perfis: evita o swap por papel
+  // (metadata -> DB) que fazia as caixinhas aparecerem e sumirem.
+  const vp=document.getElementById('view-pintor');
+  const vc=document.getElementById('view-cliente');
+  if(vp) vp.style.display='block';
+  if(vc) vc.style.display='none';
   const fab=document.getElementById('post-fab');
-  if(fab)fab.style.display=isPro?'flex':'none';
-  document.getElementById('scroll-area').scrollTop=0;
+  if(fab)fab.style.display='flex';
+  const sa=document.getElementById('scroll-area');
+  if(sa) sa.scrollTop=0;
 }
 
 // ══ PEDIDOS FILTER ══
