@@ -3179,8 +3179,9 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
-  <!-- Story image -->
+  <!-- Story image / video -->
   <img id="story-viewer-img" src="" style="width:100%;height:100%;object-fit:contain;position:absolute;inset:0;">
+  <video id="story-viewer-video" playsinline style="display:none;width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#000;"></video>
   <!-- Tap zones -->
   <div style="position:absolute;inset:0;display:flex;z-index:2;">
     <div style="flex:1;" onclick="storyPrev()"></div>
@@ -7019,6 +7020,8 @@ function openStoryViewer(groupIndex){
 
 function closeStoryViewer(){
   document.getElementById('story-viewer').style.display = 'none';
+  const vidEl = document.getElementById('story-viewer-video');
+  if(vidEl){ vidEl.pause(); vidEl.removeAttribute('src'); }
   if(storyTimer) clearInterval(storyTimer);
   storyTimer = null;
   loadStories(); // refresh seen states
@@ -7031,8 +7034,25 @@ function renderCurrentStory(){
   if(!s) { closeStoryViewer(); return; }
   const p = g.profile;
 
-  // Update image
-  document.getElementById('story-viewer-img').src = s.media_url || '';
+  // Update media (image or video)
+  const imgEl = document.getElementById('story-viewer-img');
+  const vidEl = document.getElementById('story-viewer-video');
+  const storyIsVideo = isVideoUrl(s.media_url) || s.media_type === 'video';
+  if(storyIsVideo){
+    imgEl.style.display = 'none';
+    imgEl.src = '';
+    vidEl.style.display = 'block';
+    vidEl.src = s.media_url || '';
+    vidEl.muted = false;
+    vidEl.currentTime = 0;
+    vidEl.play().catch(() => { vidEl.muted = true; vidEl.play().catch(()=>{}); });
+  } else {
+    vidEl.pause();
+    vidEl.removeAttribute('src');
+    vidEl.style.display = 'none';
+    imgEl.style.display = 'block';
+    imgEl.src = s.media_url || '';
+  }
   // Update header
   document.getElementById('story-viewer-avatar').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
   document.getElementById('story-viewer-name').textContent = p.name || 'User';
@@ -7062,14 +7082,23 @@ function renderCurrentStory(){
 
   // Start auto-advance timer
   if(storyTimer) clearInterval(storyTimer);
-  let elapsed = 0;
-  const step = 50;
-  storyTimer = setInterval(() => {
-    elapsed += step;
-    const fill = document.getElementById('story-progress-fill');
-    if(fill) fill.style.width = (elapsed / STORY_DURATION * 100) + '%';
-    if(elapsed >= STORY_DURATION) storyNext();
-  }, step);
+  if(storyIsVideo){
+    // Vídeo: progresso e avanço seguem a duração real do vídeo
+    vidEl.onended = () => storyNext();
+    storyTimer = setInterval(() => {
+      const fill = document.getElementById('story-progress-fill');
+      if(fill && vidEl.duration) fill.style.width = (vidEl.currentTime / vidEl.duration * 100) + '%';
+    }, 80);
+  } else {
+    let elapsed = 0;
+    const step = 50;
+    storyTimer = setInterval(() => {
+      elapsed += step;
+      const fill = document.getElementById('story-progress-fill');
+      if(fill) fill.style.width = (elapsed / STORY_DURATION * 100) + '%';
+      if(elapsed >= STORY_DURATION) storyNext();
+    }, step);
+  }
 }
 
 function storyNext(){
@@ -7115,7 +7144,13 @@ function handlePostFiles(input){
   document.getElementById('post-picker-area').style.display = 'none';
   previewImages.innerHTML = '';
   const url = URL.createObjectURL(files[0]);
-  previewImages.innerHTML = `<img src="${url}" class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;">`;
+  previewImages.innerHTML = getMediaType(files[0]) === 'video'
+    ? `<video src="${url}" controls playsinline class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;background:#000;"></video>`
+    : `<img src="${url}" class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;">`;
+}
+
+function isVideoUrl(u){
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|#|$)/i.test(u || '');
 }
 
 function clearPostImages(){
