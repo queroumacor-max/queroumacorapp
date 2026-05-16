@@ -135,20 +135,20 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
 };
 
 // O update direto em profiles de outra pessoa falha silenciosamente
-// por RLS (unica policy de UPDATE e auth.uid() = id). Por isso vai
-// pelo endpoint com service role.
-const setPortalAccess = async (id, action) => {
+// por RLS (unica policy de UPDATE e auth.uid() = id). Por isso tudo
+// vai pelo endpoint /api/admin-users com service role.
+const adminUsers = async (payload) => {
   const { data: { session } } = await window._sb.auth.getSession();
   if (!session) { alert('Sessao expirada. Entre novamente.'); return false; }
   const r = await fetch('/api/admin-users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken: session.access_token, action, userId: id })
+    body: JSON.stringify({ accessToken: session.access_token, ...payload })
   });
   let res = {};
   try { res = await r.json(); } catch (_) {}
   if (!r.ok || !res.ok) {
-    alert('Nao foi possivel atualizar o acesso ao portal: ' + (res.error || ('HTTP ' + r.status)));
+    alert('A acao falhou: ' + (res.error || ('HTTP ' + r.status)));
     return false;
   }
   return true;
@@ -156,12 +156,51 @@ const setPortalAccess = async (id, action) => {
 
 const promoteToPortal = async (id, after) => {
   if (!confirm('Promover este perfil a usuario do portal? Ele passara a ter acesso ao portal administrativo.')) return;
-  if (await setPortalAccess(id, 'promote') && after) after();
+  if (await adminUsers({ action:'promote', userId:id }) && after) after();
 };
 
 const revokePortal = async (id, after) => {
   if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-  if (await setPortalAccess(id, 'revoke') && after) after();
+  if (await adminUsers({ action:'revoke', userId:id }) && after) after();
+};
+
+const setProfileVerified = async (id, value, after) => {
+  if (await adminUsers({ action:'verify', userId:id, value }) && after) after();
+};
+
+const setProfileRole = async (id, roleKey, after) => {
+  const ok = await adminUsers({ action:'set_role', userId:id, roleKey });
+  if (ok && after) after();
+  return ok;
+};
+
+// Deduz a opcao atual de papel a partir do profile
+const currentRoleKey = p => {
+  if (professionOf(p) === 'funileiro') return 'funileiro';
+  const r = roleOf(p);
+  if (['pintor','grafiteiro','automotivo','cliente'].includes(r)) return r;
+  if (r === 'graffiti') return 'grafiteiro';
+  return isProProfile(p) ? 'pintor' : 'cliente';
+};
+
+// Seletor inline para editar o tipo/papel de um perfil existente
+const RoleSelect = ({ profile, after }) => {
+  const [val, setVal] = useState(currentRoleKey(profile));
+  const [busy, setBusy] = useState(false);
+  return (
+    <select value={val} disabled={busy} onChange={async e => {
+      const nv = e.target.value;
+      if (nv === val) return;
+      const lbl = (APP_ROLE_OPTIONS.find(o => o.v === nv) || {}).label || nv;
+      if (!confirm('Alterar o tipo deste perfil para "' + lbl + '"?')) { e.target.value = val; return; }
+      setBusy(true);
+      const ok = await setProfileRole(profile.id, nv, null);
+      setBusy(false);
+      if (ok) { setVal(nv); if (after) after(); } else { e.target.value = val; }
+    }} style={{ padding:'4px 8px', borderRadius:6, border:'1px solid '+C.border, fontSize:11, background:'#fff', cursor: busy?'wait':'pointer', maxWidth:160 }}>
+      {APP_ROLE_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+    </select>
+  );
 };
 
 const Logo = () => (
@@ -328,10 +367,7 @@ const PintoresList = () => {
 
   useEffect(() => { fetchPintores(); }, []);
 
-  const updateVerified = async (id, verified) => {
-    await window._sb.from('profiles').update({ verified }).eq('id', id);
-    fetchPintores();
-  };
+  const updateVerified = (id, verified) => setProfileVerified(id, verified, fetchPintores);
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando pintores...</div>;
 
@@ -362,7 +398,7 @@ const PintoresList = () => {
                   <span style={{ fontWeight:600 }}>{p.name || 'Sem nome'}</span>
                 </div>
               </td>
-              <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>{tipoLabel(p)}</span></td>
+              <td style={{ padding:'10px 12px' }}><RoleSelect profile={p} after={fetchPintores} /></td>
               <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{p.tag ? '@'+p.tag : '—'}</td>
               <td style={{ padding:'10px 12px' }}>{p.city || '—'}</td>
               <td style={{ padding:'10px 12px' }}>{p.state || '—'}</td>
@@ -1449,7 +1485,7 @@ const ClientesList = () => {
         {clientes.length > 0 && (
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado','Portal'].map(h => (
+              {['Nome','Tipo','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado','Portal'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -1466,6 +1502,7 @@ const ClientesList = () => {
                     <span style={{ fontWeight:600 }}>{c.name || 'Sem nome'}</span>
                   </div>
                 </td>
+                <td style={{ padding:'10px 12px' }}><RoleSelect profile={c} after={fetchClientes} /></td>
                 <td style={{ padding:'10px 12px', color:C.p3, fontWeight:600 }}>{c.tag ? '@'+c.tag : '—'}</td>
                 <td style={{ padding:'10px 12px', color:C.muted }}>{c.email || '—'}</td>
                 <td style={{ padding:'10px 12px' }}>{c.city || '—'}</td>
@@ -1971,7 +2008,7 @@ const PortalUsersList = () => {
 
   const revokeAccess = async (id) => {
     if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-    if (await setPortalAccess(id, 'revoke')) fetchUsers();
+    if (await adminUsers({ action:'revoke', userId:id })) fetchUsers();
   };
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando usuarios do portal...</div>;
