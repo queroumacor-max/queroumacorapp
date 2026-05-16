@@ -808,6 +808,8 @@ async function initAuth() {
     showScreen('feed');
     autoDetectRole();
     setupGlobalMsgSubscription();
+    refreshProStatus();
+    handleProReturn();
     // Load feed once right after auth
     _feedLoaded = true;
     loadFeed();
@@ -819,8 +821,10 @@ async function initAuth() {
     if(currentUser){
       autoDetectRole();
       setupGlobalMsgSubscription();
+      refreshProStatus();
       if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
     } else {
+      _isPro = false;
       _feedLoaded = false;
       if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
     }
@@ -2823,7 +2827,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <div class="pro-feat"><span class="pro-feat-icon">🎓</span>Acesso a cursos exclusivos</div>
     <div class="pro-feat"><span class="pro-feat-icon">🤖</span>Orçamento gerado por IA</div>
     <div class="pro-feat"><span class="pro-feat-icon">💡</span>Chat IA para dúvidas técnicas</div>
-    <button class="pro-cta" onclick="toast('PRO ativado! 🎉');closeModals()">Assinar Agora</button>
+    <button class="pro-cta" id="pro-cta-btn" onclick="startProCheckout()">Assinar Agora</button>
   </div>
 </div>
 
@@ -3544,11 +3548,71 @@ function calcTinta(){
 }
 
 // ══ AI FEATURES (PRO) ══
+let _isPro = false;
+
+async function refreshProStatus(){
+  try {
+    const sb = getSupabase();
+    if(!sb || !currentUser) { _isPro = false; return false; }
+    const { data } = await sb.from('profiles').select('is_pro, pro_expires_at').eq('id', currentUser.id).single();
+    const notExpired = !data?.pro_expires_at || new Date(data.pro_expires_at) > new Date();
+    _isPro = !!(data && data.is_pro && notExpired);
+    return _isPro;
+  } catch(e){ console.warn('refreshProStatus:', e); return _isPro; }
+}
+
 function checkProAccess(){
-  // TODO: integrate with real PRO subscription check
-  // For now, show pro-modal if not pro
-  // return false to block, true to allow
-  return true; // temporary: allow all while testing
+  return _isPro;
+}
+
+function handleProReturn(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('pro') !== 'success') return;
+    toast('Pagamento recebido! Ativando seu PRO...');
+    // O webhook pode levar alguns segundos; tenta atualizar algumas vezes.
+    let tries = 0;
+    const iv = setInterval(async () => {
+      tries++;
+      const pro = await refreshProStatus();
+      if(pro){ clearInterval(iv); toast('Plano PRO ativado! 🎉'); }
+      else if(tries >= 6){ clearInterval(iv); toast('Pagamento em processamento. O PRO será liberado em instantes.'); }
+    }, 4000);
+    // Limpa o parâmetro da URL
+    const clean = window.location.pathname;
+    window.history.replaceState({}, '', clean);
+  } catch(e){ console.warn('handleProReturn:', e); }
+}
+
+async function startProCheckout(){
+  const btn = document.getElementById('pro-cta-btn');
+  try {
+    const sb = getSupabase();
+    if(!sb){ toast('Erro: Supabase indisponível'); return; }
+    const { data:{ session } } = await sb.auth.getSession();
+    if(!session){ toast('Faça login para assinar'); return; }
+    if(btn){ btn.textContent = 'Abrindo pagamento...'; btn.disabled = true; }
+    const r = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        userId: session.user.id,
+        email: session.user.email,
+        name: session.user.user_metadata?.name || ''
+      })
+    });
+    const data = await r.json();
+    if(!r.ok || !data.init_point){
+      toast('Erro ao iniciar pagamento: ' + (data.error || 'tente novamente'));
+      if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
+      return;
+    }
+    window.location.href = data.init_point;
+  } catch(e){
+    console.error('startProCheckout:', e);
+    toast('Erro ao iniciar pagamento');
+    if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
+  }
 }
 
 function openAiOrcamento(){

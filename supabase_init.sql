@@ -85,6 +85,9 @@ BEGIN
   BEGIN ALTER TABLE public.profiles ADD COLUMN invited_by uuid; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN invite_code_used text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN portal_access boolean DEFAULT false; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN is_pro boolean DEFAULT false; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN pro_expires_at timestamptz; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN mp_preapproval_id text; EXCEPTION WHEN duplicate_column THEN NULL; END;
 END $$;
 
 -- Add status column to posts for content moderation
