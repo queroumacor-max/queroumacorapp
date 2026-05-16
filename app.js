@@ -24,7 +24,7 @@ function showScreen(n){
   if(n==='chatconv'){setTimeout(()=>{const a=document.getElementById('msgs-area');if(a)a.scrollTop=a.scrollHeight;},150);}
   if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ _feedLimit = FEED_PAGE; loadFeed(); }
   if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
-  if(n==='myprofile') loadMyProfileData();
+  if(n==='myprofile'){ loadMyProfileData(); refreshProStatus(); }
   if(n==='chat'){ loadChatList(); const cb=document.getElementById('chat-badge-dot'); if(cb) cb.style.display='none'; }
   if(n==='notif') loadNotifications();
   if(n==='pedidos') loadPedidos();
@@ -287,16 +287,46 @@ function calcTinta(){
 
 // ══ AI FEATURES (PRO) ══
 let _isPro = false;
+let _proExpires = null;
 
 async function refreshProStatus(){
   try {
     const sb = getSupabase();
-    if(!sb || !currentUser) { _isPro = false; return false; }
+    if(!sb || !currentUser) { _isPro = false; _proExpires = null; applyProUI(); return false; }
     const { data } = await sb.from('profiles').select('is_pro, pro_expires_at').eq('id', currentUser.id).single();
     const notExpired = !data?.pro_expires_at || new Date(data.pro_expires_at) > new Date();
     _isPro = !!(data && data.is_pro && notExpired);
+    _proExpires = data?.pro_expires_at || null;
+    applyProUI();
     return _isPro;
-  } catch(e){ console.warn('refreshProStatus:', e); return _isPro; }
+  } catch(e){ console.warn('refreshProStatus:', e); applyProUI(); return _isPro; }
+}
+
+// Quando o perfil ja e PRO, troca o banner de upsell por "PRO ativo"
+function applyProUI(){
+  try {
+    const banner = document.querySelector('#view-pintor .pro-banner');
+    if(!banner) return;
+    if(_isPro){
+      banner.onclick = null;
+      banner.style.cursor = 'default';
+      let until = '';
+      if(_proExpires){ try { until = ' · até ' + new Date(_proExpires).toLocaleDateString('pt-BR'); } catch(_){ } }
+      banner.innerHTML =
+        '<div class="pro-banner-icon">✅</div>' +
+        '<div class="pro-banner-text"><div class="pro-banner-title">Plano PRO ativo</div>' +
+        '<div class="pro-banner-sub">Recursos PRO liberados' + until + '</div></div>' +
+        '<div class="pro-banner-arrow">★</div>';
+    } else {
+      banner.onclick = function(){ showModal('pro-modal'); };
+      banner.style.cursor = 'pointer';
+      banner.innerHTML =
+        '<div class="pro-banner-icon">⚡</div>' +
+        '<div class="pro-banner-text"><div class="pro-banner-title">Ative o Plano PRO</div>' +
+        '<div class="pro-banner-sub">Destaque-se e receba mais clientes · R$39/mês</div></div>' +
+        '<div class="pro-banner-arrow">›</div>';
+    }
+  } catch(e){ console.warn('applyProUI:', e); }
 }
 
 function checkProAccess(){

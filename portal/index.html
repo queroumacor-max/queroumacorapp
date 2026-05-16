@@ -372,13 +372,16 @@ const Dashboard = () => {
   );
 };
 
-const PintoresList = () => {
+const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
   const [pintores, setPintores] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPintores = async () => {
     const { data } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
-    setPintores((data || []).filter(isProProfile));
+    // Mostra TODOS os profissionais do tipo, sendo PRO ou nao.
+    let list = (data || []).filter(isProProfile);
+    if (roleFilter) list = list.filter(roleFilter);
+    setPintores(list);
     setLoading(false);
   };
 
@@ -386,13 +389,13 @@ const PintoresList = () => {
 
   const updateVerified = (id, verified) => setProfileVerified(id, verified, fetchPintores);
 
-  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando pintores...</div>;
+  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando...</div>;
 
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>Pintores Cadastrados ({pintores.length})</div>
-      <CreateAppUserForm onCreated={fetchPintores} defaultRole="pintor" />
-      {pintores.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum pintor cadastrado.</div>}
+      <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>{title || 'Pintores Cadastrados'} ({pintores.length})</div>
+      <CreateAppUserForm onCreated={fetchPintores} defaultRole={defaultRole || 'pintor'} />
+      {pintores.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>{emptyMsg || 'Nenhum pintor cadastrado.'}</div>}
       <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:700 }}>
         {pintores.length > 0 && (
@@ -2153,7 +2156,9 @@ const PAGES_DEF = [
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
   { id:'chats', icon:'💬', label:'Chats 3-Way', section:'PRINCIPAL', badgeKey:'chats', component:<Chats /> },
   { id:'orcamentos', icon:'📋', label:'Orçamentos', section:'PRINCIPAL', badgeKey:'orcamentos', component:<Orcamentos /> },
-  { id:'pintores', icon:'🖌️', label:'Pintores', section:'PESSOAS', badgeKey:'pintores', component:<PintoresList /> },
+  { id:'pintores', icon:'🖌️', label:'Pintores', section:'PESSOAS', badgeKey:'pintores', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='pintor'} title="Pintores Cadastrados" defaultRole="pintor" emptyMsg="Nenhum pintor cadastrado." /> },
+  { id:'grafiteiros', icon:'🎨', label:'Grafiteiros', section:'PESSOAS', badgeKey:'grafiteiros', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='grafiteiro'} title="Grafiteiros / Muralistas" defaultRole="grafiteiro" emptyMsg="Nenhum grafiteiro cadastrado." /> },
+  { id:'funileiros', icon:'🚗', label:'Funileiros / Automotivo', section:'PESSOAS', badgeKey:'funileiros', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='funileiro'||currentRoleKey(p)==='automotivo'} title="Funileiros / Pintura Automotiva" defaultRole="funileiro" emptyMsg="Nenhum funileiro cadastrado." /> },
   { id:'leads', icon:'🧲', label:'Leads', section:'PESSOAS', badgeKey:'leads', component:<Leads /> },
   { id:'clientes', icon:'👥', label:'Clientes', section:'PESSOAS', badgeKey:'clientes', component:<ClientesList /> },
   { id:'portal-users', icon:'🔐', label:'Portal', section:'PESSOAS', badgeKey:'portalUsers', component:<PortalUsersList /> },
@@ -2197,7 +2202,9 @@ function App() {
       setBadges({
         chats: msgsRes.count || 0,
         orcamentos: quotesRes.count || 0,
-        pintores: profiles.filter(isProProfile).length,
+        pintores: profiles.filter(p => isProProfile(p) && currentRoleKey(p)==='pintor').length,
+        grafiteiros: profiles.filter(p => isProProfile(p) && currentRoleKey(p)==='grafiteiro').length,
+        funileiros: profiles.filter(p => isProProfile(p) && (currentRoleKey(p)==='funileiro'||currentRoleKey(p)==='automotivo')).length,
         leads: leadsRes.count || 0,
         clientes: profiles.filter(isClienteProfile).length,
         portalUsers: profiles.filter(p => p.portal_access === true).length,
