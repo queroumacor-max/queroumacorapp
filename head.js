@@ -71,7 +71,8 @@ async function loadMyProfileData(){
       name = name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const tag = prof.tag || currentUser.user_metadata?.tag || '';
       const city = [prof.city, prof.state].filter(Boolean).join(', ');
-      const role = prof.role || prof.user_type || 'cliente';
+      const _meta = currentUser.user_metadata || {};
+      const role = prof.role || prof.user_type || _meta.user_type || _meta.role || 'cliente';
       if(nameEl) nameEl.textContent = name;
       if(subEl){
         const roleLabels = {pintor:'Pintor',grafiteiro:'Grafiteiro/Muralista',automotivo:'Pintor Automotivo',cliente:'Cliente'};
@@ -101,9 +102,9 @@ async function loadMyProfileData(){
       // Show/hide CRM portal link
       const portalLink = document.getElementById('crm-portal-link');
       if(portalLink) portalLink.style.display = prof.portal_access ? '' : 'none';
-      // Set mode based on DB role
-      if(isProfessionalRole(role)) setMode(role);
-      else setMode('cliente');
+      // Set mode based on DB role (only if changed to avoid flash)
+      const targetMode = isProfessionalRole(role) ? role : 'cliente';
+      if(targetMode !== currentMode) setMode(targetMode);
     } else {
       // Fallback to user_metadata
       const meta = currentUser.user_metadata || {};
