@@ -927,6 +927,7 @@ function openChatWithUser(userId){
 }
 
 function abrirOrcamentoChat(painterId, painterName){
+  if(!currentUser){ showScreen('auth'); return; }
   const existing = document.getElementById('orc-chat-overlay');
   if(existing) existing.remove();
   const servicos = [
@@ -3466,7 +3467,7 @@ async function loadPosts(feedIds){
     let savedPosts = [];
     let commentsMap = {};
     const queries = [
-      sb.from('profiles').select('id, name, tag, avatar_url, role').in('id', userIds),
+      sb.from('profiles').select('id, name, tag, avatar_url, role, user_type').in('id', userIds),
       sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true })
     ];
     if(currentUser){
@@ -3544,8 +3545,8 @@ async function loadPosts(feedIds){
         +'<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>'
         +'<span class="act-label">Compartilhar</span>'
         +'</button>';
-      // Orçamento (só em posts de profissionais, que não são à venda, de outros usuários)
-      if(!p.for_sale && currentUser && p.user_id !== currentUser.id && isProfessionalRole(prof.role)){
+      // Orçamento (qualquer post que não seja o seu próprio)
+      if(!currentUser || p.user_id !== currentUser.id){
         html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeHtml(name)+'\')">'
           +'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
           +'<span class="act-label">Orçar</span>'

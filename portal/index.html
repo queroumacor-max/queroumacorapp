@@ -148,7 +148,14 @@ const adminUsers = async (payload) => {
   let res = {};
   try { res = await r.json(); } catch (_) {}
   if (!r.ok || !res.ok) {
-    alert('A acao falhou: ' + (res.error || ('HTTP ' + r.status)));
+    if (r.status === 503 || /SERVICE_ROLE_KEY/i.test(res.error || '')) {
+      alert('Gestao de usuarios indisponivel.\n\nO servidor ainda nao esta configurado para esta acao. ' +
+            'E preciso definir a variavel de ambiente SUPABASE_SERVICE_ROLE_KEY no Cloudflare Pages ' +
+            '(Settings -> Environment variables -> Production) e refazer o deploy.\n\n' +
+            'Fale com o responsavel tecnico para concluir essa configuracao.');
+    } else {
+      alert('A acao falhou: ' + (res.error || ('HTTP ' + r.status)));
+    }
     return false;
   }
   return true;
@@ -167,6 +174,16 @@ const revokePortal = async (id, after) => {
 const setProfileVerified = async (id, value, after) => {
   if (await adminUsers({ action:'verify', userId:id, value }) && after) after();
 };
+
+const setProfilePro = async (id, value, after) => {
+  const msg = value
+    ? 'Habilitar o PRO para este cliente manualmente? (validade de 1 ano)'
+    : 'Remover o acesso PRO deste cliente?';
+  if (!confirm(msg)) return;
+  if (await adminUsers({ action:'set_pro', userId:id, value }) && after) after();
+};
+
+const isProActive = p => !!(p && p.is_pro && (!p.pro_expires_at || new Date(p.pro_expires_at) > new Date()));
 
 const setProfileRole = async (id, roleKey, after) => {
   const ok = await adminUsers({ action:'set_role', userId:id, roleKey });
@@ -1485,7 +1502,7 @@ const ClientesList = () => {
         {clientes.length > 0 && (
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','Tipo','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado','Portal'].map(h => (
+              {['Nome','Tipo','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado','PRO','Portal'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -1510,6 +1527,29 @@ const ClientesList = () => {
                 <td style={{ padding:'10px 12px', color:C.muted }}>{data}</td>
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c._generated_codes && c._generated_codes.length > 0 ? c._generated_codes.join(', ') : '—'}</td>
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c.invite_code_used || '—'}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  {(() => {
+                    const pro = isProActive(c);
+                    const paid = !!c.mp_preapproval_id;
+                    const exp = c.pro_expires_at ? new Date(c.pro_expires_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : null;
+                    return (
+                      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background: pro ? '#16a34a22' : C.border, color: pro ? '#16a34a' : C.muted }}>
+                            {pro ? 'PRO' : 'Free'}
+                          </span>
+                          <span style={{ fontSize:10, color:C.muted }} title={paid ? 'Assinatura via Mercado Pago' : 'Sem pagamento registrado'}>
+                            {paid ? '💳 Pago' : (pro ? '✋ Manual' : '— não pagou')}
+                          </span>
+                        </div>
+                        {pro && exp && <span style={{ fontSize:10, color:C.muted }}>até {exp}</span>}
+                        {pro
+                          ? <button onClick={() => setProfilePro(c.id, false, fetchClientes)} style={{ background:'none', border:'1px solid '+C.muted, color:C.muted, borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:600 }}>Remover PRO</button>
+                          : <button onClick={() => setProfilePro(c.id, true, fetchClientes)} style={{ background:'#16a34a', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:700 }}>Habilitar PRO</button>}
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td style={{ padding:'10px 12px' }}>
                   {c.portal_access
                     ? <button onClick={() => revokePortal(c.id, fetchClientes)} style={{ background:C.p5+'22', color:C.p5, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }} title="Remover acesso ao portal">✓ Portal</button>
