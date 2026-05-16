@@ -808,6 +808,9 @@ async function initAuth() {
     showScreen('feed');
     autoDetectRole();
     setupGlobalMsgSubscription();
+    refreshProStatus();
+    checkAdminEntry();
+    handleProReturn();
     // Load feed once right after auth
     _feedLoaded = true;
     loadFeed();
@@ -819,8 +822,12 @@ async function initAuth() {
     if(currentUser){
       autoDetectRole();
       setupGlobalMsgSubscription();
+      refreshProStatus();
+      checkAdminEntry();
       if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
     } else {
+      _isPro = false;
+      _isAdmin = false;
       _feedLoaded = false;
       if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
     }
@@ -918,6 +925,43 @@ async function loadMyProfileStats(){
     const followingEl = document.getElementById('myprofile-following-count');
     if(followingEl) followingEl.textContent = followingCount || 0;
   } catch(e){ console.warn('loadMyProfileStats error:', e); }
+  loadMyPortfolio();
+}
+
+async function loadMyPortfolio(){
+  const box = document.getElementById('myprofile-portfolio');
+  if(!box) return;
+  const sb = getSupabase();
+  if(!sb || !currentUser){ box.innerHTML = ''; return; }
+  try {
+    const { data: posts, error } = await sb.from('posts').select('*')
+      .eq('user_id', currentUser.id).neq('media_type','story')
+      .order('created_at',{ascending:false}).limit(60);
+    if(error) throw error;
+    if(!posts || posts.length === 0){
+      box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Você ainda não publicou trabalhos.<br>Toque em <b>+ Adicionar</b> para postar fotos e vídeos.</div>';
+      return;
+    }
+    box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">' + posts.map(p => {
+      const cap = (p.caption || '').replace(/</g,'&lt;');
+      const isVid = p.media_type === 'video';
+      const pending = p.status === 'pending';
+      const media = p.media_url
+        ? (isVid
+            ? `<video src="${p.media_url}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+            : `<img src="${p.media_url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`)
+        : `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:8px;font-size:11px;color:var(--muted);text-align:center;">${cap || 'Post'}</div>`;
+      return `<div onclick="showScreen('feed')" style="position:relative;aspect-ratio:1;background:var(--ink);border-radius:8px;overflow:hidden;cursor:pointer;">
+        ${media}
+        ${isVid ? '<div style="position:absolute;top:6px;right:6px;color:#fff;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.6);">▶</div>' : ''}
+        ${pending ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;">EM ANÁLISE</div>' : ''}
+        ${cap ? `<div style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;padding:14px 6px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cap}</div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+  } catch(e){
+    console.warn('loadMyPortfolio:', e);
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Erro ao carregar portfólio.</div>';
+  }
 }
 
 async function openFollowersModal(){
@@ -2086,7 +2130,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <div style="padding:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Meu Negócio</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-        <div onclick="showScreen('feed')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+        <div onclick="openPortfolioComposer()" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">📸</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Meu Portfolio</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Postar trabalhos</div>
@@ -2151,6 +2195,11 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
           <div style="font-size:12px;font-weight:700;color:#fff;">CRM / Portal</div>
           <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;">Painel admin</div>
         </div>
+        <div id="mod-queue-link" onclick="openModQueue()" style="display:none;background:var(--ink);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1);">
+          <div style="font-size:28px;margin-bottom:6px;">🛡️</div>
+          <div style="font-size:12px;font-weight:700;color:#fff;">Moderação</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;" id="mod-queue-count">Fila de revisão</div>
+        </div>
       </div>
 
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Pedidos de Orçamento</div>
@@ -2196,6 +2245,16 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
         <div onclick="toast('Notificacoes...')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
           <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificacoes</div><span style="color:var(--muted);">›</span>
         </div>
+      </div>
+    </div>
+
+    <div style="padding:0 14px 90px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Meu Portfólio</div>
+        <div onclick="openPortfolioComposer()" style="font-size:12px;font-weight:700;color:var(--p1);cursor:pointer;">+ Adicionar</div>
+      </div>
+      <div id="myprofile-portfolio">
+        <div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Carregando...</div>
       </div>
     </div>
 
@@ -2367,10 +2426,10 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <button class="chat-new-btn" onclick="showModal('new-chat-modal')">+ Nova</button>
   </div>
   <div class="chat-tabs">
-    <div class="chat-tab active" onclick="chatTab(this)">Todas</div>
-    <div class="chat-tab" onclick="chatTab(this)">Orçamentos</div>
-    <div class="chat-tab" onclick="chatTab(this)">3-Way 🔗</div>
-    <div class="chat-tab" onclick="chatTab(this)">Loja</div>
+    <div class="chat-tab active" data-filter="all" onclick="chatTab(this)">Todas</div>
+    <div class="chat-tab" data-filter="orcamento" onclick="chatTab(this)">Orçamentos</div>
+    <div class="chat-tab" data-filter="trio" onclick="chatTab(this)">Pintor + Cali 🔗</div>
+    <div class="chat-tab" data-filter="store" onclick="chatTab(this)">Cali Colors</div>
   </div>
 
   <div id="conv-list">
@@ -2676,12 +2735,6 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
             <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Cor da camiseta</div>
             <div class="shirt-opt-row" style="flex-wrap:wrap;gap:8px;">
               <div class="shirt-color-btn active" style="background:#fff;box-shadow:0 0 0 1px var(--border)" onclick="setShirtColor(this,'#fff')"></div>
-              <div class="shirt-color-btn" style="background:#1a1a2e" onclick="setShirtColor(this,'#1a1a2e')"></div>
-              <div class="shirt-color-btn" style="background:#ff6b35" onclick="setShirtColor(this,'#ff6b35')"></div>
-              <div class="shirt-color-btn" style="background:#2ec4b6" onclick="setShirtColor(this,'#2ec4b6')"></div>
-              <div class="shirt-color-btn" style="background:#e63946" onclick="setShirtColor(this,'#e63946')"></div>
-              <div class="shirt-color-btn" style="background:#8338ec" onclick="setShirtColor(this,'#8338ec')"></div>
-              <div class="shirt-color-btn" style="background:#000" onclick="setShirtColor(this,'#000')"></div>
             </div>
           </div>
 
@@ -2712,7 +2765,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
         <div class="shirt-price-row">
           <div>
             <div style="font-size:11px;color:var(--muted);">Total estimado</div>
-            <div class="shirt-total" id="shirt-total">R$89,90</div>
+            <div class="shirt-total" id="shirt-total">R$39,90</div>
           </div>
           <button class="shirt-buy-btn" onclick="buyShirt()">🛒 Pedir Agora</button>
         </div>
@@ -2823,7 +2876,16 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <div class="pro-feat"><span class="pro-feat-icon">🎓</span>Acesso a cursos exclusivos</div>
     <div class="pro-feat"><span class="pro-feat-icon">🤖</span>Orçamento gerado por IA</div>
     <div class="pro-feat"><span class="pro-feat-icon">💡</span>Chat IA para dúvidas técnicas</div>
-    <button class="pro-cta" onclick="toast('PRO ativado! 🎉');closeModals()">Assinar Agora</button>
+    <button class="pro-cta" id="pro-cta-btn" onclick="startProCheckout()">Assinar Agora</button>
+  </div>
+</div>
+
+<div class="overlay" id="mod-queue-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🛡️ Fila de Moderação</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Conteúdo aguardando revisão antes de ficar público.</div>
+    <div id="mod-queue-list"><div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div></div>
   </div>
 </div>
 
@@ -3111,8 +3173,9 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
-  <!-- Story image -->
+  <!-- Story image / video -->
   <img id="story-viewer-img" src="" style="width:100%;height:100%;object-fit:contain;position:absolute;inset:0;">
+  <video id="story-viewer-video" playsinline style="display:none;width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#000;"></video>
   <!-- Tap zones -->
   <div style="position:absolute;inset:0;display:flex;z-index:2;">
     <div style="flex:1;" onclick="storyPrev()"></div>
@@ -3544,11 +3607,159 @@ function calcTinta(){
 }
 
 // ══ AI FEATURES (PRO) ══
+let _isPro = false;
+
+async function refreshProStatus(){
+  try {
+    const sb = getSupabase();
+    if(!sb || !currentUser) { _isPro = false; return false; }
+    const { data } = await sb.from('profiles').select('is_pro, pro_expires_at').eq('id', currentUser.id).single();
+    const notExpired = !data?.pro_expires_at || new Date(data.pro_expires_at) > new Date();
+    _isPro = !!(data && data.is_pro && notExpired);
+    return _isPro;
+  } catch(e){ console.warn('refreshProStatus:', e); return _isPro; }
+}
+
 function checkProAccess(){
-  // TODO: integrate with real PRO subscription check
-  // For now, show pro-modal if not pro
-  // return false to block, true to allow
-  return true; // temporary: allow all while testing
+  return _isPro;
+}
+
+function handleProReturn(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('pro') !== 'success') return;
+    toast('Pagamento recebido! Ativando seu PRO...');
+    // O webhook pode levar alguns segundos; tenta atualizar algumas vezes.
+    let tries = 0;
+    const iv = setInterval(async () => {
+      tries++;
+      const pro = await refreshProStatus();
+      if(pro){ clearInterval(iv); toast('Plano PRO ativado! 🎉'); }
+      else if(tries >= 6){ clearInterval(iv); toast('Pagamento em processamento. O PRO será liberado em instantes.'); }
+    }, 4000);
+    // Limpa o parâmetro da URL
+    const clean = window.location.pathname;
+    window.history.replaceState({}, '', clean);
+  } catch(e){ console.warn('handleProReturn:', e); }
+}
+
+async function startProCheckout(){
+  const btn = document.getElementById('pro-cta-btn');
+  try {
+    const sb = getSupabase();
+    if(!sb){ toast('Erro: Supabase indisponível'); return; }
+    const { data:{ session } } = await sb.auth.getSession();
+    if(!session){ toast('Faça login para assinar'); return; }
+    if(btn){ btn.textContent = 'Abrindo pagamento...'; btn.disabled = true; }
+    const r = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        userId: session.user.id,
+        email: session.user.email,
+        name: session.user.user_metadata?.name || ''
+      })
+    });
+    const data = await r.json();
+    if(!r.ok || !data.init_point){
+      toast('Erro ao iniciar pagamento: ' + (data.error || 'tente novamente'));
+      if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
+      return;
+    }
+    window.location.href = data.init_point;
+  } catch(e){
+    console.error('startProCheckout:', e);
+    toast('Erro ao iniciar pagamento');
+    if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
+  }
+}
+
+// ══ MODERAÇÃO ADMIN ══
+let _isAdmin = false;
+
+async function getAccessToken(){
+  try {
+    const sb = getSupabase();
+    const { data:{ session } } = await sb.auth.getSession();
+    return session?.access_token || '';
+  } catch(e){ return ''; }
+}
+
+async function checkAdminEntry(){
+  try {
+    const token = await getAccessToken();
+    if(!token) return;
+    const r = await fetch('/api/admin-moderate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accessToken: token, action: 'check' })
+    });
+    if(!r.ok) return;
+    const data = await r.json();
+    _isAdmin = !!data.admin;
+    const link = document.getElementById('mod-queue-link');
+    if(link) link.style.display = _isAdmin ? '' : 'none';
+  } catch(e){ console.warn('checkAdminEntry:', e); }
+}
+
+async function openModQueue(){
+  showModal('mod-queue-modal');
+  const list = document.getElementById('mod-queue-list');
+  if(list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div>';
+  try {
+    const sb = getSupabase();
+    const { data: posts, error } = await sb.from('posts').select('*')
+      .eq('status','pending').order('created_at',{ascending:true}).limit(50);
+    if(error){ list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Erro ao carregar.</div>'; return; }
+    if(!posts || posts.length === 0){
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Nada pendente. 🎉</div>';
+      const cnt = document.getElementById('mod-queue-count'); if(cnt) cnt.textContent = 'Fila vazia';
+      return;
+    }
+    const cnt = document.getElementById('mod-queue-count'); if(cnt) cnt.textContent = posts.length + ' pendente(s)';
+    list.innerHTML = posts.map(p => {
+      const cap = (p.caption || '').replace(/</g,'&lt;');
+      const media = p.media_url
+        ? (p.media_type === 'video'
+            ? `<video src="${p.media_url}" controls style="width:100%;border-radius:12px;max-height:260px;background:#000;"></video>`
+            : `<img src="${p.media_url}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
+        : '';
+      return `<div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${p.media_type||'post'} · ${new Date(p.created_at).toLocaleString('pt-BR')}</div>
+        ${media}
+        ${cap ? `<div style="font-size:13px;color:var(--ink);margin:8px 0;">${cap}</div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button onclick="modAction('${p.id}','approve',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#2ec4b6;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Aprovar</button>
+          <button onclick="modAction('${p.id}','reject',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e63946;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Rejeitar</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e){
+    console.error('openModQueue:', e);
+    if(list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Erro ao carregar.</div>';
+  }
+}
+
+async function modAction(postId, action, btn){
+  try {
+    const card = btn?.closest('div[style*="background:var(--white)"]');
+    if(btn){ btn.disabled = true; btn.textContent = '...'; }
+    const token = await getAccessToken();
+    const r = await fetch('/api/admin-moderate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accessToken: token, action, postId })
+    });
+    const data = await r.json();
+    if(!r.ok || !data.ok){ toast('Erro: ' + (data.error || 'falha')); if(btn){ btn.disabled=false; btn.textContent = action==='approve'?'Aprovar':'Rejeitar'; } return; }
+    toast(action === 'approve' ? 'Post aprovado' : 'Post rejeitado');
+    if(card) card.remove();
+    if(typeof loadFeed === 'function') loadFeed();
+  } catch(e){
+    console.error('modAction:', e);
+    toast('Erro ao processar');
+    if(btn){ btn.disabled=false; btn.textContent = action==='approve'?'Aprovar':'Rejeitar'; }
+  }
 }
 
 function openAiOrcamento(){
@@ -4104,24 +4315,30 @@ function moderateContent(text){
   return { approved: true, reason: null };
 }
 
-async function moderateContentAsync(text, imageUrl){
+async function moderateContentAsync(text, imageUrl, hasMedia){
   const local = moderateContent(text || '');
   if (!local.approved) return { approved: false, reason: local.reason, severity: 'soft' };
+  // Fail-safe: se há mídia (imagem/vídeo) e a moderação cair, vai pra revisão
+  // humana em vez de publicar direto. Texto puro que passou no filtro local publica.
+  const failSafe = hasMedia
+    ? { approved: false, reason: 'mod_unavailable', severity: 'soft' }
+    : { approved: true, reason: null };
   try {
     const r = await fetch('/api/moderate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: text || '', imageUrl: imageUrl || '' })
     });
-    if (!r.ok) return { approved: true, reason: null };
+    if (!r.ok) return failSafe;
     const data = await r.json();
+    if (data.error || data.engine === 'failed') return failSafe;
     if (data.flagged) {
       return { approved: false, reason: 'ai:' + (data.reasons || []).join(','), severity: data.severity || 'soft' };
     }
     return { approved: true, reason: null };
   } catch(e){
-    console.warn('moderateContentAsync fail-open:', e);
-    return { approved: true, reason: null };
+    console.warn('moderateContentAsync fail-safe:', e);
+    return failSafe;
   }
 }
 
@@ -4145,6 +4362,21 @@ let currentChat = null;
 function chatTab(el){
   document.querySelectorAll('.chat-tab').forEach(t=>{t.classList.remove('active');});
   el.classList.add('active');
+  applyChatFilter(el.dataset.filter || 'all');
+}
+
+function applyChatFilter(filter){
+  document.querySelectorAll('#conv-list .conv-item').forEach(item => {
+    const cats = (item.dataset.cat || '').split(' ');
+    item.style.display = (filter === 'all' || cats.includes(filter)) ? '' : 'none';
+  });
+}
+
+function convDisplayName(c){
+  const nm = (c && c.name || '').trim();
+  if(nm && !/^usu[aá]rio$/i.test(nm)) return nm;
+  if(c && c.tag && c.tag.trim()) return '@' + c.tag.trim().replace(/^@/,'');
+  return 'Usuário';
 }
 
 // ══ LOCAL STORAGE CHAT PERSISTENCE ══
@@ -4239,7 +4471,7 @@ async function loadChatList(){
         const other = profileMap[cg.otherId] || {};
         const existing = localConvs[convId] || {};
         saveConvLocal(convId, {
-          name: other.name || existing.name || 'Usuario',
+          name: other.name || existing.name || '',
           avatar: other.avatar_url || existing.avatar || '',
           tag: other.tag || existing.tag || '',
           role: other.role || other.user_type || existing.role || '',
@@ -4264,10 +4496,22 @@ function renderConvList(container, convMap, myId){
     return;
   }
   container.innerHTML = convList.map(([convId, c]) => {
-    const name = c.name || 'Usuario';
+    const name = convDisplayName(c);
     const avatar = c.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
     const isPintor = isProfessionalRole(c.role);
     const is3way = c.is3way || false;
+    const isStore = !is3way && (
+      (c.otherId && c.otherId === calicolorsUserId) ||
+      /cali\s*colors?/i.test(c.name || '') ||
+      /cali/i.test(c.tag || '') ||
+      String(convId).startsWith('store_calicolors_')
+    );
+    const lowPrev = ((c.lastMsg||'') + ' ' + (c.name||'')).toLowerCase();
+    const isOrcamento = /or[çc]ament/.test(lowPrev);
+    const cats = ['all'];
+    if(is3way) cats.push('trio');
+    if(isStore) cats.push('store');
+    if(isOrcamento) cats.push('orcamento');
     const preview = c.lastMsg || '';
     const isMine = c.lastMsgFrom === 'me';
     const time = c.lastMsgTime ? new Date(c.lastMsgTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
@@ -4279,8 +4523,8 @@ function renderConvList(container, convMap, myId){
         name: is3way ? name + ' + Cali Colors' : name,
         sub: is3way ? '3 participantes · Chat 3-way ativo' : (c.tag ? '@' + c.tag : ''),
         participants: is3way
-          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?'Pintor':'Usuario'}]
-          : [{img:avatar,name:name,role:isPintor?'Pintor':'Usuario'}],
+          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}]
+          : [{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}],
         messages: []
       };
     }
@@ -4288,14 +4532,16 @@ function renderConvList(container, convMap, myId){
     const storeAvatar = is3way
       ? '<div class="conv-av-store" style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);z-index:2;"><span style="font-size:7px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
       : '';
-    const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">3-WAY</span>' : '';
-    return '<div class="conv-item" onclick="openChat(\''+convId+'\')">'
+    const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">+ CALI</span>' : '';
+    return '<div class="conv-item" data-cat="'+cats.join(' ')+'" onclick="openChat(\''+convId+'\')">'
       + '<div class="conv-avatars" style="position:relative;"><div class="conv-av-main"><img src="'+avatar+'" alt=""></div>'+storeAvatar+'</div>'
       + '<div class="conv-info"><div class="conv-name">'+escapeHtml(displayName)+threewayBadge+(isPintor && !is3way?' <span style="background:var(--p1);color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">PINTOR</span>':'')+'</div>'
       + '<div class="conv-preview">'+(isMine?'Voce: ':'')+escapeHtml(preview.substring(0,50))+'</div></div>'
       + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="conv-time">'+time+'</div></div>'
       + '</div>';
   }).join('');
+  const activeTab = document.querySelector('.chat-tab.active');
+  applyChatFilter(activeTab ? (activeTab.dataset.filter || 'all') : 'all');
 }
 
 // ══ NEW CHAT MODAL ══
@@ -5808,7 +6054,7 @@ async function loadMktProducts(){
 function changeQty(delta) {
   shirtQty = Math.max(1, shirtQty + delta);
   document.getElementById('shirt-qty').textContent = shirtQty;
-  const base = 89.90;
+  const base = 39.90;
   const disc = shirtQty >= 5 ? 0.85 : 1;
   document.getElementById('shirt-total').textContent = 'R$' + (base * shirtQty * disc).toFixed(2).replace('.',',');
 }
@@ -6178,6 +6424,13 @@ function setPostType(type){
   // Show sale fields for grafiteiro on post type
   const saleFields = document.getElementById('post-sale-fields');
   if(saleFields) saleFields.style.display = (type==='post' && currentMode==='grafiteiro') ? 'block' : 'none';
+}
+
+function openPortfolioComposer(){
+  // Abre o compositor já em modo "Post" (foto/vídeo + texto embaixo).
+  // Story/Reel ficam a um toque pelo seletor do próprio modal.
+  setPostType('post');
+  showModal('post-modal');
 }
 
 let _lastFeedLoad = 0;
@@ -6637,6 +6890,8 @@ async function loadStories(feedIds){
     if(!feedIds) feedIds = await getFollowingIds();
     // Build query - if user has following list, filter by it; otherwise show all recent stories
     let storyQuery = sb.from('posts').select('*').eq('media_type', 'story');
+    // Só stories aprovados (ou sem status, compat) — não vaza conteúdo pendente
+    storyQuery = storyQuery.or('status.eq.approved,status.is.null');
     if(feedIds.length > 0) storyQuery = storyQuery.in('user_id', feedIds);
     storyQuery = storyQuery.gte('created_at', since).order('created_at', { ascending: true }).limit(100);
     let { data: stories, error } = await storyQuery;
@@ -6759,6 +7014,8 @@ function openStoryViewer(groupIndex){
 
 function closeStoryViewer(){
   document.getElementById('story-viewer').style.display = 'none';
+  const vidEl = document.getElementById('story-viewer-video');
+  if(vidEl){ vidEl.pause(); vidEl.removeAttribute('src'); }
   if(storyTimer) clearInterval(storyTimer);
   storyTimer = null;
   loadStories(); // refresh seen states
@@ -6771,8 +7028,25 @@ function renderCurrentStory(){
   if(!s) { closeStoryViewer(); return; }
   const p = g.profile;
 
-  // Update image
-  document.getElementById('story-viewer-img').src = s.media_url || '';
+  // Update media (image or video)
+  const imgEl = document.getElementById('story-viewer-img');
+  const vidEl = document.getElementById('story-viewer-video');
+  const storyIsVideo = isVideoUrl(s.media_url) || s.media_type === 'video';
+  if(storyIsVideo){
+    imgEl.style.display = 'none';
+    imgEl.src = '';
+    vidEl.style.display = 'block';
+    vidEl.src = s.media_url || '';
+    vidEl.muted = false;
+    vidEl.currentTime = 0;
+    vidEl.play().catch(() => { vidEl.muted = true; vidEl.play().catch(()=>{}); });
+  } else {
+    vidEl.pause();
+    vidEl.removeAttribute('src');
+    vidEl.style.display = 'none';
+    imgEl.style.display = 'block';
+    imgEl.src = s.media_url || '';
+  }
   // Update header
   document.getElementById('story-viewer-avatar').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
   document.getElementById('story-viewer-name').textContent = p.name || 'User';
@@ -6802,14 +7076,23 @@ function renderCurrentStory(){
 
   // Start auto-advance timer
   if(storyTimer) clearInterval(storyTimer);
-  let elapsed = 0;
-  const step = 50;
-  storyTimer = setInterval(() => {
-    elapsed += step;
-    const fill = document.getElementById('story-progress-fill');
-    if(fill) fill.style.width = (elapsed / STORY_DURATION * 100) + '%';
-    if(elapsed >= STORY_DURATION) storyNext();
-  }, step);
+  if(storyIsVideo){
+    // Vídeo: progresso e avanço seguem a duração real do vídeo
+    vidEl.onended = () => storyNext();
+    storyTimer = setInterval(() => {
+      const fill = document.getElementById('story-progress-fill');
+      if(fill && vidEl.duration) fill.style.width = (vidEl.currentTime / vidEl.duration * 100) + '%';
+    }, 80);
+  } else {
+    let elapsed = 0;
+    const step = 50;
+    storyTimer = setInterval(() => {
+      elapsed += step;
+      const fill = document.getElementById('story-progress-fill');
+      if(fill) fill.style.width = (elapsed / STORY_DURATION * 100) + '%';
+      if(elapsed >= STORY_DURATION) storyNext();
+    }, step);
+  }
 }
 
 function storyNext(){
@@ -6855,7 +7138,13 @@ function handlePostFiles(input){
   document.getElementById('post-picker-area').style.display = 'none';
   previewImages.innerHTML = '';
   const url = URL.createObjectURL(files[0]);
-  previewImages.innerHTML = `<img src="${url}" class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;">`;
+  previewImages.innerHTML = getMediaType(files[0]) === 'video'
+    ? `<video src="${url}" controls playsinline class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;background:#000;"></video>`
+    : `<img src="${url}" class="post-preview-img" style="max-height:200px;border-radius:10px;object-fit:cover;">`;
+}
+
+function isVideoUrl(u){
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|#|$)/i.test(u || '');
 }
 
 function clearPostImages(){
@@ -6906,7 +7195,13 @@ async function publishPost(){
     }
 
     // Content moderation check
-    const modResult = await moderateContentAsync(content, imageUrl);
+    const hasMedia = postSelectedFiles.length > 0;
+    const isVideo = hasMedia && getMediaType(postSelectedFiles[0]) === 'video';
+    // Vídeo: modera só o texto na hora (bloqueio duro); o vídeo em si
+    // (frames + áudio) é analisado de forma assíncrona após publicar.
+    const modResult = isVideo
+      ? await moderateContentAsync(content, null, false)
+      : await moderateContentAsync(content, imageUrl, hasMedia);
     if (!modResult.approved && modResult.severity === 'hard') {
       // Hard block — apaga o upload e aborta
       if (imageUrl) {
@@ -6919,7 +7214,8 @@ async function publishPost(){
       btn.textContent = 'Publicar'; btn.disabled = false;
       return;
     }
-    const postStatus = modResult.approved ? 'approved' : 'pending';
+    // Vídeo sempre entra pendente até a análise assíncrona liberar
+    const postStatus = isVideo ? 'pending' : (modResult.approved ? 'approved' : 'pending');
 
     // Sale data (grafiteiro)
     const forSale = document.getElementById('post-for-sale')?.checked || false;
@@ -6945,7 +7241,21 @@ async function publishPost(){
       console.error('Post insert error:', insertErr);
       toast('Erro ao publicar: ' + (insertErr.message || JSON.stringify(insertErr)));
     } else {
-      if(postStatus === 'pending'){
+      // Vídeo: dispara a análise assíncrona (frames + áudio) no servidor
+      if(isVideo && insertData && insertData[0]){
+        getAccessToken().then(token => {
+          fetch('/api/moderate-video', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ accessToken: token, postId: insertData[0].id, mediaUrl: imageUrl, caption: content })
+          }).then(r => r.json()).then(() => {
+            if(typeof loadFeed === 'function') loadFeed();
+          }).catch(e => console.warn('moderate-video:', e));
+        });
+      }
+      if(isVideo){
+        toast('Vídeo publicado — em análise antes de ficar visível.');
+      } else if(postStatus === 'pending'){
         toast('Post enviado para revisão antes de ser publicado.');
       } else {
         toast(type === 'story' ? 'Story publicado!' : 'Post publicado!');
