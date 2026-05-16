@@ -2735,12 +2735,6 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
             <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Cor da camiseta</div>
             <div class="shirt-opt-row" style="flex-wrap:wrap;gap:8px;">
               <div class="shirt-color-btn active" style="background:#fff;box-shadow:0 0 0 1px var(--border)" onclick="setShirtColor(this,'#fff')"></div>
-              <div class="shirt-color-btn" style="background:#1a1a2e" onclick="setShirtColor(this,'#1a1a2e')"></div>
-              <div class="shirt-color-btn" style="background:#ff6b35" onclick="setShirtColor(this,'#ff6b35')"></div>
-              <div class="shirt-color-btn" style="background:#2ec4b6" onclick="setShirtColor(this,'#2ec4b6')"></div>
-              <div class="shirt-color-btn" style="background:#e63946" onclick="setShirtColor(this,'#e63946')"></div>
-              <div class="shirt-color-btn" style="background:#8338ec" onclick="setShirtColor(this,'#8338ec')"></div>
-              <div class="shirt-color-btn" style="background:#000" onclick="setShirtColor(this,'#000')"></div>
             </div>
           </div>
 
@@ -2771,7 +2765,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
         <div class="shirt-price-row">
           <div>
             <div style="font-size:11px;color:var(--muted);">Total estimado</div>
-            <div class="shirt-total" id="shirt-total">R$89,90</div>
+            <div class="shirt-total" id="shirt-total">R$39,90</div>
           </div>
           <button class="shirt-buy-btn" onclick="buyShirt()">🛒 Pedir Agora</button>
         </div>
@@ -6060,7 +6054,7 @@ async function loadMktProducts(){
 function changeQty(delta) {
   shirtQty = Math.max(1, shirtQty + delta);
   document.getElementById('shirt-qty').textContent = shirtQty;
-  const base = 89.90;
+  const base = 39.90;
   const disc = shirtQty >= 5 ? 0.85 : 1;
   document.getElementById('shirt-total').textContent = 'R$' + (base * shirtQty * disc).toFixed(2).replace('.',',');
 }
