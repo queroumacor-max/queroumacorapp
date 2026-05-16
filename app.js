@@ -4130,7 +4130,7 @@ async function publishPost(){
       user_id: session.user.id,
       caption: content || null,
       media_url: imageUrl,
-      media_type: type === 'story' ? 'story' : (postFile && getMediaType(postFile) === 'video' ? 'video' : 'image'),
+      media_type: type === 'story' ? 'story' : (postSelectedFiles[0] && getMediaType(postSelectedFiles[0]) === 'video' ? 'video' : 'image'),
       status: postStatus,
       for_sale: forSale,
       price: price > 0 ? price : null,
