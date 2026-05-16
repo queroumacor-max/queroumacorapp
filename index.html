@@ -1330,9 +1330,18 @@
       <div class="mkt-tab" onclick="mktTab(this,'epoxi')">⚗️ Epóxi</div>
       <div class="mkt-tab" onclick="mktTab(this,'acessorios')">🛒 Acessórios</div>
     </div>
+    <div class="mkt-search-wrap">
+      <input class="mkt-search-input" id="mkt-search" type="search" placeholder="🔍 Buscar produto ou código..." oninput="mktSearch(this.value)">
+    </div>
   </div>
 
   <div class="mkt-body" id="mkt-body">
+
+    <!-- RESULTADOS DA BUSCA -->
+    <div id="mkt-search-section" style="display:none">
+      <div class="mkt-section-title" id="mkt-search-title">Resultados</div>
+      <div class="mkt-products" id="mkt-search-grid"></div>
+    </div>
 
     <!-- TINTAS (loaded from DB) -->
     <div id="mkt-tintas">

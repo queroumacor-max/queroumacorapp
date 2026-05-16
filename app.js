@@ -2625,6 +2625,8 @@ let mktProducts = [];
 function mktTab(el, tab) {
   document.querySelectorAll('.mkt-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
+  const si = document.getElementById('mkt-search'); if(si) si.value = '';
+  const ss = document.getElementById('mkt-search-section'); if(ss) ss.style.display = 'none';
   ['tintas','texturas','epoxi','acessorios'].forEach(t => {
     const el2 = document.getElementById('mkt-' + t);
     if(el2) el2.style.display = t === tab ? 'block' : 'none';
@@ -2723,6 +2725,49 @@ function renderProductCard(p){
   return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+'">'+badgeHtml+emoji+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();addToCart(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
+function renderProductRow(p){
+  const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#e8e2d9');
+  const emoji = getCategoryEmoji(p.category);
+  const price = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
+  const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
+  return '<div class="mkt-row" onclick="openProductDetail(\''+p.id+'\')">'
+    + '<div class="mkt-row-ic" style="background:'+bg+'">'+emoji+'</div>'
+    + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+'</div>'
+    + '<div class="mkt-row-sub">'+(p.code?('Cód '+escapeHtml(String(p.code))):'')+stk+'</div>'
+    + '<div class="mkt-row-price">'+price+'</div></div>'
+    + '<button class="mkt-row-add" onclick="event.stopPropagation();addToCart(\''+p.id+'\')">+ Carrinho</button>'
+    + '</div>';
+}
+
+function mktSearch(q){
+  q = (q||'').trim().toLowerCase();
+  const cats = ['tintas','texturas','epoxi','acessorios'];
+  const searchSec = document.getElementById('mkt-search-section');
+  if(!q){
+    if(searchSec) searchSec.style.display = 'none';
+    let shown = false;
+    document.querySelectorAll('.mkt-tab').forEach((tb,i) => {
+      const el = document.getElementById('mkt-'+cats[i]);
+      if(!el) return;
+      const on = tb.classList.contains('active');
+      el.style.display = on ? 'block' : 'none';
+      if(on) shown = true;
+    });
+    if(!shown){ const el = document.getElementById('mkt-tintas'); if(el) el.style.display='block'; }
+    return;
+  }
+  cats.forEach(t => { const el = document.getElementById('mkt-'+t); if(el) el.style.display='none'; });
+  const res = (mktProducts||[]).filter(p =>
+    (p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q));
+  const grid = document.getElementById('mkt-search-grid');
+  const title = document.getElementById('mkt-search-title');
+  if(title) title.textContent = res.length + ' resultado(s)';
+  if(grid) grid.innerHTML = res.length
+    ? res.slice(0,400).map(renderProductRow).join('')
+    : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
+  if(searchSec) searchSec.style.display = 'block';
+}
+
 function openProductDetail(productId){
   const p = mktProducts.find(x => x.id === productId);
   if(!p){ showModal('product-detail-modal'); return; }
@@ -2765,7 +2810,7 @@ async function loadMktProducts(){
       if(items.length === 0){
         grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto nesta categoria</div>';
       } else {
-        grid.innerHTML = items.map(p => renderProductCard(p)).join('');
+        grid.innerHTML = items.map(p => renderProductRow(p)).join('');
       }
     });
   } catch(e){
