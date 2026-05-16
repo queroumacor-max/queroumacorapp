@@ -4300,36 +4300,6 @@ async function moderateContentAsync(text, imageUrl, hasMedia){
   }
 }
 
-function captureVideoFrame(file){
-  return new Promise((resolve) => {
-    try {
-      const v = document.createElement('video');
-      v.muted = true; v.playsInline = true; v.preload = 'metadata';
-      const url = URL.createObjectURL(file);
-      let done = false;
-      const finish = (val) => { if(done) return; done = true; try{ URL.revokeObjectURL(url); }catch(e){} resolve(val); };
-      const timer = setTimeout(() => finish(null), 8000);
-      v.onloadeddata = () => {
-        try { v.currentTime = Math.min(1, (v.duration || 1) / 2); } catch(e){ finish(null); }
-      };
-      v.onseeked = () => {
-        try {
-          const c = document.createElement('canvas');
-          const max = 640;
-          const scale = Math.min(1, max / Math.max(v.videoWidth || max, v.videoHeight || max));
-          c.width = (v.videoWidth || max) * scale;
-          c.height = (v.videoHeight || max) * scale;
-          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-          clearTimeout(timer);
-          finish(c.toDataURL('image/jpeg', 0.7));
-        } catch(e){ clearTimeout(timer); finish(null); }
-      };
-      v.onerror = () => { clearTimeout(timer); finish(null); };
-      v.src = url;
-    } catch(e){ resolve(null); }
-  });
-}
-
 function getMediaType(file){
   if(!file) return 'image';
   if(file.type && file.type.startsWith('video/')) return 'video';
@@ -7114,15 +7084,12 @@ async function publishPost(){
 
     // Content moderation check
     const hasMedia = postSelectedFiles.length > 0;
-    let modImageUrl = imageUrl;
-    // Vídeo não é analisável pela moderação de imagem — extrai um frame.
-    if (hasMedia && getMediaType(postSelectedFiles[0]) === 'video') {
-      try {
-        const frame = await captureVideoFrame(postSelectedFiles[0]);
-        if (frame) modImageUrl = frame;
-      } catch(e){ console.warn('captureVideoFrame:', e); }
-    }
-    const modResult = await moderateContentAsync(content, modImageUrl, hasMedia);
+    const isVideo = hasMedia && getMediaType(postSelectedFiles[0]) === 'video';
+    // Vídeo: modera só o texto na hora (bloqueio duro); o vídeo em si
+    // (frames + áudio) é analisado de forma assíncrona após publicar.
+    const modResult = isVideo
+      ? await moderateContentAsync(content, null, false)
+      : await moderateContentAsync(content, imageUrl, hasMedia);
     if (!modResult.approved && modResult.severity === 'hard') {
       // Hard block — apaga o upload e aborta
       if (imageUrl) {
@@ -7135,7 +7102,8 @@ async function publishPost(){
       btn.textContent = 'Publicar'; btn.disabled = false;
       return;
     }
-    const postStatus = modResult.approved ? 'approved' : 'pending';
+    // Vídeo sempre entra pendente até a análise assíncrona liberar
+    const postStatus = isVideo ? 'pending' : (modResult.approved ? 'approved' : 'pending');
 
     // Sale data (grafiteiro)
     const forSale = document.getElementById('post-for-sale')?.checked || false;
@@ -7161,7 +7129,21 @@ async function publishPost(){
       console.error('Post insert error:', insertErr);
       toast('Erro ao publicar: ' + (insertErr.message || JSON.stringify(insertErr)));
     } else {
-      if(postStatus === 'pending'){
+      // Vídeo: dispara a análise assíncrona (frames + áudio) no servidor
+      if(isVideo && insertData && insertData[0]){
+        getAccessToken().then(token => {
+          fetch('/api/moderate-video', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ accessToken: token, postId: insertData[0].id, mediaUrl: imageUrl, caption: content })
+          }).then(r => r.json()).then(() => {
+            if(typeof loadFeed === 'function') loadFeed();
+          }).catch(e => console.warn('moderate-video:', e));
+        });
+      }
+      if(isVideo){
+        toast('Vídeo publicado — em análise antes de ficar visível.');
+      } else if(postStatus === 'pending'){
         toast('Post enviado para revisão antes de ser publicado.');
       } else {
         toast(type === 'story' ? 'Story publicado!' : 'Post publicado!');

@@ -1,65 +1,78 @@
+// Moderação de texto + imagem via Google Gemini.
+// Requer no Cloudflare Pages: GEMINI_API_KEY.
+// Vídeo é tratado de forma assíncrona em /api/moderate-video.
+const GEMINI_MODEL = 'gemini-2.5-flash';
+
+const RUBRIC =
+  'Você é um moderador de conteúdo de uma rede social de pintores/grafiteiros. ' +
+  'Analise o texto e a imagem (se houver) e responda APENAS um JSON válido: ' +
+  '{"flagged":bool,"severity":"none|soft|hard","reasons":[string]}. ' +
+  'severity "hard" (bloqueio total): nudez explícita, pornografia, QUALQUER conteúdo sexual envolvendo menores, ' +
+  'violência gráfica/sangue, ódio com ameaça, apologia a abuso infantil, armas/drogas ilícitas em destaque. ' +
+  'severity "soft" (revisão humana): linguagem ofensiva, golpe/scam/phishing, spam, conteúdo sexual sugestivo, ' +
+  'dados pessoais expostos (doxxing), pedido de contato/pagamento fora da plataforma (PIX/telefone na legenda). ' +
+  'severity "none" se for seguro (arte, pintura, grafite legítimo são seguros). ' +
+  'reasons: palavras curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam").';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
-  if (!env.OPENAI_API_KEY) {
-    return json({ flagged: false, error: 'OPENAI_API_KEY não configurada' }, 503);
+  if (!env.GEMINI_API_KEY) {
+    return json({ flagged: false, error: 'GEMINI_API_KEY não configurada', engine: 'none' }, 503);
   }
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
   const text = typeof body?.text === 'string' ? body.text.slice(0, 4000) : '';
-  const imageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl.slice(0, 200000) : '';
+  const imageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl : '';
 
   if (!text.trim() && !imageUrl.trim()) {
-    return json({ flagged: false, categories: {}, scores: {}, reasons: [], engine: 'none' });
+    return json({ flagged: false, severity: 'none', reasons: [], engine: 'none' });
   }
 
-  // ── Camada 1: OpenAI omni-moderation (texto + imagem) ──
-  try {
-    const input = [];
-    if (text.trim()) input.push({ type: 'text', text });
-    if (imageUrl.trim()) input.push({ type: 'image_url', image_url: { url: imageUrl } });
+  // Heurística local barata de golpe (roda antes do modelo)
+  const scam = detectScam(text);
 
-    const r = await fetch('https://api.openai.com/v1/moderations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ model: 'omni-moderation-latest', input })
-    });
-    if (!r.ok) throw new Error(`omni ${r.status}`);
-    const data = await r.json();
-    const result = data?.results?.[0];
-    if (!result) throw new Error('resposta inválida');
+  const parts = [{ text: RUBRIC }, { text: 'CONTEÚDO:\n' + (text || '(sem texto)') }];
 
-    const categories = result.categories || {};
-    const scores = result.category_scores || {};
-    const reasons = Object.entries(categories).filter(([, v]) => v === true).map(([k]) => k);
-
-    const HARD = ['sexual/minors', 'hate/threatening', 'violence/graphic', 'self-harm/intent', 'self-harm/instructions'];
-    const isHard = reasons.some(c => HARD.includes(c)) || (scores['sexual/minors'] || 0) > 0.3;
-
-    // omni-moderation não tem categoria de golpe/scam — checa só no texto.
-    const scam = detectScam(text);
-    const flagged = !!result.flagged || scam;
-
-    return json({
-      flagged,
-      severity: isHard ? 'hard' : (flagged ? 'soft' : 'none'),
-      categories,
-      scores,
-      reasons: scam ? [...reasons, 'scam'] : reasons,
-      engine: 'omni-moderation'
-    });
-  } catch (primaryErr) {
-    // ── Camada 2 (fallback): gpt-4o-mini visão com rubrica estrita ──
+  if (imageUrl.trim()) {
     try {
-      const fb = await fallbackModeration(env.OPENAI_API_KEY, text, imageUrl);
-      return json({ ...fb, engine: 'gpt-4o-mini-fallback' });
-    } catch (fbErr) {
-      // Ambas as camadas falharam — quem chama deve tratar como "indisponível".
-      return json({ error: `moderação indisponível: ${String(primaryErr?.message || primaryErr)}`, engine: 'failed' }, 502);
+      const img = await fetchImageInline(imageUrl);
+      if (img) parts.push({ inline_data: { mime_type: img.mime, data: img.b64 } });
+    } catch (e) { /* sem imagem inline, modera só o texto */ }
+  }
+
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: { temperature: 0, responseMimeType: 'application/json' }
+        })
+      }
+    );
+    if (!r.ok) throw new Error(`gemini ${r.status}: ${(await r.text()).slice(0, 150)}`);
+    const data = await r.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    let parsed = {};
+    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+
+    let severity = ['none', 'soft', 'hard'].includes(parsed.severity) ? parsed.severity : 'none';
+    let reasons = Array.isArray(parsed.reasons) ? parsed.reasons.slice(0, 8) : [];
+    let flagged = !!parsed.flagged || severity !== 'none';
+
+    if (scam) {
+      flagged = true;
+      if (severity === 'none') severity = 'soft';
+      if (!reasons.includes('golpe')) reasons.push('golpe');
     }
+
+    return json({ flagged, severity, reasons, categories: {}, scores: {}, engine: 'gemini' });
+  } catch (err) {
+    // Falhou: quem chama trata como indisponível (fail-safe → revisão).
+    return json({ error: `moderação indisponível: ${String(err?.message || err)}`, engine: 'failed' }, 502);
   }
 }
 
@@ -69,52 +82,29 @@ function detectScam(text) {
   const lures = [
     'pix antecipado', 'deposito antecipado', 'taxa de liberacao', 'ganhe dinheiro facil',
     'renda extra garantida', 'investimento garantido', 'dobre seu dinheiro', 'clique no link e ganhe',
-    'premio voce ganhou', 'cartao premiado', 'emprestimo sem consulta', 'chave pix para pagamento adiantado'
+    'premio voce ganhou', 'cartao premiado', 'emprestimo sem consulta', 'pagamento adiantado'
   ];
   return lures.some(l => t.includes(l));
 }
 
-async function fallbackModeration(apiKey, text, imageUrl) {
-  const userContent = [];
-  const rubric = 'Você é um moderador de conteúdo. Analise o conteúdo e responda APENAS um JSON válido ' +
-    '{"flagged":bool,"severity":"none|soft|hard","reasons":[string]}. ' +
-    'severity "hard" (bloqueio total) para: nudez explícita, pornografia, qualquer conteúdo sexual envolvendo menores, ' +
-    'violência gráfica/sangue, ódio com ameaça, apologia a abuso infantil. ' +
-    'severity "soft" (revisão humana) para: linguagem ofensiva, golpe/scam/phishing, spam, conteúdo sexual sugestivo. ' +
-    'severity "none" se for seguro. reasons em palavras curtas (ex: "nudez","sexual/minors","golpe","violencia","odio").';
-  userContent.push({ type: 'text', text: (text || '(sem texto)').slice(0, 3000) });
-  if (imageUrl && imageUrl.trim()) {
-    userContent.push({ type: 'image_url', image_url: { url: imageUrl } });
-  }
+async function fetchImageInline(src) {
+  // data URL (ex.: frame capturado no cliente)
+  const m = /^data:([^;]+);base64,(.+)$/.exec(src);
+  if (m) return { mime: m[1], b64: m[2] };
+  if (!/^https?:\/\//.test(src)) return null;
+  const r = await fetch(src);
+  if (!r.ok) return null;
+  const ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+  const buf = await r.arrayBuffer();
+  if (buf.byteLength > 6 * 1024 * 1024) return null; // imagem grande demais p/ inline
+  return { mime: ct, b64: bufToB64(buf) };
+}
 
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: rubric },
-        { role: 'user', content: userContent }
-      ]
-    })
-  });
-  if (!r.ok) throw new Error(`fallback ${r.status}`);
-  const data = await r.json();
-  let parsed = {};
-  try { parsed = JSON.parse(data?.choices?.[0]?.message?.content || '{}'); } catch { parsed = {}; }
-  const severity = ['none', 'soft', 'hard'].includes(parsed.severity) ? parsed.severity : (parsed.flagged ? 'soft' : 'none');
-  return {
-    flagged: !!parsed.flagged || severity !== 'none',
-    severity,
-    categories: {},
-    scores: {},
-    reasons: Array.isArray(parsed.reasons) ? parsed.reasons.slice(0, 8) : []
-  };
+function bufToB64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 function json(obj, status = 200) {
