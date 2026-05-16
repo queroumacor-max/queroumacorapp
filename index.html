@@ -4506,6 +4506,8 @@ function convDisplayName(c){
   const nm = (c && c.name || '').trim();
   if(nm && !/^usu[aá]rio$/i.test(nm)) return nm;
   if(c && c.tag && c.tag.trim()) return '@' + c.tag.trim().replace(/^@/,'');
+  const em = (c && c.email || '').trim();
+  if(em) return em.split('@')[0];
   return 'Usuário';
 }
 
@@ -4592,7 +4594,7 @@ async function loadChatList(){
       const otherIds = [...new Set(Object.values(convGroups).map(c => c.otherId).filter(Boolean))];
       let profileMap = {};
       if(otherIds.length > 0){
-        const { data: profs } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag').in('id', otherIds);
+        const { data: profs } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag, email').in('id', otherIds);
         if(profs) profs.forEach(p => { profileMap[p.id] = p; });
       }
 
@@ -4604,6 +4606,7 @@ async function loadChatList(){
           name: other.name || existing.name || '',
           avatar: other.avatar_url || existing.avatar || '',
           tag: other.tag || existing.tag || '',
+          email: other.email || existing.email || '',
           role: other.role || other.user_type || existing.role || '',
           otherId: cg.otherId,
           is3way: cg.is3way || existing.is3way || false,
@@ -5137,12 +5140,13 @@ async function handleRealtimeMsg(payload){
       try {
         const sb = getSupabase();
         if(sb){
-          const { data: prof } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag').eq('id', m.sender_id).single();
+          const { data: prof } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag, email').eq('id', m.sender_id).single();
           if(prof){
             saveConvLocal(m.conversation_id, {
-              name: prof.name || 'Usuario',
+              name: prof.name || '',
               avatar: prof.avatar_url || '',
               tag: prof.tag || '',
+              email: prof.email || '',
               role: prof.role || prof.user_type || '',
               otherId: m.sender_id,
               is3way: false,
