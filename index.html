@@ -2426,10 +2426,10 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <button class="chat-new-btn" onclick="showModal('new-chat-modal')">+ Nova</button>
   </div>
   <div class="chat-tabs">
-    <div class="chat-tab active" onclick="chatTab(this)">Todas</div>
-    <div class="chat-tab" onclick="chatTab(this)">Orçamentos</div>
-    <div class="chat-tab" onclick="chatTab(this)">3-Way 🔗</div>
-    <div class="chat-tab" onclick="chatTab(this)">Loja</div>
+    <div class="chat-tab active" data-filter="all" onclick="chatTab(this)">Todas</div>
+    <div class="chat-tab" data-filter="orcamento" onclick="chatTab(this)">Orçamentos</div>
+    <div class="chat-tab" data-filter="trio" onclick="chatTab(this)">Pintor + Cali 🔗</div>
+    <div class="chat-tab" data-filter="store" onclick="chatTab(this)">Cali Colors</div>
   </div>
 
   <div id="conv-list">
@@ -4367,6 +4367,21 @@ let currentChat = null;
 function chatTab(el){
   document.querySelectorAll('.chat-tab').forEach(t=>{t.classList.remove('active');});
   el.classList.add('active');
+  applyChatFilter(el.dataset.filter || 'all');
+}
+
+function applyChatFilter(filter){
+  document.querySelectorAll('#conv-list .conv-item').forEach(item => {
+    const cats = (item.dataset.cat || '').split(' ');
+    item.style.display = (filter === 'all' || cats.includes(filter)) ? '' : 'none';
+  });
+}
+
+function convDisplayName(c){
+  const nm = (c && c.name || '').trim();
+  if(nm && !/^usu[aá]rio$/i.test(nm)) return nm;
+  if(c && c.tag && c.tag.trim()) return '@' + c.tag.trim().replace(/^@/,'');
+  return 'Usuário';
 }
 
 // ══ LOCAL STORAGE CHAT PERSISTENCE ══
@@ -4461,7 +4476,7 @@ async function loadChatList(){
         const other = profileMap[cg.otherId] || {};
         const existing = localConvs[convId] || {};
         saveConvLocal(convId, {
-          name: other.name || existing.name || 'Usuario',
+          name: other.name || existing.name || '',
           avatar: other.avatar_url || existing.avatar || '',
           tag: other.tag || existing.tag || '',
           role: other.role || other.user_type || existing.role || '',
@@ -4486,10 +4501,22 @@ function renderConvList(container, convMap, myId){
     return;
   }
   container.innerHTML = convList.map(([convId, c]) => {
-    const name = c.name || 'Usuario';
+    const name = convDisplayName(c);
     const avatar = c.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
     const isPintor = isProfessionalRole(c.role);
     const is3way = c.is3way || false;
+    const isStore = !is3way && (
+      (c.otherId && c.otherId === calicolorsUserId) ||
+      /cali\s*colors?/i.test(c.name || '') ||
+      /cali/i.test(c.tag || '') ||
+      String(convId).startsWith('store_calicolors_')
+    );
+    const lowPrev = ((c.lastMsg||'') + ' ' + (c.name||'')).toLowerCase();
+    const isOrcamento = /or[çc]ament/.test(lowPrev);
+    const cats = ['all'];
+    if(is3way) cats.push('trio');
+    if(isStore) cats.push('store');
+    if(isOrcamento) cats.push('orcamento');
     const preview = c.lastMsg || '';
     const isMine = c.lastMsgFrom === 'me';
     const time = c.lastMsgTime ? new Date(c.lastMsgTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
@@ -4501,8 +4528,8 @@ function renderConvList(container, convMap, myId){
         name: is3way ? name + ' + Cali Colors' : name,
         sub: is3way ? '3 participantes · Chat 3-way ativo' : (c.tag ? '@' + c.tag : ''),
         participants: is3way
-          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?'Pintor':'Usuario'}]
-          : [{img:avatar,name:name,role:isPintor?'Pintor':'Usuario'}],
+          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}]
+          : [{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}],
         messages: []
       };
     }
@@ -4510,14 +4537,16 @@ function renderConvList(container, convMap, myId){
     const storeAvatar = is3way
       ? '<div class="conv-av-store" style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);z-index:2;"><span style="font-size:7px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
       : '';
-    const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">3-WAY</span>' : '';
-    return '<div class="conv-item" onclick="openChat(\''+convId+'\')">'
+    const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">+ CALI</span>' : '';
+    return '<div class="conv-item" data-cat="'+cats.join(' ')+'" onclick="openChat(\''+convId+'\')">'
       + '<div class="conv-avatars" style="position:relative;"><div class="conv-av-main"><img src="'+avatar+'" alt=""></div>'+storeAvatar+'</div>'
       + '<div class="conv-info"><div class="conv-name">'+escapeHtml(displayName)+threewayBadge+(isPintor && !is3way?' <span style="background:var(--p1);color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">PINTOR</span>':'')+'</div>'
       + '<div class="conv-preview">'+(isMine?'Voce: ':'')+escapeHtml(preview.substring(0,50))+'</div></div>'
       + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="conv-time">'+time+'</div></div>'
       + '</div>';
   }).join('');
+  const activeTab = document.querySelector('.chat-tab.active');
+  applyChatFilter(activeTab ? (activeTab.dataset.filter || 'all') : 'all');
 }
 
 // ══ NEW CHAT MODAL ══
