@@ -128,6 +128,16 @@ BEGIN
     CREATE POLICY "Users can insert own profile" ON public.profiles
       FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
   END IF;
+  -- Portal admins (portal_access = true) can update any profile.
+  -- Needed for verificar pintor, promover a usuario do portal e revogar acesso.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Portal admins can update any profile'
+  ) THEN
+    CREATE POLICY "Portal admins can update any profile" ON public.profiles
+      FOR UPDATE TO authenticated
+      USING (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true))
+      WITH CHECK (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true));
+  END IF;
 END $$;
 
 -- ============================================

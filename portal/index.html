@@ -35,6 +35,28 @@ const C = {
   bg: '#f7f3ee', sidebar: '#1a1a2e'
 };
 
+// Classificacao de perfis (consistente em todo o portal)
+const PRO_ROLES = ['pintor','grafiteiro','automotivo','funileiro'];
+const roleOf = p => ((p && (p.role || p.user_type)) || '').toString().trim().toLowerCase();
+const isProProfile = p => PRO_ROLES.includes(roleOf(p));
+const isPortalStaff = p => roleOf(p) === 'admin' || (p && p.portal_access === true);
+// Cliente = qualquer perfil cadastrado que nao seja profissional nem staff do portal
+const isClienteProfile = p => !isProProfile(p) && roleOf(p) !== 'admin';
+
+const promoteToPortal = async (id, after) => {
+  if (!confirm('Promover este perfil a usuario do portal? Ele passara a ter acesso ao portal administrativo.')) return;
+  const { error } = await window._sb.from('profiles').update({ portal_access: true }).eq('id', id);
+  if (error) { alert('Erro ao promover: ' + error.message); return; }
+  if (after) after();
+};
+
+const revokePortal = async (id, after) => {
+  if (!confirm('Remover o acesso ao portal deste usuario?')) return;
+  const { error } = await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  if (after) after();
+};
+
 const Logo = () => (
   <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 800, color: C.white, padding: '24px 20px 8px' }}>
     <span>Cali</span><span style={{ color: C.p1 }}>Colors</span>
@@ -90,8 +112,7 @@ const Dashboard = () => {
       const quotes = quotesRes.data || [];
       const msgs = msgsRes.data || [];
 
-      const pintores = profiles.filter(p => p.role === 'pintor' || p.user_type === 'pintor').length;
-      const clientes = profiles.filter(p => p.role === 'cliente' || p.user_type === 'cliente' || (!p.role && !p.user_type)).length;
+      const clientes = profiles.filter(isClienteProfile).length;
 
       setStats({ pintores: profiles.length, clientes, leads: leads.length, orcamentos: quotes.length });
 
@@ -193,12 +214,8 @@ const PintoresList = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchPintores = async () => {
-    const { data, error } = await window._sb.from('profiles').select('*').or('role.eq.pintor,user_type.eq.pintor').order('created_at', { ascending: false });
-    if (!error && data) setPintores(data);
-    else {
-      const { data: all } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
-      setPintores((all || []).filter(p => p.role === 'pintor' || p.user_type === 'pintor'));
-    }
+    const { data } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
+    setPintores((data || []).filter(isProProfile));
     setLoading(false);
   };
 
@@ -220,7 +237,7 @@ const PintoresList = () => {
         {pintores.length > 0 && (
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','Tag','Cidade','Estado','Especialidades','Avaliacao','Status','Acoes'].map(h => (
+              {['Nome','Tag','Cidade','Estado','Especialidades','Avaliacao','Status','Portal','Acoes'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -244,6 +261,11 @@ const PintoresList = () => {
               <td style={{ padding:'10px 12px' }}>{p.rating_avg != null ? Number(p.rating_avg).toFixed(1) : '—'}</td>
               <td style={{ padding:'10px 12px' }}>
                 {p.verified ? <span style={{ background:C.p6+'22', color:C.p6, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Aprovado</span> : <span style={{ background:C.p7+'22', color:'#b8860b', borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Pendente</span>}
+              </td>
+              <td style={{ padding:'10px 12px' }}>
+                {p.portal_access
+                  ? <button onClick={() => revokePortal(p.id, fetchPintores)} style={{ background:C.p5+'22', color:C.p5, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }} title="Remover acesso ao portal">✓ Portal</button>
+                  : <button onClick={() => promoteToPortal(p.id, fetchPintores)} style={{ background:'none', border:'1px solid '+C.p5, color:C.p5, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Promover</button>}
               </td>
               <td style={{ padding:'10px 12px' }}>
                 <div style={{ display:'flex', gap:6 }}>
@@ -1289,43 +1311,35 @@ const ClientesList = () => {
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      // Load profiles
-      const { data, error } = await window._sb.from('profiles').select('*').eq('role', 'cliente').order('created_at', { ascending: false });
-      let profiles = data;
-      if (error || !data) {
-        const { data: all } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
-        profiles = all || [];
-      }
-      // Load invite codes generated by each user
-      const { data: invites } = await window._sb.from('invites').select('code, created_by').order('created_at', { ascending: false });
-      const inviteMap = {};
-      (invites || []).forEach(inv => {
-        if (!inviteMap[inv.created_by]) inviteMap[inv.created_by] = [];
-        inviteMap[inv.created_by].push(inv.code);
-      });
-      // Attach generated codes to each profile
-      (profiles || []).forEach(p => {
-        p._generated_codes = inviteMap[p.id] || [];
-      });
-      setClientes(profiles || []);
-      setLoading(false);
-    })();
-  }, []);
+  const fetchClientes = async () => {
+    const { data } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
+    const profiles = (data || []).filter(isClienteProfile);
+    // Load invite codes generated by each user
+    const { data: invites } = await window._sb.from('invites').select('code, created_by').order('created_at', { ascending: false });
+    const inviteMap = {};
+    (invites || []).forEach(inv => {
+      if (!inviteMap[inv.created_by]) inviteMap[inv.created_by] = [];
+      inviteMap[inv.created_by].push(inv.code);
+    });
+    profiles.forEach(p => { p._generated_codes = inviteMap[p.id] || []; });
+    setClientes(profiles);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchClientes(); }, []);
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando clientes...</div>;
 
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>👥 Clientes Cadastrados</div>
+      <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>👥 Clientes Cadastrados ({clientes.length})</div>
       {clientes.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum cliente cadastrado.</div>}
       <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:800 }}>
         {clientes.length > 0 && (
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado'].map(h => (
+              {['Nome','@Tag','Email','Cidade','Estado','Cadastro','Codigo Gerado','Codigo Utilizado','Portal'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -1349,6 +1363,11 @@ const ClientesList = () => {
                 <td style={{ padding:'10px 12px', color:C.muted }}>{data}</td>
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c._generated_codes && c._generated_codes.length > 0 ? c._generated_codes.join(', ') : '—'}</td>
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c.invite_code_used || '—'}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  {c.portal_access
+                    ? <button onClick={() => revokePortal(c.id, fetchClientes)} style={{ background:C.p5+'22', color:C.p5, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }} title="Remover acesso ao portal">✓ Portal</button>
+                    : <button onClick={() => promoteToPortal(c.id, fetchClientes)} style={{ background:'none', border:'1px solid '+C.p5, color:C.p5, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Promover</button>}
+                </td>
               </tr>
             );
           })}
@@ -1962,20 +1981,17 @@ function App() {
       const [msgsRes, quotesRes, profilesRes, leadsRes] = await Promise.all([
         sb.from('messages').select('id', { count: 'exact', head: true }),
         sb.from('quotes').select('id', { count: 'exact', head: true }),
-        sb.from('profiles').select('id', { count: 'exact', head: true }).or('role.eq.pintor,user_type.eq.pintor'),
+        sb.from('profiles').select('role, user_type, portal_access'),
         sb.from('leads').select('id', { count: 'exact', head: true }),
       ]);
-      const [clientesRes, portalUsersRes] = await Promise.all([
-        sb.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'cliente'),
-        sb.from('profiles').select('id', { count: 'exact', head: true }).eq('portal_access', true),
-      ]);
+      const profiles = profilesRes.data || [];
       setBadges({
         chats: msgsRes.count || 0,
         orcamentos: quotesRes.count || 0,
-        pintores: profilesRes.count || 0,
+        pintores: profiles.filter(isProProfile).length,
         leads: leadsRes.count || 0,
-        clientes: clientesRes.count || 0,
-        portalUsers: portalUsersRes.count || 0,
+        clientes: profiles.filter(isClienteProfile).length,
+        portalUsers: profiles.filter(p => p.portal_access === true).length,
       });
     } catch(e) { console.error('loadBadges error:', e); }
   };
