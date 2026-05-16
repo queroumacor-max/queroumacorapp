@@ -925,6 +925,43 @@ async function loadMyProfileStats(){
     const followingEl = document.getElementById('myprofile-following-count');
     if(followingEl) followingEl.textContent = followingCount || 0;
   } catch(e){ console.warn('loadMyProfileStats error:', e); }
+  loadMyPortfolio();
+}
+
+async function loadMyPortfolio(){
+  const box = document.getElementById('myprofile-portfolio');
+  if(!box) return;
+  const sb = getSupabase();
+  if(!sb || !currentUser){ box.innerHTML = ''; return; }
+  try {
+    const { data: posts, error } = await sb.from('posts').select('*')
+      .eq('user_id', currentUser.id).neq('media_type','story')
+      .order('created_at',{ascending:false}).limit(60);
+    if(error) throw error;
+    if(!posts || posts.length === 0){
+      box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Você ainda não publicou trabalhos.<br>Toque em <b>+ Adicionar</b> para postar fotos e vídeos.</div>';
+      return;
+    }
+    box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">' + posts.map(p => {
+      const cap = (p.caption || '').replace(/</g,'&lt;');
+      const isVid = p.media_type === 'video';
+      const pending = p.status === 'pending';
+      const media = p.media_url
+        ? (isVid
+            ? `<video src="${p.media_url}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+            : `<img src="${p.media_url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`)
+        : `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:8px;font-size:11px;color:var(--muted);text-align:center;">${cap || 'Post'}</div>`;
+      return `<div onclick="showScreen('feed')" style="position:relative;aspect-ratio:1;background:var(--ink);border-radius:8px;overflow:hidden;cursor:pointer;">
+        ${media}
+        ${isVid ? '<div style="position:absolute;top:6px;right:6px;color:#fff;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.6);">▶</div>' : ''}
+        ${pending ? '<div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;">EM ANÁLISE</div>' : ''}
+        ${cap ? `<div style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:10px;padding:14px 6px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cap}</div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+  } catch(e){
+    console.warn('loadMyPortfolio:', e);
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Erro ao carregar portfólio.</div>';
+  }
 }
 
 async function openFollowersModal(){
@@ -2093,7 +2130,7 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <div style="padding:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Meu Negócio</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-        <div onclick="showScreen('feed')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+        <div onclick="openPortfolioComposer()" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">📸</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Meu Portfolio</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Postar trabalhos</div>
@@ -2208,6 +2245,16 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
         <div onclick="toast('Notificacoes...')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
           <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificacoes</div><span style="color:var(--muted);">›</span>
         </div>
+      </div>
+    </div>
+
+    <div style="padding:0 14px 90px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Meu Portfólio</div>
+        <div onclick="openPortfolioComposer()" style="font-size:12px;font-weight:700;color:var(--p1);cursor:pointer;">+ Adicionar</div>
+      </div>
+      <div id="myprofile-portfolio">
+        <div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Carregando...</div>
       </div>
     </div>
 
@@ -6353,6 +6400,13 @@ function setPostType(type){
   // Show sale fields for grafiteiro on post type
   const saleFields = document.getElementById('post-sale-fields');
   if(saleFields) saleFields.style.display = (type==='post' && currentMode==='grafiteiro') ? 'block' : 'none';
+}
+
+function openPortfolioComposer(){
+  // Abre o compositor já em modo "Post" (foto/vídeo + texto embaixo).
+  // Story/Reel ficam a um toque pelo seletor do próprio modal.
+  setPostType('post');
+  showModal('post-modal');
 }
 
 let _lastFeedLoad = 0;
