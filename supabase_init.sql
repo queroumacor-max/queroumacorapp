@@ -755,3 +755,24 @@ BEGIN
       FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
   END IF;
 END $$;
+
+-- ============================================
+-- Índices de performance (escala) — idempotentes
+-- ============================================
+-- posts: feed, perfil, moderação
+CREATE INDEX IF NOT EXISTS idx_posts_user_created ON public.posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_status_created ON public.posts(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_mediatype_created ON public.posts(media_type, created_at DESC);
+-- relações sociais
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON public.follows(follower_id);
+CREATE INDEX IF NOT EXISTS idx_follows_following ON public.follows(following_id);
+CREATE INDEX IF NOT EXISTS idx_likes_post ON public.likes(post_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user ON public.likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_user ON public.saved_posts(user_id);
+-- mensagens (created_at p/ ordenação das conversas)
+CREATE INDEX IF NOT EXISTS idx_messages_sender_created ON public.messages(sender_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_created ON public.messages(receiver_id, created_at DESC);
+-- perfil profissional
+CREATE INDEX IF NOT EXISTS idx_qualifications_user ON public.qualifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_courses_user ON public.courses(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_reviewer ON public.reviews(reviewer_id);
