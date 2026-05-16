@@ -739,6 +739,13 @@ CREATE TABLE IF NOT EXISTS public.qualifications (
   icon text DEFAULT '🎓',
   created_at timestamptz DEFAULT now()
 );
+-- Caso a tabela já existisse com outra estrutura, garante as colunas:
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS org text;
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS year text;
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS icon text DEFAULT '🎓';
+ALTER TABLE public.qualifications ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 ALTER TABLE public.qualifications ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
@@ -766,6 +773,16 @@ CREATE TABLE IF NOT EXISTS public.courses (
   link text,
   created_at timestamptz DEFAULT now()
 );
+-- Caso a tabela já existisse com outra estrutura, garante as colunas:
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS title text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS subtitle text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS cover_url text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS price numeric;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS is_free boolean DEFAULT false;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS duration text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS link text;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
