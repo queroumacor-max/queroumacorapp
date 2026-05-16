@@ -4570,6 +4570,35 @@ async function loadChatList(){
   // 2) Try Supabase in background to sync + merge
   const sb = getSupabase();
   if(!sb) return;
+
+  // 2a) Caminho rápido: RPC agrega as conversas no Postgres (1 chamada).
+  try {
+    const { data: rows, error: rpcErr } = await sb.rpc('get_conversations');
+    if(!rpcErr && Array.isArray(rows)){
+      rows.forEach(r => {
+        const convId = r.conv_id || r.other_id || '';
+        if(!convId) return;
+        const existing = localConvs[convId] || {};
+        saveConvLocal(convId, {
+          name: r.name || existing.name || '',
+          avatar: r.avatar_url || existing.avatar || '',
+          tag: r.tag || existing.tag || '',
+          email: r.email || existing.email || '',
+          role: r.role || r.user_type || existing.role || '',
+          otherId: r.other_id,
+          is3way: r.is3way || existing.is3way || false,
+          lastMsg: r.last_msg || existing.lastMsg || '',
+          lastMsgFrom: r.last_sender === myId ? 'me' : 'other',
+          lastMsgTime: r.last_msg_time || existing.lastMsgTime || ''
+        });
+      });
+      renderConvList(container, loadConvsLocal(), myId);
+      return;
+    }
+    // RPC indisponível (função não criada ainda) → cai no método antigo
+  } catch(e){ console.warn('get_conversations RPC indisponível, usando fallback:', e); }
+
+  // 2b) Fallback legado (sem a RPC): busca mensagens e agrupa no cliente
   try {
     const [sentRes, recvRes] = await Promise.all([
       sb.from('messages').select('id, sender_id, receiver_id, conversation_id, content, type, created_at').eq('sender_id', myId).order('created_at',{ascending:false}).limit(100),
