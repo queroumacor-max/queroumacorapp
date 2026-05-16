@@ -3544,6 +3544,13 @@ async function loadPosts(feedIds){
         +'<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>'
         +'<span class="act-label">Compartilhar</span>'
         +'</button>';
+      // Orçamento (só em posts de profissionais, que não são à venda, de outros usuários)
+      if(!p.for_sale && currentUser && p.user_id !== currentUser.id && isProfessionalRole(prof.role)){
+        html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeHtml(name)+'\')">'
+          +'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+          +'<span class="act-label">Orçar</span>'
+          +'</button>';
+      }
       // Salvar (paleta)
       html += '<button class="act-btn save-btn" onclick="toggleSavePost(this)" style="margin-left:auto">'
         +'<svg viewBox="0 0 24 24" style="fill:'+paletteFill+';stroke:'+paletteStroke+';"><circle cx="12" cy="12" r="10"/><circle cx="8" cy="9" r="1.5" fill="var(--p4)" stroke="none"/><circle cx="15" cy="8" r="1.5" fill="var(--p5)" stroke="none"/><circle cx="16" cy="13" r="1.5" fill="var(--p3)" stroke="none"/><circle cx="9" cy="14" r="1.5" fill="var(--p1)" stroke="none"/></svg>'
@@ -3575,15 +3582,6 @@ async function loadPosts(feedIds){
         html += '<button onclick="comprarObra(\''+p.id+'\',\''+escapeHtml(name)+'\','+p.price+',\''+escapeHtml(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🛒 Comprar · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
         html += '<button onclick="openChatWithUser(\''+p.user_id+'\')" style="padding:10px 14px;background:var(--white);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">💬</button>';
         html += '</div>';
-      }
-      // Quote button (only on other professionals' posts)
-      if(!p.for_sale && currentUser && p.user_id !== currentUser.id && isProfessionalRole(prof.role)){
-        html += '<div style="padding:2px 14px 12px;">'
-          +'<button onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeHtml(name)+'\')" style="width:100%;padding:11px 14px;background:var(--ink);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">'
-          +'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
-          +'Faça orçamento com este profissional'
-          +'</button>'
-          +'</div>';
       }
       html += '</div>';
     });
