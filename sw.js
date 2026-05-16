@@ -1,5 +1,5 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v4';
+const CACHE = 'queroumacor-v5';
 const ASSETS = ['/'];
 
 self.addEventListener('install', e => {
