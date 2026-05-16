@@ -148,7 +148,14 @@ const adminUsers = async (payload) => {
   let res = {};
   try { res = await r.json(); } catch (_) {}
   if (!r.ok || !res.ok) {
-    alert('A acao falhou: ' + (res.error || ('HTTP ' + r.status)));
+    if (r.status === 503 || /SERVICE_ROLE_KEY/i.test(res.error || '')) {
+      alert('Gestao de usuarios indisponivel.\n\nO servidor ainda nao esta configurado para esta acao. ' +
+            'E preciso definir a variavel de ambiente SUPABASE_SERVICE_ROLE_KEY no Cloudflare Pages ' +
+            '(Settings -> Environment variables -> Production) e refazer o deploy.\n\n' +
+            'Fale com o responsavel tecnico para concluir essa configuracao.');
+    } else {
+      alert('A acao falhou: ' + (res.error || ('HTTP ' + r.status)));
+    }
     return false;
   }
   return true;
