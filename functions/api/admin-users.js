@@ -20,9 +20,29 @@ export async function onRequestPost(context) {
   const action = typeof body?.action === 'string' ? body.action : '';
   const userId = typeof body?.userId === 'string' ? body.userId : '';
 
+  const ROLE_MAP = {
+    pintor: { role: 'pintor', user_type: 'pintor', profession: 'pintor' },
+    grafiteiro: { role: 'grafiteiro', user_type: 'grafiteiro', profession: 'grafiteiro' },
+    automotivo: { role: 'automotivo', user_type: 'automotivo', profession: 'automotivo' },
+    funileiro: { role: 'automotivo', user_type: 'automotivo', profession: 'funileiro' },
+    cliente: { role: 'cliente', user_type: 'cliente' },
+  };
+
   if (!accessToken) return json({ error: 'sem token' }, 401);
   if (!userId) return json({ error: 'userId obrigatorio' }, 400);
-  if (action !== 'promote' && action !== 'revoke') return json({ error: 'acao invalida' }, 400);
+
+  let patch;
+  if (action === 'promote' || action === 'revoke') {
+    patch = { portal_access: action === 'promote' };
+  } else if (action === 'verify') {
+    patch = { verified: body?.value === true };
+  } else if (action === 'set_role') {
+    const m = ROLE_MAP[typeof body?.roleKey === 'string' ? body.roleKey : ''];
+    if (!m) return json({ error: 'roleKey invalido' }, 400);
+    patch = { ...m };
+  } else {
+    return json({ error: 'acao invalida' }, 400);
+  }
 
   const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -58,14 +78,14 @@ export async function onRequestPost(context) {
   const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: { ...sHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify({ portal_access: action === 'promote' })
+    body: JSON.stringify(patch)
   });
   if (!r.ok) return json({ error: `supabase ${r.status}: ${(await r.text()).slice(0, 150)}` }, 502);
   const updated = await r.json();
   if (!Array.isArray(updated) || updated.length === 0) {
     return json({ error: 'perfil nao encontrado' }, 404);
   }
-  return json({ ok: true, portal_access: action === 'promote' });
+  return json({ ok: true, patch });
 }
 
 function json(obj, status = 200) {
