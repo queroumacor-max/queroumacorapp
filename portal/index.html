@@ -1811,14 +1811,16 @@ const PortalUsersList = () => {
     setSaving(true);
     let tmp;
     try {
+      const tag = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_.]/g, '') + '_' + Math.random().toString(36).slice(2, 7);
       tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-admin-create' } });
-      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: 'admin' } } });
+      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: 'admin', tag } } });
       if (authErr) throw authErr;
       if (authData.user) {
         const { error: upErr } = await tmp.from('profiles').upsert({
           id: authData.user.id,
           name: name || email,
           email,
+          tag,
           user_type: 'admin',
           role: 'admin',
           portal_access: true,
