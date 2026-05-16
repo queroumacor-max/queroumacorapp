@@ -922,9 +922,54 @@ async function comprarObra(postId, artistName, price, artType){
 }
 
 function openChatWithUser(userId){
-  // Navigate to chat with this user
   showScreen('chat');
   setTimeout(()=>{ if(typeof openChat==='function') openChat(userId); },300);
+}
+
+function abrirOrcamentoChat(painterId, painterName){
+  const existing = document.getElementById('orc-chat-overlay');
+  if(existing) existing.remove();
+  const servicos = [
+    {icon:'🏠', label:'Pintura interna'},
+    {icon:'🏢', label:'Pintura externa / fachada'},
+    {icon:'🛏️', label:'Pintura de teto'},
+    {icon:'🚗', label:'Pintura automotiva'},
+    {icon:'🎨', label:'Arte e grafite'},
+    {icon:'🏗️', label:'Reforma geral'},
+  ];
+  const el = document.createElement('div');
+  el.id = 'orc-chat-overlay';
+  el.className = 'overlay active';
+  el.onclick = function(e){ if(e.target===el) el.remove(); };
+  el.innerHTML = '<div class="sheet" onclick="event.stopPropagation()" style="padding-bottom:28px;">'
+    +'<div class="sheet-handle"></div>'
+    +'<div class="sheet-title">Orçamento</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:16px;">O que você precisa com <b style="color:var(--ink);">'+escapeHtml(painterName)+'</b>?</div>'
+    +servicos.map(s=>'<div onclick="selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',\''+s.label+'\')" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--cream);border-radius:12px;margin-bottom:8px;cursor:pointer;">'
+      +'<span style="font-size:22px;">'+s.icon+'</span>'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--ink);">'+s.label+'</span>'
+      +'<span style="color:var(--muted);font-size:18px;">›</span>'
+      +'</div>').join('')
+    +'<div style="margin-top:4px;display:flex;gap:8px;">'
+    +'<input id="orc-outro-txt" placeholder="Outro — descreva o que precisa..." style="flex:1;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;">'
+    +'<button onclick="var v=document.getElementById(\'orc-outro-txt\').value.trim();if(v)selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',v);else document.getElementById(\'orc-outro-txt\').focus();" style="padding:11px 16px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">Enviar</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(el);
+}
+
+function selecionarServicoOrcamento(painterId, painterName, servico){
+  const overlay = document.getElementById('orc-chat-overlay');
+  if(overlay) overlay.remove();
+  window._orcPreMsg = 'Olá, '+painterName+'! Gostaria de fazer um orçamento para: '+servico+'. Pode me passar mais detalhes?';
+  showScreen('chat');
+  setTimeout(()=>{
+    if(typeof openChat==='function') openChat(painterId);
+    setTimeout(()=>{
+      const input = document.getElementById('chat-input') || document.getElementById('chat-input-field');
+      if(input){ input.value = window._orcPreMsg; input.focus(); window._orcPreMsg = null; }
+    }, 600);
+  }, 300);
 }
 
 // ══ PUBLISH VIDEO (REELS) ══
@@ -3483,14 +3528,28 @@ async function loadPosts(feedIds){
         +'</div>';
       html += '<div class="mpost-actions">';
       // Pincel (like)
-      html += '<button class="act-btn" onclick="togglePostLike(this)"><svg viewBox="0 0 24 24" style="fill:'+brushFill+';stroke:'+brushStroke+';"><path d="M18.37 2.63a2.12 2.12 0 0 1 3 3L14 13l-4 1 1-4Z"/><path d="M9 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-5"/></svg></button>';
-      if(likeCount > 0) html += '<span class="like-count" style="font-size:12px;font-weight:700;color:var(--ink);margin-left:-8px;">'+likeCount+'</span>';
-      // Lata de tinta (comment)
-      html += '<button class="act-btn" onclick="toggleCommentInput(this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="18" rx="1"/><path d="M15 3h3a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-3"/><line x1="9" y1="14" x2="9" y2="18"/></svg></button>';
-      // Rolo de pintura (share)
-      html += '<button class="act-btn" onclick="sharePost(\''+p.id+'\')"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="16" height="6" rx="2"/><path d="M10 9v3"/><path d="M10 12h4v8H10z"/></svg></button>';
-      // Paleta (save)
-      html += '<button class="act-btn save-btn" onclick="toggleSavePost(this)"><svg viewBox="0 0 24 24" style="fill:'+paletteFill+';stroke:'+paletteStroke+';"><circle cx="12" cy="12" r="10"/><circle cx="8" cy="9" r="1.5" fill="var(--p4)" stroke="none"/><circle cx="15" cy="8" r="1.5" fill="var(--p5)" stroke="none"/><circle cx="16" cy="13" r="1.5" fill="var(--p3)" stroke="none"/><circle cx="9" cy="14" r="1.5" fill="var(--p1)" stroke="none"/></svg></button>';
+      html += '<button class="act-btn" onclick="togglePostLike(this)">'
+        +'<svg viewBox="0 0 24 24" style="fill:'+brushFill+';stroke:'+brushStroke+';">'
+        +'<path d="M3 22v-3.5l10.5-10.5 3 3L6.5 22H3z"/>'
+        +'<path d="m15 6 3-3a2.12 2.12 0 0 1 3 3l-3 3-3-3z"/>'
+        +'</svg>'
+        +'<span class="act-label">Curtir'+(likeCount>0?' · '+likeCount:'')+'</span>'
+        +'</button>';
+      // Comentar
+      html += '<button class="act-btn" onclick="toggleCommentInput(this)">'
+        +'<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+        +'<span class="act-label">Comentar</span>'
+        +'</button>';
+      // Compartilhar (seta)
+      html += '<button class="act-btn" onclick="sharePost(\''+p.id+'\')">'
+        +'<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>'
+        +'<span class="act-label">Compartilhar</span>'
+        +'</button>';
+      // Salvar (paleta)
+      html += '<button class="act-btn save-btn" onclick="toggleSavePost(this)" style="margin-left:auto">'
+        +'<svg viewBox="0 0 24 24" style="fill:'+paletteFill+';stroke:'+paletteStroke+';"><circle cx="12" cy="12" r="10"/><circle cx="8" cy="9" r="1.5" fill="var(--p4)" stroke="none"/><circle cx="15" cy="8" r="1.5" fill="var(--p5)" stroke="none"/><circle cx="16" cy="13" r="1.5" fill="var(--p3)" stroke="none"/><circle cx="9" cy="14" r="1.5" fill="var(--p1)" stroke="none"/></svg>'
+        +'<span class="act-label">Salvar</span>'
+        +'</button>';
       html += '</div>';
       if(likeCount > 0) html += '<div style="padding:0 14px 2px;font-size:12px;font-weight:700;color:var(--ink);">'+likeCount+' curtida'+(likeCount>1?'s':'')+'</div>';
       if(caption) html += '<div class="post-cap"><b>'+escapeHtml(name)+'</b> '+escapeHtml(caption)+'</div>';
@@ -3520,7 +3579,12 @@ async function loadPosts(feedIds){
       }
       // Quote button (only on other professionals' posts)
       if(!p.for_sale && currentUser && p.user_id !== currentUser.id && isProfessionalRole(prof.role)){
-        html += '<div style="padding:6px 14px 12px;"><button onclick="pedirOrcamentoPost(\''+p.user_id+'\',\''+escapeHtml(name)+'\')" style="width:100%;padding:10px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">📋 Pedir Orçamento</button></div>';
+        html += '<div style="padding:2px 14px 12px;">'
+          +'<button onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeHtml(name)+'\')" style="width:100%;padding:11px 14px;background:var(--ink);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">'
+          +'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+          +'Faça orçamento com este profissional'
+          +'</button>'
+          +'</div>';
       }
       html += '</div>';
     });
@@ -3560,13 +3624,14 @@ async function togglePostLike(btn){
     svg.style.stroke = 'var(--p4)';
   }
 
-  // Update like count display
-  const countEl = postEl ? postEl.querySelector('.mpost-actions .like-count') : null;
-  const countTextEl = postEl ? postEl.querySelector('.mpost-actions + div[style*="font-weight:700"]') : null;
-  let currentCount = countEl ? parseInt(countEl.textContent)||0 : 0;
+  // Update like count in label
+  const labelEl = btn.querySelector('.act-label');
+  const currentLabel = labelEl ? labelEl.textContent : 'Curtir';
+  const countMatch = currentLabel.match(/(\d+)/);
+  let currentCount = countMatch ? parseInt(countMatch[1]) : 0;
   currentCount += isLiked ? -1 : 1;
   if(currentCount < 0) currentCount = 0;
-  if(countEl) countEl.textContent = currentCount > 0 ? currentCount : '';
+  if(labelEl) labelEl.textContent = currentCount > 0 ? 'Curtir · '+currentCount : 'Curtir';
   // Update text below actions
   const likeTextEl = postEl ? postEl.querySelector('div[style*="padding:0 14px 2px"]') : null;
   if(likeTextEl){
