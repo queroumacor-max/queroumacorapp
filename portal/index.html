@@ -36,25 +36,132 @@ const C = {
 };
 
 // Classificacao de perfis (consistente em todo o portal)
-const PRO_ROLES = ['pintor','grafiteiro','automotivo','funileiro'];
+const PRO_ROLES = ['pintor','grafiteiro','graffiti','automotivo','funileiro'];
 const roleOf = p => ((p && (p.role || p.user_type)) || '').toString().trim().toLowerCase();
+// Obs: a coluna profession tem DEFAULT 'pintor', entao NAO serve para
+// classificar (marcaria todo cliente como profissional). Usada so no rotulo.
+const professionOf = p => ((p && p.profession) || '').toString().trim().toLowerCase();
 const isProProfile = p => PRO_ROLES.includes(roleOf(p));
 const isPortalStaff = p => roleOf(p) === 'admin' || (p && p.portal_access === true);
 // Cliente = qualquer perfil cadastrado que nao seja profissional nem staff do portal
 const isClienteProfile = p => !isProProfile(p) && roleOf(p) !== 'admin';
+const ROLE_LABEL = { pintor:'Pintor', grafiteiro:'Grafiteiro/Muralista', graffiti:'Grafiteiro/Muralista', automotivo:'Pintor Automotivo', funileiro:'Funileiro', cliente:'Cliente', admin:'Admin' };
+const tipoLabel = p => ROLE_LABEL[professionOf(p)] || ROLE_LABEL[roleOf(p)] || (roleOf(p) || 'Cliente');
+
+// Opcoes de papel para criar usuario do app (mesmo modelo do cadastro no app)
+const APP_ROLE_OPTIONS = [
+  { v:'pintor', label:'Pintor', role:'pintor' },
+  { v:'grafiteiro', label:'Grafiteiro / Muralista', role:'grafiteiro' },
+  { v:'automotivo', label:'Pintor Automotivo', role:'automotivo' },
+  { v:'funileiro', label:'Funileiro', role:'automotivo', profession:'funileiro' },
+  { v:'cliente', label:'Cliente', role:'cliente' },
+];
+
+const CreateAppUserForm = ({ onCreated, defaultRole }) => {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name:'', email:'', password:'', roleKey: defaultRole || 'pintor' });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const submit = async () => {
+    setErr(''); setMsg('');
+    const name = form.name.trim(), email = form.email.trim(), password = form.password;
+    if (!email || !password) { setErr('Email e senha sao obrigatorios'); return; }
+    if (password.length < 6) { setErr('Senha deve ter no minimo 6 caracteres'); return; }
+    const opt = APP_ROLE_OPTIONS.find(o => o.v === form.roleKey) || APP_ROLE_OPTIONS[0];
+    setSaving(true);
+    let tmp;
+    try {
+      const tag = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_.]/g, '') + '_' + Math.random().toString(36).slice(2, 7);
+      tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-app-create' } });
+      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: opt.role, tag } } });
+      if (authErr) throw authErr;
+      if (authData.user) {
+        const prof = { id: authData.user.id, name: name || email, email, tag, role: opt.role, user_type: opt.role, created_at: new Date().toISOString() };
+        if (opt.profession) prof.profession = opt.profession;
+        const { error: upErr } = await tmp.from('profiles').upsert(prof, { onConflict: 'id' });
+        if (upErr) throw upErr;
+      }
+      await tmp.auth.signOut();
+      setMsg('Usuario criado. Ja pode entrar no app com essas credenciais.');
+      setForm({ name:'', email:'', password:'', roleKey: defaultRole || 'pintor' });
+      setOpen(false);
+      if (onCreated) onCreated();
+    } catch (e) {
+      setErr(e.message || 'Erro ao criar usuario');
+    } finally {
+      if (tmp) { try { await tmp.auth.signOut(); } catch(_){} }
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom:16 }}>
+      <button onClick={() => { setOpen(!open); setErr(''); setMsg(''); }} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'8px 16px', cursor:'pointer', fontSize:13, fontWeight:700 }}>
+        {open ? 'Cancelar' : '+ Criar usuario do app'}
+      </button>
+      {msg && <div style={{ color:C.p6, fontSize:13, marginTop:8 }}>{msg}</div>}
+      {open && (
+        <div style={{ background:C.cream, borderRadius:12, padding:16, marginTop:12, border:'1px solid '+C.border }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Nome</div>
+              <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Nome (opcional)" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
+              <input value={form.email} onChange={e=>setForm({...form, email:e.target.value})} placeholder="email@exemplo.com" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
+              <input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Tipo de perfil</div>
+              <select value={form.roleKey} onChange={e=>setForm({...form, roleKey:e.target.value})} style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none', background:'#fff' }}>
+                {APP_ROLE_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+          {err && <div style={{ color:'#e63946', fontSize:13, marginBottom:10 }}>{err}</div>}
+          <button disabled={saving} onClick={submit} style={{ background:C.p6, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', cursor: saving?'wait':'pointer', fontSize:13, fontWeight:700 }}>
+            {saving ? 'Criando...' : 'Criar usuario'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// O update direto em profiles de outra pessoa falha silenciosamente
+// por RLS (unica policy de UPDATE e auth.uid() = id). Por isso vai
+// pelo endpoint com service role.
+const setPortalAccess = async (id, action) => {
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { alert('Sessao expirada. Entre novamente.'); return false; }
+  const r = await fetch('/api/admin-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: session.access_token, action, userId: id })
+  });
+  let res = {};
+  try { res = await r.json(); } catch (_) {}
+  if (!r.ok || !res.ok) {
+    alert('Nao foi possivel atualizar o acesso ao portal: ' + (res.error || ('HTTP ' + r.status)));
+    return false;
+  }
+  return true;
+};
 
 const promoteToPortal = async (id, after) => {
   if (!confirm('Promover este perfil a usuario do portal? Ele passara a ter acesso ao portal administrativo.')) return;
-  const { error } = await window._sb.from('profiles').update({ portal_access: true }).eq('id', id);
-  if (error) { alert('Erro ao promover: ' + error.message); return; }
-  if (after) after();
+  if (await setPortalAccess(id, 'promote') && after) after();
 };
 
 const revokePortal = async (id, after) => {
   if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-  const { error } = await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
-  if (error) { alert('Erro: ' + error.message); return; }
-  if (after) after();
+  if (await setPortalAccess(id, 'revoke') && after) after();
 };
 
 const Logo = () => (
@@ -231,13 +338,14 @@ const PintoresList = () => {
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>Pintores Cadastrados ({pintores.length})</div>
+      <CreateAppUserForm onCreated={fetchPintores} defaultRole="pintor" />
       {pintores.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum pintor cadastrado.</div>}
       <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:700 }}>
         {pintores.length > 0 && (
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','Tag','Cidade','Estado','Especialidades','Avaliacao','Status','Portal','Acoes'].map(h => (
+              {['Nome','Tipo','Tag','Cidade','Estado','Especialidades','Avaliacao','Status','Portal','Acoes'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -254,6 +362,7 @@ const PintoresList = () => {
                   <span style={{ fontWeight:600 }}>{p.name || 'Sem nome'}</span>
                 </div>
               </td>
+              <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>{tipoLabel(p)}</span></td>
               <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{p.tag ? '@'+p.tag : '—'}</td>
               <td style={{ padding:'10px 12px' }}>{p.city || '—'}</td>
               <td style={{ padding:'10px 12px' }}>{p.state || '—'}</td>
@@ -1333,6 +1442,7 @@ const ClientesList = () => {
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
       <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>👥 Clientes Cadastrados ({clientes.length})</div>
+      <CreateAppUserForm onCreated={fetchClientes} defaultRole="cliente" />
       {clientes.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum cliente cadastrado.</div>}
       <div style={{ overflowX:'auto' }}>
       <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:800 }}>
@@ -1861,8 +1971,7 @@ const PortalUsersList = () => {
 
   const revokeAccess = async (id) => {
     if (!confirm('Remover o acesso ao portal deste usuario?')) return;
-    await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
-    fetchUsers();
+    if (await setPortalAccess(id, 'revoke')) fetchUsers();
   };
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando usuarios do portal...</div>;
@@ -1981,7 +2090,7 @@ function App() {
       const [msgsRes, quotesRes, profilesRes, leadsRes] = await Promise.all([
         sb.from('messages').select('id', { count: 'exact', head: true }),
         sb.from('quotes').select('id', { count: 'exact', head: true }),
-        sb.from('profiles').select('role, user_type, portal_access'),
+        sb.from('profiles').select('role, user_type, profession, portal_access'),
         sb.from('leads').select('id', { count: 'exact', head: true }),
       ]);
       const profiles = profilesRes.data || [];
