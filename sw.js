@@ -1,32 +1,39 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v6';
-const ASSETS = ['/'];
+const CACHE = 'queroumacor-v7';
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
-  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+      Promise.all(keys.map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
+
+  // HTML / navegação: SEMPRE rede (nunca servir página velha do cache)
+  if (req.mode === 'navigate' || (sameOrigin && url.pathname.endsWith('.html'))) {
+    e.respondWith(fetch(req).catch(() => caches.match(req)));
+    return;
+  }
+
+  // Demais GETs: rede primeiro; só cacheia resposta same-origin e OK
   e.respondWith(
-    fetch(e.request)
-      .then(r => {
+    fetch(req).then(r => {
+      if (sameOrigin && r && r.ok && r.type === 'basic') {
         const clone = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return r;
-      })
-      .catch(() => caches.match(e.request))
+        caches.open(CACHE).then(c => c.put(req, clone)).catch(() => {});
+      }
+      return r;
+    }).catch(() => caches.match(req))
   );
 });
