@@ -934,7 +934,7 @@ async function loadMyPortfolio(){
   const sb = getSupabase();
   if(!sb || !currentUser){ box.innerHTML = ''; return; }
   try {
-    const { data: posts, error } = await sb.from('posts').select('*')
+    const { data: posts, error } = await sb.from('posts').select(POST_COLS)
       .eq('user_id', currentUser.id).neq('media_type','story')
       .order('created_at',{ascending:false}).limit(60);
     if(error) throw error;
@@ -1308,7 +1308,7 @@ async function renderRealProfileTabs(userId, name){
   if(baBlock) baBlock.style.display = 'none';
 
   try {
-    const { data: posts } = await sb.from('posts').select('*')
+    const { data: posts } = await sb.from('posts').select(POST_COLS)
       .eq('user_id', userId).neq('media_type','story')
       .or('status.eq.approved,status.is.null')
       .order('created_at',{ascending:false}).limit(60);
@@ -3477,7 +3477,7 @@ function showScreen(n){
   if(pp)pp.classList.remove('show');
   if(n==='chat-conv'){setTimeout(()=>{const b=document.getElementById('chat-body');if(b)b.scrollTop=b.scrollHeight;},150);}
   if(n==='chatconv'){setTimeout(()=>{const a=document.getElementById('msgs-area');if(a)a.scrollTop=a.scrollHeight;},150);}
-  if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)) loadFeed();
+  if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ _feedLimit = FEED_PAGE; loadFeed(); }
   if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
   if(n==='myprofile') loadMyProfileData();
   if(n==='chat'){ loadChatList(); const cb=document.getElementById('chat-badge-dot'); if(cb) cb.style.display='none'; }
@@ -3842,7 +3842,7 @@ async function openModQueue(){
   if(list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div>';
   try {
     const sb = getSupabase();
-    const { data: posts, error } = await sb.from('posts').select('*')
+    const { data: posts, error } = await sb.from('posts').select(POST_COLS)
       .eq('status','pending').order('created_at',{ascending:true}).limit(50);
     if(error){ list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Erro ao carregar.</div>'; return; }
     if(!posts || posts.length === 0){
@@ -6729,6 +6729,10 @@ function filterFeedPosts(){
     p.style.display = (role === _feedRoleFilter) ? '' : 'none';
   });
 }
+const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale, price, art_type, created_at';
+let _feedLimit = 30;
+const FEED_PAGE = 30;
+
 async function loadFeed(){
   _lastFeedLoad = Date.now();
   // Show cached feed instantly while fetching fresh data
@@ -6773,11 +6777,11 @@ async function loadPosts(feedIds){
     if(!sb) return;
     if(!feedIds) feedIds = await getFollowingIds();
     // Build query - if user has following list, filter by it; otherwise show all recent posts
-    let query = sb.from('posts').select('*').neq('media_type', 'story');
+    let query = sb.from('posts').select(POST_COLS).neq('media_type', 'story');
     // Only show approved posts (or posts without status for backwards compat)
     query = query.or('status.eq.approved,status.is.null');
     if(feedIds.length > 0) query = query.in('user_id', feedIds);
-    query = query.order('created_at', { ascending: false }).limit(30);
+    query = query.order('created_at', { ascending: false }).limit(_feedLimit);
     let { data: posts, error } = await query;
     if(error){
       console.warn('loadPosts error:', error.message);
@@ -6902,10 +6906,19 @@ async function loadPosts(feedIds){
       }
       html += '</div>';
     });
+    if(posts.length >= _feedLimit){
+      html += '<div style="text-align:center;padding:16px 0 28px;"><button id="feed-more-btn" onclick="loadMoreFeed(this)" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:10px 24px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver mais publicações</button></div>';
+    }
     container.innerHTML = html;
   } catch(e){
     console.error('loadPosts error:', e);
   }
+}
+
+function loadMoreFeed(btn){
+  if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
+  _feedLimit += FEED_PAGE;
+  loadFeed();
 }
 
 function escapeHtml(str){
@@ -7162,7 +7175,7 @@ async function loadStories(feedIds){
     const since = new Date(Date.now() - 24*60*60*1000).toISOString();
     if(!feedIds) feedIds = await getFollowingIds();
     // Build query - if user has following list, filter by it; otherwise show all recent stories
-    let storyQuery = sb.from('posts').select('*').eq('media_type', 'story');
+    let storyQuery = sb.from('posts').select(POST_COLS).eq('media_type', 'story');
     // Só stories aprovados (ou sem status, compat) — não vaza conteúdo pendente
     storyQuery = storyQuery.or('status.eq.approved,status.is.null');
     if(feedIds.length > 0) storyQuery = storyQuery.in('user_id', feedIds);
