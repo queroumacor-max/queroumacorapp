@@ -930,33 +930,80 @@ function abrirOrcamentoChat(painterId, painterName){
   if(!currentUser){ showScreen('auth'); return; }
   const existing = document.getElementById('orc-chat-overlay');
   if(existing) existing.remove();
-  const servicos = [
-    {icon:'🏠', label:'Pintura interna'},
-    {icon:'🏢', label:'Pintura externa / fachada'},
-    {icon:'🛏️', label:'Pintura de teto'},
-    {icon:'🚗', label:'Pintura automotiva'},
-    {icon:'🎨', label:'Arte e grafite'},
-    {icon:'🏗️', label:'Reforma geral'},
-  ];
+
+  const inp = (id,ph,type='text')=>'<input id="'+id+'" type="'+type+'" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;">';
+  const sel = (id,opts)=>'<select id="'+id+'" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"%231a1a2e\\" stroke-width=\\"2\\"><polyline points=\\"6 9 12 15 18 9\\"/></svg>\');background-repeat:no-repeat;background-position:right 12px center;background-size:16px;">'
+    +opts.map(o=>'<option value="'+o+'">'+o+'</option>').join('')+'</select>';
+  const lbl = t=>'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:14px;">'+t+'</div>';
+
   const el = document.createElement('div');
   el.id = 'orc-chat-overlay';
   el.className = 'overlay active';
   el.onclick = function(e){ if(e.target===el) el.remove(); };
-  el.innerHTML = '<div class="sheet" onclick="event.stopPropagation()" style="padding-bottom:28px;">'
+  el.innerHTML = '<div class="sheet" onclick="event.stopPropagation()" style="padding-bottom:env(safe-area-inset-bottom,16px);max-height:92vh;overflow-y:auto;">'
     +'<div class="sheet-handle"></div>'
-    +'<div class="sheet-title">Orçamento</div>'
-    +'<div style="font-size:13px;color:var(--muted);margin-bottom:16px;">O que você precisa com <b style="color:var(--ink);">'+escapeHtml(painterName)+'</b>?</div>'
-    +servicos.map(s=>'<div onclick="selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',\''+s.label+'\')" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--cream);border-radius:12px;margin-bottom:8px;cursor:pointer;">'
-      +'<span style="font-size:22px;">'+s.icon+'</span>'
-      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--ink);">'+s.label+'</span>'
-      +'<span style="color:var(--muted);font-size:18px;">›</span>'
-      +'</div>').join('')
-    +'<div style="margin-top:4px;display:flex;gap:8px;">'
-    +'<input id="orc-outro-txt" placeholder="Outro — descreva o que precisa..." style="flex:1;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;">'
-    +'<button onclick="var v=document.getElementById(\'orc-outro-txt\').value.trim();if(v)selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',v);else document.getElementById(\'orc-outro-txt\').focus();" style="padding:11px 16px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">Enviar</button>'
-    +'</div>'
+    +'<div class="sheet-title">Pedir orçamento</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Para <b style="color:var(--ink);">'+escapeHtml(painterName)+'</b></div>'
+
+    +lbl('Tipo de pintura')
+    +sel('orc-tipo',['Selecione…','Pintura interna','Pintura externa / fachada'])
+
+    +lbl('Superfície')
+    +sel('orc-sup',['Selecione…','Parede','Teto','Chão','Madeira','Metal','Telhado'])
+
+    +lbl('Quantidade de cômodos')
+    +inp('orc-comodos','Ex: 3 quartos + 1 sala','text')
+
+    +lbl('Área ou itens')
+    +inp('orc-area','Ex: 80 m² ou lista de itens','text')
+
+    +lbl('Linha de tinta preferida')
+    +sel('orc-linha',['Selecione…','Econômica','Standard','Premium'])
+
+    +lbl('Prazo desejado')
+    +sel('orc-prazo',['Selecione…','O quanto antes','Em até 1 semana','Em até 15 dias','Em até 1 mês','Sem pressa / a combinar'])
+
+    +lbl('Observações')
+    +'<textarea id="orc-obs" placeholder="Cores, condições do ambiente, acesso, etc." rows="3" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;resize:none;"></textarea>'
+
+    +'<button onclick="enviarOrcamentoForm(\''+painterId+'\',\''+escapeHtml(painterName)+'\')" style="width:100%;margin-top:18px;padding:15px;background:var(--ink);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Enviar orçamento</button>'
     +'</div>';
   document.body.appendChild(el);
+}
+
+function enviarOrcamentoForm(painterId, painterName){
+  const v = id => (document.getElementById(id)||{}).value || '';
+  const tipo   = v('orc-tipo');
+  const sup    = v('orc-sup');
+  const comod  = v('orc-comodos').trim();
+  const area   = v('orc-area').trim();
+  const linha  = v('orc-linha');
+  const prazo  = v('orc-prazo');
+  const obs    = v('orc-obs').trim();
+
+  const partes = ['Olá, '+painterName+'! Gostaria de solicitar um orçamento:'];
+  if(tipo && tipo !== 'Selecione…')  partes.push('📌 Tipo: '+tipo);
+  if(sup  && sup  !== 'Selecione…') partes.push('🧱 Superfície: '+sup);
+  if(comod) partes.push('🚪 Cômodos: '+comod);
+  if(area)  partes.push('📐 Área/itens: '+area);
+  if(linha && linha !== 'Selecione…') partes.push('🎨 Linha de tinta: '+linha);
+  if(prazo && prazo !== 'Selecione…') partes.push('📅 Prazo: '+prazo);
+  if(obs)   partes.push('📝 Obs: '+obs);
+
+  if(partes.length === 1){ toast('Preencha pelo menos um campo'); return; }
+
+  const overlay = document.getElementById('orc-chat-overlay');
+  if(overlay) overlay.remove();
+
+  window._orcPreMsg = partes.join('\n');
+  showScreen('chat');
+  setTimeout(()=>{
+    if(typeof openChat==='function') openChat(painterId);
+    setTimeout(()=>{
+      const input = document.getElementById('chat-input') || document.getElementById('chat-input-field');
+      if(input){ input.value = window._orcPreMsg; input.focus(); window._orcPreMsg = null; }
+    }, 600);
+  }, 300);
 }
 
 function selecionarServicoOrcamento(painterId, painterName, servico){
