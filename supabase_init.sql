@@ -128,6 +128,16 @@ BEGIN
     CREATE POLICY "Users can insert own profile" ON public.profiles
       FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
   END IF;
+  -- Portal admins (portal_access = true) can update any profile.
+  -- Needed for verificar pintor, promover a usuario do portal e revogar acesso.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Portal admins can update any profile'
+  ) THEN
+    CREATE POLICY "Portal admins can update any profile" ON public.profiles
+      FOR UPDATE TO authenticated
+      USING (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true))
+      WITH CHECK (EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.portal_access = true));
+  END IF;
 END $$;
 
 -- ============================================
@@ -871,3 +881,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_conversations() TO authenticated;
+
+-- ============================================
+-- profiles.user_type check constraint
+-- Portal admins are created with role='admin'; allow 'admin' (and the
+-- known app roles) as a valid user_type so the auth.users trigger that
+-- copies signup metadata into profiles does not violate the constraint.
+-- ============================================
+DO $$
+BEGIN
+  ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_type_check;
+  ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_type_check
+    CHECK (user_type IS NULL OR user_type IN ('cliente','pintor','grafiteiro','automotivo','funileiro','admin'));
+END $$;
