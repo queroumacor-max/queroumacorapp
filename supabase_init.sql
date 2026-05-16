@@ -107,6 +107,19 @@ END $$;
 -- ============================================
 -- Profiles table - ensure read/write works
 -- ============================================
+-- Funcao auxiliar: o caller atual tem portal_access? SECURITY DEFINER
+-- ignora RLS de profiles, evitando recursao (42P17) quando usada em
+-- policies da propria tabela profiles. Definida antes das policies.
+CREATE OR REPLACE FUNCTION public.is_portal_admin()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND portal_access = true
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.is_portal_admin() TO authenticated;
+
 -- Allow everyone to read profiles (needed for search, feed, etc.)
 DO $$
 BEGIN
@@ -127,6 +140,18 @@ BEGIN
   ) THEN
     CREATE POLICY "Users can insert own profile" ON public.profiles
       FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+  END IF;
+  -- Portal admins (portal_access = true) can update any profile.
+  -- Needed for verificar pintor, promover a usuario do portal e revogar acesso.
+  -- Usa funcao SECURITY DEFINER para evitar recursao infinita (42P17):
+  -- uma policy em profiles que faz subquery em profiles entra em loop.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Portal admins can update any profile'
+  ) THEN
+    CREATE POLICY "Portal admins can update any profile" ON public.profiles
+      FOR UPDATE TO authenticated
+      USING (public.is_portal_admin())
+      WITH CHECK (public.is_portal_admin());
   END IF;
 END $$;
 
@@ -871,3 +896,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_conversations() TO authenticated;
+
+-- ============================================
+-- profiles.user_type check constraint
+-- Portal admins are created with role='admin'; allow 'admin' (and the
+-- known app roles) as a valid user_type so the auth.users trigger that
+-- copies signup metadata into profiles does not violate the constraint.
+-- ============================================
+DO $$
+BEGIN
+  ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_type_check;
+  ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_type_check
+    CHECK (user_type IS NULL OR user_type IN ('cliente','pintor','grafiteiro','automotivo','funileiro','admin'));
+END $$;
