@@ -1227,14 +1227,14 @@ function searchPeople(query){
   },300);
 }
 
-async function openUserProfile(userId){
+async function openUserProfile(userId, preview){
   const sb = getSupabase();
   if(!sb) return;
   try {
     const { data: prof } = await sb.from('profiles').select('*').eq('id', userId).single();
     if(!prof){ toast('Perfil nao encontrado'); return; }
-    // Check if it's own profile
-    if(currentUser && userId === currentUser.id){
+    // Check if it's own profile (preview mostra a visão pública do próprio perfil)
+    if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;
     }
     // For DB profiles, update profile screen elements directly
@@ -1286,11 +1286,88 @@ async function openUserProfile(userId){
       `;
     }
 
+    switchTab('works');
+    renderRealProfileTabs(userId, name);
     showScreen('profile');
   } catch(e){
     console.error('openUserProfile error:', e);
     toast('Erro ao abrir perfil');
   }
+}
+
+// Preenche as abas do perfil público (screen-profile) com dados reais
+async function renderRealProfileTabs(userId, name){
+  const sb = getSupabase();
+  if(!sb) return;
+  const screen = document.getElementById('screen-profile');
+  if(!screen) return;
+  const esc = s => String(s||'').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+
+  // Esconde o bloco "Antes/Depois" mock no perfil real
+  const baBlock = screen.querySelector('#tab-works > div[onclick^="toggleBA"]');
+  if(baBlock) baBlock.style.display = 'none';
+
+  try {
+    const { data: posts } = await sb.from('posts').select('*')
+      .eq('user_id', userId).neq('media_type','story')
+      .or('status.eq.approved,status.is.null')
+      .order('created_at',{ascending:false}).limit(60);
+    const all = posts || [];
+    const imgs = all.filter(p => p.media_type !== 'video');
+    const vids = all.filter(p => p.media_type === 'video');
+
+    const worksGrid = screen.querySelector('#tab-works .works-grid');
+    if(worksGrid){
+      worksGrid.innerHTML = imgs.length
+        ? imgs.map(p => `<div class="works-grid-item"><img src="${esc(p.media_url)}" alt="" loading="lazy"></div>`).join('')
+        : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px;font-size:13px;">Sem trabalhos publicados ainda.</div>';
+    }
+    const vidsGrid = screen.querySelector('#tab-vids .works-grid');
+    if(vidsGrid){
+      vidsGrid.innerHTML = vids.length
+        ? vids.map(p => `<div class="works-grid-item" style="position:relative"><video src="${esc(p.media_url)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;"><span style="font-size:26px;color:#fff;">▶</span></div></div>`).join('')
+        : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px;font-size:13px;">Sem vídeos publicados ainda.</div>';
+    }
+  } catch(e){ console.warn('renderRealProfileTabs posts:', e); }
+
+  try {
+    const { data: quals } = await sb.from('qualifications').select('*')
+      .eq('user_id', userId).order('created_at',{ascending:false});
+    const certList = screen.querySelector('#tab-certs .cert-list');
+    if(certList){
+      certList.innerHTML = (quals && quals.length)
+        ? quals.map(q => `<div class="cert-card" style="border-left:3px solid var(--p1);">
+            <div class="cert-ic" style="background:var(--cream);font-size:22px;">${esc(q.icon||'🎓')}</div>
+            <div class="cert-txt" style="flex:1"><div class="cert-n">${esc(q.title)}</div><div class="cert-o">${esc(q.org||'')}${q.year?' · '+esc(q.year):''}</div></div>
+          </div>`).join('')
+        : '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Nenhuma formação cadastrada.</div>';
+    }
+  } catch(e){ console.warn('renderRealProfileTabs quals:', e); }
+
+  try {
+    const { data: courses } = await sb.from('courses').select('*')
+      .eq('user_id', userId).order('created_at',{ascending:false});
+    const cursosTab = screen.querySelector('#tab-cursos');
+    if(cursosTab){
+      cursosTab.innerHTML = (courses && courses.length)
+        ? `<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Cursos criados por ${esc(name)}</div>` +
+          courses.map(c => `<div style="background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px;">
+            ${c.cover_url?`<div style="position:relative;"><img src="${esc(c.cover_url)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;">${c.duration?`<div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;">${esc(c.duration)}</div>`:''}</div>`:''}
+            <div style="padding:14px;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${esc(c.title)}</div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${esc(c.subtitle||'')}</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:16px;font-weight:800;color:var(--ink);">${c.is_free?'Grátis':('R$'+Number(c.price||0).toFixed(2).replace('.',','))}</div>
+                ${c.link?`<a href="${esc(c.link)}" target="_blank" rel="noopener" style="background:var(--p1);color:#fff;text-decoration:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;">Acessar</a>`:''}
+              </div>
+            </div>
+          </div>`).join('')
+        : '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:36px;margin-bottom:10px;">📚</div><div style="font-size:14px;">Nenhum curso publicado ainda.</div></div>';
+    }
+  } catch(e){ console.warn('renderRealProfileTabs courses:', e); }
+
+  const revList = screen.querySelector('#tab-reviews .reviews-list');
+  if(revList) revList.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Avaliações aparecerão aqui após serviços concluídos.</div>';
 }
 
 // Start a chat with a user from their profile
@@ -2261,6 +2338,19 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <div id="myprofile-portfolio">
         <div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Carregando...</div>
       </div>
+
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 12px;">Perfil público</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div onclick="previewPublicProfile()" style="background:var(--white);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+          <span style="font-size:18px;">👁️</span><div style="flex:1;font-size:14px;font-weight:600;">Ver meu perfil público</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openManageQuals()" style="background:var(--white);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+          <span style="font-size:18px;">🎓</span><div style="flex:1;font-size:14px;font-weight:600;">Gerenciar Formação</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openManageCourses()" style="background:var(--white);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+          <span style="font-size:18px;">📚</span><div style="flex:1;font-size:14px;font-weight:600;">Gerenciar Cursos</div><span style="color:var(--muted);">›</span>
+        </div>
+      </div>
     </div>
 
     <button id="post-fab" onclick="showModal('post-modal')" style="position:fixed;right:20px;bottom:78px;width:52px;height:52px;border-radius:50%;background:var(--p1);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(255,107,53,.45);z-index:200;">
@@ -2891,6 +2981,41 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
     <div class="sheet-title">🛡️ Fila de Moderação</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Conteúdo aguardando revisão antes de ficar público.</div>
     <div id="mod-queue-list"><div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="manage-quals-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🎓 Formação</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Cursos, certificados e qualificações que aparecem no seu perfil.</div>
+    <input id="q-title" placeholder="Título (ex: Pintor Profissional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <input id="q-org" placeholder="Instituição (ex: SENAI)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input id="q-year" placeholder="Ano" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+      <input id="q-icon" placeholder="Emoji" value="🎓" maxlength="3" style="width:70px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;text-align:center;">
+    </div>
+    <button onclick="addQualification(this)" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--p1);color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:16px;">Adicionar</button>
+    <div id="quals-list"><div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Carregando...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="manage-courses-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📚 Cursos</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Cursos que você criou e aparecem no seu perfil.</div>
+    <input id="c-title" placeholder="Título do curso" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <input id="c-sub" placeholder="Descrição curta" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <input id="c-cover" placeholder="URL da imagem de capa (opcional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <input id="c-link" placeholder="Link de acesso (opcional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+      <input id="c-price" type="number" placeholder="Preço (R$)" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+      <input id="c-duration" placeholder="Duração (ex: 4h)" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+      <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;"><input type="checkbox" id="c-free">Grátis</label>
+    </div>
+    <button onclick="addCourse(this)" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--p1);color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:16px;">Adicionar curso</button>
+    <div id="courses-list"><div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Carregando...</div></div>
   </div>
 </div>
 
@@ -6436,6 +6561,129 @@ function openPortfolioComposer(){
   // Story/Reel ficam a um toque pelo seletor do próprio modal.
   setPostType('post');
   showModal('post-modal');
+}
+
+function previewPublicProfile(){
+  if(!currentUser){ toast('Faça login'); return; }
+  openUserProfile(currentUser.id, true);
+}
+
+// ══ FORMAÇÃO (qualifications) ══
+function openManageQuals(){
+  if(!currentUser){ toast('Faça login'); return; }
+  showModal('manage-quals-modal');
+  loadQualsList();
+}
+
+async function loadQualsList(){
+  const box = document.getElementById('quals-list');
+  const sb = getSupabase();
+  if(!box || !sb || !currentUser) return;
+  try {
+    const { data } = await sb.from('qualifications').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});
+    if(!data || !data.length){ box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhuma formação cadastrada.</div>'; return; }
+    box.innerHTML = data.map(q => `<div style="display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;">
+      <span style="font-size:20px;">${escapeHtml(q.icon||'🎓')}</span>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(q.title)}</div><div style="font-size:11px;color:var(--muted);">${escapeHtml(q.org||'')}${q.year?' · '+escapeHtml(q.year):''}</div></div>
+      <button onclick="deleteQualification('${q.id}',this)" style="background:none;border:none;color:#e63946;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>`).join('');
+  } catch(e){ console.warn('loadQualsList:', e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
+}
+
+async function addQualification(btn){
+  const title = document.getElementById('q-title').value.trim();
+  if(!title){ toast('Informe o título'); return; }
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    const { error } = await sb.from('qualifications').insert({
+      user_id: currentUser.id,
+      title,
+      org: document.getElementById('q-org').value.trim() || null,
+      year: document.getElementById('q-year').value.trim() || null,
+      icon: document.getElementById('q-icon').value.trim() || '🎓'
+    });
+    if(error) throw error;
+    document.getElementById('q-title').value = '';
+    document.getElementById('q-org').value = '';
+    document.getElementById('q-year').value = '';
+    document.getElementById('q-icon').value = '🎓';
+    toast('Formação adicionada');
+    loadQualsList();
+  } catch(e){ console.error('addQualification:', e); toast('Erro: ' + (e.message||'falha')); }
+  btn.disabled = false; btn.textContent = 'Adicionar';
+}
+
+async function deleteQualification(id, el){
+  const sb = getSupabase();
+  if(!sb) return;
+  try {
+    const { error } = await sb.from('qualifications').delete().eq('id', id);
+    if(error) throw error;
+    const card = el.closest('div'); if(card) card.remove();
+    toast('Removido');
+  } catch(e){ console.error('deleteQualification:', e); toast('Erro ao remover'); }
+}
+
+// ══ CURSOS (courses) ══
+function openManageCourses(){
+  if(!currentUser){ toast('Faça login'); return; }
+  showModal('manage-courses-modal');
+  loadCoursesList();
+}
+
+async function loadCoursesList(){
+  const box = document.getElementById('courses-list');
+  const sb = getSupabase();
+  if(!box || !sb || !currentUser) return;
+  try {
+    const { data } = await sb.from('courses').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});
+    if(!data || !data.length){ box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhum curso cadastrado.</div>'; return; }
+    box.innerHTML = data.map(c => `<div style="display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;">
+      ${c.cover_url?`<img src="${escapeHtml(c.cover_url)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">`:'<span style="font-size:24px;">📚</span>'}
+      <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(c.title)}</div><div style="font-size:11px;color:var(--muted);">${c.is_free?'Grátis':('R$'+Number(c.price||0).toFixed(2).replace('.',','))}${c.duration?' · '+escapeHtml(c.duration):''}</div></div>
+      <button onclick="deleteCourse('${c.id}',this)" style="background:none;border:none;color:#e63946;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>`).join('');
+  } catch(e){ console.warn('loadCoursesList:', e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
+}
+
+async function addCourse(btn){
+  const title = document.getElementById('c-title').value.trim();
+  if(!title){ toast('Informe o título'); return; }
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    const isFree = document.getElementById('c-free').checked;
+    const { error } = await sb.from('courses').insert({
+      user_id: currentUser.id,
+      title,
+      subtitle: document.getElementById('c-sub').value.trim() || null,
+      cover_url: document.getElementById('c-cover').value.trim() || null,
+      link: document.getElementById('c-link').value.trim() || null,
+      duration: document.getElementById('c-duration').value.trim() || null,
+      is_free: isFree,
+      price: isFree ? null : (parseFloat(document.getElementById('c-price').value) || null)
+    });
+    if(error) throw error;
+    ['c-title','c-sub','c-cover','c-link','c-duration','c-price'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('c-free').checked = false;
+    toast('Curso adicionado');
+    loadCoursesList();
+  } catch(e){ console.error('addCourse:', e); toast('Erro: ' + (e.message||'falha')); }
+  btn.disabled = false; btn.textContent = 'Adicionar curso';
+}
+
+async function deleteCourse(id, el){
+  const sb = getSupabase();
+  if(!sb) return;
+  try {
+    const { error } = await sb.from('courses').delete().eq('id', id);
+    if(error) throw error;
+    const card = el.closest('div'); if(card) card.remove();
+    toast('Removido');
+  } catch(e){ console.error('deleteCourse:', e); toast('Erro ao remover'); }
 }
 
 let _lastFeedLoad = 0;

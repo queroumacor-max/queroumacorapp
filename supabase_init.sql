@@ -703,3 +703,54 @@ DO $$
 BEGIN
   BEGIN ALTER TABLE public.profiles ADD COLUMN profession text DEFAULT 'pintor'; EXCEPTION WHEN duplicate_column THEN NULL; END;
 END $$;
+
+-- ============================================
+-- Qualifications (Formação) — itens do perfil profissional
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.qualifications (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  org text,
+  year text,
+  icon text DEFAULT '🎓',
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.qualifications ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='qualifications' AND policyname='Qualifications viewable by everyone') THEN
+    CREATE POLICY "Qualifications viewable by everyone" ON public.qualifications FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='qualifications' AND policyname='Users manage own qualifications') THEN
+    CREATE POLICY "Users manage own qualifications" ON public.qualifications
+      FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- ============================================
+-- Courses (Cursos) — cursos criados pelo profissional
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.courses (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  subtitle text,
+  cover_url text,
+  price numeric,
+  is_free boolean DEFAULT false,
+  duration text,
+  link text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='courses' AND policyname='Courses viewable by everyone') THEN
+    CREATE POLICY "Courses viewable by everyone" ON public.courses FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='courses' AND policyname='Users manage own courses') THEN
+    CREATE POLICY "Users manage own courses" ON public.courses
+      FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
