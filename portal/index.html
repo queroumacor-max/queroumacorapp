@@ -1784,6 +1784,141 @@ const PedidosLoja = () => {
   );
 };
 
+const PortalUsersList = () => {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name:'', email:'', password:'' });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formMsg, setFormMsg] = useState('');
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data, error } = await window._sb.from('profiles').select('*').eq('portal_access', true).order('created_at', { ascending: false });
+    if (!error && data) setUsers(data);
+    else setUsers([]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const createUser = async () => {
+    setFormError(''); setFormMsg('');
+    const name = form.name.trim(), email = form.email.trim(), password = form.password;
+    if (!email || !password) { setFormError('Email e senha sao obrigatorios'); return; }
+    if (password.length < 6) { setFormError('Senha deve ter no minimo 6 caracteres'); return; }
+    setSaving(true);
+    let tmp;
+    try {
+      tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-admin-create' } });
+      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: 'admin' } } });
+      if (authErr) throw authErr;
+      if (authData.user) {
+        const { error: upErr } = await tmp.from('profiles').upsert({
+          id: authData.user.id,
+          name: name || email,
+          email,
+          user_type: 'admin',
+          role: 'admin',
+          portal_access: true,
+          created_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+        if (upErr) throw upErr;
+      }
+      await tmp.auth.signOut();
+      setFormMsg('Usuario criado com sucesso. Ele ja pode entrar no portal com essas credenciais.');
+      setForm({ name:'', email:'', password:'' });
+      setShowForm(false);
+      fetchUsers();
+    } catch (e) {
+      setFormError(e.message || 'Erro ao criar usuario');
+    } finally {
+      if (tmp) { try { await tmp.auth.signOut(); } catch(_){} }
+      setSaving(false);
+    }
+  };
+
+  const revokeAccess = async (id) => {
+    if (!confirm('Remover o acesso ao portal deste usuario?')) return;
+    await window._sb.from('profiles').update({ portal_access: false }).eq('id', id);
+    fetchUsers();
+  };
+
+  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando usuarios do portal...</div>;
+
+  return (
+    <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, color: C.ink }}>🔐 Usuarios com acesso ao Portal ({users.length})</div>
+        <button onClick={() => { setShowForm(!showForm); setFormError(''); setFormMsg(''); }} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'8px 16px', cursor:'pointer', fontSize:13, fontWeight:700 }}>
+          {showForm ? 'Cancelar' : '+ Criar usuario'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background:C.cream, borderRadius:12, padding:16, marginBottom:20, border:'1px solid '+C.border }}>
+          <div style={{ fontWeight:700, color:C.ink, marginBottom:12, fontSize:14 }}>Criar novo usuario do portal</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Nome</div>
+              <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="Nome (opcional)" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
+              <input value={form.email} onChange={e=>setForm({...form, email:e.target.value})} placeholder="email@exemplo.com" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+            </div>
+          </div>
+          <div style={{ marginBottom:12, maxWidth:'50%' }}>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
+            <input type="password" value={form.password} onChange={e=>setForm({...form, password:e.target.value})} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+          </div>
+          {formError && <div style={{ color:'#e63946', fontSize:13, marginBottom:10 }}>{formError}</div>}
+          <button disabled={saving} onClick={createUser} style={{ background:C.p6, color:'#fff', border:'none', borderRadius:10, padding:'10px 20px', cursor: saving?'wait':'pointer', fontSize:13, fontWeight:700 }}>
+            {saving ? 'Criando...' : 'Criar usuario'}
+          </button>
+        </div>
+      )}
+      {formMsg && <div style={{ color:'#2e7d32', fontSize:13, marginBottom:16, background:C.p6+'15', padding:'10px 14px', borderRadius:10 }}>{formMsg}</div>}
+
+      {users.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum usuario com acesso ao portal.</div>}
+      {users.length > 0 && (
+        <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:600 }}>
+          <thead>
+            <tr style={{ borderBottom:'2px solid '+C.border }}>
+              {['Nome','Email','Papel','Criado em','Acoes'].map(h => (
+                <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id} style={{ borderBottom:'1px solid '+C.border }}>
+                <td style={{ padding:'10px 12px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background:C.p1+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:C.p1, flexShrink:0 }}>
+                      {u.avatar_url ? <img src={u.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (u.name || '?')[0]}
+                    </div>
+                    <span style={{ fontWeight:600 }}>{u.name || 'Sem nome'}</span>
+                  </div>
+                </td>
+                <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.email || '—'}</td>
+                <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.role || u.user_type || 'admin'}</span></td>
+                <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—'}</td>
+                <td style={{ padding:'10px 12px' }}>
+                  <button onClick={() => revokeAccess(u.id)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, color:C.p4 }}>Revogar acesso</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -1792,6 +1927,7 @@ const PAGES_DEF = [
   { id:'pintores', icon:'🖌️', label:'Pintores', section:'PESSOAS', badgeKey:'pintores', component:<PintoresList /> },
   { id:'leads', icon:'🧲', label:'Leads', section:'PESSOAS', badgeKey:'leads', component:<Leads /> },
   { id:'clientes', icon:'👥', label:'Clientes', section:'PESSOAS', badgeKey:'clientes', component:<ClientesList /> },
+  { id:'portal-users', icon:'🔐', label:'Portal', section:'PESSOAS', badgeKey:'portalUsers', component:<PortalUsersList /> },
   { id:'pedidos-loja', icon:'🛒', label:'Pedidos da Loja', section:'LOJA', component:<PedidosLoja /> },
   { id:'produtos', icon:'🎨', label:'Produtos / Tintas', section:'LOJA', component:<ProdutosList /> },
   { id:'camisetas', icon:'👕', label:'Camisetas Personalizadas', section:'LOJA', component:<Camisetas /> },
@@ -1828,8 +1964,9 @@ function App() {
         sb.from('profiles').select('id', { count: 'exact', head: true }).or('role.eq.pintor,user_type.eq.pintor'),
         sb.from('leads').select('id', { count: 'exact', head: true }),
       ]);
-      const [clientesRes] = await Promise.all([
+      const [clientesRes, portalUsersRes] = await Promise.all([
         sb.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'cliente'),
+        sb.from('profiles').select('id', { count: 'exact', head: true }).eq('portal_access', true),
       ]);
       setBadges({
         chats: msgsRes.count || 0,
@@ -1837,6 +1974,7 @@ function App() {
         pintores: profilesRes.count || 0,
         leads: leadsRes.count || 0,
         clientes: clientesRes.count || 0,
+        portalUsers: portalUsersRes.count || 0,
       });
     } catch(e) { console.error('loadBadges error:', e); }
   };
