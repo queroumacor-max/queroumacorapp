@@ -2634,21 +2634,38 @@ function mktTab(el, tab) {
 }
 
 function updateCartBadge(){
-  cartCount = cartItems.length;
+  cartCount = cartItems.reduce((s,c) => s + (c.qty||1), 0);
   const el = document.getElementById('cart-count');
   if(el) el.textContent = cartCount;
 }
 
-function addToCart(productId) {
+function addToCart(productId, qty) {
+  qty = Math.max(1, parseInt(qty) || 1);
   if(productId){
     const p = mktProducts.find(x => x.id === productId);
-    if(p) cartItems.push({ id:p.id, name:p.name, price:p.price, color_hex:p.color_hex, color_gradient:p.color_gradient, volume:p.volume });
+    if(p){
+      const existing = cartItems.find(x => x.id === p.id);
+      if(existing){
+        existing.qty = (existing.qty || 1) + qty;
+      } else {
+        cartItems.push({ id:p.id, name:p.name, price:p.price, color_hex:p.color_hex, color_gradient:p.color_gradient, volume:p.volume, qty:qty });
+      }
+    }
   }
   localStorage.setItem('quc_cart', JSON.stringify(cartItems));
   updateCartBadge();
   toast('Adicionado ao carrinho!');
-  // Open cart modal after adding
   setTimeout(() => { renderCartModal(); showModal('cart-modal'); }, 300);
+}
+
+function changeCartQty(index, delta){
+  if(!cartItems[index]) return;
+  const newQty = (cartItems[index].qty || 1) + delta;
+  if(newQty < 1){ removeFromCart(index); return; }
+  cartItems[index].qty = newQty;
+  localStorage.setItem('quc_cart', JSON.stringify(cartItems));
+  updateCartBadge();
+  renderCartModal();
 }
 
 function renderCartModal(){
@@ -2661,15 +2678,22 @@ function renderCartModal(){
   }
   let total = 0;
   container.innerHTML = cartItems.map((item, i) => {
-    total += Number(item.price || 0);
+    const qty = item.qty || 1;
+    const subtotal = Number(item.price || 0) * qty;
+    total += subtotal;
     const bg = item.color_gradient ? 'linear-gradient(135deg,'+item.color_gradient+')' : (item.color_hex || '#ddd');
     return '<div class="cart-item">'
       + '<div class="cart-item-icon" style="background:'+bg+'"></div>'
       + '<div class="cart-item-info">'
         + '<div class="cart-item-name">'+escapeHtml(item.name||'')+'</div>'
         + (item.volume ? '<div class="cart-item-vol">'+escapeHtml(item.volume)+'</div>' : '')
+        + '<div class="cart-qty-ctrl">'
+          + '<button class="cart-qty-btn" onclick="changeCartQty('+i+',-1)">−</button>'
+          + '<span class="cart-qty-num">'+qty+'</span>'
+          + '<button class="cart-qty-btn" onclick="changeCartQty('+i+',1)">+</button>'
+        + '</div>'
       + '</div>'
-      + '<div class="cart-item-price">R$'+Number(item.price).toFixed(2).replace('.',',')+'</div>'
+      + '<div class="cart-item-price">R$'+subtotal.toFixed(2).replace('.',',')+'</div>'
       + '<button class="cart-remove" onclick="removeFromCart('+i+')" aria-label="Remover">×</button>'
     + '</div>';
   }).join('');
@@ -2690,7 +2714,7 @@ async function submitCartOrder(){
   const btn = document.getElementById('cart-submit-btn');
   btn.textContent = 'Enviando...'; btn.disabled = true;
   try {
-    const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+    const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * (item.qty || 1), 0);
     const { error } = await sb.from('orders').insert({
       user_id: currentUser.id,
       items: cartItems,
@@ -2722,7 +2746,7 @@ function renderProductCard(p){
   const stockClass = p.stock <= 5 ? 'low' : 'ok';
   const stockIcon = p.stock <= 5 ? '⚠️' : '✅';
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
-  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+'">'+badgeHtml+emoji+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();addToCart(\''+p.id+'\')">+ Carrinho</button></div></div>';
+  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+'">'+badgeHtml+emoji+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
 function renderProductRow(p){
@@ -2735,7 +2759,7 @@ function renderProductRow(p){
     + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+'</div>'
     + '<div class="mkt-row-sub">'+(p.code?('Cód '+escapeHtml(String(p.code))):'')+stk+'</div>'
     + '<div class="mkt-row-price">'+price+'</div></div>'
-    + '<button class="mkt-row-add" onclick="event.stopPropagation();addToCart(\''+p.id+'\')">+ Carrinho</button>'
+    + '<button class="mkt-row-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button>'
     + '</div>';
 }
 
@@ -2786,8 +2810,15 @@ function openProductDetail(productId){
     + (p.demaos ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Demãos</div><div style="font-size:14px;font-weight:700;">'+p.demaos+'</div></div>' : '')
     + (p.secagem ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Secagem</div><div style="font-size:14px;font-weight:700;">'+p.secagem+'</div></div>' : '')
     + '</div>'
-    + '<div style="margin-bottom:14px;"><div style="font-size:22px;font-weight:800;color:var(--p1);font-family:Syne,sans-serif;">'+priceFormatted+'</div></div>'
-    + '<button onclick="addToCart(\''+p.id+'\');closeModals()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">+ Adicionar ao Carrinho</button>';
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+      + '<div style="font-size:22px;font-weight:800;color:var(--p1);font-family:Syne,sans-serif;">'+priceFormatted+'</div>'
+      + '<div class="qty-picker">'
+        + '<button class="qty-btn" onclick="var i=document.getElementById(\'detail-qty\');i.value=Math.max(1,+i.value-1);document.getElementById(\'detail-qty-total\').textContent=\'R$\'+(Math.max(1,+i.value)*'+Number(p.price||0)+').toFixed(2).replace(\'.\',\',\')">−</button>'
+        + '<input id="detail-qty" type="number" min="1" value="1" class="qty-input" oninput="var v=Math.max(1,+this.value||1);this.value=v;document.getElementById(\'detail-qty-total\').textContent=\'R$\'+(v*'+Number(p.price||0)+').toFixed(2).replace(\'.\',\',\')">'
+        + '<button class="qty-btn" onclick="var i=document.getElementById(\'detail-qty\');i.value=+i.value+1;document.getElementById(\'detail-qty-total\').textContent=\'R$\'+(+i.value*'+Number(p.price||0)+').toFixed(2).replace(\'.\',\',\')">+</button>'
+      + '</div>'
+    + '</div>'
+    + '<button onclick="addToCart(\''+p.id+'\',+document.getElementById(\'detail-qty\').value);closeModals()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">+ Adicionar ao Carrinho · <span id="detail-qty-total">'+priceFormatted+'</span></button>';
   showModal('product-detail-modal');
 }
 
