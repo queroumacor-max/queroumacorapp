@@ -20,6 +20,7 @@ async function initAuth() {
     showScreen('feed');
     autoDetectRole();
     setupGlobalMsgSubscription();
+    setupNotifSubscription();
     refreshProStatus();
     checkAdminEntry();
     handleProReturn();
@@ -34,6 +35,7 @@ async function initAuth() {
     if(currentUser){
       autoDetectRole();
       setupGlobalMsgSubscription();
+      setupNotifSubscription();
       refreshProStatus();
       checkAdminEntry();
       if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
@@ -42,6 +44,7 @@ async function initAuth() {
       _isAdmin = false;
       _feedLoaded = false;
       if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
+      if(typeof _notifSub !== 'undefined' && _notifSub){ _notifSub.unsubscribe(); _notifSub=null; }
     }
   });
 }

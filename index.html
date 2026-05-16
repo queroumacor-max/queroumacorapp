@@ -9,9 +9,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
-<link rel="stylesheet" href="/styles.css?v=20260516j">
+<link rel="stylesheet" href="/styles.css?v=20260516l">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260516j"></script>
+<script src="/head.js?v=20260516l"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -32,7 +32,7 @@
   <div class="nav-right">
     <button class="nav-btn" onclick="showScreen('notif')">
       <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      <div class="badge-dot"></div>
+      <div class="badge-dot" id="notif-badge-dot" style="display:none;background:var(--p1);"></div>
     </button>
     <button class="nav-btn" onclick="showScreen('chat')">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -2080,7 +2080,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260516j"></script>
+<script src="/app.js?v=20260516l"></script>
 
 <script>
 if('serviceWorker' in navigator){

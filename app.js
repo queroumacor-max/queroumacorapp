@@ -930,33 +930,80 @@ function abrirOrcamentoChat(painterId, painterName){
   if(!currentUser){ showScreen('auth'); return; }
   const existing = document.getElementById('orc-chat-overlay');
   if(existing) existing.remove();
-  const servicos = [
-    {icon:'🏠', label:'Pintura interna'},
-    {icon:'🏢', label:'Pintura externa / fachada'},
-    {icon:'🛏️', label:'Pintura de teto'},
-    {icon:'🚗', label:'Pintura automotiva'},
-    {icon:'🎨', label:'Arte e grafite'},
-    {icon:'🏗️', label:'Reforma geral'},
-  ];
+
+  const inp = (id,ph,type='text')=>'<input id="'+id+'" type="'+type+'" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;">';
+  const sel = (id,opts)=>'<select id="'+id+'" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"%231a1a2e\\" stroke-width=\\"2\\"><polyline points=\\"6 9 12 15 18 9\\"/></svg>\');background-repeat:no-repeat;background-position:right 12px center;background-size:16px;">'
+    +opts.map(o=>'<option value="'+o+'">'+o+'</option>').join('')+'</select>';
+  const lbl = t=>'<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:14px;">'+t+'</div>';
+
   const el = document.createElement('div');
   el.id = 'orc-chat-overlay';
   el.className = 'overlay active';
   el.onclick = function(e){ if(e.target===el) el.remove(); };
-  el.innerHTML = '<div class="sheet" onclick="event.stopPropagation()" style="padding-bottom:28px;">'
+  el.innerHTML = '<div class="sheet" onclick="event.stopPropagation()" style="padding-bottom:env(safe-area-inset-bottom,16px);max-height:92vh;overflow-y:auto;">'
     +'<div class="sheet-handle"></div>'
-    +'<div class="sheet-title">Orçamento</div>'
-    +'<div style="font-size:13px;color:var(--muted);margin-bottom:16px;">O que você precisa com <b style="color:var(--ink);">'+escapeHtml(painterName)+'</b>?</div>'
-    +servicos.map(s=>'<div onclick="selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',\''+s.label+'\')" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--cream);border-radius:12px;margin-bottom:8px;cursor:pointer;">'
-      +'<span style="font-size:22px;">'+s.icon+'</span>'
-      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--ink);">'+s.label+'</span>'
-      +'<span style="color:var(--muted);font-size:18px;">›</span>'
-      +'</div>').join('')
-    +'<div style="margin-top:4px;display:flex;gap:8px;">'
-    +'<input id="orc-outro-txt" placeholder="Outro — descreva o que precisa..." style="flex:1;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;">'
-    +'<button onclick="var v=document.getElementById(\'orc-outro-txt\').value.trim();if(v)selecionarServicoOrcamento(\''+painterId+'\',\''+escapeHtml(painterName)+'\',v);else document.getElementById(\'orc-outro-txt\').focus();" style="padding:11px 16px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;">Enviar</button>'
-    +'</div>'
+    +'<div class="sheet-title">Pedir orçamento</div>'
+    +'<div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Para <b style="color:var(--ink);">'+escapeHtml(painterName)+'</b></div>'
+
+    +lbl('Tipo de pintura')
+    +sel('orc-tipo',['Selecione…','Pintura interna','Pintura externa / fachada'])
+
+    +lbl('Superfície')
+    +sel('orc-sup',['Selecione…','Parede','Teto','Chão','Madeira','Metal','Telhado'])
+
+    +lbl('Quantidade de cômodos')
+    +inp('orc-comodos','Ex: 3 quartos + 1 sala','text')
+
+    +lbl('Área ou itens')
+    +inp('orc-area','Ex: 80 m² ou lista de itens','text')
+
+    +lbl('Linha de tinta preferida')
+    +sel('orc-linha',['Selecione…','Econômica','Standard','Premium'])
+
+    +lbl('Prazo desejado')
+    +sel('orc-prazo',['Selecione…','O quanto antes','Em até 1 semana','Em até 15 dias','Em até 1 mês','Sem pressa / a combinar'])
+
+    +lbl('Observações')
+    +'<textarea id="orc-obs" placeholder="Cores, condições do ambiente, acesso, etc." rows="3" style="width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;resize:none;"></textarea>'
+
+    +'<button onclick="enviarOrcamentoForm(\''+painterId+'\',\''+escapeHtml(painterName)+'\')" style="width:100%;margin-top:18px;padding:15px;background:var(--ink);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Enviar orçamento</button>'
     +'</div>';
   document.body.appendChild(el);
+}
+
+function enviarOrcamentoForm(painterId, painterName){
+  const v = id => (document.getElementById(id)||{}).value || '';
+  const tipo   = v('orc-tipo');
+  const sup    = v('orc-sup');
+  const comod  = v('orc-comodos').trim();
+  const area   = v('orc-area').trim();
+  const linha  = v('orc-linha');
+  const prazo  = v('orc-prazo');
+  const obs    = v('orc-obs').trim();
+
+  const partes = ['Olá, '+painterName+'! Gostaria de solicitar um orçamento:'];
+  if(tipo && tipo !== 'Selecione…')  partes.push('📌 Tipo: '+tipo);
+  if(sup  && sup  !== 'Selecione…') partes.push('🧱 Superfície: '+sup);
+  if(comod) partes.push('🚪 Cômodos: '+comod);
+  if(area)  partes.push('📐 Área/itens: '+area);
+  if(linha && linha !== 'Selecione…') partes.push('🎨 Linha de tinta: '+linha);
+  if(prazo && prazo !== 'Selecione…') partes.push('📅 Prazo: '+prazo);
+  if(obs)   partes.push('📝 Obs: '+obs);
+
+  if(partes.length === 1){ toast('Preencha pelo menos um campo'); return; }
+
+  const overlay = document.getElementById('orc-chat-overlay');
+  if(overlay) overlay.remove();
+
+  window._orcPreMsg = partes.join('\n');
+  showScreen('chat');
+  setTimeout(()=>{
+    if(typeof openChat==='function') openChat(painterId);
+    setTimeout(()=>{
+      const input = document.getElementById('chat-input') || document.getElementById('chat-input-field');
+      if(input){ input.value = window._orcPreMsg; input.focus(); window._orcPreMsg = null; }
+    }, 600);
+  }, 300);
 }
 
 function selecionarServicoOrcamento(painterId, painterName, servico){
@@ -1373,35 +1420,47 @@ async function loadNotifications(){
   const sb = getSupabase();
   const container = document.getElementById('notif-list');
   if(!sb || !currentUser || !container) return;
+  // Mark as read: clear badge
+  localStorage.setItem('notif_last_seen', new Date().toISOString());
+  updateNotifBadge(false);
   try {
-    // Load recent follows, likes, quotes, and announcements
     const myId = currentUser.id;
-    const [followsRes, likesRes, quotesRes, announcementsRes] = await Promise.all([
-      sb.from('follows').select('id, follower_id, created_at, profiles:follower_id(name, avatar_url, tag)').eq('following_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('likes').select('id, user_id, created_at, profiles:user_id(name, avatar_url, tag)').eq('user_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('quotes').select('id, status, created_at, painter:profiles!painter_id(name, avatar_url)').eq('client_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('announcements').select('id, title, message, created_at').eq('active', true).order('created_at', { ascending: false }).limit(10).then(r=>r).catch(()=>({data:[]})),
-    ]);
+    // Fetch my post IDs first
+    const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
+    const myPostIds = (myPosts || []).map(p => p.id);
+
+    const queries = [
+      sb.from('follows').select('id, follower_id, created_at, profiles:follower_id(name, avatar_url, tag)').eq('following_id', myId).order('created_at', { ascending: false }).limit(15),
+      sb.from('announcements').select('id, title, message, created_at').eq('active', true).order('created_at', { ascending: false }).limit(5).then(r=>r).catch(()=>({data:[]})),
+    ];
+    if(myPostIds.length > 0){
+      queries.push(
+        sb.from('likes').select('id, user_id, post_id, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20),
+        sb.from('comments').select('id, user_id, post_id, text, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20)
+      );
+    }
+    const results = await Promise.all(queries);
+    const [followsRes, announcementsRes, likesRes, commentsRes] = results;
+
     const notifs = [];
     (followsRes.data || []).forEach(f => {
       const p = f.profiles || {};
-      notifs.push({ type:'follow', name: p.name||'Alguem', avatar: p.avatar_url, tag: p.tag, time: f.created_at, id: f.id });
+      notifs.push({ type:'follow', name: p.name||'Alguém', avatar: p.avatar_url, time: f.created_at, id: f.id });
     });
-    (likesRes.data || []).forEach(l => {
+    ((likesRes||{}).data || []).forEach(l => {
       const p = l.profiles || {};
-      notifs.push({ type:'like', name: p.name||'Alguem', avatar: p.avatar_url, tag: p.tag, time: l.created_at, id: l.id });
+      notifs.push({ type:'like', name: p.name||'Alguém', avatar: p.avatar_url, time: l.created_at, id: 'l'+l.id });
     });
-    (quotesRes.data || []).forEach(q => {
-      const p = q.painter || {};
-      notifs.push({ type:'quote', name: p.name||'Pintor', avatar: p.avatar_url, status: q.status, time: q.created_at, id: q.id });
+    ((commentsRes||{}).data || []).forEach(c => {
+      const p = c.profiles || {};
+      notifs.push({ type:'comment', name: p.name||'Alguém', avatar: p.avatar_url, text: c.text, time: c.created_at, id: 'c'+c.id });
     });
-    // Add announcements (avisos)
     (announcementsRes.data || []).forEach(a => {
       notifs.push({ type:'announcement', name: 'QueroUmaCor', title: a.title, message: a.message, time: a.created_at, id: a.id });
     });
     notifs.sort((a,b) => new Date(b.time) - new Date(a.time));
     if(notifs.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificacoes</div><div style="font-size:13px;">Suas notificacoes aparecerão aqui</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificações</div><div style="font-size:13px;">Suas notificações aparecerão aqui</div></div>';
       return;
     }
     container.innerHTML = notifs.map(n => {
@@ -1414,15 +1473,51 @@ async function loadNotifications(){
       }
       const avatar = n.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(n.name)+'&background=e8e2d9&color=1a1a2e&size=96';
       let text = '';
-      if(n.type === 'follow') text = '<b>'+escapeHtml(n.name)+'</b> comecou a seguir voce.';
-      else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post.';
-      else if(n.type === 'quote') text = '<b>'+escapeHtml(n.name)+'</b> '+((n.status==='accepted'||n.status==='aceito')?'aceitou seu orcamento.':'enviou um orcamento.');
+      if(n.type === 'follow')   text = '<b>'+escapeHtml(n.name)+'</b> começou a te seguir.';
+      else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post. 🖌️';
+      else if(n.type === 'comment') text = '<b>'+escapeHtml(n.name)+'</b> comentou: <i>'+escapeHtml((n.text||'').slice(0,60))+'</i>';
       return '<div class="notif-card"><div class="notif-av"><img src="'+avatar+'" alt=""></div><div class="notif-txt">'+text+'</div><div class="notif-time">'+timeAgo+'</div></div>';
     }).join('');
   } catch(e){
     console.error('loadNotifications error:', e);
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificacoes</div>';
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificações</div>';
   }
+}
+
+function updateNotifBadge(show){
+  const dot = document.getElementById('notif-badge-dot');
+  if(!dot) return;
+  dot.style.display = show ? 'block' : 'none';
+}
+
+let _notifSub = null;
+async function setupNotifSubscription(){
+  if(_notifSub || !currentUser) return;
+  const sb = getSupabase();
+  if(!sb) return;
+  const myId = currentUser.id;
+  // Fetch my post IDs once for filtering
+  const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
+  const myPostIds = new Set((myPosts || []).map(p => p.id));
+
+  _notifSub = sb.channel('notif-'+myId)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'likes' }, payload => {
+      const l = payload.new;
+      if(!l || l.user_id === myId || !myPostIds.has(l.post_id)) return;
+      updateNotifBadge(true);
+      toast('🖌️ Alguém curtiu seu post!');
+    })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'comments' }, payload => {
+      const c = payload.new;
+      if(!c || c.user_id === myId || !myPostIds.has(c.post_id)) return;
+      updateNotifBadge(true);
+      toast('💬 Alguém comentou no seu post!');
+    })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'follows', filter:'following_id=eq.'+myId }, payload => {
+      updateNotifBadge(true);
+      toast('👤 Alguém começou a te seguir!');
+    })
+    .subscribe();
 }
 
 // ══ LOAD PEDIDOS FROM SUPABASE ══
