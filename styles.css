@@ -33,7 +33,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .badge-dot{width:9px;height:9px;background:var(--p1);border-radius:50%;position:absolute;top:6px;right:4px;border:2px solid var(--ink);}
 
 /* SCROLL */
-.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:68px;}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:68px;-webkit-overflow-scrolling:touch;}
 .scroll::-webkit-scrollbar{display:none;}
 
 /* BOTTOM NAV */
@@ -97,8 +97,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .mpost-double img:first-child{border-radius:0 0 0 0;}
 
 /* Post actions */
-.mpost-actions{display:flex;align-items:center;padding:10px 14px 6px;gap:14px;}
-.act-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:0;position:relative;}
+.mpost-actions{display:flex;align-items:center;padding:10px 14px 6px;gap:10px;}
+.act-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent;min-width:36px;}
 .act-btn svg{width:22px;height:22px;stroke:var(--ink);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:.15s;}
 .act-label{font-size:10px;font-weight:600;color:var(--muted);font-family:'DM Sans',sans-serif;line-height:1;white-space:nowrap;}
 .like-count{font-size:13.5px;font-weight:600;padding:0 14px 4px;}
