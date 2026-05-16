@@ -3402,6 +3402,10 @@ window.addEventListener('DOMContentLoaded', () => { initAuth(); });
       <input id="ep-tag" type="text" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div style="margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Email</div>
+      <input id="ep-email" type="email" placeholder="seu@email.com" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+    </div>
+    <div style="margin-bottom:12px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Cidade</div>
       <input id="ep-city" type="text" placeholder="Sao Paulo" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
@@ -4928,6 +4932,7 @@ async function openEditProfile(){
     if(prof){
       document.getElementById('ep-name').value = prof.name || '';
       document.getElementById('ep-tag').value = prof.tag || '';
+      document.getElementById('ep-email').value = prof.email || currentUser.email || '';
       document.getElementById('ep-city').value = prof.city || '';
       document.getElementById('ep-state').value = prof.state || '';
       document.getElementById('ep-phone').value = prof.phone || '';
@@ -4940,6 +4945,7 @@ async function openEditProfile(){
       const meta = currentUser.user_metadata || {};
       document.getElementById('ep-name').value = meta.name || currentUser.email?.split('@')[0] || '';
       document.getElementById('ep-tag').value = meta.tag || '';
+      document.getElementById('ep-email').value = currentUser.email || '';
       document.getElementById('ep-city').value = '';
       document.getElementById('ep-state').value = '';
       document.getElementById('ep-phone').value = '';
@@ -5060,6 +5066,16 @@ async function saveEditProfile(){
         console.error('Profile insert error:', error);
         throw error;
       }
+    }
+
+    // Email: best-effort (coluna pode nao existir se o SQL nao foi rodado;
+    // nao deve derrubar o resto do salvamento)
+    const epEmail = document.getElementById('ep-email').value.trim();
+    if(epEmail){
+      try {
+        const { error: emErr } = await sb.from('profiles').update({ email: epEmail }).eq('id', currentUser.id);
+        if(emErr) console.warn('email nao persistido (rode o supabase_init.sql):', emErr.message);
+      } catch(e){ console.warn('email update falhou:', e); }
     }
     console.log('Profile saved successfully, avatar_url:', updates.avatar_url || '(unchanged)');
     toast('Perfil salvo!');
