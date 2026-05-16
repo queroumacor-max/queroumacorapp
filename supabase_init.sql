@@ -871,3 +871,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_conversations() TO authenticated;
+
+-- ============================================
+-- profiles.user_type check constraint
+-- Portal admins are created with role='admin'; allow 'admin' (and the
+-- known app roles) as a valid user_type so the auth.users trigger that
+-- copies signup metadata into profiles does not violate the constraint.
+-- ============================================
+DO $$
+BEGIN
+  ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_type_check;
+  ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_type_check
+    CHECK (user_type IS NULL OR user_type IN ('cliente','pintor','grafiteiro','automotivo','funileiro','admin'));
+END $$;

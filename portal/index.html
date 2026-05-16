@@ -1813,7 +1813,7 @@ const PortalUsersList = () => {
     try {
       const tag = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_.]/g, '') + '_' + Math.random().toString(36).slice(2, 7);
       tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-admin-create' } });
-      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: 'admin', tag } } });
+      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, role: 'admin', tag } } });
       if (authErr) throw authErr;
       if (authData.user) {
         const { error: upErr } = await tmp.from('profiles').upsert({
@@ -1821,7 +1821,6 @@ const PortalUsersList = () => {
           name: name || email,
           email,
           tag,
-          user_type: 'admin',
           role: 'admin',
           portal_access: true,
           created_at: new Date().toISOString()
@@ -2039,7 +2038,7 @@ function App() {
           <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
         </div>
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 6) throw new Error('Senha deve ter no minimo 6 caracteres'); const { data: authData, error: authErr } = await window._sb.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), user_type: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await window._sb.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), user_type: 'admin', role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' }); await window._sb.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 6) throw new Error('Senha deve ter no minimo 6 caracteres'); const { data: authData, error: authErr } = await window._sb.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await window._sb.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await window._sb.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           {loginLoading ? 'Criando conta...' : 'Criar Conta'}
         </button>
         </>)}
