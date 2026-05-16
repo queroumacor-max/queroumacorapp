@@ -1420,35 +1420,47 @@ async function loadNotifications(){
   const sb = getSupabase();
   const container = document.getElementById('notif-list');
   if(!sb || !currentUser || !container) return;
+  // Mark as read: clear badge
+  localStorage.setItem('notif_last_seen', new Date().toISOString());
+  updateNotifBadge(false);
   try {
-    // Load recent follows, likes, quotes, and announcements
     const myId = currentUser.id;
-    const [followsRes, likesRes, quotesRes, announcementsRes] = await Promise.all([
-      sb.from('follows').select('id, follower_id, created_at, profiles:follower_id(name, avatar_url, tag)').eq('following_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('likes').select('id, user_id, created_at, profiles:user_id(name, avatar_url, tag)').eq('user_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('quotes').select('id, status, created_at, painter:profiles!painter_id(name, avatar_url)').eq('client_id', myId).order('created_at', { ascending: false }).limit(10),
-      sb.from('announcements').select('id, title, message, created_at').eq('active', true).order('created_at', { ascending: false }).limit(10).then(r=>r).catch(()=>({data:[]})),
-    ]);
+    // Fetch my post IDs first
+    const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
+    const myPostIds = (myPosts || []).map(p => p.id);
+
+    const queries = [
+      sb.from('follows').select('id, follower_id, created_at, profiles:follower_id(name, avatar_url, tag)').eq('following_id', myId).order('created_at', { ascending: false }).limit(15),
+      sb.from('announcements').select('id, title, message, created_at').eq('active', true).order('created_at', { ascending: false }).limit(5).then(r=>r).catch(()=>({data:[]})),
+    ];
+    if(myPostIds.length > 0){
+      queries.push(
+        sb.from('likes').select('id, user_id, post_id, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20),
+        sb.from('comments').select('id, user_id, post_id, text, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20)
+      );
+    }
+    const results = await Promise.all(queries);
+    const [followsRes, announcementsRes, likesRes, commentsRes] = results;
+
     const notifs = [];
     (followsRes.data || []).forEach(f => {
       const p = f.profiles || {};
-      notifs.push({ type:'follow', name: p.name||'Alguem', avatar: p.avatar_url, tag: p.tag, time: f.created_at, id: f.id });
+      notifs.push({ type:'follow', name: p.name||'Alguém', avatar: p.avatar_url, time: f.created_at, id: f.id });
     });
-    (likesRes.data || []).forEach(l => {
+    ((likesRes||{}).data || []).forEach(l => {
       const p = l.profiles || {};
-      notifs.push({ type:'like', name: p.name||'Alguem', avatar: p.avatar_url, tag: p.tag, time: l.created_at, id: l.id });
+      notifs.push({ type:'like', name: p.name||'Alguém', avatar: p.avatar_url, time: l.created_at, id: 'l'+l.id });
     });
-    (quotesRes.data || []).forEach(q => {
-      const p = q.painter || {};
-      notifs.push({ type:'quote', name: p.name||'Pintor', avatar: p.avatar_url, status: q.status, time: q.created_at, id: q.id });
+    ((commentsRes||{}).data || []).forEach(c => {
+      const p = c.profiles || {};
+      notifs.push({ type:'comment', name: p.name||'Alguém', avatar: p.avatar_url, text: c.text, time: c.created_at, id: 'c'+c.id });
     });
-    // Add announcements (avisos)
     (announcementsRes.data || []).forEach(a => {
       notifs.push({ type:'announcement', name: 'QueroUmaCor', title: a.title, message: a.message, time: a.created_at, id: a.id });
     });
     notifs.sort((a,b) => new Date(b.time) - new Date(a.time));
     if(notifs.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificacoes</div><div style="font-size:13px;">Suas notificacoes aparecerão aqui</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificações</div><div style="font-size:13px;">Suas notificações aparecerão aqui</div></div>';
       return;
     }
     container.innerHTML = notifs.map(n => {
@@ -1461,15 +1473,51 @@ async function loadNotifications(){
       }
       const avatar = n.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(n.name)+'&background=e8e2d9&color=1a1a2e&size=96';
       let text = '';
-      if(n.type === 'follow') text = '<b>'+escapeHtml(n.name)+'</b> comecou a seguir voce.';
-      else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post.';
-      else if(n.type === 'quote') text = '<b>'+escapeHtml(n.name)+'</b> '+((n.status==='accepted'||n.status==='aceito')?'aceitou seu orcamento.':'enviou um orcamento.');
+      if(n.type === 'follow')   text = '<b>'+escapeHtml(n.name)+'</b> começou a te seguir.';
+      else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post. 🖌️';
+      else if(n.type === 'comment') text = '<b>'+escapeHtml(n.name)+'</b> comentou: <i>'+escapeHtml((n.text||'').slice(0,60))+'</i>';
       return '<div class="notif-card"><div class="notif-av"><img src="'+avatar+'" alt=""></div><div class="notif-txt">'+text+'</div><div class="notif-time">'+timeAgo+'</div></div>';
     }).join('');
   } catch(e){
     console.error('loadNotifications error:', e);
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificacoes</div>';
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificações</div>';
   }
+}
+
+function updateNotifBadge(show){
+  const dot = document.getElementById('notif-badge-dot');
+  if(!dot) return;
+  dot.style.display = show ? 'block' : 'none';
+}
+
+let _notifSub = null;
+async function setupNotifSubscription(){
+  if(_notifSub || !currentUser) return;
+  const sb = getSupabase();
+  if(!sb) return;
+  const myId = currentUser.id;
+  // Fetch my post IDs once for filtering
+  const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
+  const myPostIds = new Set((myPosts || []).map(p => p.id));
+
+  _notifSub = sb.channel('notif-'+myId)
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'likes' }, payload => {
+      const l = payload.new;
+      if(!l || l.user_id === myId || !myPostIds.has(l.post_id)) return;
+      updateNotifBadge(true);
+      toast('🖌️ Alguém curtiu seu post!');
+    })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'comments' }, payload => {
+      const c = payload.new;
+      if(!c || c.user_id === myId || !myPostIds.has(c.post_id)) return;
+      updateNotifBadge(true);
+      toast('💬 Alguém comentou no seu post!');
+    })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'follows', filter:'following_id=eq.'+myId }, payload => {
+      updateNotifBadge(true);
+      toast('👤 Alguém começou a te seguir!');
+    })
+    .subscribe();
 }
 
 // ══ LOAD PEDIDOS FROM SUPABASE ══
