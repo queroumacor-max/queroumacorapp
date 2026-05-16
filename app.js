@@ -904,7 +904,6 @@ function pedirOrcamentoPost(painterId, painterName){
 }
 
 // ══ LOJA CHECKOUT ══
-let _cart = JSON.parse(localStorage.getItem('shopCart')||'[]');
 async function comprarObra(postId, artistName, price, artType){
   if(!currentUser){ toast('Faça login para comprar'); return; }
   if(!confirm('Comprar "'+artType+'" de '+artistName+' por R$ '+price.toLocaleString('pt-BR')+'?')) return;
@@ -926,37 +925,6 @@ function openChatWithUser(userId){
   // Navigate to chat with this user
   showScreen('chat');
   setTimeout(()=>{ if(typeof openChat==='function') openChat(userId); },300);
-}
-
-function addToCart(productId, name, price){
-  const existing = _cart.find(c=>c.id===productId);
-  if(existing) existing.qty++;
-  else _cart.push({id:productId, name, price, qty:1});
-  localStorage.setItem('shopCart', JSON.stringify(_cart));
-  updateCartBadge();
-  toast(name+' adicionado ao carrinho!');
-}
-
-function updateCartBadge(){
-  const total = _cart.reduce((s,c)=>s+c.qty,0);
-  const badge = document.getElementById('cart-badge');
-  if(badge){ badge.textContent = total; badge.style.display = total>0?'flex':'none'; }
-}
-
-async function finalizarCompra(){
-  const sb = getSupabase(); if(!sb||!currentUser||_cart.length===0){ toast('Carrinho vazio'); return; }
-  const total = _cart.reduce((s,c)=>s+c.price*c.qty,0);
-  const { error } = await sb.from('orders').insert({
-    user_id: currentUser.id, items: _cart, total, status:'pending'
-  });
-  if(error){ toast('Erro ao finalizar'); return; }
-  // Award points (5 pts per R$10 spent)
-  const pontos = Math.floor(total/10)*5;
-  if(pontos > 0){
-    await sb.from('points').insert({ user_id: currentUser.id, amount: pontos, type:'earned', source:'purchase' });
-  }
-  _cart = []; localStorage.setItem('shopCart','[]'); updateCartBadge();
-  toast('Pedido realizado! +'+pontos+' pontos 🎉');
 }
 
 // ══ PUBLISH VIDEO (REELS) ══
