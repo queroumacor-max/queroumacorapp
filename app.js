@@ -987,6 +987,55 @@ async function loadFinanceiro(){
 }
 
 // ══ AUTO-RESPOSTAS ══
+let _autoReplyCfg = null;          // cache da config new_message
+const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
+
+async function loadAutoRespostas(){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  try {
+    const { data } = await sb.from('auto_responses').select('trigger_type, message_template, is_active').eq('user_id', currentUser.id);
+    const byT = {};
+    (data||[]).forEach(r => { byT[r.trigger_type] = r; });
+    const set = (id, on, msg, r) => {
+      const onEl = document.getElementById(id+'-on');
+      const msgEl = document.getElementById(id+'-msg');
+      if(onEl && r) onEl.checked = !!r.is_active;
+      if(msgEl && r && r.message_template) msgEl.value = r.message_template;
+    };
+    set('ar-quote', true, '', byT['new_quote']);
+    set('ar-followup', true, '', byT['follow_up']);
+    set('ar-msg', true, '', byT['new_message']);
+  } catch(e){ console.warn('loadAutoRespostas:', e); }
+}
+
+async function maybeAutoReply(m){
+  try {
+    if(!currentUser || !m || !m.sender_id || m.sender_id === currentUser.id) return;
+    if(_autoRepliedConvs.has(m.conversation_id)) return;
+    const sb = getSupabase(); if(!sb) return;
+    if(_autoReplyCfg === null){
+      const { data } = await sb.from('auto_responses').select('message_template, is_active').eq('user_id', currentUser.id).eq('trigger_type','new_message').maybeSingle();
+      _autoReplyCfg = data || { is_active:false };
+    }
+    if(!_autoReplyCfg.is_active || !(_autoReplyCfg.message_template||'').trim()) return;
+    _autoRepliedConvs.add(m.conversation_id);
+    const txt = _autoReplyCfg.message_template.trim();
+    const { error } = await sb.from('messages').insert({
+      sender_id: currentUser.id,
+      receiver_id: m.sender_id,
+      conversation_id: m.conversation_id,
+      content: txt,
+      type: 'text'
+    });
+    if(error){ console.warn('auto-reply insert:', error.message); return; }
+    const t = new Date();
+    saveMsgLocal(m.conversation_id, { from:'me', content: txt, type:'text', time: t.getHours()+':'+(t.getMinutes()<10?'0':'')+t.getMinutes() });
+    toast('Resposta automática enviada ⚡');
+    if(currentChat === m.conversation_id) openChat(m.conversation_id);
+    else loadChatList();
+  } catch(e){ console.warn('maybeAutoReply:', e); }
+}
+
 async function salvarAutoRespostas(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   const configs = [
@@ -997,6 +1046,7 @@ async function salvarAutoRespostas(){
   for(const c of configs){
     await sb.from('auto_responses').upsert({ user_id: currentUser.id, ...c }, { onConflict:'user_id,trigger_type' });
   }
+  _autoReplyCfg = null; // recarrega config no proximo gatilho
   toast('Respostas automáticas salvas!'); closeModals();
 }
 
@@ -1298,7 +1348,7 @@ function getMediaType(file){
 // ══ MODAL LOADERS (called on open) ══
 (function(){
   const _orig = showModal;
-  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints};
+  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'auto-resp-modal':loadAutoRespostas,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints};
   showModal = function(id){ _orig(id); if(_loaders[id]) _loaders[id](); };
 })();
 
@@ -2095,6 +2145,8 @@ async function handleRealtimeMsg(payload){
     const t = new Date(m.created_at || Date.now());
     const time = t.getHours()+':'+(t.getMinutes()<10?'0':'')+t.getMinutes();
     saveMsgLocal(m.conversation_id, { from:'other', content: m.content, type: m.type || 'text', time });
+
+    if(m.type !== 'store') maybeAutoReply(m);
 
     // Ensure conversation exists in localStorage for the receiver
     const localConvs = loadConvsLocal();
