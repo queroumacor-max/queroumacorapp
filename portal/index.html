@@ -916,7 +916,8 @@ const Chats = () => {
             const isMe = m.sender_id === myUserId;
             const isStore = m.type === 'store';
             const sender = profiles[m.sender_id];
-            const senderName = isStore ? 'Cali Colors' : (sender?.name || 'Usuario');
+            // Mostra quem respondeu de fato; "Cali Colors" só quando não há perfil do remetente
+            const senderName = sender?.name || (isStore ? 'Cali Colors' : 'Usuario');
             const isImg = m.type === 'image' || (m.content && m.content.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i));
             const time = formatTime(m.created_at);
             const kind = senderKind(sender, isStore);
@@ -925,7 +926,7 @@ const Chats = () => {
               <div key={m.id} style={{ display:'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap:8, marginBottom:14, alignItems:'flex-end' }}>
                 {!isMe && (
                   <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background: kind.chip, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, color: kind.fg, flexShrink:0 }}>
-                    {isStore ? 'CC' : (sender?.avatar_url ? <img src={sender.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : getInitials(senderName))}
+                    {sender?.avatar_url ? <img src={sender.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (sender ? getInitials(senderName) : 'CC')}
                   </div>
                 )}
                 <div style={{ maxWidth:'65%' }}>
