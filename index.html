@@ -844,7 +844,7 @@
         <div onclick="showModal('agenda-modal')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">📅</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Agenda</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Meus jobs</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Meus projetos</div>
         </div>
         <div onclick="showModal('checklist-modal')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">✅</div>
@@ -1646,22 +1646,23 @@
 <div class="overlay" id="agenda-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📅 Agenda de Jobs</div>
-    <div id="agenda-list" style="margin-bottom:12px;"><div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhum job agendado</div></div>
-    <button onclick="showModal('agenda-add-modal');closeModals()" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">+ Novo Job</button>
+    <div class="sheet-title">📅 Agenda de Projetos</div>
+    <div id="agenda-cal" style="margin-bottom:12px;"></div>
+    <div id="agenda-day-list" style="margin-bottom:12px;"></div>
+    <button onclick="showModal('agenda-add-modal');closeModals()" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">+ Novo Projeto</button>
   </div>
 </div>
 <div class="overlay" id="agenda-add-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Novo Job</div>
+    <div class="sheet-title">Novo Projeto</div>
     <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Cliente</label><input class="auth-input" id="job-cliente" placeholder="Nome do cliente"></div>
     <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Serviço</label><select class="auth-input" id="job-servico" style="padding:12px;"><option>Pintura residencial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada</option><option>Pintura comercial</option><option>Outro</option></select></div>
     <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Data</label><input class="auth-input" type="date" id="job-data"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Hora</label><input class="auth-input" type="time" id="job-hora"></div></div>
     <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Endereço</label><input class="auth-input" id="job-endereco" placeholder="Rua, bairro"></div>
     <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Receita (R$)</label><input class="auth-input" type="number" id="job-receita" placeholder="0"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Custo Material</label><input class="auth-input" type="number" id="job-custo" placeholder="0"></div></div>
     <div class="auth-field" style="margin-bottom:12px;"><label class="auth-label">Notas</label><textarea class="auth-input" id="job-notas" rows="2" placeholder="Observações..." style="resize:none;"></textarea></div>
-    <button onclick="salvarJob()" style="width:100%;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar Job</button>
+    <button onclick="salvarJob()" style="width:100%;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar Projeto</button>
   </div>
 </div>
 
@@ -1692,8 +1693,8 @@
       <div style="background:var(--white);border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);"><div style="font-size:11px;color:var(--muted);">CUSTOS MATERIAL</div><div id="fin-custos" style="font-size:18px;font-weight:800;color:var(--ink);">R$ 0</div></div>
       <div style="background:var(--white);border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);"><div style="font-size:11px;color:var(--muted);">COMISSÕES</div><div id="fin-comissoes" style="font-size:18px;font-weight:800;color:var(--ink);">R$ 0</div></div>
     </div>
-    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">ÚLTIMOS JOBS</div>
-    <div id="fin-jobs-list" style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">Nenhum job concluído</div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">ÚLTIMOS PROJETOS</div>
+    <div id="fin-jobs-list" style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">Nenhum projeto concluído</div>
   </div>
 </div>
 
@@ -1734,10 +1735,10 @@
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
     <div class="sheet-title">🤝 Indicações entre Pintores</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Indique jobs que não pode atender e ganhe pontos quando o pintor indicado concluir.</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Indique projetos que não pode atender e ganhe pontos quando o pintor indicado concluir.</div>
     <div style="background:linear-gradient(135deg,#2ec4b6,var(--p1));border-radius:14px;padding:16px;color:#fff;margin-bottom:14px;"><div style="font-size:11px;opacity:.7;">SEUS PONTOS</div><div id="ref-pontos" style="font-size:28px;font-weight:800;font-family:Syne,sans-serif;">0</div><div style="font-size:11px;opacity:.7;margin-top:4px;">100 pts = R$10 cashback na loja</div></div>
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">COMO FUNCIONA</div>
-    <div style="font-size:12px;color:var(--ink);margin-bottom:6px;">1. Receba um job que não pode atender</div>
+    <div style="font-size:12px;color:var(--ink);margin-bottom:6px;">1. Receba um projeto que não pode atender</div>
     <div style="font-size:12px;color:var(--ink);margin-bottom:6px;">2. Indique para outro pintor da rede</div>
     <div style="font-size:12px;color:var(--ink);margin-bottom:6px;">3. Quando concluir, ganhe 50 pontos</div>
     <div style="font-size:12px;color:var(--ink);margin-bottom:14px;">4. Troque pontos por cashback na loja</div>
