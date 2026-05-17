@@ -1844,9 +1844,64 @@
         </select>
       </div>
     </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Cobrança</label>
+        <select class="auth-input" id="ai-orc-cobranca" style="padding:12px;">
+          <option value="m2">Por m²</option>
+          <option value="fechado">Preço fechado</option>
+        </select>
+      </div>
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Material</label>
+        <select class="auth-input" id="ai-orc-material" style="padding:12px;">
+          <option value="incluso">Material incluso</option>
+          <option value="cliente">Por conta do cliente</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Valor mão de obra (R$/m²)</label>
+        <input class="auth-input" type="number" id="ai-orc-preco" placeholder="Ex: 25" step="0.5">
+      </div>
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Valor fechado (R$)</label>
+        <input class="auth-input" type="number" id="ai-orc-valorfechado" placeholder="Se preço fechado">
+      </div>
+    </div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Valor mão de obra (R$/m²)</label>
-      <input class="auth-input" type="number" id="ai-orc-preco" placeholder="Ex: 25" step="0.5">
+      <label class="auth-label">Materiais extras inclusos (opcional)</label>
+      <input class="auth-input" type="text" id="ai-orc-extras" placeholder="Ex: massa, selador, andaime, lona">
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Forma de pagamento</label>
+        <select class="auth-input" id="ai-orc-pgto" style="padding:12px;">
+          <option value="À vista">À vista</option>
+          <option value="Entrada + parcelas">Entrada + parcelas</option>
+          <option value="Parcelado">Parcelado</option>
+          <option value="50% início / 50% fim">50% início / 50% fim</option>
+        </select>
+      </div>
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label">Parcelas</label>
+        <input class="auth-input" type="number" id="ai-orc-parcelas" placeholder="Ex: 3" min="1">
+      </div>
+    </div>
+    <div class="auth-field" style="margin-bottom:12px;">
+      <label class="auth-label">Entrada / sinal (R$, opcional)</label>
+      <input class="auth-input" type="number" id="ai-orc-entrada" placeholder="Ex: 500">
+    </div>
+    <div class="auth-field" style="margin-bottom:12px;">
+      <label class="auth-label">Aceita pagamento em</label>
+      <div id="ai-orc-tipos" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="Dinheiro" checked style="accent-color:var(--p1);"> Dinheiro</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="Pix" checked style="accent-color:var(--p1);"> Pix</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="Cartão" style="accent-color:var(--p1);"> Cartão</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="Cheque" style="accent-color:var(--p1);"> Cheque</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="Transferência" style="accent-color:var(--p1);"> Transferência</label>
+      </div>
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
       <label class="auth-label">Observações (opcional)</label>
