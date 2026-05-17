@@ -2119,7 +2119,7 @@ const PortalUsersList = () => {
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:600 }}>
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','Email','Papel','Criado em','Acoes'].map(h => (
+              {['Nome','Email','Papel','PRO','Criado em','Acoes'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -2137,6 +2137,19 @@ const PortalUsersList = () => {
                 </td>
                 <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.email || '—'}</td>
                 <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.role || u.user_type || 'admin'}</span></td>
+                <td style={{ padding:'10px 12px' }}>
+                  {(() => {
+                    const pro = isProActive(u);
+                    return (
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background: pro ? '#16a34a22' : C.border, color: pro ? '#16a34a' : C.muted }}>{pro ? 'PRO' : 'Free'}</span>
+                        {pro
+                          ? <button onClick={() => setProfilePro(u.id, false, fetchUsers)} style={{ background:'none', border:'1px solid '+C.muted, color:C.muted, borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:600 }}>Remover PRO</button>
+                          : <button onClick={() => setProfilePro(u.id, true, fetchUsers)} style={{ background:'#16a34a', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:700 }}>Habilitar PRO</button>}
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                 <td style={{ padding:'10px 12px' }}>
                   <button onClick={() => revokeAccess(u.id)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, color:C.p4 }}>Revogar acesso</button>
@@ -2156,9 +2169,9 @@ const PAGES_DEF = [
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
   { id:'chats', icon:'💬', label:'Chats 3-Way', section:'PRINCIPAL', badgeKey:'chats', component:<Chats /> },
   { id:'orcamentos', icon:'📋', label:'Orçamentos', section:'PRINCIPAL', badgeKey:'orcamentos', component:<Orcamentos /> },
-  { id:'pintores', icon:'🖌️', label:'Pintores', section:'PESSOAS', badgeKey:'pintores', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='pintor'} title="Pintores Cadastrados" defaultRole="pintor" emptyMsg="Nenhum pintor cadastrado." /> },
-  { id:'grafiteiros', icon:'🎨', label:'Grafiteiros', section:'PESSOAS', badgeKey:'grafiteiros', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='grafiteiro'} title="Grafiteiros / Muralistas" defaultRole="grafiteiro" emptyMsg="Nenhum grafiteiro cadastrado." /> },
-  { id:'funileiros', icon:'🚗', label:'Funileiros / Automotivo', section:'PESSOAS', badgeKey:'funileiros', component:<PintoresList roleFilter={p=>currentRoleKey(p)==='funileiro'||currentRoleKey(p)==='automotivo'} title="Funileiros / Pintura Automotiva" defaultRole="funileiro" emptyMsg="Nenhum funileiro cadastrado." /> },
+  { id:'pintores', icon:'🖌️', label:'Pintores', section:'PESSOAS', badgeKey:'pintores', component:<PintoresList key="pintores" roleFilter={p=>currentRoleKey(p)==='pintor'} title="Pintores Cadastrados" defaultRole="pintor" emptyMsg="Nenhum pintor cadastrado." /> },
+  { id:'grafiteiros', icon:'🎨', label:'Grafiteiros', section:'PESSOAS', badgeKey:'grafiteiros', component:<PintoresList key="grafiteiros" roleFilter={p=>currentRoleKey(p)==='grafiteiro'} title="Grafiteiros / Muralistas" defaultRole="grafiteiro" emptyMsg="Nenhum grafiteiro cadastrado." /> },
+  { id:'funileiros', icon:'🚗', label:'Funileiros / Automotivo', section:'PESSOAS', badgeKey:'funileiros', component:<PintoresList key="funileiros" roleFilter={p=>currentRoleKey(p)==='funileiro'||currentRoleKey(p)==='automotivo'} title="Funileiros / Pintura Automotiva" defaultRole="funileiro" emptyMsg="Nenhum funileiro cadastrado." /> },
   { id:'leads', icon:'🧲', label:'Leads', section:'PESSOAS', badgeKey:'leads', component:<Leads /> },
   { id:'clientes', icon:'👥', label:'Clientes', section:'PESSOAS', badgeKey:'clientes', component:<ClientesList /> },
   { id:'portal-users', icon:'🔐', label:'Portal', section:'PESSOAS', badgeKey:'portalUsers', component:<PortalUsersList /> },
