@@ -738,16 +738,77 @@ function copiarOrcamento(){
   navigator.clipboard.writeText(text).then(()=>toast('Orçamento copiado!')).catch(()=>toast('Erro ao copiar'));
 }
 
-// ══ AGENDA DE JOBS ══
+// ══ AGENDA DE PROJETOS (calendário) ══
+let _agCur = null;   // Date: primeiro dia do mês exibido
+let _agSel = null;   // 'yyyy-mm-dd' selecionado
+let _agJobs = [];     // cache dos projetos do usuário
+
+function _agYmd(d){ return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+
 async function loadAgenda(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
-  const { data: jobs } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(20);
-  const el = document.getElementById('agenda-list');
-  if(!jobs||jobs.length===0){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhum job agendado</div>'; return; }
-  el.innerHTML = jobs.map(j=>{
+  const { data } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
+  _agJobs = data || [];
+  const now = new Date();
+  if(!_agCur) _agCur = new Date(now.getFullYear(), now.getMonth(), 1);
+  if(!_agSel) _agSel = _agYmd(now);
+  renderAgendaCal();
+}
+
+function agMonth(delta){
+  if(!_agCur) _agCur = new Date();
+  _agCur = new Date(_agCur.getFullYear(), _agCur.getMonth()+delta, 1);
+  renderAgendaCal();
+}
+
+function agSelect(day){ _agSel = day; renderAgendaCal(); }
+
+function renderAgendaCal(){
+  const cal = document.getElementById('agenda-cal'); if(!cal) return;
+  const y = _agCur.getFullYear(), m = _agCur.getMonth();
+  const startDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const counts = {};
+  _agJobs.forEach(j=>{ if(j.scheduled_date){ const k=String(j.scheduled_date).slice(0,10); counts[k]=(counts[k]||0)+1; } });
+  const todayK = _agYmd(new Date());
+  const dow = ['D','S','T','Q','Q','S','S'];
+  let head = dow.map(d=>`<div style="text-align:center;font-size:10px;color:var(--muted);font-weight:700;padding:4px 0;">${d}</div>`).join('');
+  let cells = '';
+  for(let i=0;i<startDow;i++) cells += '<div></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const k = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const has = counts[k]||0;
+    const sel = k===_agSel;
+    const isToday = k===todayK;
+    const style = sel ? 'background:var(--p1);color:#fff;' : isToday ? 'background:var(--cream);color:var(--ink);border:1.5px solid var(--p1);' : 'color:var(--ink);';
+    cells += `<div onclick="agSelect('${k}')" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;${style}">${d}${has?`<span style="width:5px;height:5px;border-radius:50%;margin-top:3px;background:${sel?'#fff':'var(--p1)'};display:block;"></span>`:''}</div>`;
+  }
+  cal.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <button onclick="agMonth(-1)" style="background:var(--cream);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">‹</button>
+      <div style="font-weight:800;font-family:'Syne',sans-serif;font-size:15px;">${months[m]} ${y}</div>
+      <button onclick="agMonth(1)" style="background:var(--cream);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;">›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">${head}${cells}</div>`;
+  renderAgendaDay();
+}
+
+function renderAgendaDay(){
+  const el = document.getElementById('agenda-day-list'); if(!el) return;
+  const items = _agJobs
+    .filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel)
+    .sort((a,b)=> String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')));
+  const [yy,mm,dd] = _agSel.split('-');
+  const label = `${dd}/${mm}/${yy}`;
+  if(items.length===0){
+    el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label}</div><div style="text-align:center;color:var(--muted);padding:16px;font-size:13px;">Nenhum projeto neste dia</div>`;
+    return;
+  }
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label} · ${items.length} projeto(s)</div>` + items.map(j=>{
     const st = j.status==='concluido'?'#2ec4b6':j.status==='cancelado'?'#e74c3c':'var(--p1)';
     return `<div style="background:var(--white);border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 2px 6px rgba(0,0,0,.04);border-left:4px solid ${st};">
-      <div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">${escapeHtml(j.client_name||'')}</b><span style="font-size:11px;color:var(--muted);">${j.scheduled_date||''} ${j.scheduled_time||''}</span></div>
+      <div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">${escapeHtml(j.client_name||'')}</b><span style="font-size:11px;color:var(--muted);">${j.scheduled_time||''}</span></div>
       <div style="font-size:12px;color:var(--muted);margin-top:4px;">${escapeHtml(j.service_type||'')} · ${escapeHtml(j.address||'')}</div>
       <div style="display:flex;gap:8px;margin-top:8px;">
         <span style="font-size:11px;color:var(--ink);font-weight:600;">R$ ${(j.revenue||0).toLocaleString('pt-BR')}</span>
@@ -775,13 +836,19 @@ async function salvarJob(){
   if(!job.client_name){ toast('Informe o cliente'); return; }
   const { error } = await sb.from('jobs').insert(job);
   if(error){ toast('Erro: '+error.message); return; }
-  toast('Job salvo!'); closeModals(); loadAgenda();
+  if(job.scheduled_date) _agSel = String(job.scheduled_date).slice(0,10);
+  toast('Projeto salvo!'); closeModals(); loadAgenda();
 }
 
 async function updateJobStatus(jobId, status){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   await sb.from('jobs').update({status}).eq('id',jobId).eq('painter_id',currentUser.id);
-  toast(status==='concluido'?'Job concluído!':'Job cancelado'); loadAgenda(); loadFinanceiro();
+  toast(status==='concluido'?'Projeto concluído!':'Projeto cancelado'); loadAgenda(); loadFinanceiro();
+}
+
+function prefillNovoProjeto(){
+  const di = document.getElementById('job-data');
+  if(di && !di.value && _agSel) di.value = _agSel;
 }
 
 // ══ CHECKLIST DE OBRA ══
@@ -1146,7 +1213,7 @@ function getMediaType(file){
 // ══ MODAL LOADERS (called on open) ══
 (function(){
   const _orig = showModal;
-  const _loaders = {'agenda-modal':loadAgenda,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints};
+  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints};
   showModal = function(id){ _orig(id); if(_loaders[id]) _loaders[id](); };
 })();
 
