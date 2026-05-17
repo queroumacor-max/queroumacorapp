@@ -472,7 +472,7 @@ async function modAction(postId, action, btn){
 }
 
 function openAiOrcamento(){
-  if(!checkProAccess()){ showModal('pro-modal'); return; }
+  // Fazer orçamento é livre; só a geração por IA exige PRO.
   showModal('ai-orc-modal');
 }
 
@@ -559,6 +559,38 @@ async function sendAiChat(){
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
+async function sugerirEscopoIA(btn){
+  if(!checkProAccess()){ showModal('pro-modal'); return; }
+  const servico = document.getElementById('ai-orc-servico').value;
+  const area = document.getElementById('ai-orc-area').value || '?';
+  const comodos = document.getElementById('ai-orc-comodos').value || '?';
+  const numDemaos = document.getElementById('ai-orc-demaos').value || '2';
+  const condEl = document.getElementById('ai-orc-condicao');
+  const condTxt = condEl && condEl.options[condEl.selectedIndex] ? condEl.options[condEl.selectedIndex].text : '';
+  const obsEl = document.getElementById('ai-orc-obs');
+  const orig = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
+  const prompt = 'Você é um pintor profissional. Escreva, em português, um escopo de serviço objetivo (4 a 6 linhas, sem títulos) para um orçamento de "'+servico+'", área aproximada de '+area+' m², '+comodos+' cômodo(s), '+numDemaos+' demão(s), condição da superfície: "'+condTxt+'". Liste preparação, aplicação, prazo estimado e garantia. Texto pronto para colar no orçamento.'+(obsEl && obsEl.value.trim() ? ' Considere também: '+obsEl.value.trim() : '');
+  try {
+    const r = await fetch('/api/chat-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: prompt, history: [] })
+    });
+    const data = await r.json().catch(() => ({}));
+    if(r.ok && data.reply){
+      if(obsEl) obsEl.value = String(data.reply).trim();
+      toast('Escopo sugerido pela IA ✨');
+    } else {
+      toast('Não foi possível gerar agora. Tente de novo.');
+    }
+  } catch(e){
+    toast('Falha na IA: ' + (e?.message || 'tente de novo'));
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
 function gerarOrcamentoIA(){
   const cliente = document.getElementById('ai-orc-cliente').value.trim() || 'Cliente';
   const servico = document.getElementById('ai-orc-servico').value;
@@ -624,7 +656,7 @@ function gerarOrcamentoIA(){
           <div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:var(--ink);">ORÇAMENTO</div>
           <div style="font-size:11px;color:var(--muted);">${hoje}</div>
         </div>
-        <div style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;">IA ✨</div>
+        <div style="background:var(--cream);color:var(--muted);font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;">ORÇAMENTO</div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:14px;padding-bottom:14px;border-bottom:2px solid var(--border);">
         <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;">Profissional</div><div style="font-size:13px;font-weight:700;">${escapeHtml(pintorName)}</div></div>
