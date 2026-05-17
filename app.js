@@ -2577,7 +2577,8 @@ function openChat(id) {
         const sp = senderProfiles[m.sender_id];
         const isStoreMsg = m.type === 'store' || (sp && sp.portal_access);
         if(isStoreMsg && m.sender_id !== myId){
-          return { from:'store', text: m.content, time, type: m.type || 'text', sender:'Cali Colors', role:'loja' };
+          // Papel = LOJA, mas mostra quem respondeu (@tag), nao "Cali Colors" generico
+          return { from:'store', text: m.content, time, type: m.type || 'text', sender: sp ? cleanHandle(sp) : (m.type === 'store' ? 'Cali Colors' : 'Loja'), role:'loja' };
         }
         const senderName = cleanHandle(sp, otherPart ? otherPart.name : 'Usuario');
         const senderImg = sp ? (sp.avatar_url || '') : (otherPart ? otherPart.img : '');
