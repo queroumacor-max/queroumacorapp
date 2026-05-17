@@ -831,10 +831,10 @@
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Meu Portfolio</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Postar trabalhos</div>
         </div>
-        <div onclick="openAiOrcamento()" style="background:linear-gradient(135deg,#8338ec,var(--p1));border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1);">
-          <div style="font-size:28px;margin-bottom:6px;">🤖</div>
-          <div style="font-size:12px;font-weight:700;color:#fff;">Orçamento IA</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;">PDF profissional</div>
+        <div onclick="openAiOrcamento()" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">📄</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamento</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Crie e envie</div>
         </div>
         <div onclick="showScreen('calc')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">🧮</div>
@@ -1796,8 +1796,8 @@
 <div class="overlay" id="ai-orc-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div style="display:flex;align-items:center;gap:10px;"><div class="sheet-title" style="flex:1;">🤖 Orçamento com IA</div><div style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;">PRO</div></div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Preencha os dados e a IA gera um orçamento profissional completo.</div>
+    <div class="sheet-title">📄 Orçamento</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Preencha os dados e gere um orçamento profissional. Use a IA para sugerir o escopo (recurso PRO).</div>
     <div class="auth-field" style="margin-bottom:12px;">
       <label class="auth-label">Cliente</label>
       <input class="auth-input" type="text" id="ai-orc-cliente" placeholder="Nome do cliente">
@@ -1852,8 +1852,11 @@
       <label class="auth-label">Observações (opcional)</label>
       <textarea class="auth-input" id="ai-orc-obs" placeholder="Paredes com infiltração, cores específicas, preparação necessária..." rows="2" style="resize:none;"></textarea>
     </div>
-    <button onclick="gerarOrcamentoIA()" style="width:100%;padding:14px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:10px;">
-      ✨ Gerar Orçamento com IA
+    <button onclick="sugerirEscopoIA(this)" style="width:100%;padding:12px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:8px;">
+      ✨ Sugerir escopo com IA <span style="background:rgba(255,255,255,.25);font-size:9px;padding:2px 7px;border-radius:10px;margin-left:4px;">PRO</span>
+    </button>
+    <button onclick="gerarOrcamentoIA()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:10px;">
+      Gerar Orçamento
     </button>
     <div id="ai-orc-result" style="display:none;margin-top:12px;"></div>
   </div>
