@@ -604,17 +604,27 @@ function gerarOrcamentoIA(){
   const fator = parseFloat(document.getElementById('ai-orc-condicao').value) || 1;
   const precoM2 = parseFloat(document.getElementById('ai-orc-preco').value) || 0;
   const obs = document.getElementById('ai-orc-obs').value.trim();
+  const cobranca = (document.getElementById('ai-orc-cobranca')||{}).value || 'm2';
+  const valorFechado = parseFloat((document.getElementById('ai-orc-valorfechado')||{}).value) || 0;
+  const materialMode = (document.getElementById('ai-orc-material')||{}).value || 'incluso';
+  const matInc = materialMode !== 'cliente';
+  const extras = ((document.getElementById('ai-orc-extras')||{}).value || '').trim();
+  const formaPgto = (document.getElementById('ai-orc-pgto')||{}).value || 'À vista';
+  const parcelas = parseInt((document.getElementById('ai-orc-parcelas')||{}).value) || 0;
+  const entrada = parseFloat((document.getElementById('ai-orc-entrada')||{}).value) || 0;
+  const tiposPgto = [...document.querySelectorAll('#ai-orc-tipos input[type=checkbox]:checked')].map(c=>c.value);
 
   if(area <= 0){ toast('Informe a área em m²'); return; }
-  if(precoM2 <= 0){ toast('Informe o valor por m²'); return; }
+  if(cobranca === 'fechado'){
+    if(valorFechado <= 0){ toast('Informe o valor fechado'); return; }
+  } else if(precoM2 <= 0){ toast('Informe o valor por m²'); return; }
 
   // Cálculos
   const litros = Math.ceil((area * fator * numDemaos) / 11 * 1.1);
   const l18 = Math.ceil(litros / 18);
-  const l36 = Math.ceil(litros / 3.6);
-  const custoTinta = l18 * 320; // estimativa R$320/galão 18L premium
-  const custoMaoObra = area * precoM2;
-  const total = custoTinta + custoMaoObra;
+  const custoTinta = matInc ? l18 * 320 : 0; // estimativa R$320/galão 18L premium
+  const custoMaoObra = cobranca === 'fechado' ? valorFechado : area * precoM2;
+  const total = cobranca === 'fechado' ? valorFechado : (custoTinta + custoMaoObra);
 
   const pintorName = document.getElementById('myprofile-name')?.textContent || 'Pintor';
   const hoje = new Date().toLocaleDateString('pt-BR');
@@ -637,12 +647,34 @@ function gerarOrcamentoIA(){
   });
 
   // Materiais
-  itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Tinta premium ('+litros+'L ≈ '+l18+' galões 18L)</span><span style="font-weight:600;">R$ '+custoTinta.toLocaleString('pt-BR')+'</span></div>';
-  itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Lixa, massa, selador, fita crepe</span><span style="color:var(--muted);">Incluso</span></div>';
+  if(matInc){
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Tinta premium ('+litros+'L ≈ '+l18+' galões 18L)</span><span style="font-weight:600;">R$ '+custoTinta.toLocaleString('pt-BR')+'</span></div>';
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Lixa, massa, selador, fita crepe</span><span style="color:var(--muted);">Incluso</span></div>';
+  } else {
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Tinta e materiais</span><span style="color:var(--muted);">Por conta do cliente</span></div>';
+  }
+  if(extras){
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Extras: '+escapeHtml(extras)+'</span><span style="color:var(--muted);">Incluso</span></div>';
+  }
 
-  // Mão de obra
+  // Mão de obra / serviço
   const diasEstimados = Math.ceil(area / 40); // ~40m²/dia
-  itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Mão de obra ('+area+'m² × R$'+precoM2+'/m²)</span><span style="font-weight:600;">R$ '+custoMaoObra.toLocaleString('pt-BR')+'</span></div>';
+  if(cobranca === 'fechado'){
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Serviço (preço fechado)</span><span style="font-weight:600;">R$ '+valorFechado.toLocaleString('pt-BR')+'</span></div>';
+  } else {
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Mão de obra ('+area+'m² × R$'+precoM2+'/m²)</span><span style="font-weight:600;">R$ '+custoMaoObra.toLocaleString('pt-BR')+'</span></div>';
+  }
+
+  // Forma de pagamento
+  const pgtoLines = [];
+  pgtoLines.push('Forma: ' + formaPgto + (parcelas>1 ? ' ('+parcelas+'x)' : ''));
+  if(entrada > 0) pgtoLines.push('Entrada/sinal: R$ ' + entrada.toLocaleString('pt-BR'));
+  if(parcelas > 1){
+    const base = Math.max(total - entrada, 0);
+    pgtoLines.push(parcelas + 'x de R$ ' + (base/parcelas).toLocaleString('pt-BR',{maximumFractionDigits:2}));
+  }
+  if(tiposPgto.length) pgtoLines.push('Aceita: ' + tiposPgto.join(', '));
+  let pgtoHtml = pgtoLines.map(l=>'<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• '+escapeHtml(l)+'</div>').join('');
 
   // Observações da IA
   let aiNotes = '';
@@ -670,6 +702,8 @@ function gerarOrcamentoIA(){
       <div style="margin-bottom:14px;">${itensHtml}</div>
       <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Observações</div>
       <div style="margin-bottom:14px;">${aiNotes}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Forma de pagamento</div>
+      <div style="margin-bottom:14px;">${pgtoHtml}</div>
       <div style="background:var(--cream);border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center;">
         <div style="font-size:14px;font-weight:700;color:var(--ink);">TOTAL</div>
         <div style="font-size:22px;font-weight:800;color:var(--p1);font-family:Syne,sans-serif;">R$ ${total.toLocaleString('pt-BR')}</div>
@@ -685,9 +719,16 @@ function gerarOrcamentoIA(){
   // Save data for PDF
   const pItens = [];
   prepItems.forEach(item=>pItens.push({desc:item,valor:'Incluso'}));
-  pItens.push({desc:'Tinta premium ('+litros+'L ≈ '+l18+' galões 18L)',valor:'R$ '+custoTinta.toLocaleString('pt-BR')});
-  pItens.push({desc:'Mão de obra ('+area+'m² × R$'+precoM2+'/m²)',valor:'R$ '+custoMaoObra.toLocaleString('pt-BR')});
-  _lastOrcData = {pintor:pintorName,cliente,servico,area,demaos:numDemaos,condicao:condicaoText,hoje,total,itens:pItens,obs:[obs,numDemaos+' demãos','Prazo: '+diasEstimados+' dias úteis','Garantia 1 ano'].filter(Boolean)};
+  if(matInc){
+    pItens.push({desc:'Tinta premium ('+litros+'L aprox. '+l18+' galoes 18L)',valor:'R$ '+custoTinta.toLocaleString('pt-BR')});
+    pItens.push({desc:'Lixa, massa, selador, fita crepe',valor:'Incluso'});
+  } else {
+    pItens.push({desc:'Tinta e materiais',valor:'Por conta do cliente'});
+  }
+  if(extras) pItens.push({desc:'Extras: '+extras,valor:'Incluso'});
+  if(cobranca === 'fechado') pItens.push({desc:'Servico (preco fechado)',valor:'R$ '+valorFechado.toLocaleString('pt-BR')});
+  else pItens.push({desc:'Mao de obra ('+area+'m2 x R$'+precoM2+'/m2)',valor:'R$ '+custoMaoObra.toLocaleString('pt-BR')});
+  _lastOrcData = {pintor:pintorName,cliente,servico,area,demaos:numDemaos,condicao:condicaoText,hoje,total,itens:pItens,obs:[obs,numDemaos+' demaos','Prazo: '+diasEstimados+' dias uteis','Garantia 1 ano'].filter(Boolean),pagamento:pgtoLines};
 
   const resultEl = document.getElementById('ai-orc-result');
   resultEl.innerHTML = resultHtml;
@@ -742,7 +783,15 @@ function gerarPDFOrcamento(){
   doc.text('OBSERVACOES',15,y); y+=7;
   doc.setFont(undefined,'normal'); doc.setFontSize(9);
   (d.obs||[]).forEach(o=>{ doc.text('• '+o,15,y); y+=5; if(y>270){doc.addPage();y=20;} });
-  y+=10;
+  y+=6;
+  // Forma de pagamento
+  if(d.pagamento && d.pagamento.length){
+    doc.setFont(undefined,'bold'); doc.setFontSize(10);
+    doc.text('FORMA DE PAGAMENTO',15,y); y+=7;
+    doc.setFont(undefined,'normal'); doc.setFontSize(9);
+    d.pagamento.forEach(p=>{ doc.text('• '+p,15,y); y+=5; if(y>270){doc.addPage();y=20;} });
+    y+=6;
+  }
   // Total
   doc.setFillColor(245,240,235); doc.rect(10,y-4,190,18,'F');
   doc.setFont(undefined,'bold'); doc.setFontSize(14);
