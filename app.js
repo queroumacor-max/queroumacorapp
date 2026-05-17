@@ -988,7 +988,7 @@ function abrirOrcamentoChat(painterId, painterName){
 
   const overlay = document.createElement('div');
   overlay.id = 'orc-chat-overlay';
-  overlay.className = 'overlay active';
+  overlay.className = 'overlay open';
   overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
 
   const sheet = document.createElement('div');
