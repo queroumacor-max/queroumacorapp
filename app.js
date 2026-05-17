@@ -579,13 +579,17 @@ async function sugerirEscopoIA(btn){
     });
     const data = await r.json().catch(() => ({}));
     if(r.ok && data.reply){
-      if(obsEl) obsEl.value = String(data.reply).trim();
+      // Remove a linha de disclaimer do assistente, se vier
+      let txt = String(data.reply).replace(/^\s*Sou um assistente virtual[^\n]*\n+/i, '').trim();
+      if(obsEl) obsEl.value = txt;
       toast('Escopo sugerido pela IA ✨');
+    } else if(r.status === 503){
+      alert('A sugestão por IA ainda não está ativa: falta configurar a chave OPENAI_API_KEY no servidor (Cloudflare Pages → Environment variables) e refazer o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
     } else {
-      toast('Não foi possível gerar agora. Tente de novo.');
+      alert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
     }
   } catch(e){
-    toast('Falha na IA: ' + (e?.message || 'tente de novo'));
+    alert('Falha ao chamar a IA: ' + (e?.message || 'tente de novo'));
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = orig; }
   }
