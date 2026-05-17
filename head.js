@@ -102,9 +102,6 @@ async function loadMyProfileData(){
         storyAv.onerror = function(){ this.onerror=null; this.src=avatarFallback; };
         storyAv.src = avatarSrc;
       }
-      // Show/hide CRM portal link
-      const portalLink = document.getElementById('crm-portal-link');
-      if(portalLink) portalLink.style.display = prof.portal_access ? '' : 'none';
       // Set mode based on DB role (only if changed to avoid flash)
       const targetMode = isProfessionalRole(role) ? role : 'cliente';
       if(targetMode !== currentMode) setMode(targetMode);
