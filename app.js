@@ -4684,9 +4684,9 @@ async function loadMapPainters(){
     const sb = getSupabase();
     if(!sb) return;
     const { data: profiles, error } = await sb.from('profiles')
-      .select('id, name, tag, avatar_url, city, state, user_type, role, specialties, rating_avg, lat, lng')
-      .or('role.eq.pintor,user_type.eq.pintor')
-      .limit(50);
+      .select('id, name, tag, avatar_url, city, state, user_type, role, profession, specialties, rating_avg, lat, lng')
+      .or('role.in.(pintor,grafiteiro,automotivo,funileiro),user_type.in.(pintor,grafiteiro,automotivo,funileiro)')
+      .limit(80);
     if(error) throw error;
     if(!profiles || profiles.length === 0) return;
 
@@ -4706,35 +4706,70 @@ async function loadMapPainters(){
           document.getElementById('pp-img').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
           document.getElementById('pp-name').textContent = p.name || 'Pintor';
           document.getElementById('pp-sub').textContent = [p.city, p.state].filter(Boolean).join(', ') + (p.specialties ? ' - ' + p.specialties : '');
-          document.getElementById('pp-stars').textContent = '* '.repeat(Math.floor(p.rating_avg||0)) + ' ' + Number(p.rating_avg||0).toFixed(1);
+          document.getElementById('pp-stars').textContent = _starStr(p.rating_avg||0) + ' ' + Number(p.rating_avg||0).toFixed(1);
           document.getElementById('painter-popup').classList.add('show');
         });
         mapMarkers.push(marker);
       }
     });
 
-    renderPainterList(profiles);
+    renderPainterList((profiles||[]).filter(p=>_matchType(p,_exploreType)));
   } catch(e) {
     console.error('loadMapPainters error:', e);
   }
+}
+
+function _starStr(r){
+  const n = Math.round(Number(r)||0);
+  return '★★★★★'.slice(0,n) + '☆☆☆☆☆'.slice(0, 5-n);
+}
+
+let _exploreType = 'all';
+function _matchType(p, type){
+  if(type === 'all') return true;
+  const r = (p.role||p.user_type||'').toString().toLowerCase();
+  const prof = (p.profession||'').toString().toLowerCase();
+  if(type === 'funileiro') return prof === 'funileiro' || r === 'funileiro';
+  if(type === 'automotivo') return r === 'automotivo' && prof !== 'funileiro';
+  return r === type;
+}
+function exploreType(el, type){
+  _exploreType = type;
+  if(el && el.parentElement) el.parentElement.querySelectorAll('.map-chip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const list = (dbPainters||[]).filter(p => _matchType(p, type));
+  renderPainterList(list);
+  // mostra/esconde marcadores do mapa conforme o tipo
+  const ids = new Set(list.map(p=>p.id));
+  (mapMarkers||[]).forEach(m => {
+    if(!m._fromDB) return;
+    const show = type === 'all' || ids.has(m._painterId);
+    if(show){ if(!leafletMap.hasLayer(m)) m.addTo(leafletMap); }
+    else { if(leafletMap.hasLayer(m)) leafletMap.removeLayer(m); }
+  });
 }
 
 function renderPainterList(painters_list){
   const painterListEl = document.getElementById('painter-list');
   if(!painterListEl) return;
   if(!painters_list || painters_list.length === 0){
-    painterListEl.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Nenhum pintor encontrado</div>';
+    painterListEl.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Nenhum profissional encontrado</div>';
     return;
   }
   painterListEl.innerHTML = painters_list.map(p => {
-    const stars = '* '.repeat(Math.floor(p.rating_avg||p.rating||0));
-    const rating = Number(p.rating_avg||p.rating||0).toFixed(1);
+    const ratingNum = Number(p.rating_avg||p.rating||0);
+    const stars = _starStr(ratingNum);
+    const rating = ratingNum > 0 ? ratingNum.toFixed(1) : 'Novo';
     const avatarUrl = p.avatar_url || p.img || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
     const location = p.city ? [p.city, p.state].filter(Boolean).join(', ') : '';
-    const specs = p.specialties || (p.specs ? p.specs.slice(0,2).join(', ') : '');
+    const tipo = ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Automotivo',funileiro:'Funileiro'})[((p.profession||'').toLowerCase()==='funileiro')?'funileiro':(p.role||p.user_type||'').toLowerCase()] || '';
     return `<div onclick="openUserProfile('${p.id}')" style="background:var(--white);border-radius:14px;padding:12px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);">
       <img src="${avatarUrl}" style="width:52px;height:52px;border-radius:12px;object-fit:cover">
-      <div style="flex:1"><div style="font-size:14px;font-weight:700;">${p.name || 'Pintor'}</div><div style="font-size:12px;color:var(--muted);">${location} ${specs ? '- ' + specs : ''}</div><div style="font-size:12px;color:var(--p1);margin-top:2px;">${stars} ${rating}</div></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:700;">${p.name || 'Profissional'}</span>${tipo?'<span style="font-size:9px;font-weight:700;background:var(--cream);color:var(--muted);padding:2px 7px;border-radius:8px;">'+tipo+'</span>':''}</div>
+        <div style="font-size:12px;color:var(--muted);">${location}</div>
+        <div style="font-size:13px;color:var(--p1);margin-top:2px;letter-spacing:1px;">${stars} <span style="color:var(--ink);font-weight:700;letter-spacing:0;">${rating}</span></div>
+      </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>`;
   }).join('');
