@@ -737,6 +737,14 @@ const Analytics = () => {
   );
 };
 
+// Categoria de quem fala: loja / profissional / cliente (cor + tag)
+const senderKind = (p, isStore) => {
+  if (isStore) return { label:'LOJA', fg:'#7a30d6', chip:'#efe7fb', bub:'#f3edfb', bd:'#d9c7f5' };
+  if (p && (roleOf(p) === 'admin' || p.portal_access === true)) return { label:'LOJA', fg:'#7a30d6', chip:'#efe7fb', bub:'#f3edfb', bd:'#d9c7f5' };
+  if (p && isProProfile(p)) return { label:'PROFISSIONAL', fg:'#d2541f', chip:'#fff1e8', bub:'#fff3ec', bd:'#f6d4bf' };
+  return { label:'CLIENTE', fg:'#2563eb', chip:'#e8f0fe', bub:'#eef4ff', bd:'#cdddfb' };
+};
+
 const Chats = () => {
   const [conversations, setConversations] = useState([]);
   const [profiles, setProfiles] = useState({});
@@ -908,26 +916,31 @@ const Chats = () => {
             const isMe = m.sender_id === myUserId;
             const isStore = m.type === 'store';
             const sender = profiles[m.sender_id];
-            const senderName = sender?.name || 'Usuario';
+            const senderName = isStore ? 'Cali Colors' : (sender?.name || 'Usuario');
             const isImg = m.type === 'image' || (m.content && m.content.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i));
             const time = formatTime(m.created_at);
+            const kind = senderKind(sender, isStore);
 
             return (
-              <div key={m.id} style={{ display:'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap:8, marginBottom:12, alignItems:'flex-end' }}>
+              <div key={m.id} style={{ display:'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap:8, marginBottom:14, alignItems:'flex-end' }}>
                 {!isMe && (
-                  <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background: isStore ? C.ink : C.p2, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, color: isStore ? C.p1 : C.ink, flexShrink:0 }}>
+                  <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background: kind.chip, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:10, color: kind.fg, flexShrink:0 }}>
                     {isStore ? 'CC' : (sender?.avatar_url ? <img src={sender.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : getInitials(senderName))}
                   </div>
                 )}
                 <div style={{ maxWidth:'65%' }}>
-                  {!isMe && <div style={{ fontSize:10, fontWeight:600, color: isStore ? C.p1 : C.muted, marginBottom:2, marginLeft:4 }}>{isStore ? 'Cali Colors' : senderName}</div>}
+                  <div style={{ display:'flex', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom:3 }}>
+                    <span style={{ fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:'.4px', color:kind.fg, background:kind.chip, padding:'2px 8px', borderRadius:8 }}>
+                      {senderName} · {kind.label}
+                    </span>
+                  </div>
                   <div style={{
                     padding: isImg ? 4 : '10px 14px',
                     borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: isMe ? C.ink : (isStore ? C.p1+'15' : C.white),
-                    color: isMe ? '#fff' : C.ink,
+                    background: kind.bub,
+                    color: C.ink,
                     fontSize:13, lineHeight:'1.4',
-                    border: isMe ? 'none' : '1px solid '+C.border,
+                    border: '1px solid '+kind.bd,
                     wordBreak:'break-word'
                   }}>
                     {isImg ? <img src={m.content} style={{ maxWidth:220, borderRadius:12, display:'block' }} /> : m.content}
