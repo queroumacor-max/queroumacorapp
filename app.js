@@ -584,7 +584,7 @@ async function sugerirEscopoIA(btn){
       if(obsEl) obsEl.value = txt;
       toast('Escopo sugerido pela IA ✨');
     } else if(r.status === 503){
-      alert('A sugestão por IA ainda não está ativa: falta configurar a chave OPENAI_API_KEY no servidor (Cloudflare Pages → Environment variables) e refazer o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
+      alert('A sugestão por IA ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
     } else {
       alert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
     }
