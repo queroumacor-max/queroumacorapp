@@ -339,6 +339,8 @@ async function doRegisterSupabase(name, email, password, type, tag) {
     // Profession only applies to professionals, not clients
     if(isProfessionalRole(type)){
       profileData.profession = getSelectedProfession();
+      const specs = [...document.querySelectorAll('#spec-grid .spec-chip.sel')].map(c=>c.textContent.trim());
+      if(specs.length) profileData.specialties = specs.join(', ');
     }
     // Track who invited this user
     if(validatedInviteCode){

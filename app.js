@@ -1767,7 +1767,7 @@ async function openEditProfile(){
   if(!sb || !currentUser) return;
   _epAvatarFile = null; // reset
   try {
-    const { data: prof } = await sb.from('profiles').select('name, tag, city, state, phone, specialties, avatar_url').eq('id', currentUser.id).single();
+    const { data: prof } = await sb.from('profiles').select('name, tag, email, city, state, phone, specialties, avatar_url, role, user_type').eq('id', currentUser.id).single();
     if(prof){
       document.getElementById('ep-name').value = prof.name || '';
       document.getElementById('ep-tag').value = prof.tag || '';
@@ -1776,19 +1776,21 @@ async function openEditProfile(){
       document.getElementById('ep-state').value = prof.state || '';
       document.getElementById('ep-phone').value = prof.phone || '';
       document.getElementById('ep-specs').value = prof.specialties || '';
+      _epSpecsSetup(prof.role || prof.user_type, prof.specialties || '');
       // Show current avatar
       const preview = document.getElementById('ep-avatar-preview');
       if(preview) preview.src = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(prof.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
     } else {
       // Fallback to user_metadata
       const meta = currentUser.user_metadata || {};
-      document.getElementById('ep-name').value = meta.name || currentUser.email?.split('@')[0] || '';
+      document.getElementById('ep-name').value = meta.name || '';
       document.getElementById('ep-tag').value = meta.tag || '';
       document.getElementById('ep-email').value = currentUser.email || '';
       document.getElementById('ep-city').value = '';
       document.getElementById('ep-state').value = '';
       document.getElementById('ep-phone').value = '';
       document.getElementById('ep-specs').value = '';
+      _epSpecsSetup(meta.user_type || meta.role, '');
       const preview = document.getElementById('ep-avatar-preview');
       if(preview) preview.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(meta.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
     }
@@ -1796,9 +1798,66 @@ async function openEditProfile(){
   showModal('edit-profile-modal');
 }
 
+function _epSpecRole(role){
+  const r = (role||'').toLowerCase();
+  if(r==='grafiteiro' || r==='graffiti') return 'grafiteiro';
+  if(r==='automotivo' || r==='funileiro') return 'automotivo';
+  if(r==='pintor') return 'pintor';
+  return null; // cliente/admin: sem especialidades
+}
+
+function _epSpecsSetup(role, csv){
+  const wrap = document.getElementById('ep-specs-wrap');
+  const list = document.getElementById('ep-specs-list');
+  const specRole = _epSpecRole(role);
+  if(!wrap || !list) return;
+  if(!specRole){ wrap.style.display='none'; document.getElementById('ep-specs').value=''; return; }
+  wrap.style.display='';
+  const selected = (csv||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const opts = _roleSpecs[specRole] || _roleSpecs['pintor'];
+  list.innerHTML = opts.map(o=>{
+    const ck = selected.includes(o) ? 'checked' : '';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:14px;cursor:pointer;">'
+      + '<input type="checkbox" value="'+o.replace(/"/g,'&quot;')+'" '+ck+' onchange="_epSpecsApply()" style="width:16px;height:16px;accent-color:var(--p1);"> '+o+'</label>';
+  }).join('');
+  document.getElementById('ep-specs-list').style.display='none';
+  _epSpecsApply();
+}
+
+function toggleEpSpecs(){
+  const l = document.getElementById('ep-specs-list');
+  if(l) l.style.display = l.style.display==='none' ? 'block' : 'none';
+}
+
+function _epSpecsApply(){
+  const list = document.getElementById('ep-specs-list');
+  if(!list) return;
+  const sel = [...list.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value);
+  document.getElementById('ep-specs').value = sel.join(', ');
+  const sum = document.getElementById('ep-specs-summary');
+  if(sum) sum.textContent = sel.length ? sel.join(', ') : 'Selecione suas especialidades';
+}
+
 async function saveEditProfile(){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
+  // Validacao: campos obrigatorios
+  const vName = document.getElementById('ep-name').value.trim();
+  const vTag = document.getElementById('ep-tag').value.trim().replace('@','');
+  const vEmail = document.getElementById('ep-email').value.trim();
+  const vCity = document.getElementById('ep-city').value.trim();
+  const vState = document.getElementById('ep-state').value.trim();
+  const vPhone = document.getElementById('ep-phone').value.trim();
+  if(!vName || vName.includes('@')){ alert('Informe seu nome completo (não use o email como nome).'); return; }
+  if(!vTag || vTag.length < 3){ alert('Informe sua @tag (mínimo 3 caracteres).'); return; }
+  if(!vEmail || !/^\S+@\S+\.\S+$/.test(vEmail)){ alert('Informe um email válido.'); return; }
+  if(!vCity){ alert('Informe sua cidade.'); return; }
+  if(!vState){ alert('Informe seu estado (UF).'); return; }
+  if(!vPhone){ alert('Informe seu telefone/WhatsApp.'); return; }
+  const specsWrap = document.getElementById('ep-specs-wrap');
+  if(specsWrap && specsWrap.style.display !== 'none' && !document.getElementById('ep-specs').value.trim()){
+    alert('Selecione pelo menos uma especialidade.'); return;
+  }
   const btn = document.getElementById('ep-save-btn');
   btn.textContent = 'Salvando...'; btn.disabled = true;
   try {
@@ -2163,7 +2222,11 @@ async function doSignup(){
   const email=document.getElementById('s-email').value.trim();
   const pw=document.getElementById('s-pw').value;
   const role=selectedRole||'cliente';
-  if(!name||!email||!pw){toast('Preencha nome, email e senha');return;}
+  if(!name||name.includes('@')||!email||!pw){toast('Preencha nome, email e senha corretamente');return;}
+  if(isProfessionalRole(role)){
+    const selSpecs = document.querySelectorAll('#spec-grid .spec-chip.sel').length;
+    if(selSpecs === 0){ toast('Selecione pelo menos uma especialidade'); return; }
+  }
 
   // Mark invite as used
   if(validatedInviteCode && validatedInviteCode.id){
@@ -4825,9 +4888,13 @@ async function validateAndGoStep3(){
   const tag = document.getElementById('s-tag').value.trim();
   const email = document.getElementById('s-email').value.trim();
   const pw = document.getElementById('s-pw').value;
-  if(!name){ toast('Preencha seu nome'); return; }
+  const phone = (document.getElementById('s-phone')||{}).value ? document.getElementById('s-phone').value.trim() : '';
+  const cityField = (document.getElementById('s-city')||{}).value ? document.getElementById('s-city').value.trim() : '';
+  if(!name || name.includes('@')){ toast('Preencha seu nome (não use o email como nome)'); return; }
   if(!tag || tag.length < 3){ toast('Escolha uma tag com pelo menos 3 caracteres'); return; }
   if(!email){ toast('Preencha seu email'); return; }
+  if(!phone){ toast('Preencha seu WhatsApp'); return; }
+  if(!cityField || cityField.indexOf(',') === -1){ toast('Preencha cidade e estado (ex: São Paulo, SP)'); return; }
   if(!pw || pw.length < 8){ toast('Senha deve ter no minimo 8 caracteres'); return; }
   // Check tag availability before proceeding
   const statusEl = document.getElementById('tag-status');
