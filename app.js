@@ -1055,6 +1055,19 @@ async function deleteFinEntry(id){
 let _autoReplyCfg = null;          // cache da config new_message
 const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
 
+function arToggle(el){
+  const cb = el.querySelector('input[type=checkbox]');
+  if(!cb) return;
+  cb.checked = !cb.checked;
+  el.classList.toggle('on', cb.checked);
+}
+function arSync(id){
+  const cb = document.getElementById(id);
+  if(!cb) return;
+  const sw = cb.closest('.ar-switch');
+  if(sw) sw.classList.toggle('on', !!cb.checked);
+}
+
 async function loadAutoRespostas(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   try {
@@ -1070,6 +1083,7 @@ async function loadAutoRespostas(){
     set('ar-quote', true, '', byT['new_quote']);
     set('ar-followup', true, '', byT['follow_up']);
     set('ar-msg', true, '', byT['new_message']);
+    arSync('ar-quote-on'); arSync('ar-followup-on'); arSync('ar-msg-on');
   } catch(e){ console.warn('loadAutoRespostas:', e); }
 }
 

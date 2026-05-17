@@ -603,6 +603,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .msg-bubble.store{background:linear-gradient(135deg,var(--p1),var(--p4));color:#fff;border-radius:18px 18px 18px 4px;}
 .msg-sender{font-size:10px;font-weight:700;margin-bottom:3px;opacity:.7;}
 .msg-tag{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:8px;margin-bottom:3px;}
+.ar-switch{position:relative;width:44px;height:24px;background:var(--border);border-radius:12px;cursor:pointer;transition:.2s;flex-shrink:0;}
+.ar-switch.on{background:#2ec4b6;}
+.ar-switch .ar-knob{position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.ar-switch.on .ar-knob{left:22px;}
 .msg-time{font-size:10px;color:var(--muted);margin-top:3px;text-align:right;}
 .msg-row.me .msg-time{text-align:right;}
 
