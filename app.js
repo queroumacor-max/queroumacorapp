@@ -305,6 +305,18 @@ async function refreshProStatus(){
 // Quando o perfil ja e PRO, troca o banner de upsell por "PRO ativo"
 function applyProUI(){
   try {
+    const badge = document.getElementById('pro-status-badge');
+    if(badge){
+      if(_isPro){
+        badge.textContent = 'PRO';
+        badge.style.background = '#16a34a';
+        badge.style.color = '#fff';
+      } else {
+        badge.textContent = 'FREE';
+        badge.style.background = 'rgba(255,255,255,.15)';
+        badge.style.color = '#fff';
+      }
+    }
     const banner = document.querySelector('#view-pintor .pro-banner');
     if(!banner) return;
     if(_isPro){
