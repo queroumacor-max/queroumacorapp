@@ -2477,7 +2477,7 @@ function openChat(id) {
     avatarsEl.style.width='36px';
   }
 
-  document.getElementById('chat-header-name').textContent = conv.name;
+  document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
   document.getElementById('chat-header-sub').textContent = conv.sub;
 
   const partRow = document.getElementById('participant-row');
@@ -2488,7 +2488,7 @@ function openChat(id) {
         ${p.logo
           ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">CC</span></div>`
           : `<img src="${p.img}" alt="${p.name}">`}
-        <div><div class="part-chip-name">${p.name}</div><div class="part-chip-role">${p.role}</div></div>
+        <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
       </div>`).join('');
   } else {
     partRow.style.display='none';
@@ -2543,7 +2543,7 @@ function openChat(id) {
         conv.sub = '3 participantes · Chat 3-way ativo';
         chatStoreAdded = true;
         // Update header for 3-way
-        document.getElementById('chat-header-name').textContent = conv.name;
+        document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
         document.getElementById('chat-header-sub').textContent = conv.sub;
         document.getElementById('invite-store-bar').style.display = 'none';
         const avatarsEl = document.getElementById('chat-header-avatars');
@@ -2560,7 +2560,7 @@ function openChat(id) {
         partRow.innerHTML = conv.participants.map(p=>`
           <div class="part-chip ${p.logo?'store':''}">
             ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+p.img+'" alt="'+p.name+'">'}
-            <div><div class="part-chip-name">${p.name}</div><div class="part-chip-role">${p.role}</div></div>
+            <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
           </div>`).join('');
       }
       // Load profiles for all senders to show correct names in 3-way
@@ -2579,7 +2579,7 @@ function openChat(id) {
         if(isStoreMsg && m.sender_id !== myId){
           return { from:'store', text: m.content, time, type: m.type || 'text', sender:'Cali Colors', role:'loja' };
         }
-        const senderName = sp ? sp.name : (otherPart ? otherPart.name : 'Pintor');
+        const senderName = cleanHandle(sp, otherPart ? otherPart.name : 'Usuario');
         const senderImg = sp ? (sp.avatar_url || '') : (otherPart ? otherPart.img : '');
         let role = 'cliente';
         if(sp && (sp.portal_access || (sp.role||'').toLowerCase()==='admin')) role = 'loja';
@@ -2823,7 +2823,7 @@ function addStoreToChat(){
   if(!conv.participants.some(p => p.logo)){
     conv.participants.unshift({logo:true,name:'Cali Colors',role:'Loja Oficial'});
   }
-  document.getElementById('chat-header-name').textContent=conv.name;
+  document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
   document.getElementById('chat-header-sub').textContent=conv.sub;
   document.getElementById('invite-store-bar').style.display='none';
 
@@ -2843,7 +2843,7 @@ function addStoreToChat(){
   partRow.innerHTML=conv.participants.map(p=>`
     <div class="part-chip ${p.logo?'store':''}">
       ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+(p.img||'')+'" alt="'+(p.name||'')+'">'}
-      <div><div class="part-chip-name">${p.name}</div><div class="part-chip-role">${p.role}</div></div>
+      <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
     </div>`).join('');
 
   // APPEND store welcome message to existing messages (don't wipe!)
@@ -3857,6 +3857,15 @@ function loadMoreFeed(btn){
   if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
   _feedLimit += FEED_PAGE;
   loadFeed();
+}
+
+function stripEmail(s){
+  if(!s) return s;
+  return String(s).replace(/([A-Za-z0-9._%+\-]+)@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, '@$1');
+}
+function cleanHandle(p, fb){
+  if(p && p.tag) return '@' + p.tag;
+  return stripEmail((p && p.name) || fb || 'Usuario');
 }
 
 function escapeHtml(str){
