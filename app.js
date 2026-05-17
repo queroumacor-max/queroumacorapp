@@ -2577,17 +2577,21 @@ function openChat(id) {
         const sp = senderProfiles[m.sender_id];
         const isStoreMsg = m.type === 'store' || (sp && sp.portal_access);
         if(isStoreMsg && m.sender_id !== myId){
-          return { from:'store', text: m.content, time, type: m.type || 'text', sender:'Cali Colors' };
+          return { from:'store', text: m.content, time, type: m.type || 'text', sender:'Cali Colors', role:'loja' };
         }
         const senderName = sp ? sp.name : (otherPart ? otherPart.name : 'Pintor');
         const senderImg = sp ? (sp.avatar_url || '') : (otherPart ? otherPart.img : '');
+        let role = 'cliente';
+        if(sp && (sp.portal_access || (sp.role||'').toLowerCase()==='admin')) role = 'loja';
+        else if(sp && (isProfessionalRole(sp.role) || isProfessionalRole(sp.user_type))) role = 'profissional';
         return {
           from: m.sender_id === myId ? 'me' : 'other',
           text: m.content,
           time,
           type: m.type || 'text',
           sender: senderName,
-          img: senderImg
+          img: senderImg,
+          role
         };
       });
       renderMessages(realMsgs);
@@ -2601,21 +2605,28 @@ function openChat(id) {
   })();
 }
 
+function _msgKind(role){
+  if(role==='loja') return { label:'LOJA', fg:'#7a30d6', chip:'#efe7fb', bub:'#f3edfb', bd:'#d9c7f5' };
+  if(role==='profissional') return { label:'PROFISSIONAL', fg:'#d2541f', chip:'#fff1e8', bub:'#fff3ec', bd:'#f6d4bf' };
+  return { label:'CLIENTE', fg:'#2563eb', chip:'#e8f0fe', bub:'#eef4ff', bd:'#cdddfb' };
+}
+
 function renderMessages(msgs){
   const area = document.getElementById('msgs-area');
-  const conv = currentChat ? chatData[currentChat] : null;
-  const is3way = conv && (conv.type === '3way' || conv.type === 'store');
   area.innerHTML = msgs.map(m=>{
     const isImg = m.type === 'image' || (m.text && m.text.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i));
     const contentHtml = isImg
       ? '<img src="'+escapeHtml(m.text)+'" style="max-width:200px;border-radius:10px;display:block;" alt="foto">'
       : escapeHtml(m.text);
+    const k = _msgKind(m.role);
+    const bubbleStyle = `background:${k.bub};color:var(--ink);border:1px solid ${k.bd};`;
+    const tag = `<div class="msg-tag" style="color:${k.fg};background:${k.chip};">${escapeHtml(m.sender||k.label)} · ${k.label}</div>`;
 
     if(m.from==='me') return `
       <div class="msg-row me">
         <div>
-          ${is3way && m.sender ? '<div class="msg-sender" style="text-align:right;">'+escapeHtml(m.sender)+'</div>' : ''}
-          <div class="msg-bubble">${contentHtml}</div>
+          <div style="text-align:right;">${tag}</div>
+          <div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div>
           <div class="msg-time">${m.time}</div>
         </div>
       </div>`;
@@ -2644,8 +2655,8 @@ function renderMessages(msgs){
         <div class="msg-row">
           <div class="msg-av store-av">CC</div>
           <div>
-            <div class="msg-sender" style="color:var(--p1);">Cali Colors</div>
-            <div class="msg-bubble store">${isImg ? contentHtml : m.text}${extra}</div>
+            ${tag}
+            <div class="msg-bubble" style="${bubbleStyle}">${isImg ? contentHtml : escapeHtml(m.text)}${extra}</div>
             <div class="msg-time">${m.time}</div>
           </div>
         </div>`;
@@ -2653,10 +2664,10 @@ function renderMessages(msgs){
 
     return `
       <div class="msg-row">
-        <div class="msg-av"><img src="${m.img}" alt="${m.sender}"></div>
+        <div class="msg-av" style="background:${k.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${k.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div>
         <div>
-          <div class="msg-sender">${m.sender}</div>
-          <div class="msg-bubble other">${contentHtml}</div>
+          ${tag}
+          <div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div>
           <div class="msg-time">${m.time}</div>
         </div>
       </div>`;
