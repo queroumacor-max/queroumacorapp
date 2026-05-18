@@ -2702,6 +2702,7 @@ function openChat(id) {
   currentChat = id;
   chatStoreAdded = false;
   renderedMsgIds.clear();
+  _resetMsgColors();
   const conv = chatData[id];
   if(!conv){ console.error('openChat: no chatData for', id); return; }
 
@@ -2871,6 +2872,31 @@ function _msgKind(role){
   return { label:'CLIENTE', fg:'#2563eb', chip:'#e8f0fe', bub:'#eef4ff', bd:'#cdddfb' };
 }
 
+// Cor do balao por PESSOA (cada participante uma cor estavel), nao por papel.
+const _msgMeColor    = { fg:'#0f9d6b', chip:'#dff5ec', bub:'#e7f8f1', bd:'#bfe8d7' };
+const _msgStoreColor = { fg:'#7a30d6', chip:'#efe7fb', bub:'#f3edfb', bd:'#d9c7f5' };
+const _msgPalette = [
+  { fg:'#2563eb', chip:'#e8f0fe', bub:'#eef4ff', bd:'#cdddfb' }, // azul
+  { fg:'#d2541f', chip:'#fff1e8', bub:'#fff3ec', bd:'#f6d4bf' }, // laranja
+  { fg:'#be1e63', chip:'#fde8f1', bub:'#fef3f8', bd:'#f5c9dd' }, // rosa
+  { fg:'#15803d', chip:'#e3f9ec', bub:'#ecfdf3', bd:'#b8e8cd' }, // verde
+  { fg:'#a16207', chip:'#fdf6dd', bub:'#fffbeb', bd:'#f3e3a8' }, // amarelo
+  { fg:'#4338ca', chip:'#e6ecff', bub:'#f0f5ff', bd:'#c7d2fe' }, // indigo
+];
+let _msgColorMap = {};
+let _msgColorIdx = 0;
+function _resetMsgColors(){ _msgColorMap = {}; _msgColorIdx = 0; }
+function _msgColors(m){
+  if(m.from==='me') return _msgMeColor;
+  if(m.from==='store' || m.role==='loja') return _msgStoreColor;
+  const key = String(m.sender || m.img || 'anon');
+  if(!_msgColorMap[key]){
+    _msgColorMap[key] = _msgPalette[_msgColorIdx % _msgPalette.length];
+    _msgColorIdx++;
+  }
+  return _msgColorMap[key];
+}
+
 function renderMessages(msgs){
   const area = document.getElementById('msgs-area');
   area.innerHTML = msgs.map(m=>{
@@ -2879,8 +2905,9 @@ function renderMessages(msgs){
       ? '<img src="'+escapeHtml(m.text)+'" style="max-width:200px;border-radius:10px;display:block;" alt="foto">'
       : escapeHtml(m.text);
     const k = _msgKind(m.role);
-    const bubbleStyle = `background:${k.bub};color:var(--ink);border:1px solid ${k.bd};`;
-    const tag = `<div class="msg-tag" style="color:${k.fg};background:${k.chip};">${escapeHtml(m.sender||k.label)} · ${k.label}</div>`;
+    const c = _msgColors(m);
+    const bubbleStyle = `background:${c.bub};color:var(--ink);border:1px solid ${c.bd};`;
+    const tag = `<div class="msg-tag" style="color:${c.fg};background:${c.chip};">${escapeHtml(m.sender||k.label)} · ${k.label}</div>`;
 
     if(m.from==='me') return `
       <div class="msg-row me">
@@ -2924,7 +2951,7 @@ function renderMessages(msgs){
 
     return `
       <div class="msg-row">
-        <div class="msg-av" style="background:${k.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${k.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div>
+        <div class="msg-av" style="background:${c.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${c.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div>
         <div>
           ${tag}
           <div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div>
@@ -2998,18 +3025,20 @@ function appendMsg(m){
     ? '<img src="'+escapeHtml(m.text)+'" style="max-width:200px;border-radius:10px;display:block;" alt="foto">'
     : escapeHtml(m.text);
 
-  const conv = currentChat ? chatData[currentChat] : null;
-  const is3way = conv && (conv.type === '3way' || conv.type === 'store');
   const div = document.createElement('div');
+  const k = _msgKind(m.role);
+  const c = _msgColors(m);
+  const bubbleStyle = `background:${c.bub};color:var(--ink);border:1px solid ${c.bd};`;
+  const tag = `<div class="msg-tag" style="color:${c.fg};background:${c.chip};">${escapeHtml(m.sender||k.label)} · ${k.label}</div>`;
   if(m.from==='me'){
     div.className='msg-row me';
-    div.innerHTML=`<div>${is3way && m.sender ? '<div class="msg-sender" style="text-align:right;">'+escapeHtml(m.sender)+'</div>' : ''}<div class="msg-bubble">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div><div style="text-align:right;">${tag}</div><div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   } else if(m.from==='store'){
     div.className='msg-row';
-    div.innerHTML=`<div class="msg-av store-av">CC</div><div><div class="msg-sender" style="color:var(--p1);">Cali Colors</div><div class="msg-bubble store">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div class="msg-av store-av">CC</div><div>${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   } else {
     div.className='msg-row';
-    div.innerHTML=`<div class="msg-av"><img src="${m.img||''}" alt="${m.sender||''}"></div><div><div class="msg-sender">${m.sender||''}</div><div class="msg-bubble other">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div class="msg-av" style="background:${c.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${c.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div><div>${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   }
   area.appendChild(div);
   area.scrollTop=area.scrollHeight;
