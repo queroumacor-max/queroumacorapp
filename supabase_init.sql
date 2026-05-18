@@ -71,11 +71,26 @@ BEGIN
 END $$;
 
 -- ============================================
+-- Profiles table - ensure it exists
+-- ============================================
+-- A tabela profiles pode ja existir; garante a estrutura minima.
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text,
+  avatar_url text,
+  profession text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
 -- Profiles table - ensure all columns exist
 -- ============================================
 -- Add missing columns if they don't exist
 DO $$
 BEGIN
+  BEGIN ALTER TABLE public.profiles ADD COLUMN avatar_url text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.profiles ADD COLUMN profession text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN tag text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN email text; EXCEPTION WHEN duplicate_column THEN NULL; END;
   BEGIN ALTER TABLE public.profiles ADD COLUMN city text; EXCEPTION WHEN duplicate_column THEN NULL; END;
@@ -154,6 +169,42 @@ BEGIN
       WITH CHECK (public.is_portal_admin());
   END IF;
 END $$;
+
+-- ============================================
+-- Auto-criar profile ao registrar usuario (auth.users)
+-- ============================================
+-- "Database error saving new user" acontece quando o trigger de signup
+-- falha e o GoTrue faz rollback do cadastro inteiro. Esta versao roda
+-- como SECURITY DEFINER (ignora RLS), so preenche o minimo a partir do
+-- metadata e NUNCA propaga erro: qualquer falha e capturada para que o
+-- cadastro de autenticacao sempre conclua. O cliente completa o restante
+-- do profile via upsert apos o signup.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  BEGIN
+    INSERT INTO public.profiles (id, name, user_type, role, created_at)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+      COALESCE(NEW.raw_user_meta_data->>'user_type', 'cliente'),
+      COALESCE(NEW.raw_user_meta_data->>'user_type', 'cliente'),
+      now()
+    )
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    -- Nunca bloquear o signup por causa do profile.
+    RAISE WARNING 'handle_new_user falhou para %: %', NEW.id, SQLERRM;
+  END;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================
 -- Foreign key: posts.user_id -> profiles.id
