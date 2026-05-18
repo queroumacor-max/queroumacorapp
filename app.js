@@ -5197,7 +5197,8 @@ async function validateAndGoStep3(){
   if(!tag || tag.length < 3){ toast('Escolha uma tag com pelo menos 3 caracteres'); return; }
   if(!email){ toast('Preencha seu email'); return; }
   if(!phone){ toast('Preencha seu WhatsApp'); return; }
-  if(!cityField || cityField.indexOf(',') === -1){ toast('Preencha cidade e estado (ex: São Paulo, SP)'); return; }
+  const cityParts = cityField.split(/[,\/]/).map(s=>s.trim()).filter(Boolean);
+  if(!cityField || cityParts.length < 2){ toast('Preencha cidade e estado (ex: São Paulo, SP)'); return; }
   if(!pw || pw.length < 8){ toast('Senha deve ter no minimo 8 caracteres'); return; }
   // Check tag availability before proceeding
   const statusEl = document.getElementById('tag-status');
