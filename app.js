@@ -1607,6 +1607,14 @@ async function loadChatList(){
   } catch(e){ console.warn('loadChatList supabase sync error:', e); }
 }
 
+function _proLabel(role){
+  const r = (role||'').toLowerCase();
+  if(/grafit/.test(r)) return 'Grafiteiro';
+  if(/automotiv|funile/.test(r)) return 'Pintor Automotivo';
+  if(/pintor/.test(r)) return 'Pintor';
+  return 'Profissional';
+}
+
 function renderConvList(container, convMap, myId){
   const convList = Object.entries(convMap).sort((a,b) => new Date(b[1].updatedAt||0) - new Date(a[1].updatedAt||0));
   if(convList.length === 0){
@@ -1641,8 +1649,8 @@ function renderConvList(container, convMap, myId){
         name: is3way ? name + ' + Cali Colors' : name,
         sub: is3way ? '3 participantes · Chat 3-way ativo' : (c.tag ? '@' + c.tag : ''),
         participants: is3way
-          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}]
-          : [{img:avatar,name:name,role:isPintor?'Pintor':'Cliente'}],
+          ? [{logo:true,name:'Cali Colors',role:'Loja Oficial'},{img:avatar,name:name,role:isPintor?_proLabel(c.role):'Cliente'}]
+          : [{img:avatar,name:name,role:isPintor?_proLabel(c.role):'Cliente'}],
         messages: []
       };
     }
@@ -1653,7 +1661,7 @@ function renderConvList(container, convMap, myId){
     const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">+ CALI</span>' : '';
     return '<div class="conv-item" data-cat="'+cats.join(' ')+'" onclick="openChat(\''+convId+'\')">'
       + '<div class="conv-avatars" style="position:relative;"><div class="conv-av-main"><img src="'+avatar+'" alt=""></div>'+storeAvatar+'</div>'
-      + '<div class="conv-info"><div class="conv-name">'+escapeHtml(displayName)+threewayBadge+(isPintor && !is3way?' <span style="background:var(--p1);color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">PINTOR</span>':'')+'</div>'
+      + '<div class="conv-info"><div class="conv-name">'+escapeHtml(displayName)+threewayBadge+(isPintor && !is3way?' <span style="background:var(--p1);color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">'+escapeHtml(_proLabel(c.role).toUpperCase())+'</span>':'')+'</div>'
       + '<div class="conv-preview">'+(isMine?'Voce: ':'')+escapeHtml(preview.substring(0,50))+'</div></div>'
       + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="conv-time">'+time+'</div></div>'
       + '</div>';
@@ -2911,7 +2919,7 @@ function renderMessages(msgs){
 
     if(m.from==='me') return `
       <div class="msg-row me">
-        <div>
+        <div class="msg-col">
           <div style="text-align:right;">${tag}</div>
           <div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div>
           <div class="msg-time">${m.time}</div>
@@ -2941,7 +2949,7 @@ function renderMessages(msgs){
       return `
         <div class="msg-row">
           <div class="msg-av store-av">CC</div>
-          <div>
+          <div class="msg-col">
             ${tag}
             <div class="msg-bubble" style="${bubbleStyle}">${isImg ? contentHtml : escapeHtml(m.text)}${extra}</div>
             <div class="msg-time">${m.time}</div>
@@ -2952,7 +2960,7 @@ function renderMessages(msgs){
     return `
       <div class="msg-row">
         <div class="msg-av" style="background:${c.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${c.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div>
-        <div>
+        <div class="msg-col">
           ${tag}
           <div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div>
           <div class="msg-time">${m.time}</div>
@@ -3032,13 +3040,13 @@ function appendMsg(m){
   const tag = `<div class="msg-tag" style="color:${c.fg};background:${c.chip};">${escapeHtml(m.sender||k.label)} · ${k.label}</div>`;
   if(m.from==='me'){
     div.className='msg-row me';
-    div.innerHTML=`<div><div style="text-align:right;">${tag}</div><div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div class="msg-col"><div style="text-align:right;">${tag}</div><div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   } else if(m.from==='store'){
     div.className='msg-row';
-    div.innerHTML=`<div class="msg-av store-av">CC</div><div>${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div class="msg-av store-av">CC</div><div class="msg-col">${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   } else {
     div.className='msg-row';
-    div.innerHTML=`<div class="msg-av" style="background:${c.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${c.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div><div>${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
+    div.innerHTML=`<div class="msg-av" style="background:${c.chip};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${c.fg};">${m.img ? '<img src="'+escapeHtml(m.img)+'" alt="">' : escapeHtml((m.sender||'?').charAt(0).toUpperCase())}</div><div class="msg-col">${tag}<div class="msg-bubble" style="${bubbleStyle}">${contentHtml}</div><div class="msg-time">${m.time}</div></div>`;
   }
   area.appendChild(div);
   area.scrollTop=area.scrollHeight;
