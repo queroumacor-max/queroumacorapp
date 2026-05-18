@@ -1,7 +1,7 @@
 // ══ SCREENS ══
 const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas'];
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
-const noNav=['login','signup'];
+const noNav=['login','signup','chatconv','chat-conv'];
 function showScreen(n){
   screens.forEach(s=>{
     const el=document.getElementById('screen-'+s);
