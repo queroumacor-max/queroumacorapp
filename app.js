@@ -2577,7 +2577,7 @@ async function loadAvaliarScreen(){
     if(error) throw error;
     if(!quotes || quotes.length === 0){
       container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:40px;margin-bottom:12px;">⭐</div><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum servico para avaliar</div><div style="font-size:13px;">Quando um orcamento for concluido, voce podera avaliar aqui</div></div>';
-      form.style.display = 'none';
+      if(form) form.style.display = 'none';
       return;
     }
     // Show the first/most recent service to evaluate
@@ -2589,7 +2589,7 @@ async function loadAvaliarScreen(){
     document.getElementById('avaliar-title').textContent = painter.name || 'Pintor';
     document.getElementById('avaliar-sub').textContent = (q.service_type||q.title||'Servico') + (painter.city ? ' · '+painter.city : '') + (q.area_m2 ? ' · '+q.area_m2+'m²' : '');
     container.innerHTML = '';
-    form.style.display = 'block';
+    if(form) form.style.display = 'block';
     // Show other services as selectable list if > 1
     if(quotes.length > 1){
       container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Selecione o servico</div>' +
@@ -2692,12 +2692,13 @@ async function sendOrc(){
     if(typeof earnPoints==='function') earnPoints(session.user.id, 5, 'quote_request');
     toast('✅ Solicitação enviada com sucesso!');
     // Clear form
-    document.getElementById('orc-service-type').selectedIndex = 0;
-    document.getElementById('orc-area').value = '';
-    document.getElementById('orc-rooms').value = '';
-    document.getElementById('orc-address').value = '';
-    document.getElementById('orc-date').value = '';
-    document.getElementById('orc-desc').value = '';
+    const _setEl = (id, prop, val) => { const e = document.getElementById(id); if(e) e[prop] = val; };
+    _setEl('orc-service-type', 'selectedIndex', 0);
+    _setEl('orc-area', 'value', '');
+    _setEl('orc-rooms', 'value', '');
+    _setEl('orc-address', 'value', '');
+    _setEl('orc-date', 'value', '');
+    _setEl('orc-desc', 'value', '');
     setTimeout(()=>showScreen('profile'), 1800);
   }
 }
@@ -4139,8 +4140,9 @@ async function loadPosts(feedIds){
       const caption = p.caption || '';
       const liked = myLikes.includes(p.id);
       const saved = savedPosts.includes(p.id);
-      const isVideo = p.media_url && (p.media_url.includes('.mp4') || p.media_url.includes('.webm') || p.media_url.includes('.mov') || p.media_type === 'video');
-      const imgHtml = p.media_url ? (isVideo ? '<video src="'+p.media_url+'" controls playsinline preload="metadata" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video>' : '<img src="'+p.media_url+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
+      const isVideo = !!p.media_url && (isVideoUrl(p.media_url) || p.media_type === 'video');
+      const mediaSrc = escapeHtml(p.media_url || '');
+      const imgHtml = p.media_url ? (isVideo ? '<video src="'+mediaSrc+'" controls playsinline preload="metadata" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video>' : '<img src="'+mediaSrc+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
       const likeCount = likeCounts[p.id] || 0;
       const brushFill = liked ? 'var(--p4)' : 'none';
       const brushStroke = liked ? 'var(--p4)' : 'var(--ink)';

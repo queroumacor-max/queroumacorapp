@@ -303,7 +303,7 @@ const Dashboard = () => {
       const [profilesRes, leadsRes, quotesRes, msgsRes] = await Promise.all([
         sb.from('profiles').select('*'),
         sb.from('leads').select('id'),
-        sb.from('quotes').select('id, status, created_at').order('created_at', { ascending: false }).limit(20),
+        sb.from('quotes').select('id, status, created_at, client:profiles!client_id(name), painter:profiles!painter_id(name)').order('created_at', { ascending: false }).limit(50),
         sb.from('messages').select('id, content, created_at, sender_id').order('created_at', { ascending: false }).limit(5),
       ]);
 
@@ -1563,8 +1563,7 @@ const ClientesList = () => {
       if (!inviteMap[inv.created_by]) inviteMap[inv.created_by] = [];
       inviteMap[inv.created_by].push(inv.code);
     });
-    profiles.forEach(p => { p._generated_codes = inviteMap[p.id] || []; });
-    setClientes(profiles);
+    setClientes(profiles.map(p => ({ ...p, _generated_codes: inviteMap[p.id] || [] })));
     setLoading(false);
   };
 
@@ -2006,9 +2005,10 @@ const PedidosLoja = () => {
 
   const updateOrderStatus = async (id, status) => {
     try {
-      await window._sb.from('orders').update({ status }).eq('id', id);
+      const { error } = await window._sb.from('orders').update({ status }).eq('id', id);
+      if (error) { alert('Não foi possível atualizar o pedido: ' + error.message); return; }
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-    } catch(e){ console.warn('updateOrderStatus error:', e); }
+    } catch(e){ alert('Erro ao atualizar o pedido.'); console.warn('updateOrderStatus error:', e); }
   };
 
   const STATUS_COLORS = { pending: C.p7, processing: C.p1, shipped: C.p3, completed: C.p6, cancelled: C.p4 };
@@ -2242,6 +2242,7 @@ const PAGES_DEF = [
 function App() {
   const [page, setPage] = useState('dashboard');
   const [loggedIn, setLoggedIn] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -2279,9 +2280,28 @@ function App() {
     } catch(e) { console.error('loadBadges error:', e); }
   };
 
-  useEffect(() => { if(loggedIn) loadBadges(); }, [loggedIn, page]);
+  useEffect(() => { if(loggedIn) loadBadges(); }, [loggedIn]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await window._sb.auth.getSession();
+        if (session && session.user) {
+          const { data: prof } = await window._sb.from('profiles').select('portal_access').eq('id', session.user.id).single();
+          if (prof && prof.portal_access) setLoggedIn(true);
+        }
+      } catch(e) { /* sessão inválida: mostra login */ }
+      finally { setAuthChecking(false); }
+    })();
+  }, []);
 
   const PAGES = PAGES_DEF.map(p => ({ ...p, badge: p.badgeKey ? (badges[p.badgeKey] || null) : undefined }));
+
+  if (authChecking) return (
+    <div style={{ minHeight:'100vh', background:C.ink, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontFamily:'Syne,sans-serif', fontSize:18, fontWeight:700 }}>
+      Carregando portal...
+    </div>
+  );
 
   if (!loggedIn) return (
     <div style={{ minHeight:'100vh', background:C.ink, display:'flex', alignItems:'center', justifyContent:'center' }}>
