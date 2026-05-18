@@ -38,12 +38,15 @@ export async function onRequestPost(context) {
     patch = { verified: body?.value === true };
   } else if (action === 'set_pro') {
     const enable = body?.value === true;
-    patch = {
-      is_pro: enable,
-      pro_expires_at: enable
-        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-        : null
-    };
+    let expiresAt = null;
+    if (enable) {
+      const raw = typeof body?.expiresAt === 'string' ? body.expiresAt : '';
+      const parsed = raw ? new Date(raw) : null;
+      expiresAt = (parsed && !isNaN(parsed.getTime()))
+        ? parsed.toISOString()
+        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    }
+    patch = { is_pro: enable, pro_expires_at: expiresAt };
   } else if (action === 'set_role') {
     const m = ROLE_MAP[typeof body?.roleKey === 'string' ? body.roleKey : ''];
     if (!m) return json({ error: 'roleKey invalido' }, 400);
