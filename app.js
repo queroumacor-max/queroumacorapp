@@ -825,7 +825,7 @@ async function loadMaterialSuggestions(litros){
       <div style="width:36px;height:36px;border-radius:8px;background:${p.color_hex||'#ccc'};flex-shrink:0;"></div>
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;">${escapeHtml(p.name)}</div><div style="font-size:10px;color:var(--muted);">${p.volume||'18L'} · ${p.line||''}</div></div>
       <div style="text-align:right;"><div style="font-size:12px;font-weight:700;color:var(--p1);">R$ ${(p.price||0).toLocaleString('pt-BR')}</div>
-      <button onclick="addToCart('${p.id}','${escapeHtml(p.name)}',${p.price||0})" style="margin-top:4px;padding:4px 8px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">+ Carrinho</button></div>
+      <button onclick="addToCart('${p.id}',1,'${escapeHtml(p.name)}',${p.price||0})" style="margin-top:4px;padding:4px 8px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">+ Carrinho</button></div>
     </div>`).join('');
 }
 
@@ -3207,10 +3207,11 @@ function updateCartBadge(){
   if(el) el.textContent = cartCount;
 }
 
-function addToCart(productId, qty) {
+function addToCart(productId, qty, name, price) {
   qty = Math.max(1, parseInt(qty) || 1);
   if(productId){
-    const p = mktProducts.find(x => x.id === productId);
+    let p = mktProducts.find(x => x.id === productId);
+    if(!p && name){ p = { id: productId, name: name, price: Number(price) || 0 }; }
     if(p){
       const existing = cartItems.find(x => x.id === p.id);
       if(existing){
@@ -3837,8 +3838,8 @@ function toggleLogo(which) {
 }
 
 function buyShirt() {
-  addToCart();
-  toast('👕 Camiseta adicionada! Finalize no carrinho.');
+  const unit = shirtQty >= 5 ? 39.90 * 0.85 : 39.90;
+  addToCart('shirt-personalizada', shirtQty, 'Camiseta Personalizada', unit);
 }
 
 // ══ MODE TOGGLE (PINTOR / CLIENTE) ══
