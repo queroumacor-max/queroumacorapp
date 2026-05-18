@@ -1646,6 +1646,7 @@ function renderConvList(container, convMap, myId){
     if(!chatData[convId]){
       chatData[convId] = {
         type: is3way ? '3way' : 'direct',
+        otherId: c.otherId || '',
         name: is3way ? name + ' + Cali Colors' : name,
         sub: is3way ? '3 participantes · Chat 3-way ativo' : (c.tag ? '@' + c.tag : ''),
         participants: is3way
@@ -1705,6 +1706,27 @@ async function searchNewChatUsers(query){
   } catch(e){ console.warn('searchNewChatUsers error:', e); }
 }
 
+// Resolve o destinatário de uma conversa de forma confiável.
+// Antes o receiver_id era deduzido quebrando o conversation_id por "_",
+// o que falhava em chat com a loja/3-way (virava null e a mensagem não
+// era entregue). Agora usa o otherId guardado em chatData/localStorage,
+// cai para a loja em conversas store/3-way, e só por último faz o parse
+// antigo (compatível com conversas 1:1 uuidA_uuidB).
+function getChatReceiverId(convId, myId){
+  if(!convId) return null;
+  const cd = chatData[convId];
+  if(cd && cd.otherId && cd.otherId !== myId) return cd.otherId;
+  try {
+    const lc = (typeof loadConvsLocal === 'function') ? (loadConvsLocal()[convId] || null) : null;
+    if(lc && lc.otherId && lc.otherId !== myId) return lc.otherId;
+  } catch(e){}
+  if((cd && (cd.type === 'store' || cd.type === '3way')) || String(convId).startsWith('store_calicolors_')){
+    if(calicolorsUserId && calicolorsUserId !== myId) return calicolorsUserId;
+  }
+  const uuidParts = String(convId).split('_').filter(p => p.includes('-'));
+  return uuidParts.find(id => id !== myId) || null;
+}
+
 async function startNewChat(userId){
   closeModals();
   const sb = getSupabase();
@@ -1750,6 +1772,7 @@ async function startNewChat(userId){
     participants: [{img:'',name:'',role:''}],
     messages: []
   };
+  chatData[convId].otherId = userId;
 
   // Load the other user's profile
   try {
@@ -2271,6 +2294,7 @@ async function handleRealtimeMsg(payload){
             // Also populate chatData so openChat works immediately
             chatData[m.conversation_id] = {
               type: 'direct',
+              otherId: m.sender_id,
               name: prof.name || 'Usuario',
               sub: prof.tag ? '@' + prof.tag : '',
               participants: [{img: prof.avatar_url || '', name: prof.name || 'Usuario', role: isProfessionalRole(prof.role) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role]||'Profissional') : 'Usuario'}],
@@ -2527,9 +2551,7 @@ async function sendChatMsg(){
   const sb = getSupabase();
   if(sb && currentUser){
     try {
-      const parts = currentChat ? currentChat.split('_') : [];
-      const uuidParts = parts.filter(p => p.includes('-'));
-      const receiverId = uuidParts.find(id => id !== currentUser.id) || null;
+      const receiverId = getChatReceiverId(currentChat, currentUser.id);
       const insertData = {
         sender_id: currentUser.id,
         receiver_id: receiverId,
@@ -2717,12 +2739,15 @@ function openChat(id) {
 
   // Save conversation to localStorage so it appears in chat list
   const otherP = conv.participants.find(p => !p.logo) || conv.participants[0] || {};
+  const _prevConv = (typeof loadConvsLocal === 'function') ? (loadConvsLocal()[id] || {}) : {};
+  const _otherId = conv.otherId || _prevConv.otherId || '';
+  if(_otherId) conv.otherId = _otherId;
   saveConvLocal(id, {
     name: otherP.name || conv.name || 'Usuario',
     avatar: otherP.img || '',
     tag: conv.sub && conv.sub.startsWith('@') ? conv.sub.substring(1) : '',
     role: otherP.role || '',
-    otherId: '',
+    otherId: _otherId,
     is3way: conv.type === '3way',
     lastMsg: '',
     lastMsgFrom: '',
@@ -2998,12 +3023,7 @@ async function sendMsg(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ toast('Sessao expirada. Faca login novamente.'); return; }
 
-  // Extract receiver_id from conversation_id
-  // Format: uuid1_uuid2 (sorted). UUIDs use hyphens, so split on _ gives exactly 2 parts
-  const parts = currentChat ? currentChat.split('_') : [];
-  // Only consider parts that look like UUIDs (contain hyphens)
-  const uuidParts = parts.filter(p => p.includes('-'));
-  const receiverId = uuidParts.find(id => id !== session.user.id) || null;
+  const receiverId = getChatReceiverId(currentChat, session.user.id);
 
   const insertData = {
     sender_id: session.user.id,
