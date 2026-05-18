@@ -303,11 +303,9 @@ function doLogin(){
 async function doRegisterSupabase(name, email, password, type, tag) {
   const sb = getSupabase();
   if (!sb) { showScreen('feed'); return; }
-  const city = document.getElementById('s-city') ? document.getElementById('s-city').value.trim() : '';
   const phone = document.getElementById('s-phone') ? document.getElementById('s-phone').value.trim() : '';
-  const cityParts = city.split(',').map(s=>s.trim());
-  const cityName = cityParts[0] || '';
-  const stateName = cityParts[1] || '';
+  const cityName = document.getElementById('s-city') ? document.getElementById('s-city').value.trim() : '';
+  const stateName = document.getElementById('s-state') ? document.getElementById('s-state').value.trim() : '';
   const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name: name, user_type: type || 'cliente', tag: tag } } });
   if (error) { alert('Erro: ' + error.message); return; }
   // Upload avatar if selected

@@ -5193,11 +5193,13 @@ async function validateAndGoStep3(){
   const pw = document.getElementById('s-pw').value;
   const phone = (document.getElementById('s-phone')||{}).value ? document.getElementById('s-phone').value.trim() : '';
   const cityField = (document.getElementById('s-city')||{}).value ? document.getElementById('s-city').value.trim() : '';
+  const stateField = (document.getElementById('s-state')||{}).value ? document.getElementById('s-state').value.trim() : '';
   if(!name || name.includes('@')){ toast('Preencha seu nome (não use o email como nome)'); return; }
   if(!tag || tag.length < 3){ toast('Escolha uma tag com pelo menos 3 caracteres'); return; }
   if(!email){ toast('Preencha seu email'); return; }
   if(!phone){ toast('Preencha seu WhatsApp'); return; }
-  if(!cityField || cityField.indexOf(',') === -1){ toast('Preencha cidade e estado (ex: São Paulo, SP)'); return; }
+  if(!cityField){ toast('Preencha sua cidade'); return; }
+  if(!stateField){ toast('Selecione seu estado'); return; }
   if(!pw || pw.length < 8){ toast('Senha deve ter no minimo 8 caracteres'); return; }
   // Check tag availability before proceeding
   const statusEl = document.getElementById('tag-status');
