@@ -4590,9 +4590,9 @@ async function loadStories(feedIds){
       }
       const avatar = p.avatar_url || g.stories[0].media_url || 'https://i.pravatar.cc/150?img=68';
       const seen = isStoryGroupSeen(g.user_id) ? ' seen' : '';
-      html += `<div class="story" onclick="openStoryViewer(${gi})">
-        <div class="story-ring${seen}"><div class="story-inner"><img src="${avatar}" alt=""></div></div>
-        <span class="story-name">${name}</span>
+      html += `<div class="story">
+        <div class="story-ring${seen}" style="cursor:pointer" onclick="openStoryViewer(${gi})"><div class="story-inner"><img src="${avatar}" alt=""></div></div>
+        <span class="story-name" style="cursor:pointer" onclick="openUserProfile('${g.user_id}')">${name}</span>
       </div>`;
     }
 
