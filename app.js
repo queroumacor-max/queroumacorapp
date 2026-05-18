@@ -3272,49 +3272,67 @@ function getCategoryEmoji(cat){
 
 function getProductImage(p){
   if(p.image_url) return p.image_url;
-  const n = (p.name||'').toLowerCase();
+  const n = (p.name||'').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,''); // strip accents for matching
+
+  // Detect container size from product name
+  function sizeVariant(){
+    // Quarto / 0,9L / 900ml
+    if(/0[,.]9\s*l|900\s*m[l]|quarto/.test(n)) return '-quarto';
+    // Galão / 3,6L / 3,2L / 5L / 1/4
+    if(/3[,.]6\s*l|3[,.]2\s*l|[45]\s*l[ts^]|[45]\s*lts|gal[aã]o|1\/4/.test(n)) return '-galao';
+    // Lata / balde 18L or 16L → base image (no suffix)
+    return '';
+  }
+
+  const suf = sizeVariant();
+
   const m = [
-    [['aguarras','diluente aguarras'],'/products/diluente-aguarras.jpg'],
-    [['aquacryl super premium'],'/products/aquacryl-super-premium.jpg'],
-    [['metalatex litoral'],'/products/metalatex-litoral.jpg'],
-    [['metalatex elastic'],'/products/metalatex-elastic.jpg'],
-    [['metalatex bactercryl','bactercryl'],'/products/metalatex-bactercryl.jpg'],
-    [['metalatex super lavável brilho','metalatex super lavavel brilho','lavavel brilho'],'/products/metalatex-super-lavavel-brilho.jpg'],
-    [['metalatex super lavável fosco','metalatex super lavavel fosco','lavavel fosco'],'/products/metalatex-super-lavavel-fosco.jpg'],
-    [['metalatex requinte','requinte'],'/products/metalatex-requinte.jpg'],
-    [['efeitos especiais'],'/products/efeitos-especiais.jpg'],
-    [['texturarte'],'/products/texturarte.jpg'],
-    [['eco resina térmica','eco resina termica','resina termica'],'/products/eco-resina-termica.jpg'],
-    [['esmalte sintético super secagem','esmalte sintetico super secagem'],'/products/esmalte-sintetico-super-secagem.jpg'],
-    [['esmalte sintético super proteção','esmalte sintetico super protecao'],'/products/esmalte-sintetico-super-protecao.jpg'],
-    [['eco esmalte'],'/products/eco-esmalte.jpg'],
-    [['esmalte sintético','esmalte sintetico'],'/products/esmalte-sintetico-tradicional.jpg'],
-    [['eco epóxi','eco epoxi'],'/products/eco-epoxi.jpg'],
-    [['novacor piso ultra','piso ultra'],'/products/novacor-piso-ultra.jpg'],
-    [['novacor piso premium','piso premium'],'/products/novacor-piso-premium.jpg'],
-    [['novacor extra'],'/products/novacor-extra.jpg'],
-    [['novacor cobre mais','cobre mais'],'/products/novacor-cobre-mais.jpg'],
-    [['novacor esmalte','esmalte novacor'],'/products/novacor-esmalte-sintetico.jpg'],
-    [['kem tone','kemtone'],'/products/kem-tone.jpg'],
-    [['gesso','drywall'],'/products/novacor-gesso-drywall.jpg'],
-    [['massa corrida'],'/products/massa-corrida.jpg'],
-    [['massa acrílica','massa acrilica'],'/products/massa-acrilica.jpg'],
-    [['fundo preparador','eco fundo'],'/products/eco-fundo-preparador.jpg'],
-    [['restauração','restauracao'],'/products/restauracao.jpg'],
-    [['novacor resina impermeabilizante'],'/products/novacor-resina-impermeabilizante.jpg'],
-    [['eco resina impermeabilizante','resina impermeabilizante'],'/products/eco-resina-impermeabilizante.jpg'],
-    [['super galvite','galvite'],'/products/super-galvite.jpg'],
-    [['verniz shertol','shertol'],'/products/verniz-shertol.jpg'],
-    [['verniz filtro solar','filtro solar'],'/products/verniz-filtro-solar.jpg'],
-    [['verniz marítimo','verniz maritimo'],'/products/verniz-maritimo.jpg'],
-    [['verniz copal','copal'],'/products/verniz-copal.jpg'],
-    [['seladora para madeira','seladora madeira'],'/products/seladora-madeira.jpg'],
-    [['corante xadrez','xadrez'],'/products/corante-xadrez.jpg'],
-    [['corante globocor','globocor'],'/products/corante-globocor.jpg'],
-    [['tinta premium'],'/products/tinta-premium.jpg'],
+    [['aguarras','diluente aguarras'],'diluente-aguarras'],
+    [['aquacryl super premium'],'aquacryl-super-premium'],
+    [['metalatex litoral'],'metalatex-litoral'],
+    [['metalatex elastic'],'metalatex-elastic'],
+    [['metalatex bactercryl','bactercryl'],'metalatex-bactercryl'],
+    [['metalatex super lavavel brilho','lavavel brilho'],'metalatex-super-lavavel-brilho'],
+    [['metalatex super lavavel fosco','lavavel fosco'],'metalatex-super-lavavel-fosco'],
+    [['metalatex requinte','requinte'],'metalatex-requinte'],
+    [['efeitos especiais'],'efeitos-especiais'],
+    [['texturarte'],'texturarte'],
+    [['eco resina termica','resina termica'],'eco-resina-termica'],
+    [['esmalte sintetico super secagem'],'esmalte-sintetico-super-secagem'],
+    [['esmalte sintetico super protecao'],'esmalte-sintetico-super-protecao'],
+    [['eco esmalte'],'eco-esmalte'],
+    [['esmalte sintetico'],'esmalte-sintetico-tradicional'],
+    [['eco epoxi'],'eco-epoxi'],
+    [['novacor piso ultra','piso ultra'],'novacor-piso-ultra'],
+    [['novacor piso premium','piso premium'],'novacor-piso-premium'],
+    [['novacor extra'],'novacor-extra'],
+    [['novacor cobre mais','cobre mais'],'novacor-cobre-mais'],
+    [['novacor esmalte','esmalte novacor'],'novacor-esmalte-sintetico'],
+    [['kem tone','kemtone'],'kem-tone'],
+    [['gesso','drywall'],'novacor-gesso-drywall'],
+    [['massa corrida'],'massa-corrida'],
+    [['massa acrilica'],'massa-acrilica'],
+    [['fundo preparador','eco fundo'],'eco-fundo-preparador'],
+    [['restauracao'],'restauracao'],
+    [['novacor resina impermeabilizante'],'novacor-resina-impermeabilizante'],
+    [['eco resina impermeabilizante','resina impermeabilizante'],'eco-resina-impermeabilizante'],
+    [['super galvite','galvite'],'super-galvite'],
+    [['verniz shertol','shertol'],'verniz-shertol'],
+    [['verniz filtro solar','filtro solar'],'verniz-filtro-solar'],
+    [['verniz maritimo'],'verniz-maritimo'],
+    [['verniz copal','copal'],'verniz-copal'],
+    [['seladora para madeira','seladora madeira'],'seladora-madeira'],
+    [['corante xadrez','xadrez'],'corante-xadrez'],
+    [['corante globocor','globocor'],'corante-globocor'],
+    [['tinta premium'],'tinta-premium'],
   ];
-  for(const [keys, url] of m){
-    if(keys.some(k => n.includes(k))) return url;
+  for(const [keys, base] of m){
+    if(keys.some(k => n.includes(k))){
+      // Use size variant if the file exists, otherwise fall back to base
+      if(suf) return '/products/'+base+suf+'.jpg';
+      return '/products/'+base+'.jpg';
+    }
   }
   return null;
 }
