@@ -3270,23 +3270,81 @@ function getCategoryEmoji(cat){
   return cat === 'texturas' ? '🖌️' : cat === 'epoxi' ? '⚗️' : cat === 'acessorios' ? '🎭' : '🪣';
 }
 
+function getProductImage(p){
+  if(p.image_url) return p.image_url;
+  const n = (p.name||'').toLowerCase();
+  const m = [
+    [['aguarras','diluente aguarras'],'/products/diluente-aguarras.jpg'],
+    [['aquacryl super premium'],'/products/aquacryl-super-premium.jpg'],
+    [['metalatex litoral'],'/products/metalatex-litoral.jpg'],
+    [['metalatex elastic'],'/products/metalatex-elastic.jpg'],
+    [['metalatex bactercryl','bactercryl'],'/products/metalatex-bactercryl.jpg'],
+    [['metalatex super lavável brilho','metalatex super lavavel brilho','lavavel brilho'],'/products/metalatex-super-lavavel-brilho.jpg'],
+    [['metalatex super lavável fosco','metalatex super lavavel fosco','lavavel fosco'],'/products/metalatex-super-lavavel-fosco.jpg'],
+    [['metalatex requinte','requinte'],'/products/metalatex-requinte.jpg'],
+    [['efeitos especiais'],'/products/efeitos-especiais.jpg'],
+    [['texturarte'],'/products/texturarte.jpg'],
+    [['eco resina térmica','eco resina termica','resina termica'],'/products/eco-resina-termica.jpg'],
+    [['esmalte sintético super secagem','esmalte sintetico super secagem'],'/products/esmalte-sintetico-super-secagem.jpg'],
+    [['esmalte sintético super proteção','esmalte sintetico super protecao'],'/products/esmalte-sintetico-super-protecao.jpg'],
+    [['eco esmalte'],'/products/eco-esmalte.jpg'],
+    [['esmalte sintético','esmalte sintetico'],'/products/esmalte-sintetico-tradicional.jpg'],
+    [['eco epóxi','eco epoxi'],'/products/eco-epoxi.jpg'],
+    [['novacor piso ultra','piso ultra'],'/products/novacor-piso-ultra.jpg'],
+    [['novacor piso premium','piso premium'],'/products/novacor-piso-premium.jpg'],
+    [['novacor extra'],'/products/novacor-extra.jpg'],
+    [['novacor cobre mais','cobre mais'],'/products/novacor-cobre-mais.jpg'],
+    [['novacor esmalte','esmalte novacor'],'/products/novacor-esmalte-sintetico.jpg'],
+    [['kem tone','kemtone'],'/products/kem-tone.jpg'],
+    [['gesso','drywall'],'/products/novacor-gesso-drywall.jpg'],
+    [['massa corrida'],'/products/massa-corrida.jpg'],
+    [['massa acrílica','massa acrilica'],'/products/massa-acrilica.jpg'],
+    [['fundo preparador','eco fundo'],'/products/eco-fundo-preparador.jpg'],
+    [['restauração','restauracao'],'/products/restauracao.jpg'],
+    [['novacor resina impermeabilizante'],'/products/novacor-resina-impermeabilizante.jpg'],
+    [['eco resina impermeabilizante','resina impermeabilizante'],'/products/eco-resina-impermeabilizante.jpg'],
+    [['super galvite','galvite'],'/products/super-galvite.jpg'],
+    [['verniz shertol','shertol'],'/products/verniz-shertol.jpg'],
+    [['verniz filtro solar','filtro solar'],'/products/verniz-filtro-solar.jpg'],
+    [['verniz marítimo','verniz maritimo'],'/products/verniz-maritimo.jpg'],
+    [['verniz copal','copal'],'/products/verniz-copal.jpg'],
+    [['seladora para madeira','seladora madeira'],'/products/seladora-madeira.jpg'],
+    [['corante xadrez','xadrez'],'/products/corante-xadrez.jpg'],
+    [['corante globocor','globocor'],'/products/corante-globocor.jpg'],
+    [['tinta premium'],'/products/tinta-premium.jpg'],
+  ];
+  for(const [keys, url] of m){
+    if(keys.some(k => n.includes(k))) return url;
+  }
+  return null;
+}
+
 function renderProductCard(p){
+  const img = getProductImage(p);
   const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#ddd');
   const emoji = getCategoryEmoji(p.category);
   const badgeHtml = p.badge ? (p.badge === 'NOVO' ? '<span class="mkt-badge-new">NOVO</span>' : '<span class="mkt-badge-promo">'+p.badge+'</span>') : '';
   const stockClass = p.stock <= 5 ? 'low' : 'ok';
   const stockIcon = p.stock <= 5 ? '⚠️' : '✅';
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
-  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+'">'+badgeHtml+emoji+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
+  const swatchContent = img
+    ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+    : badgeHtml+emoji;
+  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+';overflow:hidden;padding:0;">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
 function renderProductRow(p){
+  const img = getProductImage(p);
   const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#e8e2d9');
   const emoji = getCategoryEmoji(p.category);
   const price = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
+  const icContent = img
+    ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+    : emoji;
+  const icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
   return '<div class="mkt-row" onclick="openProductDetail(\''+p.id+'\')">'
-    + '<div class="mkt-row-ic" style="background:'+bg+'">'+emoji+'</div>'
+    + '<div class="mkt-row-ic" style="'+icStyle+'">'+icContent+'</div>'
     + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+'</div>'
     + '<div class="mkt-row-sub">'+(p.code?('Cód '+escapeHtml(String(p.code))):'')+stk+'</div>'
     + '<div class="mkt-row-price">'+price+'</div></div>'
