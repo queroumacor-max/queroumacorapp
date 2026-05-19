@@ -3439,9 +3439,10 @@ function renderProductRow(p){
     ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
     : emoji;
   const icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
-  return '<div class="mkt-row" onclick="openProductDetail(\''+p.id+'\')">'
+  const inactive = p.active === false;
+  return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+p.id+'\')">'
     + '<div class="mkt-row-ic" style="'+icStyle+'">'+icContent+'</div>'
-    + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+'</div>'
+    + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+(inactive?' <span style="font-size:10px;color:var(--muted);">(inativo)</span>':'')+'</div>'
     + '<div class="mkt-row-sub">'+(p.code?('Cód '+escapeHtml(String(p.code))):'')+stk+'</div>'
     + '<div class="mkt-row-price">'+price+'</div></div>'
     + '<button class="mkt-row-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button>'
@@ -3511,9 +3512,16 @@ async function loadMktProducts(){
   const sb = getSupabase();
   if(!sb) return;
   try {
-    const { data, error } = await sb.from('products').select('*').eq('active', true).order('name');
-    if(error) throw error;
-    mktProducts = data || [];
+    const PAGE = 1000;
+    let all = [], from = 0;
+    while(true){
+      const { data, error } = await sb.from('products').select('*').order('name').range(from, from + PAGE - 1);
+      if(error) throw error;
+      all = all.concat(data || []);
+      if(!data || data.length < PAGE) break;
+      from += PAGE;
+    }
+    mktProducts = all;
     const grouped = {};
     mktProducts.forEach(p => { const k = mktClassify(p); (grouped[k] = grouped[k] || []).push(p); });
     const orderedKeys = MKT_MENUS.map(m => m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);
