@@ -3211,6 +3211,37 @@ let shirtQty = 1;
 let logoState = {pintor: true, cali: true};
 let mktProducts = [];
 
+// Dicionário determinístico: cor escrita no nome → hex. Compostos primeiro.
+const COLOR_DICT = [
+  ['branco neve','#fbfbf7'],['branco gelo','#eef0ea'],['branco fosco','#f4f3ee'],['off white','#efece1'],['branco','#f6f5f0'],
+  ['preto fosco','#1c1c1c'],['preto','#1a1a1a'],
+  ['cinza chumbo','#4b4f54'],['cinza grafite','#3a3d40'],['grafite','#3a3d40'],['cinza claro','#c7c9c8'],['cinza escuro','#5a5d5f'],['cinza concreto','#9a9b96'],['concreto','#9a9b96'],['cinza','#9b9d9c'],['prata','#c5c7c9'],['aluminio','#b8bcc0'],
+  ['azul claro','#9ec7e8'],['azul bebe','#bcd9ee'],['azul royal','#1f4ea1'],['azul marinho','#1b2a4a'],['azul petroleo','#1f5560'],['azul turquesa','#2bb6c4'],['turquesa','#2bb6c4'],['azul','#2f6fb0'],
+  ['verde musgo','#5a6b3b'],['verde limao','#bcd64a'],['verde agua','#bfe3d8'],['verde bandeira','#1e7a3d'],['verde oliva','#6b6b3a'],['verde','#2e8b57'],
+  ['amarelo ouro','#e0a526'],['amarelo canario','#f5d427'],['amarelo','#f2c531'],['ouro','#caa233'],['dourado','#caa233'],
+  ['vermelho','#c0392b'],['vinho','#5e1f24'],['bordo','#5e1f24'],['carmim','#9b1c2e'],
+  ['laranja','#e67e22'],['terracota','#b5562e'],['tijolo','#9c4a2f'],['salmao','#f0a78f'],
+  ['rosa','#e79bb3'],['pink','#e84d8a'],['magenta','#c0337a'],
+  ['roxo','#6b3fa0'],['lilas','#b9a5d6'],['violeta','#7a4fb0'],
+  ['marrom','#6b4226'],['cafe','#4b3621'],['chocolate','#4b2e1e'],['caramelo','#a9743b'],['tabaco','#7a5230'],['imbuia','#5a3a22'],['mogno','#6e3326'],['cedro','#8a5a33'],['castanho','#5d3a22'],
+  ['bege','#d8c6a8'],['areia','#d6c5a0'],['palha','#e3d5ad'],['creme','#efe6cf'],['nude','#e3c9b3'],['camurca','#c9a878'],['marfim','#efe7d2'],
+  ['gelo','#eef0ea'],['perola','#ece7dd'],
+];
+function _normTxt(s){ return ' '+String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')+' '; }
+// Cores "placeholder" que NÃO contam como cor escolhida de verdade
+const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
+function resolveColorHex(p){
+  const ch = p && p.color_hex ? String(p.color_hex).trim() : '';
+  if(ch && !_PLACEHOLDER_HEX.test(ch.replace('#',''))) return ch;
+  const n = _normTxt(p && p.name);
+  for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
+  return ch || null;
+}
+function productBg(p){
+  if(p && p.color_gradient) return 'linear-gradient(135deg,'+p.color_gradient+')';
+  return resolveColorHex(p) || '#e8e2d9';
+}
+
 // Mesma classificação automática do portal (marca/tipo no nome do produto).
 // A ordem importa: o primeiro menu cuja palavra-chave casar vence.
 const MKT_MENUS = [
@@ -3290,7 +3321,7 @@ function renderCartModal(){
     const qty = item.qty || 1;
     const subtotal = Number(item.price || 0) * qty;
     total += subtotal;
-    const bg = item.color_gradient ? 'linear-gradient(135deg,'+item.color_gradient+')' : (item.color_hex || '#ddd');
+    const bg = productBg(item);
     return '<div class="cart-item">'
       + '<div class="cart-item-icon" style="background:'+bg+'"></div>'
       + '<div class="cart-item-info">'
@@ -3417,7 +3448,7 @@ function getProductImage(p){
 
 function renderProductCard(p){
   const img = getProductImage(p);
-  const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#ddd');
+  const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const badgeHtml = p.badge ? (p.badge === 'NOVO' ? '<span class="mkt-badge-new">NOVO</span>' : '<span class="mkt-badge-promo">'+p.badge+'</span>') : '';
   const stockClass = p.stock <= 5 ? 'low' : 'ok';
@@ -3431,7 +3462,7 @@ function renderProductCard(p){
 
 function renderProductRow(p){
   const img = getProductImage(p);
-  const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#e8e2d9');
+  const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const price = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
@@ -3481,7 +3512,7 @@ function mktSearch(q){
 function openProductDetail(productId){
   const p = mktProducts.find(x => x.id === productId);
   if(!p){ showModal('product-detail-modal'); return; }
-  const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#ddd');
+  const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const modal = document.getElementById('product-detail-modal');
   const sheet = modal.querySelector('.sheet');
