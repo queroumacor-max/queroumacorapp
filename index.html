@@ -1344,12 +1344,7 @@
         <div class="mkt-cart-badge" id="cart-count">3</div>
       </button>
     </div>
-    <div class="mkt-tabs">
-      <div class="mkt-tab active" onclick="mktTab(this,'tintas')">🎨 Tintas</div>
-      <div class="mkt-tab" onclick="mktTab(this,'texturas')">🖌️ Texturas</div>
-      <div class="mkt-tab" onclick="mktTab(this,'epoxi')">⚗️ Epóxi</div>
-      <div class="mkt-tab" onclick="mktTab(this,'acessorios')">🛒 Acessórios</div>
-    </div>
+    <div class="mkt-tabs" id="mkt-tabs"></div>
     <div class="mkt-search-wrap">
       <input class="mkt-search-input" id="mkt-search" type="search" placeholder="Buscar produto ou código..." oninput="mktSearch(this.value)">
     </div>
@@ -1363,30 +1358,9 @@
       <div class="mkt-products" id="mkt-search-grid"></div>
     </div>
 
-    <!-- TINTAS (loaded from DB) -->
-    <div id="mkt-tintas">
-      <div class="mkt-section-title">Tintas Premium</div>
-      <div class="mkt-products" id="mkt-tintas-grid">
-        <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Carregando produtos...</div>
-      </div>
-    </div>
-
-    <!-- TEXTURAS (loaded from DB) -->
-    <div id="mkt-texturas" style="display:none">
-      <div class="mkt-section-title">Linhas de Textura</div>
-      <div class="mkt-products" id="mkt-texturas-grid"></div>
-    </div>
-
-    <!-- EPOXI (loaded from DB) -->
-    <div id="mkt-epoxi" style="display:none">
-      <div class="mkt-section-title">Linha Epóxi</div>
-      <div class="mkt-products" id="mkt-epoxi-grid"></div>
-    </div>
-
-    <!-- ACESSORIOS (loaded from DB) -->
-    <div id="mkt-acessorios" style="display:none">
-      <div class="mkt-section-title">Acessórios</div>
-      <div class="mkt-products" id="mkt-acessorios-grid"></div>
+    <!-- MENUS (loaded from DB, classificação automática) -->
+    <div id="mkt-sections">
+      <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Carregando produtos...</div>
     </div>
 
   </div>
