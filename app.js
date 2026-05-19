@@ -3241,6 +3241,10 @@ function productBg(p){
   if(p && p.color_gradient) return 'linear-gradient(135deg,'+p.color_gradient+')';
   return resolveColorHex(p) || '#e8e2d9';
 }
+// true quando o produto tem cor (gradiente, hex real ou cor pelo nome) → mostrar swatch limpo, sem emoji
+function hasProductColor(p){
+  return !!(p && (p.color_gradient || resolveColorHex(p)));
+}
 
 // Mesma classificação automática do portal (marca/tipo no nome do produto).
 // A ordem importa: o primeiro menu cuja palavra-chave casar vence.
@@ -3456,7 +3460,7 @@ function renderProductCard(p){
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   const swatchContent = img
     ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : badgeHtml+emoji;
+    : badgeHtml+(hasProductColor(p) ? '' : emoji);
   return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+';overflow:hidden;padding:0;">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
@@ -3468,7 +3472,7 @@ function renderProductRow(p){
   const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
   const icContent = img
     ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : emoji;
+    : (hasProductColor(p) ? '' : emoji);
   const icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
   const inactive = p.active === false;
   return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+p.id+'\')">'
@@ -3518,7 +3522,7 @@ function openProductDetail(productId){
   const sheet = modal.querySelector('.sheet');
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   sheet.innerHTML = '<div class="sheet-handle"></div>'
-    + '<div style="height:140px;background:'+bg+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;">'+emoji+'</div>'
+    + '<div style="height:140px;background:'+(getProductImage(p)?'#f5f5f5':bg)+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;overflow:hidden;">'+(getProductImage(p)?'<img src="'+getProductImage(p)+'" alt="" style="width:100%;height:100%;object-fit:cover;">':(hasProductColor(p)?'':emoji))+'</div>'
     + '<div style="font-size:20px;font-weight:800;font-family:Syne,sans-serif;">'+p.name+'</div>'
     + '<div style="font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:10px;">'+(p.code ? 'Cód. '+p.code+' · ' : '')+(p.line||'')+'</div>'
     + (p.description ? '<div style="font-size:13.5px;color:#555;line-height:1.5;margin-bottom:14px;">'+p.description+'</div>' : '')
