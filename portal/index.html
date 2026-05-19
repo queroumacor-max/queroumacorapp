@@ -561,41 +561,36 @@ const ProdutosList = () => {
     if(aiBusy) return;
     const pend = products.filter(p => !p.color_gradient && (!p.color_hex || _PLACEHOLDER_HEX.test(String(p.color_hex).replace('#',''))));
     if(pend.length === 0){ alert('Todos os produtos já têm cor definida.'); return; }
-    if(!confirm(pend.length + ' produto(s) sem cor. Preencher agora (dicionário + IA) e salvar no banco?')) return;
-    let ok = 0, fail = 0;
+    if(!confirm(pend.length + ' produto(s) sem cor. Preencher com IA (distingue tons como Vermelho Ferrari/Goiaba/Malagueta) e salvar no banco?')) return;
+    let ok = 0, fail = 0, dic = 0;
     const save = async (id, hex) => {
       const { error } = await window._sb.from('products').update({ color_hex: hex }).eq('id', id);
       if(error) fail++; else ok++;
     };
-    // Fase 1 — dicionário (instantâneo, exato)
-    setAiBusy('Aplicando dicionário de cores...');
-    const aiQueue = [];
-    for(const p of pend){
-      const hex = dictHex(p.name);
-      if(hex) await save(p.id, hex);
-      else aiQueue.push({ id:p.id, name:p.name, code:p.code });
-    }
-    // Fase 2 — IA em lotes para o resto
+    // Fase 1 — IA em lotes (ela diferencia variações de tom da mesma cor base)
     const BATCH = 40;
-    for(let i=0; i<aiQueue.length; i+=BATCH){
-      const slice = aiQueue.slice(i, i+BATCH);
-      setAiBusy('IA: ' + Math.min(i+BATCH, aiQueue.length) + '/' + aiQueue.length + '...');
+    const aiResolved = {};
+    for(let i=0; i<pend.length; i+=BATCH){
+      const slice = pend.slice(i, i+BATCH).map(p => ({ id:p.id, name:p.name, code:p.code }));
+      setAiBusy('IA: ' + Math.min(i+BATCH, pend.length) + '/' + pend.length + '...');
       try {
         const r = await fetch('/api/resolve-color', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ items: slice })
         });
         const data = await r.json();
-        if(data && data.colors){
-          for(const it of slice){
-            const hex = data.colors[it.id];
-            if(hex) await save(it.id, hex);
-          }
-        } else { fail += slice.length; }
-      } catch(e){ fail += slice.length; }
+        if(data && data.colors){ for(const it of slice){ const hex = data.colors[it.id]; if(hex) aiResolved[it.id] = hex; } }
+      } catch(e){ /* cai para o dicionário abaixo */ }
+    }
+    // Fase 2 — grava: IA quando houver; senão dicionário como rede de segurança
+    setAiBusy('Salvando...');
+    for(const p of pend){
+      const hex = aiResolved[p.id] || dictHex(p.name);
+      if(hex){ if(!aiResolved[p.id]) dic++; await save(p.id, hex); }
+      else fail++;
     }
     setAiBusy('');
-    alert('Concluído. Cores salvas: ' + ok + (fail ? (' · falhas/sem cor: ' + fail) : ''));
+    alert('Concluído. Cores salvas: ' + ok + ' (IA: ' + (ok - dic) + ', dicionário: ' + dic + ')' + (fail ? (' · sem cor: ' + fail) : ''));
     loadProducts();
   };
 
