@@ -3513,15 +3513,18 @@ async function loadMktProducts(){
   if(!sb) return;
   try {
     const PAGE = 1000;
-    let all = [], from = 0;
-    while(true){
+    const byId = new Map();
+    for(let pageNo = 0; pageNo < 30; pageNo++){
+      const from = pageNo * PAGE;
       const { data, error } = await sb.from('products').select('*').order('name').range(from, from + PAGE - 1);
       if(error) throw error;
-      all = all.concat(data || []);
-      if(!data || data.length < PAGE) break;
-      from += PAGE;
+      if(!data || data.length === 0) break;
+      const before = byId.size;
+      data.forEach(p => { byId.set(p.id, p); });
+      if(byId.size === before) break;       // sem progresso → evita loop infinito
+      if(data.length < PAGE) break;          // última página
     }
-    mktProducts = all;
+    mktProducts = Array.from(byId.values());
     const grouped = {};
     mktProducts.forEach(p => { const k = mktClassify(p); (grouped[k] = grouped[k] || []).push(p); });
     const orderedKeys = MKT_MENUS.map(m => m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);

@@ -529,15 +529,18 @@ const ProdutosList = () => {
     setLoading(true);
     try {
       const PAGE = 1000;
-      let all = [], from = 0;
-      while(true){
+      const byId = new Map();
+      for(let pageNo = 0; pageNo < 30; pageNo++){
+        const from = pageNo * PAGE;
         const { data, error } = await window._sb.from('products').select('*').order('name').range(from, from + PAGE - 1);
         if(error) throw error;
-        all = all.concat(data || []);
-        if(!data || data.length < PAGE) break;
-        from += PAGE;
+        if(!data || data.length === 0) break;
+        const before = byId.size;
+        data.forEach(p => { byId.set(p.id, p); });
+        if(byId.size === before) break;
+        if(data.length < PAGE) break;
       }
-      setProducts(all);
+      setProducts(Array.from(byId.values()));
     } catch(e) {
       console.error('loadProducts error:', e);
       setProducts([]);
