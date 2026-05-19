@@ -521,6 +521,8 @@ const ProdutosList = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [menuFilter, setMenuFilter] = useState('all');
+  const [busca, setBusca] = useState('');
   const [form, setForm] = useState({ name:'', code:'', category:'tintas', volume:'18L', price:'', color_hex:'#c0622d', color_gradient:'', stock:0, badge:'', description:'', line:'Linha Premium', rendimento:'~10m²/L', demaos:'2', secagem:'2h', active:true });
 
   const loadProducts = async () => {
@@ -569,9 +571,31 @@ const ProdutosList = () => {
     setShowForm(true);
   };
 
-  const categories = { tintas:'🎨 Tintas', texturas:'🖌️ Texturas', epoxi:'⚗️ Epóxi', acessorios:'🛒 Acessórios' };
+  // Classificador automático por palavra-chave no nome (marca/tipo).
+  // A ordem importa: o primeiro menu cuja palavra-chave casar vence.
+  const MENUS = [
+    { key:'arte_urbana',  label:'🎨 Arte Urbana & Spray',     kw:['arte urbana','colorgin','spray','aerossol','aerosol','grafit','graffit'] },
+    { key:'tintas',       label:'🪣 Tintas',                   kw:['tinta','esmalte','latex','látex','acrilic','acrílic','verniz','primer','seladora','fundo preparador','base coat','automotiva','suvinil','coral','sherwin'] },
+    { key:'texturas',     label:'🧱 Texturas & Massas',        kw:['textura','grafiato','massa corrida','massa acrilic','massa pva','reboco','chapisco'] },
+    { key:'epoxi',        label:'⚗️ Epóxi & Poliuretano',      kw:['epoxi','epóxi','poliuretano',' pu '] },
+    { key:'solventes',    label:'💧 Solventes & Aditivos',     kw:['thinner','solvente','diluente','aguarras','aguarrás','acelerador','secante','catalisador','endurecedor','aditivo','redutor','removedor'] },
+    { key:'adesivos',     label:'🧪 Adesivos & Colas',         kw:['adesivo','cola','silicone','vedante','veda calha','rejunte','massa epox','durepoxi'] },
+    { key:'ferramentas',  label:'🧰 Ferramentas',              kw:['alicate','tesoura','chave','martelo','abre trinca','espatula','espátula','desempenadeira','colher de pedreiro','trena','serra','furadeira','broca','lixadeira','estilete','formao','formão','grosa','lima','torques'] },
+    { key:'pintura',      label:'🖌️ Acessórios de Pintura',    kw:['rolo','pincel','trincha','bandeja','fita crepe','fita','lixa','cabo extensor','extensor','gaiola','luva','mascara','máscara','respirador','oculos','óculos','lona','plastico','plástico','crepe'] },
+    { key:'eletrica',     label:'🔌 Elétrica',                 kw:['tomada','adaptador','extens','lampada','lâmpada','disjuntor','filtro de linha','benjamim','fio ','interruptor'] },
+    { key:'equipamentos', label:'🛠️ Equipamentos',             kw:['aerografo','aerógrafo','compressor','pistola','maquina','máquina','pulverizador','airless'] },
+  ];
+  const classify = (p) => {
+    const n = (' ' + (p.name||'') + ' ').toLowerCase();
+    for(const m of MENUS){ if(m.kw.some(k => n.includes(k))) return m.key; }
+    return 'outros';
+  };
+  const MENU_LABEL = Object.fromEntries(MENUS.map(m => [m.key, m.label]).concat([['outros','📦 Outros']]));
   const grouped = {};
-  products.forEach(p => { const cat = p.category || 'tintas'; if(!grouped[cat]) grouped[cat] = []; grouped[cat].push(p); });
+  products.forEach(p => { const k = classify(p); if(!grouped[k]) grouped[k] = []; grouped[k].push(p); });
+  const orderedKeys = MENUS.map(m=>m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);
+  const totalItens = products.length;
+  const qLower = busca.trim().toLowerCase();
 
   const inputStyle = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
   const labelStyle = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
@@ -617,11 +641,26 @@ const ProdutosList = () => {
         </div>
       )}
 
+      {!loading && products.length > 0 && (
+        <div style={{ marginBottom:18 }}>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="🔎 Buscar produto..." style={{...inputStyle, marginBottom:12}} />
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+            <button onClick={()=>setMenuFilter('all')} style={{ border:'1px solid '+(menuFilter==='all'?C.p1:C.border), background:menuFilter==='all'?C.p1:'transparent', color:menuFilter==='all'?'#fff':C.ink, borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }}>Todos <b>({totalItens})</b></button>
+            {orderedKeys.map(k => (
+              <button key={k} onClick={()=>setMenuFilter(k)} style={{ border:'1px solid '+(menuFilter===k?C.p1:C.border), background:menuFilter===k?C.p1:'transparent', color:menuFilter===k?'#fff':C.ink, borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }}>{MENU_LABEL[k]} <b>({grouped[k].length})</b></button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? <div style={{ textAlign:'center', padding:40, color:C.muted }}>Carregando produtos...</div> :
        products.length === 0 ? <div style={{ textAlign:'center', padding:40, color:C.muted }}>Nenhum produto cadastrado. Clique em "+ Novo Produto" para começar.</div> :
-       Object.entries(grouped).map(([cat, items]) => (
+       orderedKeys.filter(cat => menuFilter==='all' || menuFilter===cat).map(cat => {
+        const items = grouped[cat].filter(p => !qLower || (p.name||'').toLowerCase().includes(qLower) || (p.code||'').toLowerCase().includes(qLower));
+        if(items.length === 0) return null;
+        return (
         <div key={cat} style={{ marginBottom:24 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:C.muted, marginBottom:10, textTransform:'uppercase', letterSpacing:.5 }}>{categories[cat] || cat}</div>
+          <div style={{ fontSize:14, fontWeight:700, color:C.muted, marginBottom:10, textTransform:'uppercase', letterSpacing:.5 }}>{MENU_LABEL[cat] || cat} <span style={{ color:C.p1 }}>({grouped[cat].length})</span></div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
             {items.map(p => {
               const bg = p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (p.color_hex || '#ddd');
@@ -644,7 +683,8 @@ const ProdutosList = () => {
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
