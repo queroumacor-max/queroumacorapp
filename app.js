@@ -3211,14 +3211,33 @@ let shirtQty = 1;
 let logoState = {pintor: true, cali: true};
 let mktProducts = [];
 
-function mktTab(el, tab) {
-  document.querySelectorAll('.mkt-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
+// Mesma classificação automática do portal (marca/tipo no nome do produto).
+// A ordem importa: o primeiro menu cuja palavra-chave casar vence.
+const MKT_MENUS = [
+  { key:'arte_urbana',  label:'🎨 Arte Urbana & Spray',   kw:['arte urbana','colorgin','spray','aerossol','aerosol','grafit','graffit'] },
+  { key:'tintas',       label:'🪣 Tintas',                 kw:['tinta','esmalte','latex','látex','acrilic','acrílic','verniz','primer','seladora','fundo preparador','base coat','automotiva','suvinil','coral','sherwin'] },
+  { key:'texturas',     label:'🧱 Texturas & Massas',      kw:['textura','grafiato','massa corrida','massa acrilic','massa pva','reboco','chapisco'] },
+  { key:'epoxi',        label:'⚗️ Epóxi & Poliuretano',    kw:['epoxi','epóxi','poliuretano',' pu '] },
+  { key:'solventes',    label:'💧 Solventes & Aditivos',   kw:['thinner','solvente','diluente','aguarras','aguarrás','acelerador','secante','catalisador','endurecedor','aditivo','redutor','removedor'] },
+  { key:'adesivos',     label:'🧪 Adesivos & Colas',       kw:['adesivo','cola','silicone','vedante','veda calha','rejunte','massa epox','durepoxi'] },
+  { key:'ferramentas',  label:'🧰 Ferramentas',            kw:['alicate','tesoura','chave','martelo','abre trinca','espatula','espátula','desempenadeira','colher de pedreiro','trena','serra','furadeira','broca','lixadeira','estilete','formao','formão','grosa','lima','torques'] },
+  { key:'pintura',      label:'🖌️ Acessórios de Pintura',  kw:['rolo','pincel','trincha','bandeja','fita crepe','fita','lixa','cabo extensor','extensor','gaiola','luva','mascara','máscara','respirador','oculos','óculos','lona','plastico','plástico','crepe'] },
+  { key:'eletrica',     label:'🔌 Elétrica',               kw:['tomada','adaptador','extens','lampada','lâmpada','disjuntor','filtro de linha','benjamim','fio ','interruptor'] },
+  { key:'equipamentos', label:'🛠️ Equipamentos',           kw:['aerografo','aerógrafo','compressor','pistola','maquina','máquina','pulverizador','airless'] },
+];
+const MKT_MENU_LABEL = Object.assign({ outros:'📦 Outros' }, ...MKT_MENUS.map(m => ({ [m.key]: m.label })));
+function mktClassify(p){
+  const n = (' ' + (p && p.name || '') + ' ').toLowerCase();
+  for(const m of MKT_MENUS){ if(m.kw.some(k => n.includes(k))) return m.key; }
+  return 'outros';
+}
+
+function mktTab(key) {
+  document.querySelectorAll('.mkt-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-key') === key));
   const si = document.getElementById('mkt-search'); if(si) si.value = '';
   const ss = document.getElementById('mkt-search-section'); if(ss) ss.style.display = 'none';
-  ['tintas','texturas','epoxi','acessorios'].forEach(t => {
-    const el2 = document.getElementById('mkt-' + t);
-    if(el2) el2.style.display = t === tab ? 'block' : 'none';
+  document.querySelectorAll('#mkt-sections .mkt-menu-sec').forEach(s => {
+    s.style.display = s.getAttribute('data-key') === key ? 'block' : 'none';
   });
 }
 
@@ -3431,22 +3450,22 @@ function renderProductRow(p){
 
 function mktSearch(q){
   q = (q||'').trim().toLowerCase();
-  const cats = ['tintas','texturas','epoxi','acessorios'];
   const searchSec = document.getElementById('mkt-search-section');
+  const secs = document.querySelectorAll('#mkt-sections .mkt-menu-sec');
   if(!q){
     if(searchSec) searchSec.style.display = 'none';
+    const activeTab = document.querySelector('.mkt-tab.active');
+    const activeKey = activeTab ? activeTab.getAttribute('data-key') : null;
     let shown = false;
-    document.querySelectorAll('.mkt-tab').forEach((tb,i) => {
-      const el = document.getElementById('mkt-'+cats[i]);
-      if(!el) return;
-      const on = tb.classList.contains('active');
-      el.style.display = on ? 'block' : 'none';
+    secs.forEach(s => {
+      const on = s.getAttribute('data-key') === activeKey;
+      s.style.display = on ? 'block' : 'none';
       if(on) shown = true;
     });
-    if(!shown){ const el = document.getElementById('mkt-tintas'); if(el) el.style.display='block'; }
+    if(!shown && secs[0]) secs[0].style.display = 'block';
     return;
   }
-  cats.forEach(t => { const el = document.getElementById('mkt-'+t); if(el) el.style.display='none'; });
+  secs.forEach(s => { s.style.display = 'none'; });
   const res = (mktProducts||[]).filter(p =>
     (p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q));
   const grid = document.getElementById('mkt-search-grid');
@@ -3495,25 +3514,36 @@ async function loadMktProducts(){
     const { data, error } = await sb.from('products').select('*').eq('active', true).order('name');
     if(error) throw error;
     mktProducts = data || [];
-    const cats = { tintas:[], texturas:[], epoxi:[], acessorios:[] };
-    mktProducts.forEach(p => {
-      const cat = p.category || 'tintas';
-      if(!cats[cat]) cats[cat] = [];
-      cats[cat].push(p);
-    });
-    Object.entries(cats).forEach(([cat, items]) => {
-      const grid = document.getElementById('mkt-'+cat+'-grid');
-      if(!grid) return;
-      if(items.length === 0){
-        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto nesta categoria</div>';
+    const grouped = {};
+    mktProducts.forEach(p => { const k = mktClassify(p); (grouped[k] = grouped[k] || []).push(p); });
+    const orderedKeys = MKT_MENUS.map(m => m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);
+    const total = mktProducts.length;
+
+    const tabsEl = document.getElementById('mkt-tabs');
+    if(tabsEl){
+      tabsEl.innerHTML = orderedKeys.map((k, i) =>
+        '<div class="mkt-tab'+(i===0?' active':'')+'" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
+        + MKT_MENU_LABEL[k] + ' (' + grouped[k].length + ')</div>'
+      ).join('') || '<div class="mkt-tab active">Sem produtos</div>';
+    }
+
+    const secEl = document.getElementById('mkt-sections');
+    if(secEl){
+      if(orderedKeys.length === 0){
+        secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
       } else {
-        grid.innerHTML = items.map(p => renderProductRow(p)).join('');
+        secEl.innerHTML = orderedKeys.map((k, i) =>
+          '<div class="mkt-menu-sec" data-key="'+k+'" style="display:'+(i===0?'block':'none')+'">'
+          + '<div class="mkt-section-title">'+MKT_MENU_LABEL[k]+' · '+grouped[k].length+' itens <span style="color:var(--muted);font-weight:600;">(de '+total+' no total)</span></div>'
+          + '<div class="mkt-products">'+grouped[k].map(renderProductRow).join('')+'</div>'
+          + '</div>'
+        ).join('');
       }
-    });
+    }
   } catch(e){
     console.error('loadMktProducts error:', e);
-    const grid = document.getElementById('mkt-tintas-grid');
-    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Erro ao carregar produtos</div>';
+    const secEl = document.getElementById('mkt-sections');
+    if(secEl) secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Erro ao carregar produtos</div>';
   }
 }
 
