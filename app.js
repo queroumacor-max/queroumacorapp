@@ -3508,9 +3508,15 @@ function openProductDetail(productId){
   showModal('product-detail-modal');
 }
 
-async function loadMktProducts(){
+async function loadMktProducts(_attempt){
+  _attempt = _attempt || 0;
+  const setSec = (msg) => { const el = document.getElementById('mkt-sections'); if(el) el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
   const sb = getSupabase();
-  if(!sb) return;
+  if(!sb){
+    if(_attempt < 20){ setTimeout(() => loadMktProducts(_attempt + 1), 500); return; }
+    setSec('Não foi possível conectar. <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+    return;
+  }
   try {
     const PAGE = 1000;
     const byId = new Map();
@@ -3553,8 +3559,7 @@ async function loadMktProducts(){
     }
   } catch(e){
     console.error('loadMktProducts error:', e);
-    const secEl = document.getElementById('mkt-sections');
-    if(secEl) secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Erro ao carregar produtos</div>';
+    setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
   }
 }
 
