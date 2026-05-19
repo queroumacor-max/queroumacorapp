@@ -29,7 +29,8 @@ Regras:
 - Use 6 dígitos hex com #. Ex: "#f5f5f0".
 - Se o produto NÃO for uma cor (ex.: ferramenta, fita, solvente, massa, acessório) ou for impossível deduzir, use null.
 - Para códigos conhecidos (ex.: SW 7063 = Nebulous White) use a cor real da marca.
-- Não invente cores vivas para produtos neutros; tinta de parede costuma ser tom suave.`;
+- Não invente cores vivas para produtos neutros; tinta de parede costuma ser tom suave.
+- DIFERENCIE variações da mesma cor base: "Vermelho Ferrari", "Vermelho Goiaba" e "Vermelho Malagueta" são vermelhos DIFERENTES — cada nome único deve ter um hex próprio. NUNCA repita o mesmo hex para nomes de cor diferentes; ajuste o tom conforme o qualificador (ex.: Goiaba mais rosado, Malagueta mais alaranjado/escuro, Ferrari vermelho puro vivo).`;
 
   const userPrompt = 'Produtos:\n' + list.map(it =>
     `- id="${it.id}" nome="${it.name}"${it.code ? ` codigo="${it.code}"` : ''}`
