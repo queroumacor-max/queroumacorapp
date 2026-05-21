@@ -26,6 +26,7 @@ function showScreen(n){
   if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
   if(n==='myprofile'){ loadMyProfileData(); refreshProStatus(); }
   if(n==='chat'){ loadChatList(); const cb=document.getElementById('chat-badge-dot'); if(cb) cb.style.display='none'; }
+  if(n==='search'){ const sr=document.getElementById('search-results'); if(sr) sr.innerHTML = getSearchEmpty(); }
   if(n==='notif') loadNotifications();
   if(n==='pedidos') loadPedidos();
   if(n==='avaliar') loadAvaliarScreen();

@@ -376,11 +376,65 @@ function doLogout() {
 
 // ══ SEARCH PEOPLE ══
 function getSearchEmpty(){
-  return `<div style="text-align:center;padding:60px 20px;color:var(--muted);">
-    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Buscar pessoas</div>
-    <div style="font-size:13px;">Encontre pintores e clientes pelo @tag ou nome</div>
-  </div>`;
+  setTimeout(loadPeopleSuggestions, 0);
+  return `<div style="padding:14px 14px 4px;">
+    <div style="font-size:13px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.5px;">Sugestões para você</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Pessoas que você pode seguir</div>
+  </div>
+  <div id="people-suggestions"><div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Carregando sugestões...</div></div>`;
+}
+
+async function loadPeopleSuggestions(){
+  const box = document.getElementById('people-suggestions');
+  if(!box) return;
+  const sb = getSupabase();
+  if(!sb){ setTimeout(loadPeopleSuggestions, 500); return; }
+  try {
+    const res = await sb.from('profiles').select('id, name, tag, avatar_url, user_type, role, city, created_at').order('created_at', { ascending: false }).limit(60);
+    if(res.error){ box.innerHTML='<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Não foi possível carregar sugestões.</div>'; return; }
+    let people = res.data || [];
+    const myId = currentUser ? currentUser.id : null;
+    let followingIds = [];
+    if(myId){
+      const { data: fd } = await sb.from('follows').select('following_id').eq('follower_id', myId);
+      if(fd) followingIds = fd.map(f => f.following_id);
+    }
+    let myCity = '';
+    if(myId){
+      const { data: mp } = await sb.from('profiles').select('city').eq('id', myId).maybeSingle();
+      myCity = ((mp && mp.city) || '').toLowerCase();
+    }
+    people = people.filter(p => p.id !== myId && !followingIds.includes(p.id));
+    // Mesma cidade primeiro (proxy de "distância" enquanto não temos lat/lng)
+    if(myCity){
+      people.sort((a,b) => {
+        const sa = ((a.city||'').toLowerCase()===myCity)?0:1;
+        const sb_ = ((b.city||'').toLowerCase()===myCity)?0:1;
+        return sa - sb_;
+      });
+    }
+    people = people.slice(0, 18);
+    if(people.length === 0){
+      box.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Sem sugestões no momento.</div>';
+      return;
+    }
+    box.innerHTML = people.map(p => {
+      const isPintor = isProfessionalRole(p.role) || isProfessionalRole(p.user_type);
+      const roleBadge = isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>' : '';
+      const avatarUrl = p.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name||'?') + '&background=e8e2d9&color=1a1a2e&size=96';
+      const tagDisplay = p.tag ? '@' + p.tag : '';
+      return `<div class="search-result-item" onclick="openUserProfile('${p.id}')">
+        <div class="search-result-avatar"><img src="${avatarUrl}" alt=""></div>
+        <div class="search-result-info">
+          <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
+          <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay && p.city ? ' · ' : ''}${escapeHtml(p.city||'')}</div>
+        </div>
+        <button class="search-result-follow follow" onclick="event.stopPropagation();toggleFollow('${p.id}',this)">Seguir</button>
+      </div>`;
+    }).join('');
+  } catch(e){
+    box.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Erro ao carregar sugestões.</div>';
+  }
 }
 
 let searchTimeout;

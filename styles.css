@@ -23,7 +23,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 @media(max-width:900px){.app{max-width:100%;box-shadow:none;}.bot-nav{max-width:100%;}.overlay{max-width:100%;}.splash-canvas{max-width:100%;}}
 
 /* TOP NAV */
-.top-nav{min-height:var(--nav-h);background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 18px;padding-top:env(safe-area-inset-top);flex-shrink:0;position:relative;overflow:hidden;}
+.top-nav{min-height:var(--nav-h);background:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 max(18px, env(safe-area-inset-right)) 0 max(18px, env(safe-area-inset-left));padding-top:env(safe-area-inset-top);flex-shrink:0;position:relative;overflow:hidden;}
 .top-nav::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,.03) 40px,rgba(255,255,255,.03) 41px);}
 .logo{font-family:'Syne',sans-serif;font-size:21px;font-weight:800;color:var(--white);letter-spacing:-0.5px;position:relative;}
 .logo span{color:var(--p1);}
