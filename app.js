@@ -2017,7 +2017,28 @@ async function openEditProfile(){
       if(preview) preview.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(meta.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
     }
   } catch(e){ console.warn('openEditProfile error:', e); }
+  const r = document.getElementById('ep-radius');
+  if(r) r.value = localStorage.getItem('quc_service_radius') || '';
   showModal('edit-profile-modal');
+}
+
+function openEditProfileAt(section){
+  openEditProfile().then(() => {
+    setTimeout(() => {
+      const sheet = document.querySelector('#edit-profile-modal .sheet');
+      if(section === 'specs'){
+        const el = document.getElementById('ep-specs-wrap');
+        if(el && sheet){ sheet.scrollTop = el.offsetTop - 16; }
+        const list = document.getElementById('ep-specs-list');
+        if(list && list.style.display === 'none') toggleEpSpecs();
+      } else if(section === 'radius'){
+        const el = document.getElementById('ep-radius-wrap');
+        if(el && sheet){ sheet.scrollTop = el.offsetTop - 16; }
+        const sel = document.getElementById('ep-radius');
+        if(sel) sel.focus();
+      }
+    }, 80);
+  });
 }
 
 function _epSpecRole(role){
@@ -2082,6 +2103,11 @@ async function saveEditProfile(){
   }
   const btn = document.getElementById('ep-save-btn');
   btn.textContent = 'Salvando...'; btn.disabled = true;
+  const radiusEl = document.getElementById('ep-radius');
+  if(radiusEl){
+    if(radiusEl.value) localStorage.setItem('quc_service_radius', radiusEl.value);
+    else localStorage.removeItem('quc_service_radius');
+  }
   try {
     const updates = {
       name: document.getElementById('ep-name').value.trim(),
