@@ -42,7 +42,43 @@ let _feedLoaded = false;
 async function initAuth() {
   const sb = getSupabase();
   if (!sb) return;
+
+  // Detect password recovery redirect via URL hash (Supabase appends #type=recovery)
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const isRecovery = hashParams.get('type') === 'recovery';
+
   const { data: { session } } = await sb.auth.getSession();
+
+  if (isRecovery) {
+    currentUser = session ? session.user : null;
+    // Clean the recovery hash from URL without triggering navigation
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    showScreen('feed');
+    // Small delay so the feed screen renders before the modal opens
+    setTimeout(() => { if(typeof showModal === 'function') showModal('reset-pw-modal'); }, 80);
+    sb.auth.onAuthStateChange((event, session) => {
+      if(event === 'PASSWORD_RECOVERY') return; // already handled above
+      currentUser = session ? session.user : null;
+      invalidateMyProfile();
+      if(currentUser){
+        if(typeof loadUserState==='function') loadUserState();
+        autoDetectRole();
+        setupGlobalMsgSubscription();
+        setupNotifSubscription();
+        setupPipelineSubscription();
+        refreshProStatus();
+        checkAdminEntry();
+        if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
+      } else {
+        _isPro = false; _isAdmin = false; _feedLoaded = false;
+        if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
+        if(typeof _notifSub !== 'undefined' && _notifSub){ _notifSub.unsubscribe(); _notifSub=null; }
+        if(typeof _pipelineSub !== 'undefined' && _pipelineSub){ _pipelineSub.unsubscribe(); _pipelineSub=null; }
+      }
+    });
+    return;
+  }
+
   if (session) {
     currentUser = session.user;
     if(typeof loadUserState==='function') loadUserState();
@@ -66,7 +102,7 @@ async function initAuth() {
     invalidateMyProfile();
     if(event === 'PASSWORD_RECOVERY'){
       if(typeof showScreen === 'function') showScreen('feed');
-      if(typeof showModal === 'function') showModal('reset-pw-modal');
+      setTimeout(() => { if(typeof showModal === 'function') showModal('reset-pw-modal'); }, 80);
       return;
     }
     if(currentUser){
