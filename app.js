@@ -4418,6 +4418,8 @@ async function loadPosts(feedIds, append){
 }
 
 async function loadMoreFeed(btn){
+  // Evita duplicar a página 1 se clicado antes do feed inicial estabelecer o offset
+  if(_feedOffset === 0) return;
   if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
   await loadPosts(null, true);
 }
