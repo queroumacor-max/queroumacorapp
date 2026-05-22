@@ -1759,7 +1759,9 @@ function prefillNovoProjeto(){
 }
 
 // ══ CHECKLIST DE OBRA ══
-let _checklistItems = JSON.parse(localStorage.getItem('checklistItems')||'[]');
+let _checklistItems = [];
+let _checklistRowId = null;
+let _checklistSaveQueue = Promise.resolve();
 const _checklistTemplates = {
   pintura: ['Proteger pisos com lona','Fita crepe em rodapés e batentes','Lixar paredes (lixa 150)','Aplicar massa corrida','Lixar massa (lixa 220)','Aplicar selador','1ª demão de tinta','2ª demão de tinta','Retoques finais','Limpeza do local'],
   textura: ['Proteger pisos e móveis','Preparar massa texturizada','Aplicar base/selador','Aplicar textura com desempenadeira','Aguardar secagem (4h)','Pintar sobre textura','Retoques','Limpeza'],
@@ -1788,7 +1790,41 @@ function loadChecklistTemplate(type){
   saveChecklist(); renderChecklist();
 }
 
-function saveChecklist(){ localStorage.setItem('checklistItems', JSON.stringify(_checklistItems)); }
+async function loadChecklist(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ _checklistItems = []; _checklistRowId = null; renderChecklist(); return; }
+  try {
+    const { data } = await sb.from('checklists').select('id, items')
+      .eq('user_id', currentUser.id).order('created_at',{ascending:false}).limit(1);
+    if(data && data.length){
+      _checklistRowId = data[0].id;
+      _checklistItems = Array.isArray(data[0].items) ? data[0].items : [];
+    } else { _checklistRowId = null; _checklistItems = []; }
+  } catch(e){ console.warn('loadChecklist:', e && e.message || e); _checklistItems = []; _checklistRowId = null; }
+  renderChecklist();
+}
+
+// Salva no Supabase. Os saves são enfileirados para que o primeiro
+// INSERT termine (e fixe _checklistRowId) antes do próximo, evitando
+// criar linhas duplicadas em cliques rápidos.
+function saveChecklist(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  const snapshot = JSON.parse(JSON.stringify(_checklistItems));
+  _checklistSaveQueue = _checklistSaveQueue.then(async () => {
+    try {
+      if(_checklistRowId){
+        await sb.from('checklists').update({ items: snapshot })
+          .eq('id', _checklistRowId).eq('user_id', currentUser.id);
+      } else {
+        const { data } = await sb.from('checklists')
+          .insert({ user_id: currentUser.id, title: 'Checklist de Obra', items: snapshot })
+          .select('id').single();
+        if(data && data.id) _checklistRowId = data.id;
+      }
+    } catch(e){ console.warn('saveChecklist:', e && e.message || e); }
+  });
+}
 
 // ══ ANOTAÇÕES (notas do pintor) ══
 async function loadNotes(){
@@ -2305,7 +2341,7 @@ function getMediaType(file){
 // ══ MODAL LOADERS (called on open) ══
 (function(){
   const _orig = showModal;
-  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'auto-resp-modal':loadAutoRespostas,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints,'notes-modal':loadNotes};
+  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'auto-resp-modal':loadAutoRespostas,'checklist-modal':loadChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints,'notes-modal':loadNotes};
   showModal = function(id){ _orig(id); if(_loaders[id]) _loaders[id](); };
 })();
 
@@ -2380,6 +2416,7 @@ async function loadChatList(){
   const container = document.getElementById('conv-list');
   if(!currentUser || !container) return;
   const myId = currentUser.id;
+  loadArchivedConvs();
 
   // 1) Render from localStorage FIRST (instant)
   const localConvs = loadConvsLocal();
@@ -2912,7 +2949,13 @@ async function openEditProfile(){
     }
   } catch(e){ console.warn('openEditProfile error:', e); }
   const r = document.getElementById('ep-radius');
-  if(r) r.value = localStorage.getItem('quc_service_radius') || '';
+  if(r){
+    r.value = '';
+    try {
+      const { data: pr } = await sb.from('profiles').select('service_radius').eq('id', currentUser.id).single();
+      if(pr && pr.service_radius != null) r.value = pr.service_radius;
+    } catch(e){ console.warn('load service_radius:', e && e.message || e); }
+  }
   showModal('edit-profile-modal');
 }
 
@@ -2998,10 +3041,7 @@ async function saveEditProfile(){
   const btn = document.getElementById('ep-save-btn');
   btn.textContent = 'Salvando...'; btn.disabled = true;
   const radiusEl = document.getElementById('ep-radius');
-  if(radiusEl){
-    if(radiusEl.value) localStorage.setItem('quc_service_radius', radiusEl.value);
-    else localStorage.removeItem('quc_service_radius');
-  }
+  const radiusToSave = (radiusEl && radiusEl.value) ? (parseInt(radiusEl.value,10) || null) : null;
   try {
     const updates = {
       name: document.getElementById('ep-name').value.trim(),
@@ -3117,6 +3157,12 @@ async function saveEditProfile(){
         if(emErr) console.warn('email nao persistido (rode o supabase_init.sql):', emErr.message);
       } catch(e){ console.warn('email update falhou:', e); }
     }
+    // Raio de atendimento: best-effort (coluna pode nao existir se o SQL
+    // nao foi rodado; nao deve derrubar o resto do salvamento)
+    try {
+      const { error: rErr } = await sb.from('profiles').update({ service_radius: radiusToSave }).eq('id', currentUser.id);
+      if(rErr) console.warn('service_radius nao persistido (rode o SQL):', rErr.message);
+    } catch(e){ console.warn('service_radius update falhou:', e); }
     console.log('Profile saved successfully, avatar_url:', updates.avatar_url || '(unchanged)');
     toast('Perfil salvo!');
     closeModals();
@@ -6327,8 +6373,26 @@ function loadLocalPaintersOnMap(){
 // ══════════════════════════════
 //  CHANGE 4: ARCHIVE CONVERSATIONS
 // ══════════════════════════════
-let archivedConvs = JSON.parse(localStorage.getItem('quc_archived_convs') || '[]');
+let archivedConvs = [];
 let archivedExpanded = false;
+
+async function loadArchivedConvs(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  try {
+    const { data } = await sb.from('profiles').select('archived_conversations').eq('id', currentUser.id).single();
+    if(data && Array.isArray(data.archived_conversations)){
+      archivedConvs = data.archived_conversations;
+      applyArchivedState();
+    }
+  } catch(e){ console.warn('loadArchivedConvs:', e && e.message || e); }
+}
+function saveArchivedConvs(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  sb.from('profiles').update({ archived_conversations: archivedConvs }).eq('id', currentUser.id)
+    .then(({ error }) => { if(error) console.warn('saveArchivedConvs:', error.message); });
+}
 
 function initArchiveButtons(){
   document.querySelectorAll('.conv-item[data-conv-id]').forEach(item => {
@@ -6351,7 +6415,7 @@ function initArchiveButtons(){
 function archiveConversation(convId){
   if(!archivedConvs.includes(convId)){
     archivedConvs.push(convId);
-    localStorage.setItem('quc_archived_convs', JSON.stringify(archivedConvs));
+    saveArchivedConvs();
     toast('Conversa arquivada');
     applyArchivedState();
   }
@@ -6359,7 +6423,7 @@ function archiveConversation(convId){
 
 function unarchiveConversation(convId){
   archivedConvs = archivedConvs.filter(id => id !== convId);
-  localStorage.setItem('quc_archived_convs', JSON.stringify(archivedConvs));
+  saveArchivedConvs();
   toast('Conversa desarquivada');
   applyArchivedState();
 }
