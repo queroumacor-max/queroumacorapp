@@ -2229,7 +2229,7 @@ function abrirOrcamentoChat(painterId, painterName){
   document.body.appendChild(overlay);
 }
 
-function enviarOrcamentoForm(){
+async function enviarOrcamentoForm(){
   const p = window._orcPainter || {};
   const painterId = p.id;
   const painterName = p.name || '';
@@ -2254,9 +2254,30 @@ function enviarOrcamentoForm(){
 
   if(partes.length === 1){ toast('Preencha pelo menos um campo'); return; }
 
+  // Cria o pedido no pipeline do profissional e dispara a notificação.
+  const sb = getSupabase();
+  if(sb && currentUser && painterId && painterId !== currentUser.id){
+    const serviceType = (tipo && tipo !== 'Selecione…') ? tipo : 'Solicitação de orçamento';
+    try {
+      const { data: q } = await sb.from('quotes').insert({
+        client_id: currentUser.id,
+        painter_id: painterId,
+        title: serviceType,
+        service_type: serviceType,
+        description: partes.slice(1).join('\n') || null,
+        status: 'pending',
+        lead_type: 'exclusive'
+      }).select('id').single();
+      const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
+      await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
+        meuNome + ' solicitou um orçamento. Veja no seu pipeline.', q && q.id);
+    } catch(e){ console.warn('enviarOrcamentoForm quote:', e); }
+  }
+
   const overlay = document.getElementById('orc-chat-overlay');
   if(overlay) overlay.remove();
   window._orcPainter = null;
+  toast('Pedido de orçamento enviado! ✅');
 
   window._orcPreMsg = partes.join('\n');
   showScreen('chat');
@@ -3713,6 +3734,12 @@ async function sendOrc(){
   } else {
     // Auto-distribute lead if no specific painter
     if(!painterId && quoteData) distribuirLead(quoteData.id, serviceType, address);
+    // Notifica o profissional do pedido recebido
+    if(painterId && quoteData){
+      const meuNome = (session.user.user_metadata && session.user.user_metadata.name) || 'Um cliente';
+      notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
+        meuNome + ' solicitou um orçamento. Veja no seu pipeline.', quoteData.id);
+    }
     // Award points for quote request
     if(typeof earnPoints==='function') earnPoints(session.user.id, 5, 'quote_request');
     toast('✅ Solicitação enviada com sucesso!');
