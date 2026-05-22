@@ -590,10 +590,8 @@ async function renderRealProfileTabs(userId, name){
   const screen = document.getElementById('screen-profile');
   if(!screen) return;
   const esc = s => String(s||'').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-
-  // Esconde o bloco "Antes/Depois" mock no perfil real
-  const baBlock = screen.querySelector('#tab-works > div[onclick^="toggleBA"]');
-  if(baBlock) baBlock.style.display = 'none';
+  // Empty state amigável reutilizável
+  const emptyState = (icon, msg) => `<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 20px;"><div style="font-size:36px;margin-bottom:10px;">${icon}</div><div style="font-size:14px;">${msg}</div></div>`;
 
   try {
     const { data: posts } = await sb.from('posts').select(POST_COLS)
@@ -608,13 +606,13 @@ async function renderRealProfileTabs(userId, name){
     if(worksGrid){
       worksGrid.innerHTML = imgs.length
         ? imgs.map(p => `<div class="works-grid-item"><img src="${esc(p.media_url)}" alt="" loading="lazy"></div>`).join('')
-        : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px;font-size:13px;">Sem trabalhos publicados ainda.</div>';
+        : emptyState('🎨', 'Portfólio em construção');
     }
     const vidsGrid = screen.querySelector('#tab-vids .works-grid');
     if(vidsGrid){
       vidsGrid.innerHTML = vids.length
         ? vids.map(p => `<div class="works-grid-item" style="position:relative"><video src="${esc(p.media_url)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;"><span style="font-size:26px;color:#fff;">▶</span></div></div>`).join('')
-        : '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:30px;font-size:13px;">Sem vídeos publicados ainda.</div>';
+        : emptyState('🎬', 'Nenhum vídeo publicado ainda');
     }
   } catch(e){ console.warn('renderRealProfileTabs posts:', e); }
 
@@ -628,7 +626,7 @@ async function renderRealProfileTabs(userId, name){
             <div class="cert-ic" style="background:var(--cream);font-size:22px;">${esc(q.icon||'🎓')}</div>
             <div class="cert-txt" style="flex:1"><div class="cert-n">${esc(q.title)}</div><div class="cert-o">${esc(q.org||'')}${q.year?' · '+esc(q.year):''}</div></div>
           </div>`).join('')
-        : '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Nenhuma formação cadastrada.</div>';
+        : emptyState('🎓', 'Nenhuma formação cadastrada');
     }
   } catch(e){ console.warn('renderRealProfileTabs quals:', e); }
 
@@ -650,12 +648,12 @@ async function renderRealProfileTabs(userId, name){
               </div>
             </div>
           </div>`).join('')
-        : '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:36px;margin-bottom:10px;">📚</div><div style="font-size:14px;">Nenhum curso publicado ainda.</div></div>';
+        : emptyState('📚', 'Nenhum curso publicado');
     }
   } catch(e){ console.warn('renderRealProfileTabs courses:', e); }
 
   const revList = screen.querySelector('#tab-reviews .reviews-list');
-  if(revList) revList.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Avaliações aparecerão aqui após serviços concluídos.</div>';
+  if(revList) revList.innerHTML = emptyState('⭐', 'Nenhuma avaliação ainda');
 }
 
 // Start a chat with a user from their profile

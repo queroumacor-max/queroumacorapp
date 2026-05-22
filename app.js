@@ -1,7 +1,7 @@
 // ══ SCREENS ══
-const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas','info','pipeline','crm'];
+const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','avaliar','mkt','camisetas','info','pipeline','crm'];
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
-const noNav=['login','signup','chatconv','chat-conv'];
+const noNav=['login','signup','chatconv'];
 function showScreen(n, _fromPop){
   screens.forEach(s=>{
     const el=document.getElementById('screen-'+s);
@@ -9,7 +9,7 @@ function showScreen(n, _fromPop){
   });
   Object.values(bnMap).forEach(id=>{document.getElementById(id)?.classList.remove('active');});
   if(bnMap[n])document.getElementById(bnMap[n]).classList.add('active');
-  if(['pedidos','chat-conv','avaliar','camisetas','info','pipeline','crm'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
+  if(['pedidos','avaliar','camisetas','info','pipeline','crm'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
   if(['chatconv'].includes(n)){/* chat is in top nav, no bottom nav highlight */}
   const topNav=document.querySelector('.top-nav');
   const botNav=document.querySelector('.bot-nav');
@@ -20,7 +20,6 @@ function showScreen(n, _fromPop){
   closeModals();
   const pp=document.getElementById('painter-popup');
   if(pp)pp.classList.remove('show');
-  if(n==='chat-conv'){setTimeout(()=>{const b=document.getElementById('chat-body');if(b)b.scrollTop=b.scrollHeight;},150);}
   if(n==='chatconv'){setTimeout(()=>{const a=document.getElementById('msgs-area');if(a)a.scrollTop=a.scrollHeight;},150);}
   if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ loadFeed(); }
   if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
@@ -281,8 +280,19 @@ function showPainterCard(id){
   document.getElementById('pp-name').textContent=p.name;
   document.getElementById('pp-sub').textContent=p.sub||p.city+' · '+p.specs?.[0];
   document.getElementById('pp-stars').textContent='★'.repeat(Math.floor(p.rating))+' '+p.rating.toFixed(1)+' · '+p.total+' avaliações';
-  document.getElementById('painter-popup').classList.add('show');
-  document.getElementById('painter-popup').querySelector('.pp-btn').onclick=()=>openProfile(id);
+  const pop=document.getElementById('painter-popup');
+  pop.dataset.painterId=id;
+  pop.classList.add('show');
+  pop.querySelector('.pp-btn').onclick=()=>openProfile(id);
+}
+// "Ver perfil" no popup do mapa — abre o perfil real do profissional guardado em data-painter-id
+function openPainterPopupProfile(){
+  const pop=document.getElementById('painter-popup');
+  const id=pop && pop.dataset ? pop.dataset.painterId : null;
+  if(!id) return;
+  pop.classList.remove('show');
+  if(painters && painters[id]){ openProfile(id); }
+  else if(typeof openUserProfile==='function'){ openUserProfile(id); }
 }
 function mapChip(el){
   el.closest('.map-filters-row').querySelectorAll('.map-chip').forEach(c=>c.classList.remove('active'));
@@ -1972,9 +1982,11 @@ async function distribuirLead(quoteId, serviceType, city){
 
 // ══ PEDIR ORÇAMENTO VIA POST ══
 function pedirOrcamentoPost(painterId, painterName){
-  document.getElementById('orc-painter-id').value = painterId;
-  const nameEl = document.querySelector('#screen-orcamento .orc-painter-name');
-  if(nameEl) nameEl.textContent = painterName;
+  document.getElementById('orc-painter-id').value = painterId || '';
+  const nameEl = document.getElementById('orc-painter-name');
+  const avEl = document.getElementById('orc-painter-av');
+  if(nameEl) nameEl.textContent = painterName || 'Profissional';
+  if(avEl) avEl.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(painterName||'Profissional')+'&background=e8e2d9&color=1a1a2e&size=96';
   showScreen('orcamento');
 }
 
@@ -5449,6 +5461,41 @@ async function deleteCurrentPost(){
   } catch(e){ toast('Erro ao deletar'); console.warn(e); }
 }
 
+// Report post
+let _reportPostId = null;
+let _reportUserId = null;
+
+function reportPost(){
+  if(!currentUser){ toast('Faça login para denunciar'); return; }
+  if(!_currentOptPostId){ toast('Post não encontrado'); return; }
+  _reportPostId = _currentOptPostId;
+  _reportUserId = _currentOptUserId;
+  showModal('report-reason-modal');
+}
+
+async function submitReport(reason){
+  closeModals();
+  if(!currentUser || !_reportPostId){ toast('Não foi possível enviar a denúncia'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Não foi possível enviar a denúncia'); return; }
+  try {
+    const { error } = await sb.from('reports').insert({
+      reporter_id: currentUser.id,
+      post_id: _reportPostId,
+      target_user_id: _reportUserId || null,
+      reason: reason
+    });
+    if(error){ toast('Erro ao enviar denúncia: ' + error.message); return; }
+    toast('Denúncia enviada. Obrigado — nossa equipe vai analisar.');
+  } catch(e){
+    console.warn('submitReport error:', e);
+    toast('Erro ao enviar denúncia');
+  } finally {
+    _reportPostId = null;
+    _reportUserId = null;
+  }
+}
+
 // Story delete
 async function deleteCurrentStory(){
   if(!currentUser) return;
@@ -5972,9 +6019,11 @@ async function loadMapPainters(){
           document.getElementById('pp-name').textContent = p.name || 'Pintor';
           document.getElementById('pp-sub').textContent = [p.city, p.state].filter(Boolean).join(', ') + (p.specialties ? ' - ' + p.specialties : '');
           document.getElementById('pp-stars').textContent = _starStr(p.rating_avg||0) + ' ' + Number(p.rating_avg||0).toFixed(1);
-          document.getElementById('painter-popup').classList.add('show');
+          const pop = document.getElementById('painter-popup');
+          pop.dataset.painterId = p.id;
+          pop.classList.add('show');
           const ppBtn = document.querySelector('#painter-popup .pp-btn');
-          if(ppBtn) ppBtn.onclick = () => { document.getElementById('painter-popup').classList.remove('show'); openUserProfile(p.id); };
+          if(ppBtn) ppBtn.onclick = () => { pop.classList.remove('show'); openUserProfile(p.id); };
         });
         mapMarkers.push(marker);
       }

@@ -381,7 +381,7 @@
           <div class="pp-sub" id="pp-sub">--</div>
           <div class="pp-stars" id="pp-stars">-----</div>
         </div>
-        <button class="pp-btn" onclick="return false;">Ver perfil</button>
+        <button class="pp-btn" onclick="openPainterPopupProfile()">Ver perfil</button>
       </div>
 
       <!-- Filters -->
@@ -448,28 +448,8 @@
     </div>
   </div>
 
-  <!-- RATING SUMMARY CARD (oculto até haver avaliações reais por pintor) -->
-  <div id="rating-card" style="display:none;margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);">
-    <div style="display:flex;align-items:center;gap:16px;">
-      <div style="text-align:center;flex-shrink:0;">
-        <div class="cr-big-score" style="font-size:48px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;line-height:1;">4.9</div>
-        <div style="color:var(--p1);font-size:16px;letter-spacing:2px;">★★★★★</div>
-        <div class="cr-total" style="font-size:11px;color:var(--muted);margin-top:3px;">187 avaliações</div>
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:5px;">
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">5</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:88%;height:100%;background:var(--p1);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">165</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">4</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:9%;height:100%;background:var(--p7);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">17</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">3</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:2%;height:100%;background:var(--p7);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">4</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">2</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:1%;height:100%;background:var(--p4);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">1</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">1</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:0%;height:100%;background:var(--p4);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">0</span></div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
-      <div style="text-align:center;"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">4.9</div><div style="font-size:10px;color:var(--muted);">Qualidade</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-      <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border);"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">4.8</div><div style="font-size:10px;color:var(--muted);">Pontualidade</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-      <div style="text-align:center;"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">5.0</div><div style="font-size:10px;color:var(--muted);">Limpeza</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-    </div>
-  </div>
+  <!-- RATING SUMMARY CARD (oculto; o JS popula quando houver avaliações reais) -->
+  <div id="rating-card" style="display:none;margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);"></div>
 
   <!-- PROFILE TABS -->
   <div class="profile-body" style="padding-top:14px;">
@@ -483,261 +463,32 @@
 
     <!-- PORTFOLIO TAB -->
     <div id="tab-works">
-      <!-- Featured BA -->
-      <div style="margin:0 0 3px;position:relative;cursor:pointer;" onclick="toggleBA('ba-p')">
-        <img id="ba-p-a" src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;transition:opacity .4s">
-        <img id="ba-p-b" src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;position:absolute;inset:0;opacity:0;transition:opacity .4s;display:block">
-        <div class="ba-label a" id="ba-p-la">ANTES</div>
-        <div class="ba-label d" id="ba-p-ld" style="opacity:.4">DEPOIS</div>
-        <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(26,26,46,.75);color:#fff;font-size:10px;padding:4px 12px;border-radius:20px;white-space:nowrap;">👆 Antes / Depois</div>
-      </div>
-      <div class="works-grid">
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1600585152220-90363fe7e115?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300" alt=""></div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula a grade com trabalhos reais -->
+      <div class="works-grid"></div>
     </div>
 
     <!-- VIDEOS TAB -->
     <div id="tab-vids" style="display:none;padding:10px 0;">
-      <div class="works-grid">
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">2:14</span>
-          </div>
-        </div>
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">1:47</span>
-          </div>
-        </div>
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">3:02</span>
-          </div>
-        </div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula a grade com vídeos reais -->
+      <div class="works-grid"></div>
     </div>
 
     <!-- FORMAÇÃO / CERTS TAB -->
     <div id="tab-certs" style="display:none;padding:14px;">
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Certificados verificados</div>
-      <div class="cert-list">
-        <div class="cert-card" style="border-left:3px solid var(--p6);">
-          <div class="cert-ic" style="background:#e8f5e9;font-size:22px;">🏆</div>
-          <div class="cert-txt" style="flex:1">
-            <div class="cert-n">Pintor Profissional Certificado</div>
-            <div class="cert-o">SENAI Nacional · 2022</div>
-          </div>
-          <span style="background:#e8f5e9;color:#2e7d32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;">✓ Verificado</span>
-        </div>
-        <div class="cert-card" style="border-left:3px solid var(--p3);">
-          <div class="cert-ic" style="background:#e0f7fa;font-size:22px;">🎨</div>
-          <div class="cert-txt" style="flex:1">
-            <div class="cert-n">Técnicas de Textura e Grafiato</div>
-            <div class="cert-o">Coral Tintas · 2021</div>
-          </div>
-          <span style="background:#e8f5e9;color:#2e7d32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;">✓ Verificado</span>
-        </div>
-        <div class="cert-card" style="border-left:3px solid var(--p5);">
-          <div class="cert-ic" style="background:#f3e5f5;font-size:22px;">⚗️</div>
-          <div class="cert-txt" style="flex:1">
-            <div class="cert-n">Piso Epóxi Industrial e Decorativo</div>
-            <div class="cert-o">3M Brasil · 2023</div>
-          </div>
-          <span style="background:#e8f5e9;color:#2e7d32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;">✓ Verificado</span>
-        </div>
-        <div class="cert-card" style="border-left:3px solid var(--p7);">
-          <div class="cert-ic" style="background:#fff8e1;font-size:22px;">💼</div>
-          <div class="cert-txt" style="flex:1">
-            <div class="cert-n">Gestão de Obras Residenciais</div>
-            <div class="cert-o">SEBRAE · 2023</div>
-          </div>
-          <span style="background:#e8f5e9;color:#2e7d32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;">✓ Verificado</span>
-        </div>
-      </div>
-
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 12px;">Especialidades</div>
-      <div class="spec-tags" style="display:flex;flex-wrap:wrap;gap:8px;">
-        <span style="background:var(--ink);color:#fff;padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Pintura residencial</span>
-        <span style="background:var(--ink);color:#fff;padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Textura</span>
-        <span style="background:var(--ink);color:#fff;padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Grafiato</span>
-        <span style="background:var(--ink);color:#fff;padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Piso Epóxi</span>
-        <span style="background:var(--border);color:var(--ink);padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Degradê</span>
-        <span style="background:var(--border);color:var(--ink);padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Stencil</span>
-        <span style="background:var(--border);color:var(--ink);padding:7px 14px;border-radius:20px;font-size:12.5px;font-weight:600;">Caiação</span>
-      </div>
-
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 12px;">Experiência</div>
-      <div style="background:var(--white);border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);">
-          <div>
-            <div style="font-size:13.5px;font-weight:700;">Autônomo — Pintor Profissional</div>
-            <div style="font-size:12px;color:var(--muted);">São Paulo, SP</div>
-          </div>
-          <div style="font-size:11px;color:var(--muted);text-align:right;">2012<br>— hoje</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <div style="font-size:13.5px;font-weight:700;">Construtora Horizonte</div>
-            <div style="font-size:12px;color:var(--muted);">Pintor de obras · São Paulo, SP</div>
-          </div>
-          <div style="font-size:11px;color:var(--muted);text-align:right;">2009<br>— 2012</div>
-        </div>
-      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Formação e certificados</div>
+      <!-- O JS (renderRealProfileTabs) popula com formações reais -->
+      <div class="cert-list"></div>
     </div>
 
     <!-- REVIEWS TAB -->
     <div id="tab-reviews" style="display:none;padding:14px;">
-      <!-- Filter chips -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;">
-        <div onclick="filterRev(this,'all')" class="rev-chip active-chip" style="background:var(--ink);color:#fff;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0;">Todos (187)</div>
-        <div onclick="filterRev(this,'5')" class="rev-chip" style="background:var(--border);color:var(--ink);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0;">★5 (165)</div>
-        <div onclick="filterRev(this,'4')" class="rev-chip" style="background:var(--border);color:var(--ink);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0;">★4 (17)</div>
-        <div onclick="filterRev(this,'3')" class="rev-chip" style="background:var(--border);color:var(--ink);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0;">★3 (4)</div>
-      </div>
-      <div class="reviews-list">
-        <div class="rev-card">
-          <div class="rev-head">
-            <div class="rev-av"><img src="https://i.pravatar.cc/150?img=20" alt=""></div>
-            <div style="flex:1">
-              <div class="rev-name">Fernanda Costa</div>
-              <div style="display:flex;gap:10px;align-items:center;">
-                <div class="rev-stars">★★★★★</div>
-                <div class="rev-date" style="margin:0">Mar 2025</div>
-              </div>
-            </div>
-          </div>
-          <div class="rev-text">"Excelente profissional! Pontual, caprichoso e deixou a casa impecável. O acabamento ficou perfeito. Vai contratar de novo com certeza!"</div>
-          <div style="display:flex;gap:6px;margin-top:8px;">
-            <img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=100" style="width:60px;height:60px;border-radius:8px;object-fit:cover;cursor:pointer" onclick="toast('Ver foto')">
-            <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=100" style="width:60px;height:60px;border-radius:8px;object-fit:cover;cursor:pointer" onclick="toast('Ver foto')">
-          </div>
-          <!-- Subcategory ratings -->
-          <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Qualidade</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Pontual</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Limpeza</div></div>
-          </div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-head">
-            <div class="rev-av"><img src="https://i.pravatar.cc/150?img=33" alt=""></div>
-            <div style="flex:1">
-              <div class="rev-name">Ricardo Alves</div>
-              <div style="display:flex;gap:10px;align-items:center;">
-                <div class="rev-stars">★★★★★</div>
-                <div class="rev-date" style="margin:0">Fev 2025</div>
-              </div>
-            </div>
-          </div>
-          <div class="rev-text">"Apartamento inteiro em 2 dias. Acabamento perfeito, limpeza impecável no final. Recomendo sem hesitar. 10/10!"</div>
-          <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Qualidade</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Pontual</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Limpeza</div></div>
-          </div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-head">
-            <div class="rev-av"><img src="https://i.pravatar.cc/150?img=44" alt=""></div>
-            <div style="flex:1">
-              <div class="rev-name">Marina Souza</div>
-              <div style="display:flex;gap:10px;align-items:center;">
-                <div style="color:var(--p1);font-size:14px;">★★★★</div><span style="color:var(--border);font-size:14px;">★</span>
-                <div class="rev-date" style="margin:0">Jan 2025</div>
-              </div>
-            </div>
-          </div>
-          <div class="rev-text">"Ótimo trabalho na textura da sala. Demorou um pouco mais que o previsto mas valeu a pena pelo resultado. Recomendo!"</div>
-          <div style="display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Qualidade</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--border);">★★★</div><div style="font-size:10px;color:var(--muted);">Pontual</div></div>
-            <div style="text-align:center;flex:1"><div style="font-size:12px;color:var(--p1);">★★★★★</div><div style="font-size:10px;color:var(--muted);">Limpeza</div></div>
-          </div>
-        </div>
-        <div style="text-align:center;padding:14px 0;">
-          <button onclick="toast('Carregando mais avaliações...')" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:9px 22px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;font-family:'DM Sans',sans-serif;">Ver todas as 187 avaliações</button>
-        </div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula com avaliações reais -->
+      <div class="reviews-list"></div>
     </div>
 
     <!-- CURSOS TAB -->
     <div id="tab-cursos" style="display:none;padding:14px;">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Cursos criados e ministrados por Carlos Silva</div>
-
-      <!-- Course card 1 -->
-      <div onclick="toast('Abrindo curso...')" style="background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px;cursor:pointer;">
-        <div style="position:relative;">
-          <img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;">
-          <div style="position:absolute;top:10px;left:10px;background:var(--p1);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">NOVO</div>
-          <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;">4h 30min</div>
-        </div>
-        <div style="padding:14px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Textura Veneziana do Zero ao Avançado</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Por Carlos Silva · 28 aulas · Certificado incluso</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="color:var(--p1);font-size:13px;">★★★★★</span>
-            <span style="font-size:12px;color:var(--muted);">4.9 (312 alunos)</span>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              <span style="font-size:18px;font-weight:800;color:var(--ink);">R$97</span>
-              <span style="font-size:12px;color:var(--muted);text-decoration:line-through;margin-left:6px;">R$197</span>
-            </div>
-            <button onclick="event.stopPropagation();toast('Adicionado ao carrinho!')" style="background:var(--p1);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Matricular</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Course card 2 -->
-      <div onclick="toast('Abrindo curso...')" style="background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px;cursor:pointer;">
-        <div style="position:relative;">
-          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;">
-          <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;">2h 15min</div>
-        </div>
-        <div style="padding:14px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Precificação para Pintores: Cobrar Certo</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Por Carlos Silva · 12 aulas · Planilha inclusa</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="color:var(--p1);font-size:13px;">★★★★★</span>
-            <span style="font-size:12px;color:var(--muted);">4.8 (189 alunos)</span>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              <span style="font-size:18px;font-weight:800;color:var(--ink);">R$47</span>
-            </div>
-            <button onclick="event.stopPropagation();toast('Adicionado ao carrinho!')" style="background:var(--p1);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Matricular</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Course card 3 - free -->
-      <div onclick="toast('Abrindo curso gratuito...')" style="background:var(--white);border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:12px;cursor:pointer;border:1.5px solid var(--p6);">
-        <div style="position:relative;">
-          <img src="https://images.unsplash.com/photo-1600585152220-90363fe7e115?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;filter:brightness(.85)">
-          <div style="position:absolute;top:10px;left:10px;background:var(--p6);color:var(--ink);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">GRATUITO</div>
-          <div style="position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;">45min</div>
-        </div>
-        <div style="padding:14px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Primeiros Passos na Pintura Profissional</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Por Carlos Silva · 5 aulas</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="color:var(--p1);font-size:13px;">★★★★★</span>
-            <span style="font-size:12px;color:var(--muted);">4.7 (1.204 alunos)</span>
-          </div>
-          <button onclick="event.stopPropagation();toast('Inscrito! Acesse na aba Meus Cursos')" style="width:100%;background:var(--p6);color:var(--ink);border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Inscrever Grátis</button>
-        </div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula com cursos reais -->
     </div>
 
   </div><!-- end profile-body -->
@@ -751,11 +502,10 @@
   </div>
   <div class="orc-body">
     <div class="orc-painter-card">
-      <div class="opc-av"><img src="https://i.pravatar.cc/150?img=11" alt=""></div>
+      <div class="opc-av"><img id="orc-painter-av" src="https://ui-avatars.com/api/?name=Profissional&background=e8e2d9&color=1a1a2e&size=96" alt=""></div>
       <div>
-        <div class="opc-name">Carlos Silva <span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;">PRO</span></div>
-        <div class="opc-stars">★★★★★ 4.9</div>
-        <div class="opc-sub">São Paulo, SP</div>
+        <div class="opc-name" id="orc-painter-name">Profissional</div>
+        <div class="opc-sub" id="orc-painter-sub"></div>
       </div>
     </div>
     <input type="hidden" id="orc-painter-id" value="">
@@ -769,10 +519,6 @@
     <div class="fg"><label class="fl">Endereço</label><input id="orc-address" type="text" class="fi" placeholder="Bairro, cidade"></div>
     <div class="fg"><label class="fl">Data desejada</label><input id="orc-date" type="date" class="fi"></div>
     <div class="fg"><label class="fl">Descrição</label><textarea id="orc-desc" class="fta" placeholder="Cores desejadas, estado das paredes, detalhes importantes..."></textarea></div>
-    <div class="photo-drop" onclick="toast('Câmera aberta!')">
-      <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      <span>Adicionar fotos do local</span>
-    </div>
     <button class="orc-submit" onclick="sendOrc()"><span>📩 Enviar Solicitação</span></button>
   </div>
 </div>
@@ -1434,68 +1180,6 @@
   </div>
 </div>
 
-<!-- ══ CHAT CONV (PINTOR↔CLIENTE) ══ -->
-<div class="screen" id="screen-chat-conv">
-  <div class="chat-screen-wrap" style="height:100%;display:flex;flex-direction:column;">
-    <div class="chat-header">
-      <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <div class="chat-pav"><img src="https://i.pravatar.cc/150?img=11" alt="Carlos"></div>
-      <div><div class="chat-pname">Carlos Silva</div><div class="chat-pstatus">🟢 Online agora</div></div>
-      <button onclick="toast('Perfil de Carlos')" style="margin-left:auto;background:none;border:none;cursor:pointer;">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      </button>
-    </div>
-    <div style="background:#f0f4f8;padding:10px 14px;font-size:12px;color:#555;text-align:center;border-bottom:1px solid var(--border);">
-      📋 Pedido: Pintura residencial · 80m² · Moema — <b style="color:var(--p1)">Aguardando resposta</b>
-      <span style="margin-left:8px;cursor:pointer;color:var(--p3);font-weight:600;" onclick="showScreen('chat');toast('Abrindo chat 3-way...')">+ Cali Colors</span>
-    </div>
-    <div class="chat-body" id="chat-body" style="flex:1;background:var(--cream);">
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Olá! Vi seu pedido de orçamento. Posso visitar amanhã às 14h para avaliar o serviço. Tem alguma preferência de horário?</div>
-        <div class="chat-time">Carlos · 10:32</div>
-      </div>
-      <div class="chat-msg sent">
-        <div class="chat-bubble">Oi Carlos! Pode ser 14h sim. Tenho preferência por tons neutros — off-white e creme. 🎨</div>
-        <div class="chat-time">Você · 10:45</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Perfeito! Trabalho muito com Coral Requinte e Suvinil Clássico nessas cores. Veja algumas referências do meu portfólio:</div>
-        <div class="chat-time">Carlos · 10:47</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-img-bubble"><img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=300" alt="Referência"></div>
-        <div class="chat-time">Carlos · 10:47</div>
-      </div>
-      <div class="chat-msg sent">
-        <div class="chat-bubble">Adorei! Especialmente a primeira foto. Qual o prazo estimado para 4 cômodos?</div>
-        <div class="chat-time">Você · 11:02</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Para 80m² de área total, estimo 3 dias úteis com acabamento premium. Aguarde meu orçamento formal até as 18h de hoje!</div>
-        <div class="chat-time">Carlos · 11:08</div>
-      </div>
-      <div id="chat-typing" style="display:none" class="chat-msg recv">
-        <div class="chat-bubble" style="padding:10px 16px;">
-          <span style="display:inline-flex;gap:4px;align-items:center">
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite 0s"></span>
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite .2s"></span>
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite .4s"></span>
-          </span>
-        </div>
-      </div>
-    </div>
-    <div class="chat-input-row">
-      <button onclick="document.getElementById('chat-file-input').click()" style="background:none;border:none;cursor:pointer;padding:4px;">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input class="chat-input" id="chat-input-field" type="text" placeholder="Mensagem...">
-      <button class="chat-send" onclick="sendChatMsg()">
-        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ AVALIAR SCREEN ══ -->
 <div class="screen" id="screen-avaliar">
   <div class="orc-header">
@@ -1531,11 +1215,7 @@
       <div class="criteria-chip" onclick="toggleCriteria(this)">⚡ Rápido</div>
       <div class="criteria-chip" onclick="toggleCriteria(this)">🎨 Criativo</div>
     </div>
-    <div style="font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 8px;">Fotos do resultado (opcional)</div>
-    <div class="foto-obra-row">
-      <div class="foto-obra-add" onclick="toast('📷 Adicionar foto')">+</div>
-    </div>
-    <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">Comentário (opcional)</div>
+    <div style="font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 8px;">Comentário (opcional)</div>
     <textarea class="avaliar-ta" id="avalia-ta" placeholder="Conte como foi a experiência..."></textarea>
     <button class="avaliar-submit" onclick="submitAvaliacao()">⭐ Publicar Avaliação</button>
   </div>
@@ -1722,24 +1402,18 @@
     <div class="sheet-opt" onclick="saveCurrentPost();closeModals()"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar</div>
     <div class="sheet-opt" onclick="copyCurrentPostLink();closeModals()"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copiar link</div>
     <div id="opt-delete-post" class="sheet-opt danger" style="display:none" onclick="deleteCurrentPost();closeModals()"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Deletar post</div>
-    <div class="sheet-opt danger" onclick="toast('Denuncia enviada');closeModals()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Denunciar</div>
+    <div class="sheet-opt danger" onclick="reportPost()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Denunciar</div>
   </div>
 </div>
 
-<div class="overlay" id="msgs-modal" onclick="closeModals()">
+<div class="overlay" id="report-reason-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Mensagens</div>
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="width:44px;height:44px;border-radius:50%;overflow:hidden"><img src="https://i.pravatar.cc/150?img=20" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><b style="font-size:13.5px">fernanda_costa</b><br><span style="font-size:12px;color:var(--muted)">Gostei muito do seu trabalho! 🎨</span></div>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted)">2min</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
-      <div style="width:44px;height:44px;border-radius:50%;overflow:hidden"><img src="https://i.pravatar.cc/150?img=33" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><b style="font-size:13.5px">ricardo_a</b><br><span style="font-size:12px;color:var(--muted)">Você faz textura em apto?</span></div>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted)">1h</span>
-    </div>
+    <div class="sheet-title">Denunciar post</div>
+    <div class="sheet-opt" onclick="submitReport('Conteúdo impróprio')">Conteúdo impróprio</div>
+    <div class="sheet-opt" onclick="submitReport('Spam')">Spam</div>
+    <div class="sheet-opt" onclick="submitReport('Informação falsa')">Informação falsa</div>
+    <div class="sheet-opt" onclick="submitReport('Outro')">Outro</div>
   </div>
 </div>
 
@@ -2229,34 +1903,6 @@
   <div style="position:absolute;inset:0;display:flex;z-index:2;">
     <div style="flex:1;" onclick="storyPrev()"></div>
     <div style="flex:1;" onclick="storyNext()"></div>
-  </div>
-</div>
-
-
-<div class="overlay" id="orc-detail-modal" onclick="closeModals()">
-  <div class="sheet" onclick="event.stopPropagation()">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">💰 Orçamento Recebido</div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-      <div style="width:44px;height:44px;border-radius:10px;overflow:hidden;"><img src="https://i.pravatar.cc/150?img=12" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><div style="font-size:14px;font-weight:700;">João Rodrigues</div><div style="font-size:11px;color:var(--muted);">★★★★★ 5.0 · Rio de Janeiro</div></div>
-      <div style="margin-left:auto;background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;">Válido até 29/03</div>
-    </div>
-    <div class="orc-detail-breakdown">
-      <div class="orc-detail-row"><span>Mão de obra (45m²)</span><span>R$2.400</span></div>
-      <div class="orc-detail-row"><span>Material incluso</span><span>R$600</span></div>
-      <div class="orc-detail-row"><span>Prazo</span><span>4 dias úteis</span></div>
-      <div class="orc-detail-row"><span>Início previsto</span><span>05/04/2026</span></div>
-      <div class="orc-detail-row"><span style="color:var(--p3)">Total</span><span style="color:var(--p3)">R$3.200</span></div>
-    </div>
-    <div style="background:var(--cream);border-radius:12px;padding:12px;font-size:13px;color:#555;margin-bottom:14px;">
-      💬 <i>"Inclui limpeza completa, 3 demãos de Venetian com acabamento acetinado. Garantia de 6 meses."</i>
-    </div>
-    <div class="orc-detail-actions">
-      <button class="orc-detail-btn accept" onclick="toast('✅ Orçamento aceito! João será notificado.');closeModals()">✅ Aceitar</button>
-      <button class="orc-detail-btn decline" onclick="toast('Orçamento recusado');closeModals()">❌ Recusar</button>
-    </div>
-    <button onclick="showScreen('chat-conv');closeModals()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1.5px solid var(--border);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--ink);">💬 Negociar com João</button>
   </div>
 </div>
 
