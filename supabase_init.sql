@@ -979,3 +979,73 @@ BEGIN
   ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_type_check
     CHECK (user_type IS NULL OR user_type IN ('cliente','pintor','grafiteiro','automotivo','funileiro','admin'));
 END $$;
+
+-- ============================================
+-- Notes table (anotações do usuário)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.notes (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  body text,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'notes' AND policyname = 'Users can manage own notes'
+  ) THEN
+    CREATE POLICY "Users can manage own notes" ON public.notes
+      FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- ============================================
+-- Notifications table (avisos do sininho)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  type text,
+  title text,
+  body text,
+  ref_id text,
+  read boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'notifications' AND policyname = 'Users can view own notifications'
+  ) THEN
+    CREATE POLICY "Users can view own notifications" ON public.notifications
+      FOR SELECT TO authenticated USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'notifications' AND policyname = 'Users can create notifications'
+  ) THEN
+    CREATE POLICY "Users can create notifications" ON public.notifications
+      FOR INSERT TO authenticated WITH CHECK (auth.uid() = actor_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'notifications' AND policyname = 'Users can update own notifications'
+  ) THEN
+    CREATE POLICY "Users can update own notifications" ON public.notifications
+      FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- Realtime para o badge do sininho atualizar ao vivo
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN undefined_object THEN NULL;
+END $$;
