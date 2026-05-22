@@ -16,4 +16,9 @@
   `products.color_hex` (IA primeiro, dicionário como fallback). Rodar
   **uma vez**; depois manutenção é manual via seletor de cor. O botão só
   toca em produtos sem cor — seguro reapertar.
+- **Regra de SQL:** sempre que criar ou alterar qualquer SQL/migration,
+  **colar o conteúdo completo do SQL no chat, em texto** (bloco de código),
+  para o usuário copiar e rodar no Supabase SQL Editor. Criar só o arquivo
+  no repo não basta — o SQL tem que aparecer no chat. Claude não tem acesso
+  ao banco para rodar.
 
