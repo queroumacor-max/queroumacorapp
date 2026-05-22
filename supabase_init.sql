@@ -1082,7 +1082,8 @@ ALTER TABLE public.quotes
   ADD COLUMN IF NOT EXISTS completed_at timestamptz,
   ADD COLUMN IF NOT EXISTS scope_snapshot jsonb,
   ADD COLUMN IF NOT EXISTS client_followup_optin boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS quote_data jsonb;
+  ADD COLUMN IF NOT EXISTS quote_data jsonb,
+  ADD COLUMN IF NOT EXISTS images jsonb DEFAULT '[]'::jsonb;
 
 NOTIFY pgrst, 'reload schema';
 

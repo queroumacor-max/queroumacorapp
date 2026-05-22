@@ -692,6 +692,14 @@ function renderPipelineCard(q){
   const descBlock = q.description
     ? '<div style="background:var(--cream);border-radius:10px;padding:9px 11px;margin-bottom:10px;font-size:12px;color:var(--ink);line-height:1.5;white-space:pre-wrap;">'+escapeHtml(q.description)+'</div>'
     : '';
+  const imgs = (q.images && Array.isArray(q.images)) ? q.images : [];
+  const photosBlock = imgs.length > 0
+    ? '<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+      + imgs.slice(0, 8).map(url =>
+          '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" style="flex-shrink:0;width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;display:block;"><img src="'+escapeHtml(url)+'" style="width:100%;height:100%;object-fit:cover;"></a>'
+        ).join('')
+      + '</div>'
+    : '';
   return '<div style="background:var(--white);border-radius:14px;padding:13px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:9px;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
     +   '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);">'+escapeHtml(cli)+'</div>'
@@ -703,6 +711,7 @@ function renderPipelineCard(q){
     +   '<span style="margin-left:auto;font-size:11px;color:var(--muted);">'+date+'</span>'
     + '</div>'
     + descBlock
+    + photosBlock
     + frozenLine
     + '<div style="display:flex;gap:7px;">'+actions+'</div>'
     + '</div>';
@@ -2164,6 +2173,7 @@ function abrirOrcamentoChat(painterId, painterName){
 
   // Store in closure to avoid escaping issues in onclick strings
   window._orcPainter = { id: painterId, name: painterName };
+  window._orcPhotos = [];
 
   const fieldStyle = 'width:100%;box-sizing:border-box;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-family:DM Sans,sans-serif;background:var(--white);outline:none;margin-top:4px;';
 
@@ -2185,6 +2195,30 @@ function abrirOrcamentoChat(painterId, painterName){
     i.id = id; i.type = 'text'; i.placeholder = ph;
     i.style.cssText = fieldStyle;
     return i;
+  }
+  function makePhotosSection(){
+    const wrap = document.createElement('div');
+    wrap.style.marginTop = '14px';
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;';
+    lbl.textContent = 'Fotos do local (opcional · até 5)';
+    const grid = document.createElement('div');
+    grid.id = 'orc-photos-grid';
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.multiple = true;
+    fileInput.id = 'orc-photo-input';
+    fileInput.style.display = 'none';
+    fileInput.addEventListener('change', e => { addOrcPhotos(e.target.files); e.target.value = ''; });
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.style.cssText = 'width:100%;padding:12px;background:var(--cream);color:var(--ink);border:1.5px dashed var(--border);border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;';
+    addBtn.textContent = '📷 Adicionar fotos';
+    addBtn.addEventListener('click', () => fileInput.click());
+    wrap.append(lbl, grid, fileInput, addBtn);
+    return wrap;
   }
 
   const overlay = document.createElement('div');
@@ -2228,10 +2262,40 @@ function abrirOrcamentoChat(painterId, painterName){
     makeSelect('orc-prazo', ['Selecione…','O quanto antes','Em até 1 semana','Em até 15 dias','Em até 1 mês','Sem pressa / a combinar']),
     makeLabel('Observações'),
     obs,
+    makePhotosSection(),
     btn
   );
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
+}
+
+// ══ Helpers das fotos do pedido (escopo global pq onclick inline usa) ══
+function addOrcPhotos(files){
+  if(!files) return;
+  window._orcPhotos = window._orcPhotos || [];
+  for(const f of files){
+    if(window._orcPhotos.length >= 5){ toast('Máximo 5 fotos'); break; }
+    if(!f.type || !f.type.startsWith('image/')) continue;
+    window._orcPhotos.push(f);
+  }
+  renderOrcPhotos();
+}
+function renderOrcPhotos(){
+  const grid = document.getElementById('orc-photos-grid');
+  if(!grid) return;
+  const photos = window._orcPhotos || [];
+  grid.innerHTML = photos.map((f,i) => {
+    const url = URL.createObjectURL(f);
+    return '<div style="position:relative;aspect-ratio:1;background:var(--cream);border-radius:8px;overflow:hidden;">'
+      + '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;">'
+      + '<span onclick="removeOrcPhoto('+i+')" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;">×</span>'
+      + '</div>';
+  }).join('');
+}
+function removeOrcPhoto(idx){
+  if(!window._orcPhotos) return;
+  window._orcPhotos.splice(idx, 1);
+  renderOrcPhotos();
 }
 
 async function enviarOrcamentoForm(){
@@ -2266,6 +2330,26 @@ async function enviarOrcamentoForm(){
   if(painterId === currentUser.id){ toast('Você não pode pedir orçamento para si mesmo'); return; }
 
   const serviceType = (tipo && tipo !== 'Selecione…') ? tipo : 'Solicitação de orçamento';
+
+  // Upload das fotos (até 5) — coleta as URLs públicas
+  const photos = window._orcPhotos || [];
+  const imageUrls = [];
+  if(photos.length > 0){
+    toast('Enviando fotos...');
+    for(let i = 0; i < photos.length; i++){
+      const f = photos[i];
+      try {
+        const extRaw = (f.name || '').split('.').pop() || 'jpg';
+        const ext = extRaw.toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+        const path = currentUser.id + '/quote_' + Date.now() + '_' + i + '.' + ext;
+        const { error: upErr } = await sb.storage.from('posts').upload(path, f, { upsert: false, contentType: f.type });
+        if(upErr){ console.warn('upload foto:', upErr.message); continue; }
+        const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+        if(urlData && urlData.publicUrl) imageUrls.push(urlData.publicUrl);
+      } catch(e){ console.warn('upload foto:', e); }
+    }
+  }
+
   let novoQuoteId = null;
   try {
     const { data: q, error: qErr } = await sb.from('quotes').insert({
@@ -2275,7 +2359,8 @@ async function enviarOrcamentoForm(){
       service_type: serviceType,
       description: partes.slice(1).join('\n') || null,
       status: 'pending',
-      lead_type: 'exclusive'
+      lead_type: 'exclusive',
+      images: imageUrls
     }).select('id').single();
     if(qErr) throw qErr;
     novoQuoteId = q && q.id;
@@ -2284,6 +2369,7 @@ async function enviarOrcamentoForm(){
     toast('Erro ao enviar o pedido: ' + (e.message || e));
     return;
   }
+  window._orcPhotos = [];
   const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
   await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
     meuNome + ' solicitou um orçamento. Veja no seu pipeline.', novoQuoteId);
