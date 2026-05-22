@@ -30,6 +30,7 @@ async function initAuth() {
   } else {
     loadFeed();
   }
+  handleReferralParam();
   sb.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     if(currentUser){
@@ -253,13 +254,33 @@ async function toggleFollowFromList(btn, userId){
   loadMyProfileStats();
 }
 
-function shareProfile(){
-  const name = document.getElementById('myprofile-name').textContent || 'Meu perfil';
+async function shareProfile(){
+  if(!currentUser){ toast('Faça login primeiro'); return; }
+  const sb = getSupabase();
+  let prof = {};
+  try {
+    if(sb){
+      const { data } = await sb.from('profiles')
+        .select('name, role, user_type, city, state, specialties')
+        .eq('id', currentUser.id).single();
+      prof = data || {};
+    }
+  } catch(e){ console.warn('shareProfile profile fetch:', e); }
+  const name = prof.name || document.getElementById('myprofile-name')?.textContent || 'Profissional';
+  const roleMap = { pintor:'Pintor', grafiteiro:'Grafiteiro/Muralista', automotivo:'Pintor Automotivo', funileiro:'Funileiro', cliente:'Cliente' };
+  const role = roleMap[String(prof.role||prof.user_type||'').toLowerCase()] || 'Profissional';
+  const local = [prof.city, prof.state].filter(Boolean).join(' - ');
+  const link = window.location.origin + '/?ref=' + currentUser.id;
+  let brief = '🎨 ' + name + ' — ' + role + ' no QueroUmaCor\n';
+  if(local) brief += '📍 ' + local + '\n';
+  if(prof.specialties) brief += '🛠️ ' + prof.specialties + '\n';
+  brief += '\nVeja meu portfólio completo e crie sua conta gratuita por este link:\n' + link;
   if(navigator.share){
-    navigator.share({ title: name + ' - QueroUmaCor', text: 'Confira meu perfil no QueroUmaCor!', url: window.location.href });
+    navigator.share({ title: name + ' — QueroUmaCor', text: brief }).catch(()=>{});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(brief).then(()=>toast('Perfil e link copiados!')).catch(()=>toast('Link: '+link));
   } else {
-    navigator.clipboard.writeText(window.location.href);
-    toast('Link copiado!');
+    prompt('Copie e compartilhe:', brief);
   }
 }
 
