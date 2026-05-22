@@ -22,7 +22,7 @@ function showScreen(n){
   if(pp)pp.classList.remove('show');
   if(n==='chat-conv'){setTimeout(()=>{const b=document.getElementById('chat-body');if(b)b.scrollTop=b.scrollHeight;},150);}
   if(n==='chatconv'){setTimeout(()=>{const a=document.getElementById('msgs-area');if(a)a.scrollTop=a.scrollHeight;},150);}
-  if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ _feedLimit = FEED_PAGE; loadFeed(); }
+  if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ loadFeed(); }
   if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
   if(n==='myprofile'){ loadMyProfileData(); refreshProStatus(); }
   if(n==='chat'){ loadChatList(); const cb=document.getElementById('chat-badge-dot'); if(cb) cb.style.display='none'; }
@@ -4193,7 +4193,7 @@ function filterFeedPosts(){
   });
 }
 const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale, price, art_type, created_at';
-let _feedLimit = 30;
+let _feedOffset = 0;
 const FEED_PAGE = 30;
 
 async function loadFeed(){
@@ -4236,17 +4236,18 @@ async function getFollowingIds(){
   }
 }
 
-async function loadPosts(feedIds){
+async function loadPosts(feedIds, append){
   try {
     const sb = getSupabase();
     if(!sb) return;
     if(!feedIds) feedIds = await getFollowingIds();
+    const offset = append ? _feedOffset : 0;
     // Build query - if user has following list, filter by it; otherwise show all recent posts
     let query = sb.from('posts').select(POST_COLS).neq('media_type', 'story');
     // Only show approved posts (or posts without status for backwards compat)
     query = query.or('status.eq.approved,status.is.null');
     if(feedIds.length > 0) query = query.in('user_id', feedIds);
-    query = query.order('created_at', { ascending: false }).limit(_feedLimit);
+    query = query.order('created_at', { ascending: false }).range(offset, offset + FEED_PAGE - 1);
     let { data: posts, error } = await query;
     if(error){
       console.warn('loadPosts error:', error.message);
@@ -4254,9 +4255,17 @@ async function loadPosts(feedIds){
     }
     const container = document.getElementById('feed-posts-area');
     const emptyEl = document.getElementById('feed-empty');
+    if(!container) return;
     if(!posts || posts.length === 0){
-      container.innerHTML = '';
-      if(emptyEl) emptyEl.style.display = 'block';
+      if(append){
+        // Acabaram os posts — remove o botão "Ver mais"
+        const mb = document.getElementById('feed-more-btn');
+        if(mb && mb.closest('div')) mb.closest('div').remove();
+      } else {
+        container.innerHTML = '';
+        _feedOffset = 0;
+        if(emptyEl) emptyEl.style.display = 'block';
+      }
       return;
     }
     if(emptyEl) emptyEl.style.display = 'none';
@@ -4389,19 +4398,27 @@ async function loadPosts(feedIds){
       }
       html += '</div>';
     });
-    if(posts.length >= _feedLimit){
+    // Botão "Ver mais" só se a página veio cheia (pode haver mais)
+    if(posts.length === FEED_PAGE){
       html += '<div style="text-align:center;padding:16px 0 28px;"><button id="feed-more-btn" onclick="loadMoreFeed(this)" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:10px 24px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver mais publicações</button></div>';
     }
-    container.innerHTML = html;
+    if(append){
+      // Remove o botão "Ver mais" antigo e anexa só os novos posts
+      const oldBtn = document.getElementById('feed-more-btn');
+      if(oldBtn && oldBtn.closest('div')) oldBtn.closest('div').remove();
+      container.insertAdjacentHTML('beforeend', html);
+    } else {
+      container.innerHTML = html;
+    }
+    _feedOffset = offset + posts.length;
   } catch(e){
     console.error('loadPosts error:', e);
   }
 }
 
-function loadMoreFeed(btn){
+async function loadMoreFeed(btn){
   if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
-  _feedLimit += FEED_PAGE;
-  loadFeed();
+  await loadPosts(null, true);
 }
 
 function stripEmail(s){
