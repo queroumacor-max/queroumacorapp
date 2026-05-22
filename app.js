@@ -2841,6 +2841,20 @@ async function setupNotifSubscription(){
     .subscribe();
 }
 
+// ══ PIPELINE AO VIVO — novo pedido aparece sem reabrir a tela ══
+let _pipelineSub = null;
+function setupPipelineSubscription(){
+  if(_pipelineSub || !currentUser) return;
+  const sb = getSupabase();
+  if(!sb) return;
+  _pipelineSub = sb.channel('pipeline-'+currentUser.id)
+    .on('postgres_changes', { event:'*', schema:'public', table:'quotes', filter:'painter_id=eq.'+currentUser.id }, () => {
+      const scr = document.getElementById('screen-pipeline');
+      if(scr && scr.classList.contains('active')) loadPipeline();
+    })
+    .subscribe();
+}
+
 // ══ LOAD PEDIDOS FROM SUPABASE ══
 async function loadPedidos(){
   const sb = getSupabase();

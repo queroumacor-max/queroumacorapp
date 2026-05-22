@@ -50,6 +50,7 @@ async function initAuth() {
     autoDetectRole();
     setupGlobalMsgSubscription();
     setupNotifSubscription();
+    setupPipelineSubscription();
     refreshProStatus();
     checkAdminEntry();
     handleProReturn();
@@ -68,6 +69,7 @@ async function initAuth() {
       autoDetectRole();
       setupGlobalMsgSubscription();
       setupNotifSubscription();
+      setupPipelineSubscription();
       refreshProStatus();
       checkAdminEntry();
       if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
@@ -77,6 +79,7 @@ async function initAuth() {
       _feedLoaded = false;
       if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
       if(typeof _notifSub !== 'undefined' && _notifSub){ _notifSub.unsubscribe(); _notifSub=null; }
+      if(typeof _pipelineSub !== 'undefined' && _pipelineSub){ _pipelineSub.unsubscribe(); _pipelineSub=null; }
     }
   });
 }

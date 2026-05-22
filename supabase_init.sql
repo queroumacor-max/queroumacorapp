@@ -1049,3 +1049,12 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
   WHEN undefined_object THEN NULL;
 END $$;
+
+-- Realtime do Pipeline — novo orçamento aparece sem reabrir a tela
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.quotes;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN undefined_object THEN NULL;
+END $$;
