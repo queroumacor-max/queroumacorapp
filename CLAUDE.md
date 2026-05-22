@@ -32,6 +32,10 @@
   gravam linha em `referrals`, pontos por indicação/avaliação recebida
   são creditados por trigger, e `profiles.rating_avg` + `review_count`
   recalculam a cada review. Não pedir para rodar de novo.
+- As tabelas `notes` (anotações) e `notifications` (sininho) **JÁ FORAM
+  CRIADAS no Supabase** (com RLS e realtime). Anotações salvam/carregam
+  e os avisos do `notify()` chegam no sininho. Não pedir para rodar de
+  novo.
 - **Contato da Cali Colors** (atendimento / suporte / "Fale Conosco" /
   solicitações de exclusão de conta LGPD): WhatsApp `(11) 95976-5031`
   (formato wa.me `5511959765031`), e-mail `loja@calicolors.com.br`. Já
