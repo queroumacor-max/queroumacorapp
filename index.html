@@ -1869,6 +1869,35 @@
     <div id="fin-chart" style="margin-bottom:14px;"></div>
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">LANÇAMENTOS</div>
     <div id="fin-jobs-list" style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">Nenhum lançamento</div>
+    <div onclick="abrirMaquininha()" style="margin-top:14px;cursor:pointer;background:linear-gradient(135deg,var(--cream),#ffe8d6);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:30px;line-height:1;">💳</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+          <span style="font-size:15px;font-weight:800;color:var(--ink);font-family:Syne,sans-serif;">Receba no cartão</span>
+          <span style="font-size:9px;font-weight:800;letter-spacing:.5px;background:var(--p1);color:#fff;padding:2px 7px;border-radius:999px;">EM BREVE</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">Contrate sua maquininha com um dos nossos parceiros</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAQUININHA MODAL ══ -->
+<div class="overlay" id="maquininha-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">💳 Maquininha — em breve</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+      O QueroUmaCor está selecionando <strong>parceiros curados</strong> para você receber pagamentos no cartão direto dos seus clientes.
+    </div>
+    <div style="background:var(--cream);border-radius:12px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--muted);line-height:1.5;">
+      ⚠️ O QueroUmaCor <strong>não processa pagamentos nem retém valores</strong> — apenas indica parceiros. A contratação e o recebimento são feitos diretamente com o parceiro escolhido.
+    </div>
+    <!-- TODO: futura lista de parceiros curados de maquininha + link de indicação entra aqui -->
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Quer ser avisado?</div>
+    <label for="maquininha-contato" style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Telefone / WhatsApp</label>
+    <input class="auth-input" id="maquininha-contato" type="tel" placeholder="(00) 00000-0000" style="margin-bottom:12px;">
+    <button onclick="entrarListaMaquininha()" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Entrar na lista de interesse</button>
   </div>
 </div>
 

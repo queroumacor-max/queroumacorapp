@@ -5980,3 +5980,43 @@ function shareInviteCode(view){
 
 // Feed is loaded by initAuth after auth check completes
 
+
+// ══ FEATURE 3 — Maquininha (slot "coming soon") ══
+// Mede interesse em receber pagamento no cartao. Zero processamento de pagamento.
+async function abrirMaquininha(){
+  try {
+    const sb = getSupabase();
+    if(currentUser && sb){
+      sb.from('feature_interest').insert({
+        user_id: currentUser.id,
+        feature: 'maquininha',
+        action: 'click'
+      }).then(()=>{}, ()=>{});
+      // Pre-preenche o contato com o telefone do perfil, se o input estiver vazio
+      const input = document.getElementById('maquininha-contato');
+      if(input && !input.value){
+        sb.from('profiles').select('phone').eq('id', currentUser.id).single()
+          .then(({ data }) => { if(data && data.phone && !input.value){ input.value = data.phone; } }, ()=>{});
+      }
+    }
+  } catch(e){ console.error('abrirMaquininha error:', e); }
+  showModal('maquininha-modal');
+}
+
+async function entrarListaMaquininha(){
+  const input = document.getElementById('maquininha-contato');
+  const contato = input ? input.value.trim() : '';
+  try {
+    const sb = getSupabase();
+    if(currentUser && sb){
+      await sb.from('feature_interest').insert({
+        user_id: currentUser.id,
+        feature: 'maquininha',
+        action: 'waitlist',
+        contact: contato
+      });
+    }
+  } catch(e){ console.error('entrarListaMaquininha error:', e); }
+  toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
+  closeModals();
+}
