@@ -365,6 +365,33 @@ function handleProReturn(){
   } catch(e){ console.warn('handleProReturn:', e); }
 }
 
+// Link de perfil compartilhado (?ref=<userId>): funciona como convite —
+// pula o passo do código e registra quem indicou (invited_by).
+async function handleReferralParam(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if(!ref) return;
+    // Limpa o parâmetro da URL
+    window.history.replaceState({}, '', window.location.pathname);
+    if(currentUser) return; // já logado/cadastrado — ignora
+    const sb = getSupabase();
+    let refName = '';
+    try {
+      if(sb){
+        const { data } = await sb.from('profiles').select('name').eq('id', ref).single();
+        refName = data ? (data.name || '') : '';
+      }
+    } catch(e){ /* ref inválido cai abaixo */ }
+    if(!refName) return; // perfil inexistente — ignora o link
+    // Marca como convite válido (substitui o código) e vai direto ao cadastro
+    validatedInviteCode = { created_by: ref, referral: true };
+    showScreen('signup');
+    if(typeof signupNext === 'function') signupNext(1); // pula o passo do código
+    toast('Você foi convidado por ' + refName.split(' ')[0] + '! Crie sua conta 🎨');
+  } catch(e){ console.warn('handleReferralParam:', e); }
+}
+
 async function startProCheckout(){
   const btn = document.getElementById('pro-cta-btn');
   try {
@@ -750,23 +777,36 @@ function gerarOrcamentoIA(){
   loadMaterialSuggestions(litros);
 }
 
-function compartilharOrcamento(){
-  const resultEl = document.getElementById('ai-orc-result');
-  const text = resultEl?.innerText || '';
-  if(navigator.share){
-    navigator.share({ title:'Orçamento - QueroUmaCor', text: text }).catch(()=>{});
-  } else {
-    navigator.clipboard.writeText(text).then(()=>toast('Orçamento copiado!')).catch(()=>toast('Erro ao copiar'));
+async function compartilharOrcamento(){
+  const doc = _buildOrcDoc();
+  if(!doc){
+    // Sem dados estruturados → compartilha o texto
+    const text = document.getElementById('ai-orc-result')?.innerText || '';
+    if(navigator.share){ navigator.share({ title:'Orçamento - QueroUmaCor', text }).catch(()=>{}); }
+    else { navigator.clipboard.writeText(text).then(()=>toast('Orçamento copiado!')).catch(()=>toast('Erro ao copiar')); }
+    return;
   }
+  const file = new File([doc.output('blob')], 'orcamento-queroumacor.pdf', { type:'application/pdf' });
+  try {
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title:'Orçamento - QueroUmaCor', text:'Segue o orçamento gerado no QueroUmaCor.' });
+      return;
+    }
+  } catch(e){ if(e && e.name === 'AbortError') return; /* outros erros → cai pro download */ }
+  // Navegador sem suporte a compartilhar arquivo → baixa o PDF
+  doc.save('orcamento-queroumacor.pdf');
+  toast('PDF salvo — anexe no WhatsApp para enviar.');
 }
 
 // ══ PDF GENERATION ══
 let _lastOrcData = {};
-function gerarPDFOrcamento(){
-  if(typeof jspdf==='undefined' && typeof window.jspdf==='undefined'){ toast('Carregando PDF...'); return; }
+// Monta o documento jsPDF do orçamento e o retorna (null se sem dados/lib)
+function _buildOrcDoc(){
+  if(typeof window.jspdf === 'undefined') return null;
+  const d = _lastOrcData;
+  if(!d || !(d.itens && d.itens.length) && !d.total) return null;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const d = _lastOrcData;
   // Header
   doc.setFillColor(26,26,46);
   doc.rect(0,0,210,35,'F');
@@ -810,6 +850,11 @@ function gerarPDFOrcamento(){
   doc.setFont(undefined,'bold'); doc.setFontSize(14);
   doc.setTextColor(255,107,53);
   doc.text('TOTAL: R$ '+(d.total||0).toLocaleString('pt-BR'),105,y+7,{align:'center'});
+  return doc;
+}
+function gerarPDFOrcamento(){
+  const doc = _buildOrcDoc();
+  if(!doc){ toast('Carregando PDF...'); return; }
   doc.save('orcamento-queroumacor.pdf');
   toast('PDF gerado!');
 }
