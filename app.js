@@ -1842,7 +1842,8 @@ async function loadNotes(){
       list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Nenhuma anotação ainda. Escreva acima e toque em Salvar.</div>';
       return;
     }
-    list.innerHTML = notes.map(n => {
+    const _notesHdr = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 10px;">Anotações salvas ('+notes.length+')</div>';
+    list.innerHTML = _notesHdr + notes.map(n => {
       const date = n.created_at ? new Date(n.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
       return '<div style="background:var(--cream);border-radius:11px;padding:12px;margin-bottom:8px;">'
         + '<div style="font-size:13px;color:var(--ink);line-height:1.5;white-space:pre-wrap;">'+escapeHtml(n.body||'')+'</div>'
