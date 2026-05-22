@@ -1085,3 +1085,16 @@ ALTER TABLE public.quotes
   ADD COLUMN IF NOT EXISTS quote_data jsonb;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================
+-- CHECK constraint do status no quotes (novo ciclo)
+-- ============================================
+-- Bancos antigos tinham um check apenas com 'pending/accepted/rejected/completed'.
+-- O ciclo atual usa pending → rascunho → enviado → aprovado → em_execucao →
+-- concluido (+ recusado). Mantém os legados pra compat.
+ALTER TABLE public.quotes DROP CONSTRAINT IF EXISTS quotes_status_check;
+ALTER TABLE public.quotes ADD CONSTRAINT quotes_status_check
+  CHECK (status IS NULL OR status IN (
+    'pending','rascunho','enviado','aprovado','em_execucao','concluido','recusado',
+    'accepted','completed','rejected'
+  ));
