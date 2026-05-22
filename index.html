@@ -863,6 +863,11 @@
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Agenda</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Meus projetos</div>
         </div>
+        <div onclick="showScreen('pipeline')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">📋</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamentos</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Pipeline e aprovação</div>
+        </div>
         <div onclick="showModal('checklist-modal')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">✅</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Checklist</div>
@@ -1248,6 +1253,17 @@
   </div>
 </div>
 
+<!-- ══ PIPELINE DE ORÇAMENTOS ══ -->
+<div class="screen" id="screen-pipeline">
+  <div class="orc-header">
+    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="orc-title">Orçamentos</div>
+  </div>
+  <div id="pipeline-list" style="padding:6px 14px 100px;">
+    <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>
+  </div>
+</div>
+
 <!-- ══ CALCULATOR ══ -->
 <div class="screen" id="screen-calc">
   <div class="calc-screen">
@@ -1385,9 +1401,9 @@
   <div class="pedidos-screen">
     <div class="pedidos-filter-row">
       <div class="pfchip active" onclick="filterPedidos(this,'todos')">Todos</div>
-      <div class="pfchip" onclick="filterPedidos(this,'pending')">Aguardando</div>
-      <div class="pfchip" onclick="filterPedidos(this,'accepted')">Aceitos</div>
-      <div class="pfchip" onclick="filterPedidos(this,'completed')">Concluidos</div>
+      <div class="pfchip" onclick="filterPedidos(this,'enviado')">Aguardando</div>
+      <div class="pfchip" onclick="filterPedidos(this,'aprovado')">Aprovados</div>
+      <div class="pfchip" onclick="filterPedidos(this,'concluido')">Concluidos</div>
     </div>
     <div id="pedidos-list">
       <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">Carregando pedidos...</div>
@@ -1778,6 +1794,15 @@
     </div>
     <button onclick="addCourse(this)" style="width:100%;padding:12px;border:none;border-radius:10px;background:var(--p1);color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:16px;">Adicionar curso</button>
     <div id="courses-list"><div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- ══ ESCOPO DO ORÇAMENTO (snapshot) ══ -->
+<div class="overlay" id="quote-snapshot-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:82vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Escopo do orçamento</div>
+    <div id="quote-snapshot-body"></div>
   </div>
 </div>
 

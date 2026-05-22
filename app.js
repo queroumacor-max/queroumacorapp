@@ -1,5 +1,5 @@
 // ══ SCREENS ══
-const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas','info'];
+const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas','info','pipeline'];
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv','chat-conv'];
 function showScreen(n){
@@ -9,7 +9,7 @@ function showScreen(n){
   });
   Object.values(bnMap).forEach(id=>{document.getElementById(id)?.classList.remove('active');});
   if(bnMap[n])document.getElementById(bnMap[n]).classList.add('active');
-  if(['pedidos','chat-conv','avaliar','camisetas','info'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
+  if(['pedidos','chat-conv','avaliar','camisetas','info','pipeline'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
   if(['chatconv'].includes(n)){/* chat is in top nav, no bottom nav highlight */}
   const topNav=document.querySelector('.top-nav');
   const botNav=document.querySelector('.bot-nav');
@@ -32,6 +32,7 @@ function showScreen(n){
   if(n==='avaliar') loadAvaliarScreen();
   if(n==='camisetas') loadBusinessLogo();
   if(n==='info') openInfoPage('menu');
+  if(n==='pipeline') loadPipeline();
 }
 
 
@@ -455,6 +456,285 @@ function requestAccountDeletion(){
   toast('Abrindo seu e-mail para enviar a solicitação...');
 }
 
+// ══════════════════════════════════════════
+// FEATURE 1 — APROVAÇÃO DE ORÇAMENTO (pipeline)
+// Ciclo: rascunho/pending → enviado → aprovado → em_execucao → concluido (+ recusado)
+// ══════════════════════════════════════════
+
+const QUOTE_STATUS = {
+  pending:    { label:'A orçar',     color:'#8a8a99' },
+  rascunho:   { label:'Rascunho',    color:'#8a8a99' },
+  enviado:    { label:'Enviado',     color:'#f4a300' },
+  aprovado:   { label:'Aprovado',    color:'#2ec4b6' },
+  em_execucao:{ label:'Em execução', color:'#3a86ff' },
+  concluido:  { label:'Concluído',   color:'#16a34a' },
+  recusado:   { label:'Recusado',    color:'#e63946' }
+};
+let _pipelineCache = [];
+
+// Notificação in-app: cria uma linha em notifications para o usuário destino.
+async function notify(userId, type, title, body, refId){
+  try {
+    const sb = getSupabase();
+    if(!sb || !currentUser || !userId || userId === currentUser.id) return;
+    await sb.from('notifications').insert({
+      user_id: userId, actor_id: currentUser.id, type: type || 'info',
+      title: title || '', body: body || '', ref_id: refId || null
+    });
+  } catch(e){ console.warn('notify:', e); }
+}
+
+// Congela o escopo+valor do orçamento como referência imutável.
+function buildQuoteSnapshot(q){
+  return {
+    frozen_at: new Date().toISOString(),
+    service_type: q.service_type || null,
+    title: q.title || null,
+    area_m2: q.area_m2 || null,
+    address: q.address || null,
+    description: q.description || null,
+    price: +q.price || 0,
+    proposed_date: q.proposed_date || null,
+    quote_data: q.quote_data || null
+  };
+}
+
+async function loadPipeline(){
+  const sb = getSupabase();
+  const container = document.getElementById('pipeline-list');
+  if(!container) return;
+  if(!sb || !currentUser){ container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Faça login para ver seus orçamentos.</div>'; return; }
+  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>';
+  try {
+    const { data: quotes, error } = await sb.from('quotes')
+      .select('*, client:profiles!client_id(name)')
+      .eq('painter_id', currentUser.id)
+      .order('created_at', { ascending:false });
+    if(error) throw error;
+    _pipelineCache = quotes || [];
+    renderPipeline();
+  } catch(e){
+    console.error('loadPipeline:', e);
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar o pipeline.</div>';
+  }
+}
+
+function renderPipeline(){
+  const container = document.getElementById('pipeline-list');
+  if(!container) return;
+  const quotes = _pipelineCache || [];
+  if(quotes.length === 0){
+    container.innerHTML = '<div style="text-align:center;padding:50px 24px;color:var(--muted);">'
+      + '<div style="font-size:40px;margin-bottom:10px;">📋</div>'
+      + '<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum orçamento ainda</div>'
+      + '<div style="font-size:13px;line-height:1.5;">Monte um orçamento na Calculadora e toque em "Salvar no Pipeline". Pedidos de clientes do app também aparecem aqui.</div>'
+      + '</div>';
+    return;
+  }
+  const groups = [
+    { title:'A enviar',    statuses:['pending','rascunho'] },
+    { title:'Enviados',    statuses:['enviado'] },
+    { title:'Aprovados',   statuses:['aprovado'] },
+    { title:'Em execução', statuses:['em_execucao'] },
+    { title:'Concluídos',  statuses:['concluido'] },
+    { title:'Recusados',   statuses:['recusado'] }
+  ];
+  let html = '';
+  groups.forEach(g => {
+    const list = quotes.filter(q => g.statuses.includes(q.status || 'rascunho'));
+    if(list.length === 0) return;
+    html += '<div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 10px;">'
+      + g.title + ' · ' + list.length + '</div>';
+    html += list.map(renderPipelineCard).join('');
+  });
+  container.innerHTML = html;
+}
+
+function renderPipelineCard(q){
+  const s = q.status || 'rascunho';
+  const st = QUOTE_STATUS[s] || QUOTE_STATUS.rascunho;
+  const cli = q.client_name || (q.client && q.client.name) || 'Cliente';
+  const price = (+q.price||0) > 0 ? 'R$ ' + (+q.price).toLocaleString('pt-BR') : 'Sem valor';
+  const date = q.created_at ? new Date(q.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+  const appBadge = q.client_id
+    ? '<span style="font-size:10px;font-weight:700;color:#3a86ff;background:rgba(58,134,255,.1);padding:2px 7px;border-radius:20px;">Cliente do app</span>'
+    : '<span style="font-size:10px;font-weight:700;color:var(--muted);background:var(--cream);padding:2px 7px;border-radius:20px;">Cliente externo</span>';
+  const btn = (label,fn,bg,color)=>'<button onclick="'+fn+'" style="flex:1;padding:9px;background:'+bg+';color:'+(color||'#fff')+';border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">'+label+'</button>';
+  let actions = '';
+  if(s==='pending' || s==='rascunho'){
+    actions = btn('Enviar', "enviarQuote('"+q.id+"')", 'var(--p1)');
+  } else if(s==='enviado'){
+    actions = btn('Marcar aceito', "aprovarQuoteManual('"+q.id+"')", '#2ec4b6')
+            + btn('Recusado', "recusarQuote('"+q.id+"')", 'var(--cream)', 'var(--muted)');
+  } else if(s==='aprovado'){
+    actions = btn('Iniciar execução', "setQuoteStage('"+q.id+"','em_execucao')", '#3a86ff')
+            + btn('Escopo', "verSnapshot('"+q.id+"')", 'var(--cream)', 'var(--ink)');
+  } else if(s==='em_execucao'){
+    actions = btn('Concluir', "setQuoteStage('"+q.id+"','concluido')", '#16a34a')
+            + btn('Escopo', "verSnapshot('"+q.id+"')", 'var(--cream)', 'var(--ink)');
+  } else {
+    actions = btn('Ver escopo', "verSnapshot('"+q.id+"')", 'var(--cream)', 'var(--ink)');
+  }
+  const frozen = ['aprovado','em_execucao','concluido'].includes(s);
+  let frozenLine = '';
+  if(frozen){
+    const when = q.approved_at ? ' em '+new Date(q.approved_at).toLocaleDateString('pt-BR') : '';
+    const how = q.approval_method==='manual' ? ' · registro manual' : (q.approval_method==='app' ? ' · aprovado pelo cliente' : '');
+    frozenLine = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">🔒 Escopo congelado'+when+how+'</div>';
+  }
+  return '<div style="background:var(--white);border-radius:14px;padding:13px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:9px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
+    +   '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);">'+escapeHtml(cli)+'</div>'
+    +   '<div style="font-size:12px;color:var(--muted);">'+escapeHtml(q.service_type||q.title||'Orçamento')+'</div></div>'
+    +   '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:'+st.color+';white-space:nowrap;">'+st.label+'</div>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+    +   '<span style="font-size:13px;font-weight:800;color:var(--ink);">'+price+'</span>'+appBadge
+    +   '<span style="margin-left:auto;font-size:11px;color:var(--muted);">'+date+'</span>'
+    + '</div>'
+    + frozenLine
+    + '<div style="display:flex;gap:7px;">'+actions+'</div>'
+    + '</div>';
+}
+
+async function salvarOrcamento(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login para salvar'); return; }
+  const d = _lastOrcData;
+  if(!d || !d.total){ toast('Gere o orçamento primeiro'); return; }
+  const { error } = await sb.from('quotes').insert({
+    painter_id: currentUser.id,
+    client_name: d.cliente || 'Cliente',
+    service_type: d.servico || 'Orçamento',
+    title: d.servico || 'Orçamento',
+    area_m2: d.area || null,
+    price: d.total || 0,
+    status: 'rascunho',
+    quote_data: d
+  });
+  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  toast('Orçamento salvo no Pipeline ✅');
+  closeModals();
+  showScreen('pipeline');
+}
+
+async function enviarQuote(id){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  const q = _pipelineCache.find(x=>x.id===id); if(!q) return;
+  let price = +q.price || 0;
+  if(price <= 0){
+    const v = prompt('Valor do orçamento (R$):');
+    if(v===null) return;
+    price = parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0;
+    if(price<=0){ toast('Informe um valor válido'); return; }
+  }
+  const { error } = await sb.from('quotes')
+    .update({ status:'enviado', sent_at:new Date().toISOString(), price })
+    .eq('id', id).eq('painter_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  if(q.client_id){
+    notify(q.client_id, 'quote_sent', 'Você recebeu um orçamento',
+      'Um profissional enviou um orçamento. Toque para ver e aprovar.', id);
+  }
+  toast('Orçamento enviado!');
+  loadPipeline();
+}
+
+async function aprovarQuoteManual(id){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  const q = _pipelineCache.find(x=>x.id===id); if(!q) return;
+  if(!confirm('Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados como referência acordada.')) return;
+  const note = prompt('Observação da aprovação (opcional) — ex.: aceito por WhatsApp em DD/MM:');
+  if(note===null) return;
+  const { error } = await sb.from('quotes').update({
+    status:'aprovado', approved_at:new Date().toISOString(),
+    approved_by: currentUser.id, approval_method:'manual',
+    approval_note: note.trim() || null, scope_snapshot: buildQuoteSnapshot(q)
+  }).eq('id', id).eq('painter_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  toast('Orçamento aprovado (registro manual)');
+  loadPipeline();
+}
+
+async function recusarQuote(id){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  if(!confirm('Marcar este orçamento como recusado?')) return;
+  const { error } = await sb.from('quotes').update({ status:'recusado' })
+    .eq('id', id).eq('painter_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  toast('Orçamento recusado'); loadPipeline();
+}
+
+async function setQuoteStage(id, status){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  const patch = { status };
+  if(status==='concluido') patch.completed_at = new Date().toISOString();
+  const { error } = await sb.from('quotes').update(patch)
+    .eq('id', id).eq('painter_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  toast(status==='concluido'?'Orçamento concluído!':'Execução iniciada'); loadPipeline();
+}
+
+// Aprovação nativa: o cliente (usuário do app) aprova o orçamento recebido.
+async function aprovarQuoteCliente(id){
+  const sb = getSupabase(); if(!sb||!currentUser) return;
+  if(!confirm('Aprovar este orçamento?\n\nVocê confirma o escopo e o valor apresentados — eles ficam congelados como referência.')) return;
+  const { data: q, error: e1 } = await sb.from('quotes').select('*').eq('id', id).single();
+  if(e1 || !q){ toast('Erro ao carregar o orçamento'); return; }
+  const { error } = await sb.from('quotes').update({
+    status:'aprovado', approved_at:new Date().toISOString(),
+    approved_by: currentUser.id, approval_method:'app',
+    scope_snapshot: buildQuoteSnapshot(q)
+  }).eq('id', id).eq('client_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  if(q.painter_id){
+    notify(q.painter_id, 'quote_approved', 'Orçamento aprovado! 🎉',
+      'O cliente aprovou o orçamento. Toque para ver os detalhes.', id);
+  }
+  toast('Orçamento aprovado!');
+  loadPedidos();
+}
+
+async function verSnapshot(id){
+  const sb = getSupabase(); if(!sb) return;
+  let q = (_pipelineCache||[]).find(x=>x.id===id);
+  if(!q){ const r = await sb.from('quotes').select('*').eq('id', id).single(); q = r.data; }
+  if(!q){ toast('Orçamento não encontrado'); return; }
+  const body = document.getElementById('quote-snapshot-body');
+  if(!body) return;
+  const snap = q.scope_snapshot;
+  const data = snap || buildQuoteSnapshot(q);
+  const qd = data.quote_data || q.quote_data;
+  let h = '';
+  if(snap){
+    h += '<div style="background:rgba(46,196,182,.1);border:1px solid rgba(46,196,182,.3);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink);line-height:1.5;">'
+      + '🔒 Escopo congelado na aprovação'+(q.approved_at?' — '+new Date(q.approved_at).toLocaleString('pt-BR'):'')+'. Esta é a referência acordada com o cliente.'
+      + '</div>';
+  } else {
+    h += '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Orçamento ainda não aprovado — o escopo pode mudar até a aprovação.</div>';
+  }
+  const row = (k,v)=> v ? '<div style="display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--muted);">'+k+'</span><span style="font-weight:600;text-align:right;">'+escapeHtml(String(v))+'</span></div>' : '';
+  h += row('Serviço', data.service_type || data.title);
+  h += row('Área', data.area_m2 ? data.area_m2+' m²' : '');
+  h += row('Endereço', data.address);
+  h += row('Descrição', data.description);
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;"><span style="font-size:14px;font-weight:700;">TOTAL</span><span style="font-size:20px;font-weight:800;color:var(--p1);font-family:Syne,sans-serif;">R$ '+(+data.price||0).toLocaleString('pt-BR')+'</span></div>';
+  if(qd && Array.isArray(qd.itens) && qd.itens.length){
+    h += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:14px 0 6px;">Itens</div>';
+    h += qd.itens.map(it=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>'+escapeHtml(it.desc||'')+'</span><span style="color:var(--muted);white-space:nowrap;">'+escapeHtml(it.valor||'')+'</span></div>').join('');
+  }
+  if(qd && Array.isArray(qd.pagamento) && qd.pagamento.length){
+    h += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:14px 0 6px;">Pagamento</div>';
+    h += qd.pagamento.map(p=>'<div style="font-size:12px;color:var(--ink);margin-bottom:3px;">• '+escapeHtml(p)+'</div>').join('');
+  }
+  if(q.approval_note){
+    h += '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:14px 0 6px;">Observação da aprovação</div>';
+    h += '<div style="font-size:12px;color:var(--ink);">'+escapeHtml(q.approval_note)+'</div>';
+  }
+  body.innerHTML = h;
+  showModal('quote-snapshot-modal');
+}
+
 async function startProCheckout(){
   const btn = document.getElementById('pro-cta-btn');
   try {
@@ -816,6 +1096,7 @@ function gerarOrcamentoIA(){
       <button onclick="gerarPDFOrcamento()" style="flex:1;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">📄 Baixar PDF</button>
       <button onclick="compartilharOrcamento()" style="flex:1;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">📤 Enviar</button>
     </div>
+    <button onclick="salvarOrcamento()" style="width:100%;margin-top:8px;padding:12px;background:#2ec4b6;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">💾 Salvar no Pipeline de orçamentos</button>
     <div id="ai-orc-materiais" style="margin-top:14px;"></div>
   `;
 
@@ -1944,6 +2225,13 @@ async function loadNotifications(){
     (announcementsRes.data || []).forEach(a => {
       notifs.push({ type:'announcement', name: 'QueroUmaCor', title: a.title, message: a.message, time: a.created_at, id: a.id });
     });
+    try {
+      const { data: notifRows } = await sb.from('notifications')
+        .select('*').eq('user_id', myId).order('created_at', { ascending:false }).limit(20);
+      (notifRows || []).forEach(nr => {
+        notifs.push({ type:'app', appType:nr.type, name:nr.title||'QueroUmaCor', text:nr.body, time:nr.created_at, id:'n'+nr.id });
+      });
+    } catch(e){ /* tabela notifications pode não existir ainda */ }
     notifs.sort((a,b) => new Date(b.time) - new Date(a.time));
     if(notifs.length === 0){
       container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificações</div><div style="font-size:13px;">Suas notificações aparecerão aqui</div></div>';
@@ -1955,6 +2243,13 @@ async function loadNotifications(){
         return '<div class="notif-card" style="background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,107,53,.02));border-left:3px solid var(--p1);">'
           + '<div class="notif-av" style="background:var(--p1);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:18px;">📢</span></div>'
           + '<div class="notif-txt"><b>'+escapeHtml(n.title||'Aviso')+'</b><br><span style="font-size:12px;color:#555;">'+escapeHtml(n.message||'')+'</span></div>'
+          + '<div class="notif-time">'+timeAgo+'</div></div>';
+      }
+      if(n.type === 'app'){
+        const icon = n.appType==='quote_approved' ? '🎉' : (n.appType==='quote_sent' ? '📄' : '🔔');
+        return '<div class="notif-card">'
+          + '<div class="notif-av" style="background:var(--ink);border-radius:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:18px;">'+icon+'</span></div>'
+          + '<div class="notif-txt"><b>'+escapeHtml(n.name)+'</b>'+(n.text?'<br><span style="font-size:12px;color:#555;">'+escapeHtml(n.text)+'</span>':'')+'</div>'
           + '<div class="notif-time">'+timeAgo+'</div></div>';
       }
       const avatar = n.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(n.name)+'&background=e8e2d9&color=1a1a2e&size=96';
@@ -2003,6 +2298,11 @@ async function setupNotifSubscription(){
       updateNotifBadge(true);
       toast('👤 Alguém começou a te seguir!');
     })
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications', filter:'user_id=eq.'+myId }, payload => {
+      const n = payload.new || {};
+      updateNotifBadge(true);
+      toast('🔔 ' + (n.title || 'Nova notificação'));
+    })
     .subscribe();
 }
 
@@ -2034,8 +2334,8 @@ async function loadPedidos(){
       container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem pedidos</div><div style="font-size:13px;">Seus orcamentos e compras aparecerão aqui</div></div>';
       return;
     }
-    const statusLabels = { pending:'Aguardando', accepted:'Aceito', completed:'Concluido', rejected:'Rejeitado', processing:'Em andamento', shipped:'Enviado' };
-    const statusClasses = { pending:'status-aguardando', accepted:'status-respondido', completed:'status-concluido', rejected:'status-rejeitado', processing:'status-respondido', shipped:'status-concluido' };
+    const statusLabels = { pending:'Aguardando', rascunho:'Rascunho', enviado:'Enviado', aprovado:'Aprovado', em_execucao:'Em execução', concluido:'Concluído', recusado:'Recusado', accepted:'Aceito', completed:'Concluido', rejected:'Rejeitado', processing:'Em andamento', shipped:'Enviado' };
+    const statusClasses = { pending:'status-aguardando', rascunho:'status-aguardando', enviado:'status-respondido', aprovado:'status-concluido', em_execucao:'status-respondido', concluido:'status-concluido', recusado:'status-rejeitado', accepted:'status-respondido', completed:'status-concluido', rejected:'status-rejeitado', processing:'status-respondido', shipped:'status-concluido' };
 
     let html = '';
     // Render store orders
@@ -2065,6 +2365,15 @@ async function loadPedidos(){
       const stClass = statusClasses[q.status] || 'status-aguardando';
       const date = q.created_at ? new Date(q.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '';
       const price = q.price ? 'R$ '+Number(q.price).toLocaleString('pt-BR') : '';
+      let qActions = '';
+      if(isClient && q.status==='enviado'){
+        qActions = '<div style="display:flex;gap:7px;margin-top:9px;">'
+          + '<button onclick="aprovarQuoteCliente(\''+q.id+'\')" style="flex:1;padding:9px;background:#2ec4b6;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Aprovar orçamento</button>'
+          + '<button onclick="verSnapshot(\''+q.id+'\')" style="padding:9px 14px;background:var(--cream);color:var(--ink);border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver</button>'
+          + '</div>';
+      } else if(['aprovado','em_execucao','concluido'].includes(q.status)){
+        qActions = '<div style="margin-top:9px;"><button onclick="verSnapshot(\''+q.id+'\')" style="width:100%;padding:9px;background:var(--cream);color:var(--ink);border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver escopo aprovado</button></div>';
+      }
       html += '<div data-status="'+(q.status||'pending')+'" class="pedido-card">'
         + '<div class="pedido-head">'
         + '<div class="pedido-pav"><img src="'+avatar+'" alt=""></div>'
@@ -2072,6 +2381,7 @@ async function loadPedidos(){
         + '<div class="pedido-status '+stClass+'">'+st+'</div>'
         + '</div>'
         + '<div class="pedido-meta">'+(price?'<span>'+price+'</span>':'')+'<span>'+date+'</span></div>'
+        + qActions
         + '</div>';
     });
     container.innerHTML = html;
