@@ -235,6 +235,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .orc-title{font-size:16px;font-weight:700;color:#fff;font-family:'Syne',sans-serif;}
 
 .orc-body{padding:16px;display:flex;flex-direction:column;gap:14px;}
+
+/* Info / suporte */
+.faq-q{font-size:13.5px;font-weight:700;color:var(--ink);margin:15px 0 4px;}
+.faq-a{font-size:13px;line-height:1.6;color:var(--muted);}
+.leg-h{font-size:14px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;margin:16px 0 5px;}
+.leg-p{font-size:13px;line-height:1.65;color:var(--ink);margin:0 0 8px;}
+.leg-p b{font-weight:700;}
+.leg-upd{font-size:11.5px;color:var(--muted);font-style:italic;margin:8px 0 4px;}
 .orc-painter-card{background:var(--white);border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
 .opc-av{width:52px;height:52px;border-radius:12px;overflow:hidden;}
 .opc-av img{width:100%;height:100%;object-fit:cover;}
