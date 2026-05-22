@@ -41,6 +41,11 @@
   (formato wa.me `5511959765031`), e-mail `loja@calicolors.com.br`. Já
   configurado no objeto `SUPPORT` em `app.js`. Usar esse contato sempre
   que precisar de um canal de atendimento/suporte no app.
+- **Cache-busting (IMPORTANTE):** `index.html` carrega `head.js` e
+  `app.js` com `?v=AAAAMMDD<letra>` (ex.: `?v=20260522a`). **SEMPRE que
+  mudar `app.js` ou `head.js`, bump esse `?v=`** nas duas tags `<script>`
+  (ex.: `20260522a` → `20260522b`). Se não bumpar, o navegador serve o JS
+  velho do cache e a correção não chega no usuário.
 - **Regra de SQL:** sempre que criar ou alterar qualquer SQL/migration,
   **colar o conteúdo completo do SQL no chat, em texto** (bloco de código),
   para o usuário copiar e rodar no Supabase SQL Editor. Criar só o arquivo
