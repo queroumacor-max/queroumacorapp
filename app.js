@@ -2252,6 +2252,8 @@ function sharePost(postId){
 
 const chatData = {};
 let _globalMsgSub = null;
+const _processedMsgIds = new Set();
+let _chatListDebounce = null;
 
 // Global realtime subscription for messages - ensures new messages show up
 async function setupGlobalMsgSubscription(){
@@ -2284,10 +2286,14 @@ async function setupGlobalMsgSubscription(){
 async function handleRealtimeMsg(payload){
   const m = payload.new;
   if(!m || !currentUser) return;
+  // Dedup: a mesma mensagem pode chegar pelos dois filtros (receiver/sender)
+  if(m.id){
+    if(_processedMsgIds.has(m.id)) return;
+    _processedMsgIds.add(m.id);
+    if(_processedMsgIds.size > 500){ _processedMsgIds.clear(); _processedMsgIds.add(m.id); }
+  }
   const myId = currentUser.id;
   const isMine = m.sender_id === myId;
-
-  console.log('Realtime msg received:', m.id, 'from:', m.sender_id, 'conv:', m.conversation_id, 'type:', m.type);
 
   // Save incoming message to localStorage so it persists
   if(!isMine && m.type !== 'system'){
@@ -2341,10 +2347,11 @@ async function handleRealtimeMsg(payload){
     }
   }
 
-  // Always refresh chat list (even if not visible, so it's ready when user opens it)
+  // Atualiza a lista de chats só se a tela estiver visível, com debounce
   const chatScreen = document.getElementById('screen-chat');
-  if(chatScreen && chatScreen.style.display !== 'none'){
-    loadChatList();
+  if(chatScreen && chatScreen.classList.contains('active')){
+    clearTimeout(_chatListDebounce);
+    _chatListDebounce = setTimeout(loadChatList, 400);
   }
 
   // If we're in this conversation, append the message
@@ -2566,15 +2573,7 @@ async function sendChatMsg(){
   inp.value='';
   body.scrollTop=body.scrollHeight;
 
-  // Save to localStorage
-  if(currentChat){
-    saveMsgLocal(currentChat, { from:'me', content: msg, time: new Date().toISOString() });
-    const localConvs = loadConvsLocal();
-    const existing = localConvs[currentChat] || {};
-    saveConvLocal(currentChat, { ...existing, lastMsg: msg, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
-  }
-
-  // Save to Supabase
+  // Save to Supabase — só persiste no localStorage se o insert tiver sucesso
   const sb = getSupabase();
   if(sb && currentUser){
     try {
@@ -2586,11 +2585,28 @@ async function sendChatMsg(){
         content: msg,
         type: 'text'
       };
-      console.log('sendChatMsg: inserting', JSON.stringify(insertData));
       const { data: res, error } = await sb.from('messages').insert(insertData).select();
-      if(error){ console.error('sendChatMsg error:', error.message, error.details); toast('Erro: ' + error.message); }
-      else { console.log('sendChatMsg: saved OK, id=', res && res[0] ? res[0].id : 'unknown'); }
-    } catch(e){ console.error('sendChatMsg save error:', e); toast('Erro ao salvar mensagem'); }
+      if(error){
+        console.error('sendChatMsg error:', error.message, error.details);
+        toast('Erro ao enviar: ' + error.message);
+        div.classList.add('failed');
+        div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
+        div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
+        return;
+      }
+      // sucesso → agora sim grava local
+      if(currentChat){
+        saveMsgLocal(currentChat, { from:'me', content: msg, time: new Date().toISOString() });
+        const existing = loadConvsLocal()[currentChat] || {};
+        saveConvLocal(currentChat, { ...existing, lastMsg: msg, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
+      }
+    } catch(e){
+      console.error('sendChatMsg save error:', e);
+      toast('Erro ao enviar mensagem');
+      div.classList.add('failed');
+      div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
+      div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
+    }
   }
 }
 document.addEventListener('keydown',e=>{
@@ -2650,7 +2666,7 @@ async function loadAvaliarScreen(){
   } catch(e){
     console.error('loadAvaliarScreen error:', e);
     container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum servico para avaliar</div><div style="font-size:13px;">Solicite um orcamento primeiro</div></div>';
-    form.style.display = 'none';
+    if(form) form.style.display = 'none';
   }
 }
 
@@ -2748,7 +2764,7 @@ async function sendOrc(){
     _setEl('orc-address', 'value', '');
     _setEl('orc-date', 'value', '');
     _setEl('orc-desc', 'value', '');
-    setTimeout(()=>showScreen('profile'), 1800);
+    setTimeout(()=>showScreen('feed'), 1800);
   }
 }
 let chatStoreAdded = false;
@@ -3036,15 +3052,6 @@ async function sendMsg(){
   const myName = (currentUser && currentUser.user_metadata && currentUser.user_metadata.name) || currentUser?.email?.split('@')[0] || 'Eu';
   appendMsg({ from:'me', text: txt, time, sender: myName });
 
-  // Save to localStorage
-  if(currentChat){
-    saveMsgLocal(currentChat, { from:'me', content: txt, time: new Date().toISOString() });
-    // Update conversation preview
-    const localConvs = loadConvsLocal();
-    const existing = localConvs[currentChat] || {};
-    saveConvLocal(currentChat, { ...existing, lastMsg: txt, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
-  }
-
   // Save to Supabase
   const sb = getSupabase();
   const { data:{ session } } = await sb.auth.getSession();
@@ -3059,13 +3066,17 @@ async function sendMsg(){
     content: txt,
     type: 'text'
   };
-  console.log('sendMsg: inserting', JSON.stringify(insertData));
   const { data: insertResult, error } = await sb.from('messages').insert(insertData).select();
   if(error){
     console.error('sendMsg error:', error.message, error.details, error.hint);
-    toast('Erro: ' + error.message);
-  } else {
-    console.log('sendMsg: saved OK, id=', insertResult && insertResult[0] ? insertResult[0].id : 'unknown');
+    toast('Erro ao enviar: ' + error.message);
+    return;
+  }
+  // sucesso → grava no localStorage só agora
+  if(currentChat){
+    saveMsgLocal(currentChat, { from:'me', content: txt, time: new Date().toISOString() });
+    const existing = loadConvsLocal()[currentChat] || {};
+    saveConvLocal(currentChat, { ...existing, lastMsg: txt, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
   }
 }
 
@@ -3299,15 +3310,26 @@ function mktTab(key) {
   const si = document.getElementById('mkt-search'); if(si) si.value = '';
   const ss = document.getElementById('mkt-search-section'); if(ss) ss.style.display = 'none';
   document.querySelectorAll('#mkt-sections .mkt-menu-sec').forEach(s => {
-    s.style.display = s.getAttribute('data-key') === key ? 'block' : 'none';
+    const on = s.getAttribute('data-key') === key;
+    s.style.display = on ? 'block' : 'none';
+    // Renderiza as linhas da seção só quando ela é aberta pela 1ª vez (lazy)
+    if(on && s.getAttribute('data-rendered') === '0'){
+      const grid = s.querySelector('.mkt-products');
+      if(grid && _mktGrouped[key]) grid.innerHTML = _mktGrouped[key].map(renderProductRow).join('');
+      s.setAttribute('data-rendered', '1');
+    }
   });
 }
 
 function updateCartBadge(){
   cartCount = cartItems.reduce((s,c) => s + (c.qty||1), 0);
   const el = document.getElementById('cart-count');
-  if(el) el.textContent = cartCount;
+  if(el){
+    el.textContent = cartCount;
+    el.style.display = cartCount > 0 ? '' : 'none';
+  }
 }
+updateCartBadge();
 
 function addToCart(productId, qty, name, price) {
   qty = Math.max(1, parseInt(qty) || 1);
@@ -3412,6 +3434,8 @@ function getCategoryEmoji(cat){
 
 function getProductImage(p){
   if(p.image_url) return p.image_url;
+  if(p._imgCache !== undefined) return p._imgCache;
+  const _setImg = (v) => { p._imgCache = v; return v; };
   const n = (p.name||'').toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g,''); // strip accents for matching
 
@@ -3470,11 +3494,11 @@ function getProductImage(p){
   for(const [keys, base] of m){
     if(keys.some(k => n.includes(k))){
       // Use size variant if the file exists, otherwise fall back to base
-      if(suf) return '/products/'+base+suf+'.jpg';
-      return '/products/'+base+'.jpg';
+      if(suf) return _setImg('/products/'+base+suf+'.jpg');
+      return _setImg('/products/'+base+'.jpg');
     }
   }
-  return null;
+  return _setImg(null);
 }
 
 function renderProductCard(p){
@@ -3570,9 +3594,48 @@ function openProductDetail(productId){
   showModal('product-detail-modal');
 }
 
+let _mktLoadedAt = 0;
+let _mktGrouped = {};
+const _MKT_TTL = 5 * 60 * 1000; // 5 min
+
+// Constrói abas + seções. Só renderiza as linhas da 1ª seção; as demais
+// são renderizadas sob demanda em mktTab() (lazy).
+function renderMktUI(){
+  _mktGrouped = {};
+  mktProducts.forEach(p => { const k = mktClassify(p); (_mktGrouped[k] = _mktGrouped[k] || []).push(p); });
+  const orderedKeys = MKT_MENUS.map(m => m.key).concat(['outros']).filter(k => _mktGrouped[k] && _mktGrouped[k].length);
+  const total = mktProducts.length;
+
+  const tabsEl = document.getElementById('mkt-tabs');
+  if(tabsEl){
+    tabsEl.innerHTML = orderedKeys.map((k, i) =>
+      '<div class="mkt-tab'+(i===0?' active':'')+'" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
+      + MKT_MENU_LABEL[k] + ' (' + _mktGrouped[k].length + ')</div>'
+    ).join('') || '<div class="mkt-tab active">Sem produtos</div>';
+  }
+  const secEl = document.getElementById('mkt-sections');
+  if(secEl){
+    if(orderedKeys.length === 0){
+      secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
+    } else {
+      secEl.innerHTML = orderedKeys.map((k, i) =>
+        '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="'+(i===0?'1':'0')+'" style="display:'+(i===0?'block':'none')+'">'
+        + '<div class="mkt-section-title">'+MKT_MENU_LABEL[k]+' · '+_mktGrouped[k].length+' itens <span style="color:var(--muted);font-weight:600;">(de '+total+' no total)</span></div>'
+        + '<div class="mkt-products">'+(i===0 ? _mktGrouped[k].map(renderProductRow).join('') : '')+'</div>'
+        + '</div>'
+      ).join('');
+    }
+  }
+}
+
 async function loadMktProducts(_attempt){
   _attempt = _attempt || 0;
   const setSec = (msg) => { const el = document.getElementById('mkt-sections'); if(el) el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
+  // Cache: se carregado há pouco, só re-renderiza (não rebaixa o catálogo)
+  if(mktProducts.length && (Date.now() - _mktLoadedAt) < _MKT_TTL){
+    renderMktUI();
+    return;
+  }
   const sb = getSupabase();
   if(!sb){
     if(_attempt < 20){ setTimeout(() => loadMktProducts(_attempt + 1), 500); return; }
@@ -3593,32 +3656,8 @@ async function loadMktProducts(_attempt){
       if(data.length < PAGE) break;          // última página
     }
     mktProducts = Array.from(byId.values());
-    const grouped = {};
-    mktProducts.forEach(p => { const k = mktClassify(p); (grouped[k] = grouped[k] || []).push(p); });
-    const orderedKeys = MKT_MENUS.map(m => m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);
-    const total = mktProducts.length;
-
-    const tabsEl = document.getElementById('mkt-tabs');
-    if(tabsEl){
-      tabsEl.innerHTML = orderedKeys.map((k, i) =>
-        '<div class="mkt-tab'+(i===0?' active':'')+'" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
-        + MKT_MENU_LABEL[k] + ' (' + grouped[k].length + ')</div>'
-      ).join('') || '<div class="mkt-tab active">Sem produtos</div>';
-    }
-
-    const secEl = document.getElementById('mkt-sections');
-    if(secEl){
-      if(orderedKeys.length === 0){
-        secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
-      } else {
-        secEl.innerHTML = orderedKeys.map((k, i) =>
-          '<div class="mkt-menu-sec" data-key="'+k+'" style="display:'+(i===0?'block':'none')+'">'
-          + '<div class="mkt-section-title">'+MKT_MENU_LABEL[k]+' · '+grouped[k].length+' itens <span style="color:var(--muted);font-weight:600;">(de '+total+' no total)</span></div>'
-          + '<div class="mkt-products">'+grouped[k].map(renderProductRow).join('')+'</div>'
-          + '</div>'
-        ).join('');
-      }
-    }
+    _mktLoadedAt = Date.now();
+    renderMktUI();
   } catch(e){
     console.error('loadMktProducts error:', e);
     setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
@@ -4159,9 +4198,11 @@ const FEED_PAGE = 30;
 
 async function loadFeed(){
   _lastFeedLoad = Date.now();
-  // Show cached feed instantly while fetching fresh data
-  const cachedHtml = localStorage.getItem('feedCache');
-  const cachedStories = localStorage.getItem('storiesCache');
+  // Cache por usuário — evita mostrar o feed de outra conta após troca de login
+  const cacheKey = 'feedCache_' + (currentUser ? currentUser.id : 'anon');
+  const storiesKey = 'storiesCache_' + (currentUser ? currentUser.id : 'anon');
+  const cachedHtml = localStorage.getItem(cacheKey);
+  const cachedStories = localStorage.getItem(storiesKey);
   const container = document.getElementById('feed-posts-area');
   const row = document.getElementById('stories-row');
   if(cachedHtml && container && container.querySelector('.skel-post')) container.innerHTML = cachedHtml;
@@ -4171,8 +4212,8 @@ async function loadFeed(){
   await Promise.all([loadStories(feedIds), loadPosts(feedIds)]);
   // Save to cache for next load
   try {
-    if(container) localStorage.setItem('feedCache', container.innerHTML);
-    if(row) localStorage.setItem('storiesCache', row.innerHTML);
+    if(container) localStorage.setItem(cacheKey, container.innerHTML);
+    if(row) localStorage.setItem(storiesKey, row.innerHTML);
   } catch(e){}
 }
 
@@ -4309,7 +4350,7 @@ async function loadPosts(feedIds){
         +'</button>';
       // Orçamento (qualquer post que não seja o seu próprio)
       if(!currentUser || p.user_id !== currentUser.id){
-        html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeHtml(name)+'\')">'
+        html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeJsArg(name)+'\')">'
           +'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
           +'<span class="act-label">Orçar</span>'
           +'</button>';
@@ -4374,8 +4415,24 @@ function cleanHandle(p, fb){
 
 function escapeHtml(str){
   const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Escapa um valor para uso DENTRO de uma string JS em atributo onclick="..."
+function escapeJsArg(str){
+  return String(str == null ? '' : str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/[<>]/g, '');
+}
+
+async function sendPasswordReset(){
+  const email = (document.getElementById('login-email')?.value || '').trim();
+  if(!email || !/^\S+@\S+\.\S+$/.test(email)){ toast('Digite seu email no campo acima primeiro'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Aguarde, carregando...'); return; }
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if(error){ toast('Erro: ' + error.message); return; }
+    toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
+  } catch(e){ console.warn('sendPasswordReset:', e); toast('Erro ao enviar email'); }
 }
 
 async function togglePostLike(btn){
@@ -4592,7 +4649,7 @@ async function deleteCurrentStory(){
       loadStories();
     } else {
       if(currentStoryIndex >= group.stories.length) currentStoryIndex = group.stories.length - 1;
-      showStory(currentStoryGroup, currentStoryIndex);
+      renderCurrentStory();
     }
     toast('Story deletado!');
   } catch(e){ toast('Erro ao deletar story'); console.warn(e); }
@@ -5090,11 +5147,13 @@ async function loadMapPainters(){
         marker._fromDB = true;
         marker._painterId = p.id;
         marker.on('click', () => {
-          document.getElementById('pp-img').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
+          document.getElementById('pp-img').src = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
           document.getElementById('pp-name').textContent = p.name || 'Pintor';
           document.getElementById('pp-sub').textContent = [p.city, p.state].filter(Boolean).join(', ') + (p.specialties ? ' - ' + p.specialties : '');
           document.getElementById('pp-stars').textContent = _starStr(p.rating_avg||0) + ' ' + Number(p.rating_avg||0).toFixed(1);
           document.getElementById('painter-popup').classList.add('show');
+          const ppBtn = document.querySelector('#painter-popup .pp-btn');
+          if(ppBtn) ppBtn.onclick = () => { document.getElementById('painter-popup').classList.remove('show'); openUserProfile(p.id); };
         });
         mapMarkers.push(marker);
       }
