@@ -381,7 +381,7 @@
           <div class="pp-sub" id="pp-sub">--</div>
           <div class="pp-stars" id="pp-stars">-----</div>
         </div>
-        <button class="pp-btn" onclick="return false;">Ver perfil</button>
+        <button class="pp-btn" onclick="openPainterPopupProfile()">Ver perfil</button>
       </div>
 
       <!-- Filters -->
@@ -520,10 +520,6 @@
     <div class="fg"><label class="fl">Endereço</label><input id="orc-address" type="text" class="fi" placeholder="Bairro, cidade"></div>
     <div class="fg"><label class="fl">Data desejada</label><input id="orc-date" type="date" class="fi"></div>
     <div class="fg"><label class="fl">Descrição</label><textarea id="orc-desc" class="fta" placeholder="Cores desejadas, estado das paredes, detalhes importantes..."></textarea></div>
-    <div class="photo-drop" onclick="toast('Câmera aberta!')">
-      <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      <span>Adicionar fotos do local</span>
-    </div>
     <button class="orc-submit" onclick="sendOrc()"><span>📩 Enviar Solicitação</span></button>
   </div>
 </div>
@@ -1185,68 +1181,6 @@
   </div>
 </div>
 
-<!-- ══ CHAT CONV (PINTOR↔CLIENTE) ══ -->
-<div class="screen" id="screen-chat-conv">
-  <div class="chat-screen-wrap" style="height:100%;display:flex;flex-direction:column;">
-    <div class="chat-header">
-      <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <div class="chat-pav"><img src="https://i.pravatar.cc/150?img=11" alt="Carlos"></div>
-      <div><div class="chat-pname">Carlos Silva</div><div class="chat-pstatus">🟢 Online agora</div></div>
-      <button onclick="toast('Perfil de Carlos')" style="margin-left:auto;background:none;border:none;cursor:pointer;">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      </button>
-    </div>
-    <div style="background:#f0f4f8;padding:10px 14px;font-size:12px;color:#555;text-align:center;border-bottom:1px solid var(--border);">
-      📋 Pedido: Pintura residencial · 80m² · Moema — <b style="color:var(--p1)">Aguardando resposta</b>
-      <span style="margin-left:8px;cursor:pointer;color:var(--p3);font-weight:600;" onclick="showScreen('chat');toast('Abrindo chat 3-way...')">+ Cali Colors</span>
-    </div>
-    <div class="chat-body" id="chat-body" style="flex:1;background:var(--cream);">
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Olá! Vi seu pedido de orçamento. Posso visitar amanhã às 14h para avaliar o serviço. Tem alguma preferência de horário?</div>
-        <div class="chat-time">Carlos · 10:32</div>
-      </div>
-      <div class="chat-msg sent">
-        <div class="chat-bubble">Oi Carlos! Pode ser 14h sim. Tenho preferência por tons neutros — off-white e creme. 🎨</div>
-        <div class="chat-time">Você · 10:45</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Perfeito! Trabalho muito com Coral Requinte e Suvinil Clássico nessas cores. Veja algumas referências do meu portfólio:</div>
-        <div class="chat-time">Carlos · 10:47</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-img-bubble"><img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=300" alt="Referência"></div>
-        <div class="chat-time">Carlos · 10:47</div>
-      </div>
-      <div class="chat-msg sent">
-        <div class="chat-bubble">Adorei! Especialmente a primeira foto. Qual o prazo estimado para 4 cômodos?</div>
-        <div class="chat-time">Você · 11:02</div>
-      </div>
-      <div class="chat-msg recv">
-        <div class="chat-bubble">Para 80m² de área total, estimo 3 dias úteis com acabamento premium. Aguarde meu orçamento formal até as 18h de hoje!</div>
-        <div class="chat-time">Carlos · 11:08</div>
-      </div>
-      <div id="chat-typing" style="display:none" class="chat-msg recv">
-        <div class="chat-bubble" style="padding:10px 16px;">
-          <span style="display:inline-flex;gap:4px;align-items:center">
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite 0s"></span>
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite .2s"></span>
-            <span style="width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typing .9s infinite .4s"></span>
-          </span>
-        </div>
-      </div>
-    </div>
-    <div class="chat-input-row">
-      <button onclick="document.getElementById('chat-file-input').click()" style="background:none;border:none;cursor:pointer;padding:4px;">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-linecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input class="chat-input" id="chat-input-field" type="text" placeholder="Mensagem...">
-      <button class="chat-send" onclick="sendChatMsg()">
-        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ AVALIAR SCREEN ══ -->
 <div class="screen" id="screen-avaliar">
   <div class="orc-header">
@@ -1282,11 +1216,7 @@
       <div class="criteria-chip" onclick="toggleCriteria(this)">⚡ Rápido</div>
       <div class="criteria-chip" onclick="toggleCriteria(this)">🎨 Criativo</div>
     </div>
-    <div style="font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 8px;">Fotos do resultado (opcional)</div>
-    <div class="foto-obra-row">
-      <div class="foto-obra-add" onclick="toast('📷 Adicionar foto')">+</div>
-    </div>
-    <div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:8px;">Comentário (opcional)</div>
+    <div style="font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 8px;">Comentário (opcional)</div>
     <textarea class="avaliar-ta" id="avalia-ta" placeholder="Conte como foi a experiência..."></textarea>
     <button class="avaliar-submit" onclick="submitAvaliacao()">⭐ Publicar Avaliação</button>
   </div>
@@ -1485,23 +1415,6 @@
     <div class="sheet-opt" onclick="submitReport('Spam')">Spam</div>
     <div class="sheet-opt" onclick="submitReport('Informação falsa')">Informação falsa</div>
     <div class="sheet-opt" onclick="submitReport('Outro')">Outro</div>
-  </div>
-</div>
-
-<div class="overlay" id="msgs-modal" onclick="closeModals()">
-  <div class="sheet" onclick="event.stopPropagation()">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Mensagens</div>
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="width:44px;height:44px;border-radius:50%;overflow:hidden"><img src="https://i.pravatar.cc/150?img=20" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><b style="font-size:13.5px">fernanda_costa</b><br><span style="font-size:12px;color:var(--muted)">Gostei muito do seu trabalho! 🎨</span></div>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted)">2min</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
-      <div style="width:44px;height:44px;border-radius:50%;overflow:hidden"><img src="https://i.pravatar.cc/150?img=33" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><b style="font-size:13.5px">ricardo_a</b><br><span style="font-size:12px;color:var(--muted)">Você faz textura em apto?</span></div>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted)">1h</span>
-    </div>
   </div>
 </div>
 
@@ -1991,34 +1904,6 @@
   <div style="position:absolute;inset:0;display:flex;z-index:2;">
     <div style="flex:1;" onclick="storyPrev()"></div>
     <div style="flex:1;" onclick="storyNext()"></div>
-  </div>
-</div>
-
-
-<div class="overlay" id="orc-detail-modal" onclick="closeModals()">
-  <div class="sheet" onclick="event.stopPropagation()">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">💰 Orçamento Recebido</div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-      <div style="width:44px;height:44px;border-radius:10px;overflow:hidden;"><img src="https://i.pravatar.cc/150?img=12" style="width:100%;height:100%;object-fit:cover" alt=""></div>
-      <div><div style="font-size:14px;font-weight:700;">João Rodrigues</div><div style="font-size:11px;color:var(--muted);">★★★★★ 5.0 · Rio de Janeiro</div></div>
-      <div style="margin-left:auto;background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;">Válido até 29/03</div>
-    </div>
-    <div class="orc-detail-breakdown">
-      <div class="orc-detail-row"><span>Mão de obra (45m²)</span><span>R$2.400</span></div>
-      <div class="orc-detail-row"><span>Material incluso</span><span>R$600</span></div>
-      <div class="orc-detail-row"><span>Prazo</span><span>4 dias úteis</span></div>
-      <div class="orc-detail-row"><span>Início previsto</span><span>05/04/2026</span></div>
-      <div class="orc-detail-row"><span style="color:var(--p3)">Total</span><span style="color:var(--p3)">R$3.200</span></div>
-    </div>
-    <div style="background:var(--cream);border-radius:12px;padding:12px;font-size:13px;color:#555;margin-bottom:14px;">
-      💬 <i>"Inclui limpeza completa, 3 demãos de Venetian com acabamento acetinado. Garantia de 6 meses."</i>
-    </div>
-    <div class="orc-detail-actions">
-      <button class="orc-detail-btn accept" onclick="toast('✅ Orçamento aceito! João será notificado.');closeModals()">✅ Aceitar</button>
-      <button class="orc-detail-btn decline" onclick="toast('Orçamento recusado');closeModals()">❌ Recusar</button>
-    </div>
-    <button onclick="showScreen('chat-conv');closeModals()" style="width:100%;margin-top:8px;padding:11px;background:transparent;border:1.5px solid var(--border);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--ink);">💬 Negociar com João</button>
   </div>
 </div>
 
