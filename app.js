@@ -356,7 +356,7 @@ async function refreshProStatus(){
   try {
     const sb = getSupabase();
     if(!sb || !currentUser) { _isPro = false; _proExpires = null; applyProUI(); return false; }
-    const { data } = await sb.from('profiles').select('is_pro, pro_expires_at').eq('id', currentUser.id).single();
+    const data = await getMyProfile();
     const notExpired = !data?.pro_expires_at || new Date(data.pro_expires_at) > new Date();
     _isPro = !!(data && data.is_pro && notExpired);
     _proExpires = data?.pro_expires_at || null;
@@ -3195,6 +3195,7 @@ async function saveEditProfile(){
       const storyAvEl = document.getElementById('my-story-avatar');
       if(storyAvEl) storyAvEl.src = updates.avatar_url;
     }
+    invalidateMyProfile();
     loadMyProfileData();
     updateMyStoryAvatar();
   } catch(e){
@@ -4312,8 +4313,7 @@ async function loadUserState(){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   try {
-    const { data } = await sb.from('profiles')
-      .select('cart, ai_logo_gen_count, seen_stories').eq('id', currentUser.id).single();
+    const data = await getMyProfile();
     if(data){
       cartItems = Array.isArray(data.cart) ? data.cart : [];
       _aiLogoCount = +data.ai_logo_gen_count || 0;
