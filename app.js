@@ -565,12 +565,53 @@ function buildQuoteSnapshot(q){
   };
 }
 
+// Integra o Pipeline com a Agenda/Financeiro: orçamento aprovado / em
+// execução / concluído vira um projeto (job). Idempotente — só cria o
+// que falta e nunca rebaixa o status de um job já existente.
+async function syncQuotesToJobs(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  try {
+    const { data: quotes } = await sb.from('quotes')
+      .select('id, client_name, service_type, address, price, proposed_date, status, client:profiles!client_id(name)')
+      .eq('painter_id', currentUser.id)
+      .in('status', ['aprovado','em_execucao','concluido']);
+    if(!quotes || !quotes.length) return;
+    const { data: jobs } = await sb.from('jobs')
+      .select('id, quote_id, status').eq('painter_id', currentUser.id).not('quote_id','is',null);
+    const byQuote = {};
+    (jobs||[]).forEach(j => { if(j.quote_id) byQuote[j.quote_id] = j; });
+    const t = new Date();
+    const ymd = new Date(t.getTime() - t.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    for(const q of quotes){
+      const existing = byQuote[q.id];
+      if(!existing){
+        await sb.from('jobs').insert({
+          painter_id: currentUser.id,
+          quote_id: q.id,
+          client_name: q.client_name || (q.client && q.client.name) || 'Cliente',
+          service_type: q.service_type || 'Serviço',
+          address: q.address || null,
+          scheduled_date: q.proposed_date || ymd,
+          status: q.status === 'concluido' ? 'concluido' : 'agendado',
+          revenue: +q.price || 0,
+          material_cost: 0,
+          notes: 'Gerado automaticamente do orçamento aprovado'
+        });
+      } else if(q.status === 'concluido' && existing.status !== 'concluido' && existing.status !== 'cancelado'){
+        await sb.from('jobs').update({ status:'concluido' }).eq('id', existing.id).eq('painter_id', currentUser.id);
+      }
+    }
+  } catch(e){ console.warn('syncQuotesToJobs:', e && e.message || e); }
+}
+
 async function loadPipeline(){
   const sb = getSupabase();
   const container = document.getElementById('pipeline-list');
   if(!container) return;
   if(!sb || !currentUser){ container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Faça login para ver seus orçamentos.</div>'; return; }
   container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>';
+  await syncQuotesToJobs();
   try {
     const { data: quotes, error } = await sb.from('quotes')
       .select('*, client:profiles!client_id(name)')
@@ -1612,6 +1653,7 @@ function _agYmd(d){ return new Date(d.getTime() - d.getTimezoneOffset()*60000).t
 
 async function loadAgenda(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
+  await syncQuotesToJobs();
   const { data } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
   _agJobs = data || [];
   const now = new Date();
@@ -1804,6 +1846,7 @@ async function deletarNota(id){
 // ══ FINANCEIRO / LUCRO ══
 async function loadFinanceiro(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
+  await syncQuotesToJobs();
   const { data: jobs } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).eq('status','concluido').order('created_at',{ascending:false});
   let receita=0, custos=0;
   (jobs||[]).forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
