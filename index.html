@@ -1057,12 +1057,194 @@
     </div>
   </div>
 
+  <!-- MAIS INFORMAÇÕES E SUPORTE -->
+  <div style="padding:6px 16px 0;">
+    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Mais informações e suporte</div>
+    <div style="background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+      <div onclick="showScreen('info')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
+        <span style="font-size:18px;">ℹ️</span>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Ajuda, privacidade e sobre</div>
+          <div style="font-size:12px;color:var(--muted);">Central de ajuda, termos, privacidade e contato</div>
+        </div>
+        <span style="color:var(--muted);">›</span>
+      </div>
+    </div>
+  </div>
+
   <!-- LOGOUT BUTTON -->
   <div style="padding:20px 16px 30px;text-align:center;">
     <button onclick="doLogout()" style="width:100%;background:transparent;border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--p4);display:flex;align-items:center;justify-content:center;gap:8px;transition:.2s;">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--p4)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       Sair da conta
     </button>
+  </div>
+</div>
+
+<!-- ══ MAIS INFORMAÇÕES E SUPORTE ══ -->
+<div class="screen" id="screen-info">
+  <div class="orc-header">
+    <button class="back-btn" onclick="infoBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="orc-title" id="info-title">Mais informações e suporte</div>
+  </div>
+  <div id="info-body" style="padding:16px 16px 100px;">
+
+    <!-- MENU -->
+    <div id="info-page-menu">
+      <div style="background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:16px;">
+        <div onclick="openInfoPage('ajuda')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;border-bottom:1px solid var(--border);">
+          <span style="font-size:19px;">🆘</span><div style="flex:1;font-size:14px;font-weight:600;">Central de Ajuda</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openInfoPage('contato')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;border-bottom:1px solid var(--border);">
+          <span style="font-size:19px;">💬</span><div style="flex:1;font-size:14px;font-weight:600;">Fale Conosco</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openInfoPage('privacidade')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;border-bottom:1px solid var(--border);">
+          <span style="font-size:19px;">🔒</span><div style="flex:1;font-size:14px;font-weight:600;">Política de Privacidade</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openInfoPage('termos')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;">
+          <span style="font-size:19px;">📄</span><div style="flex:1;font-size:14px;font-weight:600;">Termos de Uso</div><span style="color:var(--muted);">›</span>
+        </div>
+      </div>
+      <div style="background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:16px;">
+        <div onclick="openInfoPage('sobre')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;border-bottom:1px solid var(--border);">
+          <span style="font-size:19px;">ℹ️</span><div style="flex:1;font-size:14px;font-weight:600;">Sobre o QueroUmaCor</div><span style="color:var(--muted);">›</span>
+        </div>
+        <div onclick="openInfoPage('conta')" style="padding:15px 16px;display:flex;align-items:center;gap:13px;cursor:pointer;">
+          <span style="font-size:19px;">🗑️</span><div style="flex:1;font-size:14px;font-weight:600;color:var(--p4);">Excluir minha conta</div><span style="color:var(--muted);">›</span>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:11px;color:var(--muted);">QueroUmaCor • Versão 1.0</div>
+    </div>
+
+    <!-- CENTRAL DE AJUDA -->
+    <div id="info-page-ajuda" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:6px 16px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+        <div class="faq-q">O que é o QueroUmaCor?</div>
+        <div class="faq-a">É um aplicativo que conecta clientes a profissionais de pintura — pintores residenciais e comerciais, grafiteiros e muralistas, pintores automotivos e funileiros. Você encontra profissionais perto de você, vê portfólios, pede orçamentos e conversa pelo chat.</div>
+        <div class="faq-q">Por que o cadastro é por convite?</div>
+        <div class="faq-a">Para manter uma comunidade de qualidade e segura, o cadastro é feito por convite. Você pode entrar usando um código de convite ou abrindo o link de perfil de alguém que já usa o app.</div>
+        <div class="faq-q">Como peço um orçamento?</div>
+        <div class="faq-a">Abra o perfil de um profissional e toque em "Solicitar Orçamento". Informe o tipo de serviço, a metragem, o endereço e os detalhes. O profissional recebe o pedido e responde pelo chat.</div>
+        <div class="faq-q">Como compartilho o meu perfil?</div>
+        <div class="faq-a">Na sua tela de perfil, toque em "Compartilhar". O app monta um resumo do seu trabalho com um link. Quem abrir o link já entra direto na criação de conta.</div>
+        <div class="faq-q">O app é gratuito?</div>
+        <div class="faq-a">Sim. Criar uma conta e usar as funções principais é gratuito. Alguns recursos avançados (PRO) podem ter custo, sempre informado antes.</div>
+        <div class="faq-q">Como adiciono fotos ao meu portfólio?</div>
+        <div class="faq-a">Na sua tela de perfil, na seção "Meu Portfólio", toque em "+ Adicionar" e envie fotos ou vídeos dos seus trabalhos.</div>
+        <div class="faq-q">Esqueci minha senha. E agora?</div>
+        <div class="faq-a">Na tela de login, toque na opção de recuperação de senha e informe seu e-mail. Você receberá uma mensagem com o passo a passo para criar uma nova senha.</div>
+        <div class="faq-q">Não encontrei o que eu procurava.</div>
+        <div class="faq-a">Sem problema — fale com a gente em "Fale Conosco" e teremos prazer em ajudar.</div>
+      </div>
+    </div>
+
+    <!-- FALE CONOSCO -->
+    <div id="info-page-contato" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+        <div style="font-size:14px;line-height:1.6;color:var(--ink);margin-bottom:14px;">Tem uma dúvida, sugestão ou encontrou um problema? Estamos aqui para ajudar.</div>
+        <button id="info-wa-btn" onclick="supportWhatsApp()" style="display:none;width:100%;padding:13px;background:#25D366;color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:9px;align-items:center;justify-content:center;gap:8px;">💬 Falar pelo WhatsApp</button>
+        <button onclick="supportEmail()" style="width:100%;padding:13px;background:var(--ink);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">✉️ Enviar e-mail</button>
+        <div style="margin-top:14px;background:var(--cream);border-radius:11px;padding:13px;font-size:12px;color:var(--muted);line-height:1.55;">Atendimento de segunda a sexta, das 9h às 18h. Respondemos em até 2 dias úteis.</div>
+      </div>
+    </div>
+
+    <!-- POLÍTICA DE PRIVACIDADE -->
+    <div id="info-page-privacidade" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:6px 16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+        <p class="leg-upd">Última atualização: 22 de maio de 2026</p>
+        <p class="leg-p">Esta Política de Privacidade explica como o QueroUmaCor coleta, usa, compartilha e protege os seus dados pessoais, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
+        <h3 class="leg-h">1. Quem é o controlador</h3>
+        <p class="leg-p">O QueroUmaCor é o controlador dos dados pessoais tratados no aplicativo. Para qualquer assunto relativo à privacidade, entre em contato pelos canais indicados em "Fale Conosco".</p>
+        <h3 class="leg-h">2. Dados que coletamos</h3>
+        <p class="leg-p"><b>Dados de cadastro:</b> nome, e-mail, telefone, tipo de usuário (cliente ou profissional) e foto de perfil.<br><b>Dados do perfil profissional:</b> especialidades, raio de atendimento, formação, cursos e fotos do portfólio.<br><b>Dados de uso:</b> orçamentos solicitados, mensagens trocadas no chat e avaliações.<br><b>Localização aproximada:</b> usada para mostrar profissionais e serviços perto de você.<br><b>Dados técnicos:</b> informações do dispositivo e de acesso, para segurança e funcionamento do app.</p>
+        <h3 class="leg-h">3. Como usamos os seus dados</h3>
+        <p class="leg-p">Utilizamos os dados para criar e manter a sua conta; conectar clientes e profissionais; exibir perfis, portfólios e resultados de busca; viabilizar orçamentos e o chat; melhorar o aplicativo; garantir a segurança e prevenir fraudes; e cumprir obrigações legais.</p>
+        <h3 class="leg-h">4. Base legal do tratamento</h3>
+        <p class="leg-p">Tratamos seus dados com base na execução do contrato (uso do app), no seu consentimento, no legítimo interesse de oferecer e aprimorar o serviço e no cumprimento de obrigações legais.</p>
+        <h3 class="leg-h">5. Compartilhamento de dados</h3>
+        <p class="leg-p">Seu perfil público (nome, foto, especialidades e portfólio) é visível para outros usuários do app. Compartilhamos dados com prestadores que viabilizam o serviço — como hospedagem e banco de dados (Supabase), infraestrutura (Cloudflare) e provedores de inteligência artificial — e com autoridades, quando exigido por lei. <b>Não vendemos os seus dados pessoais.</b></p>
+        <h3 class="leg-h">6. Inteligência artificial</h3>
+        <p class="leg-p">Alguns recursos usam IA, como a sugestão de cores e o assistente do chat. Os dados enviados a esses recursos são utilizados apenas para gerar a resposta solicitada.</p>
+        <h3 class="leg-h">7. Armazenamento e segurança</h3>
+        <p class="leg-p">Seus dados são armazenados em servidores seguros e adotamos medidas técnicas e organizacionais para protegê-los. Nenhum sistema, porém, é totalmente imune a riscos.</p>
+        <h3 class="leg-h">8. Retenção dos dados</h3>
+        <p class="leg-p">Mantemos os seus dados enquanto a sua conta estiver ativa. Após a exclusão da conta, os dados são apagados ou anonimizados, exceto quando a guarda for exigida por lei.</p>
+        <h3 class="leg-h">9. Seus direitos</h3>
+        <p class="leg-p">Você pode, a qualquer momento, solicitar a confirmação e o acesso aos seus dados, a correção de informações, a anonimização ou eliminação, a portabilidade, informações sobre compartilhamento e a revogação do consentimento. Para exercer esses direitos, fale conosco.</p>
+        <h3 class="leg-h">10. Localização</h3>
+        <p class="leg-p">A localização aproximada é usada somente para mostrar profissionais e serviços por perto. Você pode desativá-la nas configurações do seu dispositivo.</p>
+        <h3 class="leg-h">11. Menores de idade</h3>
+        <p class="leg-p">O QueroUmaCor não é destinado a menores de 18 anos.</p>
+        <h3 class="leg-h">12. Alterações desta política</h3>
+        <p class="leg-p">Podemos atualizar esta política periodicamente. Mudanças relevantes serão informadas no aplicativo.</p>
+      </div>
+    </div>
+
+    <!-- TERMOS DE USO -->
+    <div id="info-page-termos" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:6px 16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+        <p class="leg-upd">Última atualização: 22 de maio de 2026</p>
+        <h3 class="leg-h">1. Aceitação dos termos</h3>
+        <p class="leg-p">Ao criar uma conta e usar o QueroUmaCor, você concorda com estes Termos de Uso. Se não concordar, não utilize o aplicativo.</p>
+        <h3 class="leg-h">2. O que é o QueroUmaCor</h3>
+        <p class="leg-p">O QueroUmaCor é uma plataforma de intermediação que conecta clientes a profissionais de pintura. O QueroUmaCor não presta serviços de pintura e não é parte nos contratos firmados entre os usuários.</p>
+        <h3 class="leg-h">3. Cadastro e conta</h3>
+        <p class="leg-p">Você deve fornecer informações verdadeiras e mantê-las atualizadas. A conta é pessoal e intransferível, e o cadastro é feito por convite. Você é responsável por manter a sua senha em sigilo. O uso é destinado a maiores de 18 anos.</p>
+        <h3 class="leg-h">4. Regras de uso</h3>
+        <p class="leg-p">Você concorda em não publicar conteúdo falso, ofensivo, discriminatório ou ilegal; não violar direitos de terceiros; não usar a plataforma para spam; e não tentar burlar a segurança do app.</p>
+        <h3 class="leg-h">5. Conteúdo do usuário</h3>
+        <p class="leg-p">Você é responsável pelo conteúdo que publica, como fotos de portfólio e descrições. Você declara ter os direitos sobre esse conteúdo e concede ao QueroUmaCor uma licença para exibi-lo dentro do aplicativo.</p>
+        <h3 class="leg-h">6. Orçamentos e contratações</h3>
+        <p class="leg-p">As negociações, valores, prazos e a execução dos serviços são de responsabilidade exclusiva entre o cliente e o profissional. O QueroUmaCor não garante a contratação, a qualidade do serviço nem o pagamento.</p>
+        <h3 class="leg-h">7. Avaliações</h3>
+        <p class="leg-p">As avaliações devem ser honestas e baseadas em experiências reais. Avaliações falsas ou abusivas podem ser removidas.</p>
+        <h3 class="leg-h">8. Propriedade intelectual</h3>
+        <p class="leg-p">A marca, o logotipo e o software do QueroUmaCor pertencem ao QueroUmaCor e não podem ser usados sem autorização.</p>
+        <h3 class="leg-h">9. Limitação de responsabilidade</h3>
+        <p class="leg-p">O aplicativo é fornecido "como está". Não nos responsabilizamos por danos decorrentes de negociações entre usuários ou por eventual indisponibilidade temporária do serviço.</p>
+        <h3 class="leg-h">10. Suspensão e encerramento</h3>
+        <p class="leg-p">Podemos suspender ou encerrar contas que violem estes termos ou a legislação aplicável.</p>
+        <h3 class="leg-h">11. Alterações dos termos</h3>
+        <p class="leg-p">Estes termos podem ser atualizados. Mudanças relevantes serão comunicadas no aplicativo.</p>
+        <h3 class="leg-h">12. Lei aplicável e foro</h3>
+        <p class="leg-p">Estes termos são regidos pelas leis brasileiras. Fica eleito o foro do domicílio do consumidor para dirimir eventuais conflitos.</p>
+      </div>
+    </div>
+
+    <!-- EXCLUIR CONTA -->
+    <div id="info-page-conta" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+        <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:11px;padding:13px;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--p4);margin-bottom:4px;">Esta ação é permanente</div>
+          <div style="font-size:12.5px;color:var(--ink);line-height:1.55;">A exclusão da conta não pode ser desfeita.</div>
+        </div>
+        <p class="leg-p">Ao excluir a sua conta, removemos os seus dados pessoais do QueroUmaCor, incluindo:</p>
+        <ul style="font-size:13.5px;line-height:1.7;color:var(--ink);margin:0 0 10px;padding-left:20px;">
+          <li>Perfil e foto;</li>
+          <li>Portfólio, fotos e vídeos de trabalhos;</li>
+          <li>Formação e cursos;</li>
+          <li>Mensagens, orçamentos e avaliações.</li>
+        </ul>
+        <p class="leg-p">Alguns dados podem ser mantidos por prazo limitado quando a guarda for exigida por lei. O pedido é processado em até 15 dias.</p>
+        <p class="leg-p" style="color:var(--muted);font-size:12px;">Ao tocar no botão abaixo, abriremos o seu app de e-mail com a solicitação já preenchida. Basta enviar a mensagem para confirmar.</p>
+        <button onclick="requestAccountDeletion()" style="width:100%;padding:13px;background:var(--p4);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Solicitar exclusão da conta</button>
+      </div>
+    </div>
+
+    <!-- SOBRE -->
+    <div id="info-page-sobre" style="display:none;">
+      <div style="background:var(--white);border-radius:14px;padding:24px 18px;box-shadow:0 2px 8px rgba(0,0,0,.05);text-align:center;">
+        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--ink);">Quero<span style="color:var(--p1);">Uma</span>Cor</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Versão 1.0</div>
+        <p style="font-size:13.5px;line-height:1.6;color:var(--ink);margin:16px 0 0;">Conectamos clientes aos melhores profissionais de pintura — pintores, grafiteiros, muralistas, pintores automotivos e funileiros — de um jeito simples, perto de você.</p>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);">Feito no Brasil 🇧🇷<br>© 2026 QueroUmaCor. Todos os direitos reservados.</div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button onclick="openInfoPage('termos')" style="flex:1;padding:10px;background:var(--cream);border:none;border-radius:10px;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;font-family:'DM Sans',sans-serif;">Termos de Uso</button>
+          <button onclick="openInfoPage('privacidade')" style="flex:1;padding:10px;background:var(--cream);border:none;border-radius:10px;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;font-family:'DM Sans',sans-serif;">Privacidade</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 

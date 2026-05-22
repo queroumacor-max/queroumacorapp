@@ -1,5 +1,5 @@
 // ══ SCREENS ══
-const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas'];
+const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas','info'];
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv','chat-conv'];
 function showScreen(n){
@@ -9,7 +9,7 @@ function showScreen(n){
   });
   Object.values(bnMap).forEach(id=>{document.getElementById(id)?.classList.remove('active');});
   if(bnMap[n])document.getElementById(bnMap[n]).classList.add('active');
-  if(['pedidos','chat-conv','avaliar','camisetas'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
+  if(['pedidos','chat-conv','avaliar','camisetas','info'].includes(n)){document.getElementById('bn-myprofile')?.classList.add('active');}
   if(['chatconv'].includes(n)){/* chat is in top nav, no bottom nav highlight */}
   const topNav=document.querySelector('.top-nav');
   const botNav=document.querySelector('.bot-nav');
@@ -31,6 +31,7 @@ function showScreen(n){
   if(n==='pedidos') loadPedidos();
   if(n==='avaliar') loadAvaliarScreen();
   if(n==='camisetas') loadBusinessLogo();
+  if(n==='info') openInfoPage('menu');
 }
 
 
@@ -390,6 +391,68 @@ async function handleReferralParam(){
     if(typeof signupNext === 'function') signupNext(1); // pula o passo do código
     toast('Você foi convidado por ' + refName.split(' ')[0] + '! Crie sua conta 🎨');
   } catch(e){ console.warn('handleReferralParam:', e); }
+}
+
+// ══ MAIS INFORMAÇÕES E SUPORTE ══
+const SUPPORT = {
+  email: 'jackson.guerra@gmail.com',
+  // Para ativar o botão de WhatsApp, preencha com DDI+DDD+número (só dígitos).
+  // Ex.: '5511912345678'. Vazio = botão de WhatsApp fica oculto.
+  whatsapp: ''
+};
+const _infoTitles = {
+  menu:'Mais informações e suporte',
+  ajuda:'Central de Ajuda',
+  contato:'Fale Conosco',
+  privacidade:'Política de Privacidade',
+  termos:'Termos de Uso',
+  conta:'Excluir minha conta',
+  sobre:'Sobre o QueroUmaCor'
+};
+let _infoPage = 'menu';
+function openInfoPage(page){
+  _infoPage = page;
+  Object.keys(_infoTitles).forEach(p=>{
+    const el = document.getElementById('info-page-'+p);
+    if(el) el.style.display = (p===page) ? 'block' : 'none';
+  });
+  const t = document.getElementById('info-title');
+  if(t) t.textContent = _infoTitles[page] || 'Informações';
+  const sa = document.getElementById('scroll-area');
+  if(sa) sa.scrollTop = 0;
+  if(page==='contato'){
+    const wa = document.getElementById('info-wa-btn');
+    if(wa) wa.style.display = SUPPORT.whatsapp ? 'flex' : 'none';
+  }
+}
+function infoBack(){
+  if(_infoPage !== 'menu') openInfoPage('menu');
+  else showScreen('myprofile');
+}
+function supportWhatsApp(){
+  if(!SUPPORT.whatsapp){ toast('WhatsApp não configurado'); return; }
+  const msg = encodeURIComponent('Olá! Preciso de ajuda com o app QueroUmaCor.');
+  window.open('https://wa.me/' + SUPPORT.whatsapp + '?text=' + msg, '_blank');
+}
+function supportEmail(){
+  const uid = (typeof currentUser!=='undefined' && currentUser) ? currentUser.id : '';
+  const subject = encodeURIComponent('Suporte QueroUmaCor');
+  const body = encodeURIComponent('Descreva sua dúvida ou problema:\n\n\n---\nID do usuário: ' + uid);
+  window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
+}
+function requestAccountDeletion(){
+  if(!confirm('Tem certeza que deseja solicitar a exclusão da sua conta?\n\nEsta ação é permanente e remove seu perfil, portfólio, mensagens e avaliações.')) return;
+  const u = (typeof currentUser!=='undefined' && currentUser) ? currentUser : null;
+  const subject = encodeURIComponent('Solicitação de exclusão de conta - QueroUmaCor');
+  const body = encodeURIComponent(
+    'Solicito a exclusão definitiva da minha conta no QueroUmaCor e de todos os meus dados pessoais, conforme a LGPD.\n\n' +
+    '---\n' +
+    'E-mail da conta: ' + (u && u.email ? u.email : '') + '\n' +
+    'ID do usuário: ' + (u ? u.id : '') + '\n' +
+    'Data da solicitação: ' + new Date().toLocaleString('pt-BR')
+  );
+  window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
+  toast('Abrindo seu e-mail para enviar a solicitação...');
 }
 
 async function startProCheckout(){
