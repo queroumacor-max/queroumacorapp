@@ -1,5 +1,5 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v8';
+const CACHE = 'queroumacor-v9';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
