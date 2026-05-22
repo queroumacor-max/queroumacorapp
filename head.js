@@ -31,6 +31,12 @@ async function initAuth() {
   }
   sb.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
+    invalidateMyProfile();
+    if(event === 'PASSWORD_RECOVERY'){
+      if(typeof showScreen === 'function') showScreen('feed');
+      if(typeof showModal === 'function') showModal('reset-pw-modal');
+      return;
+    }
     if(currentUser){
       autoDetectRole();
       setupGlobalMsgSubscription();

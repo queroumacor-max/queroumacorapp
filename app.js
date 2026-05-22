@@ -3744,6 +3744,24 @@ function escapeHtml(str){
   return d.innerHTML;
 }
 
+async function doSetNewPassword(){
+  const newPw = (document.getElementById('reset-pw-new')?.value || '');
+  const confirmPw = (document.getElementById('reset-pw-confirm')?.value || '');
+  if(newPw.length < 8){ toast('A senha deve ter ao menos 8 caracteres'); return; }
+  if(newPw !== confirmPw){ toast('As senhas não coincidem'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Aguarde...'); return; }
+  try {
+    const { error } = await sb.auth.updateUser({ password: newPw });
+    if(error){ toast('Erro: ' + error.message); return; }
+    document.getElementById('reset-pw-new').value = '';
+    document.getElementById('reset-pw-confirm').value = '';
+    closeModals();
+    toast('Senha alterada com sucesso!');
+    showScreen('feed');
+  } catch(e){ console.warn('doSetNewPassword:', e); toast('Erro ao salvar senha'); }
+}
+
 async function togglePostLike(btn){
   const svg = btn.querySelector('svg');
   const postEl = btn.closest('.mpost');
