@@ -16,6 +16,11 @@
   `products.color_hex` (IA primeiro, dicionário como fallback). Rodar
   **uma vez**; depois manutenção é manual via seletor de cor. O botão só
   toca em produtos sem cor — seguro reapertar.
+- **Contato da Cali Colors** (atendimento / suporte / "Fale Conosco" /
+  solicitações de exclusão de conta LGPD): WhatsApp `(11) 95976-5031`
+  (formato wa.me `5511959765031`), e-mail `loja@calicolors.com.br`. Já
+  configurado no objeto `SUPPORT` em `app.js`. Usar esse contato sempre
+  que precisar de um canal de atendimento/suporte no app.
 - **Regra de SQL:** sempre que criar ou alterar qualquer SQL/migration,
   **colar o conteúdo completo do SQL no chat, em texto** (bloco de código),
   para o usuário copiar e rodar no Supabase SQL Editor. Criar só o arquivo
