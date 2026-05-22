@@ -868,6 +868,11 @@
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamentos</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Pipeline e aprovação</div>
         </div>
+        <div onclick="showScreen('crm')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">🔁</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Reativar clientes</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Follow-up de clientes · PRO</div>
+        </div>
         <div onclick="showModal('checklist-modal')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">✅</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Checklist</div>
@@ -1260,6 +1265,17 @@
     <div class="orc-title">Orçamentos</div>
   </div>
   <div id="pipeline-list" style="padding:6px 14px 100px;">
+    <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>
+  </div>
+</div>
+
+<!-- ══ CRM — REATIVAR CLIENTES (Feature 2) ══ -->
+<div class="screen" id="screen-crm">
+  <div class="orc-header">
+    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <div class="orc-title">Reativar clientes</div>
+  </div>
+  <div id="crm-list" style="padding:6px 14px 100px;">
     <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>
   </div>
 </div>
