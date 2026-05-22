@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
-<link rel="stylesheet" href="/styles.css?v=20260518b">
+<link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/head.js?v=20260522a"></script>
   <link rel="manifest" href="/manifest.json">
@@ -510,7 +510,11 @@
     </div>
     <input type="hidden" id="orc-painter-id" value="">
     <div class="fg"><label class="fl">Tipo de serviço</label>
-      <select id="orc-service-type" class="fs"><optgroup label="Pintura"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada externa</option></optgroup><optgroup label="Grafite / Mural"><option>Grafite artístico</option><option>Mural decorativo</option><option>Painel comercial</option><option>Arte urbana</option></optgroup><optgroup label="Automotivo"><option>Pintura automotiva</option><option>Funilaria e reparo</option><option>Envelopamento</option><option>Polimento e cristalização</option></optgroup></select>
+      <select id="orc-service-type" class="fs" onchange="toggleOrcOutros(this.value)"><optgroup label="Pintura"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada externa</option></optgroup><optgroup label="Grafite / Mural"><option>Grafite artístico</option><option>Mural decorativo</option><option>Painel comercial</option><option>Arte urbana</option></optgroup><optgroup label="Automotivo"><option>Pintura automotiva</option><option>Funilaria e reparo</option><option>Envelopamento</option><option>Polimento e cristalização</option></optgroup><option value="Outros">Outros</option></select>
+    </div>
+    <div id="orc-outros-wrap" class="fg" style="display:none;">
+      <label class="fl">Descreva o tipo de serviço</label>
+      <textarea id="orc-outros-desc" class="fta" placeholder="Ex: impermeabilização, reparo de infiltração, pintura de portão..."></textarea>
     </div>
     <div class="frow">
       <div class="fg"><label class="fl">Metragem (m²)</label><input id="orc-area" type="number" class="fi" placeholder="Ex: 80"></div>
