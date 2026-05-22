@@ -1982,9 +1982,11 @@ async function distribuirLead(quoteId, serviceType, city){
 
 // ══ PEDIR ORÇAMENTO VIA POST ══
 function pedirOrcamentoPost(painterId, painterName){
-  document.getElementById('orc-painter-id').value = painterId;
-  const nameEl = document.querySelector('#screen-orcamento .orc-painter-name');
-  if(nameEl) nameEl.textContent = painterName;
+  document.getElementById('orc-painter-id').value = painterId || '';
+  const nameEl = document.getElementById('orc-painter-name');
+  const avEl = document.getElementById('orc-painter-av');
+  if(nameEl) nameEl.textContent = painterName || 'Profissional';
+  if(avEl) avEl.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(painterName||'Profissional')+'&background=e8e2d9&color=1a1a2e&size=96';
   showScreen('orcamento');
 }
 
