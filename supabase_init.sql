@@ -1058,3 +1058,30 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
   WHEN undefined_object THEN NULL;
 END $$;
+
+-- ============================================
+-- Colunas que faltavam na tabela quotes (bancos antigos)
+-- ============================================
+ALTER TABLE public.quotes
+  ADD COLUMN IF NOT EXISTS title text,
+  ADD COLUMN IF NOT EXISTS service_type text,
+  ADD COLUMN IF NOT EXISTS area_m2 numeric,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS proposed_date date,
+  ADD COLUMN IF NOT EXISTS price numeric,
+  ADD COLUMN IF NOT EXISTS lead_type text DEFAULT 'shared',
+  ADD COLUMN IF NOT EXISTS is_exclusive boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS commission_pct numeric DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS client_name text,
+  ADD COLUMN IF NOT EXISTS client_phone text,
+  ADD COLUMN IF NOT EXISTS sent_at timestamptz,
+  ADD COLUMN IF NOT EXISTS approved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS approved_by uuid,
+  ADD COLUMN IF NOT EXISTS approval_method text,
+  ADD COLUMN IF NOT EXISTS completed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS scope_snapshot jsonb,
+  ADD COLUMN IF NOT EXISTS client_followup_optin boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS quote_data jsonb;
+
+NOTIFY pgrst, 'reload schema';
