@@ -5270,7 +5270,10 @@ async function loadFeed(){
   const cachedStories = localStorage.getItem(storiesKey);
   const container = document.getElementById('feed-posts-area');
   const row = document.getElementById('stories-row');
-  if(cachedHtml && container && container.querySelector('.skel-post')) container.innerHTML = cachedHtml;
+  if(cachedHtml && container && container.querySelector('.skel-post')){
+    container.innerHTML = cachedHtml;
+    observeFeedVideos(true);
+  }
   if(cachedStories && row) row.innerHTML = cachedStories;
   // Fetch followingIds once, share with both
   const feedIds = await getFollowingIds();
@@ -5299,6 +5302,54 @@ async function getFollowingIds(){
     console.warn('getFollowingIds error:', e);
     return [currentUser.id];
   }
+}
+
+// ══ AUTOPLAY DE VÍDEOS NO FEED (estilo Instagram) ══
+// Vídeos começam mudos (regra de autoplay dos navegadores); o botão de
+// som no canto liga/desliga o áudio para a sessão inteira.
+let _feedMuted = true;
+let _feedVideoObserver = null;
+let _obsVideos = new WeakSet();
+
+function _feedVolIcon(muted){
+  return muted
+    ? '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+}
+
+function toggleFeedVideoMute(btn){
+  _feedMuted = !_feedMuted;
+  document.querySelectorAll('#feed-posts-area .feed-video').forEach(v => { v.muted = _feedMuted; });
+  document.querySelectorAll('#feed-posts-area .feed-video-mute').forEach(b => { b.innerHTML = _feedVolIcon(_feedMuted); });
+}
+
+function toggleFeedVideoPlay(video){
+  if(video.paused){ const pr = video.play(); if(pr) pr.catch(()=>{}); }
+  else video.pause();
+}
+
+function observeFeedVideos(reset){
+  if(!('IntersectionObserver' in window)) return;
+  if(!_feedVideoObserver){
+    _feedVideoObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        const v = en.target;
+        if(en.isIntersecting && en.intersectionRatio >= 0.55){
+          v.muted = _feedMuted;
+          const pr = v.play(); if(pr) pr.catch(()=>{});
+        } else {
+          v.pause();
+        }
+      });
+    }, { threshold: [0, 0.55, 1] });
+  }
+  if(reset){ _feedVideoObserver.disconnect(); _obsVideos = new WeakSet(); }
+  document.querySelectorAll('#feed-posts-area .feed-video').forEach(v => {
+    if(_obsVideos.has(v)) return;
+    _obsVideos.add(v);
+    v.muted = _feedMuted;
+    _feedVideoObserver.observe(v);
+  });
 }
 
 async function loadPosts(feedIds, append){
@@ -5385,7 +5436,7 @@ async function loadPosts(feedIds, append){
       const saved = savedPosts.includes(p.id);
       const isVideo = !!p.media_url && (isVideoUrl(p.media_url) || p.media_type === 'video');
       const mediaSrc = escapeHtml(p.media_url || '');
-      const imgHtml = p.media_url ? (isVideo ? '<video src="'+mediaSrc+'" controls playsinline preload="metadata" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video>' : '<img src="'+mediaSrc+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
+      const imgHtml = p.media_url ? (isVideo ? '<div class="feed-video-wrap" style="position:relative;width:100%;background:#000;"><video class="feed-video" src="'+mediaSrc+'" muted loop playsinline preload="metadata" onclick="toggleFeedVideoPlay(this)" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video><button class="feed-video-mute" onclick="event.stopPropagation();toggleFeedVideoMute(this)" aria-label="Som" style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">'+_feedVolIcon(true)+'</button></div>' : '<img src="'+mediaSrc+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
       const likeCount = likeCounts[p.id] || 0;
       const brushFill = liked ? 'var(--p4)' : 'none';
       const brushStroke = liked ? 'var(--p4)' : 'var(--ink)';
@@ -5472,8 +5523,10 @@ async function loadPosts(feedIds, append){
       const oldBtn = document.getElementById('feed-more-btn');
       if(oldBtn && oldBtn.closest('div')) oldBtn.closest('div').remove();
       container.insertAdjacentHTML('beforeend', html);
+      observeFeedVideos(false);
     } else {
       container.innerHTML = html;
+      observeFeedVideos(true);
     }
     _feedOffset = offset + posts.length;
   } catch(e){
