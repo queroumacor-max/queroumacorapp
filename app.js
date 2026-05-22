@@ -3406,6 +3406,7 @@ function setStar(n){
 function toggleCriteria(el){el.classList.toggle('sel');}
 
 let avaliarQuoteId = null;
+let _avaliarQuotes = [];
 async function loadAvaliarScreen(){
   const sb = getSupabase();
   const container = document.getElementById('avaliar-service-container');
@@ -3416,12 +3417,13 @@ async function loadAvaliarScreen(){
     const { data: quotes, error } = await sb.from('quotes')
       .select('id, title, service_type, area_m2, created_at, status, painter:profiles!painter_id(id, name, avatar_url, city)')
       .eq('client_id', currentUser.id)
-      .in('status', ['completed','accepted'])
+      .in('status', ['concluido','completed','accepted'])
       .order('created_at', { ascending: false })
       .limit(10);
     if(error) throw error;
+    _avaliarQuotes = quotes || [];
     if(!quotes || quotes.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:40px;margin-bottom:12px;">⭐</div><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum servico para avaliar</div><div style="font-size:13px;">Quando um orcamento for concluido, voce podera avaliar aqui</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:40px;margin-bottom:12px;">⭐</div><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum serviço para avaliar</div><div style="font-size:13px;">Quando um orçamento for concluído, você poderá avaliar aqui</div></div>';
       if(form) form.style.display = 'none';
       return;
     }
@@ -3436,18 +3438,36 @@ async function loadAvaliarScreen(){
     container.innerHTML = '';
     if(form) form.style.display = 'block';
     // Show other services as selectable list if > 1
-    if(quotes.length > 1){
-      container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Selecione o servico</div>' +
-        quotes.map(qq => {
-          const pp = qq.painter || {};
-          return '<div onclick="selectAvaliarService(\''+qq.id+'\')" style="padding:10px;background:'+(qq.id===q.id?'var(--cream)':'var(--white)')+';border-radius:10px;margin-bottom:6px;cursor:pointer;border:1px solid '+(qq.id===q.id?'var(--p1)':'var(--border)')+';font-size:13px;"><b>'+(pp.name||'Pintor')+'</b> — '+(qq.service_type||qq.title||'Servico')+'</div>';
-        }).join('');
-    }
+    if(quotes.length > 1) renderAvaliarServiceList();
   } catch(e){
     console.error('loadAvaliarScreen error:', e);
-    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum servico para avaliar</div><div style="font-size:13px;">Solicite um orcamento primeiro</div></div>';
+    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum serviço para avaliar</div><div style="font-size:13px;">Solicite um orçamento primeiro</div></div>';
     if(form) form.style.display = 'none';
   }
+}
+
+function renderAvaliarServiceList(){
+  const container = document.getElementById('avaliar-service-container');
+  if(!container || _avaliarQuotes.length < 2) return;
+  container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Selecione o serviço</div>' +
+    _avaliarQuotes.map(qq => {
+      const pp = qq.painter || {};
+      const sel = qq.id === avaliarQuoteId;
+      return '<div onclick="selectAvaliarService(\''+qq.id+'\')" style="padding:10px;background:'+(sel?'var(--cream)':'var(--white)')+';border-radius:10px;margin-bottom:6px;cursor:pointer;border:1px solid '+(sel?'var(--p1)':'var(--border)')+';font-size:13px;"><b>'+escapeHtml(pp.name||'Pintor')+'</b> — '+escapeHtml(qq.service_type||qq.title||'Serviço')+'</div>';
+    }).join('');
+}
+
+function selectAvaliarService(quoteId){
+  const q = _avaliarQuotes.find(x => x.id === quoteId);
+  if(!q) return;
+  avaliarQuoteId = q.id;
+  const painter = q.painter || {};
+  const avatar = painter.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(painter.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+  const av = document.getElementById('avaliar-av-img'); if(av) av.src = avatar;
+  const tt = document.getElementById('avaliar-title'); if(tt) tt.textContent = painter.name || 'Pintor';
+  const sb2 = document.getElementById('avaliar-sub');
+  if(sb2) sb2.textContent = (q.service_type||q.title||'Serviço') + (painter.city ? ' · '+painter.city : '') + (q.area_m2 ? ' · '+q.area_m2+'m²' : '');
+  renderAvaliarServiceList();
 }
 
 async function submitAvaliacao(){
@@ -6189,8 +6209,8 @@ function toggleArchivedSection(){
 // ══════════════════════════════
 // Wrap showScreen to add hooks for dynamic loading
 const _origShowScreen = showScreen;
-showScreen = function(n){
-  _origShowScreen(n);
+showScreen = function(n, _fromPop){
+  _origShowScreen(n, _fromPop);
   if(n === 'myprofile'){
     autoDetectRole();
   }

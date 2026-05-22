@@ -4,7 +4,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>QueroUmaCor v2</title>
+<title>QueroUmaCor</title>
+<meta name="description" content="QueroUmaCor — encontre pintores, grafiteiros e pintores automotivos perto de você. Peça orçamentos, veja portfólios e contrate profissionais de pintura com segurança.">
+<meta property="og:title" content="QueroUmaCor">
+<meta property="og:description" content="Encontre profissionais de pintura perto de você — orçamentos, portfólios e contratação num só app.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/icon-512.png">
+<meta name="twitter:card" content="summary">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
@@ -105,23 +111,23 @@
 
       <!-- STEP 0: invite code -->
       <div id="signup-step0">
-        <div class="auth-title">Codigo de Convite</div>
-        <div class="auth-sub">Para se cadastrar voce precisa de um convite de alguem que ja usa o app.</div>
+        <div class="auth-title">Código de Convite</div>
+        <div class="auth-sub">Para se cadastrar você precisa de um convite de alguém que já usa o app.</div>
         <div class="auth-field">
-          <label class="auth-label">Codigo de convite</label>
+          <label class="auth-label">Código de convite</label>
           <input class="auth-input" type="text" id="s-invite-code" placeholder="Ex: QUC-XXXXX" style="text-transform:uppercase;letter-spacing:2px;font-weight:700;text-align:center;font-size:18px;">
         </div>
         <div id="invite-error" style="color:var(--p4);font-size:13px;text-align:center;margin-bottom:10px;display:none;"></div>
         <button class="auth-btn" onclick="validateInvite()">Validar Convite</button>
-        <div class="auth-footer-text" style="margin-top:16px;">Ja tem conta? <span class="auth-footer-link" onclick="showScreen('login')">Entrar</span></div>
+        <div class="auth-footer-text" style="margin-top:16px;">Já tem conta? <span class="auth-footer-link" onclick="showScreen('login')">Entrar</span></div>
         <div style="margin-top:20px;background:var(--cream);border-radius:14px;padding:14px;text-align:center;">
-          <div style="font-size:13px;color:var(--muted);line-height:1.5;">Nao tem convite? Peca para um pintor ou cliente que ja usa o QueroUmaCor te enviar um codigo.</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5;">Não tem convite? Peça para um pintor ou cliente que já usa o QueroUmaCor te enviar um código.</div>
         </div>
       </div>
 
       <!-- STEP 1: role selection -->
       <div id="signup-step1" style="display:none;">
-        <div class="auth-title">Voce e…</div>
+        <div class="auth-title">Você é…</div>
         <div class="auth-sub">Escolha como vai usar o QueroUmaCor</div>
         <div class="role-selector" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="role-card active" id="role-pintor" onclick="selectRole('pintor')">
@@ -351,7 +357,7 @@
   <div class="mosaic-feed" id="feed-posts-area"><div class="skel-post"><div class="skel-row"><div class="skel skel-circle"></div><div style="flex:1"><div class="skel skel-line" style="width:40%"></div></div></div><div class="skel skel-img"></div><div class="skel skel-line" style="width:60%;margin-bottom:8px"></div><div class="skel skel-line" style="width:30%"></div></div><div class="skel-post"><div class="skel-row"><div class="skel skel-circle"></div><div style="flex:1"><div class="skel skel-line" style="width:50%"></div></div></div><div class="skel skel-img"></div><div class="skel skel-line" style="width:45%;margin-bottom:8px"></div><div class="skel skel-line" style="width:25%"></div></div></div>
   <div id="feed-empty" style="display:none;text-align:center;color:var(--muted);padding:60px 20px;">
     <div style="font-size:48px;margin-bottom:12px;">📸</div>
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhuma publicacao ainda</div>
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhuma publicação ainda</div>
     <div style="font-size:13px;">Siga pintores ou crie seu primeiro post!</div>
   </div>
 </div>
@@ -392,7 +398,7 @@
   </div>
   <!-- PAINTER LIST (dynamic) -->
   <div style="padding:14px;">
-    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Profissionais perto de voce</div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Profissionais perto de você</div>
     <div id="painter-list" style="display:flex;flex-direction:column;gap:10px;">
       <!-- Loaded dynamically -->
     </div>
@@ -918,18 +924,18 @@
           </div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:700;color:var(--ink);">Convide pintores e clientes</div>
-            <div style="font-size:12px;color:var(--muted);">Gere um codigo e compartilhe</div>
+            <div style="font-size:12px;color:var(--muted);">Gere um código e compartilhe</div>
           </div>
         </div>
         <div id="my-invite-code-pintor" style="display:none;background:var(--cream);border-radius:10px;padding:12px;text-align:center;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Seu codigo de convite</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Seu código de convite</div>
           <div id="my-invite-code-value-pintor" style="font-size:22px;font-weight:800;letter-spacing:3px;color:var(--ink);font-family:'Syne',sans-serif;"></div>
         </div>
-        <button id="gen-invite-btn-pintor" onclick="generateInviteCode('pintor')" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Gerar Codigo de Convite</button>
-        <button id="share-invite-btn-pintor" onclick="shareInviteCode('pintor')" style="display:none;width:100%;padding:11px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Compartilhar Codigo</button>
+        <button id="gen-invite-btn-pintor" onclick="generateInviteCode('pintor')" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Gerar Código de Convite</button>
+        <button id="share-invite-btn-pintor" onclick="shareInviteCode('pintor')" style="display:none;width:100%;padding:11px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Compartilhar Código</button>
       </div>
 
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Configuracoes</div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Configurações</div>
       <div style="background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
         <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">✏️</span><div style="flex:1;font-size:14px;font-weight:600;">Editar Perfil</div><span style="color:var(--muted);">›</span>
@@ -941,7 +947,7 @@
           <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Raio de Atendimento</div><span style="color:var(--muted);">›</span>
         </div>
         <div onclick="showScreen('notif')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
-          <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificacoes</div><span style="color:var(--muted);">›</span>
+          <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificações</div><span style="color:var(--muted);">›</span>
         </div>
       </div>
     </div>
@@ -1041,18 +1047,18 @@
           </div>
           <div style="flex:1;">
             <div style="font-size:14px;font-weight:700;color:var(--ink);">Convide pintores e clientes</div>
-            <div style="font-size:12px;color:var(--muted);">Gere um codigo e compartilhe</div>
+            <div style="font-size:12px;color:var(--muted);">Gere um código e compartilhe</div>
           </div>
         </div>
         <div id="my-invite-code-cliente" style="display:none;background:var(--cream);border-radius:10px;padding:12px;text-align:center;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Seu codigo de convite</div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Seu código de convite</div>
           <div id="my-invite-code-value-cliente" style="font-size:22px;font-weight:800;letter-spacing:3px;color:var(--ink);font-family:'Syne',sans-serif;"></div>
         </div>
-        <button id="gen-invite-btn-cliente" onclick="generateInviteCode('cliente')" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Gerar Codigo de Convite</button>
-        <button id="share-invite-btn-cliente" onclick="shareInviteCode('cliente')" style="display:none;width:100%;padding:11px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Compartilhar Codigo</button>
+        <button id="gen-invite-btn-cliente" onclick="generateInviteCode('cliente')" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Gerar Código de Convite</button>
+        <button id="share-invite-btn-cliente" onclick="shareInviteCode('cliente')" style="display:none;width:100%;padding:11px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Compartilhar Código</button>
       </div>
 
-      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Configuracoes</div>
+      <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Configurações</div>
       <div style="background:var(--white);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
         <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">✏️</span><div style="flex:1;font-size:14px;font-weight:600;">Editar Perfil</div><span style="color:var(--muted);">›</span>
@@ -1061,7 +1067,7 @@
           <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Meu Endereco</div><span style="color:var(--muted);">›</span>
         </div>
         <div onclick="showScreen('notif')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
-          <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificacoes</div><span style="color:var(--muted);">›</span>
+          <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificações</div><span style="color:var(--muted);">›</span>
         </div>
       </div>
     </div>
@@ -1326,7 +1332,7 @@
 <!-- ══ NOTIFICATIONS ══ -->
 <div class="screen" id="screen-notif">
   <div class="notif-screen" id="notif-list">
-    <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">Carregando notificacoes...</div>
+    <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">Carregando notificações...</div>
   </div>
 </div>
 
@@ -1499,7 +1505,7 @@
   <div class="avaliar-screen">
     <!-- Servico a avaliar (loaded dynamically) -->
     <div id="avaliar-service-container">
-      <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Carregando servicos...</div>
+      <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Carregando serviços...</div>
     </div>
     <div class="avaliar-card" id="avaliar-form" style="display:none;">
       <div class="avaliar-av"><img id="avaliar-av-img" src="" alt=""></div>
@@ -1690,9 +1696,10 @@
     <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
     <div class="bn-dot"></div>
   </div>
-  <div class="bn" id="bn-notif" onclick="showScreen('notif')">
+  <div class="bn" id="bn-notif" onclick="showScreen('notif')" style="position:relative;">
     <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
     <div class="bn-dot"></div>
+    <span id="notif-badge-dot" style="position:absolute;top:5px;right:9px;width:9px;height:9px;background:#e63946;border-radius:50%;display:none;"></span>
   </div>
   <div class="bn" id="bn-myprofile" onclick="showScreen('myprofile')">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -2265,7 +2272,7 @@
       <div id="cart-total" style="font-size:18px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">R$0,00</div>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Frete gratis acima de R$200 · Entrega 3-5 dias uteis</div>
-    <button id="cart-submit-btn" onclick="submitCartOrder()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Enviar Solicitacao de Compra</button>
+    <button id="cart-submit-btn" onclick="submitCartOrder()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Enviar Solicitação de Compra</button>
   </div>
 </div>
 
