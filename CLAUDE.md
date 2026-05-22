@@ -22,6 +22,12 @@
   `products.color_hex` (IA primeiro, dicionário como fallback). Rodar
   **uma vez**; depois manutenção é manual via seletor de cor. O botão só
   toca em produtos sem cor — seguro reapertar.
+- O SQL dos 3 furos de integração (coluna `profiles.review_count`,
+  policy de INSERT em `referrals`, triggers `award_referral_points` e
+  `recalc_painter_rating`) **JÁ FOI EXECUTADO no Supabase**. Indicações
+  gravam linha em `referrals`, pontos por indicação/avaliação recebida
+  são creditados por trigger, e `profiles.rating_avg` + `review_count`
+  recalculam a cada review. Não pedir para rodar de novo.
 - **Contato da Cali Colors** (atendimento / suporte / "Fale Conosco" /
   solicitações de exclusão de conta LGPD): WhatsApp `(11) 95976-5031`
   (formato wa.me `5511959765031`), e-mail `loja@calicolors.com.br`. Já
