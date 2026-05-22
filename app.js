@@ -43,6 +43,12 @@ let _navExitArmed = false;
 
 function _navSyncHistory(n, fromPop){
   if(n === _navCurScreen) return;
+  if(n === 'login' || n === 'signup'){
+    _navBackStack = [];
+    _navCurScreen = n;
+    try { history.replaceState({ qs:n }, ''); } catch(e){}
+    return;
+  }
   if(!fromPop){
     _navBackStack.push(_navCurScreen);
     try { history.pushState({ qs:n }, ''); } catch(e){}
@@ -3965,9 +3971,7 @@ async function handleChatAttachment(input){
     }
 
     // Save to DB
-    const parts = currentChat ? currentChat.split('_') : [];
-    const uuidParts = parts.filter(p => p.includes('-'));
-    const receiverId = uuidParts.find(id => id !== currentUser.id) || null;
+    const receiverId = getChatReceiverId(currentChat, currentUser.id);
     await sb.from('messages').insert({
       sender_id: currentUser.id,
       receiver_id: receiverId,
@@ -4030,9 +4034,7 @@ function addStoreToChat(){
     const sb=getSupabase();
     const { data:{ session } } = await sb.auth.getSession();
     if(!session) return;
-    const parts = currentChat ? currentChat.split('_') : [];
-    const uuidParts = parts.filter(p => p.includes('-'));
-    const receiverId = uuidParts.find(id => id !== session.user.id) || null;
+    const receiverId = getChatReceiverId(currentChat, session.user.id);
     // Save system marker so we know this is 3-way
     await sb.from('messages').insert({
       sender_id: session.user.id,
@@ -4712,10 +4714,61 @@ function selectAiLogo(el){
   _applyLogoToShirt();
 }
 
-function usarLogoIA(){
+async function usarLogoIA(){
   if(_aiLogoSelected === null || !_aiLogoLastName){ toast('Gere um logo primeiro'); return; }
   _applyLogoToShirt();
-  toast('Logo aplicado na camiseta! 👕');
+  const src = _aiLogoCurrentSrc();
+  if(!src){ toast('Logo aplicado na camiseta! 👕'); return; }
+  toast('Salvando seu logo no perfil...');
+  const url = await salvarLogoNoPerfil(src, _aiLogoLastName);
+  if(url){
+    _applyOwnLogoToShirt(url, _aiLogoLastName);
+    toast('Logo salvo no seu perfil! 👕');
+  } else {
+    toast('Logo aplicado (não foi possível salvar no perfil)');
+  }
+}
+
+// Persiste o logo (gerado por IA ou enviado) no perfil do PRO, para reuso
+// em futuras camisetas e branding. Sobe para o storage e grava em profiles.
+async function salvarLogoNoPerfil(src, label){
+  const sb = getSupabase();
+  if(!sb || !currentUser || !src) return null;
+  try {
+    const resp = await fetch(src);
+    const blob = await resp.blob();
+    const isSvg = (blob.type && blob.type.indexOf('svg') !== -1) || /^data:image\/svg/i.test(src);
+    const ext = isSvg ? 'svg' : 'png';
+    const path = currentUser.id + '/business_logo.' + ext;
+    const { error: upErr } = await sb.storage.from('posts')
+      .upload(path, blob, { upsert:true, contentType: blob.type || (isSvg?'image/svg+xml':'image/png') });
+    if(upErr) throw upErr;
+    const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+    const publicUrl = (urlData && urlData.publicUrl) ? urlData.publicUrl + '?t=' + Date.now() : null;
+    if(!publicUrl) throw new Error('sem publicUrl');
+    await sb.from('profiles').update({ business_logo_url: publicUrl, business_name: label || null }).eq('id', currentUser.id);
+    try { localStorage.setItem('business_logo_url', publicUrl); } catch(e){}
+    return publicUrl;
+  } catch(e){
+    console.warn('salvarLogoNoPerfil (storage):', e && e.message || e);
+    // Fallback: grava o próprio src direto no perfil para não perder o logo
+    try {
+      await sb.from('profiles').update({ business_logo_url: src, business_name: label || null }).eq('id', currentUser.id);
+      try { localStorage.setItem('business_logo_url', src); } catch(e2){}
+      return src;
+    } catch(e2){ console.warn('salvarLogoNoPerfil (fallback):', e2 && e2.message || e2); return null; }
+  }
+}
+
+function baixarLogo(){
+  const src = _aiLogoCurrentSrc();
+  if(!src){ toast('Gere ou selecione um logo primeiro'); return; }
+  const isSvg = /^data:image\/svg/i.test(src);
+  const a = document.createElement('a');
+  a.href = src;
+  a.download = 'logo-' + String(_aiLogoLastName||'queroumacor').replace(/\s+/g,'-').toLowerCase() + (isSvg?'.svg':'.png');
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Logo baixado 📥');
 }
 
 function _applyOwnLogoToShirt(url, label){

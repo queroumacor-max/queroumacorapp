@@ -652,8 +652,50 @@ async function renderRealProfileTabs(userId, name){
     }
   } catch(e){ console.warn('renderRealProfileTabs courses:', e); }
 
-  const revList = screen.querySelector('#tab-reviews .reviews-list');
-  if(revList) revList.innerHTML = emptyState('⭐', 'Nenhuma avaliação ainda');
+  try {
+    const { data: pq } = await sb.from('quotes').select('id').eq('painter_id', userId);
+    const qIds = (pq || []).map(q => q.id);
+    let reviews = [];
+    if(qIds.length){
+      const { data: rv } = await sb.from('reviews')
+        .select('rating, criteria, comment, created_at, reviewer:profiles!reviewer_id(name, avatar_url)')
+        .in('quote_id', qIds).order('created_at', { ascending:false }).limit(40);
+      reviews = rv || [];
+    }
+    const revList = screen.querySelector('#tab-reviews .reviews-list');
+    if(revList){
+      if(reviews.length){
+        const avg = reviews.reduce((s,r)=>s+(+r.rating||0),0) / reviews.length;
+        const stars = v => { const f=Math.max(0,Math.min(5,Math.round(v))); return '★'.repeat(f)+'☆'.repeat(5-f); };
+        let h = '<div style="display:flex;align-items:center;gap:14px;background:var(--white);border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:14px;">'
+          + '<div style="text-align:center;"><div style="font-size:32px;font-weight:800;font-family:Syne,sans-serif;color:var(--ink);line-height:1;">'+avg.toFixed(1)+'</div>'
+          + '<div style="color:#f4a300;font-size:13px;margin-top:3px;">'+stars(avg)+'</div></div>'
+          + '<div style="font-size:13px;color:var(--muted);">'+reviews.length+' avalia'+(reviews.length>1?'ções':'ção')+'</div></div>';
+        h += reviews.map(r => {
+          const rv = r.reviewer || {};
+          const av = rv.avatar_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(rv.name||'C')+'&background=e8e2d9&color=1a1a2e&size=64');
+          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '';
+          const crit = Array.isArray(r.criteria) ? r.criteria : [];
+          return '<div style="background:var(--white);border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:9px;">'
+            + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+((crit.length||r.comment)?'8px':'0')+';">'
+            + '<img src="'+esc(av)+'" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;">'
+            + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--ink);">'+esc(rv.name||'Cliente')+'</div>'
+            + '<div style="color:#f4a300;font-size:12px;">'+stars(+r.rating||0)+'</div></div>'
+            + '<div style="font-size:11px;color:var(--muted);white-space:nowrap;">'+date+'</div></div>'
+            + (crit.length?'<div style="display:flex;flex-wrap:wrap;gap:5px;'+(r.comment?'margin-bottom:8px;':'')+'">'+crit.map(c=>'<span style="font-size:10px;background:var(--cream);color:var(--muted);padding:2px 8px;border-radius:20px;">'+esc(c)+'</span>').join('')+'</div>':'')
+            + (r.comment?'<div style="font-size:13px;color:var(--ink);line-height:1.5;">'+esc(r.comment)+'</div>':'')
+            + '</div>';
+        }).join('');
+        revList.innerHTML = h;
+      } else {
+        revList.innerHTML = emptyState('⭐', 'Nenhuma avaliação ainda');
+      }
+    }
+  } catch(e){
+    console.warn('renderRealProfileTabs reviews:', e);
+    const revList = screen.querySelector('#tab-reviews .reviews-list');
+    if(revList) revList.innerHTML = emptyState('⭐', 'Nenhuma avaliação ainda');
+  }
 }
 
 // Start a chat with a user from their profile
