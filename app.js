@@ -4608,30 +4608,52 @@ function getProductImage(p){
   return _setImg(null);
 }
 
+function _isArteUrbanaSpray(p){
+  const n = (p.name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  return n.includes('arte urbana') || n.includes('arte-urbana');
+}
+
 function renderProductCard(p){
-  const img = getProductImage(p);
+  const isSpray = _isArteUrbanaSpray(p);
+  const img = isSpray ? null : getProductImage(p);
   const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const badgeHtml = p.badge ? (p.badge === 'NOVO' ? '<span class="mkt-badge-new">NOVO</span>' : '<span class="mkt-badge-promo">'+p.badge+'</span>') : '';
   const stockClass = p.stock <= 5 ? 'low' : 'ok';
   const stockIcon = p.stock <= 5 ? '⚠️' : '✅';
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
-  const swatchContent = img
-    ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : badgeHtml+(hasProductColor(p) ? '' : emoji);
-  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+';overflow:hidden;padding:0;">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
+  let swatchContent;
+  if(isSpray){
+    swatchContent = badgeHtml
+      + '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:95%;width:auto;object-fit:contain;pointer-events:none;">';
+  } else {
+    swatchContent = img
+      ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+      : badgeHtml+(hasProductColor(p) ? '' : emoji);
+  }
+  const swatchStyle = isSpray
+    ? 'background:'+bg+';overflow:hidden;padding:0;position:relative;'
+    : 'background:'+bg+';overflow:hidden;padding:0;';
+  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="'+swatchStyle+'">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
 function renderProductRow(p){
-  const img = getProductImage(p);
+  const isSpray = _isArteUrbanaSpray(p);
+  const img = isSpray ? null : getProductImage(p);
   const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const price = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
-  const icContent = img
-    ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : (hasProductColor(p) ? '' : emoji);
-  const icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
+  let icContent, icStyle;
+  if(isSpray){
+    icStyle = 'background:'+bg+';overflow:hidden;padding:0;position:relative;';
+    icContent = '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;object-fit:contain;">';
+  } else {
+    icContent = img
+      ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+      : (hasProductColor(p) ? '' : emoji);
+    icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
+  }
   const inactive = p.active === false;
   return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+p.id+'\')">'
     + '<div class="mkt-row-ic" style="'+icStyle+'">'+icContent+'</div>'
