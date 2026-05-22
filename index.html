@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522a"></script>
+<script src="/head.js?v=20260522b"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2080,13 +2080,41 @@
   </div>
 </div>
 
+<!-- RESET PASSWORD MODAL (recovery flow) -->
+<div class="overlay" id="reset-pw-modal">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🔑 Criar nova senha</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">Escolha uma senha segura para continuar. Mínimo 8 caracteres.</div>
+    <div class="auth-field">
+      <label class="auth-label">Nova senha</label>
+      <div class="auth-pw-wrap">
+        <input class="auth-input" type="password" id="reset-pw-new" placeholder="••••••••">
+        <button type="button" class="auth-pw-eye" onclick="togglePw('reset-pw-new',this)">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="auth-field" style="margin-bottom:24px;">
+      <label class="auth-label">Confirmar nova senha</label>
+      <div class="auth-pw-wrap">
+        <input class="auth-input" type="password" id="reset-pw-confirm" placeholder="••••••••">
+        <button type="button" class="auth-pw-eye" onclick="togglePw('reset-pw-confirm',this)">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="auth-btn" type="button" onclick="doSetNewPassword()">Salvar nova senha</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast-el"></div>
 
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522a"></script>
+<script src="/app.js?v=20260522b"></script>
 
 <script>
 if('serviceWorker' in navigator){
