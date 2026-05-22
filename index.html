@@ -448,28 +448,8 @@
     </div>
   </div>
 
-  <!-- RATING SUMMARY CARD (oculto até haver avaliações reais por pintor) -->
-  <div id="rating-card" style="display:none;margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);">
-    <div style="display:flex;align-items:center;gap:16px;">
-      <div style="text-align:center;flex-shrink:0;">
-        <div class="cr-big-score" style="font-size:48px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;line-height:1;">4.9</div>
-        <div style="color:var(--p1);font-size:16px;letter-spacing:2px;">★★★★★</div>
-        <div class="cr-total" style="font-size:11px;color:var(--muted);margin-top:3px;">187 avaliações</div>
-      </div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:5px;">
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">5</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:88%;height:100%;background:var(--p1);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">165</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">4</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:9%;height:100%;background:var(--p7);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">17</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">3</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:2%;height:100%;background:var(--p7);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">4</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">2</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:1%;height:100%;background:var(--p4);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">1</span></div>
-        <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:11px;color:var(--muted);width:10px;">1</span><div style="flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;"><div class="cr-bar-fill" style="width:0%;height:100%;background:var(--p4);border-radius:4px;transition:.4s"></div></div><span class="cr-bar-count" style="font-size:11px;color:var(--muted);width:24px;">0</span></div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
-      <div style="text-align:center;"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">4.9</div><div style="font-size:10px;color:var(--muted);">Qualidade</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-      <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border);"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">4.8</div><div style="font-size:10px;color:var(--muted);">Pontualidade</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-      <div style="text-align:center;"><div class="cr-cat-val" style="font-size:15px;font-weight:700;">5.0</div><div style="font-size:10px;color:var(--muted);">Limpeza</div><div style="color:var(--p1);font-size:10px;">★★★★★</div></div>
-    </div>
-  </div>
+  <!-- RATING SUMMARY CARD (oculto; o JS popula quando houver avaliações reais) -->
+  <div id="rating-card" style="display:none;margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);"></div>
 
   <!-- PROFILE TABS -->
   <div class="profile-body" style="padding-top:14px;">
@@ -483,49 +463,14 @@
 
     <!-- PORTFOLIO TAB -->
     <div id="tab-works">
-      <!-- Featured BA -->
-      <div style="margin:0 0 3px;position:relative;cursor:pointer;" onclick="toggleBA('ba-p')">
-        <img id="ba-p-a" src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block;transition:opacity .4s">
-        <img id="ba-p-b" src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=600" style="width:100%;aspect-ratio:16/9;object-fit:cover;position:absolute;inset:0;opacity:0;transition:opacity .4s;display:block">
-        <div class="ba-label a" id="ba-p-la">ANTES</div>
-        <div class="ba-label d" id="ba-p-ld" style="opacity:.4">DEPOIS</div>
-        <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(26,26,46,.75);color:#fff;font-size:10px;padding:4px 12px;border-radius:20px;white-space:nowrap;">👆 Antes / Depois</div>
-      </div>
-      <div class="works-grid">
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1600585152220-90363fe7e115?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1562663474-6cbb3eaa4d14?w=300" alt=""></div>
-        <div class="works-grid-item" onclick="toast('Ver trabalho')"><img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300" alt=""></div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula a grade com trabalhos reais -->
+      <div class="works-grid"></div>
     </div>
 
     <!-- VIDEOS TAB -->
     <div id="tab-vids" style="display:none;padding:10px 0;">
-      <div class="works-grid">
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">2:14</span>
-          </div>
-        </div>
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">1:47</span>
-          </div>
-        </div>
-        <div class="works-grid-item" style="position:relative" onclick="toast('▶ Reproduzindo')">
-          <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300" alt="">
-          <div style="position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-size:26px">▶</span>
-            <span style="color:#fff;font-size:10px;margin-top:4px;">3:02</span>
-          </div>
-        </div>
-      </div>
+      <!-- O JS (renderRealProfileTabs) popula a grade com vídeos reais -->
+      <div class="works-grid"></div>
     </div>
 
     <!-- FORMAÇÃO / CERTS TAB -->
@@ -1722,7 +1667,18 @@
     <div class="sheet-opt" onclick="saveCurrentPost();closeModals()"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Salvar</div>
     <div class="sheet-opt" onclick="copyCurrentPostLink();closeModals()"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copiar link</div>
     <div id="opt-delete-post" class="sheet-opt danger" style="display:none" onclick="deleteCurrentPost();closeModals()"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Deletar post</div>
-    <div class="sheet-opt danger" onclick="toast('Denuncia enviada');closeModals()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Denunciar</div>
+    <div class="sheet-opt danger" onclick="reportPost()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Denunciar</div>
+  </div>
+</div>
+
+<div class="overlay" id="report-reason-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Denunciar post</div>
+    <div class="sheet-opt" onclick="submitReport('Conteúdo impróprio')">Conteúdo impróprio</div>
+    <div class="sheet-opt" onclick="submitReport('Spam')">Spam</div>
+    <div class="sheet-opt" onclick="submitReport('Informação falsa')">Informação falsa</div>
+    <div class="sheet-opt" onclick="submitReport('Outro')">Outro</div>
   </div>
 </div>
 

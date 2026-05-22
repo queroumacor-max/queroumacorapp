@@ -5449,6 +5449,41 @@ async function deleteCurrentPost(){
   } catch(e){ toast('Erro ao deletar'); console.warn(e); }
 }
 
+// Report post
+let _reportPostId = null;
+let _reportUserId = null;
+
+function reportPost(){
+  if(!currentUser){ toast('Faça login para denunciar'); return; }
+  if(!_currentOptPostId){ toast('Post não encontrado'); return; }
+  _reportPostId = _currentOptPostId;
+  _reportUserId = _currentOptUserId;
+  showModal('report-reason-modal');
+}
+
+async function submitReport(reason){
+  closeModals();
+  if(!currentUser || !_reportPostId){ toast('Não foi possível enviar a denúncia'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Não foi possível enviar a denúncia'); return; }
+  try {
+    const { error } = await sb.from('reports').insert({
+      reporter_id: currentUser.id,
+      post_id: _reportPostId,
+      target_user_id: _reportUserId || null,
+      reason: reason
+    });
+    if(error){ toast('Erro ao enviar denúncia: ' + error.message); return; }
+    toast('Denúncia enviada. Obrigado — nossa equipe vai analisar.');
+  } catch(e){
+    console.warn('submitReport error:', e);
+    toast('Erro ao enviar denúncia');
+  } finally {
+    _reportPostId = null;
+    _reportUserId = null;
+  }
+}
+
 // Story delete
 async function deleteCurrentStory(){
   if(!currentUser) return;
