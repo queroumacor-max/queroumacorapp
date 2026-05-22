@@ -4735,6 +4735,9 @@ function renderMktUI(){
   }
 }
 
+const _MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b/i;
+function _isMktHidden(p){ return _MKT_HIDDEN.test(p.name||''); }
+
 async function loadMktProducts(_attempt){
   _attempt = _attempt || 0;
   const setSec = (msg) => { const el = document.getElementById('mkt-sections'); if(el) el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
@@ -4762,7 +4765,7 @@ async function loadMktProducts(_attempt){
       if(byId.size === before) break;       // sem progresso → evita loop infinito
       if(data.length < PAGE) break;          // última página
     }
-    mktProducts = Array.from(byId.values());
+    mktProducts = Array.from(byId.values()).filter(p => !_isMktHidden(p));
     _mktLoadedAt = Date.now();
     renderMktUI();
   } catch(e){
