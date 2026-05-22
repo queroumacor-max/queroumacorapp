@@ -826,7 +826,7 @@ async function loadMaterialSuggestions(litros){
       <div style="width:36px;height:36px;border-radius:8px;background:${p.color_hex||'#ccc'};flex-shrink:0;"></div>
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;">${escapeHtml(p.name)}</div><div style="font-size:10px;color:var(--muted);">${p.volume||'18L'} · ${p.line||''}</div></div>
       <div style="text-align:right;"><div style="font-size:12px;font-weight:700;color:var(--p1);">R$ ${(p.price||0).toLocaleString('pt-BR')}</div>
-      <button onclick="addToCart('${p.id}',1,'${escapeHtml(p.name)}',${p.price||0})" style="margin-top:4px;padding:4px 8px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">+ Carrinho</button></div>
+      <button onclick="addToCart('${p.id}',1,'${escapeJsArg(p.name)}',${p.price||0})" style="margin-top:4px;padding:4px 8px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">+ Carrinho</button></div>
     </div>`).join('');
 }
 
@@ -3054,6 +3054,7 @@ async function sendMsg(){
 
   // Save to Supabase
   const sb = getSupabase();
+  if(!sb){ toast('Conexão indisponível. Tente de novo.'); return; }
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ toast('Sessao expirada. Faca login novamente.'); return; }
 
@@ -4392,7 +4393,7 @@ async function loadPosts(feedIds, append){
       // Buy button for art/sale posts
       if(p.for_sale && p.price > 0 && currentUser && p.user_id !== currentUser.id){
         html += '<div style="padding:6px 14px 4px;display:flex;gap:8px;">';
-        html += '<button onclick="comprarObra(\''+p.id+'\',\''+escapeHtml(name)+'\','+p.price+',\''+escapeHtml(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🛒 Comprar · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
+        html += '<button onclick="comprarObra(\''+p.id+'\',\''+escapeJsArg(name)+'\','+p.price+',\''+escapeJsArg(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🛒 Comprar · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
         html += '<button onclick="openChatWithUser(\''+p.user_id+'\')" style="padding:10px 14px;background:var(--white);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">💬</button>';
         html += '</div>';
       }
@@ -4417,6 +4418,8 @@ async function loadPosts(feedIds, append){
 }
 
 async function loadMoreFeed(btn){
+  // Evita duplicar a página 1 se clicado antes do feed inicial estabelecer o offset
+  if(_feedOffset === 0) return;
   if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
   await loadPosts(null, true);
 }
