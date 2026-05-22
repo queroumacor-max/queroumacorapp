@@ -440,15 +440,12 @@ async function handleReferralParam(){
 
 // ══ MAIS INFORMAÇÕES E SUPORTE ══
 const SUPPORT = {
-  // Canal de atendimento (Fale Conosco) — PENDENTE: serão os dados da
-  // Cali Colors. Enquanto vazios, "Fale Conosco" mostra "em breve".
-  // email: e-mail de atendimento. whatsapp: DDI+DDD+número só dígitos
-  // (ex.: '5511912345678').
-  email: '',
-  whatsapp: '',
-  // E-mail do controlador dos dados (LGPD) — usado apenas na solicitação
-  // de exclusão de conta. Não é "suporte"; mantido funcional.
-  ownerEmail: 'jackson.guerra@gmail.com'
+  // Canal de atendimento (Fale Conosco) e solicitações de exclusão de
+  // conta (LGPD) — e-mail da Cali Colors.
+  email: 'loja@calicolors.com.br',
+  // WhatsApp de atendimento: DDI+DDD+número só dígitos (ex.:
+  // '5511912345678'). Vazio = botão de WhatsApp fica oculto.
+  whatsapp: ''
 };
 const _infoTitles = {
   menu:'Mais informações e suporte',
@@ -505,7 +502,7 @@ function requestAccountDeletion(){
     'ID do usuário: ' + (u ? u.id : '') + '\n' +
     'Data da solicitação: ' + new Date().toLocaleString('pt-BR')
   );
-  window.location.href = 'mailto:' + SUPPORT.ownerEmail + '?subject=' + subject + '&body=' + body;
+  window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
   toast('Abrindo seu e-mail para enviar a solicitação...');
 }
 
