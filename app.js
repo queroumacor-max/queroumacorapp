@@ -4840,6 +4840,7 @@ async function loadMoreFeed(btn){
   if(_feedOffset === 0) return;
   if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
   await loadPosts(null, true);
+  filterFeedPosts();
 }
 
 function stripEmail(s){
