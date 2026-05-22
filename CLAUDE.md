@@ -18,6 +18,10 @@
   conversas arquivadas agora persistem no banco. Não pedir para rodar de
   novo. Nenhum dado de usuário fica só em `localStorage` (o que sobra lá
   são apenas caches cuja fonte de verdade já é o Supabase).
+- O SQL do carrinho e estados de usuário (colunas `profiles.cart`,
+  `profiles.ai_logo_gen_count` e `profiles.seen_stories`) **JÁ FOI
+  EXECUTADO no Supabase**. Carrinho da loja, contador de logo IA e
+  stories vistos persistem no banco. Não pedir para rodar de novo.
 - Cores de produto: o botão "Preencher cores (IA)" no portal grava
   `products.color_hex` (IA primeiro, dicionário como fallback). Rodar
   **uma vez**; depois manutenção é manual via seletor de cor. O botão só
