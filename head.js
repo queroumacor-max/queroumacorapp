@@ -10,6 +10,34 @@ function getSupabase() {
   return _supabase;
 }
 
+// Cache curto do perfil do usuário logado. Evita várias queries idênticas
+// a 'profiles' no login — loadMyProfileData, refreshProStatus, loadUserState
+// e updateMyStoryAvatar disparam quase juntas. Com o dedup do _inflight,
+// todas compartilham UMA requisição.
+let _myProfileCache = null;
+let _myProfileCacheAt = 0;
+let _myProfileInflight = null;
+async function getMyProfile(force){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return null;
+  if(!force && _myProfileCache && Date.now() - _myProfileCacheAt < 15000) return _myProfileCache;
+  if(!force && _myProfileInflight) return _myProfileInflight;
+  _myProfileInflight = sb.from('profiles').select('*').eq('id', currentUser.id).single()
+    .then(({ data }) => {
+      _myProfileCache = data || null;
+      _myProfileCacheAt = Date.now();
+      _myProfileInflight = null;
+      return _myProfileCache;
+    })
+    .catch(e => {
+      _myProfileInflight = null;
+      console.warn('getMyProfile:', e && e.message || e);
+      return _myProfileCache;
+    });
+  return _myProfileInflight;
+}
+function invalidateMyProfile(){ _myProfileCache = null; _myProfileCacheAt = 0; }
+
 let _feedLoaded = false;
 async function initAuth() {
   const sb = getSupabase();
@@ -34,6 +62,7 @@ async function initAuth() {
   handleReferralParam();
   sb.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
+    invalidateMyProfile();
     if(currentUser){
       if(typeof loadUserState==='function') loadUserState();
       autoDetectRole();
@@ -67,7 +96,7 @@ async function loadMyProfileData(){
   const sb = getSupabase();
   if(!sb) return;
   try {
-    const { data: prof } = await sb.from('profiles').select('name, tag, avatar_url, city, state, user_type, role, phone, specialties, portal_access').eq('id', currentUser.id).single();
+    const prof = await getMyProfile();
     const nameEl = document.getElementById('myprofile-name');
     const subEl = document.getElementById('myprofile-sub');
     const avatarEl = document.querySelector('#screen-feed .ph-avatar img, #screen-feed img[style*="border-radius"]');
@@ -293,7 +322,7 @@ async function updateMyStoryAvatar(){
   const sb = getSupabase();
   if(!sb) return;
   try {
-    const { data: profile } = await sb.from('profiles').select('avatar_url, name').eq('id', currentUser.id).single();
+    const profile = await getMyProfile();
     const fullName = (profile && profile.name) || currentUser.user_metadata?.name || '';
     const firstName = fullName.split(' ')[0] || 'Seu story';
     if(nameEl) nameEl.textContent = firstName;
