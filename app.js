@@ -4337,10 +4337,12 @@ function mktTab(key) {
   document.querySelectorAll('#mkt-sections .mkt-menu-sec').forEach(s => {
     const on = s.getAttribute('data-key') === key;
     s.style.display = on ? 'block' : 'none';
-    // Renderiza as linhas da seção só quando ela é aberta pela 1ª vez (lazy)
     if(on && s.getAttribute('data-rendered') === '0'){
       const grid = s.querySelector('.mkt-products');
-      if(grid && _mktGrouped[key]) grid.innerHTML = _mktGrouped[key].map(renderProductRow).join('');
+      if(grid){
+        const items = key === 'todos' ? mktProducts : (_mktGrouped[key] || []);
+        grid.innerHTML = items.map(renderProductRow).join('');
+      }
       s.setAttribute('data-rendered', '1');
     }
   });
@@ -4737,22 +4739,32 @@ function renderMktUI(){
 
   const tabsEl = document.getElementById('mkt-tabs');
   if(tabsEl){
-    tabsEl.innerHTML = orderedKeys.map((k, i) =>
-      '<div class="mkt-tab'+(i===0?' active':'')+'" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
+    const todosTab = total
+      ? '<div class="mkt-tab active" data-key="todos" onclick="mktTab(\'todos\')">📦 Todos ('+total+')</div>'
+      : '';
+    const catTabs = orderedKeys.map(k =>
+      '<div class="mkt-tab" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
       + MKT_MENU_LABEL[k] + ' (' + _mktGrouped[k].length + ')</div>'
-    ).join('') || '<div class="mkt-tab active">Sem produtos</div>';
+    ).join('');
+    tabsEl.innerHTML = todosTab + catTabs || '<div class="mkt-tab active">Sem produtos</div>';
   }
   const secEl = document.getElementById('mkt-sections');
   if(secEl){
     if(orderedKeys.length === 0){
       secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
     } else {
-      secEl.innerHTML = orderedKeys.map((k, i) =>
-        '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="'+(i===0?'1':'0')+'" style="display:'+(i===0?'block':'none')+'">'
+      // Seção "Todos" — renderiza todos na abertura (tab ativo por padrão)
+      const todosHtml = '<div class="mkt-menu-sec" data-key="todos" data-rendered="1" style="display:block">'
+        + '<div class="mkt-section-title">📦 Todos os produtos · '+total+' itens</div>'
+        + '<div class="mkt-products">'+mktProducts.map(renderProductRow).join('')+'</div>'
+        + '</div>';
+      const catHtml = orderedKeys.map(k =>
+        '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="0" style="display:none">'
         + '<div class="mkt-section-title">'+MKT_MENU_LABEL[k]+' · '+_mktGrouped[k].length+' itens <span style="color:var(--muted);font-weight:600;">(de '+total+' no total)</span></div>'
-        + '<div class="mkt-products">'+(i===0 ? _mktGrouped[k].map(renderProductRow).join('') : '')+'</div>'
+        + '<div class="mkt-products"></div>'
         + '</div>'
       ).join('');
+      secEl.innerHTML = todosHtml + catHtml;
     }
   }
 }
