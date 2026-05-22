@@ -194,7 +194,7 @@ async function openFollowersModal(){
     const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
-      const name = p.name || 'Usuario';
+      const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
       const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
       list.innerHTML += `<div onclick="hideModal('followers-modal');openUserProfile('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
@@ -221,7 +221,7 @@ async function openFollowingModal(){
     const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
-      const name = p.name || 'Usuario';
+      const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
       const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
       list.innerHTML += `<div onclick="hideModal('following-modal');openUserProfile('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
@@ -305,13 +305,13 @@ async function updateMyStoryAvatar(){
 
 async function doLoginSupabase(email, password) {
   const sb = getSupabase();
-  if (!sb) { toast('Erro: Supabase nao carregou'); return; }
+  if (!sb) { toast('Erro: Supabase não carregou'); return; }
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) { toast('Erro: ' + error.message); }
     else { currentUser = data.user; autoDetectRole(); showScreen('feed'); }
   } catch(e) {
-    toast('Erro de conexao: ' + e.message);
+    toast('Erro de conexão: ' + e.message);
   }
 }
 function doLogin(){
@@ -520,7 +520,7 @@ async function openUserProfile(userId, preview){
   if(!sb) return;
   try {
     const { data: prof } = await sb.from('profiles').select('*').eq('id', userId).single();
-    if(!prof){ toast('Perfil nao encontrado'); return; }
+    if(!prof){ toast('Perfil não encontrado'); return; }
     // Check if it's own profile (preview mostra a visão pública do próprio perfil)
     if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;
@@ -530,7 +530,7 @@ async function openUserProfile(userId, preview){
     const nameEl = screen.querySelector('.ph-name');
     const bioEl = screen.querySelector('.ph-bio');
     const avatarEl = screen.querySelector('.ph-avatar img');
-    const name = prof.name || 'Usuario';
+    const name = prof.name || 'Usuário';
     const avatar = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=200';
     const location = (prof.city||'')+(prof.state?' · '+prof.state:'');
     const _rl = prof.role||prof.user_type||'cliente';
@@ -670,7 +670,7 @@ async function startChatWith(userId, userName){
 
 async function toggleFollow(userId,btn){
   const sb=getSupabase();
-  if(!sb||!currentUser){toast('Faca login primeiro');return;}
+  if(!sb||!currentUser){toast('Faça login primeiro');return;}
   const isFollowing=btn.classList.contains('following');
   if(isFollowing){
     await sb.from('follows').delete().eq('follower_id',currentUser.id).eq('following_id',userId);

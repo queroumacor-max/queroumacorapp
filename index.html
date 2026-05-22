@@ -36,7 +36,7 @@
 <div class="top-nav">
   <div class="logo">Quero<span>Uma</span>Cor</div>
   <div class="nav-right">
-    <div id="pro-status-badge" onclick="showModal('pro-modal')" style="display:flex;align-items:center;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;font-family:'Syne',sans-serif;letter-spacing:1px;cursor:pointer;">FREE</div>
+    <div id="pro-status-badge" onclick="showModal('pro-modal')" style="display:flex;align-items:center;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;font-family:'Syne',sans-serif;letter-spacing:1px;cursor:pointer;">GRÁTIS</div>
     <button class="nav-btn" onclick="showScreen('chat')">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <div class="badge-dot" id="chat-badge-dot" style="background:var(--p4);display:none"></div>
@@ -454,10 +454,10 @@
   <!-- PROFILE TABS -->
   <div class="profile-body" style="padding-top:14px;">
     <div class="profile-tabs" style="position:sticky;top:0;z-index:10;background:var(--cream);">
-      <div class="ptab active" id="ptab-works" onclick="switchTab('works')">Portfolio</div>
+      <div class="ptab active" id="ptab-works" onclick="switchTab('works')">Portfólio</div>
       <div class="ptab" id="ptab-vids" onclick="switchTab('vids')">Vídeos</div>
       <div class="ptab" id="ptab-certs" onclick="switchTab('certs')">Formação</div>
-      <div class="ptab" id="ptab-reviews" onclick="switchTab('reviews')">Reviews</div>
+      <div class="ptab" id="ptab-reviews" onclick="switchTab('reviews')">Avaliações</div>
       <div class="ptab" id="ptab-cursos" onclick="switchTab('cursos')">Cursos</div>
     </div>
 
@@ -810,7 +810,7 @@
           <span style="font-size:18px;">✏️</span><div style="flex:1;font-size:14px;font-weight:600;">Editar Perfil</div><span style="color:var(--muted);">›</span>
         </div>
         <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
-          <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Meu Endereco</div><span style="color:var(--muted);">›</span>
+          <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Meu Endereço</div><span style="color:var(--muted);">›</span>
         </div>
         <div onclick="showScreen('notif')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
           <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificações</div><span style="color:var(--muted);">›</span>
@@ -1038,7 +1038,7 @@
   <div class="calc-screen">
     <div class="calc-card">
       <div class="calc-head">🖌️ Calculadora de Tinta</div>
-      <div class="calc-sub">Powered by Cali Colors</div>
+      <div class="calc-sub">Em parceria com a Cali Colors</div>
       <div class="calc-inputs">
         <input id="ci-area" class="calc-fi" type="number" placeholder="Área total em m²" oninput="calcTinta()">
         <select id="ci-tipo" class="calc-fs" onchange="calcTinta()">
@@ -1172,7 +1172,7 @@
       <div class="pfchip active" onclick="filterPedidos(this,'todos')">Todos</div>
       <div class="pfchip" onclick="filterPedidos(this,'enviado')">Aguardando</div>
       <div class="pfchip" onclick="filterPedidos(this,'aprovado')">Aprovados</div>
-      <div class="pfchip" onclick="filterPedidos(this,'concluido')">Concluidos</div>
+      <div class="pfchip" onclick="filterPedidos(this,'concluido')">Concluídos</div>
     </div>
     <div id="pedidos-list">
       <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">Carregando pedidos...</div>
@@ -1307,7 +1307,7 @@
             <img id="shirt-cali-logo" class="shirt-cali-logo" src="/img/cali-colors-logo.webp" alt="Cali Colors" onerror="this.style.display='none';">
           </div>
           <div class="shirt-logo-overlay">
-            <div class="shirt-logo-chip" id="shirt-logo-pintor-chip">carlos_silva</div>
+            <div class="shirt-logo-chip" id="shirt-logo-pintor-chip">seu_perfil</div>
             <div class="shirt-logo-chip brand" id="shirt-logo-cali-chip">× Cali Colors</div>
           </div>
         </div>
@@ -1831,7 +1831,7 @@
 <div class="overlay" id="post-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title" id="post-modal-title">Nova Publicacao</div>
+    <div class="sheet-title" id="post-modal-title">Nova Publicação</div>
     <!-- Type toggle -->
     <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;">
       <button id="post-type-story" onclick="setPostType('story')" style="flex:1;padding:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;background:var(--white);color:var(--ink);transition:.2s;">Story</button>
@@ -1917,7 +1917,7 @@
       <div style="font-size:15px;font-weight:700;">Total</div>
       <div id="cart-total" style="font-size:18px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">R$0,00</div>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Frete gratis acima de R$200 · Entrega 3-5 dias uteis</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Frete grátis acima de R$200 · Entrega 3-5 dias úteis</div>
     <button id="cart-submit-btn" onclick="submitCartOrder()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Enviar Solicitação de Compra</button>
   </div>
 </div>

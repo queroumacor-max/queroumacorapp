@@ -369,7 +369,7 @@ function applyProUI(){
         badge.style.background = '#16a34a';
         badge.style.color = '#fff';
       } else {
-        badge.textContent = 'FREE';
+        badge.textContent = 'GRÁTIS';
         badge.style.background = 'rgba(255,255,255,.15)';
         badge.style.color = '#fff';
       }
@@ -2014,7 +2014,7 @@ function openChatWithUser(userId){
 }
 
 function abrirOrcamentoChat(painterId, painterName){
-  if(!currentUser){ showScreen('auth'); return; }
+  if(!currentUser){ showScreen('login'); return; }
   const existing = document.getElementById('orc-chat-overlay');
   if(existing) existing.remove();
 
@@ -2455,7 +2455,7 @@ async function searchNewChatUsers(query){
       return n.includes(q) || t.includes(q);
     });
     if(filtered.length === 0){
-      container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Nenhum usuario encontrado</div>';
+      container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">Nenhum usuário encontrado</div>';
       return;
     }
     container.innerHTML = filtered.map(p => {
@@ -2494,7 +2494,7 @@ function getChatReceiverId(convId, myId){
 async function startNewChat(userId){
   closeModals();
   const sb = getSupabase();
-  if(!sb || !currentUser) { toast('Faca login para enviar mensagens'); return; }
+  if(!sb || !currentUser) { toast('Faça login para enviar mensagens'); return; }
 
   if(userId === 'calicolors'){
     // Find or use Cali Colors user ID
@@ -2542,13 +2542,13 @@ async function startNewChat(userId){
   try {
     const { data: prof } = await sb.from('profiles').select('name, avatar_url, tag, role, user_type').eq('id', userId).single();
     if(prof){
-      const name = prof.name || 'Usuario';
+      const name = prof.name || 'Usuário';
       chatData[convId].name = name;
       chatData[convId].sub = prof.tag ? '@' + prof.tag : '';
       chatData[convId].participants = [{
         img: prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96',
         name: name,
-        role: isProfessionalRole(prof.role||prof.user_type) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role||prof.user_type]||'Profissional') : 'Usuario'
+        role: isProfessionalRole(prof.role||prof.user_type) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role||prof.user_type]||'Profissional') : 'Usuário'
       }];
     }
   } catch(e){}
@@ -2733,7 +2733,7 @@ async function loadPedidos(){
     (quotes || []).forEach(q => {
       const isClient = q.client_id === myId;
       const other = isClient ? (q.painter || {}) : (q.client || {});
-      const name = other.name || 'Usuario';
+      const name = other.name || 'Usuário';
       const avatar = other.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
       const st = statusLabels[q.status] || q.status || 'Pendente';
       const stClass = statusClasses[q.status] || 'status-aguardando';
@@ -3120,9 +3120,9 @@ async function handleRealtimeMsg(payload){
             chatData[m.conversation_id] = {
               type: 'direct',
               otherId: m.sender_id,
-              name: prof.name || 'Usuario',
+              name: prof.name || 'Usuário',
               sub: prof.tag ? '@' + prof.tag : '',
-              participants: [{img: prof.avatar_url || '', name: prof.name || 'Usuario', role: isProfessionalRole(prof.role) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role]||'Profissional') : 'Usuario'}],
+              participants: [{img: prof.avatar_url || '', name: prof.name || 'Usuário', role: isProfessionalRole(prof.role) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role]||'Profissional') : 'Usuário'}],
               messages: []
             };
           }
@@ -3598,7 +3598,7 @@ function openChat(id) {
   const _otherId = conv.otherId || _prevConv.otherId || '';
   if(_otherId) conv.otherId = _otherId;
   saveConvLocal(id, {
-    name: otherP.name || conv.name || 'Usuario',
+    name: otherP.name || conv.name || 'Usuário',
     avatar: otherP.img || '',
     tag: conv.sub && conv.sub.startsWith('@') ? conv.sub.substring(1) : '',
     role: otherP.role || '',
@@ -3729,7 +3729,7 @@ function openChat(id) {
           // Papel = LOJA, mas mostra quem respondeu (@tag), nao "Cali Colors" generico
           return { from:'store', text: m.content, time, type: m.type || 'text', sender: sp ? cleanHandle(sp) : (m.type === 'store' ? 'Cali Colors' : 'Loja'), role:'loja' };
         }
-        const senderName = cleanHandle(sp, otherPart ? otherPart.name : 'Usuario');
+        const senderName = cleanHandle(sp, otherPart ? otherPart.name : 'Usuário');
         const senderImg = sp ? (sp.avatar_url || '') : (otherPart ? otherPart.img : '');
         let role = 'cliente';
         if(sp && (sp.portal_access || (sp.role||'').toLowerCase()==='admin')) role = 'loja';
@@ -4229,7 +4229,7 @@ async function submitCartOrder(){
       created_at: new Date().toISOString()
     });
     if(error) throw error;
-    toast('Solicitacao de compra enviada! A loja entrara em contato.');
+    toast('Solicitação de compra enviada! A loja entrará em contato.');
     cartItems = [];
     localStorage.setItem('quc_cart', JSON.stringify(cartItems));
     updateCartBadge();
@@ -4238,7 +4238,7 @@ async function submitCartOrder(){
     console.error('submitCartOrder error:', e);
     toast('Erro ao enviar pedido: ' + (e.message || 'tente novamente'));
   }
-  btn.textContent = 'Enviar Solicitacao de Compra'; btn.disabled = false;
+  btn.textContent = 'Enviar Solicitação de Compra'; btn.disabled = false;
 }
 
 function getCategoryEmoji(cat){
@@ -5123,7 +5123,7 @@ async function loadPosts(feedIds, append){
     let html = '';
     posts.forEach(p => {
       const prof = p.profiles || {};
-      let name = prof.name || 'Usuario';
+      let name = prof.name || 'Usuário';
       if(name.includes('@')) name = name.split('@')[0];
       const tag = prof.tag ? '@' + prof.tag : '';
       const avatar = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
@@ -5191,7 +5191,7 @@ async function loadPosts(feedIds, append){
         html += '<div class="comments-area" style="padding:4px 14px 2px;">';
         postComments.forEach(c => {
           const cp = profMap[c.user_id] || {};
-          let cName = cp.name || 'Usuario';
+          let cName = cp.name || 'Usuário';
           if(cName.includes('@')) cName = cName.split('@')[0];
           const canDelete = currentUser && (currentUser.id === c.user_id || currentUser.id === p.user_id);
           const delBtn = canDelete ? ' <span onclick="deleteComment(this,\''+c.id+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>' : '';
@@ -5243,7 +5243,7 @@ function stripEmail(s){
 }
 function cleanHandle(p, fb){
   if(p && p.tag) return '@' + p.tag;
-  return stripEmail((p && p.name) || fb || 'Usuario');
+  return stripEmail((p && p.name) || fb || 'Usuário');
 }
 
 function escapeHtml(str){
@@ -5621,7 +5621,7 @@ async function loadStories(feedIds){
         if(name.includes('@')) name = name.split('@')[0];
         name = name.split(' ')[0];
       }
-      const avatar = p.avatar_url || g.stories[0].media_url || 'https://i.pravatar.cc/150?img=68';
+      const avatar = p.avatar_url || g.stories[0].media_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
       const seen = isStoryGroupSeen(g.user_id) ? ' seen' : '';
       html += `<div class="story">
         <div class="story-ring${seen}" style="cursor:pointer" onclick="openStoryViewer(${gi})"><div class="story-inner"><img src="${avatar}" alt=""></div></div>
@@ -5711,7 +5711,7 @@ function renderCurrentStory(){
     imgEl.src = s.media_url || '';
   }
   // Update header
-  document.getElementById('story-viewer-avatar').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
+  document.getElementById('story-viewer-avatar').src = p.avatar_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
   document.getElementById('story-viewer-name').textContent = p.name || 'User';
   document.getElementById('story-viewer-time').textContent = getTimeAgo(s.created_at);
 
@@ -5969,7 +5969,7 @@ function initLeafletMap(){
 }
 
 function createPinIcon(painter){
-  const avatar = painter.avatar_url || painter.img || 'https://i.pravatar.cc/150?img=68';
+  const avatar = painter.avatar_url || painter.img || ('https://ui-avatars.com/api/?name='+encodeURIComponent(painter.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
   const name = (painter.name || painter.name || '').split(' ')[0];
   const rating = painter.rating_avg || painter.rating || 0;
   const featured = rating >= 4.9;
