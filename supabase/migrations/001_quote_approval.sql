@@ -32,16 +32,22 @@ END $$;
 
 -- 3) Tabela de notificações in-app --------------------------------------
 CREATE TABLE IF NOT EXISTS public.notifications (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  type text,
-  title text,
-  body text,
-  ref_id uuid,
-  read boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY
 );
+
+-- Garante todas as colunas mesmo se a tabela 'notifications' já existia
+-- de antes (sem essas colunas).
+DO $$
+BEGIN
+  BEGIN ALTER TABLE public.notifications ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN type text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN title text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN body text; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN ref_id uuid; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN read boolean DEFAULT false; EXCEPTION WHEN duplicate_column THEN NULL; END;
+  BEGIN ALTER TABLE public.notifications ADD COLUMN created_at timestamptz DEFAULT now(); EXCEPTION WHEN duplicate_column THEN NULL; END;
+END $$;
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
