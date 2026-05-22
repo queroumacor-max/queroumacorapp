@@ -12,6 +12,12 @@
   `resolve-color.js`.)
 - A coluna `products.image_url` (text) **já foi criada no Supabase**. Upload
   de foto de produto pelo portal já funciona. Não pedir para rodar o SQL.
+- O SQL de persistência total (tabela `checklists` + colunas
+  `profiles.service_radius` e `profiles.archived_conversations`) **JÁ FOI
+  EXECUTADO no Supabase**. Checklist de obra, raio de atendimento e
+  conversas arquivadas agora persistem no banco. Não pedir para rodar de
+  novo. Nenhum dado de usuário fica só em `localStorage` (o que sobra lá
+  são apenas caches cuja fonte de verdade já é o Supabase).
 - Cores de produto: o botão "Preencher cores (IA)" no portal grava
   `products.color_hex` (IA primeiro, dicionário como fallback). Rodar
   **uma vez**; depois manutenção é manual via seletor de cor. O botão só
