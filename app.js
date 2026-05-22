@@ -2257,23 +2257,32 @@ async function enviarOrcamentoForm(){
 
   // Cria o pedido no pipeline do profissional e dispara a notificação.
   const sb = getSupabase();
-  if(sb && currentUser && painterId && painterId !== currentUser.id){
-    const serviceType = (tipo && tipo !== 'Selecione…') ? tipo : 'Solicitação de orçamento';
-    try {
-      const { data: q } = await sb.from('quotes').insert({
-        client_id: currentUser.id,
-        painter_id: painterId,
-        title: serviceType,
-        service_type: serviceType,
-        description: partes.slice(1).join('\n') || null,
-        status: 'pending',
-        lead_type: 'exclusive'
-      }).select('id').single();
-      const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
-      await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
-        meuNome + ' solicitou um orçamento. Veja no seu pipeline.', q && q.id);
-    } catch(e){ console.warn('enviarOrcamentoForm quote:', e); }
+  if(!sb || !currentUser){ toast('Faça login para pedir orçamento'); return; }
+  if(!painterId){ toast('Não foi possível identificar o profissional do post'); return; }
+  if(painterId === currentUser.id){ toast('Você não pode pedir orçamento para si mesmo'); return; }
+
+  const serviceType = (tipo && tipo !== 'Selecione…') ? tipo : 'Solicitação de orçamento';
+  let novoQuoteId = null;
+  try {
+    const { data: q, error: qErr } = await sb.from('quotes').insert({
+      client_id: currentUser.id,
+      painter_id: painterId,
+      title: serviceType,
+      service_type: serviceType,
+      description: partes.slice(1).join('\n') || null,
+      status: 'pending',
+      lead_type: 'exclusive'
+    }).select('id').single();
+    if(qErr) throw qErr;
+    novoQuoteId = q && q.id;
+  } catch(e){
+    console.warn('enviarOrcamentoForm quote:', e);
+    toast('Erro ao enviar o pedido: ' + (e.message || e));
+    return;
   }
+  const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
+  await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
+    meuNome + ' solicitou um orçamento. Veja no seu pipeline.', novoQuoteId);
 
   const overlay = document.getElementById('orc-chat-overlay');
   if(overlay) overlay.remove();
