@@ -1047,10 +1047,10 @@
         <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">✏️</span><div style="flex:1;font-size:14px;font-weight:600;">Editar Perfil</div><span style="color:var(--muted);">›</span>
         </div>
-        <div onclick="toast('Endereco...')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
+        <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Meu Endereco</div><span style="color:var(--muted);">›</span>
         </div>
-        <div onclick="toast('Notificacoes...')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
+        <div onclick="showScreen('notif')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
           <span style="font-size:18px;">🔔</span><div style="flex:1;font-size:14px;font-weight:600;">Notificacoes</div><span style="color:var(--muted);">›</span>
         </div>
       </div>
@@ -1159,7 +1159,7 @@
         <div class="chat-header-name" id="chat-header-name">—</div>
         <div class="chat-header-sub" id="chat-header-sub">—</div>
       </div>
-      <button class="chat-header-btn" id="chat-orc-btn" onclick="toast('Orçamento vinculado!')">Ver orç.</button>
+      <button class="chat-header-btn" id="chat-orc-btn" style="display:none" onclick="return false;">Ver orç.</button>
     </div>
 
     <!-- Participants row (3way only) -->
@@ -1454,13 +1454,6 @@
       </div>
     </div>
 
-    <!-- Exemplos já pedidos -->
-    <div class="mkt-section-title" style="margin-top:14px">Pedidos anteriores</div>
-    <div style="background:var(--white);border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;gap:12px;align-items:center;margin-bottom:10px;">
-      <div style="font-size:36px;">👕</div>
-      <div style="flex:1"><div style="font-size:13.5px;font-weight:700;">Camiseta Branca · Logo Pintor + CC</div><div style="font-size:11.5px;color:var(--muted);">Tam M · 1 unid · Entregue em 12/03</div></div>
-      <span style="background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;">✓ Entregue</span>
-    </div>
   </div>
 </div>
 
