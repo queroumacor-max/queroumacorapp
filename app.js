@@ -1310,7 +1310,7 @@ async function sendAiChat(){
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   const typingId = 'typing-' + Date.now();
-  msgsEl.innerHTML += '<div id="'+typingId+'" style="display:flex;gap:8px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2ec4b6,#8338ec);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">💡</div><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--muted);max-width:85%;"><span style="display:inline-block;animation:typing 1.2s infinite;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .15s;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .3s;">•</span></div></div>';
+  msgsEl.innerHTML += '<div id="'+typingId+'" style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.png" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--muted);max-width:85%;"><span style="display:inline-block;animation:typing 1.2s infinite;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .15s;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .3s;">•</span></div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   let reply = null;
@@ -1357,7 +1357,7 @@ async function sendAiChat(){
   const typingEl = document.getElementById(typingId);
   if (typingEl) typingEl.remove();
   const formatted = escapeHtml(reply).replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2ec4b6,#8338ec);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">💡</div><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
+  msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.png" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
