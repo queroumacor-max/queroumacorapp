@@ -17,6 +17,7 @@ async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     currentUser = session.user;
+    if(typeof loadUserState==='function') loadUserState();
     showScreen('feed');
     autoDetectRole();
     setupGlobalMsgSubscription();
@@ -34,6 +35,7 @@ async function initAuth() {
   sb.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     if(currentUser){
+      if(typeof loadUserState==='function') loadUserState();
       autoDetectRole();
       setupGlobalMsgSubscription();
       setupNotifSubscription();

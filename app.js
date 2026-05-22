@@ -2701,7 +2701,6 @@ async function loadNotifications(){
   const container = document.getElementById('notif-list');
   if(!sb || !currentUser || !container) return;
   // Mark as read: clear badge
-  localStorage.setItem('notif_last_seen', new Date().toISOString());
   updateNotifBadge(false);
   try {
     const myId = currentUser.id;
@@ -4201,7 +4200,7 @@ function addStoreToChat(){
 
 // ══ MARKETPLACE ══
 let cartCount = 0;
-let cartItems = JSON.parse(localStorage.getItem('quc_cart') || '[]');
+let cartItems = [];
 let shirtQty = 1;
 let logoState = {pintor: true, cali: true};
 let mktProducts = [];
@@ -4278,6 +4277,30 @@ function mktTab(key) {
   });
 }
 
+// Carrega no Supabase o estado do usuário que antes ficava em
+// localStorage (carrinho, contador de logo IA, stories vistos).
+async function loadUserState(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  try {
+    const { data } = await sb.from('profiles')
+      .select('cart, ai_logo_gen_count, seen_stories').eq('id', currentUser.id).single();
+    if(data){
+      cartItems = Array.isArray(data.cart) ? data.cart : [];
+      _aiLogoCount = +data.ai_logo_gen_count || 0;
+      _seenStories = (data.seen_stories && typeof data.seen_stories === 'object') ? data.seen_stories : {};
+      updateCartBadge();
+    }
+  } catch(e){ console.warn('loadUserState:', e && e.message || e); }
+}
+
+function saveCart(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  sb.from('profiles').update({ cart: cartItems }).eq('id', currentUser.id)
+    .then(({ error }) => { if(error) console.warn('saveCart:', error.message); });
+}
+
 function updateCartBadge(){
   cartCount = cartItems.reduce((s,c) => s + (c.qty||1), 0);
   const el = document.getElementById('cart-count');
@@ -4302,7 +4325,7 @@ function addToCart(productId, qty, name, price) {
       }
     }
   }
-  localStorage.setItem('quc_cart', JSON.stringify(cartItems));
+  saveCart();
   updateCartBadge();
   toast('Adicionado ao carrinho!');
   setTimeout(() => { renderCartModal(); showModal('cart-modal'); }, 300);
@@ -4313,7 +4336,7 @@ function changeCartQty(index, delta){
   const newQty = (cartItems[index].qty || 1) + delta;
   if(newQty < 1){ removeFromCart(index); return; }
   cartItems[index].qty = newQty;
-  localStorage.setItem('quc_cart', JSON.stringify(cartItems));
+  saveCart();
   updateCartBadge();
   renderCartModal();
 }
@@ -4352,7 +4375,7 @@ function renderCartModal(){
 
 function removeFromCart(index){
   cartItems.splice(index, 1);
-  localStorage.setItem('quc_cart', JSON.stringify(cartItems));
+  saveCart();
   updateCartBadge();
   renderCartModal();
 }
@@ -4375,7 +4398,7 @@ async function submitCartOrder(){
     if(error) throw error;
     toast('Solicitação de compra enviada! A loja entrará em contato.');
     cartItems = [];
-    localStorage.setItem('quc_cart', JSON.stringify(cartItems));
+    saveCart();
     updateCartBadge();
     closeModals();
   } catch(e){
@@ -4728,11 +4751,16 @@ let _aiLogoUrls = null;
 const AI_LOGO_REGEN_PRICE_BRL = 1.99;
 const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
 
-function _aiLogoGenCount(){ return parseInt(localStorage.getItem('ai_logo_gen_count') || '0', 10); }
+let _aiLogoCount = 0;
+function _aiLogoGenCount(){ return _aiLogoCount; }
 function _aiLogoBumpCount(){
-  const n = _aiLogoGenCount() + 1;
-  localStorage.setItem('ai_logo_gen_count', String(n));
-  return n;
+  _aiLogoCount = _aiLogoCount + 1;
+  const sb = getSupabase();
+  if(sb && currentUser){
+    sb.from('profiles').update({ ai_logo_gen_count: _aiLogoCount }).eq('id', currentUser.id)
+      .then(({ error }) => { if(error) console.warn('_aiLogoBumpCount:', error.message); });
+  }
+  return _aiLogoCount;
 }
 
 function _aiLogoUpdateBtn(){
@@ -5855,11 +5883,15 @@ async function loadStories(feedIds){
   }
 }
 
-function isStoryGroupSeen(userId){
-  try { const seen = JSON.parse(localStorage.getItem('seen_stories') || '{}'); return !!seen[userId]; } catch(e){ return false; }
-}
+let _seenStories = {};
+function isStoryGroupSeen(userId){ return !!_seenStories[userId]; }
 function markStoryGroupSeen(userId){
-  try { const seen = JSON.parse(localStorage.getItem('seen_stories') || '{}'); seen[userId] = Date.now(); localStorage.setItem('seen_stories', JSON.stringify(seen)); } catch(e){}
+  _seenStories[userId] = Date.now();
+  const sb = getSupabase();
+  if(sb && currentUser){
+    sb.from('profiles').update({ seen_stories: _seenStories }).eq('id', currentUser.id)
+      .then(({ error }) => { if(error) console.warn('markStoryGroupSeen:', error.message); });
+  }
 }
 
 function openStoryViewer(groupIndex){
