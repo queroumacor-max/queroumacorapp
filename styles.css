@@ -813,3 +813,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .qty-btn:hover{background:var(--p1);color:#fff;}
 .qty-input{width:44px;height:38px;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);background:#fff;text-align:center;font-size:16px;font-weight:700;color:var(--ink);font-family:'DM Sans',sans-serif;-moz-appearance:textfield;}
 .qty-input::-webkit-outer-spin-button,.qty-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+
+/* Toast — feedback de ações */
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(14px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:24px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:86%;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.28);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
