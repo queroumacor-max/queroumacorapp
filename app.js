@@ -689,6 +689,9 @@ function renderPipelineCard(q){
     const how = q.approval_method==='manual' ? ' · registro manual' : (q.approval_method==='app' ? ' · aprovado pelo cliente' : '');
     frozenLine = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">🔒 Escopo congelado'+when+how+'</div>';
   }
+  const descBlock = q.description
+    ? '<div style="background:var(--cream);border-radius:10px;padding:9px 11px;margin-bottom:10px;font-size:12px;color:var(--ink);line-height:1.5;white-space:pre-wrap;">'+escapeHtml(q.description)+'</div>'
+    : '';
   return '<div style="background:var(--white);border-radius:14px;padding:13px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:9px;">'
     + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
     +   '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);">'+escapeHtml(cli)+'</div>'
@@ -699,6 +702,7 @@ function renderPipelineCard(q){
     +   '<span style="font-size:13px;font-weight:800;color:var(--ink);">'+price+'</span>'+appBadge
     +   '<span style="margin-left:auto;font-size:11px;color:var(--muted);">'+date+'</span>'
     + '</div>'
+    + descBlock
     + frozenLine
     + '<div style="display:flex;gap:7px;">'+actions+'</div>'
     + '</div>';
