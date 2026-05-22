@@ -457,11 +457,11 @@ async function handleReferralParam(){
 // ══ MAIS INFORMAÇÕES E SUPORTE ══
 const SUPPORT = {
   // Canal de atendimento (Fale Conosco) e solicitações de exclusão de
-  // conta (LGPD) — e-mail da Cali Colors.
+  // conta (LGPD) — contato da Cali Colors.
   email: 'loja@calicolors.com.br',
-  // WhatsApp de atendimento: DDI+DDD+número só dígitos (ex.:
-  // '5511912345678'). Vazio = botão de WhatsApp fica oculto.
-  whatsapp: ''
+  // WhatsApp de atendimento: DDI+DDD+número só dígitos.
+  // Cali Colors: (11) 95976-5031.
+  whatsapp: '5511959765031'
 };
 const _infoTitles = {
   menu:'Mais informações e suporte',
