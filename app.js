@@ -779,6 +779,7 @@ async function setQuoteStage(id, status){
   const { error } = await sb.from('quotes').update(patch)
     .eq('id', id).eq('painter_id', currentUser.id);
   if(error){ toast('Erro: '+error.message); return; }
+  if(status==='concluido') earnPoints(currentUser.id, 15, 'quote_completed', id);
   toast(status==='concluido'?'Orçamento concluído!':'Execução iniciada'); loadPipeline();
 }
 

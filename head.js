@@ -371,6 +371,17 @@ async function doRegisterSupabase(name, email, password, type, tag) {
     try {
       await sb.from('profiles').upsert(profileData, { onConflict: 'id' });
     } catch(e){ console.warn('Profile create error:', e); }
+    // Registra a indicação — o indicador ganha pontos via trigger no banco
+    if(validatedInviteCode && validatedInviteCode.created_by && validatedInviteCode.created_by !== data.user.id){
+      try {
+        await sb.from('referrals').insert({
+          referrer_id: validatedInviteCode.created_by,
+          referred_id: data.user.id,
+          status: 'completed',
+          bonus_points: 20
+        });
+      } catch(e){ console.warn('Referral insert error:', e); }
+    }
   }
   currentUser = data.user;
   autoDetectRole();
