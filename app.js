@@ -2132,19 +2132,29 @@ function openOrcamento(){
   document.getElementById('orc-painter-id').value = p && p.supabase_id ? p.supabase_id : '';
   showScreen('orcamento');
 }
+function toggleOrcOutros(v){
+  const wrap = document.getElementById('orc-outros-wrap');
+  if(!wrap) return;
+  wrap.style.display = v === 'Outros' ? '' : 'none';
+  if(v === 'Outros') document.getElementById('orc-outros-desc').focus();
+}
+
 async function sendOrc(){
   const sb = getSupabase();
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ toast('⚠️ Faça login para enviar orçamento.'); return; }
 
   const painterId = document.getElementById('orc-painter-id').value || null;
-  const serviceType = document.getElementById('orc-service-type').value;
+  const rawType = document.getElementById('orc-service-type').value;
+  const outrosDesc = (document.getElementById('orc-outros-desc')||{}).value?.trim();
+  const serviceType = rawType === 'Outros' ? ('Outros: ' + (outrosDesc || '').slice(0,120)) : rawType;
   const area = parseFloat(document.getElementById('orc-area').value) || null;
   const address = document.getElementById('orc-address').value.trim();
   const proposedDate = document.getElementById('orc-date').value || null;
   const description = document.getElementById('orc-desc').value.trim();
 
-  if(!serviceType){ toast('⚠️ Selecione o tipo de serviço.'); return; }
+  if(!rawType){ toast('⚠️ Selecione o tipo de serviço.'); return; }
+  if(rawType === 'Outros' && !outrosDesc){ toast('⚠️ Descreva o tipo de serviço.'); document.getElementById('orc-outros-desc').focus(); return; }
   if(!address){ toast('⚠️ Informe o endereço.'); return; }
 
   const btn = document.querySelector('.orc-submit');
@@ -2178,6 +2188,8 @@ async function sendOrc(){
     toast('✅ Solicitação enviada com sucesso!');
     // Clear form
     document.getElementById('orc-service-type').selectedIndex = 0;
+    toggleOrcOutros('');
+    const od = document.getElementById('orc-outros-desc'); if(od) od.value = '';
     document.getElementById('orc-area').value = '';
     document.getElementById('orc-rooms').value = '';
     document.getElementById('orc-address').value = '';
@@ -2749,6 +2761,132 @@ async function submitCartOrder(){
 
 function getCategoryEmoji(cat){
   return cat === 'texturas' ? '🖌️' : cat === 'epoxi' ? '⚗️' : cat === 'acessorios' ? '🎭' : '🪣';
+}
+
+function getProductImage(p){
+  if(p.image_url) return p.image_url;
+  const n = (p.name||'').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,''); // strip accents for matching
+
+  // Tintas Brazilian brand — real catalog photos, no size suffix
+  const brMap = [
+    [['alta emborrachada','tinta emborrachada','alta performance'],'br-alta-performance'],
+    [['piso dura'],'br-piso-dura-premium'],
+    [['pinta super','pinta+'],'br-pinta-super-standard'],
+    [['classic standard','tinta acrilica classic'],'br-tinta-classic-standard'],
+    [['economica turbo','tinta economica turbo'],'br-economica-turbo'],
+    [['tinta acrilica premium','acrilica premium'],'br-tinta-acrilica-premium'],
+    [['liancryl'],'br-liancryl-piso'],
+    [['alkylux'],'br-alkylux-esmalte'],
+    [['r.u.r.a.i','rurai'],'br-rurai-esmalte'],
+    [['fundo acabamento','fundo e acabamento','fundo & acabamento'],'br-fundo-acabamento'],
+    [['zarcao'],'br-fundo-zarcao'],
+    [['fundo nivelador'],'br-fundo-nivelador-madeira'],
+    [['galvilux'],'br-fundo-galvilux'],
+    [['sintelux'],'br-sintelux-esmalte'],
+    [['esmalte base agua','esmalte base d'],'br-esmalte-base-agua'],
+    [['seladora concentrada','seladora madeira concentrada'],'br-seladora-madeira-conc'],
+    [['colorlac'],'br-colorlac'],
+    [['colorbase'],'br-colorbase'],
+    [['colordur'],'br-colordur'],
+    [['colorlux'],'br-colorlux'],
+    [['quick primer'],'br-quick-primer'],
+    [['primer pu hs 5','primer pu hs 5:1'],'br-primer-pu-hs'],
+    [['primer pu hs 8','primer pu hs 8:1'],'br-primer-pu-hs-81'],
+    [['primer cromato','cromato de zinco'],'br-primer-cromato-zinco'],
+    [['primer sintetico'],'br-primer-sintetico'],
+    [['primer colorfill','colorfill'],'br-primer-colorfill'],
+    [['primer universal'],'br-primer-universal'],
+    [['eliminador de cratera','aditivo cratera'],'br-aditivo-cratera'],
+    [['catalisador esmalte'],'br-catalisador-esmalte'],
+    [['acelerador de secagem','acelerador secagem'],'br-acelerador-secagem'],
+    [['pasta fosqueante','fosqueante'],'br-pasta-fosqueante'],
+    [['wash primer','preto fosco vinil'],'br-wash-primer'],
+    [['batida de pedra'],'br-batida-pedra'],
+    [['seladora para plastico','seladora plastico'],'br-seladora-plastico'],
+    [['massa rapida'],'br-massa-rapida'],
+    [['removedor pastoso'],'br-removedor-pastoso'],
+    [['pano pega po','pega po'],'br-pano-pega-po'],
+    [['restaura plastico','restaura plast'],'br-restaura-plastico'],
+    [['vedador de capo','vedador capo'],'br-vedador-capo'],
+    [['profissional economico'],'br-profissional-economico'],
+    [['telhas tijolos','resina acrilica base agua'],'br-telhas-tijolos-resina'],
+    [['resina acrilica base solvente','base solvente'],'br-resina-base-solvente'],
+    [['gesso drywall','fundo e acabamento drywall'],'br-gesso-drywall'],
+    [['verniz copal','copal verniz'],'br-verniz-copal'],
+    [['verniz filtro','filtro solar verniz'],'br-verniz-filtro-solar'],
+    [['verniz maritimo'],'br-verniz-maritimo'],
+    [['seladora para madeira','seladora madeira'],'br-seladora-madeira'],
+    [['fundo preparador'],'br-fundo-preparador'],
+    [['massa corrida'],'br-massa-corrida'],
+    [['massa acrilica'],'br-massa-acrilica'],
+    [['selador acrilico'],'br-selador-acrilico'],
+    [['thinner 6137','thinner de limpeza'],'br-thinner-diluente'],
+  ];
+  for(const [keys, base] of brMap){
+    if(keys.some(k => n.includes(k))) return '/products/'+base+'.jpg';
+  }
+
+  // Detect container size from product name (for other brands)
+  function sizeVariant(){
+    // Quarto / 0,9L / 900ml
+    if(/0[,.]9\s*l|900\s*m[l]|quarto/.test(n)) return '-quarto';
+    // Galão / 3,6L / 3,2L / 5L / 1/4
+    if(/3[,.]6\s*l|3[,.]2\s*l|[45]\s*l[ts^]|[45]\s*lts|gal[aã]o|1\/4/.test(n)) return '-galao';
+    // Lata / balde 18L or 16L → base image (no suffix)
+    return '';
+  }
+
+  const suf = sizeVariant();
+
+  const m = [
+    [['aguarras','diluente aguarras'],'diluente-aguarras'],
+    [['aquacryl super premium'],'aquacryl-super-premium'],
+    [['metalatex litoral'],'metalatex-litoral'],
+    [['metalatex elastic'],'metalatex-elastic'],
+    [['metalatex bactercryl','bactercryl'],'metalatex-bactercryl'],
+    [['metalatex super lavavel brilho','lavavel brilho'],'metalatex-super-lavavel-brilho'],
+    [['metalatex super lavavel fosco','lavavel fosco'],'metalatex-super-lavavel-fosco'],
+    [['metalatex requinte','requinte'],'metalatex-requinte'],
+    [['efeitos especiais'],'efeitos-especiais'],
+    [['texturarte'],'texturarte'],
+    [['eco resina termica','resina termica'],'eco-resina-termica'],
+    [['esmalte sintetico super secagem'],'esmalte-sintetico-super-secagem'],
+    [['esmalte sintetico super protecao'],'esmalte-sintetico-super-protecao'],
+    [['eco esmalte'],'eco-esmalte'],
+    [['esmalte sintetico'],'esmalte-sintetico-tradicional'],
+    [['eco epoxi'],'eco-epoxi'],
+    [['novacor piso ultra','piso ultra'],'novacor-piso-ultra'],
+    [['novacor piso premium','piso premium'],'novacor-piso-premium'],
+    [['novacor extra'],'novacor-extra'],
+    [['novacor cobre mais','cobre mais'],'novacor-cobre-mais'],
+    [['novacor esmalte','esmalte novacor'],'novacor-esmalte-sintetico'],
+    [['kem tone','kemtone'],'kem-tone'],
+    [['gesso','drywall'],'novacor-gesso-drywall'],
+    [['massa corrida'],'massa-corrida'],
+    [['massa acrilica'],'massa-acrilica'],
+    [['fundo preparador','eco fundo'],'eco-fundo-preparador'],
+    [['restauracao'],'restauracao'],
+    [['novacor resina impermeabilizante'],'novacor-resina-impermeabilizante'],
+    [['eco resina impermeabilizante','resina impermeabilizante'],'eco-resina-impermeabilizante'],
+    [['super galvite','galvite'],'super-galvite'],
+    [['verniz shertol','shertol'],'verniz-shertol'],
+    [['verniz filtro solar','filtro solar'],'verniz-filtro-solar'],
+    [['verniz maritimo'],'verniz-maritimo'],
+    [['verniz copal','copal'],'verniz-copal'],
+    [['seladora para madeira','seladora madeira'],'seladora-madeira'],
+    [['corante xadrez','xadrez'],'corante-xadrez'],
+    [['corante globocor','globocor'],'corante-globocor'],
+    [['tinta premium'],'tinta-premium'],
+  ];
+  for(const [keys, base] of m){
+    if(keys.some(k => n.includes(k))){
+      // Use size variant if the file exists, otherwise fall back to base
+      if(suf) return '/products/'+base+suf+'.jpg';
+      return '/products/'+base+'.jpg';
+    }
+  }
+  return null;
 }
 
 function renderProductCard(p){
