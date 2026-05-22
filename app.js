@@ -2,7 +2,7 @@
 const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','chat-conv','avaliar','mkt','camisetas','info','pipeline','crm'];
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv','chat-conv'];
-function showScreen(n){
+function showScreen(n, _fromPop){
   screens.forEach(s=>{
     const el=document.getElementById('screen-'+s);
     if(el)el.classList.toggle('active',s===n);
@@ -34,7 +34,50 @@ function showScreen(n){
   if(n==='info') openInfoPage('menu');
   if(n==='pipeline') loadPipeline();
   if(n==='crm') loadCrm();
+  _navSyncHistory(n, _fromPop);
 }
+
+// ══ BOTÃO VOLTAR (Android / PWA) — navega entre telas em vez de fechar o app ══
+let _navCurScreen = 'feed';
+let _navBackStack = [];
+let _navExitArmed = false;
+
+function _navSyncHistory(n, fromPop){
+  if(n === _navCurScreen) return;
+  if(!fromPop){
+    _navBackStack.push(_navCurScreen);
+    try { history.pushState({ qs:n }, ''); } catch(e){}
+  }
+  _navCurScreen = n;
+}
+
+try { history.replaceState({ qs:'feed' }, ''); } catch(e){}
+window.addEventListener('popstate', function(){
+  // 1) Modal aberto: voltar fecha o modal (não navega de tela).
+  if(document.querySelector('.overlay.open')){
+    closeModals();
+    try { history.pushState({ qs:_navCurScreen }, ''); } catch(e){}
+    return;
+  }
+  // 2) Há tela anterior: volta para ela.
+  if(_navBackStack.length){
+    const prev = _navBackStack.pop();
+    showScreen(prev, true);
+    return;
+  }
+  // 3) Sem histórico e fora da home: vai para a home (feed).
+  if(_navCurScreen !== 'feed'){
+    showScreen('feed', true);
+    try { history.pushState({ qs:'feed' }, ''); } catch(e){}
+    return;
+  }
+  // 4) Já na home: confirma a saída com toque duplo.
+  if(_navExitArmed) return; // deixa o app fechar
+  _navExitArmed = true;
+  toast('Toque em voltar de novo para sair');
+  try { history.pushState({ qs:'feed' }, ''); } catch(e){}
+  setTimeout(function(){ _navExitArmed = false; }, 2000);
+});
 
 
 // ══ TOAST ══
@@ -397,10 +440,15 @@ async function handleReferralParam(){
 
 // ══ MAIS INFORMAÇÕES E SUPORTE ══
 const SUPPORT = {
-  email: 'jackson.guerra@gmail.com',
-  // Para ativar o botão de WhatsApp, preencha com DDI+DDD+número (só dígitos).
-  // Ex.: '5511912345678'. Vazio = botão de WhatsApp fica oculto.
-  whatsapp: ''
+  // Canal de atendimento (Fale Conosco) — PENDENTE: serão os dados da
+  // Cali Colors. Enquanto vazios, "Fale Conosco" mostra "em breve".
+  // email: e-mail de atendimento. whatsapp: DDI+DDD+número só dígitos
+  // (ex.: '5511912345678').
+  email: '',
+  whatsapp: '',
+  // E-mail do controlador dos dados (LGPD) — usado apenas na solicitação
+  // de exclusão de conta. Não é "suporte"; mantido funcional.
+  ownerEmail: 'jackson.guerra@gmail.com'
 };
 const _infoTitles = {
   menu:'Mais informações e suporte',
@@ -424,7 +472,11 @@ function openInfoPage(page){
   if(sa) sa.scrollTop = 0;
   if(page==='contato'){
     const wa = document.getElementById('info-wa-btn');
+    const em = document.getElementById('info-email-btn');
+    const pend = document.getElementById('info-contato-pend');
     if(wa) wa.style.display = SUPPORT.whatsapp ? 'flex' : 'none';
+    if(em) em.style.display = SUPPORT.email ? 'flex' : 'none';
+    if(pend) pend.style.display = (!SUPPORT.whatsapp && !SUPPORT.email) ? 'block' : 'none';
   }
 }
 function infoBack(){
@@ -453,7 +505,7 @@ function requestAccountDeletion(){
     'ID do usuário: ' + (u ? u.id : '') + '\n' +
     'Data da solicitação: ' + new Date().toLocaleString('pt-BR')
   );
-  window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
+  window.location.href = 'mailto:' + SUPPORT.ownerEmail + '?subject=' + subject + '&body=' + body;
   toast('Abrindo seu e-mail para enviar a solicitação...');
 }
 
