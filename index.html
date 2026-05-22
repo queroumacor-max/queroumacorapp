@@ -635,6 +635,11 @@
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Financeiro</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Lucro e comissão</div>
         </div>
+        <div onclick="showModal('notes-modal')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">📝</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Anotações</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Notas e lembretes</div>
+        </div>
         <div onclick="openAiChat()" style="background:linear-gradient(135deg,#2ec4b6,#8338ec);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1);">
           <div style="font-size:28px;margin-bottom:6px;">💡</div>
           <div style="font-size:12px;font-weight:700;color:#fff;">Chat IA</div>
@@ -1542,6 +1547,18 @@
       <button onclick="loadChecklistTemplate('textura')" class="tag-btn" style="font-size:11px;padding:6px 10px;background:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer;">🖌️ Textura</button>
       <button onclick="loadChecklistTemplate('epoxi')" class="tag-btn" style="font-size:11px;padding:6px 10px;background:var(--cream);border:1px solid var(--border);border-radius:8px;cursor:pointer;">🏗️ Epóxi</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ ANOTAÇÕES MODAL ══ -->
+<div class="overlay" id="notes-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📝 Minhas Anotações</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Lembretes, medidas e recados de obra — fica salvo no seu perfil.</div>
+    <textarea class="auth-input" id="note-new" placeholder="Escreva uma anotação..." rows="3" style="resize:vertical;margin-bottom:8px;"></textarea>
+    <button onclick="salvarNota()" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:14px;">Salvar anotação</button>
+    <div id="notes-list"></div>
   </div>
 </div>
 

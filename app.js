@@ -1748,6 +1748,59 @@ function loadChecklistTemplate(type){
 
 function saveChecklist(){ localStorage.setItem('checklistItems', JSON.stringify(_checklistItems)); }
 
+// ══ ANOTAÇÕES (notas do pintor) ══
+async function loadNotes(){
+  const sb = getSupabase();
+  const list = document.getElementById('notes-list');
+  if(!list) return;
+  if(!sb || !currentUser){ list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Faça login para usar as anotações.</div>'; return; }
+  list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px;">Carregando...</div>';
+  try {
+    const { data, error } = await sb.from('notes').select('*').eq('user_id', currentUser.id).order('created_at',{ascending:false});
+    if(error) throw error;
+    const notes = data || [];
+    if(!notes.length){
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Nenhuma anotação ainda. Escreva acima e toque em Salvar.</div>';
+      return;
+    }
+    list.innerHTML = notes.map(n => {
+      const date = n.created_at ? new Date(n.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      return '<div style="background:var(--cream);border-radius:11px;padding:12px;margin-bottom:8px;">'
+        + '<div style="font-size:13px;color:var(--ink);line-height:1.5;white-space:pre-wrap;">'+escapeHtml(n.body||'')+'</div>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">'
+        + '<span style="font-size:10px;color:var(--muted);">'+date+'</span>'
+        + '<span onclick="deletarNota(\''+n.id+'\')" style="font-size:11px;color:var(--p4);cursor:pointer;font-weight:600;">Excluir</span>'
+        + '</div></div>';
+    }).join('');
+  } catch(e){
+    console.warn('loadNotes:', e && e.message || e);
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Erro ao carregar anotações.</div>';
+  }
+}
+
+async function salvarNota(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login primeiro'); return; }
+  const ta = document.getElementById('note-new');
+  const body = ta ? ta.value.trim() : '';
+  if(!body){ toast('Escreva algo na anotação'); return; }
+  const { error } = await sb.from('notes').insert({ user_id: currentUser.id, body });
+  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  if(ta) ta.value = '';
+  toast('Anotação salva ✅');
+  loadNotes();
+}
+
+async function deletarNota(id){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  if(!confirm('Excluir esta anotação?')) return;
+  const { error } = await sb.from('notes').delete().eq('id', id).eq('user_id', currentUser.id);
+  if(error){ toast('Erro: '+error.message); return; }
+  toast('Anotação excluída');
+  loadNotes();
+}
+
 // ══ FINANCEIRO / LUCRO ══
 async function loadFinanceiro(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
@@ -2209,7 +2262,7 @@ function getMediaType(file){
 // ══ MODAL LOADERS (called on open) ══
 (function(){
   const _orig = showModal;
-  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'auto-resp-modal':loadAutoRespostas,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints};
+  const _loaders = {'agenda-modal':loadAgenda,'agenda-add-modal':prefillNovoProjeto,'auto-resp-modal':loadAutoRespostas,'checklist-modal':renderChecklist,'lucro-modal':loadFinanceiro,'referral-modal':loadReferrals,'points-modal':loadPoints,'notes-modal':loadNotes};
   showModal = function(id){ _orig(id); if(_loaders[id]) _loaders[id](); };
 })();
 
