@@ -448,19 +448,19 @@ function searchPeople(query){
   searchTimeout=setTimeout(async()=>{
     const sb=getSupabase();
     if(!sb)return;
-    const cleanQuery=query.replace('@','').trim().toLowerCase();
+    // sanitiza para o padrão ilike do PostgREST (remove caracteres que quebram o .or())
+    const cleanQuery=query.replace('@','').trim().toLowerCase().replace(/[,%()*]/g,' ').trim();
+    if(!cleanQuery){ container.innerHTML=getSearchEmpty(); return; }
     let data = [];
     try {
-      // Fetch all profiles and filter client-side (most reliable approach)
-      const res = await sb.from('profiles').select('id, name, tag, avatar_url, user_type, role, city').limit(200);
+      // Busca no servidor (escala sem baixar a tabela inteira)
+      const pat = '%' + cleanQuery + '%';
+      const res = await sb.from('profiles')
+        .select('id, name, tag, avatar_url, user_type, role, city')
+        .or('name.ilike.'+pat+',tag.ilike.'+pat+',city.ilike.'+pat)
+        .limit(25);
       if(res.error) console.warn('searchPeople error:', res.error.message);
-      const allProfiles = res.data || [];
-      data = allProfiles.filter(p => {
-        const n = (p.name||'').toLowerCase();
-        const t = (p.tag||'').toLowerCase();
-        const c = (p.city||'').toLowerCase();
-        return n.includes(cleanQuery) || t.includes(cleanQuery) || c.includes(cleanQuery);
-      });
+      data = res.data || [];
     } catch(e) { console.warn('searchPeople exception:', e); }
     if(!data||data.length===0){
       container.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted);">
