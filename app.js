@@ -2252,6 +2252,8 @@ function sharePost(postId){
 
 const chatData = {};
 let _globalMsgSub = null;
+const _processedMsgIds = new Set();
+let _chatListDebounce = null;
 
 // Global realtime subscription for messages - ensures new messages show up
 async function setupGlobalMsgSubscription(){
@@ -2284,10 +2286,14 @@ async function setupGlobalMsgSubscription(){
 async function handleRealtimeMsg(payload){
   const m = payload.new;
   if(!m || !currentUser) return;
+  // Dedup: a mesma mensagem pode chegar pelos dois filtros (receiver/sender)
+  if(m.id){
+    if(_processedMsgIds.has(m.id)) return;
+    _processedMsgIds.add(m.id);
+    if(_processedMsgIds.size > 500){ _processedMsgIds.clear(); _processedMsgIds.add(m.id); }
+  }
   const myId = currentUser.id;
   const isMine = m.sender_id === myId;
-
-  console.log('Realtime msg received:', m.id, 'from:', m.sender_id, 'conv:', m.conversation_id, 'type:', m.type);
 
   // Save incoming message to localStorage so it persists
   if(!isMine && m.type !== 'system'){
@@ -2341,10 +2347,11 @@ async function handleRealtimeMsg(payload){
     }
   }
 
-  // Always refresh chat list (even if not visible, so it's ready when user opens it)
+  // Atualiza a lista de chats só se a tela estiver visível, com debounce
   const chatScreen = document.getElementById('screen-chat');
-  if(chatScreen && chatScreen.style.display !== 'none'){
-    loadChatList();
+  if(chatScreen && chatScreen.classList.contains('active')){
+    clearTimeout(_chatListDebounce);
+    _chatListDebounce = setTimeout(loadChatList, 400);
   }
 
   // If we're in this conversation, append the message
@@ -2566,15 +2573,7 @@ async function sendChatMsg(){
   inp.value='';
   body.scrollTop=body.scrollHeight;
 
-  // Save to localStorage
-  if(currentChat){
-    saveMsgLocal(currentChat, { from:'me', content: msg, time: new Date().toISOString() });
-    const localConvs = loadConvsLocal();
-    const existing = localConvs[currentChat] || {};
-    saveConvLocal(currentChat, { ...existing, lastMsg: msg, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
-  }
-
-  // Save to Supabase
+  // Save to Supabase — só persiste no localStorage se o insert tiver sucesso
   const sb = getSupabase();
   if(sb && currentUser){
     try {
@@ -2586,11 +2585,28 @@ async function sendChatMsg(){
         content: msg,
         type: 'text'
       };
-      console.log('sendChatMsg: inserting', JSON.stringify(insertData));
       const { data: res, error } = await sb.from('messages').insert(insertData).select();
-      if(error){ console.error('sendChatMsg error:', error.message, error.details); toast('Erro: ' + error.message); }
-      else { console.log('sendChatMsg: saved OK, id=', res && res[0] ? res[0].id : 'unknown'); }
-    } catch(e){ console.error('sendChatMsg save error:', e); toast('Erro ao salvar mensagem'); }
+      if(error){
+        console.error('sendChatMsg error:', error.message, error.details);
+        toast('Erro ao enviar: ' + error.message);
+        div.classList.add('failed');
+        div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
+        div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
+        return;
+      }
+      // sucesso → agora sim grava local
+      if(currentChat){
+        saveMsgLocal(currentChat, { from:'me', content: msg, time: new Date().toISOString() });
+        const existing = loadConvsLocal()[currentChat] || {};
+        saveConvLocal(currentChat, { ...existing, lastMsg: msg, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
+      }
+    } catch(e){
+      console.error('sendChatMsg save error:', e);
+      toast('Erro ao enviar mensagem');
+      div.classList.add('failed');
+      div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
+      div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
+    }
   }
 }
 document.addEventListener('keydown',e=>{
@@ -2650,7 +2666,7 @@ async function loadAvaliarScreen(){
   } catch(e){
     console.error('loadAvaliarScreen error:', e);
     container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum servico para avaliar</div><div style="font-size:13px;">Solicite um orcamento primeiro</div></div>';
-    form.style.display = 'none';
+    if(form) form.style.display = 'none';
   }
 }
 
@@ -2748,7 +2764,7 @@ async function sendOrc(){
     _setEl('orc-address', 'value', '');
     _setEl('orc-date', 'value', '');
     _setEl('orc-desc', 'value', '');
-    setTimeout(()=>showScreen('profile'), 1800);
+    setTimeout(()=>showScreen('feed'), 1800);
   }
 }
 let chatStoreAdded = false;
@@ -3036,15 +3052,6 @@ async function sendMsg(){
   const myName = (currentUser && currentUser.user_metadata && currentUser.user_metadata.name) || currentUser?.email?.split('@')[0] || 'Eu';
   appendMsg({ from:'me', text: txt, time, sender: myName });
 
-  // Save to localStorage
-  if(currentChat){
-    saveMsgLocal(currentChat, { from:'me', content: txt, time: new Date().toISOString() });
-    // Update conversation preview
-    const localConvs = loadConvsLocal();
-    const existing = localConvs[currentChat] || {};
-    saveConvLocal(currentChat, { ...existing, lastMsg: txt, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
-  }
-
   // Save to Supabase
   const sb = getSupabase();
   const { data:{ session } } = await sb.auth.getSession();
@@ -3059,13 +3066,17 @@ async function sendMsg(){
     content: txt,
     type: 'text'
   };
-  console.log('sendMsg: inserting', JSON.stringify(insertData));
   const { data: insertResult, error } = await sb.from('messages').insert(insertData).select();
   if(error){
     console.error('sendMsg error:', error.message, error.details, error.hint);
-    toast('Erro: ' + error.message);
-  } else {
-    console.log('sendMsg: saved OK, id=', insertResult && insertResult[0] ? insertResult[0].id : 'unknown');
+    toast('Erro ao enviar: ' + error.message);
+    return;
+  }
+  // sucesso → grava no localStorage só agora
+  if(currentChat){
+    saveMsgLocal(currentChat, { from:'me', content: txt, time: new Date().toISOString() });
+    const existing = loadConvsLocal()[currentChat] || {};
+    saveConvLocal(currentChat, { ...existing, lastMsg: txt, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
   }
 }
 
@@ -3306,8 +3317,12 @@ function mktTab(key) {
 function updateCartBadge(){
   cartCount = cartItems.reduce((s,c) => s + (c.qty||1), 0);
   const el = document.getElementById('cart-count');
-  if(el) el.textContent = cartCount;
+  if(el){
+    el.textContent = cartCount;
+    el.style.display = cartCount > 0 ? '' : 'none';
+  }
 }
+updateCartBadge();
 
 function addToCart(productId, qty, name, price) {
   qty = Math.max(1, parseInt(qty) || 1);
@@ -4592,7 +4607,7 @@ async function deleteCurrentStory(){
       loadStories();
     } else {
       if(currentStoryIndex >= group.stories.length) currentStoryIndex = group.stories.length - 1;
-      showStory(currentStoryGroup, currentStoryIndex);
+      renderCurrentStory();
     }
     toast('Story deletado!');
   } catch(e){ toast('Erro ao deletar story'); console.warn(e); }
@@ -5090,11 +5105,13 @@ async function loadMapPainters(){
         marker._fromDB = true;
         marker._painterId = p.id;
         marker.on('click', () => {
-          document.getElementById('pp-img').src = p.avatar_url || 'https://i.pravatar.cc/150?img=68';
+          document.getElementById('pp-img').src = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
           document.getElementById('pp-name').textContent = p.name || 'Pintor';
           document.getElementById('pp-sub').textContent = [p.city, p.state].filter(Boolean).join(', ') + (p.specialties ? ' - ' + p.specialties : '');
           document.getElementById('pp-stars').textContent = _starStr(p.rating_avg||0) + ' ' + Number(p.rating_avg||0).toFixed(1);
           document.getElementById('painter-popup').classList.add('show');
+          const ppBtn = document.querySelector('#painter-popup .pp-btn');
+          if(ppBtn) ppBtn.onclick = () => { document.getElementById('painter-popup').classList.remove('show'); openUserProfile(p.id); };
         });
         mapMarkers.push(marker);
       }

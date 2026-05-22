@@ -375,7 +375,7 @@
           <div class="pp-sub" id="pp-sub">--</div>
           <div class="pp-stars" id="pp-stars">-----</div>
         </div>
-        <button class="pp-btn" onclick="showScreen('profile');toast('Perfil aberto')">Ver perfil</button>
+        <button class="pp-btn" onclick="return false;">Ver perfil</button>
       </div>
 
       <!-- Filters -->
@@ -425,37 +425,25 @@
   <!-- HERO -->
   <div class="profile-hero">
     <div class="ph-row">
-      <div class="ph-avatar"><img src="https://i.pravatar.cc/150?img=11" alt="Carlos"></div>
+      <div class="ph-avatar"><img src="https://ui-avatars.com/api/?name=%20&background=e8e2d9&color=1a1a2e&size=200" alt=""></div>
       <div class="ph-stats">
-        <div class="ph-stat"><div class="ph-stat-n">248</div><div class="ph-stat-l">posts</div></div>
-        <div class="ph-stat"><div class="ph-stat-n">4.2K</div><div class="ph-stat-l">seguidores</div></div>
-        <div class="ph-stat"><div class="ph-stat-n">187</div><div class="ph-stat-l">obras</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">posts</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">seguidores</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">seguindo</div></div>
       </div>
     </div>
     <div class="ph-info">
-      <div class="ph-name">Carlos Silva ✓ <span style="background:var(--p1);color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;font-family:'DM Sans',sans-serif;font-weight:600">PRO</span></div>
-      <div class="ph-bio">🖌️ 12 anos de experiência · São Paulo, SP<br>Residencial · Textura · Epóxi · Grafiato</div>
-      <div style="margin-top:10px;">
-        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">Paleta de assinatura</div>
-        <div class="ph-palette">
-          <div class="palette-dot" style="background:#e8d5c4" title="Bege Premium"></div>
-          <div class="palette-dot" style="background:#c4956a" title="Terracota"></div>
-          <div class="palette-dot" style="background:#7a9e7e" title="Sage Green"></div>
-          <div class="palette-dot" style="background:#4a6fa5" title="Azul Sereno"></div>
-          <div class="palette-dot" style="background:#2c2c2c" title="Grafite"></div>
-          <div class="palette-dot" style="background:#f5f0eb" title="Off-White"></div>
-        </div>
-      </div>
+      <div class="ph-name">Carregando...</div>
+      <div class="ph-bio"></div>
     </div>
     <div class="ph-btns">
-      <button class="ph-btn orc" onclick="openOrcamento()">Pedir Orçamento</button>
-      <button class="ph-btn follow" onclick="toast('Seguindo Carlos!')">Seguir</button>
-      <button class="ph-btn msg" onclick="toast('Mensagem!')">💬</button>
+      <button class="ph-btn follow" onclick="return false;">Seguir</button>
+      <button class="ph-btn msg" onclick="return false;">💬</button>
     </div>
   </div>
 
-  <!-- RATING SUMMARY CARD -->
-  <div style="margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);">
+  <!-- RATING SUMMARY CARD (oculto até haver avaliações reais por pintor) -->
+  <div id="rating-card" style="display:none;margin:14px 14px 0;background:var(--white);border-radius:18px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);">
     <div style="display:flex;align-items:center;gap:16px;">
       <div style="text-align:center;flex-shrink:0;">
         <div class="cr-big-score" style="font-size:48px;font-weight:800;color:var(--ink);font-family:'Syne',sans-serif;line-height:1;">4.9</div>
@@ -1341,7 +1329,7 @@
       <div class="mkt-logo">Loja <span>Cali Colors</span></div>
       <button class="mkt-cart-btn" onclick="renderCartModal();showModal('cart-modal')">
         <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        <div class="mkt-cart-badge" id="cart-count">3</div>
+        <div class="mkt-cart-badge" id="cart-count" style="display:none">0</div>
       </button>
     </div>
     <div class="mkt-tabs" id="mkt-tabs"></div>
