@@ -2873,18 +2873,21 @@ async function enviarOrcamentoForm(){
 
   let novoQuoteId = null;
   try {
-    const { data: q, error: qErr } = await sb.from('quotes').insert({
-      client_id: currentUser.id,
-      painter_id: painterId,
-      title: serviceType,
-      service_type: serviceType,
-      description: partes.slice(1).join('\n') || null,
-      status: 'pending',
-      lead_type: 'exclusive',
-      images: imageUrls
-    }).select('id').single();
+    // Usa RPC create_quote_from_post (SECURITY DEFINER) — força client_id
+    const { data: rpcId, error: qErr } = await sb.rpc('create_quote_from_post', {
+      p_painter_id:    painterId,
+      p_post_id:       null,
+      p_title:         serviceType,
+      p_service_type:  serviceType,
+      p_area_m2:       null,
+      p_address:       null,
+      p_description:   partes.slice(1).join('\n') || null,
+      p_proposed_date: null,
+      p_images:        imageUrls,
+      p_lead_type:     'exclusive'
+    });
     if(qErr) throw qErr;
-    novoQuoteId = q && q.id;
+    novoQuoteId = rpcId || null;
   } catch(e){
     console.warn('enviarOrcamentoForm quote:', e);
     toast('Erro ao enviar o pedido: ' + (e.message || e));
