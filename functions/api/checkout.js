@@ -1,5 +1,12 @@
 // Cria uma assinatura recorrente (preapproval) no Mercado Pago para o Plano PRO.
 // Requer a variável de ambiente MP_ACCESS_TOKEN no Cloudflare Pages.
+// Se o cliente enviar body.accessToken, validamos no Supabase e usamos o
+// user.id / email autoritativos do token (ignorando o que veio no body).
+// Sem token, mantemos o fluxo antigo (fail-back) para não quebrar clientes
+// que ainda não passam o accessToken.
+const SUPABASE_URL_FALLBACK = 'https://uwqebaqweehiljsqkifm.supabase.co';
+const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.MP_ACCESS_TOKEN) {
@@ -9,8 +16,24 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
-  const userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
-  const email = typeof body?.email === 'string' ? body.email.trim() : '';
+  let userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
+  let email = typeof body?.email === 'string' ? body.email.trim() : '';
+  const accessToken = typeof body?.accessToken === 'string' ? body.accessToken.trim() : '';
+
+  // Se o cliente passou um accessToken, validamos no Supabase. Quando bate,
+  // sobrescrevemos userId/email com os valores autoritativos do token.
+  if (accessToken) {
+    const verified = await verifySupabaseToken(accessToken, env);
+    if (verified && verified.id) {
+      userId = verified.id;
+      if (verified.email) email = verified.email;
+    } else {
+      console.warn('checkout: accessToken inválido ou não verificável — usando userId/email do body como fallback');
+    }
+  } else {
+    console.warn('checkout: requisição sem accessToken — usando userId/email do body (fail-back)');
+  }
+
   if (!userId || !email) {
     return json({ error: 'userId e email são obrigatórios' }, 400);
   }
@@ -55,6 +78,28 @@ export async function onRequestPost(context) {
     return json({ init_point: initPoint, preapproval_id: data.id || null });
   } catch (e) {
     return json({ error: String(e?.message || e) }, 500);
+  }
+}
+
+// Valida o accessToken no endpoint /auth/v1/user do Supabase.
+// Retorna { id, email } se válido, ou null caso contrário.
+async function verifySupabaseToken(token, env) {
+  const supaUrl = (env.SUPABASE_URL || SUPABASE_URL_FALLBACK).replace(/\/$/, '');
+  const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
+  try {
+    const r = await fetch(`${supaUrl}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': anonKey
+      }
+    });
+    if (!r.ok) return null;
+    const u = await r.json().catch(() => null);
+    if (!u || typeof u.id !== 'string' || !u.id) return null;
+    return { id: u.id, email: typeof u.email === 'string' ? u.email : '' };
+  } catch (e) {
+    console.warn('checkout: erro ao validar token no Supabase:', String(e?.message || e));
+    return null;
   }
 }
 

@@ -2,6 +2,8 @@
 // mini-CRM do QueroUmaCor. Usa OpenAI; cai para Gemini se faltar/falhar.
 // Requer no Cloudflare Pages pelo menos uma das variaveis:
 // OPENAI_API_KEY ou GEMINI_API_KEY.
+import { requireAuth, requirePro } from './_security.js';
+
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export async function onRequestPost(context) {
@@ -12,6 +14,12 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
+
+  // Auth + PRO check (fail-open)
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return json({ error: auth.error }, auth.status);
+  const proCheck = await requirePro(env, auth.user && auth.user.id);
+  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
 
   const clientName = typeof body?.clientName === 'string' ? body.clientName.trim().slice(0, 80) : '';
   const lastService = typeof body?.lastService === 'string' ? body.lastService.trim().slice(0, 200) : '';

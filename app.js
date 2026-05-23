@@ -1348,19 +1348,20 @@ async function openModQueue(){
     }
     const cnt = document.getElementById('mod-queue-count'); if(cnt) cnt.textContent = posts.length + ' pendente(s)';
     list.innerHTML = posts.map(p => {
-      const cap = (p.caption || '').replace(/</g,'&lt;');
+      const cap = escapeHtml(p.caption || '');
+      const mediaUrl = escapeHtml(p.media_url || '');
       const media = p.media_url
         ? (p.media_type === 'video'
-            ? `<video src="${p.media_url}" controls style="width:100%;border-radius:12px;max-height:260px;background:#000;"></video>`
-            : `<img src="${p.media_url}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
+            ? `<video src="${mediaUrl}" controls style="width:100%;border-radius:12px;max-height:260px;background:#000;"></video>`
+            : `<img src="${mediaUrl}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
         : '';
       return `<div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px;">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${p.media_type||'post'} · ${new Date(p.created_at).toLocaleString('pt-BR')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${escapeHtml(p.media_type||'post')} · ${new Date(p.created_at).toLocaleString('pt-BR')}</div>
         ${media}
         ${cap ? `<div style="font-size:13px;color:var(--ink);margin:8px 0;">${cap}</div>` : ''}
         <div style="display:flex;gap:8px;margin-top:10px;">
-          <button onclick="modAction('${p.id}','approve',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#2ec4b6;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Aprovar</button>
-          <button onclick="modAction('${p.id}','reject',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e63946;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Rejeitar</button>
+          <button onclick="modAction('${escapeJsArg(p.id)}','approve',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#2ec4b6;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Aprovar</button>
+          <button onclick="modAction('${escapeJsArg(p.id)}','reject',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e63946;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Rejeitar</button>
         </div>
       </div>`;
     }).join('');
@@ -2509,10 +2510,10 @@ async function loadRanking(){
     const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'<span style="font-size:12px;font-weight:700;color:var(--muted);">#'+(i+1)+'</span>';
     const avatar = p.avatar_url||'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
     const stars = p.rating_avg ? '⭐ '+(+p.rating_avg).toFixed(1) : 'Sem avaliação';
-    return `<div onclick="openUserProfile('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border-radius:12px;margin-bottom:6px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+    return `<div onclick="openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border-radius:12px;margin-bottom:6px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.04);">
       <div style="width:28px;text-align:center;">${medal}</div>
-      <img src="${avatar}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
-      <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(p.name||'')}</div><div style="font-size:11px;color:var(--muted);">${p.tag?'@'+p.tag:''} · ${escapeHtml((p.city||'')+', '+(p.state||''))}</div></div>
+      <img src="${escapeHtml(avatar)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+      <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(p.name||'')}</div><div style="font-size:11px;color:var(--muted);">${p.tag?'@'+escapeHtml(p.tag):''} · ${escapeHtml((p.city||'')+', '+(p.state||''))}</div></div>
       <div style="font-size:12px;font-weight:600;color:var(--p1);">${stars}</div>
     </div>`;
   }).join('');
@@ -3181,8 +3182,8 @@ function renderConvList(container, convMap, myId){
       ? '<div class="conv-av-store" style="position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);z-index:2;"><span style="font-size:7px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
       : '';
     const threewayBadge = is3way ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">+ CALI</span>' : '';
-    return '<div class="conv-item" data-cat="'+cats.join(' ')+'" onclick="openChat(\''+convId+'\')">'
-      + '<div class="conv-avatars" style="position:relative;"><div class="conv-av-main"><img src="'+avatar+'" alt=""></div>'+storeAvatar+'</div>'
+    return '<div class="conv-item" data-cat="'+escapeHtml(cats.join(' '))+'" onclick="openChat(\''+escapeJsArg(convId)+'\')">'
+      + '<div class="conv-avatars" style="position:relative;"><div class="conv-av-main"><img src="'+escapeHtml(avatar)+'" alt=""></div>'+storeAvatar+'</div>'
       + '<div class="conv-info"><div class="conv-name">'+escapeHtml(displayName)+threewayBadge+(isPintor && !is3way?' <span style="background:var(--p1);color:#fff;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700;">'+escapeHtml(_proLabel(c.role).toUpperCase())+'</span>':'')+'</div>'
       + '<div class="conv-preview">'+(isMine?'Voce: ':'')+escapeHtml(preview.substring(0,50))+'</div></div>'
       + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="conv-time">'+time+'</div></div>'
@@ -3218,9 +3219,9 @@ async function searchNewChatUsers(query){
     container.innerHTML = filtered.map(p => {
       const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'?')+'&background=e8e2d9&color=1a1a2e&size=96';
       const isPintor = isProfessionalRole(p.role) || isProfessionalRole(p.user_type);
-      return `<div onclick="startNewChat('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-        <img src="${avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;">
-        <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${escapeHtml(p.name||'Sem nome')}</div><div style="font-size:12px;color:var(--muted);">${p.tag ? '@'+p.tag : ''}</div></div>
+      return `<div onclick="startNewChat('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+        <img src="${escapeHtml(avatar)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;">
+        <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${escapeHtml(p.name||'Sem nome')}</div><div style="font-size:12px;color:var(--muted);">${p.tag ? '@'+escapeHtml(p.tag) : ''}</div></div>
         ${isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;">PINTOR</span>' : ''}
       </div>`;
     }).join('');
@@ -3387,7 +3388,7 @@ async function loadNotifications(){
       if(n.type === 'follow')   text = '<b>'+escapeHtml(n.name)+'</b> começou a te seguir.';
       else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post. 🖌️';
       else if(n.type === 'comment') text = '<b>'+escapeHtml(n.name)+'</b> comentou: <i>'+escapeHtml((n.text||'').slice(0,60))+'</i>';
-      return '<div class="notif-card"><div class="notif-av"><img src="'+avatar+'" alt=""></div><div class="notif-txt">'+text+'</div><div class="notif-time">'+timeAgo+'</div></div>';
+      return '<div class="notif-card"><div class="notif-av"><img src="'+escapeHtml(avatar)+'" alt=""></div><div class="notif-txt">'+text+'</div><div class="notif-time">'+timeAgo+'</div></div>';
     }).join('');
   } catch(e){
     console.error('loadNotifications error:', e);
@@ -3518,10 +3519,10 @@ async function loadPedidos(){
       } else if(['aprovado','em_execucao','concluido'].includes(q.status)){
         qActions = '<div style="margin-top:9px;"><button onclick="verSnapshot(\''+q.id+'\')" style="width:100%;padding:9px;background:var(--cream);color:var(--ink);border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver escopo aprovado</button></div>';
       }
-      html += '<div data-status="'+(q.status||'pending')+'" class="pedido-card">'
+      html += '<div data-status="'+escapeHtml(q.status||'pending')+'" class="pedido-card">'
         + '<div class="pedido-head">'
-        + '<div class="pedido-pav"><img src="'+avatar+'" alt=""></div>'
-        + '<div><div class="pedido-painter">'+escapeHtml(name)+'</div><div class="pedido-tipo">'+(q.service_type||q.title||'Orcamento')+'</div></div>'
+        + '<div class="pedido-pav"><img src="'+escapeHtml(avatar)+'" alt=""></div>'
+        + '<div><div class="pedido-painter">'+escapeHtml(name)+'</div><div class="pedido-tipo">'+escapeHtml(q.service_type||q.title||'Orcamento')+'</div></div>'
         + '<div class="pedido-status '+stClass+'">'+st+'</div>'
         + '</div>'
         + '<div class="pedido-meta">'+(price?'<span>'+price+'</span>':'')+'<span>'+date+'</span></div>'
@@ -6269,13 +6270,13 @@ async function loadPosts(feedIds, append){
       const paletteFill = saved ? 'var(--p1)' : 'none';
       const paletteStroke = saved ? 'var(--p1)' : 'var(--ink)';
 
-      html += '<div class="mpost" data-post-id="'+p.id+'" data-author-role="'+(prof.role||'')+'">';
+      html += '<div class="mpost" data-post-id="'+escapeHtml(p.id)+'" data-author-role="'+escapeHtml(prof.role||'')+'">';
       html += '<div class="mpost-head">';
-      html += '<div class="av-ring"><div class="av-inner"><img src="'+avatar+'" alt=""></div></div>';
+      html += '<div class="av-ring"><div class="av-inner"><img src="'+escapeHtml(avatar)+'" alt=""></div></div>';
       html += '<div class="post-meta"><span class="post-uname">'+escapeHtml(name)+'</span>';
       if(tag) html += ' <span class="post-city">'+escapeHtml(tag)+'</span>';
       html += '</div>';
-      html += '<span class="post-dots" onclick="event.stopPropagation();openPostOpts(\''+p.id+'\',\''+p.user_id+'\')">···</span>';
+      html += '<span class="post-dots" onclick="event.stopPropagation();openPostOpts(\''+escapeJsArg(p.id)+'\',\''+escapeJsArg(p.user_id)+'\')">···</span>';
       html += '</div>';
       if(imgHtml) html += '<div class="ba-wrap" style="position:relative;">'+imgHtml
         +(p.for_sale?'<div style="position:absolute;top:12px;right:12px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.3);">🖼️ À VENDA · R$ '+(p.price||0).toLocaleString('pt-BR')+'</div>':'')
@@ -6773,8 +6774,8 @@ async function loadStories(feedIds){
       const avatar = p.avatar_url || g.stories[0].media_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
       const seen = isStoryGroupSeen(g.user_id) ? ' seen' : '';
       html += `<div class="story">
-        <div class="story-ring${seen}" style="cursor:pointer" onclick="openStoryViewer(${gi})"><div class="story-inner"><img src="${avatar}" alt=""></div></div>
-        <span class="story-name" style="cursor:pointer" onclick="openUserProfile('${g.user_id}')">${name}</span>
+        <div class="story-ring${seen}" style="cursor:pointer" onclick="openStoryViewer(${gi})"><div class="story-inner"><img src="${escapeHtml(avatar)}" alt=""></div></div>
+        <span class="story-name" style="cursor:pointer" onclick="openUserProfile('${escapeJsArg(g.user_id)}')">${escapeHtml(name)}</span>
       </div>`;
     }
 
@@ -6790,9 +6791,9 @@ async function loadStories(feedIds){
       }
       const initials = (p.name || 'U').split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
       const avatar = p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=e8e2d9&color=1a1a2e&size=96`;
-      html += `<div class="story" onclick="openUserProfile('${uid}')">
-        <div class="story-ring seen"><div class="story-inner"><img src="${avatar}" alt=""></div></div>
-        <span class="story-name">${name}</span>
+      html += `<div class="story" onclick="openUserProfile('${escapeJsArg(uid)}')">
+        <div class="story-ring seen"><div class="story-inner"><img src="${escapeHtml(avatar)}" alt=""></div></div>
+        <span class="story-name">${escapeHtml(name)}</span>
       </div>`;
     }
 
@@ -7182,9 +7183,9 @@ function createPinIcon(painter){
   const rating = painter.rating_avg || painter.rating || 0;
   const featured = rating >= 4.9;
   const html = `<div class="pin-bubble ${featured?'featured':''}">
-    <div class="pin-avatar"><img src="${avatar}" alt=""></div>
+    <div class="pin-avatar"><img src="${escapeHtml(avatar)}" alt=""></div>
     <div class="pin-info">
-      <div class="pin-name">${name}</div>
+      <div class="pin-name">${escapeHtml(name)}</div>
       <div class="pin-rating">* ${Number(rating).toFixed(1)}</div>
     </div>
   </div>
@@ -7287,11 +7288,11 @@ function renderPainterList(painters_list){
     const avatarUrl = p.avatar_url || p.img || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
     const location = p.city ? [p.city, p.state].filter(Boolean).join(', ') : '';
     const tipo = ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Automotivo',funileiro:'Funileiro'})[((p.profession||'').toLowerCase()==='funileiro')?'funileiro':(p.role||p.user_type||'').toLowerCase()] || '';
-    return `<div onclick="openUserProfile('${p.id}')" style="background:var(--white);border-radius:14px;padding:12px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);">
-      <img src="${avatarUrl}" style="width:52px;height:52px;border-radius:12px;object-fit:cover">
+    return `<div onclick="openUserProfile('${escapeJsArg(p.id)}')" style="background:var(--white);border-radius:14px;padding:12px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+      <img src="${escapeHtml(avatarUrl)}" style="width:52px;height:52px;border-radius:12px;object-fit:cover">
       <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:700;">${p.name || 'Profissional'}</span>${tipo?'<span style="font-size:9px;font-weight:700;background:var(--cream);color:var(--muted);padding:2px 7px;border-radius:8px;">'+tipo+'</span>':''}</div>
-        <div style="font-size:12px;color:var(--muted);">${location}</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:700;">${escapeHtml(p.name || 'Profissional')}</span>${tipo?'<span style="font-size:9px;font-weight:700;background:var(--cream);color:var(--muted);padding:2px 7px;border-radius:8px;">'+escapeHtml(tipo)+'</span>':''}</div>
+        <div style="font-size:12px;color:var(--muted);">${escapeHtml(location)}</div>
         <div style="font-size:13px;color:var(--p1);margin-top:2px;letter-spacing:1px;">${stars} <span style="color:var(--ink);font-weight:700;letter-spacing:0;">${rating}</span></div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
