@@ -37,11 +37,9 @@ export async function onRequestPost(context) {
     return json({ error: 'Email não disponível no perfil — atualize seu cadastro' }, 400);
   }
 
-  // Origem do site para o redirecionamento de volta após o pagamento
-  const origin = (() => {
-    try { return new URL(request.url).origin; }
-    catch { return 'https://queroumacor.com.br'; }
-  })();
+  // Origem hardcoded — evita Host header forge (proxy/CDN poderia
+  // forwardar Host arbitrário e MP redirecionar pra attacker.com)
+  const origin = 'https://queroumacor.com.br';
 
   const payload = {
     reason: 'QueroUmaCor PRO — assinatura mensal',

@@ -149,10 +149,9 @@ export async function onRequestPost(context) {
 
   const finalItems = validatedItems;
 
-  const origin = (() => {
-    try { return new URL(request.url).origin; }
-    catch { return 'https://queroumacor.com.br'; }
-  })();
+  // Origem hardcoded — evita Host header forge (proxy/CDN poderia
+  // forwardar Host arbitrário e MP redirecionar pra attacker.com)
+  const origin = 'https://queroumacor.com.br';
 
   const pref = {
     items: finalItems,
