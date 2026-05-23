@@ -1841,6 +1841,22 @@ function saveChecklist(){
 }
 
 // ══ ANOTAÇÕES (notas do pintor) ══
+let _editingNoteId = null;
+function startEditNote(id){ _editingNoteId = id; loadNotes(); }
+function cancelEditNote(){ _editingNoteId = null; loadNotes(); }
+async function saveEditNote(id){
+  const ta = document.getElementById('edit-note-'+id);
+  const body = ta ? ta.value.trim() : '';
+  if(!body){ toast('Escreva algo na anotação'); return; }
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  const { error } = await sb.from('notes').update({ body }).eq('id', id).eq('user_id', currentUser.id);
+  if(error){ toast('Erro: ' + error.message); return; }
+  _editingNoteId = null;
+  toast('Anotação atualizada ✅');
+  loadNotes();
+}
+
 async function loadNotes(){
   const sb = getSupabase();
   const list = document.getElementById('notes-list');
@@ -1858,11 +1874,22 @@ async function loadNotes(){
     const _notesHdr = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 10px;">Anotações salvas ('+notes.length+')</div>';
     list.innerHTML = _notesHdr + notes.map(n => {
       const date = n.created_at ? new Date(n.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      if(n.id === _editingNoteId){
+        return '<div style="background:var(--cream);border-radius:11px;padding:12px;margin-bottom:8px;">'
+          + '<textarea id="edit-note-'+n.id+'" rows="3" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid var(--p1);border-radius:8px;font-size:13px;font-family:DM Sans,sans-serif;outline:none;resize:vertical;">'+escapeHtml(n.body||'')+'</textarea>'
+          + '<div style="display:flex;gap:8px;margin-top:8px;">'
+          +   '<button onclick="saveEditNote(\''+n.id+'\')" style="flex:1;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Salvar</button>'
+          +   '<button onclick="cancelEditNote()" style="flex:1;padding:9px;background:var(--white);color:var(--ink);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Cancelar</button>'
+          + '</div></div>';
+      }
       return '<div style="background:var(--cream);border-radius:11px;padding:12px;margin-bottom:8px;">'
         + '<div style="font-size:13px;color:var(--ink);line-height:1.5;white-space:pre-wrap;">'+escapeHtml(n.body||'')+'</div>'
         + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">'
         + '<span style="font-size:10px;color:var(--muted);">'+date+'</span>'
-        + '<span onclick="deletarNota(\''+n.id+'\')" style="font-size:11px;color:var(--p4);cursor:pointer;font-weight:600;">Excluir</span>'
+        + '<span style="font-size:11px;">'
+        +   '<span onclick="startEditNote(\''+n.id+'\')" style="color:var(--ink);cursor:pointer;font-weight:600;margin-right:14px;">Editar</span>'
+        +   '<span onclick="deletarNota(\''+n.id+'\')" style="color:var(--p4);cursor:pointer;font-weight:600;">Excluir</span>'
+        + '</span>'
         + '</div></div>';
     }).join('');
   } catch(e){
@@ -1892,6 +1919,83 @@ async function deletarNota(id){
   if(error){ toast('Erro: '+error.message); return; }
   toast('Anotação excluída');
   loadNotes();
+}
+
+// ══ GRAVAÇÃO DE ÁUDIO → TRANSCRIÇÃO (PRO) ══
+// Grava até 5 min de áudio, manda pro Whisper e cola o texto na nota.
+let _recMediaRecorder = null;
+let _recChunks = [];
+let _recStartTime = 0;
+let _recTimerInterval = null;
+const REC_MAX_MS = 5 * 60 * 1000;
+
+async function iniciarGravacaoNota(){
+  if(!_isPro){ toast('Gravação por áudio é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast('Seu navegador não suporta gravação de áudio'); return;
+  }
+  if(typeof MediaRecorder === 'undefined'){
+    toast('Seu navegador não suporta MediaRecorder'); return;
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ toast('Permissão de microfone negada'); return; }
+  _recChunks = [];
+  try { _recMediaRecorder = new MediaRecorder(stream); }
+  catch(e){ toast('Erro ao iniciar gravação: ' + e.message); return; }
+  _recMediaRecorder.ondataavailable = e => { if(e.data && e.data.size > 0) _recChunks.push(e.data); };
+  _recMediaRecorder.onstop = async () => {
+    const mimeType = _recMediaRecorder.mimeType || 'audio/webm';
+    const blob = new Blob(_recChunks, { type: mimeType });
+    stream.getTracks().forEach(t => t.stop());
+    await transcreverAudio(blob);
+  };
+  _recMediaRecorder.start();
+  _recStartTime = Date.now();
+  const statusEl = document.getElementById('rec-status');
+  if(statusEl) statusEl.style.display = 'block';
+  const btn = document.getElementById('rec-audio-btn');
+  if(btn) btn.disabled = true;
+  _recTimerInterval = setInterval(() => {
+    const elapsed = Date.now() - _recStartTime;
+    const sec = Math.floor(elapsed / 1000);
+    const t = document.getElementById('rec-timer');
+    if(t) t.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    if(elapsed >= REC_MAX_MS) pararGravacaoNota();
+  }, 250);
+}
+
+function pararGravacaoNota(){
+  if(_recMediaRecorder && _recMediaRecorder.state === 'recording'){
+    _recMediaRecorder.stop();
+  }
+  if(_recTimerInterval){ clearInterval(_recTimerInterval); _recTimerInterval = null; }
+  const statusEl = document.getElementById('rec-status');
+  if(statusEl) statusEl.style.display = 'none';
+  const btn = document.getElementById('rec-audio-btn');
+  if(btn) btn.disabled = false;
+}
+
+async function transcreverAudio(blob){
+  toast('Transcrevendo áudio...');
+  try {
+    const fd = new FormData();
+    fd.append('audio', blob, 'note.webm');
+    const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+    const data = await r.json();
+    if(!r.ok || !data.text){
+      toast('Erro: ' + (data.error || 'falha na transcrição'));
+      return;
+    }
+    const ta = document.getElementById('note-new');
+    if(ta){
+      ta.value = (ta.value ? ta.value + '\n' : '') + data.text;
+      ta.focus();
+    }
+    toast('Áudio transcrito ✅');
+  } catch(e){
+    toast('Erro: ' + (e.message || e));
+  }
 }
 
 // ══ FINANCEIRO / LUCRO ══
