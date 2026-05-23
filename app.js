@@ -541,8 +541,8 @@ function supportEmail(){
   const body = encodeURIComponent('Descreva sua dúvida ou problema:\n\n\n---\nID do usuário: ' + uid);
   window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
 }
-function requestAccountDeletion(){
-  if(!confirm('Tem certeza que deseja solicitar a exclusão da sua conta?\n\nEsta ação é permanente e remove seu perfil, portfólio, mensagens e avaliações.')) return;
+async function requestAccountDeletion(){
+  if(!(await appConfirm('Tem certeza que deseja solicitar a exclusão da sua conta?\n\nEsta ação é permanente e remove seu perfil, portfólio, mensagens e avaliações.', { okLabel:'Solicitar exclusão' }))) return;
   const u = (typeof currentUser!=='undefined' && currentUser) ? currentUser : null;
   const subject = encodeURIComponent('Solicitação de exclusão de conta - QueroUmaCor');
   const body = encodeURIComponent(
@@ -863,8 +863,8 @@ async function sugerirPrecoQuote(id){
 async function aprovarQuoteManual(id){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   const q = _pipelineCache.find(x=>x.id===id); if(!q) return;
-  if(!confirm('Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados como referência acordada.')) return;
-  const note = prompt('Observação da aprovação (opcional) — ex.: aceito por WhatsApp em DD/MM:');
+  if(!(await appConfirm('Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados como referência acordada.', { okLabel:'Marcar como aceito' }))) return;
+  const note = await appPrompt('Observação da aprovação (opcional) — ex.: aceito por WhatsApp em DD/MM:', { placeholder:'Ex.: aceito por WhatsApp em 12/05' });
   if(note===null) return;
   const { error } = await sb.from('quotes').update({
     status:'aprovado', approved_at:new Date().toISOString(),
@@ -878,7 +878,7 @@ async function aprovarQuoteManual(id){
 
 async function recusarQuote(id){
   const sb = getSupabase(); if(!sb||!currentUser) return;
-  if(!confirm('Marcar este orçamento como recusado?')) return;
+  if(!(await appConfirm('Marcar este orçamento como recusado?', { okLabel:'Marcar como recusado' }))) return;
   const { error } = await sb.from('quotes').update({ status:'recusado' })
     .eq('id', id).eq('painter_id', currentUser.id);
   if(error){ toast('Erro: '+error.message); return; }
@@ -899,10 +899,10 @@ async function setQuoteStage(id, status){
 // Aprovação nativa: o cliente (usuário do app) aprova o orçamento recebido.
 async function aprovarQuoteCliente(id){
   const sb = getSupabase(); if(!sb||!currentUser) return;
-  if(!confirm('Aprovar este orçamento?\n\nVocê confirma o escopo e o valor apresentados — eles ficam congelados como referência.')) return;
+  if(!(await appConfirm('Aprovar este orçamento?\n\nVocê confirma o escopo e o valor apresentados — eles ficam congelados como referência.', { okLabel:'Aprovar' }))) return;
   const { data: q, error: e1 } = await sb.from('quotes').select('*').eq('id', id).single();
   if(e1 || !q){ toast('Erro ao carregar o orçamento'); return; }
-  const followupOptin = confirm('Quer receber lembretes deste profissional sobre repintura e manutenção? (opcional)');
+  const followupOptin = await appConfirm('Quer receber lembretes deste profissional sobre repintura e manutenção? (opcional)', { okLabel:'Quero receber', cancelLabel:'Não, obrigado' });
   const { error } = await sb.from('quotes').update({
     status:'aprovado', approved_at:new Date().toISOString(),
     approved_by: currentUser.id, approval_method:'app',
@@ -1248,7 +1248,7 @@ async function crmSend(id){
   try {
     if(c.is_app_user && c.client_user_id){
       // Cliente do app: notificação in-app.
-      if(!confirm('Enviar este lembrete para '+(c.client_name||'o cliente')+' pelo app?')) return;
+      if(!(await appConfirm('Enviar este lembrete para '+(c.client_name||'o cliente')+' pelo app?', { okLabel:'Enviar' }))) return;
       await notify(c.client_user_id, 'followup', 'Lembrete do seu profissional', msg, null);
       await sb.from('follow_ups').insert({
         painter_id: currentUser.id, crm_client_id: c.id, message: msg,
@@ -1609,12 +1609,12 @@ async function sugerirEscopoIA(btn){
       if(obsEl) obsEl.value = txt;
       toast('Escopo sugerido pela IA ✨');
     } else if(r.status === 503){
-      alert('A sugestão por IA ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
+      await appAlert('A sugestão por IA ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
     } else {
-      alert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
+      await appAlert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
     }
   } catch(e){
-    alert('Falha ao chamar a IA: ' + (e?.message || 'tente de novo'));
+    await appAlert('Falha ao chamar a IA: ' + (e?.message || 'tente de novo'));
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = orig; }
   }
@@ -2187,7 +2187,7 @@ async function salvarNota(){
 async function deletarNota(id){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
-  if(!confirm('Excluir esta anotação?')) return;
+  if(!(await appConfirm('Excluir esta anotação?', { okLabel:'Excluir' }))) return;
   const { error } = await sb.from('notes').delete().eq('id', id).eq('user_id', currentUser.id);
   if(error){ toast('Erro: '+error.message); return; }
   toast('Anotação excluída');
@@ -2349,7 +2349,7 @@ async function salvarFinEntry(){
 }
 
 async function deleteFinEntry(id){
-  if(!confirm('Excluir este lançamento?')) return;
+  if(!(await appConfirm('Excluir este lançamento?', { okLabel:'Excluir' }))) return;
   const sb = getSupabase(); if(!sb||!currentUser) return;
   await sb.from('jobs').delete().eq('id',id).eq('painter_id',currentUser.id);
   loadFinanceiro();
@@ -2572,7 +2572,7 @@ async function trocarPontosPorPRO(){
     let saldo = 0;
     (allPts || []).forEach(p => { saldo += p.type === 'earned' ? (p.amount || 0) : -(p.amount || 0); });
     if(saldo < 100){ toast('Faltam ' + (100 - saldo) + ' pts'); return; }
-    if(!confirm('Trocar 100 pts por 1 mês PRO extra?')) return;
+    if(!(await appConfirm('Trocar 100 pts por 1 mês PRO extra?', { okLabel:'Trocar' }))) return;
     // Calcula a nova data de expiração (estende se ainda ativo)
     const prof = await getMyProfile(true);
     const now = new Date();
@@ -2642,7 +2642,7 @@ function pedirOrcamentoPost(painterId, painterName){
 // ══ LOJA CHECKOUT ══
 async function comprarObra(postId, artistName, price, artType){
   if(!currentUser){ toast('Faça login para comprar'); return; }
-  if(!confirm('Comprar "'+artType+'" de '+artistName+' por R$ '+price.toLocaleString('pt-BR')+'?')) return;
+  if(!(await appConfirm('Comprar "'+artType+'" de '+artistName+' por R$ '+price.toLocaleString('pt-BR')+'?', { okLabel:'Comprar' }))) return;
   const sb = getSupabase(); if(!sb) return;
   const { error } = await sb.from('orders').insert({
     user_id: currentUser.id,
@@ -3767,15 +3767,15 @@ async function saveEditProfile(){
   const vCity = document.getElementById('ep-city').value.trim();
   const vState = document.getElementById('ep-state').value.trim();
   const vPhone = document.getElementById('ep-phone').value.trim();
-  if(!vName || vName.includes('@')){ alert('Informe seu nome completo (não use o email como nome).'); return; }
-  if(!vTag || vTag.length < 3){ alert('Informe sua @tag (mínimo 3 caracteres).'); return; }
-  if(!vEmail || !/^\S+@\S+\.\S+$/.test(vEmail)){ alert('Informe um email válido.'); return; }
-  if(!vCity){ alert('Informe sua cidade.'); return; }
-  if(!vState){ alert('Informe seu estado (UF).'); return; }
-  if(!vPhone){ alert('Informe seu telefone/WhatsApp.'); return; }
+  if(!vName || vName.includes('@')){ toast('Informe seu nome completo (não use o email como nome).'); return; }
+  if(!vTag || vTag.length < 3){ toast('Informe sua @tag (mínimo 3 caracteres).'); return; }
+  if(!vEmail || !/^\S+@\S+\.\S+$/.test(vEmail)){ toast('Informe um email válido.'); return; }
+  if(!vCity){ toast('Informe sua cidade.'); return; }
+  if(!vState){ toast('Informe seu estado (UF).'); return; }
+  if(!vPhone){ toast('Informe seu telefone/WhatsApp.'); return; }
   const specsWrap = document.getElementById('ep-specs-wrap');
   if(specsWrap && specsWrap.style.display !== 'none' && !document.getElementById('ep-specs').value.trim()){
-    alert('Selecione pelo menos uma especialidade.'); return;
+    toast('Selecione pelo menos uma especialidade.'); return;
   }
   const btn = document.getElementById('ep-save-btn');
   btn.textContent = 'Salvando...'; btn.disabled = true;
@@ -5633,10 +5633,11 @@ async function gerarLogoIA(){
   if(!name){ toast('Digite o texto do logo'); return; }
 
   if (_aiLogoGenCount() >= 1) {
-    const ok = confirm(
+    const ok = await appConfirm(
       'Gerar mais 3 opções de logo custa ' + _aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + '.\n\n'
       + 'Esse valor cobre o custo da IA + processamento.\n\n'
-      + 'Deseja prosseguir?'
+      + 'Deseja prosseguir?',
+      { okLabel:'Gerar (pago)' }
     );
     if (!ok) return;
     toast(_aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + ' debitado · gerando...');
@@ -6588,7 +6589,7 @@ function copyCurrentPostLink(){
 
 async function deleteCurrentPost(){
   if(!_currentOptPostId || !currentUser) return;
-  if(!confirm('Tem certeza que deseja deletar este post?')) return;
+  if(!(await appConfirm('Tem certeza que deseja deletar este post?', { okLabel:'Deletar' }))) return;
   const sb = getSupabase();
   if(!sb) return;
   try {
@@ -6651,7 +6652,7 @@ async function deleteCurrentStory(){
   if(!group || group.user_id !== currentUser.id) return;
   const story = group.stories[currentStoryIndex];
   if(!story) return;
-  if(!confirm('Deletar este story?')) return;
+  if(!(await appConfirm('Deletar este story?', { okLabel:'Deletar' }))) return;
   const sb = getSupabase();
   if(!sb) return;
   try {
@@ -7622,7 +7623,7 @@ async function generateInviteCode(view){
   }
 }
 
-function shareInviteCode(view){
+async function shareInviteCode(view){
   const code = generatedInviteCode[view];
   if(!code){ toast('Gere um codigo primeiro'); return; }
   const text = 'Oi! Use meu codigo ' + code + ' para se cadastrar no QueroUmaCor - o app para pintores e clientes!';
@@ -7631,7 +7632,7 @@ function shareInviteCode(view){
   } else if(navigator.clipboard){
     navigator.clipboard.writeText(code).then(()=>toast('Codigo copiado!')).catch(()=>toast('Codigo: '+code));
   } else {
-    prompt('Copie o codigo:', code);
+    await appPrompt('Copie o codigo:', { initial: code });
   }
 }
 

@@ -355,7 +355,7 @@ async function shareProfile(){
   } else if(navigator.clipboard){
     navigator.clipboard.writeText(brief).then(()=>toast('Perfil e link copiados!')).catch(()=>toast('Link: '+link));
   } else {
-    prompt('Copie e compartilhe:', brief);
+    await appPrompt('Copie e compartilhe:', { initial: brief });
   }
 }
 
@@ -419,13 +419,13 @@ async function doRegisterSupabase(name, email, password, type, tag) {
         }
         return;
       }
-      alert('Esse e-mail já tem conta. Entre com sua senha na tela de login.');
+      await appAlert('Esse e-mail já tem conta. Entre com sua senha na tela de login.');
       showScreen('login');
       const emEl = document.getElementById('login-email');
       if (emEl) emEl.value = email;
       return;
     }
-    alert('Erro: ' + error.message);
+    await appAlert('Erro: ' + error.message);
     return;
   }
   // Upload avatar if selected

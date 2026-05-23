@@ -388,7 +388,8 @@ const Dashboard = () => {
         <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>📋 Orçamentos Recentes</div>
         {recentQuotes.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum orçamento encontrado.</div>}
         {recentQuotes.map((q,i) => {
-          const st = STATUS_MAP[q.status] || q.status || '—';
+          const stInfo = quoteStatusInfo(q.status);
+          const stStyle = quoteStatusStyle(q.status);
           const data = q.created_at ? new Date(q.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '—';
           return (
             <div key={q.id || i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom: i < recentQuotes.length - 1 ? '1px solid ' + C.border : 'none' }}>
@@ -400,7 +401,7 @@ const Dashboard = () => {
                   <span style={{ fontWeight:600, fontSize:13 }}>{q.client?.name || '—'}</span>
                   <span style={{ color:C.muted, fontSize:12 }}>→</span>
                   <span style={{ fontSize:13 }}>{q.painter?.name || '—'}</span>
-                  <span style={{ background: st==='aceito'?C.p6+'22':st==='pendente'?C.p7+'44':C.border, color: st==='aceito'?C.p6:st==='pendente'?'#b8860b':C.muted, borderRadius:6, fontSize:10, padding:'1px 8px' }}>{st}</span>
+                  <span style={{ ...stStyle, fontSize:10, padding:'1px 8px', borderRadius:6 }}>{stInfo.label}</span>
                 </div>
               </div>
               <div style={{ fontSize:11, color:C.muted }}>{data}</div>
@@ -1637,7 +1638,37 @@ const Leads = () => {
   );
 };
 
-const STATUS_MAP = { pending: 'pendente', accepted: 'aceito', completed: 'concluido', rejected: 'rejeitado' };
+// Status de orcamento — novo ciclo:
+// pending -> rascunho -> enviado -> aprovado -> em_execucao -> concluido (+ recusado)
+// Legacy: accepted/completed/rejected mantidos como sinonimos.
+const QUOTE_STATUS = {
+  pending:      { label: 'Aguardando',  cat: 'pending' },
+  rascunho:     { label: 'Rascunho',    cat: 'pending' },
+  enviado:      { label: 'Enviado',     cat: 'progress' },
+  aprovado:     { label: 'Aprovado',    cat: 'progress' },
+  em_execucao:  { label: 'Em execução', cat: 'progress' },
+  concluido:    { label: 'Concluído',   cat: 'done' },
+  recusado:     { label: 'Recusado',    cat: 'rejected' },
+  // Legacy / backward compat
+  accepted:     { label: 'Aceito',      cat: 'progress' },
+  completed:    { label: 'Concluído',   cat: 'done' },
+  rejected:     { label: 'Rejeitado',   cat: 'rejected' },
+};
+const quoteStatusInfo = (s) => QUOTE_STATUS[s] || { label: s || '—', cat: 'pending' };
+// Cores por categoria: verde p/ concluido, azul p/ em andamento, cinza p/ pendente, vermelho p/ recusado
+const QUOTE_STATUS_COLORS = {
+  done:     { bg: C.p6 + '22', fg: C.p6 },        // verde
+  progress: { bg: C.p3 + '22', fg: C.p3 },        // azul/turquesa
+  pending:  { bg: C.p7 + '44', fg: '#b8860b' },   // amarelo/cinza
+  rejected: { bg: C.p4 + '22', fg: C.p4 },        // vermelho
+};
+const quoteStatusStyle = (s) => {
+  const info = quoteStatusInfo(s);
+  const col = QUOTE_STATUS_COLORS[info.cat] || QUOTE_STATUS_COLORS.pending;
+  return { background: col.bg, color: col.fg, borderRadius: 8, padding: '3px 10px', fontSize: 11 };
+};
+// Mantido por compat: STATUS_MAP[status] devolve so o label.
+const STATUS_MAP = Object.fromEntries(Object.entries(QUOTE_STATUS).map(([k,v]) => [k, v.label]));
 
 const Orcamentos = () => {
   const [orcamentos, setOrcamentos] = useState([]);
@@ -1672,7 +1703,7 @@ const Orcamentos = () => {
             <tr><td colSpan={6} style={{ padding: '20px 12px', color: C.muted, textAlign: 'center' }}>Nenhum orçamento encontrado.</td></tr>
           )}
           {orcamentos.map((o, i) => {
-            const st = STATUS_MAP[o.status] || o.status;
+            const stInfo = quoteStatusInfo(o.status);
             const data = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—';
             return (
               <tr key={o.id || i} style={{ borderBottom:'1px solid '+C.border }}>
@@ -1681,7 +1712,7 @@ const Orcamentos = () => {
                 <td style={{ padding:'10px 12px', color:C.muted }}>{o.service_type || o.title || '—'}</td>
                 <td style={{ padding:'10px 12px', fontWeight:700 }}>{o.price != null ? 'R$ ' + Number(o.price).toLocaleString('pt-BR') : '—'}</td>
                 <td style={{ padding:'10px 12px' }}>
-                  <span style={{ background:st==='aceito'?C.p6+'22':st==='pendente'?C.p7+'44':st==='rejeitado'?C.p4+'22':C.p3+'22', color:st==='aceito'?C.p6:st==='pendente'?'#b8860b':st==='rejeitado'?C.p4:C.p3, borderRadius:8, padding:'3px 10px', fontSize:11 }}>{st}</span>
+                  <span style={quoteStatusStyle(o.status)}>{stInfo.label}</span>
                 </td>
                 <td style={{ padding:'10px 12px', color:C.muted }}>{data}</td>
               </tr>
@@ -1788,7 +1819,7 @@ const ClientesList = () => {
   );
 };
 
-const Moderacao = () => {
+const PostsModeracao = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
@@ -2362,6 +2393,332 @@ const PortalUsersList = () => {
   );
 };
 
+// ============================================================
+// MODERAÇÃO — denúncias feitas por usuários (tabela `reports`)
+// ============================================================
+const Moderacao = () => {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('pending');
+
+  const fetchReports = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let q = window._sb.from('reports')
+        .select('id, reporter_id, post_id, target_user_id, reason, status, created_at, reporter:profiles!reporter_id(name, avatar_url)')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (filter !== 'all') q = q.eq('status', filter);
+      const { data, error: err } = await q;
+      if (err) throw err;
+      setReports(data || []);
+    } catch (e) {
+      console.warn('Moderacao fetchReports:', e);
+      setError(e.message || 'Erro ao carregar denúncias');
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchReports(); }, [filter]);
+
+  const resolveReport = async (id) => {
+    try {
+      await window._sb.from('reports').update({ status: 'resolved' }).eq('id', id);
+      fetchReports();
+    } catch (e) {
+      console.warn('resolveReport error:', e);
+      alert('Não foi possível resolver: ' + (e.message || e));
+    }
+  };
+
+  const statusStyle = (s) => {
+    const map = {
+      pending:  { bg: C.p7 + '44', fg: '#b8860b' },
+      resolved: { bg: C.p6 + '22', fg: C.p6 },
+      dismissed:{ bg: C.muted + '22', fg: C.muted },
+    };
+    const col = map[s] || map.pending;
+    return { background: col.bg, color: col.fg, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 600 };
+  };
+
+  // Se a tabela `reports` não existir (erro 404/42P01), mostra placeholder.
+  const tableMissing = error && /relation .*reports.* does not exist|404|42P01/i.test(error);
+
+  return (
+    <div>
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: C.ink }}>🛡️ Moderação — Denúncias</div>
+          <div style={{ display:'flex', gap:8 }}>
+            {['pending','resolved','dismissed','all'].map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{ padding:'6px 14px', borderRadius:20, border:'1px solid '+(filter===f?C.p1:C.border), background:filter===f?C.p1:'transparent', color:filter===f?'#fff':C.ink, cursor:'pointer', fontSize:12, fontWeight:600 }}>
+                {f==='pending'?'Pendentes':f==='resolved'?'Resolvidas':f==='dismissed'?'Descartadas':'Todas'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {loading && <div style={{ color: C.muted, padding: 20 }}>Carregando denúncias...</div>}
+        {!loading && tableMissing && (
+          <div style={{ color: C.muted, padding: 20, textAlign:'center' }}>Sem denúncias</div>
+        )}
+        {!loading && !tableMissing && reports.length === 0 && (
+          <div style={{ color: C.muted, padding: 20, textAlign:'center' }}>Sem denúncias</div>
+        )}
+        {!loading && !tableMissing && reports.length > 0 && (
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ borderBottom:'2px solid '+C.border }}>
+                {['ID','Denunciante','Alvo','Motivo','Status','Data','Ações'].map(h => (
+                  <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map(r => {
+                const data = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + new Date(r.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—';
+                const targetType = r.post_id ? 'post' : (r.target_user_id ? 'usuário' : '—');
+                const targetId = r.post_id || r.target_user_id || '—';
+                const targetIdShort = typeof targetId === 'string' && targetId.length > 8 ? targetId.slice(0,8) + '…' : targetId;
+                const idShort = r.id ? String(r.id).slice(0,8) + '…' : '—';
+                const st = r.status || 'pending';
+                return (
+                  <tr key={r.id} style={{ borderBottom:'1px solid '+C.border }}>
+                    <td style={{ padding:'10px 12px', color:C.muted, fontSize:11, fontFamily:'monospace' }}>{idShort}</td>
+                    <td style={{ padding:'10px 12px' }}>{r.reporter?.name || (r.reporter_id ? String(r.reporter_id).slice(0,8) + '…' : '—')}</td>
+                    <td style={{ padding:'10px 12px', fontSize:12 }}>
+                      <div style={{ fontWeight:600 }}>{targetType}</div>
+                      <div style={{ color:C.muted, fontSize:11, fontFamily:'monospace' }}>{targetIdShort}</div>
+                    </td>
+                    <td style={{ padding:'10px 12px', fontSize:12, maxWidth:240 }}>{r.reason || '—'}</td>
+                    <td style={{ padding:'10px 12px' }}><span style={statusStyle(st)}>{st}</span></td>
+                    <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{data}</td>
+                    <td style={{ padding:'10px 12px' }}>
+                      {st === 'pending' ? (
+                        <button onClick={() => resolveReport(r.id)} style={{ background:C.p6, border:'none', color:'#fff', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Resolver</button>
+                      ) : (
+                        <span style={{ color:C.muted, fontSize:11 }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// INDICAÇÕES — referrals + points
+// ============================================================
+const Indicacoes = () => {
+  const [referrals, setReferrals] = useState([]);
+  const [pointsTotal, setPointsTotal] = useState(0);
+  const [topReferrers, setTopReferrers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = window._sb;
+        const [refsRes, ptsRes] = await Promise.all([
+          sb.from('referrals')
+            .select('id, referrer_id, referred_id, status, bonus_points, created_at, referrer:profiles!referrer_id(name, avatar_url), referred:profiles!referred_id(name, avatar_url)')
+            .order('created_at', { ascending: false })
+            .limit(500),
+          sb.from('points').select('amount, user_id, type'),
+        ]);
+        const refs = refsRes.data || [];
+        const pts = ptsRes.data || [];
+        setReferrals(refs);
+        // Total de pontos creditados (type === 'earned' ou amount positivo)
+        const total = pts.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        setPointsTotal(total);
+        // Top 5 indicadores
+        const counts = {};
+        refs.forEach(r => {
+          if (!r.referrer_id) return;
+          if (!counts[r.referrer_id]) counts[r.referrer_id] = { id: r.referrer_id, name: r.referrer?.name || '—', count: 0, bonus: 0 };
+          counts[r.referrer_id].count += 1;
+          counts[r.referrer_id].bonus += Number(r.bonus_points) || 0;
+        });
+        const top = Object.values(counts).sort((a,b) => b.count - a.count).slice(0, 5);
+        setTopReferrers(top);
+      } catch (e) {
+        console.warn('Indicacoes load error:', e);
+        setReferrals([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando indicações...</div>;
+
+  const statusStyle = (s) => {
+    const map = {
+      completed: { bg: C.p6 + '22', fg: C.p6 },
+      pending:   { bg: C.p7 + '44', fg: '#b8860b' },
+      cancelled: { bg: C.p4 + '22', fg: C.p4 },
+    };
+    const col = map[s] || map.pending;
+    return { background: col.bg, color: col.fg, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 600 };
+  };
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:24 }}>
+        <KPICard title="Total de Indicações" value={referrals.length} sub="histórico completo" trend="🔗" color={C.p1} />
+        <KPICard title="Pontos Creditados" value={pointsTotal.toLocaleString('pt-BR')} sub="soma de todos os pontos" trend="⭐" color={C.p7} />
+        <KPICard title="Indicadores Únicos" value={topReferrers.length} sub="pessoas que indicaram" trend="👥" color={C.p5} />
+      </div>
+
+      {/* Top 5 */}
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 12, color: C.ink }}>🏆 Top 5 Indicadores</div>
+        {topReferrers.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum indicador ainda.</div>}
+        {topReferrers.map((t, i) => (
+          <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 0', borderBottom: i < topReferrers.length - 1 ? '1px solid '+C.border : 'none' }}>
+            <div style={{ width:32, height:32, borderRadius:'50%', background:C.p1+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:C.p1 }}>{i+1}</div>
+            <div style={{ flex:1, fontWeight:600, fontSize:13 }}>{t.name}</div>
+            <div style={{ fontSize:12, color:C.muted }}>{t.count} indicaç{t.count===1?'ão':'ões'}</div>
+            <div style={{ fontSize:12, color:C.p7, fontWeight:700, minWidth:80, textAlign:'right' }}>+{t.bonus} pts</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela */}
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>🔗 Indicações</div>
+        {referrals.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhuma indicação registrada.</div>}
+        {referrals.length > 0 && (
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ borderBottom:'2px solid '+C.border }}>
+                {['Indicador','Indicado','Status','Pontos','Data'].map(h => (
+                  <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {referrals.map(r => {
+                const data = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—';
+                const st = r.status || 'pending';
+                return (
+                  <tr key={r.id} style={{ borderBottom:'1px solid '+C.border }}>
+                    <td style={{ padding:'10px 12px', fontWeight:600 }}>{r.referrer?.name || '—'}</td>
+                    <td style={{ padding:'10px 12px' }}>{r.referred?.name || '—'}</td>
+                    <td style={{ padding:'10px 12px' }}><span style={statusStyle(st)}>{st}</span></td>
+                    <td style={{ padding:'10px 12px', fontWeight:700, color:C.p7 }}>{r.bonus_points != null ? '+' + r.bonus_points : '—'}</td>
+                    <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{data}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// AVALIAÇÕES — reviews (join com quotes/profiles)
+// ============================================================
+const AvaliacoesTab = () => {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sb = window._sb;
+        // Busca reviews + reviewer (cliente). Para descobrir o pintor avaliado,
+        // faz join com quotes pelo quote_id.
+        const { data, error } = await sb.from('reviews')
+          .select('id, reviewer_id, quote_id, rating, criteria, comment, created_at, reviewer:profiles!reviewer_id(name, avatar_url), quote:quotes!quote_id(id, painter:profiles!painter_id(name, avatar_url, rating_avg))')
+          .order('created_at', { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        setReviews(data || []);
+      } catch (e) {
+        console.warn('AvaliacoesTab load error:', e);
+        setReviews([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando avaliações...</div>;
+
+  const total = reviews.length;
+  const avg = total ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / total) : 0;
+  const stars = (v) => {
+    const n = Math.max(0, Math.min(5, Math.round(Number(v) || 0)));
+    return '★'.repeat(n) + '☆'.repeat(5 - n);
+  };
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:16, marginBottom:24 }}>
+        <KPICard title="Total de Avaliações" value={total} sub="enviadas pelos clientes" trend="⭐" color={C.p1} />
+        <KPICard title="Média Geral" value={total ? avg.toFixed(2) : '—'} sub={total ? stars(avg) : 'sem avaliações ainda'} trend="" color={C.p7} />
+      </div>
+
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>⭐ Avaliações dos Pintores</div>
+        {reviews.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhuma avaliação registrada.</div>}
+        {reviews.length > 0 && (
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ borderBottom:'2px solid '+C.border }}>
+                {['Pintor','Cliente','Nota','Critérios','Comentário','Data'].map(h => (
+                  <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {reviews.map(r => {
+                const data = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '—';
+                const painterName = r.quote?.painter?.name || '—';
+                const reviewerName = r.reviewer?.name || '—';
+                const crits = Array.isArray(r.criteria) ? r.criteria : (r.criteria ? [r.criteria] : []);
+                return (
+                  <tr key={r.id} style={{ borderBottom:'1px solid '+C.border, verticalAlign:'top' }}>
+                    <td style={{ padding:'10px 12px', fontWeight:600 }}>{painterName}</td>
+                    <td style={{ padding:'10px 12px' }}>{reviewerName}</td>
+                    <td style={{ padding:'10px 12px', color:C.p1, whiteSpace:'nowrap' }}>{stars(r.rating)} <span style={{ color:C.muted, fontSize:11 }}>{Number(r.rating || 0).toFixed(1)}</span></td>
+                    <td style={{ padding:'10px 12px' }}>
+                      {crits.length === 0 ? <span style={{ color:C.muted, fontSize:11 }}>—</span> : (
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                          {crits.map((c, i) => (
+                            <span key={i} style={{ background:C.p3 + '22', color:C.p3, borderRadius:8, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{c}</span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding:'10px 12px', fontSize:12, maxWidth:280, color:C.ink }}>{r.comment || <span style={{ color:C.muted }}>—</span>}</td>
+                    <td style={{ padding:'10px 12px', color:C.muted, fontSize:12, whiteSpace:'nowrap' }}>{data}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -2380,7 +2737,8 @@ const PAGES_DEF = [
   { id:'marketing', icon:'📣', label:'Marketing / Ads', section:'LOJA', component:<MarketingPage /> },
   { id:'moderacao', icon:'🛡️', label:'Moderação', section:'PRINCIPAL', component:<Moderacao /> },
   { id:'analytics', icon:'📈', label:'Analytics', section:'DADOS', component:<Analytics /> },
-  { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesList /> },
+  { id:'indicacoes', icon:'🔗', label:'Indicações', section:'DADOS', component:<Indicacoes /> },
+  { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesTab /> },
 ];
 
 function App() {
