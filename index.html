@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522f"></script>
+<script src="/head.js?v=20260522g"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -575,15 +575,25 @@
     <div style="padding:14px;">
       <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Meu Negócio</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-        <div onclick="showScreen('explore')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
-          <div style="font-size:28px;margin-bottom:6px;">🔍</div>
-          <div style="font-size:12px;font-weight:700;color:var(--ink);">Achar Profissional</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Buscar no mapa</div>
-        </div>
         <div onclick="showScreen('pedidos')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">📋</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Meus Pedidos</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Orçamentos</div>
+        </div>
+        <div onclick="openAiOrcamento()" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">📄</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamento</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Crie e envie</div>
+        </div>
+        <div onclick="showScreen('pipeline')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">🗂️</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamentos</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Pipeline e aprovação</div>
+        </div>
+        <div onclick="showScreen('explore')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+          <div style="font-size:28px;margin-bottom:6px;">🔍</div>
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">Achar Profissional</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Buscar no mapa</div>
         </div>
         <div onclick="showScreen('avaliar')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">⭐</div>
@@ -600,11 +610,6 @@
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Meu Portfolio</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Postar trabalhos</div>
         </div>
-        <div onclick="openAiOrcamento()" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
-          <div style="font-size:28px;margin-bottom:6px;">📄</div>
-          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamento</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Crie e envie</div>
-        </div>
         <div onclick="showScreen('calc')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">🧮</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Calculadora</div>
@@ -614,11 +619,6 @@
           <div style="font-size:28px;margin-bottom:6px;">📅</div>
           <div style="font-size:12px;font-weight:700;color:var(--ink);">Agenda</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Meus projetos</div>
-        </div>
-        <div onclick="showScreen('pipeline')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
-          <div style="font-size:28px;margin-bottom:6px;">📋</div>
-          <div style="font-size:12px;font-weight:700;color:var(--ink);">Orçamentos</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Pipeline e aprovação</div>
         </div>
         <div onclick="showScreen('crm')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">🔁</div>
@@ -2083,7 +2083,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522f"></script>
+<script src="/app.js?v=20260522g"></script>
 
 <script>
 if('serviceWorker' in navigator){
