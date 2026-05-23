@@ -2598,40 +2598,28 @@ async function loadPoints(){
 }
 
 // ══ TROCAR 100 PTS POR 1 MÊS PRO EXTRA ══
+// Chama a RPC redeem_pro_with_points (SECURITY DEFINER) que valida o
+// saldo, debita os pontos e estende o PRO em transação atômica no
+// servidor — assim o cliente NÃO consegue mais bypassar fazendo
+// UPDATE direto em profiles.is_pro pelo devtools.
 async function trocarPontosPorPRO(){
   const sb = getSupabase();
   if(!sb || !currentUser){ toast('Faça login'); return; }
   const btn = document.getElementById('pts-redeem-btn');
   if(btn) btn.disabled = true;
   try {
-    // Soma o saldo completo do banco (sem o limit do loadPoints)
-    const { data: allPts } = await sb.from('points').select('amount,type').eq('user_id', currentUser.id);
-    let saldo = 0;
-    (allPts || []).forEach(p => { saldo += p.type === 'earned' ? (p.amount || 0) : -(p.amount || 0); });
-    if(saldo < 100){ toast('Faltam ' + (100 - saldo) + ' pts'); return; }
-    if(!(await appConfirm('Trocar 100 pts por 1 mês PRO extra?', { okLabel:'Trocar' }))) return;
-    // Calcula a nova data de expiração (estende se ainda ativo)
-    const prof = await getMyProfile(true);
-    const now = new Date();
-    const currentExp = prof && prof.pro_expires_at ? new Date(prof.pro_expires_at) : null;
-    const base = (currentExp && currentExp > now) ? currentExp : now;
-    const newExp = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
-    // Debita os 100 pts
-    const { error: spendErr } = await sb.from('points').insert({
-      user_id: currentUser.id, amount: 100, type: 'redeemed', source: 'pro_1mes'
-    });
-    if(spendErr) throw spendErr;
-    // Estende o PRO
-    const { error: proErr } = await sb.from('profiles').update({
-      is_pro: true, pro_expires_at: newExp.toISOString()
-    }).eq('id', currentUser.id);
-    if(proErr) throw proErr;
+    if(!(await appConfirm('Trocar 100 pts por 1 mês PRO extra?', { okLabel:'Trocar' }))){
+      return;
+    }
+    const { data: newExp, error } = await sb.rpc('redeem_pro_with_points', { p_cost: 100 });
+    if(error) throw error;
     if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
     toast('1 mês PRO liberado! 🎉');
     loadPoints();
     if(typeof refreshProStatus === 'function') refreshProStatus();
   } catch(e){
     console.warn('trocarPontosPorPRO:', e);
+    // Mensagens em português vêm direto do RAISE EXCEPTION da função
     toast('Erro: ' + (e.message || e));
   } finally {
     if(btn) btn.disabled = false;
@@ -4516,13 +4504,14 @@ async function submitAvaliacao(){
   document.querySelectorAll('.criteria-chip.sel').forEach(c => criteria.push(c.textContent.trim()));
   const comment = document.getElementById('avalia-ta')?.value.trim() || '';
   try {
-    const { error } = await sb.from('reviews').insert({
-      reviewer_id: currentUser.id,
-      quote_id: avaliarQuoteId || null,
-      rating: starVal,
-      criteria: criteria,
-      comment: comment || null,
-      created_at: new Date().toISOString()
+    // Usa a RPC submit_review (SECURITY DEFINER) — valida no servidor:
+    // quote pertence ao caller, rating 1-5, sem duplicata
+    const { error } = await sb.rpc('submit_review', {
+      p_quote_id: avaliarQuoteId || null,
+      p_painter_id: null,
+      p_rating: starVal,
+      p_comment: comment || null,
+      p_criteria: criteria
     });
     if(error) throw error;
     toast('Avaliacao enviada! '+starLabels[starVal]);
