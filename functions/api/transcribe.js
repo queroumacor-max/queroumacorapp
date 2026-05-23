@@ -1,7 +1,7 @@
 // Transcrição de áudio via OpenAI Whisper. Recebe multipart com o campo
 // 'audio' e devolve { text } ou { error }. Requer OPENAI_API_KEY no
 // Cloudflare Pages.
-import { getTokenFromForm, requireAuth, requirePro } from './_security.js';
+import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -19,6 +19,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'transcribe', 10);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const audio = formData.get('audio');
   if (!audio) return json({ error: 'audio obrigatório' }, 400);

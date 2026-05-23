@@ -1,7 +1,7 @@
 // Análise financeira IA — recebe agregados do mês atual e anterior + amostra
 // de jobs recentes e devolve 3-4 frases curtas em PT-BR com margem, tendência
 // e uma recomendação acionável. Não inventa números.
-import { requireAuth, requirePro } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -17,6 +17,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'fin-analysis', 5);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const sanitizeAgg = (a) => {
     const o = a && typeof a === 'object' ? a : {};

@@ -1,7 +1,7 @@
 // Assistente IA do QueroUmaCor. Usa OpenAI; se faltar/funcionar mal,
 // cai para o Gemini. Requer no Cloudflare Pages pelo menos uma das
 // variaveis: OPENAI_API_KEY ou GEMINI_API_KEY.
-import { requireAuth, requirePro } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -19,6 +19,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'chat-ai', 20);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const userMessage = typeof body?.message === 'string' ? body.message.trim().slice(0, 1500) : '';
   if (!userMessage) return json({ error: 'message obrigatório' }, 400);

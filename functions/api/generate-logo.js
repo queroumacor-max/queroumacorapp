@@ -1,4 +1,4 @@
-import { requireAuth, requirePro } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -15,6 +15,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'generate-logo', 3);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const rawName = typeof body?.name === 'string' ? body.name : '';
   const name = rawName.replace(/[^\p{L}\p{N}\s&\-.']/gu, '').trim().slice(0, 50);

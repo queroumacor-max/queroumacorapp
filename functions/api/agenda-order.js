@@ -3,7 +3,7 @@
 // cidades brasileiras pelo texto do endereço).
 // POST { date, jobs: [{ id, client_name, address, scheduled_time }] }
 //  -> { ordered_ids: [<id1>, <id2>, ...], notes: '<racional em PT-BR>' }
-import { requireAuth, requirePro } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -21,6 +21,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'agenda-order', 5);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const date = typeof body?.date === 'string' ? body.date.slice(0, 10) : '';
   const rawJobs = Array.isArray(body?.jobs) ? body.jobs.slice(0, 40) : [];
