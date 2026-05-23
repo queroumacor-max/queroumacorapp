@@ -430,10 +430,14 @@ function previewSignupAvatar(input){
 }
 
 async function doLogoutSupabase() {
-  const sb = getSupabase();
-  if (sb) await sb.auth.signOut();
+  // Limpa o estado local imediatamente — não aguarda o servidor. Se o
+  // signOut travar na rede, a UI já volta pra tela de login sem ficar
+  // pendurada em "Saindo...".
   currentUser = null;
+  if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
   showScreen('login');
+  const sb = getSupabase();
+  if (sb) sb.auth.signOut().catch(e => console.warn('signOut:', e));
 }
 function doLogout() {
   doLogoutSupabase();
