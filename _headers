@@ -17,6 +17,11 @@
 /app.js
   Cache-Control: public, max-age=300, must-revalidate
 
-# Endpoints da API nunca cachear
+# Endpoints da API: nunca cachear + CORS restrito ao próprio domínio
 /api/*
   Cache-Control: no-store
+  Access-Control-Allow-Origin: https://queroumacor.com.br
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
+  Access-Control-Max-Age: 600
+  Vary: Origin
