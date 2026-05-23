@@ -3537,6 +3537,8 @@ async function loadPedidos(){
 }
 
 let _epAvatarFile = null; // holds selected avatar file for upload
+let _epLogoFile = null;   // holds selected business logo file for upload
+let _epLogoClear = false; // user clicked "Remover" → wipe business_logo_url on save
 
 function previewAvatar(input){
   if(input.files && input.files[0]){
@@ -3547,12 +3549,50 @@ function previewAvatar(input){
   }
 }
 
+function _epShowLogo(url){
+  const img = document.getElementById('ep-logo-preview');
+  const ph  = document.getElementById('ep-logo-placeholder');
+  const rm  = document.getElementById('ep-logo-remove-btn');
+  if(url){
+    if(img){ img.src = url; img.style.display = 'block'; }
+    if(ph) ph.style.display = 'none';
+    if(rm) rm.style.display = 'inline-block';
+  } else {
+    if(img){ img.src = ''; img.style.display = 'none'; }
+    if(ph) ph.style.display = 'block';
+    if(rm) rm.style.display = 'none';
+  }
+}
+
+function previewEpLogo(input){
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(!f.type.startsWith('image/')){ toast('Selecione um arquivo de imagem'); return; }
+  if(f.size > 5 * 1024 * 1024){ toast('Imagem muito grande (máx 5MB)'); return; }
+  _epLogoFile = f;
+  _epLogoClear = false;
+  const reader = new FileReader();
+  reader.onload = e => _epShowLogo(e.target.result);
+  reader.readAsDataURL(f);
+}
+
+function removeEpLogo(){
+  _epLogoFile = null;
+  _epLogoClear = true;
+  _epShowLogo(null);
+  const inp = document.getElementById('ep-logo-input');
+  if(inp) inp.value = '';
+}
+
 async function openEditProfile(){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   _epAvatarFile = null; // reset
+  _epLogoFile = null;
+  _epLogoClear = false;
+  _epShowLogo(null);
   try {
-    const { data: prof } = await sb.from('profiles').select('name, tag, email, city, state, phone, specialties, avatar_url, role, user_type').eq('id', currentUser.id).single();
+    const { data: prof } = await sb.from('profiles').select('name, tag, email, city, state, phone, specialties, avatar_url, role, user_type, business_logo_url').eq('id', currentUser.id).single();
     if(prof){
       document.getElementById('ep-name').value = prof.name || '';
       document.getElementById('ep-tag').value = prof.tag || '';
@@ -3566,6 +3606,10 @@ async function openEditProfile(){
       // Show current avatar
       const preview = document.getElementById('ep-avatar-preview');
       if(preview) preview.src = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(prof.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
+      // Show current business logo (synced with shirts/camisetas)
+      let logoUrl = prof.business_logo_url || null;
+      if(!logoUrl){ try { logoUrl = localStorage.getItem('business_logo_url'); } catch(e){} }
+      _epShowLogo(logoUrl);
     } else {
       // Fallback to user_metadata
       const meta = currentUser.user_metadata || {};
@@ -3869,6 +3913,45 @@ async function saveEditProfile(){
       btn.textContent = 'Salvando...';
     }
 
+    // Business logo (sincronizado com a aba Camisetas / shirts)
+    let _logoChanged = false;
+    if(_epLogoFile){
+      btn.textContent = 'Enviando logo...';
+      try {
+        const ext = (_epLogoFile.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+        const path = currentUser.id + '/business_logo.' + ext;
+        const { error: upErr } = await sb.storage.from('posts').upload(path, _epLogoFile, { upsert: true, contentType: _epLogoFile.type });
+        if(upErr) throw upErr;
+        const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+        const publicUrl = urlData?.publicUrl ? urlData.publicUrl + '?t=' + Date.now() : null;
+        if(publicUrl){
+          updates.business_logo_url = publicUrl;
+          try { localStorage.setItem('business_logo_url', publicUrl); } catch(e){}
+          _logoChanged = true;
+        }
+      } catch(e){
+        console.warn('business logo upload falhou:', e?.message || e);
+        // Fallback: data URL
+        try {
+          const dataUrl = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = ev => res(ev.target.result);
+            r.onerror = rej;
+            r.readAsDataURL(_epLogoFile);
+          });
+          updates.business_logo_url = dataUrl;
+          try { localStorage.setItem('business_logo_url', dataUrl); } catch(e2){}
+          _logoChanged = true;
+        } catch(e2){ console.warn('logo data-url fallback falhou:', e2); }
+      }
+      _epLogoFile = null;
+      btn.textContent = 'Salvando...';
+    } else if(_epLogoClear){
+      updates.business_logo_url = null;
+      try { localStorage.removeItem('business_logo_url'); } catch(e){}
+      _logoChanged = true;
+    }
+
     // Try update first, then insert if profile doesn't exist
     const { data: existing } = await sb.from('profiles').select('id').eq('id', currentUser.id).single();
     if(existing){
@@ -3912,6 +3995,24 @@ async function saveEditProfile(){
       if(myAvEl) myAvEl.src = updates.avatar_url;
       const storyAvEl = document.getElementById('my-story-avatar');
       if(storyAvEl) storyAvEl.src = updates.avatar_url;
+    }
+    // Sync business logo into shirts builder (if mounted)
+    if(_logoChanged){
+      const chest = document.getElementById('shirt-chest-logo');
+      if(chest){
+        if(updates.business_logo_url){
+          if(typeof _applyOwnLogoToShirt === 'function'){
+            _applyOwnLogoToShirt(updates.business_logo_url, document.getElementById('ai-logo-name')?.value?.trim() || null);
+          }
+        } else {
+          chest.src = ''; chest.style.display = 'none';
+          const ph = document.getElementById('shirt-chest-placeholder');
+          if(ph) ph.style.display = 'flex';
+          const chip = document.getElementById('shirt-logo-pintor-chip');
+          if(chip){ chip.innerHTML = 'seu_perfil'; }
+        }
+      }
+      _epLogoClear = false;
     }
     invalidateMyProfile();
     loadMyProfileData();
