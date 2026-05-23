@@ -195,8 +195,15 @@ function ok(msg) {
 // warning — preserva o comportamento atual até o secret ser configurado.
 async function verifyMpSignature(request, env, body) {
   if (!env.MP_WEBHOOK_SECRET) {
-    console.warn('mp-webhook: MP_WEBHOOK_SECRET não configurado — pulando verificação de assinatura');
-    return true; // fail-open
+    // Fail-open por padrão (preserva o flow enquanto o secret não tá colado
+    // no painel MP). Pra fechar de vez, defina MP_WEBHOOK_ENFORCE=true no
+    // Cloudflare — aí qualquer webhook sem secret válido é rejeitado.
+    if (env.MP_WEBHOOK_ENFORCE === 'true') {
+      console.warn('mp-webhook: MP_WEBHOOK_ENFORCE=true mas MP_WEBHOOK_SECRET ausente — rejeitando');
+      return false;
+    }
+    console.warn('mp-webhook: MP_WEBHOOK_SECRET não configurado — pulando verificação (fail-open)');
+    return true;
   }
   const sigHeader = request.headers.get('x-signature') || '';
   const reqId = request.headers.get('x-request-id') || '';

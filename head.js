@@ -712,6 +712,13 @@ async function renderRealProfileTabs(userId, name){
   const screen = document.getElementById('screen-profile');
   if(!screen) return;
   const esc = s => String(s||'').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  // Só aceita URLs http(s) — bloqueia javascript:, data:, vbscript:, etc.
+  // pra interpolar em <a href=...> com segurança.
+  const safeUrl = s => {
+    const v = String(s||'').trim();
+    if (/^https?:\/\//i.test(v)) return esc(v);
+    return '';
+  };
   // Empty state amigável reutilizável
   const emptyState = (icon, msg) => `<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 20px;"><div style="font-size:36px;margin-bottom:10px;">${icon}</div><div style="font-size:14px;">${msg}</div></div>`;
 
@@ -766,7 +773,7 @@ async function renderRealProfileTabs(userId, name){
               <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${esc(c.subtitle||'')}</div>
               <div style="display:flex;align-items:center;justify-content:space-between;">
                 <div style="font-size:16px;font-weight:800;color:var(--ink);">${c.is_free?'Grátis':('R$'+Number(c.price||0).toFixed(2).replace('.',','))}</div>
-                ${c.link?`<a href="${esc(c.link)}" target="_blank" rel="noopener" style="background:var(--p1);color:#fff;text-decoration:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;">Acessar</a>`:''}
+                ${c.link && safeUrl(c.link) ? `<a href="${safeUrl(c.link)}" target="_blank" rel="noopener noreferrer" style="background:var(--p1);color:#fff;text-decoration:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;">Acessar</a>`:''}
               </div>
             </div>
           </div>`).join('')

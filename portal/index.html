@@ -1499,7 +1499,7 @@ const Leads = () => {
     const num = phone.replace(/\D/g, '');
     const fullNum = num.startsWith('55') ? num : '55' + num;
     const msg = encodeURIComponent('Olá ' + (name||'') + '! Somos da Cali Colors — QueroUmaCor. Gostaríamos de apresentar nossa plataforma para você. Podemos conversar?');
-    window.open('https://wa.me/' + fullNum + '?text=' + msg, '_blank');
+    window.open('https://wa.me/' + fullNum + '?text=' + msg, '_blank', 'noopener,noreferrer');
   };
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando leads...</div>;
