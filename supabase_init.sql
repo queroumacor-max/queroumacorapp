@@ -1099,3 +1099,15 @@ ALTER TABLE public.quotes ADD CONSTRAINT quotes_status_check
     'pending','rascunho','enviado','aprovado','em_execucao','concluido','recusado',
     'accepted','completed','rejected'
   ));
+
+-- ============================================
+-- Colunas que faltavam na tabela reviews (bancos antigos)
+-- ============================================
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS reviewer_id uuid,
+  ADD COLUMN IF NOT EXISTS quote_id uuid,
+  ADD COLUMN IF NOT EXISTS rating integer,
+  ADD COLUMN IF NOT EXISTS criteria jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS comment text;
+
+NOTIFY pgrst, 'reload schema';
