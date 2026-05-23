@@ -3,6 +3,7 @@
 // { price: <number BRL>, justification: "<frase curta em PT-BR>" }.
 // Usa OpenAI gpt-4o-mini com response_format json_object.
 // Pattern: ver functions/api/chat-ai.js.
+import { requireAuth, requirePro } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -12,6 +13,12 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
+
+  // Auth + PRO check (fail-open)
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return json({ error: auth.error }, auth.status);
+  const proCheck = await requirePro(env, auth.user && auth.user.id);
+  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
 
   const serviceType = typeof body?.service_type === 'string' ? body.service_type.trim().slice(0, 200) : '';
   const description = typeof body?.description === 'string' ? body.description.trim().slice(0, 2000) : '';

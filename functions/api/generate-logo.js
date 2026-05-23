@@ -1,3 +1,5 @@
+import { requireAuth, requirePro } from './_security.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
 
@@ -7,6 +9,12 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
+
+  // Auth + PRO check (fail-open)
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return json({ error: auth.error }, auth.status);
+  const proCheck = await requirePro(env, auth.user && auth.user.id);
+  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
 
   const rawName = typeof body?.name === 'string' ? body.name : '';
   const name = rawName.replace(/[^\p{L}\p{N}\s&\-.']/gu, '').trim().slice(0, 50);

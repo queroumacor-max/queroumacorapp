@@ -3,6 +3,8 @@
 // cidades brasileiras pelo texto do endereço).
 // POST { date, jobs: [{ id, client_name, address, scheduled_time }] }
 //  -> { ordered_ids: [<id1>, <id2>, ...], notes: '<racional em PT-BR>' }
+import { requireAuth, requirePro } from './_security.js';
+
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export async function onRequestPost(context) {
@@ -13,6 +15,12 @@ export async function onRequestPost(context) {
 
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
+
+  // Auth + PRO check (fail-open)
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return json({ error: auth.error }, auth.status);
+  const proCheck = await requirePro(env, auth.user && auth.user.id);
+  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
 
   const date = typeof body?.date === 'string' ? body.date.slice(0, 10) : '';
   const rawJobs = Array.isArray(body?.jobs) ? body.jobs.slice(0, 40) : [];
