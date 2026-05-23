@@ -182,8 +182,8 @@ function openProfile(id){
   document.querySelectorAll('.ph-stat-n')[1].textContent=p.seguidores;
   document.querySelectorAll('.ph-stat-n')[2].textContent=p.obras;
   const phName=document.querySelector('.ph-name');
-  phName.innerHTML=p.name+(p.name.includes('✓')?'':' ✓')+(p.pro?' <span style="background:var(--p1);color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;font-family:\'DM Sans\',sans-serif;font-weight:600">PRO</span>':'');
-  document.querySelector('.ph-bio').innerHTML=p.bio.replace('\n','<br>');
+  phName.innerHTML=escapeHtml(p.name||'')+(p.name && p.name.includes('✓')?'':' ✓')+(p.pro?' <span style="background:var(--p1);color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;font-family:\'DM Sans\',sans-serif;font-weight:600">PRO</span>':'');
+  document.querySelector('.ph-bio').innerHTML=escapeHtml(p.bio||'').replace(/\n/g,'<br>');
 
   // Palette
   const pal=document.querySelector('.ph-palette');
@@ -595,7 +595,7 @@ function infoBack(){
 function supportWhatsApp(){
   if(!SUPPORT.whatsapp){ toast('WhatsApp não configurado'); return; }
   const msg = encodeURIComponent('Olá! Preciso de ajuda com o app QueroUmaCor.');
-  window.open('https://wa.me/' + SUPPORT.whatsapp + '?text=' + msg, '_blank');
+  window.open('https://wa.me/' + SUPPORT.whatsapp + '?text=' + msg, '_blank', 'noopener,noreferrer');
 }
 function supportEmail(){
   const uid = (typeof currentUser!=='undefined' && currentUser) ? currentUser.id : '';
@@ -1326,7 +1326,7 @@ async function crmSend(id){
     } else if(hasPhone && c.followup_optin){
       // Externo com telefone E opt-in: abre WhatsApp, o pintor dispara.
       const phone = phoneDigits.length <= 11 ? '55'+phoneDigits : phoneDigits;
-      window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg), '_blank');
+      window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg), '_blank', 'noopener,noreferrer');
       await sb.from('follow_ups').insert({
         painter_id: currentUser.id, crm_client_id: c.id, message: msg,
         status:'sent', sent_at:new Date().toISOString(), channel:'whatsapp'
@@ -4575,7 +4575,7 @@ async function submitAvaliacao(){
 function openOrcamento(){
   const p = painters[currentPainter];
   if(p){
-    document.querySelector('.opc-name').innerHTML = p.name + (p.pro ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;">PRO</span>' : '');
+    document.querySelector('.opc-name').innerHTML = escapeHtml(p.name||'') + (p.pro ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;">PRO</span>' : '');
     document.querySelector('.opc-av img').src = p.img || 'https://i.pravatar.cc/150?img=11';
     document.querySelector('.opc-stars').textContent = '★★★★★ ' + (p.rating || '5.0');
     document.querySelector('.opc-sub').textContent = p.city || '';
@@ -6289,8 +6289,11 @@ const FEED_PAGE = 30;
 async function loadFeed(){
   _lastFeedLoad = Date.now();
   // Cache por usuário — evita mostrar o feed de outra conta após troca de login
-  const cacheKey = 'feedCache_' + (currentUser ? currentUser.id : 'anon');
-  const storiesKey = 'storiesCache_' + (currentUser ? currentUser.id : 'anon');
+  // Cache prefix versionado (v2 = post-hardening de XSS, B4). Bumpar
+  // sempre que alguma correção de escape mudar pra invalidar HTML antigo
+  // que possa ter ficado contaminado em browsers de usuários.
+  const cacheKey = 'feedCache_v2_' + (currentUser ? currentUser.id : 'anon');
+  const storiesKey = 'storiesCache_v2_' + (currentUser ? currentUser.id : 'anon');
   const cachedHtml = localStorage.getItem(cacheKey);
   const cachedStories = localStorage.getItem(storiesKey);
   const container = document.getElementById('feed-posts-area');
