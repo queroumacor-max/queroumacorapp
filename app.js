@@ -1809,6 +1809,62 @@ function prefillNovoProjeto(){
   if(di && !di.value && _agSel) di.value = _agSel;
 }
 
+async function otimizarDiaAgenda(){
+  if(!_isPro){ toast('Otimizar dia com IA é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if(!_agSel){ toast('Selecione um dia'); return; }
+  const dayJobs = (_agJobs||[]).filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel);
+  if(dayJobs.length<2){ toast('Precisa de 2+ obras no mesmo dia'); return; }
+  const box = document.getElementById('agenda-day-suggest');
+  if(box) box.innerHTML = `<div style="background:var(--cream);border:1px dashed var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--muted);">🤖 Otimizando rota com IA...</div>`;
+  toast('Otimizando rota com IA...');
+  try{
+    const payload = {
+      date: _agSel,
+      jobs: dayJobs.map(j=>({
+        id: String(j.id),
+        client_name: j.client_name||'',
+        address: j.address||'',
+        scheduled_time: j.scheduled_time||''
+      }))
+    };
+    const r = await fetch('/api/agenda-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !Array.isArray(data?.ordered_ids)){
+      const msg = data?.error || 'Erro ao otimizar';
+      if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">${escapeHtml(msg)}</div>`;
+      toast(msg);
+      return;
+    }
+    const byId = {}; dayJobs.forEach(j=>{ byId[String(j.id)] = j; });
+    const rows = data.ordered_ids.map((id,i)=>{
+      const j = byId[String(id)]; if(!j) return '';
+      return `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.05);">
+        <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">${escapeHtml(j.client_name||'')}${j.scheduled_time?` <span style="font-weight:500;color:var(--muted);">· ${escapeHtml(j.scheduled_time)}</span>`:''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(j.address||'(sem endereço)')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const notes = typeof data.notes==='string' && data.notes.trim() ? data.notes.trim() : '';
+    if(box){
+      box.innerHTML = `<div style="background:var(--white);border:1.5px solid #8338ec;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(131,56,236,.12);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:800;color:#8338ec;">🗺️ Ordem sugerida pela IA</div>
+          <button onclick="document.getElementById('agenda-day-suggest').innerHTML='';" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        </div>
+        ${rows}
+        ${notes?`<div style="font-size:11px;color:var(--muted);margin-top:8px;font-style:italic;">${escapeHtml(notes)}</div>`:''}
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;background:var(--cream);padding:6px 8px;border-radius:8px;">⚠️ Sugestão baseada só no texto do endereço (não usa GPS). Confirme a rota no seu app de mapas.</div>
+      </div>`;
+    }
+  }catch(e){
+    console.warn('otimizarDiaAgenda:', e);
+    if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">Erro ao otimizar: ${escapeHtml(String(e?.message||e))}</div>`;
+    toast('Erro ao otimizar');
+  }
+}
+
 // ══ CHECKLIST DE OBRA ══
 let _checklistItems = [];
 let _checklistRowId = null;
