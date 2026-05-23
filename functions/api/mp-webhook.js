@@ -148,15 +148,38 @@ export async function onRequestPost(context) {
   if (!userId) return ok('sem external_reference');
 
   const status = pre?.status; // authorized | paused | cancelled | pending
-  const isActive = status === 'authorized';
+  // Valida valor da assinatura PRO (anti-fraude: atacante criava preapproval
+  // de R$ 1 e o webhook ativava PRO mesmo assim)
+  const proAmount = Number(pre?.auto_recurring?.transaction_amount || 0);
+  const proCurrency = String(pre?.auto_recurring?.currency_id || '');
+  const EXPECTED_PRO_AMOUNT = 39;
 
-  const patch = {
-    is_pro: isActive,
-    mp_preapproval_id: eventId,
-    pro_expires_at: isActive
-      ? new Date(Date.now() + 33 * 24 * 60 * 60 * 1000).toISOString()
-      : null
-  };
+  let patch;
+  if (status === 'authorized') {
+    if (proCurrency !== 'BRL' || Math.abs(proAmount - EXPECTED_PRO_AMOUNT) > 0.01) {
+      console.warn('mp-webhook: preapproval com valor suspeito, ignorando ativação', {
+        userId, proAmount, proCurrency, expected: EXPECTED_PRO_AMOUNT
+      });
+      return ok('preapproval com valor diferente do esperado');
+    }
+    patch = {
+      is_pro: true,
+      mp_preapproval_id: eventId,
+      pro_expires_at: new Date(Date.now() + 33 * 24 * 60 * 60 * 1000).toISOString()
+    };
+  } else if (status === 'cancelled' || status === 'paused') {
+    // Desativa só em estados finais — nunca em 'pending' (que é estado
+    // intermediário de uma 2ª subscription pendente, e zerar is_pro aqui
+    // tira PRO de quem já pagou a 1ª)
+    patch = {
+      is_pro: false,
+      mp_preapproval_id: eventId,
+      pro_expires_at: null
+    };
+  } else {
+    // 'pending' ou outros estados não-terminais: NÃO toca em is_pro
+    return ok('preapproval status ' + status + ' — sem ação');
+  }
 
   try {
     const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {

@@ -29,9 +29,12 @@ export async function onRequestPost(context) {
     return json({ error: 'Sessão inválida — faça login novamente' }, 401);
   }
   const userId = verified.id;
-  const email = verified.email || (typeof body?.email === 'string' ? body.email.trim() : '');
+  // body.email NÃO é mais aceito como fallback — atacante podia passar
+  // email da vítima e o MP enviava cobrança em nome dela (phishing). Email
+  // agora vem APENAS do JWT verificado.
+  const email = verified.email;
   if (!email) {
-    return json({ error: 'email do usuário não disponível no token' }, 400);
+    return json({ error: 'Email não disponível no perfil — atualize seu cadastro' }, 400);
   }
 
   // Origem do site para o redirecionamento de volta após o pagamento
