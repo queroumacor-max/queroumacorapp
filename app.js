@@ -348,6 +348,40 @@ function calcTinta(){
   res.style.display='block';
 }
 
+// ══ ESTIMATIVA DE METRAGEM POR FOTO (PRO) ══
+function estimarAreaPorFoto(){
+  if(!_isPro){ toast('Estimativa de metragem por foto é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  const input = document.getElementById('calc-photo-input');
+  if(!input){ toast('Erro: input de foto não encontrado'); return; }
+  input.onchange = async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if(!file) return;
+    if(file.size > 8 * 1024 * 1024){ toast('Foto acima de 8 MB. Tente uma menor.'); return; }
+    toast('Analisando foto...');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await fetch('/api/area-from-photo', { method: 'POST', body: fd });
+      const data = await r.json().catch(() => ({}));
+      if(!r.ok){ toast('Erro ao analisar foto: ' + (data?.error || r.status)); return; }
+      const area = Number(data?.area_m2);
+      const just = String(data?.justification || '').trim();
+      if(!isFinite(area) || area <= 0){ toast('Não foi possível estimar a área desta foto'); return; }
+      const areaRounded = Math.round(area * 10) / 10;
+      const areaInput = document.getElementById('ci-area');
+      if(areaInput){
+        areaInput.value = areaRounded;
+        calcTinta();
+      }
+      toast(`Estimativa: ${areaRounded} m²` + (just ? ` · ${just}` : ''));
+    } catch(e){
+      toast('Erro ao analisar foto: ' + (e?.message || e));
+    }
+  };
+  input.click();
+}
+
 // ══ AI FEATURES (PRO) ══
 let _isPro = false;
 let _proExpires = null;
@@ -1726,7 +1760,10 @@ function renderAgendaDay(){
     el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label}</div><div style="text-align:center;color:var(--muted);padding:16px;font-size:13px;">Nenhum projeto neste dia</div>`;
     return;
   }
-  el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label} · ${items.length} projeto(s)</div>` + items.map(j=>{
+  const optimizeBtn = items.length>=2
+    ? `<button onclick="otimizarDiaAgenda()" style="width:100%;padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;">🗺️ Otimizar dia (PRO)</button><div id="agenda-day-suggest"></div>`
+    : '';
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label} · ${items.length} projeto(s)</div>${optimizeBtn}` + items.map(j=>{
     const st = j.status==='concluido'?'#2ec4b6':j.status==='cancelado'?'#e74c3c':'var(--p1)';
     return `<div style="background:var(--white);border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 2px 6px rgba(0,0,0,.04);border-left:4px solid ${st};">
       <div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">${escapeHtml(j.client_name||'')}</b><span style="font-size:11px;color:var(--muted);">${j.scheduled_time||''}</span></div>
