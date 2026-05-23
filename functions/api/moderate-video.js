@@ -1,6 +1,8 @@
 // Moderação assíncrona de vídeo via Gemini (frames + áudio nativos).
 // O post entra como 'pending'; esta função aprova/rejeita depois.
-// Requer: GEMINI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, SUPABASE_ANON_KEY.
+// Requer: GEMINI_API_KEY, SUPABASE_SERVICE_ROLE, SUPABASE_URL, SUPABASE_ANON_KEY.
+import { checkRateLimit, rateLimitResponse } from './_security.js';
+
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024; // acima disso, fica pendente p/ revisão humana
 
@@ -26,10 +28,11 @@ export async function onRequestPost(context) {
 
   const accessToken = typeof body?.accessToken === 'string' ? body.accessToken : '';
   const postId = typeof body?.postId === 'string' ? body.postId : '';
-  const mediaUrl = typeof body?.mediaUrl === 'string' ? body.mediaUrl : '';
   const caption = typeof body?.caption === 'string' ? body.caption.slice(0, 2000) : '';
+  // body.mediaUrl é IGNORADO — pegamos do DB pra evitar atacante controlar URL
+  // arbitrária (SSRF + custo: forçava o worker a baixar 25 MB de qualquer host)
 
-  if (!postId || !mediaUrl) return json({ error: 'postId/mediaUrl obrigatórios' }, 400);
+  if (!postId) return json({ error: 'postId obrigatório' }, 400);
 
   const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
@@ -45,17 +48,33 @@ export async function onRequestPost(context) {
   } catch { return json({ error: 'falha ao validar token' }, 401); }
   if (!uid) return json({ error: 'token inválido' }, 401);
 
+  // Rate limit por user (vídeo é caro: 25 MB + 40s de polling Gemini)
+  const rl = await checkRateLimit(env, uid, 'moderate-video', 3);
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   const sHeaders = {
     'apikey': serviceKey,
     'Authorization': `Bearer ${serviceKey}`,
     'Content-Type': 'application/json'
   };
 
+  // Pega media_url AUTORITATIVA do DB (não confia no body)
+  let mediaUrl = '';
   try {
-    const chk = await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}&select=user_id`, { headers: sHeaders });
+    const chk = await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}&select=user_id,media_url`, { headers: sHeaders });
     const arr = await chk.json();
     if (!arr?.[0] || arr[0].user_id !== uid) return json({ error: 'não autorizado' }, 403);
+    mediaUrl = arr[0].media_url || '';
   } catch { return json({ error: 'post não encontrado' }, 404); }
+  if (!mediaUrl) return json({ error: 'post sem media_url' }, 400);
+
+  // Defesa em profundidade: só baixa de Supabase Storage do projeto
+  try {
+    const u = new URL(mediaUrl);
+    if (u.protocol !== 'https:' || !/^[A-Za-z0-9-]+\.supabase\.co$/.test(u.hostname) || !u.pathname.startsWith('/storage/')) {
+      return json({ status: 'pending', reason: 'media_url fora do storage do projeto' });
+    }
+  } catch { return json({ status: 'pending', reason: 'media_url inválida' }); }
 
   // Baixa o vídeo (com limite de tamanho)
   let videoBuf, videoMime;

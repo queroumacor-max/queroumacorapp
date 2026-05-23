@@ -1,5 +1,5 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v10';
+const CACHE = 'queroumacor-v11';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -19,6 +19,14 @@ self.addEventListener('fetch', e => {
 
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
+
+  // NUNCA cachear /api/*. Respostas de admin/PRO/checkout/IA não podem
+  // sair de cache antigo (risco de servir decisão stale ou falsificada
+  // por atacante controlando a rede do device — Wi-Fi público, MITM).
+  if (sameOrigin && url.pathname.startsWith('/api/')) {
+    e.respondWith(fetch(req));
+    return;
+  }
 
   // HTML / navegação: força revalidação no servidor (bypassa cache HTTP
   // do navegador) pra não servir HTML velho. cache: 'reload'.

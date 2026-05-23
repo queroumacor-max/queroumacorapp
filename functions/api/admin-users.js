@@ -67,8 +67,9 @@ export async function onRequestPost(context) {
     'Content-Type': 'application/json'
   };
 
-  // Valida o token e descobre quem esta chamando
+  // Valida o token e descobre quem esta chamando (id + email)
   let callerId = '';
+  let callerEmail = '';
   try {
     const u = await fetch(`${supaUrl}/auth/v1/user`, {
       headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey }
@@ -76,16 +77,24 @@ export async function onRequestPost(context) {
     if (!u.ok) return json({ error: 'token invalido' }, 401);
     const ud = await u.json();
     callerId = ud?.id || '';
+    callerEmail = (ud?.email || '').toLowerCase();
   } catch (e) {
     return json({ error: 'falha ao validar token' }, 401);
   }
   if (!callerId) return json({ error: 'token invalido' }, 401);
 
-  // So quem ja tem portal_access pode promover/revogar
+  // Dupla checagem: portal_access ATIVO no profile E email na whitelist
+  // ADMIN_EMAILS. Antes, qualquer lojista com portal_access podia se
+  // autopromover a PRO eterno via {action:'set_pro'}. Agora as 2 condições
+  // precisam bater pra evitar lojista escalando privilégios.
+  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  if (!callerEmail || !adminEmails.includes(callerEmail)) {
+    return json({ error: 'nao autorizado (email nao admin)' }, 403);
+  }
   try {
     const g = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access`, { headers: sHeaders });
     const arr = await g.json();
-    if (!arr?.[0]?.portal_access) return json({ error: 'nao autorizado' }, 403);
+    if (!arr?.[0]?.portal_access) return json({ error: 'nao autorizado (portal_access)' }, 403);
   } catch (e) {
     return json({ error: 'falha ao verificar permissao' }, 502);
   }

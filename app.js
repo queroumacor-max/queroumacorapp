@@ -2993,10 +2993,16 @@ async function moderateContentAsync(text, imageUrl, hasMedia){
     ? { approved: false, reason: 'mod_unavailable', severity: 'soft' }
     : { approved: true, reason: null };
   try {
+    const sb = getSupabase();
+    const { data:{ session } } = sb ? await sb.auth.getSession() : { data:{ session:null } };
     const r = await fetch('/api/moderate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: text || '', imageUrl: imageUrl || '' })
+      body: JSON.stringify({
+        text: text || '',
+        imageUrl: imageUrl || '',
+        accessToken: session ? session.access_token : ''
+      })
     });
     if (!r.ok) return failSafe;
     const data = await r.json();
@@ -4692,12 +4698,12 @@ function openChat(id) {
       <div class="cha-av" style="left:${i*10}px;z-index:${3-i}">
         ${p.logo
           ? `<div style="width:100%;height:100%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">CC</span></div>`
-          : `<img src="${p.img}" alt="${p.name}">`}
+          : `<img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}">`}
       </div>`).join('');
     avatarsEl.style.width=(parts.length*10+22)+'px';
   } else {
     const p=conv.participants[0];
-    avatarsEl.innerHTML=`<div class="cha-av" style="left:0;width:36px;height:36px;"><img src="${p.img}" alt="${p.name}"></div>`;
+    avatarsEl.innerHTML=`<div class="cha-av" style="left:0;width:36px;height:36px;"><img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}"></div>`;
     avatarsEl.style.width='36px';
   }
 
@@ -4711,8 +4717,8 @@ function openChat(id) {
       <div class="part-chip ${p.logo?'store':''}">
         ${p.logo
           ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">CC</span></div>`
-          : `<img src="${p.img}" alt="${p.name}">`}
-        <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
+          : `<img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}">`}
+        <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
       </div>`).join('');
   } else {
     partRow.style.display='none';
@@ -4776,15 +4782,15 @@ function openChat(id) {
           <div class="cha-av" style="left:${i*10}px;z-index:${3-i}">
             ${p.logo
               ? '<div style="width:100%;height:100%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
-              : '<img src="'+p.img+'" alt="'+p.name+'">'}
+              : '<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
           </div>`).join('');
         avatarsEl.style.width=(parts.length*10+22)+'px';
         const partRow = document.getElementById('participant-row');
         partRow.style.display='flex';
         partRow.innerHTML = conv.participants.map(p=>`
           <div class="part-chip ${p.logo?'store':''}">
-            ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+p.img+'" alt="'+p.name+'">'}
-            <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
+            ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
+            <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
           </div>`).join('');
       }
       // Load profiles for all senders to show correct names in 3-way
@@ -5077,7 +5083,7 @@ function addStoreToChat(){
     <div class="cha-av" style="left:${i*10}px;z-index:${3-i}">
       ${p.logo
         ? '<div style="width:100%;height:100%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
-        : '<img src="'+(p.img||'')+'" alt="'+(p.name||'')+'">'}
+        : '<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
     </div>`).join('');
   avatarsEl.style.width=(parts.length*10+22)+'px';
 
@@ -5085,8 +5091,8 @@ function addStoreToChat(){
   partRow.style.display='flex';
   partRow.innerHTML=conv.participants.map(p=>`
     <div class="part-chip ${p.logo?'store':''}">
-      ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+(p.img||'')+'" alt="'+(p.name||'')+'">'}
-      <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${p.role}</div></div>
+      ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
+      <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
     </div>`).join('');
 
   // APPEND store welcome message to existing messages (don't wipe!)
@@ -5519,7 +5525,7 @@ function renderProductCard(p){
   const swatchStyle = isSpray
     ? 'background:'+bg+';overflow:hidden;padding:0;position:relative;'
     : 'background:'+bg+';overflow:hidden;padding:0;';
-  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="'+swatchStyle+'">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
+  return '<div class="mkt-card" onclick="openProductDetail(\''+escapeJsArg(p.id)+'\')"><div class="mkt-swatch" style="'+swatchStyle+'">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+escapeHtml(p.name||'')+'</div><div class="mkt-card-code">'+escapeHtml(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+escapeHtml(String(p.stock))+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+escapeJsArg(p.id)+'\')">+ Carrinho</button></div></div>';
 }
 
 function renderProductRow(p){
@@ -5587,14 +5593,14 @@ function openProductDetail(productId){
   const sheet = modal.querySelector('.sheet');
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   sheet.innerHTML = '<div class="sheet-handle"></div>'
-    + '<div style="height:140px;background:'+(getProductImage(p)?'#f5f5f5':bg)+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;overflow:hidden;">'+(getProductImage(p)?'<img src="'+getProductImage(p)+'" alt="" style="width:100%;height:100%;object-fit:cover;">':(hasProductColor(p)?'':emoji))+'</div>'
-    + '<div style="font-size:20px;font-weight:800;font-family:Syne,sans-serif;">'+p.name+'</div>'
-    + '<div style="font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:10px;">'+(p.code ? 'Cód. '+p.code+' · ' : '')+(p.line||'')+'</div>'
-    + (p.description ? '<div style="font-size:13.5px;color:#555;line-height:1.5;margin-bottom:14px;">'+p.description+'</div>' : '')
+    + '<div style="height:140px;background:'+(getProductImage(p)?'#f5f5f5':bg)+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;overflow:hidden;">'+(getProductImage(p)?'<img src="'+escapeHtml(getProductImage(p))+'" alt="" style="width:100%;height:100%;object-fit:cover;">':(hasProductColor(p)?'':emoji))+'</div>'
+    + '<div style="font-size:20px;font-weight:800;font-family:Syne,sans-serif;">'+escapeHtml(p.name||'')+'</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:10px;">'+(p.code ? 'Cód. '+escapeHtml(p.code)+' · ' : '')+escapeHtml(p.line||'')+'</div>'
+    + (p.description ? '<div style="font-size:13.5px;color:#555;line-height:1.5;margin-bottom:14px;">'+escapeHtml(p.description)+'</div>' : '')
     + '<div style="display:flex;gap:10px;margin-bottom:14px;">'
-    + (p.rendimento ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Rendimento</div><div style="font-size:14px;font-weight:700;">'+p.rendimento+'</div></div>' : '')
-    + (p.demaos ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Demãos</div><div style="font-size:14px;font-weight:700;">'+p.demaos+'</div></div>' : '')
-    + (p.secagem ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Secagem</div><div style="font-size:14px;font-weight:700;">'+p.secagem+'</div></div>' : '')
+    + (p.rendimento ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Rendimento</div><div style="font-size:14px;font-weight:700;">'+escapeHtml(String(p.rendimento))+'</div></div>' : '')
+    + (p.demaos ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Demãos</div><div style="font-size:14px;font-weight:700;">'+escapeHtml(String(p.demaos))+'</div></div>' : '')
+    + (p.secagem ? '<div style="flex:1;background:var(--cream);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Secagem</div><div style="font-size:14px;font-weight:700;">'+escapeHtml(String(p.secagem))+'</div></div>' : '')
     + '</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
       + '<div style="font-size:22px;font-weight:800;color:var(--p1);font-family:Syne,sans-serif;">'+priceFormatted+'</div>'

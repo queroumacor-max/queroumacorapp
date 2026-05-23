@@ -1,7 +1,20 @@
 // Moderação de texto + imagem via Google Gemini.
 // Requer no Cloudflare Pages: GEMINI_API_KEY.
 // Vídeo é tratado de forma assíncrona em /api/moderate-video.
+import { requireAuth, checkRateLimit, rateLimitResponse } from './_security.js';
+
 const GEMINI_MODEL = 'gemini-2.5-flash';
+
+// Allowlist de hosts pra fetchImageInline. Antes aceitava qualquer URL
+// arbitrária (SSRF) — agora só Supabase Storage do projeto, ou data: URLs.
+function isAllowedImageHost(urlStr){
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== 'https:') return false;
+    if (!/^[A-Za-z0-9-]+\.supabase\.co$/.test(u.hostname)) return false;
+    return u.pathname.startsWith('/storage/');
+  } catch { return false; }
+}
 
 const RUBRIC =
   'Você é um moderador de conteúdo de uma rede social de pintores/grafiteiros. ' +
@@ -22,8 +35,18 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
+  // Auth + rate-limit (fecha SSRF anônimo + uso do endpoint como proxy)
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return json({ error: auth.error }, auth.status);
+  if (!auth.user) return json({ error: 'Faça login' }, 401);
+  const rl = await checkRateLimit(env, auth.user.id, 'moderate', 20);
+  if (!rl.allowed) return rateLimitResponse(rl);
+
   const text = typeof body?.text === 'string' ? body.text.slice(0, 4000) : '';
-  const imageUrl = typeof body?.imageUrl === 'string' ? body.imageUrl : '';
+  const imageUrlRaw = typeof body?.imageUrl === 'string' ? body.imageUrl : '';
+  // Só aceita data: URL ou URL do Supabase Storage do projeto (anti-SSRF)
+  const imageUrl = (imageUrlRaw.startsWith('data:image/') || isAllowedImageHost(imageUrlRaw))
+    ? imageUrlRaw : '';
 
   if (!text.trim() && !imageUrl.trim()) {
     return json({ flagged: false, severity: 'none', reasons: [], engine: 'none' });

@@ -16,26 +16,22 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
-  let userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
-  let email = typeof body?.email === 'string' ? body.email.trim() : '';
   const accessToken = typeof body?.accessToken === 'string' ? body.accessToken.trim() : '';
-
-  // Se o cliente passou um accessToken, validamos no Supabase. Quando bate,
-  // sobrescrevemos userId/email com os valores autoritativos do token.
-  if (accessToken) {
-    const verified = await verifySupabaseToken(accessToken, env);
-    if (verified && verified.id) {
-      userId = verified.id;
-      if (verified.email) email = verified.email;
-    } else {
-      console.warn('checkout: accessToken inválido ou não verificável — usando userId/email do body como fallback');
-    }
-  } else {
-    console.warn('checkout: requisição sem accessToken — usando userId/email do body (fail-back)');
+  if (!accessToken) {
+    return json({ error: 'accessToken obrigatório — faça login' }, 401);
   }
 
-  if (!userId || !email) {
-    return json({ error: 'userId e email são obrigatórios' }, 400);
+  // accessToken É a fonte autoritativa de userId/email — o cliente NÃO
+  // pode mais passar body.userId/body.email (antes era fallback, e atacante
+  // forjava external_reference=<vítima> ativando PRO em conta alheia).
+  const verified = await verifySupabaseToken(accessToken, env);
+  if (!verified || !verified.id) {
+    return json({ error: 'Sessão inválida — faça login novamente' }, 401);
+  }
+  const userId = verified.id;
+  const email = verified.email || (typeof body?.email === 'string' ? body.email.trim() : '');
+  if (!email) {
+    return json({ error: 'email do usuário não disponível no token' }, 400);
   }
 
   // Origem do site para o redirecionamento de volta após o pagamento
