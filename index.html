@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260523i"></script>
+<script src="/head.js?v=20260523j"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -657,6 +657,18 @@
           <div style="font-size:32px;margin-bottom:8px;">📥</div>
           <div style="font-size:14px;font-weight:700;color:var(--ink);">Nenhum pedido ainda</div>
           <div style="font-size:12px;color:var(--muted);margin-top:4px;">Ative o PRO para receber pedidos de clientes</div>
+        </div>
+      </div>
+
+      <!-- RECEBA VIA MP — CTA PARCERIA -->
+      <div id="mp-partner-cta" style="background:linear-gradient(135deg,#009ee3,#00b1ea);border-radius:14px;padding:16px;margin-bottom:20px;color:#fff;cursor:pointer;box-shadow:0 4px 14px rgba(0,158,227,.25);" onclick="abrirParceriaMP()">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:24px;">💰</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:800;line-height:1.25;">Receba seus clientes via Mercado Pago</div>
+            <div style="font-size:12px;opacity:.92;margin-top:3px;">PIX, cartão, maquininha. Sem mensalidade.</div>
+          </div>
+          <div style="font-size:20px;opacity:.85;">›</div>
         </div>
       </div>
 
@@ -1955,7 +1967,7 @@
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Frete grátis acima de R$200 · Entrega 3-5 dias úteis</div>
     <button id="cart-submit-btn" onclick="submitCartOrder()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">💳 Pagar com PIX / Cartão</button>
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">Pagamento seguro via InfinitePay · PIX grátis</div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">Pagamento seguro via Mercado Pago · PIX, cartão até 12x e boleto</div>
   </div>
 </div>
 
@@ -2185,7 +2197,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260523i"></script>
+<script src="/app.js?v=20260523j"></script>
 
 <script>
 if('serviceWorker' in navigator){

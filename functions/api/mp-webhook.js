@@ -32,21 +32,110 @@ export async function onRequestPost(context) {
   }
 
   const type = body?.type || body?.topic || url.searchParams.get('type') || url.searchParams.get('topic') || '';
-  let preapprovalId =
+  const eventId =
     body?.data?.id ||
     url.searchParams.get('data.id') ||
     url.searchParams.get('id') ||
     (typeof body?.resource === 'string' ? body.resource.split('/').pop() : '');
 
-  if (!String(type).includes('preapproval') && !String(type).includes('subscription')) {
+  const isPreapproval = String(type).includes('preapproval') || String(type).includes('subscription');
+  const isPayment = String(type) === 'payment' || String(type) === 'payment.created' || String(type) === 'payment.updated';
+
+  if (!isPreapproval && !isPayment) {
     return ok('evento ignorado');
   }
-  if (!preapprovalId) return ok('sem id');
+  if (!eventId) return ok('sem id');
 
+  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
+  const sHeaders = {
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal'
+  };
+
+  // -------------------- LOJA (one-shot payment) --------------------
+  if (isPayment) {
+    let pay;
+    try {
+      const r = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(eventId)}`, {
+        headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` }
+      });
+      if (!r.ok) return ok(`mp payment ${r.status}`);
+      pay = await r.json();
+    } catch (e) {
+      return ok('erro ao consultar payment');
+    }
+
+    const orderId = pay?.external_reference;
+    if (!orderId) return ok('payment sem external_reference');
+
+    const status = pay?.status; // approved | rejected | refunded | cancelled | pending
+    const transactionAmount = Number(pay?.transaction_amount || 0);
+    const paymentMethod = pay?.payment_type_id || pay?.payment_method_id || null;
+
+    // Busca a order pra validar valor + idempotência
+    const getR = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=id,total,status,tx_id`, {
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }
+    });
+    if (!getR.ok) return ok(`supabase get order ${getR.status}`);
+    const rows = await getR.json().catch(() => []);
+    const order = Array.isArray(rows) && rows[0];
+    if (!order) return ok('order não encontrada');
+
+    // Idempotência: se já é paid e tx_id bate, não faz nada
+    if (order.status === 'paid' && order.tx_id === String(eventId)) {
+      return ok('idempotente');
+    }
+    // Não sobrescreve estado final
+    if (order.status !== 'pending' && status === 'approved') {
+      return ok('order já fora de pending');
+    }
+
+    let patch;
+    if (status === 'approved') {
+      // Valida valor (anti-fraude)
+      const expected = Number(order.total || 0);
+      if (transactionAmount > 0 && Math.abs(transactionAmount - expected) > 0.01) {
+        patch = {
+          status: 'amount_mismatch',
+          tx_id: String(eventId),
+          paid_amount: transactionAmount,
+          payment_method: paymentMethod
+        };
+      } else {
+        patch = {
+          status: 'paid',
+          tx_id: String(eventId),
+          paid_amount: transactionAmount || expected,
+          paid_at: new Date().toISOString(),
+          payment_method: paymentMethod,
+          gateway: 'mp'
+        };
+      }
+    } else if (status === 'refunded' || status === 'cancelled' || status === 'rejected') {
+      patch = { status: status === 'rejected' ? 'canceled' : status };
+    } else {
+      return ok('payment status ' + status + ' — sem ação');
+    }
+
+    const upR = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+      method: 'PATCH',
+      headers: sHeaders,
+      body: JSON.stringify(patch)
+    });
+    if (!upR.ok) {
+      const t = await upR.text();
+      return ok(`supabase update ${upR.status}: ${t.slice(0, 150)}`);
+    }
+    return ok('order ' + (patch.status || 'updated'));
+  }
+
+  // -------------------- PRO (preapproval) --------------------
   // Busca o estado real da assinatura no Mercado Pago (fonte da verdade)
   let pre;
   try {
-    const r = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+    const r = await fetch(`https://api.mercadopago.com/preapproval/${eventId}`, {
       headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` }
     });
     if (!r.ok) return ok(`mp ${r.status}`);
@@ -63,22 +152,16 @@ export async function onRequestPost(context) {
 
   const patch = {
     is_pro: isActive,
-    mp_preapproval_id: preapprovalId,
+    mp_preapproval_id: eventId,
     pro_expires_at: isActive
       ? new Date(Date.now() + 33 * 24 * 60 * 60 * 1000).toISOString()
       : null
   };
 
-  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
   try {
     const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
       method: 'PATCH',
-      headers: {
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
+      headers: sHeaders,
       body: JSON.stringify(patch)
     });
     if (!r.ok) {

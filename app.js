@@ -461,15 +461,38 @@ function handleProReturn(){
   } catch(e){ console.warn('handleProReturn:', e); }
 }
 
-// Retorno do checkout InfinitePay (Loja). URL: /?compra=<orderId>
+// CTA — Parceria Mercado Pago pra pintores (receber dos próprios clientes
+// via PIX/cartão/maquininha). Abre o cadastro do MP em nova aba.
+async function abrirParceriaMP(){
+  const goSignup = await appConfirm(
+    'Receba pagamentos dos seus clientes via Mercado Pago: PIX instantâneo, cartão até 12x e maquininha. Sem mensalidade. Vamos te levar pro cadastro?',
+    { okLabel: 'Quero me cadastrar', cancelLabel: 'Agora não' }
+  );
+  if(!goSignup) return;
+  window.open('https://www.mercadopago.com.br/registration/landing', '_blank', 'noopener,noreferrer');
+}
+
+// Retorno do checkout Mercado Pago (Loja). URL: /?compra=<orderId>&status=success|failure|pending
 // Faz polling no status da order pra confirmar quando o webhook chegou.
 function handleCompraReturn(){
   try {
     const params = new URLSearchParams(window.location.search);
     const orderId = params.get('compra');
     if(!orderId) return;
+    const status = (params.get('status') || '').toLowerCase();
     // Limpa a URL
     window.history.replaceState({}, '', window.location.pathname);
+
+    // Se MP devolveu falha explícita, mostra direto sem polling
+    if(status === 'failure'){
+      toast('Pagamento não concluído. Você pode tentar de novo em "Meus Pedidos".');
+      return;
+    }
+    if(status === 'pending'){
+      toast('Pagamento pendente (PIX/boleto). Acompanhe em "Meus Pedidos".');
+      return;
+    }
+
     toast('Confirmando pagamento...');
     const sb = getSupabase();
     if(!sb || !currentUser) return;
@@ -488,6 +511,9 @@ function handleCompraReturn(){
         } else if(data && data.status === 'amount_mismatch'){
           clearInterval(iv);
           toast('Atenção: valor pago diverge do pedido. Entre em contato com a loja.');
+        } else if(data && (data.status === 'canceled' || data.status === 'refunded')){
+          clearInterval(iv);
+          toast('Pagamento ' + (data.status === 'refunded' ? 'estornado' : 'cancelado') + '.');
         } else if(tries >= 8){
           clearInterval(iv);
           toast('Pagamento em processamento. Acompanhe em "Meus Pedidos".');
@@ -5304,19 +5330,18 @@ async function submitCartOrder(){
     const orderId = inserted && inserted.id;
     if(!orderId) throw new Error('Pedido criado sem ID');
 
-    // Pega o token e chama o create da InfinitePay
+    // Pega o token e cria a preference no Mercado Pago Checkout Pro
     btn.textContent = 'Gerando pagamento...';
     const { data:{ session } } = await sb.auth.getSession();
     if(!session){ throw new Error('Sessão expirada — faça login'); }
-    const r = await fetch('/api/infinitepay-create', {
+    const r = await fetch('/api/mp-checkout-loja', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId, accessToken: session.access_token })
     });
     const data = await r.json().catch(() => ({}));
-    if(!r.ok || !data.url){
-      // Fallback: se InfinitePay não estiver configurada, mantém o fluxo
-      // antigo (pedido fica pending, loja entra em contato).
+    if(!r.ok || !data.init_point){
+      // Fallback: se MP não estiver configurado, mantém fluxo antigo
       if(r.status === 503){
         toast('Pedido recebido! A loja entrará em contato (pagamento online em breve).');
         cartItems = []; saveCart(); updateCartBadge(); closeModals();
@@ -5327,8 +5352,8 @@ async function submitCartOrder(){
 
     // Limpa o carrinho ANTES de redirecionar — se o user voltar, não duplica
     cartItems = []; saveCart(); updateCartBadge();
-    toast('Redirecionando para pagamento...');
-    window.location.href = data.url;
+    toast('Redirecionando para o Mercado Pago...');
+    window.location.href = data.init_point;
   } catch(e){
     console.error('submitCartOrder error:', e);
     toast('Erro: ' + (e.message || 'tente novamente'));
