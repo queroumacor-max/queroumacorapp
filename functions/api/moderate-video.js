@@ -14,7 +14,11 @@ const RUBRIC =
 
 export async function onRequestPost(context) {
   const { env, request } = context;
-  if (!env.GEMINI_API_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  // Aceita 3 nomes de service key pra compatibilidade
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!env.GEMINI_API_KEY || !serviceKey) {
     return json({ status: 'pending', error: 'moderação de vídeo não configurada' }, 503);
   }
   let body;
@@ -28,7 +32,7 @@ export async function onRequestPost(context) {
   if (!postId || !mediaUrl) return json({ error: 'postId/mediaUrl obrigatórios' }, 400);
 
   const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
 
   // O dono do post precisa ser quem está pedindo a moderação
   let uid = '';
@@ -42,8 +46,8 @@ export async function onRequestPost(context) {
   if (!uid) return json({ error: 'token inválido' }, 401);
 
   const sHeaders = {
-    'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
-    'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
     'Content-Type': 'application/json'
   };
 
