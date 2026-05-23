@@ -4385,19 +4385,29 @@ function openOrcamento(){
   document.getElementById('orc-painter-id').value = p && p.supabase_id ? p.supabase_id : '';
   showScreen('orcamento');
 }
+function toggleOrcOutros(v){
+  const wrap = document.getElementById('orc-outros-wrap');
+  if(!wrap) return;
+  wrap.style.display = v === 'Outros' ? '' : 'none';
+  if(v === 'Outros') document.getElementById('orc-outros-desc').focus();
+}
+
 async function sendOrc(){
   const sb = getSupabase();
   const { data:{ session } } = await sb.auth.getSession();
   if(!session){ toast('⚠️ Faça login para enviar orçamento.'); return; }
 
   const painterId = document.getElementById('orc-painter-id').value || null;
-  const serviceType = document.getElementById('orc-service-type').value;
+  const rawType = document.getElementById('orc-service-type').value;
+  const outrosDesc = (document.getElementById('orc-outros-desc')||{}).value?.trim();
+  const serviceType = rawType === 'Outros' ? ('Outros: ' + (outrosDesc || '').slice(0,120)) : rawType;
   const area = parseFloat(document.getElementById('orc-area').value) || null;
   const address = document.getElementById('orc-address').value.trim();
   const proposedDate = document.getElementById('orc-date').value || null;
   const description = document.getElementById('orc-desc').value.trim();
 
-  if(!serviceType){ toast('⚠️ Selecione o tipo de serviço.'); return; }
+  if(!rawType){ toast('⚠️ Selecione o tipo de serviço.'); return; }
+  if(rawType === 'Outros' && !outrosDesc){ toast('⚠️ Descreva o tipo de serviço.'); document.getElementById('orc-outros-desc').focus(); return; }
   if(!address){ toast('⚠️ Informe o endereço.'); return; }
 
   const btn = document.querySelector('.orc-submit');
@@ -4438,6 +4448,8 @@ async function sendOrc(){
     // Clear form
     const _setEl = (id, prop, val) => { const e = document.getElementById(id); if(e) e[prop] = val; };
     _setEl('orc-service-type', 'selectedIndex', 0);
+    toggleOrcOutros('');
+    const od = document.getElementById('orc-outros-desc'); if(od) od.value = '';
     _setEl('orc-area', 'value', '');
     _setEl('orc-rooms', 'value', '');
     _setEl('orc-address', 'value', '');
@@ -4988,10 +5000,12 @@ function mktTab(key) {
   document.querySelectorAll('#mkt-sections .mkt-menu-sec').forEach(s => {
     const on = s.getAttribute('data-key') === key;
     s.style.display = on ? 'block' : 'none';
-    // Renderiza as linhas da seção só quando ela é aberta pela 1ª vez (lazy)
     if(on && s.getAttribute('data-rendered') === '0'){
       const grid = s.querySelector('.mkt-products');
-      if(grid && _mktGrouped[key]) grid.innerHTML = _mktGrouped[key].map(renderProductRow).join('');
+      if(grid){
+        const items = key === 'todos' ? mktProducts : (_mktGrouped[key] || []);
+        grid.innerHTML = items.map(renderProductRow).join('');
+      }
       s.setAttribute('data-rendered', '1');
     }
   });
@@ -5138,6 +5152,65 @@ function getProductImage(p){
   const n = (p.name||'').toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g,''); // strip accents for matching
 
+  // Tintas Brazilian — fotos reais do catálogo, sem sufixo de tamanho
+  const brMap = [
+    [['alta emborrachada','tinta emborrachada','alta performance'],'br-alta-performance'],
+    [['piso dura'],'br-piso-dura-premium'],
+    [['pinta super','pinta+'],'br-pinta-super-standard'],
+    [['classic standard','tinta acrilica classic'],'br-tinta-classic-standard'],
+    [['economica turbo','tinta economica turbo'],'br-economica-turbo'],
+    [['tinta acrilica premium','acrilica premium'],'br-tinta-acrilica-premium'],
+    [['liancryl'],'br-liancryl-piso'],
+    [['alkylux'],'br-alkylux-esmalte'],
+    [['r.u.r.a.i','rurai'],'br-rurai-esmalte'],
+    [['fundo acabamento','fundo e acabamento','fundo & acabamento'],'br-fundo-acabamento'],
+    [['zarcao'],'br-fundo-zarcao'],
+    [['fundo nivelador'],'br-fundo-nivelador-madeira'],
+    [['galvilux'],'br-fundo-galvilux'],
+    [['sintelux'],'br-sintelux-esmalte'],
+    [['esmalte base agua','esmalte base d'],'br-esmalte-base-agua'],
+    [['seladora concentrada','seladora madeira concentrada'],'br-seladora-madeira-conc'],
+    [['colorlac'],'br-colorlac'],
+    [['colorbase'],'br-colorbase'],
+    [['colordur'],'br-colordur'],
+    [['colorlux'],'br-colorlux'],
+    [['quick primer'],'br-quick-primer'],
+    [['primer pu hs 5','primer pu hs 5:1'],'br-primer-pu-hs'],
+    [['primer pu hs 8','primer pu hs 8:1'],'br-primer-pu-hs-81'],
+    [['primer cromato','cromato de zinco'],'br-primer-cromato-zinco'],
+    [['primer sintetico'],'br-primer-sintetico'],
+    [['primer colorfill','colorfill'],'br-primer-colorfill'],
+    [['primer universal'],'br-primer-universal'],
+    [['eliminador de cratera','aditivo cratera'],'br-aditivo-cratera'],
+    [['catalisador esmalte'],'br-catalisador-esmalte'],
+    [['acelerador de secagem','acelerador secagem'],'br-acelerador-secagem'],
+    [['pasta fosqueante','fosqueante'],'br-pasta-fosqueante'],
+    [['wash primer','preto fosco vinil'],'br-wash-primer'],
+    [['batida de pedra'],'br-batida-pedra'],
+    [['seladora para plastico','seladora plastico'],'br-seladora-plastico'],
+    [['massa rapida'],'br-massa-rapida'],
+    [['removedor pastoso'],'br-removedor-pastoso'],
+    [['pano pega po','pega po'],'br-pano-pega-po'],
+    [['restaura plastico','restaura plast'],'br-restaura-plastico'],
+    [['vedador de capo','vedador capo'],'br-vedador-capo'],
+    [['profissional economico'],'br-profissional-economico'],
+    [['telhas tijolos','resina acrilica base agua'],'br-telhas-tijolos-resina'],
+    [['resina acrilica base solvente','base solvente'],'br-resina-base-solvente'],
+    [['gesso drywall','fundo e acabamento drywall'],'br-gesso-drywall'],
+    [['verniz copal','copal verniz'],'br-verniz-copal'],
+    [['verniz filtro','filtro solar verniz'],'br-verniz-filtro-solar'],
+    [['verniz maritimo'],'br-verniz-maritimo'],
+    [['seladora para madeira','seladora madeira'],'br-seladora-madeira'],
+    [['fundo preparador'],'br-fundo-preparador'],
+    [['massa corrida'],'br-massa-corrida'],
+    [['massa acrilica'],'br-massa-acrilica'],
+    [['selador acrilico'],'br-selador-acrilico'],
+    [['thinner 6137','thinner de limpeza'],'br-thinner-diluente'],
+  ];
+  for(const [keys, base] of brMap){
+    if(keys.some(k => n.includes(k))) return '/products/'+base+'.jpg';
+  }
+
   // Detect container size from product name
   function sizeVariant(){
     // Quarto / 0,9L / 900ml
@@ -5200,30 +5273,52 @@ function getProductImage(p){
   return _setImg(null);
 }
 
+function _isArteUrbanaSpray(p){
+  const n = (p.name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  return n.includes('arte urbana') || n.includes('arte-urbana');
+}
+
 function renderProductCard(p){
-  const img = getProductImage(p);
+  const isSpray = _isArteUrbanaSpray(p);
+  const img = isSpray ? null : getProductImage(p);
   const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const badgeHtml = p.badge ? (p.badge === 'NOVO' ? '<span class="mkt-badge-new">NOVO</span>' : '<span class="mkt-badge-promo">'+p.badge+'</span>') : '';
   const stockClass = p.stock <= 5 ? 'low' : 'ok';
   const stockIcon = p.stock <= 5 ? '⚠️' : '✅';
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
-  const swatchContent = img
-    ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : badgeHtml+(hasProductColor(p) ? '' : emoji);
-  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="background:'+bg+';overflow:hidden;padding:0;">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
+  let swatchContent;
+  if(isSpray){
+    swatchContent = badgeHtml
+      + '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:95%;width:auto;object-fit:contain;pointer-events:none;">';
+  } else {
+    swatchContent = img
+      ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+      : badgeHtml+(hasProductColor(p) ? '' : emoji);
+  }
+  const swatchStyle = isSpray
+    ? 'background:'+bg+';overflow:hidden;padding:0;position:relative;'
+    : 'background:'+bg+';overflow:hidden;padding:0;';
+  return '<div class="mkt-card" onclick="openProductDetail(\''+p.id+'\')"><div class="mkt-swatch" style="'+swatchStyle+'">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+p.name+'</div><div class="mkt-card-code">'+(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+p.stock+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button></div></div>';
 }
 
 function renderProductRow(p){
-  const img = getProductImage(p);
+  const isSpray = _isArteUrbanaSpray(p);
+  const img = isSpray ? null : getProductImage(p);
   const bg = productBg(p);
   const emoji = getCategoryEmoji(p.category);
   const price = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   const stk = (p.stock !== undefined && p.stock !== null) ? ' · ' + p.stock + ' un' : '';
-  const icContent = img
-    ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-    : (hasProductColor(p) ? '' : emoji);
-  const icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
+  let icContent, icStyle;
+  if(isSpray){
+    icStyle = 'background:'+bg+';overflow:hidden;padding:0;position:relative;';
+    icContent = '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;object-fit:contain;">';
+  } else {
+    icContent = img
+      ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
+      : (hasProductColor(p) ? '' : emoji);
+    icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
+  }
   const inactive = p.active === false;
   return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+p.id+'\')">'
     + '<div class="mkt-row-ic" style="'+icStyle+'">'+icContent+'</div>'
@@ -5307,25 +5402,38 @@ function renderMktUI(){
 
   const tabsEl = document.getElementById('mkt-tabs');
   if(tabsEl){
-    tabsEl.innerHTML = orderedKeys.map((k, i) =>
-      '<div class="mkt-tab'+(i===0?' active':'')+'" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
+    const todosTab = total
+      ? '<div class="mkt-tab active" data-key="todos" onclick="mktTab(\'todos\')">📦 Todos ('+total+')</div>'
+      : '';
+    const catTabs = orderedKeys.map(k =>
+      '<div class="mkt-tab" data-key="'+k+'" onclick="mktTab(\''+k+'\')">'
       + MKT_MENU_LABEL[k] + ' (' + _mktGrouped[k].length + ')</div>'
-    ).join('') || '<div class="mkt-tab active">Sem produtos</div>';
+    ).join('');
+    tabsEl.innerHTML = todosTab + catTabs || '<div class="mkt-tab active">Sem produtos</div>';
   }
   const secEl = document.getElementById('mkt-sections');
   if(secEl){
     if(orderedKeys.length === 0){
       secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
     } else {
-      secEl.innerHTML = orderedKeys.map((k, i) =>
-        '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="'+(i===0?'1':'0')+'" style="display:'+(i===0?'block':'none')+'">'
+      // Seção "Todos" — renderiza todos na abertura (tab ativo por padrão)
+      const todosHtml = '<div class="mkt-menu-sec" data-key="todos" data-rendered="1" style="display:block">'
+        + '<div class="mkt-section-title">📦 Todos os produtos · '+total+' itens</div>'
+        + '<div class="mkt-products">'+mktProducts.map(renderProductRow).join('')+'</div>'
+        + '</div>';
+      const catHtml = orderedKeys.map(k =>
+        '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="0" style="display:none">'
         + '<div class="mkt-section-title">'+MKT_MENU_LABEL[k]+' · '+_mktGrouped[k].length+' itens <span style="color:var(--muted);font-weight:600;">(de '+total+' no total)</span></div>'
-        + '<div class="mkt-products">'+(i===0 ? _mktGrouped[k].map(renderProductRow).join('') : '')+'</div>'
+        + '<div class="mkt-products"></div>'
         + '</div>'
       ).join('');
+      secEl.innerHTML = todosHtml + catHtml;
     }
   }
 }
+
+const _MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b/i;
+function _isMktHidden(p){ return _MKT_HIDDEN.test(p.name||''); }
 
 async function loadMktProducts(_attempt){
   _attempt = _attempt || 0;
@@ -5354,7 +5462,7 @@ async function loadMktProducts(_attempt){
       if(byId.size === before) break;       // sem progresso → evita loop infinito
       if(data.length < PAGE) break;          // última página
     }
-    mktProducts = Array.from(byId.values());
+    mktProducts = Array.from(byId.values()).filter(p => !_isMktHidden(p));
     _mktLoadedAt = Date.now();
     renderMktUI();
   } catch(e){
@@ -6261,6 +6369,24 @@ async function sendPasswordReset(){
     if(error){ toast('Erro: ' + error.message); return; }
     toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
   } catch(e){ console.warn('sendPasswordReset:', e); toast('Erro ao enviar email'); }
+}
+
+async function doSetNewPassword(){
+  const newPw = (document.getElementById('reset-pw-new')?.value || '');
+  const confirmPw = (document.getElementById('reset-pw-confirm')?.value || '');
+  if(newPw.length < 8){ toast('A senha deve ter ao menos 8 caracteres'); return; }
+  if(newPw !== confirmPw){ toast('As senhas não coincidem'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Aguarde...'); return; }
+  try {
+    const { error } = await sb.auth.updateUser({ password: newPw });
+    if(error){ toast('Erro: ' + error.message); return; }
+    document.getElementById('reset-pw-new').value = '';
+    document.getElementById('reset-pw-confirm').value = '';
+    closeModals();
+    toast('Senha alterada com sucesso!');
+    showScreen('feed');
+  } catch(e){ console.warn('doSetNewPassword:', e); toast('Erro ao salvar senha'); }
 }
 
 async function togglePostLike(btn){
