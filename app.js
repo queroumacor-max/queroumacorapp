@@ -2095,7 +2095,6 @@ async function loadPoints(){
   const { data: pts } = await sb.from('points').select('*').eq('user_id', currentUser.id).order('created_at',{ascending:false}).limit(20);
   let saldo = 0; (pts||[]).forEach(p=>{ saldo += p.type==='earned'?(p.amount||0):-(p.amount||0); });
   document.getElementById('pts-saldo').textContent = saldo+' pts';
-  document.getElementById('pts-valor').textContent = (saldo/10).toFixed(0);
   const el = document.getElementById('pts-historico');
   if(!pts||pts.length===0) return;
   el.innerHTML = pts.map(p=>{
@@ -2156,9 +2155,9 @@ async function comprarObra(postId, artistName, price, artType){
   });
   if(error){ toast('Erro ao comprar: '+error.message); return; }
   // Award points
-  const pts = Math.floor(price/10)*5;
+  const pts = Math.floor(price/10);
   if(pts > 0) earnPoints(currentUser.id, pts, 'artwork_purchase');
-  toast('Compra realizada! O artista será notificado. +'+pts+' pontos 🎨');
+  toast('Compra realizada! O artista será notificado. +'+pts+' pontos ⚡');
 }
 
 function openChatWithUser(userId){
