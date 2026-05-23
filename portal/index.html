@@ -68,7 +68,7 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
     setErr(''); setMsg('');
     const name = form.name.trim(), email = form.email.trim(), password = form.password;
     if (!email || !password) { setErr('Email e senha sao obrigatorios'); return; }
-    if (password.length < 6) { setErr('Senha deve ter no minimo 6 caracteres'); return; }
+    if (password.length < 8) { setErr('Senha deve ter no minimo 8 caracteres'); return; }
     const opt = APP_ROLE_OPTIONS.find(o => o.v === form.roleKey) || APP_ROLE_OPTIONS[0];
     setSaving(true);
     let tmp;
@@ -2268,7 +2268,7 @@ const PortalUsersList = () => {
     setFormError(''); setFormMsg('');
     const name = form.name.trim(), email = form.email.trim(), password = form.password;
     if (!email || !password) { setFormError('Email e senha sao obrigatorios'); return; }
-    if (password.length < 6) { setFormError('Senha deve ter no minimo 6 caracteres'); return; }
+    if (password.length < 8) { setFormError('Senha deve ter no minimo 8 caracteres'); return; }
     setSaving(true);
     let tmp;
     try {
@@ -2859,7 +2859,7 @@ function App() {
           <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
         </div>
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 6) throw new Error('Senha deve ter no minimo 6 caracteres'); const { data: authData, error: authErr } = await window._sb.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await window._sb.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await window._sb.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 8) throw new Error('Senha deve ter no minimo 8 caracteres'); const { data: authData, error: authErr } = await window._sb.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await window._sb.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await window._sb.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           {loginLoading ? 'Criando conta...' : 'Criar Conta'}
         </button>
         </>)}

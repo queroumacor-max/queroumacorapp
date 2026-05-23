@@ -2698,23 +2698,26 @@ function pedirOrcamentoPost(painterId, painterName){
   showScreen('orcamento');
 }
 
-// ══ LOJA CHECKOUT ══
-async function comprarObra(postId, artistName, price, artType){
-  if(!currentUser){ toast('Faça login para comprar'); return; }
-  if(!(await appConfirm('Comprar "'+artType+'" de '+artistName+' por R$ '+price.toLocaleString('pt-BR')+'?', { okLabel:'Comprar' }))) return;
-  const sb = getSupabase(); if(!sb) return;
-  const { error } = await sb.from('orders').insert({
-    user_id: currentUser.id,
-    items: [{id:postId, name:artType+' - '+artistName, price, qty:1, type:'artwork'}],
-    total: price,
-    status: 'pending'
-  });
-  if(error){ toast('Erro ao comprar: '+error.message); return; }
-  // Pontos por compra só são creditados quando o pagamento confirma
-  // (status='paid') via trigger trg_award_order_paid_points. Compras
-  // de artwork ainda não têm fluxo de pagamento real — sem pontos por
-  // enquanto.
-  toast('Compra realizada! O artista será notificado.');
+// ══ MANIFESTAR INTERESSE EM OBRA ══
+// Antes inseria uma row em orders com status='pending' eterno. Removido
+// porque (a) não tinha fluxo de pagamento real, (b) admin malicioso podia
+// marcar a order como 'paid' e disparar trigger de pontos. Hoje só
+// notifica o artista; venda real vai usar fluxo MP quando existir.
+async function comprarObra(postId, artistName, artistId, artType){
+  if(!currentUser){ toast('Faça login pra falar com o artista'); return; }
+  if(!(await appConfirm('Manifestar interesse em "'+artType+'" de '+artistName+'? O artista será notificado e entra em contato.', { okLabel:'Manifestar interesse' }))) return;
+  const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
+  // Usa notify_user RPC (SECURITY DEFINER que valida relação) — fallback
+  // silencioso se não houver quote/conversa prévia.
+  try {
+    await notify(artistId, 'artwork_interest', 'Interesse em obra 🎨',
+      meuNome + ' demonstrou interesse em "' + (artType||'sua obra') + '". Mande uma mensagem!',
+      postId);
+    toast('Interesse enviado! O artista vai te chamar.');
+  } catch(e){
+    console.warn('comprarObra notify:', e);
+    toast('Mande uma mensagem direta ao artista pelo perfil dele.');
+  }
 }
 
 function openChatWithUser(userId){
@@ -6536,7 +6539,7 @@ async function loadPosts(feedIds, append){
       // Buy button for art/sale posts
       if(p.for_sale && p.price > 0 && currentUser && p.user_id !== currentUser.id){
         html += '<div style="padding:6px 14px 4px;display:flex;gap:8px;">';
-        html += '<button onclick="comprarObra(\''+p.id+'\',\''+escapeJsArg(name)+'\','+p.price+',\''+escapeJsArg(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🛒 Comprar · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
+        html += '<button onclick="comprarObra(\''+escapeJsArg(p.id)+'\',\''+escapeJsArg(name)+'\',\''+escapeJsArg(p.user_id)+'\',\''+escapeJsArg(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🎨 Interesse · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
         html += '<button onclick="openChatWithUser(\''+p.user_id+'\')" style="padding:10px 14px;background:var(--white);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">💬</button>';
         html += '</div>';
       }
