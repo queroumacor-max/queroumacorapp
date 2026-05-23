@@ -793,17 +793,17 @@ async function salvarOrcamento(){
   if(!sb || !currentUser){ toast('Faça login para salvar'); return; }
   const d = _lastOrcData;
   if(!d || !d.total){ toast('Gere o orçamento primeiro'); return; }
-  const { error } = await sb.from('quotes').insert({
-    painter_id: currentUser.id,
-    client_name: d.cliente || 'Cliente',
-    service_type: d.servico || 'Orçamento',
-    title: d.servico || 'Orçamento',
-    area_m2: d.area || null,
-    price: d.total || 0,
-    status: 'rascunho',
-    quote_data: d
+  // Usa RPC create_painter_draft (SECURITY DEFINER) — força painter_id =
+  // auth.uid() no servidor, impedindo gravar rascunho em pipeline alheio.
+  const { error } = await sb.rpc('create_painter_draft', {
+    p_client_name:  d.cliente || 'Cliente',
+    p_service_type: d.servico || 'Orçamento',
+    p_title:        d.servico || 'Orçamento',
+    p_area_m2:      d.area || null,
+    p_price:        d.total || 0,
+    p_quote_data:   d
   });
-  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  if(error){ toast('Erro ao salvar: '+(error.message || error)); return; }
   toast('Orçamento salvo no Pipeline ✅');
   closeModals();
   showScreen('pipeline');
@@ -4568,25 +4568,28 @@ async function sendOrc(){
   btn.disabled = true;
   btn.querySelector('span').textContent = 'Enviando...';
 
-  const { data: quoteData, error } = await sb.from('quotes').insert({
-    client_id: session.user.id,
-    painter_id: painterId || undefined,
-    title: serviceType,
-    service_type: serviceType,
-    area_m2: area,
-    address: address,
-    description: description || null,
-    proposed_date: proposedDate || null,
-    status: 'pending',
-    lead_type: painterId ? 'exclusive' : 'shared'
-  }).select('id').single();
+  // Usa RPC create_quote_from_post (SECURITY DEFINER) — força client_id =
+  // auth.uid() no servidor, impedindo forjar pedido em nome de outro user.
+  const { data: newQuoteId, error } = await sb.rpc('create_quote_from_post', {
+    p_painter_id:    painterId || null,
+    p_post_id:       null,
+    p_title:         serviceType,
+    p_service_type:  serviceType,
+    p_area_m2:       area,
+    p_address:       address,
+    p_description:   description || null,
+    p_proposed_date: proposedDate || null,
+    p_images:        [],
+    p_lead_type:     painterId ? 'exclusive' : 'shared'
+  });
+  const quoteData = newQuoteId ? { id: newQuoteId } : null;
 
   btn.disabled = false;
   btn.querySelector('span').textContent = '📩 Enviar Solicitação';
 
   if(error){
     console.error('sendOrc error:', error);
-    toast('❌ Erro ao enviar: ' + error.message);
+    toast('❌ Erro ao enviar: ' + (error.message || error));
   } else {
     // Auto-distribute lead if no specific painter
     if(!painterId && quoteData) distribuirLead(quoteData.id, serviceType, address);
