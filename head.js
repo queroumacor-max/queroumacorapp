@@ -403,7 +403,31 @@ async function doRegisterSupabase(name, email, password, type, tag) {
   const cityName = document.getElementById('s-city') ? document.getElementById('s-city').value.trim() : '';
   const stateName = document.getElementById('s-state') ? document.getElementById('s-state').value.trim() : '';
   const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name: name, user_type: type || 'cliente', tag: tag } } });
-  if (error) { alert('Erro: ' + error.message); return; }
+  if (error) {
+    // Caso comum: a pessoa já tem conta com esse e-mail. Tenta logar
+    // com as mesmas credenciais (se for ela mesma) e segue o fluxo.
+    if (/already registered|already exists|user_already_exists/i.test(error.message || '')) {
+      const { data: si, error: siErr } = await sb.auth.signInWithPassword({ email, password });
+      if (!siErr && si && si.user) {
+        currentUser = si.user;
+        autoDetectRole();
+        toast('Bem-vindo de volta!');
+        if (validatedInviteCode && validatedInviteCode.created_by && typeof openUserProfile === 'function') {
+          openUserProfile(validatedInviteCode.created_by);
+        } else {
+          showScreen('feed');
+        }
+        return;
+      }
+      alert('Esse e-mail já tem conta. Entre com sua senha na tela de login.');
+      showScreen('login');
+      const emEl = document.getElementById('login-email');
+      if (emEl) emEl.value = email;
+      return;
+    }
+    alert('Erro: ' + error.message);
+    return;
+  }
   // Upload avatar if selected
   let avatarUrl = null;
   if(data && data.user){
@@ -458,8 +482,14 @@ async function doRegisterSupabase(name, email, password, type, tag) {
   }
   currentUser = data.user;
   autoDetectRole();
-  showScreen('feed');
   toast('Conta criada com sucesso!');
+  // Se veio por convite, mostra direto o perfil de quem convidou —
+  // o cadastrado vê quem o trouxe pro app e pode seguir / pedir orçamento.
+  if (validatedInviteCode && validatedInviteCode.created_by && typeof openUserProfile === 'function') {
+    openUserProfile(validatedInviteCode.created_by);
+  } else {
+    showScreen('feed');
+  }
 }
 
 function previewSignupAvatar(input){
