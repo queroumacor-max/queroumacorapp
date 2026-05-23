@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522h"></script>
+<script src="/head.js?v=20260522i"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1542,6 +1542,10 @@
     <div class="sheet-title">📝 Minhas Anotações</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Lembretes, medidas e recados de obra — fica salvo no seu perfil.</div>
     <textarea class="auth-input" id="note-new" placeholder="Escreva uma anotação..." rows="3" style="resize:vertical;margin-bottom:8px;"></textarea>
+    <button id="rec-audio-btn" onclick="iniciarGravacaoNota()" style="width:100%;padding:10px;background:var(--cream);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;">🎤 Gravar áudio e transcrever <span style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;">PRO</span></button>
+    <div id="rec-status" style="display:none;font-size:13px;text-align:center;padding:10px;background:#fee;border:1px solid #fbb;border-radius:10px;margin-bottom:8px;color:#a00;">
+      🔴 Gravando · <span id="rec-timer">0:00</span> · <span onclick="pararGravacaoNota()" style="cursor:pointer;font-weight:700;text-decoration:underline;">⏹ Parar</span>
+    </div>
     <button onclick="salvarNota()" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:14px;">Salvar anotação</button>
     <div id="notes-list"></div>
   </div>
@@ -2068,7 +2072,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522h"></script>
+<script src="/app.js?v=20260522i"></script>
 
 <script>
 if('serviceWorker' in navigator){
