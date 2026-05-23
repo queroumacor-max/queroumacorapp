@@ -703,7 +703,8 @@ function renderPipelineCard(q){
   const btn = (label,fn,bg,color)=>'<button onclick="'+fn+'" style="flex:1;padding:9px;background:'+bg+';color:'+(color||'#fff')+';border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">'+label+'</button>';
   let actions = '';
   if(s==='pending' || s==='rascunho'){
-    actions = btn('Enviar', "enviarQuote('"+q.id+"')", 'var(--p1)');
+    actions = btn('Enviar', "enviarQuote('"+q.id+"')", 'var(--p1)')
+            + btn('🤖 Sugerir preço', "sugerirPrecoQuote('"+q.id+"')", 'linear-gradient(135deg,#8338ec,var(--p1))');
   } else if(s==='enviado'){
     actions = btn('Marcar aceito', "aprovarQuoteManual('"+q.id+"')", '#2ec4b6')
             + btn('Recusado', "recusarQuote('"+q.id+"')", 'var(--cream)', 'var(--muted)');
@@ -792,6 +793,44 @@ async function enviarQuote(id){
   }
   toast('Orçamento enviado!');
   loadPipeline();
+}
+
+// IA sugere o preço para um orçamento pendente/rascunho (feature PRO).
+// Em caso de aceite, injeta o valor no cache e delega para enviarQuote.
+async function sugerirPrecoQuote(id){
+  if(!_isPro){
+    toast('Sugerir preço com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
+  const q = (_pipelineCache||[]).find(x=>x.id===id);
+  if(!q){ toast('Orçamento não encontrado'); return; }
+  toast('Calculando preço com IA...');
+  try {
+    const r = await fetch('/api/pricing-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_type: q.service_type || q.title || '',
+        description: q.description || '',
+        area_m2: q.area_m2 || null
+      })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !data || typeof data.price !== 'number'){
+      toast('Erro ao sugerir preço: ' + ((data && data.error) || 'IA indisponível'));
+      return;
+    }
+    const price = +data.price || 0;
+    const justification = String(data.justification || '').trim();
+    const ok = confirm('IA sugere R$ ' + price.toLocaleString('pt-BR') + '\n\n' + justification + '\n\nUsar esse valor?');
+    if(!ok) return;
+    q.price = price;
+    await enviarQuote(id);
+  } catch(e){
+    console.warn('sugerirPrecoQuote:', e);
+    toast('Erro ao falar com a IA');
+  }
 }
 
 async function aprovarQuoteManual(id){
