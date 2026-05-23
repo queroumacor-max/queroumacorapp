@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522u"></script>
+<script src="/head.js?v=20260522v"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1492,6 +1492,21 @@
   </div>
 </div>
 
+<!-- ══ VALOR DO ORÇAMENTO (manual ou pré-preenchido pela IA) ══ -->
+<div class="overlay" id="quote-price-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">💰 Valor do orçamento</div>
+    <div id="qp-ia-note" style="display:none;background:linear-gradient(135deg,rgba(131,56,236,.08),rgba(255,107,53,.08));border:1px solid rgba(131,56,236,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--ink);line-height:1.55;margin-bottom:14px;"></div>
+    <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;">Valor (R$)</label>
+    <input id="qp-price-input" type="text" inputmode="decimal" placeholder="Ex: 1500,00" style="width:100%;box-sizing:border-box;padding:14px;border:1.5px solid var(--border);border-radius:12px;font-size:18px;font-weight:700;font-family:DM Sans,sans-serif;outline:none;margin-bottom:14px;">
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeModals()" style="flex:1;padding:13px;background:var(--white);color:var(--ink);border:1px solid var(--border);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Cancelar</button>
+      <button onclick="enviarQuoteConfirmar()" style="flex:2;padding:13px;background:var(--ink);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Enviar pro cliente</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ ESCOPO DO ORÇAMENTO (snapshot) ══ -->
 <div class="overlay" id="quote-snapshot-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:82vh;overflow-y:auto;">
@@ -2143,7 +2158,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522u"></script>
+<script src="/app.js?v=20260522v"></script>
 
 <script>
 if('serviceWorker' in navigator){

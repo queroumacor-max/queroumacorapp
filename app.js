@@ -773,20 +773,39 @@ async function salvarOrcamento(){
   showScreen('pipeline');
 }
 
-async function enviarQuote(id){
-  const sb = getSupabase(); if(!sb||!currentUser) return;
-  const q = _pipelineCache.find(x=>x.id===id); if(!q) return;
-  let price = +q.price || 0;
-  if(price <= 0){
-    const v = prompt('Valor do orçamento (R$):');
-    if(v===null) return;
-    price = parseFloat(String(v).replace(/\./g,'').replace(',','.')) || 0;
-    if(price<=0){ toast('Informe um valor válido'); return; }
+let _quotePriceTarget = null;
+
+function enviarQuote(id){
+  const q = _pipelineCache.find(x => x.id === id);
+  if(!q) return;
+  _quotePriceTarget = id;
+  const note = document.getElementById('qp-ia-note');
+  if(note){ note.style.display = 'none'; note.innerHTML = ''; }
+  const input = document.getElementById('qp-price-input');
+  if(input){
+    input.value = (+q.price || 0) > 0
+      ? String((+q.price).toFixed(2)).replace('.', ',')
+      : '';
   }
+  showModal('quote-price-modal');
+  setTimeout(() => { if(input) input.focus(); }, 150);
+}
+
+async function enviarQuoteConfirmar(){
+  const id = _quotePriceTarget;
+  if(!id) return;
+  const sb = getSupabase(); if(!sb || !currentUser) return;
+  const input = document.getElementById('qp-price-input');
+  const raw = input ? input.value.trim() : '';
+  const price = parseFloat(String(raw).replace(/\./g, '').replace(',', '.')) || 0;
+  if(price <= 0){ toast('Informe um valor válido'); return; }
+  const q = _pipelineCache.find(x => x.id === id);
+  if(!q) return;
+  closeModals();
   const { error } = await sb.from('quotes')
-    .update({ status:'enviado', sent_at:new Date().toISOString(), price })
+    .update({ status: 'enviado', sent_at: new Date().toISOString(), price })
     .eq('id', id).eq('painter_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(error){ toast('Erro: ' + error.message); return; }
   if(q.client_id){
     notify(q.client_id, 'quote_sent', 'Você recebeu um orçamento',
       'Um profissional enviou um orçamento. Toque para ver e aprovar.', id);
@@ -823,10 +842,18 @@ async function sugerirPrecoQuote(id){
     }
     const price = +data.price || 0;
     const justification = String(data.justification || '').trim();
-    const ok = confirm('IA sugere R$ ' + price.toLocaleString('pt-BR') + '\n\n' + justification + '\n\nUsar esse valor?');
-    if(!ok) return;
-    q.price = price;
-    await enviarQuote(id);
+    // Abre o modal de preço pré-preenchido com a sugestão da IA e a
+    // justificativa logo acima. Usuário pode editar antes de enviar.
+    _quotePriceTarget = id;
+    const note = document.getElementById('qp-ia-note');
+    if(note){
+      note.style.display = 'block';
+      note.innerHTML = '<b>💡 IA sugere R$ ' + price.toLocaleString('pt-BR') + '</b>' + (justification ? '<br><span style="opacity:.85;">' + escapeHtml(justification) + '</span>' : '');
+    }
+    const input = document.getElementById('qp-price-input');
+    if(input) input.value = String(price.toFixed(2)).replace('.', ',');
+    showModal('quote-price-modal');
+    setTimeout(() => { if(input){ input.focus(); input.select(); } }, 150);
   } catch(e){
     console.warn('sugerirPrecoQuote:', e);
     toast('Erro ao falar com a IA');
