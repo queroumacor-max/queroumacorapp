@@ -933,7 +933,8 @@ async function setQuoteStage(id, status){
   const { error } = await sb.from('quotes').update(patch)
     .eq('id', id).eq('painter_id', currentUser.id);
   if(error){ toast('Erro: '+error.message); return; }
-  if(status==='concluido') earnPoints(currentUser.id, 15, 'quote_completed', id);
+  // Pontos por conclusão são creditados automaticamente pelo trigger
+  // trg_award_quote_completed_points (Bateria 3.2). Não chamar earnPoints aqui.
   toast(status==='concluido'?'Orçamento concluído!':'Execução iniciada'); loadPipeline();
 }
 
@@ -2631,10 +2632,12 @@ async function trocarPontosPorPRO(){
   }
 }
 
-// ══ EARN POINTS HELPER ══
+// ══ EARN POINTS HELPER (DEPRECATED) ══
+// Mantido só como referência. Pontos agora são creditados via triggers
+// SECURITY DEFINER no banco — não chame mais essa função. INSERT direto
+// em points é bloqueado por policy (Bateria 3.2).
 async function earnPoints(userId, amount, source, refId){
-  const sb = getSupabase(); if(!sb) return;
-  try { await sb.from('points').insert({ user_id: userId, amount, type:'earned', source, reference_id: refId||null }); } catch(e){}
+  console.warn('earnPoints() está deprecated — pontos são creditados via trigger no DB.');
 }
 
 // ══ DISTRIBUIÇÃO DE LEADS ══
@@ -2681,10 +2684,11 @@ async function comprarObra(postId, artistName, price, artType){
     status: 'pending'
   });
   if(error){ toast('Erro ao comprar: '+error.message); return; }
-  // Award points
-  const pts = Math.floor(price/10);
-  if(pts > 0) earnPoints(currentUser.id, pts, 'artwork_purchase');
-  toast('Compra realizada! O artista será notificado. +'+pts+' pontos ⚡');
+  // Pontos por compra só são creditados quando o pagamento confirma
+  // (status='paid') via trigger trg_award_order_paid_points. Compras
+  // de artwork ainda não têm fluxo de pagamento real — sem pontos por
+  // enquanto.
+  toast('Compra realizada! O artista será notificado.');
 }
 
 function openChatWithUser(userId){
@@ -4607,8 +4611,8 @@ async function sendOrc(){
       notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
         meuNome + ' solicitou um orçamento. Veja no seu pipeline.', quoteData.id);
     }
-    // Award points for quote request
-    if(typeof earnPoints==='function') earnPoints(session.user.id, 5, 'quote_request');
+    // Pontos por solicitação são creditados automaticamente pelo
+    // trigger trg_award_quote_request_points (Bateria 3.2).
     toast('✅ Solicitação enviada com sucesso!');
     // Clear form
     const _setEl = (id, prop, val) => { const e = document.getElementById(id); if(e) e[prop] = val; };
