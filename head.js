@@ -90,6 +90,7 @@ async function initAuth() {
     refreshProStatus();
     checkAdminEntry();
     handleProReturn();
+    if(typeof handleCompraReturn==='function') handleCompraReturn();
     // Load feed once right after auth
     _feedLoaded = true;
     loadFeed();
