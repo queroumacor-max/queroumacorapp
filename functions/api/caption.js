@@ -2,7 +2,7 @@
 // POST multipart/form-data com campo "image" (foto, <= 8 MB).
 // Resposta: { caption: string, hashtags: string[] } (4-6 hashtags em PT-BR).
 // Requer OPENAI_API_KEY no Cloudflare Pages.
-import { getTokenFromForm, requireAuth, requirePro } from './_security.js';
+import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -22,6 +22,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'caption', 10);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const image = form.get('image');
   if (!image || typeof image === 'string') {

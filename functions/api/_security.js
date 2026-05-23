@@ -130,3 +130,54 @@ export function jsonResponse(obj, status = 200){
     headers: { 'content-type': 'application/json; charset=utf-8' }
   });
 }
+
+// Rate limit por (user, endpoint, minuto). Devolve { allowed, count,
+// limit, retry_after_seconds }. Fail-open se algo der errado — não
+// quer bloquear usuário legítimo por problema de infra.
+export async function checkRateLimit(env, userId, endpoint, limit = 30){
+  if(!userId) return { allowed: true, skipped: true };
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!serviceKey) return { allowed: true, skipped: true };
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
+  try {
+    const r = await fetch(supaUrl + '/rest/v1/rpc/check_rate_limit', {
+      method: 'POST',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_endpoint: endpoint,
+        p_limit: limit
+      })
+    });
+    if(!r.ok) return { allowed: true, skipped: true };
+    const data = await r.json();
+    return {
+      allowed: !!data?.allowed,
+      count: data?.count || 0,
+      limit: data?.limit || limit,
+      retry_after_seconds: data?.retry_after_seconds || 60
+    };
+  } catch {
+    return { allowed: true, skipped: true };
+  }
+}
+
+// Helper pra montar a resposta 429 padrão
+export function rateLimitResponse(rl){
+  return new Response(JSON.stringify({
+    error: 'Limite por minuto atingido (' + rl.count + '/' + rl.limit + '). Tente em ' + rl.retry_after_seconds + 's.',
+    retry_after: rl.retry_after_seconds
+  }), {
+    status: 429,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'retry-after': String(rl.retry_after_seconds || 60)
+    }
+  });
+}

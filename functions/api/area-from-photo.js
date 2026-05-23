@@ -2,7 +2,7 @@
 // (foto de parede/cômodo/teto) e devolve { area_m2, justification } via
 // OpenAI gpt-4o-mini (vision). Requer OPENAI_API_KEY no Cloudflare Pages.
 // A estimativa é APROXIMADA — o app avisa o usuário para revisar.
-import { getTokenFromForm, requireAuth, requirePro } from './_security.js';
+import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -20,6 +20,9 @@ export async function onRequestPost(context) {
   if (auth.error) return json({ error: auth.error }, auth.status);
   const proCheck = await requirePro(env, auth.user && auth.user.id);
   if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+
+  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'area-from-photo', 5);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const image = formData.get('image');
   if (!image || typeof image === 'string') {
