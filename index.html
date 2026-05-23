@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522o"></script>
+<script src="/head.js?v=20260522p"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1989,12 +1989,13 @@
     </div>
     <div style="margin-bottom:12px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Cidade</div>
-      <input id="ep-city" type="text" placeholder="Sao Paulo" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <input id="ep-city" type="text" list="ep-city-list" placeholder="Comece a digitar a cidade…" autocomplete="off" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <datalist id="ep-city-list"></datalist>
     </div>
     <div style="margin-bottom:12px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Estado</div>
-      <select id="ep-state" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;background:#fff;">
-        <option value="">Selecione o estado</option>
+      <input id="ep-state" type="text" list="ep-state-list" placeholder="Digite a UF ou o nome (ex: SP ou São Paulo)" autocomplete="off" oninput="_epStateChanged()" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;text-transform:uppercase;">
+      <datalist id="ep-state-list">
         <option value="AC">Acre</option>
         <option value="AL">Alagoas</option>
         <option value="AP">Amapá</option>
@@ -2022,7 +2023,7 @@
         <option value="SP">São Paulo</option>
         <option value="SE">Sergipe</option>
         <option value="TO">Tocantins</option>
-      </select>
+      </datalist>
     </div>
     <div style="margin-bottom:12px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Telefone</div>
@@ -2110,7 +2111,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522o"></script>
+<script src="/app.js?v=20260522p"></script>
 
 <script>
 if('serviceWorker' in navigator){

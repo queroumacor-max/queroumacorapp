@@ -3531,6 +3531,7 @@ async function openEditProfile(){
       document.getElementById('ep-email').value = prof.email || currentUser.email || '';
       document.getElementById('ep-city').value = prof.city || '';
       document.getElementById('ep-state').value = prof.state || '';
+      if(prof.state) loadCidadesDoEstado(prof.state);
       document.getElementById('ep-phone').value = prof.phone || '';
       document.getElementById('ep-specs').value = prof.specialties || '';
       _epSpecsSetup(prof.role || prof.user_type, prof.specialties || '');
@@ -3561,6 +3562,48 @@ async function openEditProfile(){
     } catch(e){ console.warn('load service_radius:', e && e.message || e); }
   }
   showModal('edit-profile-modal');
+}
+
+// ══ AUTOCOMPLETE: cidade pelo estado (IBGE) ══
+const _citiesCache = {};
+const _ufByName = {
+  'acre':'AC','alagoas':'AL','amapa':'AP','amapá':'AP','amazonas':'AM',
+  'bahia':'BA','ceara':'CE','ceará':'CE','distrito federal':'DF',
+  'espirito santo':'ES','espírito santo':'ES','goias':'GO','goiás':'GO',
+  'maranhao':'MA','maranhão':'MA','mato grosso':'MT','mato grosso do sul':'MS',
+  'minas gerais':'MG','para':'PA','pará':'PA','paraiba':'PB','paraíba':'PB',
+  'parana':'PR','paraná':'PR','pernambuco':'PE','piaui':'PI','piauí':'PI',
+  'rio de janeiro':'RJ','rio grande do norte':'RN','rio grande do sul':'RS',
+  'rondonia':'RO','rondônia':'RO','roraima':'RR','santa catarina':'SC',
+  'sao paulo':'SP','são paulo':'SP','sergipe':'SE','tocantins':'TO'
+};
+async function loadCidadesDoEstado(uf){
+  if(!uf) return;
+  uf = String(uf).trim().toUpperCase();
+  if(uf.length !== 2) return;
+  const dl = document.getElementById('ep-city-list');
+  if(!dl) return;
+  if(_citiesCache[uf]){ dl.innerHTML = _citiesCache[uf]; return; }
+  try {
+    const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome');
+    if(!r.ok) return;
+    const data = await r.json();
+    const html = (data || []).map(c => '<option value="'+escapeHtml(c.nome)+'">').join('');
+    _citiesCache[uf] = html;
+    dl.innerHTML = html;
+  } catch(e){ console.warn('cidades:', e); }
+}
+function _epStateChanged(){
+  const stEl = document.getElementById('ep-state');
+  if(!stEl) return;
+  const raw = (stEl.value || '').trim();
+  if(raw.length > 2 && _ufByName[raw.toLowerCase()]){
+    stEl.value = _ufByName[raw.toLowerCase()];
+  } else if(raw.length === 2){
+    stEl.value = raw.toUpperCase();
+  }
+  const uf = (stEl.value || '').toUpperCase();
+  if(uf.length === 2) loadCidadesDoEstado(uf);
 }
 
 function openEditProfileAt(section){
