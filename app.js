@@ -5383,11 +5383,6 @@ function _aiLogoUpdateBtn(){
 }
 
 async function gerarLogoIA(){
-  if(!_isPro){
-    toast('Geração de logo com IA é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
   const input = document.getElementById('ai-logo-name');
   const styleInput = document.getElementById('ai-logo-style');
   const name = (input.value || '').trim();
