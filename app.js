@@ -818,13 +818,13 @@ async function enviarQuoteConfirmar(){
 // Em caso de aceite, injeta o valor no cache e delega para enviarQuote.
 async function sugerirPrecoQuote(id){
   if(!_isPro){
-    toast('Sugerir preço com IA é do Plano PRO ⚡');
+    toast('Sugerir preço com Seu Zé é do Plano PRO ⚡');
     showModal('pro-modal');
     return;
   }
   const q = (_pipelineCache||[]).find(x=>x.id===id);
   if(!q){ toast('Orçamento não encontrado'); return; }
-  toast('Calculando preço com IA...');
+  toast('Calculando preço com Seu Zé...');
   try {
     const r = await fetch('/api/pricing-suggest', {
       method: 'POST',
@@ -837,7 +837,7 @@ async function sugerirPrecoQuote(id){
     });
     const data = await r.json().catch(()=>({}));
     if(!r.ok || !data || typeof data.price !== 'number'){
-      toast('Erro ao sugerir preço: ' + ((data && data.error) || 'IA indisponível'));
+      toast('Erro ao sugerir preço: ' + ((data && data.error) || 'Seu Zé indisponível'));
       return;
     }
     const price = +data.price || 0;
@@ -848,7 +848,7 @@ async function sugerirPrecoQuote(id){
     const note = document.getElementById('qp-ia-note');
     if(note){
       note.style.display = 'block';
-      note.innerHTML = '<b>💡 IA sugere R$ ' + price.toLocaleString('pt-BR') + '</b>' + (justification ? '<br><span style="opacity:.85;">' + escapeHtml(justification) + '</span>' : '');
+      note.innerHTML = '<b>💡 Seu Zé sugere R$ ' + price.toLocaleString('pt-BR') + '</b>' + (justification ? '<br><span style="opacity:.85;">' + escapeHtml(justification) + '</span>' : '');
     }
     const input = document.getElementById('qp-price-input');
     if(input) input.value = String(price.toFixed(2)).replace('.', ',');
@@ -856,7 +856,7 @@ async function sugerirPrecoQuote(id){
     setTimeout(() => { if(input){ input.focus(); input.select(); } }, 150);
   } catch(e){
     console.warn('sugerirPrecoQuote:', e);
-    toast('Erro ao falar com a IA');
+    toast('Erro ao falar com o Seu Zé');
   }
 }
 
@@ -995,7 +995,7 @@ async function loadCrm(){
     container.innerHTML = '<div style="text-align:center;padding:50px 24px;color:var(--muted);">'
       + '<div style="font-size:44px;margin-bottom:12px;">🔁</div>'
       + '<div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:8px;">Reativar clientes é PRO</div>'
-      + '<div style="font-size:13px;line-height:1.5;margin-bottom:18px;">Recupere clientes antigos com lembretes de repintura e manutenção. A IA escreve a mensagem, você revisa e envia.</div>'
+      + '<div style="font-size:13px;line-height:1.5;margin-bottom:18px;">Recupere clientes antigos com lembretes de repintura e manutenção. O Seu Zé escreve a mensagem, você revisa e envia.</div>'
       + '<button onclick="showModal(\'pro-modal\')" style="padding:12px 26px;background:var(--p1);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ativar PRO</button>'
       + '</div>';
     return;
@@ -1167,9 +1167,9 @@ function renderCrmCard(c){
     +   '<span>Total histórico: <strong style="color:var(--ink);">'+total+'</strong></span>'
     + '</div>'
     + reasonLine
-    + '<textarea id="crm-msg-'+c.id+'" placeholder="Mensagem de reativação — gere com a IA ou escreva aqui..." style="width:100%;min-height:64px;padding:9px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:\'DM Sans\',sans-serif;resize:vertical;margin-bottom:9px;box-sizing:border-box;"></textarea>'
+    + '<textarea id="crm-msg-'+c.id+'" placeholder="Mensagem de reativação — gere com o Seu Zé ou escreva aqui..." style="width:100%;min-height:64px;padding:9px;border:1px solid var(--border);border-radius:9px;font-size:13px;font-family:\'DM Sans\',sans-serif;resize:vertical;margin-bottom:9px;box-sizing:border-box;"></textarea>'
     + '<div style="display:flex;gap:7px;">'
-    +   btn('Gerar mensagem (IA)', "crmDraft('"+c.id+"')", 'var(--cream)', 'var(--ink)')
+    +   btn('Gerar mensagem (Seu Zé)', "crmDraft('"+c.id+"')", 'var(--cream)', 'var(--ink)')
     +   sendBtn
     + '</div>'
     + '</div>';
@@ -1192,7 +1192,7 @@ async function saveCrmInterval(){
 
 async function crmDraft(id){
   if(!_isPro){
-    toast('Mensagem de reativação com IA é do Plano PRO ⚡');
+    toast('Mensagem de reativação com Seu Zé é do Plano PRO ⚡');
     showModal('pro-modal');
     return;
   }
@@ -1473,10 +1473,10 @@ async function sendAiChat(textArg, speakReply){
       else if(query.match(/calcul|medir|medid|area/)) reply = _aiKnowledge['calculo'];
       else if(query.match(/tend|cor|tom|paleta/)) reply = _aiKnowledge['cor'];
       else if(query.match(/ferrament|rolo|pincel|trincha/)) reply = _aiKnowledge['ferramenta'];
-      else reply = 'Conexão com a IA falhou no momento. Tente novamente em alguns segundos.';
+      else reply = 'Conexão com o Seu Zé falhou no momento. Tente novamente em alguns segundos.';
     }
-    if (!/^Sou um assistente virtual/i.test(reply)) {
-      reply = 'Sou um assistente virtual, qualquer confirmação de informações ditas aqui eu recomendo checar com o representante da marca ou lojista que você escolher.\n\n' + reply;
+    if (!/^(Sou o Seu Zé|Sou um assistente virtual)/i.test(reply)) {
+      reply = 'Sou o Seu Zé (assistente virtual). Qualquer confirmação de informações ditas aqui eu recomendo checar com o representante da marca ou lojista que você escolher.\n\n' + reply;
     }
   } else {
     _aiChatHistory.push({ role: 'user', content: text });
@@ -1606,16 +1606,16 @@ async function sugerirEscopoIA(btn){
     const data = await r.json().catch(() => ({}));
     if(r.ok && data.reply){
       // Remove a linha de disclaimer do assistente, se vier
-      let txt = String(data.reply).replace(/^\s*Sou um assistente virtual[^\n]*\n+/i, '').trim();
+      let txt = String(data.reply).replace(/^\s*Sou (o Seu Zé|um assistente virtual)[^\n]*\n+/i, '').trim();
       if(obsEl) obsEl.value = txt;
-      toast('Escopo sugerido pela IA ✨');
+      toast('Escopo sugerido pelo Seu Zé ✨');
     } else if(r.status === 503){
-      await appAlert('A sugestão por IA ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
+      await appAlert('A sugestão pelo Seu Zé ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
     } else {
       await appAlert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
     }
   } catch(e){
-    await appAlert('Falha ao chamar a IA: ' + (e?.message || 'tente de novo'));
+    await appAlert('Falha ao chamar o Seu Zé: ' + (e?.message || 'tente de novo'));
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = orig; }
   }
@@ -1623,7 +1623,7 @@ async function sugerirEscopoIA(btn){
 
 function gerarOrcamentoIA(){
   if(!_isPro){
-    toast('Orçamento com IA é do Plano PRO ⚡');
+    toast('Orçamento com Seu Zé é do Plano PRO ⚡');
     showModal('pro-modal');
     return;
   }
@@ -1991,13 +1991,13 @@ function prefillNovoProjeto(){
 }
 
 async function otimizarDiaAgenda(){
-  if(!_isPro){ toast('Otimizar dia com IA é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if(!_isPro){ toast('Otimizar dia com Seu Zé é do Plano PRO ⚡'); showModal('pro-modal'); return; }
   if(!_agSel){ toast('Selecione um dia'); return; }
   const dayJobs = (_agJobs||[]).filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel);
   if(dayJobs.length<2){ toast('Precisa de 2+ obras no mesmo dia'); return; }
   const box = document.getElementById('agenda-day-suggest');
-  if(box) box.innerHTML = `<div style="background:var(--cream);border:1px dashed var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--muted);">🤖 Otimizando rota com IA...</div>`;
-  toast('Otimizando rota com IA...');
+  if(box) box.innerHTML = `<div style="background:var(--cream);border:1px dashed var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--muted);">🤖 Otimizando rota com Seu Zé...</div>`;
+  toast('Otimizando rota com Seu Zé...');
   try{
     const payload = {
       date: _agSel,
@@ -2031,7 +2031,7 @@ async function otimizarDiaAgenda(){
     if(box){
       box.innerHTML = `<div style="background:var(--white);border:1.5px solid #8338ec;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(131,56,236,.12);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:12px;font-weight:800;color:#8338ec;">🗺️ Ordem sugerida pela IA</div>
+          <div style="font-size:12px;font-weight:800;color:#8338ec;">🗺️ Ordem sugerida pelo Seu Zé</div>
           <button onclick="document.getElementById('agenda-day-suggest').innerHTML='';" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
         ${rows}
@@ -2359,11 +2359,11 @@ async function deleteFinEntry(id){
 // Análise IA do mês — PRO. Agrega últimos 30 dias vs 30 dias anteriores e
 // pede ao backend (gpt-4o-mini) um parecer curto e acionável.
 async function analisarFinanceiroIA(){
-  if(!_isPro){ toast('Análise IA do mês é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if(!_isPro){ toast('Análise do mês com Seu Zé é do Plano PRO ⚡'); showModal('pro-modal'); return; }
   const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
   const resultEl = document.getElementById('fin-ai-result');
   try {
-    toast('Analisando com IA...');
+    toast('Analisando com Seu Zé...');
     const now = Date.now();
     const d30 = new Date(now - 30*24*60*60*1000).toISOString();
     const d60 = new Date(now - 60*24*60*60*1000).toISOString();
@@ -2401,7 +2401,7 @@ async function analisarFinanceiroIA(){
     });
     const data = await r.json().catch(()=>({}));
     if(!r.ok || !data || !data.analysis){
-      toast('Erro: '+(data && data.error ? data.error : 'IA indisponível'));
+      toast('Erro: '+(data && data.error ? data.error : 'Seu Zé indisponível'));
       return;
     }
 
@@ -2410,7 +2410,7 @@ async function analisarFinanceiroIA(){
       resultEl.innerHTML =
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
         + '<span style="font-size:18px;">🤖</span>'
-        + '<span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;background:linear-gradient(135deg,#8338ec,var(--p1));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#8338ec;">Análise IA do mês · PRO</span>'
+        + '<span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;background:linear-gradient(135deg,#8338ec,var(--p1));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#8338ec;">Análise do mês com Seu Zé · PRO</span>'
         + '</div>'
         + '<div style="font-size:13px;line-height:1.55;color:var(--ink);">'+escapeHtml(String(data.analysis))+'</div>';
     }
@@ -5737,7 +5737,7 @@ async function gerarLogoIA(){
   if (_aiLogoGenCount() >= 1) {
     const ok = await appConfirm(
       'Gerar mais 3 opções de logo custa ' + _aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + '.\n\n'
-      + 'Esse valor cobre o custo da IA + processamento.\n\n'
+      + 'Esse valor cobre o custo do Seu Zé + processamento.\n\n'
       + 'Deseja prosseguir?',
       { okLabel:'Gerar (pago)' }
     );
@@ -5747,7 +5747,7 @@ async function gerarLogoIA(){
 
   const btn = document.getElementById('ai-logo-btn');
   btn.disabled = true;
-  btn.textContent = 'Gerando com IA...';
+  btn.textContent = 'Gerando com Seu Zé...';
 
   let urls = null;
   let aiError = null;
@@ -5776,7 +5776,7 @@ async function gerarLogoIA(){
       + '</div>'
     ).join('');
     _aiLogoUrls = urls;
-    toast('3 logos gerados com IA ✨');
+    toast('3 logos gerados pelo Seu Zé ✨');
   } else {
     console.warn('AI logo fallback:', aiError);
     const seed = _hashStr(name.toLowerCase());
@@ -7075,7 +7075,7 @@ function clearPostImages(){
 // Gera legenda + hashtags do post a partir da foto selecionada (PRO).
 async function gerarLegendaPost(btn){
   if(!_isPro){
-    toast('Gerar legenda com IA é do Plano PRO ⚡');
+    toast('Gerar legenda com Seu Zé é do Plano PRO ⚡');
     showModal('pro-modal');
     return;
   }
@@ -7085,7 +7085,7 @@ async function gerarLegendaPost(btn){
   }
   const file = postSelectedFiles[0];
   if(getMediaType(file) === 'video'){
-    toast('A legenda por IA só funciona com foto, não com vídeo');
+    toast('A legenda pelo Seu Zé só funciona com foto, não com vídeo');
     return;
   }
   if(file.size > 8 * 1024 * 1024){
@@ -7095,7 +7095,7 @@ async function gerarLegendaPost(btn){
   const ta = document.getElementById('post-text-input');
   const orig = btn ? btn.innerHTML : '';
   if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
-  toast('Gerando legenda com IA...');
+  toast('Gerando legenda com Seu Zé...');
   try {
     const fd = new FormData();
     fd.append('image', file, file.name || 'foto.jpg');
@@ -7109,7 +7109,7 @@ async function gerarLegendaPost(btn){
     const caption = (data?.caption || '').toString().trim();
     const hashtags = Array.isArray(data?.hashtags) ? data.hashtags.filter(h => typeof h === 'string') : [];
     if(!caption && hashtags.length === 0){
-      toast('A IA não devolveu nada — tente outra foto');
+      toast('O Seu Zé não devolveu nada — tente outra foto');
       return;
     }
     const existing = (ta.value || '').trim();
