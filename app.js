@@ -3585,10 +3585,11 @@ async function loadCidadesDoEstado(uf){
   if(!dl) return;
   if(_citiesCache[uf]){ dl.innerHTML = _citiesCache[uf]; return; }
   try {
-    const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome');
+    const r = await fetch('/api/cidades?uf=' + uf);
     if(!r.ok) return;
     const data = await r.json();
-    const html = (data || []).map(c => '<option value="'+escapeHtml(c.nome)+'">').join('');
+    const arr = (data && data.cidades) || [];
+    const html = arr.map(c => '<option value="'+escapeHtml(c.nome)+'">').join('');
     _citiesCache[uf] = html;
     dl.innerHTML = html;
   } catch(e){ console.warn('cidades:', e); }
