@@ -53,37 +53,101 @@ export async function onRequestPost(context) {
   if (order.user_id !== user.id) return json({ error: 'Pedido não pertence a este usuário' }, 403);
   if (order.status !== 'pending') return json({ error: 'Pedido já processado (status=' + order.status + ')' }, 409);
 
-  const totalReais = Number(order.total || 0);
-  if (!(totalReais > 0)) return json({ error: 'Total do pedido inválido' }, 400);
+  // ════════════════════════════════════════════════════════════════════
+  // ANTI-TAMPERING: re-valida preços contra products no servidor.
+  // Antes, cliente forjava cartItems = [{id, price: 0.01}] no devtools,
+  // inseria a order com total=0.01, e MP cobrava 1 centavo. Agora a
+  // gente IGNORA o price do cliente — só o id do produto é confiável.
+  // ════════════════════════════════════════════════════════════════════
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    // Sem service key não dá pra validar preços. Fail-closed em prod
+    // pra não permitir tampering passar.
+    return json({ error: 'Validação de preços indisponível — contate o suporte' }, 503);
+  }
 
-  // Monta items pro MP. Preço em DECIMAL (não centavos como o InfinitePay).
-  const items = (Array.isArray(order.items) && order.items.length)
-    ? order.items.map((it, i) => ({
-        id: String(it.id || ('item-' + i)),
-        title: String(it.name || it.description || 'Item').slice(0, 80),
-        quantity: Math.max(1, Math.floor(Number(it.qty || it.quantity || 1))),
-        unit_price: Number(Number(it.price || 0).toFixed(2)) || 0,
-        currency_id: 'BRL'
-      }))
-    : [{
-        id: 'pedido-' + orderId.slice(0, 8),
-        title: 'Pedido #' + orderId.slice(0, 8),
-        quantity: 1,
-        unit_price: Number(totalReais.toFixed(2)),
-        currency_id: 'BRL'
-      }];
+  const rawItems = Array.isArray(order.items) ? order.items : [];
+  const productIds = rawItems
+    .map(it => String(it.id || '').trim())
+    .filter(Boolean);
 
-  // Sanity: se soma dos items diverge do total, força um item único com total
-  const itemsSum = items.reduce((s, it) => s + (it.unit_price * it.quantity), 0);
-  const finalItems = (Math.abs(itemsSum - totalReais) < 0.01)
-    ? items
-    : [{
-        id: 'pedido-' + orderId.slice(0, 8),
-        title: 'Pedido #' + orderId.slice(0, 8),
-        quantity: 1,
-        unit_price: Number(totalReais.toFixed(2)),
-        currency_id: 'BRL'
-      }];
+  if (productIds.length === 0) {
+    return json({ error: 'Pedido vazio (sem itens válidos)' }, 400);
+  }
+
+  // Busca os produtos REAIS no banco (com service_role pra bypassar RLS)
+  const idsList = productIds.map(id => '"' + encodeURIComponent(id).replace(/"/g, '') + '"').join(',');
+  const prodRes = await fetch(
+    `${supaUrl}/rest/v1/products?id=in.(${idsList})&select=id,name,price,active`,
+    { headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey } }
+  );
+  if (!prodRes.ok) {
+    return json({ error: 'Falha ao validar preços dos produtos' }, 502);
+  }
+  const products = await prodRes.json().catch(() => []);
+  const productMap = {};
+  (Array.isArray(products) ? products : []).forEach(p => { productMap[p.id] = p; });
+
+  // Re-monta items com preço autoritativo do banco
+  const validatedItems = [];
+  let validatedTotal = 0;
+  for (const it of rawItems) {
+    const id = String(it.id || '').trim();
+    if (!id) continue;
+    const prod = productMap[id];
+    if (!prod) {
+      return json({ error: 'Produto não encontrado: ' + id }, 400);
+    }
+    if (prod.active === false) {
+      return json({ error: 'Produto inativo: ' + (prod.name || id) }, 400);
+    }
+    const realPrice = Number(prod.price || 0);
+    if (!(realPrice > 0)) {
+      return json({ error: 'Produto sem preço cadastrado: ' + (prod.name || id) }, 400);
+    }
+    const qty = Math.max(1, Math.floor(Number(it.qty || it.quantity || 1)));
+    if (qty > 50) {
+      return json({ error: 'Quantidade excessiva em ' + (prod.name || id) }, 400);
+    }
+    validatedItems.push({
+      id: prod.id,
+      title: String(prod.name || ('Item ' + id)).slice(0, 80),
+      quantity: qty,
+      unit_price: Number(realPrice.toFixed(2)),
+      currency_id: 'BRL'
+    });
+    validatedTotal += realPrice * qty;
+  }
+  validatedTotal = Math.round(validatedTotal * 100) / 100;
+
+  if (!(validatedTotal > 0)) {
+    return json({ error: 'Total inválido após validação' }, 400);
+  }
+
+  // Se cliente tentou forjar o total, corrige no DB ANTES de criar a preference
+  // (importante porque o webhook depois compara paid_amount com order.total)
+  const totalReais = validatedTotal;
+  if (Math.abs(Number(order.total || 0) - validatedTotal) > 0.01) {
+    console.warn('mp-checkout-loja: total adulterado pelo cliente, corrigindo', {
+      orderId,
+      cliente: order.total,
+      real: validatedTotal
+    });
+    await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ total: validatedTotal })
+    }).catch(() => {});
+  }
+
+  const finalItems = validatedItems;
 
   const origin = (() => {
     try { return new URL(request.url).origin; }
@@ -123,12 +187,14 @@ export async function onRequestPost(context) {
     const initPoint = data.init_point || data.sandbox_init_point;
     if (!initPoint) return json({ error: 'Mercado Pago não retornou init_point' }, 502);
 
-    // Marca o pedido com gateway + payment_url
+    // Marca o pedido com gateway + payment_url. Usa service_role pq depois
+    // do hardening B4 a policy orders_admin_update bloqueia UPDATE pelo
+    // próprio user — só admin/service_role pode.
     await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
       method: 'PATCH',
       headers: {
-        'apikey': anonKey,
-        'Authorization': `Bearer ${accessToken}`,
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey,
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },

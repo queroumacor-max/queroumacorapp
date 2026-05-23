@@ -1293,6 +1293,9 @@ END $$;
 GRANT EXECUTE ON FUNCTION public.submit_review(uuid, uuid, integer, text, jsonb) TO authenticated;
 
 -- redeem_pro_with_points: balance check + débito + ativação ATÔMICA + advisory lock
+-- IMPORTANTE: o parâmetro p_cost é IGNORADO no corpo (hardcode 100). Sem isso,
+-- cliente chamava sb.rpc('redeem_pro_with_points', { p_cost: 1 }) e ganhava
+-- 30 dias PRO por 1 ponto.
 DROP FUNCTION IF EXISTS public.redeem_pro_with_points(integer);
 CREATE OR REPLACE FUNCTION public.redeem_pro_with_points(
   p_cost integer DEFAULT 100
@@ -1302,19 +1305,21 @@ DECLARE
   v_balance integer := 0;
   v_current_exp timestamptz;
   v_new_exp timestamptz;
+  v_real_cost integer := 100;  -- HARDCODED — ignora qualquer p_cost do cliente
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login'; END IF;
-  IF p_cost IS NULL OR p_cost < 1 THEN RAISE EXCEPTION 'Custo inválido'; END IF;
-  -- Lock por user (serializa redeem paralelo)
+  -- Lock por user (serializa redeem paralelo — anti race condition)
   PERFORM pg_advisory_xact_lock(hashtextextended(auth.uid()::text, 0));
   SELECT COALESCE(SUM(CASE WHEN type = 'earned' THEN amount ELSE -amount END), 0)
     INTO v_balance FROM public.points WHERE user_id = auth.uid();
-  IF v_balance < p_cost THEN RAISE EXCEPTION 'Saldo insuficiente (tem %, precisa %)', v_balance, p_cost; END IF;
+  IF v_balance < v_real_cost THEN
+    RAISE EXCEPTION 'Saldo insuficiente (tem %, precisa %)', v_balance, v_real_cost;
+  END IF;
   SELECT pro_expires_at INTO v_current_exp FROM public.profiles WHERE id = auth.uid();
   v_new_exp := COALESCE(CASE WHEN v_current_exp > now() THEN v_current_exp ELSE now() END, now())
                + interval '30 days';
   INSERT INTO public.points (user_id, amount, type, source, created_at)
-  VALUES (auth.uid(), p_cost, 'redeemed', 'pro_1mes', now());
+  VALUES (auth.uid(), v_real_cost, 'redeemed', 'pro_1mes', now());
   UPDATE public.profiles SET is_pro = true, pro_expires_at = v_new_exp WHERE id = auth.uid();
   RETURN v_new_exp;
 END $$;
@@ -1714,6 +1719,45 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'handle_new_user falhou para %: %', NEW.id, SQLERRM;
   END;
+  RETURN NEW;
+END $$;
+
+-- ============================================================
+-- Re-auditoria de PAGAMENTO — hardening adicional
+-- ============================================================
+
+-- orders.tx_id UNIQUE (anti-replay de webhook + dupla creditação)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+     WHERE schemaname='public' AND indexname='idx_orders_tx_unique'
+  ) THEN
+    CREATE UNIQUE INDEX idx_orders_tx_unique
+      ON public.orders(tx_id) WHERE tx_id IS NOT NULL;
+  END IF;
+END $$;
+
+-- points.amount: bloqueia valores absurdos (admin comprometido não credita 999999)
+ALTER TABLE public.points DROP CONSTRAINT IF EXISTS points_amount_sane;
+ALTER TABLE public.points
+  ADD CONSTRAINT points_amount_sane
+  CHECK (amount IS NULL OR (amount >= 0 AND amount <= 10000));
+
+-- award_order_paid_points com CAP em 100 pts/order (anti admin fraud + anti
+-- pedido absurdamente caro creditando milhares de pontos)
+CREATE OR REPLACE FUNCTION public.award_order_paid_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_pts integer;
+BEGIN
+  IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid' AND NEW.user_id IS NOT NULL THEN
+    -- Cap em 100 pts por order (1 ordem = no máximo 1 mês PRO via redeem)
+    v_pts := LEAST(100, FLOOR(COALESCE(NEW.total, 0) / 10)::integer);
+    IF v_pts > 0
+       AND NOT EXISTS (SELECT 1 FROM public.points WHERE source = 'order_paid' AND reference_id = NEW.id) THEN
+      INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
+      VALUES (NEW.user_id, v_pts, 'earned', 'order_paid', NEW.id, now());
+    END IF;
+  END IF;
   RETURN NEW;
 END $$;
 
