@@ -2095,6 +2095,21 @@ async function loadPoints(){
   const { data: pts } = await sb.from('points').select('*').eq('user_id', currentUser.id).order('created_at',{ascending:false}).limit(20);
   let saldo = 0; (pts||[]).forEach(p=>{ saldo += p.type==='earned'?(p.amount||0):-(p.amount||0); });
   document.getElementById('pts-saldo').textContent = saldo+' pts';
+  // Botão de troca: liga só com 100+ pts; senão mostra quantos faltam
+  const redeemBtn = document.getElementById('pts-redeem-btn');
+  if(redeemBtn){
+    if(saldo >= 100){
+      redeemBtn.disabled = false;
+      redeemBtn.style.opacity = '1';
+      redeemBtn.style.cursor = 'pointer';
+      redeemBtn.textContent = '⚡ Trocar 100 pts por 1 mês PRO';
+    } else {
+      redeemBtn.disabled = true;
+      redeemBtn.style.opacity = '0.5';
+      redeemBtn.style.cursor = 'not-allowed';
+      redeemBtn.textContent = '⚡ Faltam ' + (100 - saldo) + ' pts pra liberar 1 mês PRO';
+    }
+  }
   const el = document.getElementById('pts-historico');
   if(!pts||pts.length===0) return;
   el.innerHTML = pts.map(p=>{
@@ -2102,6 +2117,47 @@ async function loadPoints(){
     const color = p.type==='earned'?'#2ec4b6':'var(--p1)';
     return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>${escapeHtml(p.source||'')}</span><span style="color:${color};font-weight:700;">${sign}${p.amount} pts</span></div>`;
   }).join('');
+}
+
+// ══ TROCAR 100 PTS POR 1 MÊS PRO EXTRA ══
+async function trocarPontosPorPRO(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const btn = document.getElementById('pts-redeem-btn');
+  if(btn) btn.disabled = true;
+  try {
+    // Soma o saldo completo do banco (sem o limit do loadPoints)
+    const { data: allPts } = await sb.from('points').select('amount,type').eq('user_id', currentUser.id);
+    let saldo = 0;
+    (allPts || []).forEach(p => { saldo += p.type === 'earned' ? (p.amount || 0) : -(p.amount || 0); });
+    if(saldo < 100){ toast('Faltam ' + (100 - saldo) + ' pts'); return; }
+    if(!confirm('Trocar 100 pts por 1 mês PRO extra?')) return;
+    // Calcula a nova data de expiração (estende se ainda ativo)
+    const prof = await getMyProfile(true);
+    const now = new Date();
+    const currentExp = prof && prof.pro_expires_at ? new Date(prof.pro_expires_at) : null;
+    const base = (currentExp && currentExp > now) ? currentExp : now;
+    const newExp = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+    // Debita os 100 pts
+    const { error: spendErr } = await sb.from('points').insert({
+      user_id: currentUser.id, amount: 100, type: 'redeemed', source: 'pro_1mes'
+    });
+    if(spendErr) throw spendErr;
+    // Estende o PRO
+    const { error: proErr } = await sb.from('profiles').update({
+      is_pro: true, pro_expires_at: newExp.toISOString()
+    }).eq('id', currentUser.id);
+    if(proErr) throw proErr;
+    if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
+    toast('1 mês PRO liberado! 🎉');
+    loadPoints();
+    if(typeof refreshProStatus === 'function') refreshProStatus();
+  } catch(e){
+    console.warn('trocarPontosPorPRO:', e);
+    toast('Erro: ' + (e.message || e));
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 // ══ EARN POINTS HELPER ══
