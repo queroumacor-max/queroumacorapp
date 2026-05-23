@@ -1386,11 +1386,16 @@ const _aiKnowledge = {
 
 let _aiChatHistory = [];
 
-async function sendAiChat(){
-  const input = document.getElementById('ai-chat-input');
-  const text = input.value.trim();
+async function sendAiChat(textArg, speakReply){
+  let text;
+  if(textArg){
+    text = String(textArg).trim();
+  } else {
+    const input = document.getElementById('ai-chat-input');
+    text = input ? input.value.trim() : '';
+    if(input) input.value = '';
+  }
   if(!text) return;
-  input.value = '';
   const msgsEl = document.getElementById('ai-chat-msgs');
 
   msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;justify-content:flex-end;"><div style="background:var(--ink);color:#fff;border-radius:14px;padding:10px 14px;font-size:13px;max-width:85%;">'+escapeHtml(text)+'</div></div>';
@@ -1446,6 +1451,100 @@ async function sendAiChat(){
   const formatted = escapeHtml(reply).replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.png" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
+  if(speakReply && reply) falarSeuZe(reply);
+}
+
+// ══ MODO CONVERSAÇÃO POR VOZ COM O SEU ZÉ (PRO) ══
+// Grava a fala → Whisper transcreve → manda no chat-ai → resposta do
+// Seu Zé é falada de volta via OpenAI TTS.
+let _aiVoiceRecorder = null;
+let _aiVoiceChunks = [];
+let _aiVoiceStream = null;
+let _aiVoiceAutoStop = null;
+let _aiVoiceAudio = null;
+
+async function aiChatToggleVoice(){
+  if(_aiVoiceRecorder && _aiVoiceRecorder.state === 'recording'){
+    aiChatStopVoice();
+    return;
+  }
+  // Se está tocando uma resposta, corta
+  if(_aiVoiceAudio && !_aiVoiceAudio.paused){
+    try { _aiVoiceAudio.pause(); } catch(e){}
+    _aiVoiceAudio = null;
+  }
+  if(!_isPro){
+    toast('Conversa por voz com o Seu Zé é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Seu navegador não suporta gravação de áudio'); return; }
+  if(typeof MediaRecorder === 'undefined'){ toast('Seu navegador não suporta MediaRecorder'); return; }
+  try { _aiVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ toast('Permissão de microfone negada'); return; }
+  _aiVoiceChunks = [];
+  try { _aiVoiceRecorder = new MediaRecorder(_aiVoiceStream); }
+  catch(e){
+    toast('Erro ao iniciar gravação: ' + e.message);
+    if(_aiVoiceStream){ _aiVoiceStream.getTracks().forEach(t => t.stop()); _aiVoiceStream = null; }
+    return;
+  }
+  _aiVoiceRecorder.ondataavailable = e => { if(e.data && e.data.size > 0) _aiVoiceChunks.push(e.data); };
+  _aiVoiceRecorder.onstop = async () => {
+    const mimeType = _aiVoiceRecorder.mimeType || 'audio/webm';
+    const blob = new Blob(_aiVoiceChunks, { type: mimeType });
+    if(_aiVoiceStream){ _aiVoiceStream.getTracks().forEach(t => t.stop()); _aiVoiceStream = null; }
+    await aiChatHandleVoice(blob);
+  };
+  _aiVoiceRecorder.start();
+  const btn = document.getElementById('ai-chat-mic-btn');
+  if(btn){ btn.innerHTML = '⏹'; btn.style.background = '#c00'; btn.title = 'Parar e enviar'; }
+  if(_aiVoiceAutoStop) clearTimeout(_aiVoiceAutoStop);
+  _aiVoiceAutoStop = setTimeout(() => { if(_aiVoiceRecorder && _aiVoiceRecorder.state === 'recording') aiChatStopVoice(); }, 60000);
+}
+
+function aiChatStopVoice(){
+  if(_aiVoiceRecorder && _aiVoiceRecorder.state === 'recording') _aiVoiceRecorder.stop();
+  if(_aiVoiceAutoStop){ clearTimeout(_aiVoiceAutoStop); _aiVoiceAutoStop = null; }
+  const btn = document.getElementById('ai-chat-mic-btn');
+  if(btn){ btn.innerHTML = '🎤'; btn.style.background = 'linear-gradient(135deg,#8338ec,var(--p1))'; btn.title = 'Falar com o Seu Zé'; }
+}
+
+async function aiChatHandleVoice(blob){
+  toast('Transcrevendo sua fala...');
+  try {
+    const fd = new FormData();
+    fd.append('audio', blob, 'voice.webm');
+    const r = await fetch('/api/transcribe', { method:'POST', body: fd });
+    const data = await r.json();
+    if(!r.ok || !data.text){
+      toast('Não consegui entender: ' + (data.error || 'tente de novo'));
+      return;
+    }
+    await sendAiChat(data.text, true);
+  } catch(e){
+    toast('Erro: ' + (e.message || e));
+  }
+}
+
+async function falarSeuZe(text){
+  if(!text) return;
+  try {
+    const r = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 1500) })
+    });
+    if(!r.ok){ console.warn('tts error:', await r.text().catch(()=>'')); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    if(_aiVoiceAudio){ try { _aiVoiceAudio.pause(); } catch(e){} }
+    _aiVoiceAudio = new Audio(url);
+    _aiVoiceAudio.play().catch(e => console.warn('audio play:', e));
+    _aiVoiceAudio.onended = () => { URL.revokeObjectURL(url); _aiVoiceAudio = null; };
+  } catch(e){
+    console.warn('falarSeuZe:', e);
+  }
 }
 
 async function sugerirEscopoIA(btn){
