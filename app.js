@@ -461,6 +461,42 @@ function handleProReturn(){
   } catch(e){ console.warn('handleProReturn:', e); }
 }
 
+// Retorno do checkout InfinitePay (Loja). URL: /?compra=<orderId>
+// Faz polling no status da order pra confirmar quando o webhook chegou.
+function handleCompraReturn(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('compra');
+    if(!orderId) return;
+    // Limpa a URL
+    window.history.replaceState({}, '', window.location.pathname);
+    toast('Confirmando pagamento...');
+    const sb = getSupabase();
+    if(!sb || !currentUser) return;
+    let tries = 0;
+    const iv = setInterval(async () => {
+      tries++;
+      try {
+        const { data } = await sb.from('orders')
+          .select('status, paid_at')
+          .eq('id', orderId).single();
+        if(data && data.status === 'paid'){
+          clearInterval(iv);
+          toast('Compra confirmada! 🎉 Você ganhou pontos.');
+          // recarrega a tela de pedidos se estiver aberta
+          if(typeof loadPedidos === 'function'){ try { loadPedidos(); } catch{} }
+        } else if(data && data.status === 'amount_mismatch'){
+          clearInterval(iv);
+          toast('Atenção: valor pago diverge do pedido. Entre em contato com a loja.');
+        } else if(tries >= 8){
+          clearInterval(iv);
+          toast('Pagamento em processamento. Acompanhe em "Meus Pedidos".');
+        }
+      } catch(e){ /* tenta de novo */ }
+    }, 3000);
+  } catch(e){ console.warn('handleCompraReturn:', e); }
+}
+
 // Link de perfil compartilhado (?ref=<userId>): funciona como convite —
 // pula o passo do código e registra quem indicou (invited_by).
 async function handleReferralParam(){
@@ -5146,27 +5182,51 @@ async function submitCartOrder(){
   const sb = getSupabase();
   if(!sb || !currentUser){ toast('Faca login primeiro'); return; }
   const btn = document.getElementById('cart-submit-btn');
-  btn.textContent = 'Enviando...'; btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Criando pedido...'; btn.disabled = true;
   try {
     const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * (item.qty || 1), 0);
-    const { error } = await sb.from('orders').insert({
+    const { data: inserted, error } = await sb.from('orders').insert({
       user_id: currentUser.id,
       items: cartItems,
       total: total,
       status: 'pending',
       created_at: new Date().toISOString()
-    });
+    }).select('id').single();
     if(error) throw error;
-    toast('Solicitação de compra enviada! A loja entrará em contato.');
-    cartItems = [];
-    saveCart();
-    updateCartBadge();
-    closeModals();
+    const orderId = inserted && inserted.id;
+    if(!orderId) throw new Error('Pedido criado sem ID');
+
+    // Pega o token e chama o create da InfinitePay
+    btn.textContent = 'Gerando pagamento...';
+    const { data:{ session } } = await sb.auth.getSession();
+    if(!session){ throw new Error('Sessão expirada — faça login'); }
+    const r = await fetch('/api/infinitepay-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, accessToken: session.access_token })
+    });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok || !data.url){
+      // Fallback: se InfinitePay não estiver configurada, mantém o fluxo
+      // antigo (pedido fica pending, loja entra em contato).
+      if(r.status === 503){
+        toast('Pedido recebido! A loja entrará em contato (pagamento online em breve).');
+        cartItems = []; saveCart(); updateCartBadge(); closeModals();
+        return;
+      }
+      throw new Error(data.error || ('Erro ' + r.status));
+    }
+
+    // Limpa o carrinho ANTES de redirecionar — se o user voltar, não duplica
+    cartItems = []; saveCart(); updateCartBadge();
+    toast('Redirecionando para pagamento...');
+    window.location.href = data.url;
   } catch(e){
     console.error('submitCartOrder error:', e);
-    toast('Erro ao enviar pedido: ' + (e.message || 'tente novamente'));
+    toast('Erro: ' + (e.message || 'tente novamente'));
+    btn.textContent = originalLabel; btn.disabled = false;
   }
-  btn.textContent = 'Enviar Solicitação de Compra'; btn.disabled = false;
 }
 
 function getCategoryEmoji(cat){

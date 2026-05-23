@@ -1110,4 +1110,25 @@ ALTER TABLE public.reviews
   ADD COLUMN IF NOT EXISTS criteria jsonb DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS comment text;
 
+-- ============================================
+-- Orders: colunas para integração InfinitePay (gateway, tx, valor pago)
+-- ============================================
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS gateway        text,
+  ADD COLUMN IF NOT EXISTS payment_url    text,
+  ADD COLUMN IF NOT EXISTS tx_id          text,
+  ADD COLUMN IF NOT EXISTS paid_amount    numeric,
+  ADD COLUMN IF NOT EXISTS paid_at        timestamptz,
+  ADD COLUMN IF NOT EXISTS payment_method text,
+  ADD COLUMN IF NOT EXISTS installments   integer,
+  ADD COLUMN IF NOT EXISTS receipt_url    text;
+
+-- Status pode ficar: pending | paid | amount_mismatch | refunded | canceled
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
+  CHECK (status IN ('pending','paid','amount_mismatch','refunded','canceled'));
+
+-- Index para o webhook achar a order rápido
+CREATE INDEX IF NOT EXISTS idx_orders_tx_id ON public.orders(tx_id) WHERE tx_id IS NOT NULL;
+
 NOTIFY pgrst, 'reload schema';
