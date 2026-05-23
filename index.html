@@ -1864,7 +1864,9 @@
       <button onclick="clearPostImages()" style="margin-top:6px;background:none;border:none;color:var(--p4);font-size:12px;font-weight:600;cursor:pointer;">Remover imagem</button>
     </div>
     <textarea id="post-text-input" placeholder="Escreva algo..." style="width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px;font-size:14px;font-family:'DM Sans',sans-serif;height:60px;resize:none;outline:none;margin-bottom:8px"></textarea>
-    <button type="button" onclick="gerarLegendaPost()" style="width:100%;padding:11px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:12px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:12px;">✨ Gerar legenda com IA (PRO)</button>
+    <button type="button" onclick="gerarLegendaPost(this)" style="width:100%;padding:11px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:12px;">
+      ✨ Gerar legenda com IA <span style="background:rgba(255,255,255,.25);font-size:9px;padding:2px 7px;border-radius:10px;margin-left:4px;">PRO</span>
+    </button>
     <!-- Sale fields (grafiteiro only) -->
     <div id="post-sale-fields" style="display:none;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">

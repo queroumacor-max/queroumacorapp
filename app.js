@@ -6530,6 +6530,61 @@ function clearPostImages(){
   document.getElementById('post-file-input').value = '';
 }
 
+// Gera legenda + hashtags do post a partir da foto selecionada (PRO).
+async function gerarLegendaPost(btn){
+  if(!_isPro){
+    toast('Gerar legenda com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
+  if(!postSelectedFiles || postSelectedFiles.length === 0){
+    toast('Selecione uma foto primeiro');
+    return;
+  }
+  const file = postSelectedFiles[0];
+  if(getMediaType(file) === 'video'){
+    toast('A legenda por IA só funciona com foto, não com vídeo');
+    return;
+  }
+  if(file.size > 8 * 1024 * 1024){
+    toast('Foto muito grande (máx 8 MB)');
+    return;
+  }
+  const ta = document.getElementById('post-text-input');
+  const orig = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
+  toast('Gerando legenda com IA...');
+  try {
+    const fd = new FormData();
+    fd.append('image', file, file.name || 'foto.jpg');
+    const r = await fetch('/api/caption', { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok){
+      toast('Não foi possível gerar a legenda agora');
+      console.warn('caption error:', data?.error || r.status);
+      return;
+    }
+    const caption = (data?.caption || '').toString().trim();
+    const hashtags = Array.isArray(data?.hashtags) ? data.hashtags.filter(h => typeof h === 'string') : [];
+    if(!caption && hashtags.length === 0){
+      toast('A IA não devolveu nada — tente outra foto');
+      return;
+    }
+    const existing = (ta.value || '').trim();
+    const tagLine = hashtags.join(' ');
+    const built = [caption, tagLine].filter(Boolean).join('\n\n');
+    ta.value = existing ? (existing + '\n\n' + built) : built;
+    ta.focus();
+    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(_){}
+    toast('Legenda gerada ✨');
+  } catch(e){
+    console.error('gerarLegendaPost:', e);
+    toast('Falha ao gerar legenda');
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
 async function publishPost(){
   const sb = getSupabase();
   if(!sb){ toast('Erro: Supabase nao disponivel'); return; }
