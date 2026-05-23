@@ -1131,4 +1131,590 @@ ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
 -- Index para o webhook achar a order rápido
 CREATE INDEX IF NOT EXISTS idx_orders_tx_id ON public.orders(tx_id) WHERE tx_id IS NOT NULL;
 
+-- ============================================================================
+-- ============================================================================
+-- SECURITY HARDENING (PÓS-LANÇAMENTO) — consolidação das baterias 1-4
+-- ============================================================================
+-- ============================================================================
+-- Tudo daqui pra baixo foi rodado via chat durante as auditorias de segurança
+-- (B1, B2, B3, B4 + re-auditoria). Persistido aqui pra que o repo seja
+-- source-of-truth e o schema possa ser rerodado limpo.
+-- IDEMPOTENTE: DROP IF EXISTS + CREATE OR REPLACE em tudo.
+-- ============================================================================
+
+-- ============================================================
+-- B2 — Reviews: rating CHECK 1-5 + colunas idempotentes
+-- ============================================================
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS reviewer_id uuid,
+  ADD COLUMN IF NOT EXISTS quote_id    uuid,
+  ADD COLUMN IF NOT EXISTS rating      integer,
+  ADD COLUMN IF NOT EXISTS criteria    jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS comment     text,
+  ADD COLUMN IF NOT EXISTS created_at  timestamptz DEFAULT now();
+
+ALTER TABLE public.reviews DROP CONSTRAINT IF EXISTS reviews_rating_range;
+ALTER TABLE public.reviews ADD CONSTRAINT reviews_rating_range
+  CHECK (rating IS NULL OR (rating BETWEEN 1 AND 5));
+
+-- ============================================================
+-- B2 — Protect profile columns (anti PRO/admin grátis no devtools)
+-- ============================================================
+DROP FUNCTION IF EXISTS public.protect_profile_columns() CASCADE;
+CREATE OR REPLACE FUNCTION public.protect_profile_columns()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- Bypass: SECURITY DEFINER (postgres) + service_role + portal admin
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+  IF public.is_portal_admin() THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.is_pro IS DISTINCT FROM OLD.is_pro
+     OR NEW.pro_expires_at IS DISTINCT FROM OLD.pro_expires_at THEN
+    RAISE EXCEPTION 'PRO só pode ser alterado via RPC ou pagamento (não tente atalhos 🐻)';
+  END IF;
+  IF NEW.portal_access IS DISTINCT FROM OLD.portal_access THEN
+    RAISE EXCEPTION 'portal_access só pode ser alterado por admin';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_columns ON public.profiles;
+CREATE TRIGGER trg_protect_profile_columns
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_columns();
+
+-- ============================================================
+-- B2 — RPCs SECURITY DEFINER (quote, painter draft, review, PRO redeem)
+-- ============================================================
+
+-- create_quote_from_post: força client_id = auth.uid()
+DROP FUNCTION IF EXISTS public.create_quote_from_post(uuid, uuid, text, text, numeric, text, text, date, jsonb, text);
+CREATE OR REPLACE FUNCTION public.create_quote_from_post(
+  p_painter_id    uuid,
+  p_post_id       uuid,
+  p_title         text,
+  p_service_type  text,
+  p_area_m2       numeric,
+  p_address       text,
+  p_description   text,
+  p_proposed_date date,
+  p_images        jsonb DEFAULT '[]'::jsonb,
+  p_lead_type     text  DEFAULT 'direct'
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login para solicitar orçamento'; END IF;
+  IF p_painter_id IS NOT NULL AND p_painter_id = auth.uid() THEN
+    RAISE EXCEPTION 'Você não pode pedir orçamento para si mesmo';
+  END IF;
+  INSERT INTO public.quotes (
+    client_id, painter_id, title, service_type, area_m2, address,
+    description, proposed_date, images, lead_type, status, created_at
+  ) VALUES (
+    auth.uid(), p_painter_id,
+    COALESCE(NULLIF(TRIM(p_title), ''), 'Orçamento'),
+    COALESCE(NULLIF(TRIM(p_service_type), ''), 'pintura'),
+    p_area_m2, p_address, p_description, p_proposed_date,
+    COALESCE(p_images, '[]'::jsonb),
+    COALESCE(NULLIF(TRIM(p_lead_type), ''),
+      CASE WHEN p_painter_id IS NULL THEN 'shared' ELSE 'direct' END),
+    'pending', now()
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.create_quote_from_post(uuid, uuid, text, text, numeric, text, text, date, jsonb, text) TO authenticated;
+
+-- create_painter_draft: força painter_id = auth.uid()
+DROP FUNCTION IF EXISTS public.create_painter_draft(text, text, text, numeric, numeric, jsonb);
+CREATE OR REPLACE FUNCTION public.create_painter_draft(
+  p_client_name  text,
+  p_service_type text,
+  p_title        text,
+  p_area_m2      numeric,
+  p_price        numeric,
+  p_quote_data   jsonb DEFAULT '{}'::jsonb
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login para salvar rascunho'; END IF;
+  INSERT INTO public.quotes (
+    painter_id, client_id, client_name, service_type, title,
+    area_m2, price, status, quote_data, created_at
+  ) VALUES (
+    auth.uid(), NULL,
+    COALESCE(NULLIF(TRIM(p_client_name), ''), 'Cliente'),
+    COALESCE(NULLIF(TRIM(p_service_type), ''), 'Orçamento'),
+    COALESCE(NULLIF(TRIM(p_title), ''), 'Orçamento'),
+    p_area_m2, COALESCE(p_price, 0), 'rascunho',
+    COALESCE(p_quote_data, '{}'::jsonb), now()
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.create_painter_draft(text, text, text, numeric, numeric, jsonb) TO authenticated;
+
+-- submit_review: valida quote ownership + anti-duplicata
+DROP FUNCTION IF EXISTS public.submit_review(uuid, uuid, integer, text, jsonb);
+CREATE OR REPLACE FUNCTION public.submit_review(
+  p_quote_id   uuid,
+  p_painter_id uuid,
+  p_rating     integer,
+  p_comment    text  DEFAULT NULL,
+  p_criteria   jsonb DEFAULT '[]'::jsonb
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_id uuid; v_owner uuid; v_painter uuid; v_dup integer;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login para avaliar'; END IF;
+  IF p_rating IS NULL OR p_rating < 1 OR p_rating > 5 THEN
+    RAISE EXCEPTION 'Nota tem que ser de 1 a 5';
+  END IF;
+  IF p_quote_id IS NOT NULL THEN
+    SELECT client_id, painter_id INTO v_owner, v_painter FROM public.quotes WHERE id = p_quote_id;
+    IF v_owner IS NULL THEN RAISE EXCEPTION 'Orçamento não encontrado'; END IF;
+    IF v_owner != auth.uid() THEN RAISE EXCEPTION 'Você só pode avaliar os próprios orçamentos'; END IF;
+    IF p_painter_id IS NOT NULL AND v_painter IS NOT NULL AND p_painter_id != v_painter THEN
+      RAISE EXCEPTION 'Painter informado não bate com o do orçamento';
+    END IF;
+    SELECT COUNT(*) INTO v_dup FROM public.reviews
+      WHERE quote_id = p_quote_id AND reviewer_id = auth.uid();
+    IF v_dup > 0 THEN RAISE EXCEPTION 'Você já avaliou este orçamento'; END IF;
+  END IF;
+  INSERT INTO public.reviews (reviewer_id, quote_id, rating, comment, criteria, created_at)
+  VALUES (auth.uid(), p_quote_id, p_rating, p_comment, COALESCE(p_criteria, '[]'::jsonb), now())
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.submit_review(uuid, uuid, integer, text, jsonb) TO authenticated;
+
+-- redeem_pro_with_points: balance check + débito + ativação ATÔMICA + advisory lock
+DROP FUNCTION IF EXISTS public.redeem_pro_with_points(integer);
+CREATE OR REPLACE FUNCTION public.redeem_pro_with_points(
+  p_cost integer DEFAULT 100
+) RETURNS timestamptz
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_balance integer := 0;
+  v_current_exp timestamptz;
+  v_new_exp timestamptz;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login'; END IF;
+  IF p_cost IS NULL OR p_cost < 1 THEN RAISE EXCEPTION 'Custo inválido'; END IF;
+  -- Lock por user (serializa redeem paralelo)
+  PERFORM pg_advisory_xact_lock(hashtextextended(auth.uid()::text, 0));
+  SELECT COALESCE(SUM(CASE WHEN type = 'earned' THEN amount ELSE -amount END), 0)
+    INTO v_balance FROM public.points WHERE user_id = auth.uid();
+  IF v_balance < p_cost THEN RAISE EXCEPTION 'Saldo insuficiente (tem %, precisa %)', v_balance, p_cost; END IF;
+  SELECT pro_expires_at INTO v_current_exp FROM public.profiles WHERE id = auth.uid();
+  v_new_exp := COALESCE(CASE WHEN v_current_exp > now() THEN v_current_exp ELSE now() END, now())
+               + interval '30 days';
+  INSERT INTO public.points (user_id, amount, type, source, created_at)
+  VALUES (auth.uid(), p_cost, 'redeemed', 'pro_1mes', now());
+  UPDATE public.profiles SET is_pro = true, pro_expires_at = v_new_exp WHERE id = auth.uid();
+  RETURN v_new_exp;
+END $$;
+GRANT EXECUTE ON FUNCTION public.redeem_pro_with_points(integer) TO authenticated;
+
+-- ============================================================
+-- B2 — Cleanup de policies permissivas (quotes, reviews)
+-- ============================================================
+DROP POLICY IF EXISTS "Reviews viewable by everyone" ON public.reviews;
+DROP POLICY IF EXISTS "Users can create reviews"     ON public.reviews;
+DROP POLICY IF EXISTS "Quotes are viewable by everyone" ON public.quotes;
+DROP POLICY IF EXISTS "Quotes viewable by everyone"     ON public.quotes;
+DROP POLICY IF EXISTS "Painters can insert own quotes"  ON public.quotes;
+DROP POLICY IF EXISTS "Users can insert own quotes"     ON public.quotes;
+DROP POLICY IF EXISTS "Users can insert quotes"         ON public.quotes;
+DROP POLICY IF EXISTS quotes_client_insert              ON public.quotes;
+
+-- Quotes SELECT só pra partes ou admin (vazamento fechado)
+DROP POLICY IF EXISTS quotes_own_read ON public.quotes;
+CREATE POLICY quotes_own_read ON public.quotes
+  FOR SELECT TO authenticated
+  USING (
+    auth.uid() = client_id
+    OR auth.uid() = painter_id
+    OR public.is_portal_admin()
+  );
+
+-- ============================================================
+-- B3.1 — notify_user RPC + drop INSERT direto (anti spam in-app)
+-- ============================================================
+DROP POLICY IF EXISTS "Authenticated can create notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Users can create notifications"         ON public.notifications;
+
+DROP FUNCTION IF EXISTS public.notify_user(uuid, text, text, text, uuid);
+CREATE OR REPLACE FUNCTION public.notify_user(
+  p_user_id uuid, p_type text, p_title text, p_body text, p_ref_id uuid DEFAULT NULL
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid; v_caller uuid; v_ok boolean;
+BEGIN
+  v_caller := auth.uid();
+  IF v_caller IS NULL THEN RAISE EXCEPTION 'Faça login pra notificar'; END IF;
+  IF p_user_id IS NULL OR p_user_id = v_caller THEN RETURN NULL; END IF;
+  SELECT (
+    EXISTS(SELECT 1 FROM public.quotes
+       WHERE (client_id = v_caller AND painter_id = p_user_id)
+          OR (painter_id = v_caller AND client_id = p_user_id))
+    OR EXISTS(SELECT 1 FROM public.messages
+       WHERE (sender_id = v_caller AND receiver_id = p_user_id)
+          OR (sender_id = p_user_id AND receiver_id = v_caller))
+    OR public.is_portal_admin()
+  ) INTO v_ok;
+  IF NOT v_ok THEN
+    RAISE EXCEPTION 'Sem relação com o destinatário (precisa quote ou conversa compartilhada)';
+  END IF;
+  INSERT INTO public.notifications (user_id, actor_id, type, title, body, ref_id, created_at)
+  VALUES (p_user_id, v_caller, COALESCE(NULLIF(TRIM(p_type),''), 'info'),
+          COALESCE(p_title, ''), COALESCE(p_body, ''), p_ref_id, now())
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.notify_user(uuid, text, text, text, uuid) TO authenticated;
+
+-- ============================================================
+-- B3.2 — Points: triggers automáticos + drop INSERT direto
+-- ============================================================
+DROP POLICY IF EXISTS "Users can insert own points" ON public.points;
+
+CREATE OR REPLACE FUNCTION public.award_quote_request_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.client_id IS NOT NULL THEN
+    INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
+    VALUES (NEW.client_id, 5, 'earned', 'quote_request', NEW.id, now());
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_award_quote_request_points ON public.quotes;
+CREATE TRIGGER trg_award_quote_request_points
+  AFTER INSERT ON public.quotes
+  FOR EACH ROW EXECUTE FUNCTION public.award_quote_request_points();
+
+CREATE OR REPLACE FUNCTION public.award_quote_completed_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.status = 'concluido'
+     AND OLD.status IS DISTINCT FROM 'concluido'
+     AND NEW.painter_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM public.points WHERE source = 'quote_completed' AND reference_id = NEW.id) THEN
+    INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
+    VALUES (NEW.painter_id, 15, 'earned', 'quote_completed', NEW.id, now());
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_award_quote_completed_points ON public.quotes;
+CREATE TRIGGER trg_award_quote_completed_points
+  AFTER UPDATE ON public.quotes
+  FOR EACH ROW EXECUTE FUNCTION public.award_quote_completed_points();
+
+CREATE OR REPLACE FUNCTION public.award_order_paid_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_pts integer;
+BEGIN
+  IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid' AND NEW.user_id IS NOT NULL THEN
+    v_pts := FLOOR(COALESCE(NEW.total, 0) / 10)::integer;
+    IF v_pts > 0 AND NOT EXISTS (SELECT 1 FROM public.points WHERE source = 'order_paid' AND reference_id = NEW.id) THEN
+      INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
+      VALUES (NEW.user_id, v_pts, 'earned', 'order_paid', NEW.id, now());
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_award_order_paid_points ON public.orders;
+CREATE TRIGGER trg_award_order_paid_points
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.award_order_paid_points();
+
+-- ============================================================
+-- B3.3 — avatar_url / posts.image_url scheme allowlist
+-- ============================================================
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_avatar_url_scheme;
+ALTER TABLE public.profiles
+  ADD CONSTRAINT profiles_avatar_url_scheme
+  CHECK (
+    avatar_url IS NULL
+    OR avatar_url ~ '^https://'
+    OR avatar_url ~ '^data:image/(png|jpeg|jpg|gif|webp);base64,'
+  ) NOT VALID;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='posts' AND column_name='image_url') THEN
+    ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_image_url_scheme;
+    ALTER TABLE public.posts
+      ADD CONSTRAINT posts_image_url_scheme
+      CHECK (
+        image_url IS NULL
+        OR image_url ~ '^https://'
+        OR image_url ~ '^data:image/(png|jpeg|jpg|gif|webp);base64,'
+      ) NOT VALID;
+  END IF;
+END $$;
+
+-- ============================================================
+-- B4.1 — Rate limiting (rate_limits + RPC check_rate_limit)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+  user_id      uuid NOT NULL,
+  endpoint     text NOT NULL,
+  window_start timestamptz NOT NULL,
+  count        integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, endpoint, window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON public.rate_limits(window_start);
+ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.check_rate_limit(
+  p_user_id uuid, p_endpoint text, p_limit integer DEFAULT 30, p_window_minutes integer DEFAULT 1
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_window timestamptz; v_count integer;
+BEGIN
+  v_window := date_trunc('minute', now());
+  INSERT INTO public.rate_limits (user_id, endpoint, window_start, count)
+  VALUES (p_user_id, p_endpoint, v_window, 1)
+  ON CONFLICT (user_id, endpoint, window_start)
+  DO UPDATE SET count = public.rate_limits.count + 1
+  RETURNING count INTO v_count;
+  RETURN jsonb_build_object(
+    'allowed', v_count <= p_limit,
+    'count', v_count,
+    'limit', p_limit,
+    'retry_after_seconds', GREATEST(1, 60 - EXTRACT(SECOND FROM now())::integer)
+  );
+END $$;
+GRANT EXECUTE ON FUNCTION public.check_rate_limit(uuid, text, integer, integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.cleanup_rate_limits()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN DELETE FROM public.rate_limits WHERE window_start < now() - interval '1 hour'; END $$;
+GRANT EXECUTE ON FUNCTION public.cleanup_rate_limits() TO service_role;
+
+-- ============================================================
+-- B4.3 — Audit log (audit_events + triggers + RPC manual)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.audit_events (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_type    text NOT NULL,
+  actor_id      uuid,
+  target_id     uuid,
+  target_table  text,
+  target_row_id uuid,
+  metadata      jsonb DEFAULT '{}'::jsonb,
+  ip            text,
+  user_agent    text,
+  created_at    timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_events_target  ON public.audit_events(target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_actor   ON public.audit_events(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_type_ts ON public.audit_events(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_events_created ON public.audit_events(created_at DESC);
+ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS audit_events_admin_read ON public.audit_events;
+CREATE POLICY audit_events_admin_read ON public.audit_events
+  FOR SELECT TO authenticated USING (public.is_portal_admin());
+
+CREATE OR REPLACE FUNCTION public.audit_profile_changes()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.is_pro IS DISTINCT FROM OLD.is_pro OR NEW.pro_expires_at IS DISTINCT FROM OLD.pro_expires_at THEN
+    INSERT INTO public.audit_events (event_type, actor_id, target_id, target_table, target_row_id, metadata)
+    VALUES ('pro_change', auth.uid(), NEW.id, 'profiles', NEW.id,
+      jsonb_build_object('old_is_pro', OLD.is_pro, 'new_is_pro', NEW.is_pro,
+        'old_expires_at', OLD.pro_expires_at, 'new_expires_at', NEW.pro_expires_at,
+        'caller_role', current_user));
+  END IF;
+  IF NEW.portal_access IS DISTINCT FROM OLD.portal_access THEN
+    INSERT INTO public.audit_events (event_type, actor_id, target_id, target_table, target_row_id, metadata)
+    VALUES ('portal_access_change', auth.uid(), NEW.id, 'profiles', NEW.id,
+      jsonb_build_object('old', OLD.portal_access, 'new', NEW.portal_access, 'caller_role', current_user));
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_audit_profile_changes ON public.profiles;
+CREATE TRIGGER trg_audit_profile_changes
+  AFTER UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.audit_profile_changes();
+
+CREATE OR REPLACE FUNCTION public.audit_order_changes()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status
+     AND NEW.status IN ('paid', 'refunded', 'canceled', 'amount_mismatch') THEN
+    INSERT INTO public.audit_events (event_type, actor_id, target_id, target_table, target_row_id, metadata)
+    VALUES ('order_status_change', auth.uid(), NEW.user_id, 'orders', NEW.id,
+      jsonb_build_object('old_status', OLD.status, 'new_status', NEW.status,
+        'total', NEW.total, 'paid_amount', NEW.paid_amount, 'gateway', NEW.gateway,
+        'tx_id', NEW.tx_id, 'caller_role', current_user));
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_audit_order_changes ON public.orders;
+CREATE TRIGGER trg_audit_order_changes
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.audit_order_changes();
+
+CREATE OR REPLACE FUNCTION public.audit_points_insert()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.type = 'redeemed'
+     OR NEW.source NOT IN ('quote_request', 'quote_completed', 'order_paid', 'referral') THEN
+    INSERT INTO public.audit_events (event_type, actor_id, target_id, target_table, target_row_id, metadata)
+    VALUES ('points_movement', auth.uid(), NEW.user_id, 'points', NEW.id,
+      jsonb_build_object('amount', NEW.amount, 'type', NEW.type, 'source', NEW.source,
+        'reference_id', NEW.reference_id, 'caller_role', current_user));
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_audit_points_insert ON public.points;
+CREATE TRIGGER trg_audit_points_insert
+  AFTER INSERT ON public.points
+  FOR EACH ROW EXECUTE FUNCTION public.audit_points_insert();
+
+DROP FUNCTION IF EXISTS public.audit_log_manual(text, uuid, jsonb);
+CREATE OR REPLACE FUNCTION public.audit_log_manual(
+  p_event_type text, p_target_id uuid, p_metadata jsonb DEFAULT '{}'::jsonb
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login'; END IF;
+  IF NOT public.is_portal_admin() THEN RAISE EXCEPTION 'Só portal admin pode registrar evento manual'; END IF;
+  INSERT INTO public.audit_events (event_type, actor_id, target_id, metadata)
+  VALUES (COALESCE(NULLIF(TRIM(p_event_type), ''), 'manual'), auth.uid(), p_target_id, COALESCE(p_metadata, '{}'::jsonb))
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.audit_log_manual(text, uuid, jsonb) TO authenticated;
+
+-- ============================================================
+-- B4.4 — Storage: bucket size + MIME + folder-prefix policies
+-- ============================================================
+UPDATE storage.buckets SET file_size_limit = 8388608,
+       allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp','image/gif']
+ WHERE id = 'posts';
+UPDATE storage.buckets SET file_size_limit = 4194304,
+       allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp']
+ WHERE id = 'avatars';
+
+DROP POLICY IF EXISTS "Users can upload to posts bucket" ON storage.objects;
+DROP POLICY IF EXISTS posts_user_insert ON storage.objects;
+CREATE POLICY posts_user_insert ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'posts' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS posts_user_update ON storage.objects;
+CREATE POLICY posts_user_update ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'posts' AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'posts' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS posts_user_delete ON storage.objects;
+CREATE POLICY posts_user_delete ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'posts' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can upload avatars"     ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own avatars" ON storage.objects;
+DROP POLICY IF EXISTS avatars_user_insert ON storage.objects;
+CREATE POLICY avatars_user_insert ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS avatars_user_update ON storage.objects;
+CREATE POLICY avatars_user_update ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS avatars_user_delete ON storage.objects;
+CREATE POLICY avatars_user_delete ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================================
+-- Re-auditoria Onda 1 — products / orders / announcements / commissions
+-- ============================================================
+
+-- products: só portal admin altera catálogo
+DROP POLICY IF EXISTS "Authenticated users can insert products" ON public.products;
+DROP POLICY IF EXISTS "Authenticated users can update products" ON public.products;
+DROP POLICY IF EXISTS "Authenticated users can delete products" ON public.products;
+DROP POLICY IF EXISTS products_admin_insert ON public.products;
+DROP POLICY IF EXISTS products_admin_update ON public.products;
+DROP POLICY IF EXISTS products_admin_delete ON public.products;
+CREATE POLICY products_admin_insert ON public.products
+  FOR INSERT TO authenticated WITH CHECK (public.is_portal_admin());
+CREATE POLICY products_admin_update ON public.products
+  FOR UPDATE TO authenticated USING (public.is_portal_admin()) WITH CHECK (public.is_portal_admin());
+CREATE POLICY products_admin_delete ON public.products
+  FOR DELETE TO authenticated USING (public.is_portal_admin());
+
+-- orders: drop "view all" + "update (true)" — só dono lê, só admin altera, webhook bypass via service_role
+DROP POLICY IF EXISTS "Authenticated users can view all orders" ON public.orders;
+DROP POLICY IF EXISTS "Authenticated users can update orders"   ON public.orders;
+DROP POLICY IF EXISTS orders_admin_view   ON public.orders;
+DROP POLICY IF EXISTS orders_admin_update ON public.orders;
+CREATE POLICY orders_admin_view ON public.orders
+  FOR SELECT TO authenticated USING (public.is_portal_admin());
+CREATE POLICY orders_admin_update ON public.orders
+  FOR UPDATE TO authenticated USING (public.is_portal_admin()) WITH CHECK (public.is_portal_admin());
+
+-- announcements: só admin escreve
+DROP POLICY IF EXISTS "Authenticated users can manage announcements" ON public.announcements;
+DROP POLICY IF EXISTS "announcements_all"        ON public.announcements;
+DROP POLICY IF EXISTS announcements_public_read  ON public.announcements;
+DROP POLICY IF EXISTS announcements_admin_write  ON public.announcements;
+CREATE POLICY announcements_public_read ON public.announcements
+  FOR SELECT USING (active = true);
+CREATE POLICY announcements_admin_write ON public.announcements
+  FOR ALL TO authenticated
+  USING (public.is_portal_admin()) WITH CHECK (public.is_portal_admin());
+
+-- commissions: troca subquery por is_portal_admin()
+DROP POLICY IF EXISTS "Platform can manage all commissions" ON public.commissions;
+DROP POLICY IF EXISTS commissions_admin_all ON public.commissions;
+CREATE POLICY commissions_admin_all ON public.commissions
+  FOR ALL TO authenticated
+  USING (public.is_portal_admin()) WITH CHECK (public.is_portal_admin());
+
+-- follows: impede self-follow (deleta lixo antes)
+DELETE FROM public.follows WHERE follower_id = following_id;
+ALTER TABLE public.follows DROP CONSTRAINT IF EXISTS follows_no_self;
+ALTER TABLE public.follows
+  ADD CONSTRAINT follows_no_self CHECK (follower_id <> following_id);
+
+-- ============================================================
+-- Re-auditoria Onda 1 — handle_new_user com allowlist de user_type
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_user_type text;
+BEGIN
+  v_user_type := LOWER(COALESCE(NULLIF(TRIM(NEW.raw_user_meta_data->>'user_type'), ''), 'cliente'));
+  IF v_user_type NOT IN ('cliente','pintor','grafiteiro','automotivo') THEN
+    v_user_type := 'cliente';
+  END IF;
+  BEGIN
+    INSERT INTO public.profiles (id, name, user_type, role, created_at)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+      v_user_type, v_user_type, now()
+    )
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user falhou para %: %', NEW.id, SQLERRM;
+  END;
+  RETURN NEW;
+END $$;
+
 NOTIFY pgrst, 'reload schema';
