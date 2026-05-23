@@ -3899,7 +3899,8 @@ async function saveEditProfile(){
       // Fallback: try posts bucket
       if(!avatarUploaded){
         try {
-          const fallbackPath = 'avatar_' + currentUser.id + '_' + ts + '.' + ext;
+          // B4.4: path tem que começar com user_id pra passar nas storage policies
+          const fallbackPath = currentUser.id + '/avatar_fallback_' + ts + '.' + ext;
           const { error: upErr2 } = await sb.storage.from('posts').upload(fallbackPath, _epAvatarFile, { upsert: true });
           if(!upErr2){
             const { data: urlData } = sb.storage.from('posts').getPublicUrl(fallbackPath);
@@ -4989,7 +4990,8 @@ async function handleChatAttachment(input){
   toast('Enviando imagem...');
   try {
     const ext = file.name.split('.').pop();
-    const path = 'chat/' + currentUser.id + '/' + Date.now() + '.' + ext;
+    // B4.4: user_id tem que ser o 1º segmento pra storage policy aceitar
+    const path = currentUser.id + '/chat/' + Date.now() + '.' + ext;
     const { data, error } = await sb.storage.from('posts').upload(path, file, { upsert: true });
     if(error) throw error;
     const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
