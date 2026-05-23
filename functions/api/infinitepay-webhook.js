@@ -39,10 +39,13 @@ export async function onRequestPost(context) {
   }
 
   const supaUrl = (env.SUPABASE_URL || SUPABASE_URL_FALLBACK).replace(/\/$/, '');
-  const serviceKey = env.SUPABASE_SERVICE_KEY;
+  // Aceita 3 nomes pra compatibilidade com setups existentes
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceKey) {
-    console.warn('infinitepay-webhook: SUPABASE_SERVICE_KEY não configurada — não consigo atualizar a order');
+    console.warn('infinitepay-webhook: SUPABASE_SERVICE_ROLE/SUPABASE_SERVICE_KEY não configurada — não consigo atualizar a order');
     return ok();
   }
 

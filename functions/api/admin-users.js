@@ -9,8 +9,12 @@
 // SUPABASE_ANON_KEY.
 export async function onRequestPost(context) {
   const { env, request } = context;
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    return json({ error: 'Gestao de usuarios nao configurada (SUPABASE_SERVICE_ROLE_KEY ausente)' }, 503);
+  // Aceita 3 nomes de service key pra compatibilidade
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    return json({ error: 'Gestao de usuarios nao configurada (SUPABASE_SERVICE_ROLE/SUPABASE_SERVICE_KEY ausente)' }, 503);
   }
 
   let body;
@@ -56,10 +60,10 @@ export async function onRequestPost(context) {
   }
 
   const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
   const sHeaders = {
-    'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
-    'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
     'Content-Type': 'application/json'
   };
 

@@ -88,8 +88,12 @@ export async function requirePro(env, userId){
     // sem userId não dá pra consultar — fail-open
     return { pro: true, checked: false };
   }
-  if(!env.SUPABASE_SERVICE_KEY){
-    console.warn('requirePro: SUPABASE_SERVICE_KEY não configurada — fail-open');
+  // Aceita 3 nomes pra compatibilidade com setups existentes
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!serviceKey){
+    console.warn('requirePro: SUPABASE_SERVICE_ROLE/SUPABASE_SERVICE_KEY não configurada — fail-open');
     return { pro: true, checked: false };
   }
   const url = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL)
@@ -98,8 +102,8 @@ export async function requirePro(env, userId){
   try {
     const r = await fetch(url, {
       headers: {
-        'apikey': env.SUPABASE_SERVICE_KEY,
-        'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY
+        'apikey': serviceKey,
+        'Authorization': 'Bearer ' + serviceKey
       }
     });
     if(!r.ok){

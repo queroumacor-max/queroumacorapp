@@ -3,7 +3,11 @@
 // SUPABASE_ANON_KEY e ADMIN_EMAILS (lista separada por vírgula).
 export async function onRequestPost(context) {
   const { env, request } = context;
-  if (!env.SUPABASE_SERVICE_ROLE_KEY || !env.ADMIN_EMAILS) {
+  // Aceita 3 nomes de service key pra compatibilidade
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey || !env.ADMIN_EMAILS) {
     return json({ error: 'Moderação admin não configurada' }, 503);
   }
 
@@ -15,7 +19,7 @@ export async function onRequestPost(context) {
   const postId = typeof body?.postId === 'string' ? body.postId : '';
 
   const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
 
   // ── Verifica o usuário pelo token e checa se é admin ──
   if (!accessToken) return json({ admin: false, error: 'sem token' }, 401);
@@ -39,8 +43,8 @@ export async function onRequestPost(context) {
   if (!postId) return json({ error: 'postId obrigatório' }, 400);
 
   const sHeaders = {
-    'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
-    'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
     'Content-Type': 'application/json'
   };
 

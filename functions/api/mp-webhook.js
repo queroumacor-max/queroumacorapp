@@ -22,8 +22,12 @@ export async function onRequestPost(context) {
     });
   }
 
+  // Aceita 3 nomes de service key pra compatibilidade
+  const serviceKey = env.SUPABASE_SERVICE_ROLE
+    || env.SUPABASE_SERVICE_KEY
+    || env.SUPABASE_SERVICE_ROLE_KEY;
   // Responde 200 mesmo em erro de config para o MP não ficar reenviando infinitamente.
-  if (!env.MP_ACCESS_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!env.MP_ACCESS_TOKEN || !serviceKey) {
     return ok('config ausente');
   }
 
@@ -70,8 +74,8 @@ export async function onRequestPost(context) {
     const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: {
-        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
