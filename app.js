@@ -348,6 +348,40 @@ function calcTinta(){
   res.style.display='block';
 }
 
+// ══ ESTIMATIVA DE METRAGEM POR FOTO (PRO) ══
+function estimarAreaPorFoto(){
+  if(!_isPro){ toast('Estimativa de metragem por foto é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  const input = document.getElementById('calc-photo-input');
+  if(!input){ toast('Erro: input de foto não encontrado'); return; }
+  input.onchange = async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if(!file) return;
+    if(file.size > 8 * 1024 * 1024){ toast('Foto acima de 8 MB. Tente uma menor.'); return; }
+    toast('Analisando foto...');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await fetch('/api/area-from-photo', { method: 'POST', body: fd });
+      const data = await r.json().catch(() => ({}));
+      if(!r.ok){ toast('Erro ao analisar foto: ' + (data?.error || r.status)); return; }
+      const area = Number(data?.area_m2);
+      const just = String(data?.justification || '').trim();
+      if(!isFinite(area) || area <= 0){ toast('Não foi possível estimar a área desta foto'); return; }
+      const areaRounded = Math.round(area * 10) / 10;
+      const areaInput = document.getElementById('ci-area');
+      if(areaInput){
+        areaInput.value = areaRounded;
+        calcTinta();
+      }
+      toast(`Estimativa: ${areaRounded} m²` + (just ? ` · ${just}` : ''));
+    } catch(e){
+      toast('Erro ao analisar foto: ' + (e?.message || e));
+    }
+  };
+  input.click();
+}
+
 // ══ AI FEATURES (PRO) ══
 let _isPro = false;
 let _proExpires = null;
@@ -669,7 +703,8 @@ function renderPipelineCard(q){
   const btn = (label,fn,bg,color)=>'<button onclick="'+fn+'" style="flex:1;padding:9px;background:'+bg+';color:'+(color||'#fff')+';border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">'+label+'</button>';
   let actions = '';
   if(s==='pending' || s==='rascunho'){
-    actions = btn('Enviar', "enviarQuote('"+q.id+"')", 'var(--p1)');
+    actions = btn('Enviar', "enviarQuote('"+q.id+"')", 'var(--p1)')
+            + btn('🤖 Sugerir preço', "sugerirPrecoQuote('"+q.id+"')", 'linear-gradient(135deg,#8338ec,var(--p1))');
   } else if(s==='enviado'){
     actions = btn('Marcar aceito', "aprovarQuoteManual('"+q.id+"')", '#2ec4b6')
             + btn('Recusado', "recusarQuote('"+q.id+"')", 'var(--cream)', 'var(--muted)');
@@ -758,6 +793,44 @@ async function enviarQuote(id){
   }
   toast('Orçamento enviado!');
   loadPipeline();
+}
+
+// IA sugere o preço para um orçamento pendente/rascunho (feature PRO).
+// Em caso de aceite, injeta o valor no cache e delega para enviarQuote.
+async function sugerirPrecoQuote(id){
+  if(!_isPro){
+    toast('Sugerir preço com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
+  const q = (_pipelineCache||[]).find(x=>x.id===id);
+  if(!q){ toast('Orçamento não encontrado'); return; }
+  toast('Calculando preço com IA...');
+  try {
+    const r = await fetch('/api/pricing-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_type: q.service_type || q.title || '',
+        description: q.description || '',
+        area_m2: q.area_m2 || null
+      })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !data || typeof data.price !== 'number'){
+      toast('Erro ao sugerir preço: ' + ((data && data.error) || 'IA indisponível'));
+      return;
+    }
+    const price = +data.price || 0;
+    const justification = String(data.justification || '').trim();
+    const ok = confirm('IA sugere R$ ' + price.toLocaleString('pt-BR') + '\n\n' + justification + '\n\nUsar esse valor?');
+    if(!ok) return;
+    q.price = price;
+    await enviarQuote(id);
+  } catch(e){
+    console.warn('sugerirPrecoQuote:', e);
+    toast('Erro ao falar com a IA');
+  }
 }
 
 async function aprovarQuoteManual(id){
@@ -1726,7 +1799,10 @@ function renderAgendaDay(){
     el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label}</div><div style="text-align:center;color:var(--muted);padding:16px;font-size:13px;">Nenhum projeto neste dia</div>`;
     return;
   }
-  el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label} · ${items.length} projeto(s)</div>` + items.map(j=>{
+  const optimizeBtn = items.length>=2
+    ? `<button onclick="otimizarDiaAgenda()" style="width:100%;padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;">🗺️ Otimizar dia (PRO)</button><div id="agenda-day-suggest"></div>`
+    : '';
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label} · ${items.length} projeto(s)</div>${optimizeBtn}` + items.map(j=>{
     const st = j.status==='concluido'?'#2ec4b6':j.status==='cancelado'?'#e74c3c':'var(--p1)';
     return `<div style="background:var(--white);border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 2px 6px rgba(0,0,0,.04);border-left:4px solid ${st};">
       <div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">${escapeHtml(j.client_name||'')}</b><span style="font-size:11px;color:var(--muted);">${j.scheduled_time||''}</span></div>
@@ -1770,6 +1846,62 @@ async function updateJobStatus(jobId, status){
 function prefillNovoProjeto(){
   const di = document.getElementById('job-data');
   if(di && !di.value && _agSel) di.value = _agSel;
+}
+
+async function otimizarDiaAgenda(){
+  if(!_isPro){ toast('Otimizar dia com IA é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if(!_agSel){ toast('Selecione um dia'); return; }
+  const dayJobs = (_agJobs||[]).filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel);
+  if(dayJobs.length<2){ toast('Precisa de 2+ obras no mesmo dia'); return; }
+  const box = document.getElementById('agenda-day-suggest');
+  if(box) box.innerHTML = `<div style="background:var(--cream);border:1px dashed var(--border);border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--muted);">🤖 Otimizando rota com IA...</div>`;
+  toast('Otimizando rota com IA...');
+  try{
+    const payload = {
+      date: _agSel,
+      jobs: dayJobs.map(j=>({
+        id: String(j.id),
+        client_name: j.client_name||'',
+        address: j.address||'',
+        scheduled_time: j.scheduled_time||''
+      }))
+    };
+    const r = await fetch('/api/agenda-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !Array.isArray(data?.ordered_ids)){
+      const msg = data?.error || 'Erro ao otimizar';
+      if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">${escapeHtml(msg)}</div>`;
+      toast(msg);
+      return;
+    }
+    const byId = {}; dayJobs.forEach(j=>{ byId[String(j.id)] = j; });
+    const rows = data.ordered_ids.map((id,i)=>{
+      const j = byId[String(id)]; if(!j) return '';
+      return `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.05);">
+        <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--ink);">${escapeHtml(j.client_name||'')}${j.scheduled_time?` <span style="font-weight:500;color:var(--muted);">· ${escapeHtml(j.scheduled_time)}</span>`:''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml(j.address||'(sem endereço)')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const notes = typeof data.notes==='string' && data.notes.trim() ? data.notes.trim() : '';
+    if(box){
+      box.innerHTML = `<div style="background:var(--white);border:1.5px solid #8338ec;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(131,56,236,.12);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:800;color:#8338ec;">🗺️ Ordem sugerida pela IA</div>
+          <button onclick="document.getElementById('agenda-day-suggest').innerHTML='';" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        </div>
+        ${rows}
+        ${notes?`<div style="font-size:11px;color:var(--muted);margin-top:8px;font-style:italic;">${escapeHtml(notes)}</div>`:''}
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;background:var(--cream);padding:6px 8px;border-radius:8px;">⚠️ Sugestão baseada só no texto do endereço (não usa GPS). Confirme a rota no seu app de mapas.</div>
+      </div>`;
+    }
+  }catch(e){
+    console.warn('otimizarDiaAgenda:', e);
+    if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">Erro ao otimizar: ${escapeHtml(String(e?.message||e))}</div>`;
+    toast('Erro ao otimizar');
+  }
 }
 
 // ══ CHECKLIST DE OBRA ══
@@ -2080,6 +2212,70 @@ async function deleteFinEntry(id){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   await sb.from('jobs').delete().eq('id',id).eq('painter_id',currentUser.id);
   loadFinanceiro();
+}
+
+// Análise IA do mês — PRO. Agrega últimos 30 dias vs 30 dias anteriores e
+// pede ao backend (gpt-4o-mini) um parecer curto e acionável.
+async function analisarFinanceiroIA(){
+  if(!_isPro){ toast('Análise IA do mês é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
+  const resultEl = document.getElementById('fin-ai-result');
+  try {
+    toast('Analisando com IA...');
+    const now = Date.now();
+    const d30 = new Date(now - 30*24*60*60*1000).toISOString();
+    const d60 = new Date(now - 60*24*60*60*1000).toISOString();
+    const { data: jobs, error } = await sb.from('jobs')
+      .select('service_type,revenue,material_cost,created_at')
+      .eq('painter_id', currentUser.id)
+      .eq('status','concluido')
+      .gte('created_at', d60)
+      .order('created_at',{ascending:false});
+    if(error) throw error;
+
+    const inThis = [], inLast = [];
+    (jobs||[]).forEach(j=>{
+      const t = new Date(j.created_at).getTime();
+      if(t >= now - 30*24*60*60*1000) inThis.push(j);
+      else if(t >= now - 60*24*60*60*1000) inLast.push(j);
+    });
+    const agg = arr => {
+      let receita=0, custos=0;
+      arr.forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
+      return { receita, custos, lucro: receita - custos, jobsCount: arr.length };
+    };
+    const thisMonth = agg(inThis);
+    const lastMonth = agg(inLast);
+    const recentJobs = inThis.slice(0,8).map(j=>({
+      service_type: j.service_type || 'Projeto',
+      revenue: +j.revenue || 0,
+      material_cost: +j.material_cost || 0
+    }));
+
+    const r = await fetch('/api/fin-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thisMonth, lastMonth, recentJobs })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !data || !data.analysis){
+      toast('Erro: '+(data && data.error ? data.error : 'IA indisponível'));
+      return;
+    }
+
+    if(resultEl){
+      resultEl.style.display = 'block';
+      resultEl.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        + '<span style="font-size:18px;">🤖</span>'
+        + '<span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;background:linear-gradient(135deg,#8338ec,var(--p1));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#8338ec;">Análise IA do mês · PRO</span>'
+        + '</div>'
+        + '<div style="font-size:13px;line-height:1.55;color:var(--ink);">'+escapeHtml(String(data.analysis))+'</div>';
+    }
+  } catch(e){
+    console.warn('analisarFinanceiroIA:', e);
+    toast('Erro ao analisar: '+(e && e.message ? e.message : 'tente novamente'));
+  }
 }
 
 // ══ AUTO-RESPOSTAS ══
@@ -6396,6 +6592,61 @@ function clearPostImages(){
   document.getElementById('post-preview-area').style.display = 'none';
   document.getElementById('post-picker-area').style.display = 'block';
   document.getElementById('post-file-input').value = '';
+}
+
+// Gera legenda + hashtags do post a partir da foto selecionada (PRO).
+async function gerarLegendaPost(btn){
+  if(!_isPro){
+    toast('Gerar legenda com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
+  if(!postSelectedFiles || postSelectedFiles.length === 0){
+    toast('Selecione uma foto primeiro');
+    return;
+  }
+  const file = postSelectedFiles[0];
+  if(getMediaType(file) === 'video'){
+    toast('A legenda por IA só funciona com foto, não com vídeo');
+    return;
+  }
+  if(file.size > 8 * 1024 * 1024){
+    toast('Foto muito grande (máx 8 MB)');
+    return;
+  }
+  const ta = document.getElementById('post-text-input');
+  const orig = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
+  toast('Gerando legenda com IA...');
+  try {
+    const fd = new FormData();
+    fd.append('image', file, file.name || 'foto.jpg');
+    const r = await fetch('/api/caption', { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok){
+      toast('Não foi possível gerar a legenda agora');
+      console.warn('caption error:', data?.error || r.status);
+      return;
+    }
+    const caption = (data?.caption || '').toString().trim();
+    const hashtags = Array.isArray(data?.hashtags) ? data.hashtags.filter(h => typeof h === 'string') : [];
+    if(!caption && hashtags.length === 0){
+      toast('A IA não devolveu nada — tente outra foto');
+      return;
+    }
+    const existing = (ta.value || '').trim();
+    const tagLine = hashtags.join(' ');
+    const built = [caption, tagLine].filter(Boolean).join('\n\n');
+    ta.value = existing ? (existing + '\n\n' + built) : built;
+    ta.focus();
+    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(_){}
+    toast('Legenda gerada ✨');
+  } catch(e){
+    console.error('gerarLegendaPost:', e);
+    toast('Falha ao gerar legenda');
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = orig; }
+  }
 }
 
 async function publishPost(){
