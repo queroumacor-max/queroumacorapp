@@ -232,13 +232,14 @@ async function loadMyPortfolio(){
       return;
     }
     box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">' + posts.map(p => {
-      const cap = (p.caption || '').replace(/</g,'&lt;');
+      const cap = escapeHtml(p.caption || '');
       const isVid = p.media_type === 'video';
       const pending = p.status === 'pending';
+      const mediaUrl = escapeHtml(p.media_url || '');
       const media = p.media_url
         ? (isVid
-            ? `<video src="${p.media_url}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
-            : `<img src="${p.media_url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`)
+            ? `<video src="${mediaUrl}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video>`
+            : `<img src="${mediaUrl}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`)
         : `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:8px;font-size:11px;color:var(--muted);text-align:center;">${cap || 'Post'}</div>`;
       return `<div onclick="showScreen('feed')" style="position:relative;aspect-ratio:1;background:var(--ink);border-radius:8px;overflow:hidden;cursor:pointer;">
         ${media}
@@ -272,9 +273,9 @@ async function openFollowersModal(){
       const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
       const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
-      list.innerHTML += `<div onclick="hideModal('followers-modal');openUserProfile('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-        <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${avatar}" style="width:100%;height:100%;object-fit:cover"></div>
-        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+tag+'</div>' : ''}</div>
+      list.innerHTML += `<div onclick="hideModal('followers-modal');openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+        <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${escapeHtml(avatar)}" style="width:100%;height:100%;object-fit:cover"></div>
+        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+escapeHtml(tag)+'</div>' : ''}</div>
       </div>`;
     });
   } catch(e){ list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Erro ao carregar</div>'; }
@@ -299,10 +300,10 @@ async function openFollowingModal(){
       const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
       const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
-      list.innerHTML += `<div onclick="hideModal('following-modal');openUserProfile('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-        <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${avatar}" style="width:100%;height:100%;object-fit:cover"></div>
-        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+tag+'</div>' : ''}</div>
-        <button onclick="event.stopPropagation();toggleFollowFromList(this,'${p.id}')" class="following" style="padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;background:rgba(0,0,0,.05);border:1px solid var(--border);color:var(--ink);">Seguindo</button>
+      list.innerHTML += `<div onclick="hideModal('following-modal');openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+        <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${escapeHtml(avatar)}" style="width:100%;height:100%;object-fit:cover"></div>
+        <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+escapeHtml(tag)+'</div>' : ''}</div>
+        <button onclick="event.stopPropagation();toggleFollowFromList(this,'${escapeJsArg(p.id)}')" class="following" style="padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:\'DM Sans\',sans-serif;background:rgba(0,0,0,.05);border:1px solid var(--border);color:var(--ink);">Seguindo</button>
       </div>`;
     });
   } catch(e){ list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Erro ao carregar</div>'; }
@@ -564,13 +565,13 @@ async function loadPeopleSuggestions(){
       const roleBadge = isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>' : '';
       const avatarUrl = p.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name||'?') + '&background=e8e2d9&color=1a1a2e&size=96';
       const tagDisplay = p.tag ? '@' + p.tag : '';
-      return `<div class="search-result-item" onclick="openUserProfile('${p.id}')">
-        <div class="search-result-avatar"><img src="${avatarUrl}" alt=""></div>
+      return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
+        <div class="search-result-avatar"><img src="${escapeHtml(avatarUrl)}" alt=""></div>
         <div class="search-result-info">
           <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
           <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay && p.city ? ' · ' : ''}${escapeHtml(p.city||'')}</div>
         </div>
-        <button class="search-result-follow follow" onclick="event.stopPropagation();toggleFollow('${p.id}',this)">Seguir</button>
+        <button class="search-result-follow follow" onclick="event.stopPropagation();toggleFollow('${escapeJsArg(p.id)}',this)">Seguir</button>
       </div>`;
     }).join('');
   } catch(e){
@@ -623,13 +624,13 @@ function searchPeople(query){
       const roleBadge=isPintor?'<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>':'';
       const avatarUrl=p.avatar_url||'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'?')+'&background=e8e2d9&color=1a1a2e&size=96';
       const tagDisplay=p.tag?'@'+p.tag:'';
-      return `<div class="search-result-item" onclick="openUserProfile('${p.id}')">
-        <div class="search-result-avatar"><img src="${avatarUrl}" alt=""></div>
+      return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
+        <div class="search-result-avatar"><img src="${escapeHtml(avatarUrl)}" alt=""></div>
         <div class="search-result-info">
-          <div class="search-result-tag">${p.name||'Sem nome'}${roleBadge}</div>
-          <div class="search-result-name">${tagDisplay}${tagDisplay&&p.city?' · ':''}${p.city||''}</div>
+          <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
+          <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay&&p.city?' · ':''}${escapeHtml(p.city||'')}</div>
         </div>
-        ${isSelf?'':`<button class="search-result-follow ${isFollowing?'following':'follow'}" onclick="event.stopPropagation();toggleFollow('${p.id}',this)">${isFollowing?'Seguindo':'Seguir'}</button>`}
+        ${isSelf?'':`<button class="search-result-follow ${isFollowing?'following':'follow'}" onclick="event.stopPropagation();toggleFollow('${escapeJsArg(p.id)}',this)">${isFollowing?'Seguindo':'Seguir'}</button>`}
       </div>`;
     }).join('');
   },300);
@@ -688,8 +689,8 @@ async function openUserProfile(userId, preview){
         ? 'background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;'
         : 'background:var(--p1);border:none;color:#fff;';
       btnsEl.innerHTML = `
-        <button class="ph-btn ${followClass}" onclick="toggleFollow('${userId}',this)" style="${followStyle}flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">${followText}</button>
-        <button class="ph-btn msg" onclick="startChatWith('${userId}','${name.replace(/'/g,"\\'")}')" style="padding:9px 14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-size:16px;cursor:pointer;">💬</button>
+        <button class="ph-btn ${followClass}" onclick="toggleFollow('${escapeJsArg(userId)}',this)" style="${followStyle}flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">${escapeHtml(followText)}</button>
+        <button class="ph-btn msg" onclick="startChatWith('${escapeJsArg(userId)}','${escapeJsArg(name)}')" style="padding:9px 14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-size:16px;cursor:pointer;">💬</button>
         <button class="ph-btn" onclick="showScreen('mkt')" style="padding:9px 14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">🛒 Cali</button>
       `;
     }
