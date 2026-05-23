@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/head.js?v=20260522n"></script>
+<script src="/head.js?v=20260522o"></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -681,10 +681,10 @@
         <div onclick="openEditProfile()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">✏️</span><div style="flex:1;font-size:14px;font-weight:600;">Editar Perfil</div><span style="color:var(--muted);">›</span>
         </div>
-        <div onclick="openEditProfileAt('specs')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
+        <div onclick="openEditEspecialidades()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">🎨</span><div style="flex:1;font-size:14px;font-weight:600;">Especialidades</div><span style="color:var(--muted);">›</span>
         </div>
-        <div onclick="openEditProfileAt('radius')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
+        <div onclick="openEditRaio()" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;border-bottom:1px solid var(--border);">
           <span style="font-size:18px;">📍</span><div style="flex:1;font-size:14px;font-weight:600;">Raio de Atendimento</div><span style="color:var(--muted);">›</span>
         </div>
         <div onclick="showScreen('notif')" style="padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">
@@ -2053,6 +2053,36 @@
   </div>
 </div>
 
+<!-- ESPECIALIDADES MODAL -->
+<div class="overlay" id="edit-specs-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;overflow-y:auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🎨 Especialidades</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Selecione tudo que você faz — aparece no seu perfil pro cliente.</div>
+    <div id="specs-modal-grid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
+    <button onclick="saveEspecialidades()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar</button>
+  </div>
+</div>
+
+<!-- RAIO DE ATENDIMENTO MODAL -->
+<div class="overlay" id="edit-radius-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:60vh;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📍 Raio de atendimento</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Até onde você aceita ir pra atender obra?</div>
+    <select id="radius-modal-select" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;background:#fff;margin-bottom:16px;">
+      <option value="">Selecione</option>
+      <option value="5">Até 5 km (bairro)</option>
+      <option value="10">Até 10 km</option>
+      <option value="25">Até 25 km</option>
+      <option value="50">Até 50 km</option>
+      <option value="100">Até 100 km</option>
+      <option value="estado">Todo o estado</option>
+    </select>
+    <button onclick="saveRaio()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar</button>
+  </div>
+</div>
+
 <!-- NEW CHAT MODAL -->
 <div class="overlay" id="new-chat-modal" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;">
@@ -2080,7 +2110,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260522n"></script>
+<script src="/app.js?v=20260522o"></script>
 
 <script>
 if('serviceWorker' in navigator){

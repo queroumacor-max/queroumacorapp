@@ -3582,6 +3582,70 @@ function openEditProfileAt(section){
   });
 }
 
+// ══ ESPECIALIDADES — modal dedicado ══
+async function openEditEspecialidades(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const prof = (typeof getMyProfile === 'function') ? await getMyProfile() : null;
+  const meta = (currentUser && currentUser.user_metadata) || {};
+  const role = (prof && (prof.role || prof.user_type)) || meta.user_type || meta.role || 'pintor';
+  const currentSpecs = (prof && prof.specialties)
+    ? String(prof.specialties).split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+  const all = (typeof _roleSpecs === 'object' && _roleSpecs[role]) ? _roleSpecs[role] : (_roleSpecs && _roleSpecs.pintor) || [];
+  const grid = document.getElementById('specs-modal-grid');
+  if(grid){
+    grid.innerHTML = all.map(s => {
+      const sel = currentSpecs.includes(s);
+      return '<div class="spec-chip'+(sel?' sel':'')+'" onclick="toggleSpec(this)" style="padding:8px 14px;border-radius:20px;background:'+(sel?'var(--ink)':'var(--cream)')+';color:'+(sel?'#fff':'var(--ink)')+';font-size:13px;cursor:pointer;border:1px solid '+(sel?'var(--ink)':'var(--border)')+';">'+escapeHtml(s)+'</div>';
+    }).join('');
+  }
+  showModal('edit-specs-modal');
+}
+
+async function saveEspecialidades(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  const sel = [...document.querySelectorAll('#specs-modal-grid .spec-chip.sel')].map(c => c.textContent.trim());
+  if(sel.length === 0){ toast('Selecione pelo menos uma especialidade'); return; }
+  const { error } = await sb.from('profiles').update({ specialties: sel.join(', ') }).eq('id', currentUser.id);
+  if(error){ toast('Erro: ' + error.message); return; }
+  if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
+  toast('Especialidades salvas ✅');
+  closeModals();
+}
+
+// ══ RAIO DE ATENDIMENTO — modal dedicado ══
+async function openEditRaio(){
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const sel = document.getElementById('radius-modal-select');
+  if(sel){
+    sel.value = '';
+    try {
+      const { data: pr } = await sb.from('profiles').select('service_radius').eq('id', currentUser.id).single();
+      if(pr && pr.service_radius != null) sel.value = pr.service_radius;
+    } catch(e){}
+  }
+  showModal('edit-radius-modal');
+}
+
+async function saveRaio(){
+  const sb = getSupabase();
+  if(!sb || !currentUser) return;
+  const sel = document.getElementById('radius-modal-select');
+  const value = sel ? sel.value : '';
+  // service_radius é integer; 'estado' (sem limite) é gravado como null
+  const valInt = (value === '' || value === 'estado') ? null : (parseInt(value, 10) || null);
+  try {
+    const { error } = await sb.from('profiles').update({ service_radius: valInt }).eq('id', currentUser.id);
+    if(error){ toast('Erro: ' + error.message); return; }
+    if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
+    toast('Raio salvo ✅');
+    closeModals();
+  } catch(e){ toast('Erro: ' + (e.message || e)); }
+}
+
 function _epSpecRole(role){
   const r = (role||'').toLowerCase();
   if(r==='grafiteiro' || r==='graffiti') return 'grafiteiro';
