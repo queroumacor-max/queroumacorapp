@@ -1164,6 +1164,11 @@ async function saveCrmInterval(){
 }
 
 async function crmDraft(id){
+  if(!_isPro){
+    toast('Mensagem de reativação com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
   const c = (_crmCache||[]).find(x => x.id === id);
   if(!c) return;
   const ta = document.getElementById('crm-msg-'+id);
@@ -1387,6 +1392,11 @@ const _aiKnowledge = {
 let _aiChatHistory = [];
 
 async function sendAiChat(textArg, speakReply){
+  if(!_isPro){
+    toast('Chat com o Seu Zé é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
   let text;
   if(textArg){
     text = String(textArg).trim();
@@ -1584,6 +1594,11 @@ async function sugerirEscopoIA(btn){
 }
 
 function gerarOrcamentoIA(){
+  if(!_isPro){
+    toast('Orçamento com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
   const cliente = document.getElementById('ai-orc-cliente').value.trim() || 'Cliente';
   const servico = document.getElementById('ai-orc-servico').value;
   const area = parseFloat(document.getElementById('ai-orc-area').value) || 0;
@@ -5368,6 +5383,11 @@ function _aiLogoUpdateBtn(){
 }
 
 async function gerarLogoIA(){
+  if(!_isPro){
+    toast('Geração de logo com IA é do Plano PRO ⚡');
+    showModal('pro-modal');
+    return;
+  }
   const input = document.getElementById('ai-logo-name');
   const styleInput = document.getElementById('ai-logo-style');
   const name = (input.value || '').trim();
