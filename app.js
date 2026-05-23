@@ -3791,7 +3791,7 @@ async function submitAvaliacao(){
     setTimeout(()=>showScreen('myprofile'),1200);
   } catch(e){
     console.error('submitAvaliacao error:', e);
-    toast('Erro ao enviar avaliacao');
+    toast('Erro ao enviar avaliacao: ' + (e.message || e));
   }
 }
 
