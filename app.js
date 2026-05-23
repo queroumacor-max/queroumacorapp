@@ -613,9 +613,14 @@ async function notify(userId, type, title, body, refId){
   try {
     const sb = getSupabase();
     if(!sb || !currentUser || !userId || userId === currentUser.id) return;
-    await sb.from('notifications').insert({
-      user_id: userId, actor_id: currentUser.id, type: type || 'info',
-      title: title || '', body: body || '', ref_id: refId || null
+    // Usa RPC notify_user (SECURITY DEFINER) que valida que caller e
+    // destinatário compartilham quote/conversa — fecha spam in-app.
+    await sb.rpc('notify_user', {
+      p_user_id: userId,
+      p_type:    type || 'info',
+      p_title:   title || '',
+      p_body:    body || '',
+      p_ref_id:  refId || null
     });
   } catch(e){ console.warn('notify:', e); }
 }
