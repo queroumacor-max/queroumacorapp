@@ -2214,6 +2214,70 @@ async function deleteFinEntry(id){
   loadFinanceiro();
 }
 
+// Análise IA do mês — PRO. Agrega últimos 30 dias vs 30 dias anteriores e
+// pede ao backend (gpt-4o-mini) um parecer curto e acionável.
+async function analisarFinanceiroIA(){
+  if(!_isPro){ toast('Análise IA do mês é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
+  const resultEl = document.getElementById('fin-ai-result');
+  try {
+    toast('Analisando com IA...');
+    const now = Date.now();
+    const d30 = new Date(now - 30*24*60*60*1000).toISOString();
+    const d60 = new Date(now - 60*24*60*60*1000).toISOString();
+    const { data: jobs, error } = await sb.from('jobs')
+      .select('service_type,revenue,material_cost,created_at')
+      .eq('painter_id', currentUser.id)
+      .eq('status','concluido')
+      .gte('created_at', d60)
+      .order('created_at',{ascending:false});
+    if(error) throw error;
+
+    const inThis = [], inLast = [];
+    (jobs||[]).forEach(j=>{
+      const t = new Date(j.created_at).getTime();
+      if(t >= now - 30*24*60*60*1000) inThis.push(j);
+      else if(t >= now - 60*24*60*60*1000) inLast.push(j);
+    });
+    const agg = arr => {
+      let receita=0, custos=0;
+      arr.forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
+      return { receita, custos, lucro: receita - custos, jobsCount: arr.length };
+    };
+    const thisMonth = agg(inThis);
+    const lastMonth = agg(inLast);
+    const recentJobs = inThis.slice(0,8).map(j=>({
+      service_type: j.service_type || 'Projeto',
+      revenue: +j.revenue || 0,
+      material_cost: +j.material_cost || 0
+    }));
+
+    const r = await fetch('/api/fin-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thisMonth, lastMonth, recentJobs })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok || !data || !data.analysis){
+      toast('Erro: '+(data && data.error ? data.error : 'IA indisponível'));
+      return;
+    }
+
+    if(resultEl){
+      resultEl.style.display = 'block';
+      resultEl.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        + '<span style="font-size:18px;">🤖</span>'
+        + '<span style="font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;background:linear-gradient(135deg,#8338ec,var(--p1));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#8338ec;">Análise IA do mês · PRO</span>'
+        + '</div>'
+        + '<div style="font-size:13px;line-height:1.55;color:var(--ink);">'+escapeHtml(String(data.analysis))+'</div>';
+    }
+  } catch(e){
+    console.warn('analisarFinanceiroIA:', e);
+    toast('Erro ao analisar: '+(e && e.message ? e.message : 'tente novamente'));
+  }
+}
+
 // ══ AUTO-RESPOSTAS ══
 let _autoReplyCfg = null;          // cache da config new_message
 const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
