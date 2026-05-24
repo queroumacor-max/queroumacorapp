@@ -12,8 +12,8 @@
 //   - MP_ACCESS_TOKEN (access token de produção do MP — já configurado)
 //   - SUPABASE_URL, SUPABASE_ANON_KEY (já configurados)
 //   - SUPABASE_SERVICE_ROLE (opcional, fallback se anon não tiver permissão)
+import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
 
-const SUPABASE_URL_FALLBACK = 'https://uwqebaqweehiljsqkifm.supabase.co';
 const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
 
 export async function onRequestPost(context) {
@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
   const user = await verifySupabaseToken(accessToken, env);
   if (!user) return json({ error: 'Sessão inválida — faça login novamente' }, 401);
 
-  const supaUrl = (env.SUPABASE_URL || SUPABASE_URL_FALLBACK).replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
 
   // Busca o pedido com o token do user (RLS filtra automaticamente pra ele)
@@ -207,7 +207,7 @@ export async function onRequestPost(context) {
 }
 
 async function verifySupabaseToken(token, env) {
-  const supaUrl = (env.SUPABASE_URL || SUPABASE_URL_FALLBACK).replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
   try {
     const r = await fetch(`${supaUrl}/auth/v1/user`, {
@@ -220,11 +220,4 @@ async function verifySupabaseToken(token, env) {
   } catch {
     return null;
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

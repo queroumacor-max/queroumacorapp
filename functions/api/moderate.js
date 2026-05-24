@@ -1,7 +1,7 @@
 // Moderação de texto + imagem via Google Gemini.
 // Requer no Cloudflare Pages: GEMINI_API_KEY.
 // Vídeo é tratado de forma assíncrona em /api/moderate-video.
-import { requireAuth, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -128,11 +128,4 @@ function bufToB64(buf) {
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
   return btoa(bin);
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

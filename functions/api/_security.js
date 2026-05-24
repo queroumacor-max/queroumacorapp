@@ -9,7 +9,7 @@
 // Quando ambos estiverem em vigor, requireAuth + requirePro passam a
 // barrar requests anônimos e usuários sem PRO, respectivamente.
 
-const FALLBACK_SUPABASE_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
+export const FALLBACK_SUPABASE_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
 const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
 
 // Extrai o JWT do request. Prioridade: header Authorization Bearer,

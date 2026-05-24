@@ -1,7 +1,7 @@
 // Assistente IA do QueroUmaCor. Usa OpenAI; se faltar/funcionar mal,
 // cai para o Gemini. Requer no Cloudflare Pages pelo menos uma das
 // variaveis: OPENAI_API_KEY ou GEMINI_API_KEY.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -116,11 +116,4 @@ COMO RESPONDER:
   if (!reply) return json({ error: lastError || 'Não foi possível gerar resposta da IA' }, 502);
 
   return json({ reply });
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

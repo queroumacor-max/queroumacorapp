@@ -1,6 +1,8 @@
 // Fila de moderação admin: verifica se o usuário é admin e aprova/rejeita posts.
 // Requer no Cloudflare Pages: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // SUPABASE_ANON_KEY e ADMIN_EMAILS (lista separada por vírgula).
+import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
   // Aceita 3 nomes de service key pra compatibilidade
@@ -18,7 +20,7 @@ export async function onRequestPost(context) {
   const action = typeof body?.action === 'string' ? body.action : '';
   const postId = typeof body?.postId === 'string' ? body.postId : '';
 
-  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
 
   // ── Verifica o usuário pelo token e checa se é admin ──
@@ -83,11 +85,4 @@ export async function onRequestPost(context) {
   }
 
   return json({ error: 'ação inválida' }, 400);
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

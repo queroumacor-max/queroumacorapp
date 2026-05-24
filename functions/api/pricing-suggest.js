@@ -3,7 +3,7 @@
 // { price: <number BRL>, justification: "<frase curta em PT-BR>" }.
 // Usa OpenAI gpt-4o-mini com response_format json_object.
 // Pattern: ver functions/api/chat-ai.js.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -141,11 +141,4 @@ Responda APENAS em JSON estrito, neste formato exato:
   } catch (e) {
     return json({ error: 'Falha ao chamar a IA: ' + String(e?.message || e) }, 502);
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

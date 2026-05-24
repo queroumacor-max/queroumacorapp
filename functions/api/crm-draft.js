@@ -2,7 +2,7 @@
 // mini-CRM do QueroUmaCor. Usa OpenAI; cai para Gemini se faltar/falhar.
 // Requer no Cloudflare Pages pelo menos uma das variaveis:
 // OPENAI_API_KEY ou GEMINI_API_KEY.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -102,11 +102,4 @@ REGRAS:
   if (!reply) return json({ error: lastError || 'Não foi possível gerar a mensagem' }, 502);
 
   return json({ draft: reply });
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

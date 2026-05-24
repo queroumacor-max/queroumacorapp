@@ -4,7 +4,8 @@
 // user.id / email autoritativos do token (ignorando o que veio no body).
 // Sem token, mantemos o fluxo antigo (fail-back) para não quebrar clientes
 // que ainda não passam o accessToken.
-const SUPABASE_URL_FALLBACK = 'https://uwqebaqweehiljsqkifm.supabase.co';
+import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
+
 const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
 
 export async function onRequestPost(context) {
@@ -81,7 +82,7 @@ export async function onRequestPost(context) {
 // Valida o accessToken no endpoint /auth/v1/user do Supabase.
 // Retorna { id, email } se válido, ou null caso contrário.
 async function verifySupabaseToken(token, env) {
-  const supaUrl = (env.SUPABASE_URL || SUPABASE_URL_FALLBACK).replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
   try {
     const r = await fetch(`${supaUrl}/auth/v1/user`, {
@@ -98,11 +99,4 @@ async function verifySupabaseToken(token, env) {
     console.warn('checkout: erro ao validar token no Supabase:', String(e?.message || e));
     return null;
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

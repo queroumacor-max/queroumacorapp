@@ -7,6 +7,8 @@
 //
 // Requer no Cloudflare Pages: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // SUPABASE_ANON_KEY.
+import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
   // Aceita 3 nomes de service key pra compatibilidade
@@ -59,7 +61,7 @@ export async function onRequestPost(context) {
     return json({ error: 'acao invalida' }, 400);
   }
 
-  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
   const sHeaders = {
     'apikey': serviceKey,
@@ -110,11 +112,4 @@ export async function onRequestPost(context) {
     return json({ error: 'perfil nao encontrado' }, 404);
   }
   return json({ ok: true, patch });
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

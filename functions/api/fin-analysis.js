@@ -1,7 +1,7 @@
 // Análise financeira IA — recebe agregados do mês atual e anterior + amostra
 // de jobs recentes e devolve 3-4 frases curtas em PT-BR com margem, tendência
 // e uma recomendação acionável. Não inventa números.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -95,11 +95,4 @@ Regras rígidas:
   } catch (e) {
     return json({ error: 'OpenAI: ' + String(e?.message || e) }, 502);
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }
