@@ -1508,7 +1508,7 @@ async function sendAiChat(textArg, speakReply){
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   const typingId = 'typing-' + Date.now();
-  msgsEl.innerHTML += '<div id="'+typingId+'" style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.png" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--muted);max-width:85%;"><span style="display:inline-block;animation:typing 1.2s infinite;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .15s;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .3s;">•</span></div></div>';
+  msgsEl.innerHTML += '<div id="'+typingId+'" style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.webp" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--muted);max-width:85%;"><span style="display:inline-block;animation:typing 1.2s infinite;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .15s;">•</span><span style="display:inline-block;animation:typing 1.2s infinite .3s;">•</span></div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   let reply = null;
@@ -1555,7 +1555,7 @@ async function sendAiChat(textArg, speakReply){
   const typingEl = document.getElementById(typingId);
   if (typingEl) typingEl.remove();
   const formatted = escapeHtml(reply).replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.png" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
+  msgsEl.innerHTML += '<div style="display:flex;gap:8px;margin-bottom:12px;"><img src="img/seu-ze.webp" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;"><div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;line-height:1.45;">'+formatted+'</div></div>';
   msgsEl.scrollTop = msgsEl.scrollHeight;
   if(speakReply && reply) falarSeuZe(reply);
 }
@@ -5451,7 +5451,7 @@ function getProductImage(p){
     [['thinner 6137','thinner de limpeza'],'br-thinner-diluente'],
   ];
   for(const [keys, base] of brMap){
-    if(keys.some(k => n.includes(k))) return '/products/'+base+'.jpg';
+    if(keys.some(k => n.includes(k))) return '/products/'+base+'.webp';
   }
 
   // Detect container size from product name
@@ -5509,8 +5509,8 @@ function getProductImage(p){
   for(const [keys, base] of m){
     if(keys.some(k => n.includes(k))){
       // Use size variant if the file exists, otherwise fall back to base
-      if(suf) return _setImg('/products/'+base+suf+'.jpg');
-      return _setImg('/products/'+base+'.jpg');
+      if(suf) return _setImg('/products/'+base+suf+'.webp');
+      return _setImg('/products/'+base+'.webp');
     }
   }
   return _setImg(null);
@@ -5533,7 +5533,7 @@ function renderProductCard(p){
   let swatchContent;
   if(isSpray){
     swatchContent = badgeHtml
-      + '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:95%;width:auto;object-fit:contain;pointer-events:none;">';
+      + '<img src="/products/arte-urbana-can.webp" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:95%;width:auto;object-fit:contain;pointer-events:none;">';
   } else {
     swatchContent = img
       ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
@@ -5555,7 +5555,7 @@ function renderProductRow(p){
   let icContent, icStyle;
   if(isSpray){
     icStyle = 'background:'+bg+';overflow:hidden;padding:0;position:relative;';
-    icContent = '<img src="/products/arte-urbana-can.png" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;object-fit:contain;">';
+    icContent = '<img src="/products/arte-urbana-can.webp" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;width:auto;object-fit:contain;">';
   } else {
     icContent = img
       ? '<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
