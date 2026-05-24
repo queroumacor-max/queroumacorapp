@@ -5151,6 +5151,37 @@ function mktClassify(p){
   return 'outros';
 }
 
+// Virtualização básica: renderiza em batches de 80 com IntersectionObserver
+// sentinel. Mantém comportamento (scroll mostra tudo) mas paga o custo
+// de DOM aos poucos em vez de tudo no primeiro paint.
+function _mktMountInfinite(container, items, batchSize){
+  if(!container) return;
+  batchSize = batchSize || 80;
+  let cursor = 0;
+  function appendBatch(){
+    const slice = items.slice(cursor, cursor + batchSize);
+    if(slice.length === 0) return;
+    const sentinel = container.querySelector('.mkt-scroll-sentinel');
+    if(sentinel) sentinel.remove();
+    container.insertAdjacentHTML('beforeend', slice.map(renderProductRow).join(''));
+    cursor += slice.length;
+    if(cursor < items.length){
+      const s = document.createElement('div');
+      s.className = 'mkt-scroll-sentinel';
+      s.style.cssText = 'grid-column:1/-1;height:1px;';
+      container.appendChild(s);
+      try {
+        const io = new IntersectionObserver(entries => {
+          if(entries[0].isIntersecting){ io.disconnect(); appendBatch(); }
+        }, { rootMargin: '300px' });
+        io.observe(s);
+      } catch(_){ appendBatch(); }
+    }
+  }
+  container.innerHTML = '';
+  appendBatch();
+}
+
 function mktTab(key) {
   document.querySelectorAll('.mkt-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-key') === key));
   const si = document.getElementById('mkt-search'); if(si) si.value = '';
@@ -5162,7 +5193,11 @@ function mktTab(key) {
       const grid = s.querySelector('.mkt-products');
       if(grid){
         const items = key === 'todos' ? mktProducts : (_mktGrouped[key] || []);
-        grid.innerHTML = items.map(renderProductRow).join('');
+        if(key === 'todos' && items.length > 80){
+          _mktMountInfinite(grid, items, 80);
+        } else {
+          grid.innerHTML = items.map(renderProductRow).join('');
+        }
       }
       s.setAttribute('data-rendered', '1');
     }
@@ -5596,10 +5631,15 @@ function renderMktUI(){
     if(orderedKeys.length === 0){
       secEl.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto cadastrado</div>';
     } else {
-      // Seção "Todos" — renderiza todos na abertura (tab ativo por padrão)
+      // Seção "Todos" — render virtualizado (primeiros 80 + scroll sentinel)
+      // pra não pagar custo de 1000+ produtos no DOM no primeiro paint.
+      const firstBatch = mktProducts.slice(0, 80);
+      const needsSentinel = mktProducts.length > 80;
       const todosHtml = '<div class="mkt-menu-sec" data-key="todos" data-rendered="1" style="display:block">'
         + '<div class="mkt-section-title">📦 Todos os produtos · '+total+' itens</div>'
-        + '<div class="mkt-products">'+mktProducts.map(renderProductRow).join('')+'</div>'
+        + '<div class="mkt-products" id="mkt-todos-grid">'+firstBatch.map(renderProductRow).join('')
+          + (needsSentinel ? '<div class="mkt-scroll-sentinel" style="grid-column:1/-1;height:1px;"></div>' : '')
+        + '</div>'
         + '</div>';
       const catHtml = orderedKeys.map(k =>
         '<div class="mkt-menu-sec" data-key="'+k+'" data-rendered="0" style="display:none">'
@@ -5608,6 +5648,40 @@ function renderMktUI(){
         + '</div>'
       ).join('');
       secEl.innerHTML = todosHtml + catHtml;
+      // Engata o IntersectionObserver pra carregar batches conforme rola
+      if(mktProducts.length > 80){
+        const grid = document.getElementById('mkt-todos-grid');
+        const sentinel = grid && grid.querySelector('.mkt-scroll-sentinel');
+        if(grid && sentinel){
+          let cursor = 80;
+          function _mktAppendBatch(){
+            const slice = mktProducts.slice(cursor, cursor + 80);
+            if(slice.length === 0) return;
+            const s = grid.querySelector('.mkt-scroll-sentinel');
+            if(s) s.remove();
+            grid.insertAdjacentHTML('beforeend', slice.map(renderProductRow).join(''));
+            cursor += slice.length;
+            if(cursor < mktProducts.length){
+              const ns = document.createElement('div');
+              ns.className = 'mkt-scroll-sentinel';
+              ns.style.cssText = 'grid-column:1/-1;height:1px;';
+              grid.appendChild(ns);
+              try {
+                const io = new IntersectionObserver(entries => {
+                  if(entries[0].isIntersecting){ io.disconnect(); _mktAppendBatch(); }
+                }, { rootMargin: '300px' });
+                io.observe(ns);
+              } catch(_){ _mktAppendBatch(); }
+            }
+          }
+          try {
+            const io = new IntersectionObserver(entries => {
+              if(entries[0].isIntersecting){ io.disconnect(); _mktAppendBatch(); }
+            }, { rootMargin: '300px' });
+            io.observe(sentinel);
+          } catch(_){ _mktAppendBatch(); }
+        }
+      }
     }
   }
 }
@@ -6239,29 +6313,19 @@ const FEED_PAGE = 30;
 
 async function loadFeed(){
   _lastFeedLoad = Date.now();
-  // Cache por usuário — evita mostrar o feed de outra conta após troca de login
-  // Cache prefix versionado (v2 = post-hardening de XSS, B4). Bumpar
-  // sempre que alguma correção de escape mudar pra invalidar HTML antigo
-  // que possa ter ficado contaminado em browsers de usuários.
-  const cacheKey = 'feedCache_v2_' + (currentUser ? currentUser.id : 'anon');
-  const storiesKey = 'storiesCache_v2_' + (currentUser ? currentUser.id : 'anon');
-  const cachedHtml = localStorage.getItem(cacheKey);
-  const cachedStories = localStorage.getItem(storiesKey);
-  const container = document.getElementById('feed-posts-area');
-  const row = document.getElementById('stories-row');
-  if(cachedHtml && container && container.querySelector('.skel-post')){
-    container.innerHTML = cachedHtml;
-    observeFeedVideos(true);
-  }
-  if(cachedStories && row) row.innerHTML = cachedStories;
+  // Cache de HTML em localStorage foi removido: a string crescia até
+  // ~400KB e o setItem/getItem síncrono engasgava o main thread em
+  // mobile, sem ganho real (a hidratação dos posts via Supabase é
+  // rápida e o skeleton já cobre o primeiro paint).
+  // Limpa entradas antigas pra liberar quota (storage cap em iOS Safari).
+  try {
+    const uid = currentUser ? currentUser.id : 'anon';
+    localStorage.removeItem('feedCache_v2_' + uid);
+    localStorage.removeItem('storiesCache_v2_' + uid);
+  } catch(_){}
   // Fetch followingIds once, share with both
   const feedIds = await getFollowingIds();
   await Promise.all([loadStories(feedIds), loadPosts(feedIds)]);
-  // Save to cache for next load
-  try {
-    if(container) localStorage.setItem(cacheKey, container.innerHTML);
-    if(row) localStorage.setItem(storiesKey, row.innerHTML);
-  } catch(e){}
 }
 
 let _followingIdsCache = null;
@@ -6842,8 +6906,14 @@ function getTimeAgo(dateStr){
 let storyGroups = [];
 let currentStoryGroup = 0;
 let currentStoryIndex = 0;
-let storyTimer = null;
+let storyTimer = null; // mantido pra compat; agora guarda rAF id
+let _storyRafId = null;
 const STORY_DURATION = 5000; // 5 seconds per story like IG
+
+function _stopStoryAnim(){
+  if(_storyRafId){ try { cancelAnimationFrame(_storyRafId); } catch(_){} _storyRafId = null; }
+  if(storyTimer){ try { clearInterval(storyTimer); } catch(_){} storyTimer = null; }
+}
 
 async function loadStories(feedIds){
   try {
@@ -6985,8 +7055,7 @@ function closeStoryViewer(){
   document.getElementById('story-viewer').style.display = 'none';
   const vidEl = document.getElementById('story-viewer-video');
   if(vidEl){ vidEl.pause(); vidEl.removeAttribute('src'); }
-  if(storyTimer) clearInterval(storyTimer);
-  storyTimer = null;
+  _stopStoryAnim();
   loadStories(); // refresh seen states
 }
 
@@ -7043,24 +7112,30 @@ function renderCurrentStory(){
   // Mark seen
   markStoryGroupSeen(g.user_id);
 
-  // Start auto-advance timer
-  if(storyTimer) clearInterval(storyTimer);
+  // Start auto-advance timer via requestAnimationFrame: economiza CPU
+  // (auto-pausa em tab background) e elimina o setInterval de 50ms que
+  // forçava layout/style 20x/s mesmo sem mudança visível.
+  _stopStoryAnim();
   if(storyIsVideo){
     // Vídeo: progresso e avanço seguem a duração real do vídeo
     vidEl.onended = () => storyNext();
-    storyTimer = setInterval(() => {
+    const tickVideo = () => {
       const fill = document.getElementById('story-progress-fill');
       if(fill && vidEl.duration) fill.style.width = (vidEl.currentTime / vidEl.duration * 100) + '%';
-    }, 80);
+      _storyRafId = requestAnimationFrame(tickVideo);
+    };
+    _storyRafId = requestAnimationFrame(tickVideo);
   } else {
-    let elapsed = 0;
-    const step = 50;
-    storyTimer = setInterval(() => {
-      elapsed += step;
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const tickImg = () => {
+      const elapsed = now() - t0;
       const fill = document.getElementById('story-progress-fill');
-      if(fill) fill.style.width = (elapsed / STORY_DURATION * 100) + '%';
-      if(elapsed >= STORY_DURATION) storyNext();
-    }, step);
+      if(fill) fill.style.width = Math.min(100, (elapsed / STORY_DURATION) * 100) + '%';
+      if(elapsed >= STORY_DURATION){ _storyRafId = null; storyNext(); return; }
+      _storyRafId = requestAnimationFrame(tickImg);
+    };
+    _storyRafId = requestAnimationFrame(tickImg);
   }
 }
 
@@ -7340,6 +7415,19 @@ function createPinIcon(painter){
 }
 
 let dbPainters = [];
+// Índice pré-construído pra buscar pintor em O(1) por inclusão. Evita
+// re-tokenizar 80 strings a cada tecla. Invalidado quando dbPainters muda.
+let _paintersIndex = null;
+function _invalidatePaintersIndex(){ _paintersIndex = null; }
+function _buildPaintersIndex(){
+  _paintersIndex = (dbPainters || []).map(p => ({
+    p,
+    tokens: ((p.name||'') + ' ' + (p.tag||'') + ' ' + (p.city||'') + ' ' + (p.specialties||'')).toLowerCase()
+  }));
+}
+// AbortController pra cancelar fetch fallback anterior se o usuário
+// digitar mais rápido que a rede responde.
+let _paintersSearchAbort = null;
 
 async function loadMapPainters(){
   try {
@@ -7353,6 +7441,7 @@ async function loadMapPainters(){
     if(!profiles || profiles.length === 0) return;
 
     dbPainters = profiles;
+    _invalidatePaintersIndex();
 
     // Clear existing markers loaded from DB
     mapMarkers.forEach(m => { if(m._fromDB) leafletMap.removeLayer(m); });
@@ -7453,14 +7542,9 @@ async function _filterExplorePaintersImpl(query){
     renderPainterList(allPainters);
     return;
   }
-  // Filter local DB painters
-  const filtered = dbPainters.filter(p => {
-    const name = (p.name||'').toLowerCase();
-    const tag = (p.tag||'').toLowerCase();
-    const city = (p.city||'').toLowerCase();
-    const specs = (p.specialties||'').toLowerCase();
-    return name.includes(q) || tag.includes(q) || city.includes(q) || specs.includes(q);
-  });
+  // Filter via índice (tokens já em lowercase, evita re-tokenizar a cada keystroke)
+  if(!_paintersIndex) _buildPaintersIndex();
+  const filtered = _paintersIndex.filter(x => x.tokens.includes(q)).map(x => x.p);
   // Also filter local painters
   Object.entries(painters).forEach(([id, p]) => {
     const alreadyInResults = filtered.some(dp => dp.name === p.name);
@@ -7473,21 +7557,32 @@ async function _filterExplorePaintersImpl(query){
       filtered.push({ id: id, name: p.name, img: p.img, city: p.city, specialties: p.specs.join(', '), rating: p.rating, rating_avg: p.rating });
     }
   });
-  // If no results from cache, search Supabase directly
+  // If no results from cache, search Supabase directly (cancela fetch anterior)
   if(filtered.length === 0){
     try {
+      if(_paintersSearchAbort){ try { _paintersSearchAbort.abort(); } catch(_){} }
+      _paintersSearchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       const sb = getSupabase();
       if(sb){
-        const { data } = await sb.from('profiles')
+        let req = sb.from('profiles')
           .select('id, name, tag, avatar_url, city, state, specialties, rating_avg, role, user_type')
           .or('role.eq.pintor,user_type.eq.pintor')
           .ilike('name', '%'+q+'%')
           .limit(20);
+        if(_paintersSearchAbort && typeof req.abortSignal === 'function'){
+          req = req.abortSignal(_paintersSearchAbort.signal);
+        }
+        const { data } = await req;
         if(data && data.length > 0){
           data.forEach(p => filtered.push(p));
         }
       }
-    } catch(e){ console.warn('filterExplorePainters search error:', e); }
+    } catch(e){
+      // AbortError é esperado quando o usuário digita rápido — não logar
+      if(!(e && (e.name === 'AbortError' || /aborted/i.test(String(e.message||''))))){
+        console.warn('filterExplorePainters search error:', e);
+      }
+    }
   }
   renderPainterList(filtered);
 }

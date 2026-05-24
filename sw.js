@@ -1,5 +1,5 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v11';
+const CACHE = 'queroumacor-v12';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -12,6 +12,22 @@ self.addEventListener('activate', e => {
     ).then(() => self.clients.claim())
   );
 });
+
+// cache-first com revalidação leve em background. Como nossos assets
+// versionados usam ?v=AAAAMMDD<letra>, uma versão nova = URL nova =
+// chave de cache nova, então cache-first é seguro.
+function cacheFirst(req) {
+  return caches.match(req).then(cached => {
+    if (cached) return cached;
+    return fetch(req).then(r => {
+      if (r && r.ok && r.type === 'basic') {
+        const clone = r.clone();
+        caches.open(CACHE).then(c => c.put(req, clone)).catch(() => {});
+      }
+      return r;
+    });
+  });
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -35,9 +51,24 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Demais GETs same-origin: também revalida no servidor. Cross-origin
-  // (IBGE etc) usa o cache padrão.
+  // Assets versionados (?v=...) e estáticos same-origin: cache-first.
+  // .js/.css carregam com ?v=AAAAMMDD<letra>, então novo deploy invalida
+  // a chave de cache automaticamente. Imagens são imutáveis por path.
   if (sameOrigin) {
+    const p = url.pathname;
+    if (
+      p.endsWith('.js') || p.endsWith('.css') ||
+      p.endsWith('.webp') || p.endsWith('.png') ||
+      p.endsWith('.jpg') || p.endsWith('.jpeg') ||
+      p.endsWith('.svg') || p.endsWith('.gif') ||
+      p.endsWith('.woff') || p.endsWith('.woff2') ||
+      p.endsWith('.ico')
+    ) {
+      e.respondWith(cacheFirst(req));
+      return;
+    }
+    // Demais same-origin (sem extensão conhecida): network-first com
+    // fallback pra cache.
     e.respondWith(
       fetch(req, { cache: 'reload' }).then(r => {
         if (r && r.ok && r.type === 'basic') {
