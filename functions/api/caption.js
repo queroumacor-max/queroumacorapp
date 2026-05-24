@@ -2,7 +2,7 @@
 // POST multipart/form-data com campo "image" (foto, <= 8 MB).
 // Resposta: { caption: string, hashtags: string[] } (4-6 hashtags em PT-BR).
 // Requer OPENAI_API_KEY no Cloudflare Pages.
-import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
+import { gateProAIForm, jsonResponse as json } from './_security.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -16,15 +16,8 @@ export async function onRequestPost(context) {
   try { form = await request.formData(); }
   catch { return json({ error: 'multipart/form-data inválido' }, 400); }
 
-  // Auth + PRO check (fail-open) — token vem no FormData ou header
-  const accessToken = getTokenFromForm(request, form);
-  const auth = await requireAuth(env, request, { accessToken });
-  if (auth.error) return json({ error: auth.error }, auth.status);
-  const proCheck = await requirePro(env, auth.user && auth.user.id);
-  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
-
-  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'caption', 10);
-  if (!rl.allowed) return rateLimitResponse(rl);
+  const g = await gateProAIForm(env, request, form, { endpoint: 'caption', limit: 10 });
+  if (g instanceof Response) return g;
 
   const image = form.get('image');
   if (!image || typeof image === 'string') {

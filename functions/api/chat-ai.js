@@ -1,9 +1,8 @@
 // Assistente IA do QueroUmaCor. Usa OpenAI; se faltar/funcionar mal,
 // cai para o Gemini. Requer no Cloudflare Pages pelo menos uma das
 // variaveis: OPENAI_API_KEY ou GEMINI_API_KEY.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
-
-const GEMINI_MODEL = 'gemini-2.5-flash';
+import { gateProAI, jsonResponse as json } from './_security.js';
+import { callAIText } from './_ai.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -14,14 +13,8 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
-  // Auth + PRO check (fail-open enquanto cliente/env não estiverem completos)
-  const auth = await requireAuth(env, request, body);
-  if (auth.error) return json({ error: auth.error }, auth.status);
-  const proCheck = await requirePro(env, auth.user && auth.user.id);
-  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
-
-  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'chat-ai', 20);
-  if (!rl.allowed) return rateLimitResponse(rl);
+  const g = await gateProAI(env, request, body, { endpoint: 'chat-ai', limit: 20 });
+  if (g instanceof Response) return g;
 
   const userMessage = typeof body?.message === 'string' ? body.message.trim().slice(0, 1500) : '';
   if (!userMessage) return json({ error: 'message obrigatório' }, 400);
@@ -56,64 +49,14 @@ COMO RESPONDER:
 - Nunca invente certeza sobre preço exato ou estoque de produto.
 - Se a pergunta fugir do tema, traga de volta para pintura e construção com bom humor.`;
 
-  let reply = '';
-  let lastError = '';
+  const { text: reply, error } = await callAIText({
+    env, systemPrompt, userMessage,
+    history,
+    temperature: 0.5,
+    maxTokens: 500
+  });
 
-  // 1) OpenAI
-  if (env.OPENAI_API_KEY) {
-    try {
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: userMessage }
-      ];
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.5, max_tokens: 500 })
-      });
-      if (r.ok) {
-        const data = await r.json();
-        reply = data?.choices?.[0]?.message?.content?.trim() || '';
-      } else {
-        lastError = `OpenAI ${r.status}: ${(await r.text()).slice(0, 150)}`;
-      }
-    } catch (e) {
-      lastError = 'OpenAI: ' + String(e?.message || e);
-    }
-  }
-
-  // 2) Fallback Gemini
-  if (!reply && env.GEMINI_API_KEY) {
-    try {
-      const contents = [
-        ...history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-        { role: 'user', parts: [{ text: userMessage }] }
-      ];
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents,
-            generationConfig: { temperature: 0.5, maxOutputTokens: 600 }
-          })
-        }
-      );
-      if (r.ok) {
-        const data = await r.json();
-        reply = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-      } else {
-        lastError = `Gemini ${r.status}: ${(await r.text()).slice(0, 150)}`;
-      }
-    } catch (e) {
-      lastError = 'Gemini: ' + String(e?.message || e);
-    }
-  }
-
-  if (!reply) return json({ error: lastError || 'Não foi possível gerar resposta da IA' }, 502);
+  if (!reply) return json({ error: error || 'Não foi possível gerar resposta da IA' }, 502);
 
   return json({ reply });
 }
