@@ -2,9 +2,8 @@
 // mini-CRM do QueroUmaCor. Usa OpenAI; cai para Gemini se faltar/falhar.
 // Requer no Cloudflare Pages pelo menos uma das variaveis:
 // OPENAI_API_KEY ou GEMINI_API_KEY.
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
-
-const GEMINI_MODEL = 'gemini-2.5-flash';
+import { gateProAI, jsonResponse as json } from './_security.js';
+import { callAIText } from './_ai.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -15,14 +14,8 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
-  // Auth + PRO check (fail-open)
-  const auth = await requireAuth(env, request, body);
-  if (auth.error) return json({ error: auth.error }, auth.status);
-  const proCheck = await requirePro(env, auth.user && auth.user.id);
-  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
-
-  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'crm-draft', 10);
-  if (!rl.allowed) return rateLimitResponse(rl);
+  const g = await gateProAI(env, request, body, { endpoint: 'crm-draft', limit: 10 });
+  if (g instanceof Response) return g;
 
   const clientName = typeof body?.clientName === 'string' ? body.clientName.trim().slice(0, 80) : '';
   const lastService = typeof body?.lastService === 'string' ? body.lastService.trim().slice(0, 200) : '';
@@ -47,59 +40,13 @@ REGRAS:
   if (monthsSince) userMessage += `\nTempo desde o último serviço: ${monthsSince} meses.`;
   if (painterName) userMessage += `\nA mensagem é enviada pelo profissional: ${painterName}.`;
 
-  let reply = '';
-  let lastError = '';
+  const { text: reply, error } = await callAIText({
+    env, systemPrompt, userMessage,
+    temperature: 0.7,
+    maxTokens: 240
+  });
 
-  // 1) OpenAI
-  if (env.OPENAI_API_KEY) {
-    try {
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
-      ];
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.7, max_tokens: 240 })
-      });
-      if (r.ok) {
-        const data = await r.json();
-        reply = data?.choices?.[0]?.message?.content?.trim() || '';
-      } else {
-        lastError = `OpenAI ${r.status}: ${(await r.text()).slice(0, 150)}`;
-      }
-    } catch (e) {
-      lastError = 'OpenAI: ' + String(e?.message || e);
-    }
-  }
-
-  // 2) Fallback Gemini
-  if (!reply && env.GEMINI_API_KEY) {
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
-          })
-        }
-      );
-      if (r.ok) {
-        const data = await r.json();
-        reply = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-      } else {
-        lastError = `Gemini ${r.status}: ${(await r.text()).slice(0, 150)}`;
-      }
-    } catch (e) {
-      lastError = 'Gemini: ' + String(e?.message || e);
-    }
-  }
-
-  if (!reply) return json({ error: lastError || 'Não foi possível gerar a mensagem' }, 502);
+  if (!reply) return json({ error: error || 'Não foi possível gerar a mensagem' }, 502);
 
   return json({ draft: reply });
 }

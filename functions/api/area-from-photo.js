@@ -2,7 +2,7 @@
 // (foto de parede/cômodo/teto) e devolve { area_m2, justification } via
 // OpenAI gpt-4o-mini (vision). Requer OPENAI_API_KEY no Cloudflare Pages.
 // A estimativa é APROXIMADA — o app avisa o usuário para revisar.
-import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
+import { gateProAIForm, jsonResponse as json } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -14,15 +14,8 @@ export async function onRequestPost(context) {
   try { formData = await request.formData(); }
   catch { return json({ error: 'FormData inválido' }, 400); }
 
-  // Auth + PRO check (fail-open) — token vem no FormData ou header
-  const accessToken = getTokenFromForm(request, formData);
-  const auth = await requireAuth(env, request, { accessToken });
-  if (auth.error) return json({ error: auth.error }, auth.status);
-  const proCheck = await requirePro(env, auth.user && auth.user.id);
-  if (!proCheck.pro) return json({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
-
-  const rl = await checkRateLimit(env, auth.user && auth.user.id, 'area-from-photo', 5);
-  if (!rl.allowed) return rateLimitResponse(rl);
+  const g = await gateProAIForm(env, request, formData, { endpoint: 'area-from-photo', limit: 5 });
+  if (g instanceof Response) return g;
 
   const image = formData.get('image');
   if (!image || typeof image === 'string') {

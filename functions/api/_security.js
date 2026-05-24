@@ -181,3 +181,37 @@ export function rateLimitResponse(rl){
     }
   });
 }
+
+// gateProAI — bundle de requireAuth + requirePro + checkRateLimit.
+// Retorna { userId, user, token } se passou, OU uma Response de erro se barrou.
+// Uso típico: const g = await gateProAI(env, request, body, { endpoint:'chat-ai', limit:20 });
+//             if (g instanceof Response) return g;
+//             const userId = g.userId;
+export async function gateProAI(env, request, body, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+  const auth = await requireAuth(env, request, body);
+  if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
+  const userId = auth.user && auth.user.id;
+  if (needPro) {
+    const proCheck = await requirePro(env, userId);
+    if (!proCheck.pro) return jsonResponse({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+  }
+  const rl = await checkRateLimit(env, userId, endpoint, limit);
+  if (!rl.allowed) return rateLimitResponse(rl);
+  return { userId, user: auth.user, token: auth.token };
+}
+
+// Variante de gateProAI para endpoints multipart/form-data: extrai o token
+// do FormData (via getTokenFromForm) em vez de body.accessToken.
+export async function gateProAIForm(env, request, formData, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+  const accessToken = getTokenFromForm(request, formData);
+  const auth = await requireAuth(env, request, { accessToken });
+  if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
+  const userId = auth.user && auth.user.id;
+  if (needPro) {
+    const proCheck = await requirePro(env, userId);
+    if (!proCheck.pro) return jsonResponse({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+  }
+  const rl = await checkRateLimit(env, userId, endpoint, limit);
+  if (!rl.allowed) return rateLimitResponse(rl);
+  return { userId, user: auth.user, token: auth.token };
+}

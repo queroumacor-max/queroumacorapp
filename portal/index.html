@@ -26,6 +26,7 @@ body { font-family: 'DM Sans', sans-serif; background: #f7f3ee; min-height:100vh
 
 <script type="text/babel">
 const { useState, useEffect } = React;
+// Otimizações usadas como React.useMemo / React.useCallback / React.memo abaixo.
 
 const C = {
   ink: '#1a1a2e', ink2: '#16213e', cream: '#f7f3ee', border: '#e8e2d9',
@@ -267,27 +268,31 @@ const Logo = () => (
   </div>
 );
 
-const NavItem = ({ icon, label, badge, active, onClick }) => (
-  <div onClick={onClick} style={{
-    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px',
-    cursor: 'pointer', borderRadius: 10, margin: '2px 8px',
-    background: active ? 'rgba(255,107,53,0.2)' : 'transparent',
-    color: active ? C.p1 : 'rgba(255,255,255,0.7)',
-    transition: 'all 0.2s'
-  }}>
-    <span style={{ fontSize: 16 }}>{icon}</span>
-    <span style={{ fontSize: 14, flex: 1 }}>{label}</span>
-    {badge > 0 && <span style={{ background: C.p4, color: '#fff', borderRadius: 10, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>{badge}</span>}
-  </div>
-);
+const NavItem = React.memo(function NavItem({ icon, label, badge, active, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px',
+      cursor: 'pointer', borderRadius: 10, margin: '2px 8px',
+      background: active ? 'rgba(255,107,53,0.2)' : 'transparent',
+      color: active ? C.p1 : 'rgba(255,255,255,0.7)',
+      transition: 'all 0.2s'
+    }}>
+      <span style={{ fontSize: 16 }}>{icon}</span>
+      <span style={{ fontSize: 14, flex: 1 }}>{label}</span>
+      {badge > 0 && <span style={{ background: C.p4, color: '#fff', borderRadius: 10, fontSize: 11, padding: '1px 7px', fontWeight: 700 }}>{badge}</span>}
+    </div>
+  );
+});
 
-const KPICard = ({ title, value, sub, trend, color }) => (
-  <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-    <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: C.ink }}>{value}</div>
-    <div style={{ fontSize: 12, color: color || C.p6, marginTop: 4 }}>{trend} {sub}</div>
-  </div>
-);
+const KPICard = React.memo(function KPICard({ title, value, sub, trend, color }) {
+  return (
+    <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: C.ink }}>{value}</div>
+      <div style={{ fontSize: 12, color: color || C.p6, marginTop: 4 }}>{trend} {sub}</div>
+    </div>
+  );
+});
 
 const Dashboard = () => {
   const [stats, setStats] = useState({ pintores: 0, clientes: 0, leads: 0, orcamentos: 0 });
@@ -350,9 +355,9 @@ const Dashboard = () => {
     })();
   }, []);
 
-  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando dashboard...</div>;
+  const maxW = React.useMemo(() => Math.max(...weeklyQuotes, 1), [weeklyQuotes]);
 
-  const maxW = Math.max(...weeklyQuotes, 1);
+  if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando dashboard...</div>;
 
   return (
     <div>
@@ -517,6 +522,59 @@ const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
   );
 };
 
+// Dicionário determinístico: cor escrita no nome → hex. Compostos primeiro.
+// Movido para escopo de módulo: nunca muda e era recriado a cada render.
+const COLOR_DICT = [
+  ['branco neve','#fbfbf7'],['branco gelo','#eef0ea'],['branco fosco','#f4f3ee'],['off white','#efece1'],['branco','#f6f5f0'],
+  ['preto fosco','#1c1c1c'],['preto','#1a1a1a'],
+  ['cinza chumbo','#4b4f54'],['cinza grafite','#3a3d40'],['grafite','#3a3d40'],['cinza claro','#c7c9c8'],['cinza escuro','#5a5d5f'],['cinza concreto','#9a9b96'],['concreto','#9a9b96'],['cinza','#9b9d9c'],['prata','#c5c7c9'],['aluminio','#b8bcc0'],
+  ['azul claro','#9ec7e8'],['azul bebe','#bcd9ee'],['azul royal','#1f4ea1'],['azul marinho','#1b2a4a'],['azul petroleo','#1f5560'],['azul turquesa','#2bb6c4'],['turquesa','#2bb6c4'],['azul','#2f6fb0'],
+  ['verde musgo','#5a6b3b'],['verde limao','#bcd64a'],['verde agua','#bfe3d8'],['verde bandeira','#1e7a3d'],['verde oliva','#6b6b3a'],['verde','#2e8b57'],
+  ['amarelo ouro','#e0a526'],['amarelo canario','#f5d427'],['amarelo','#f2c531'],['ouro','#caa233'],['dourado','#caa233'],
+  ['vermelho','#c0392b'],['vinho','#5e1f24'],['bordo','#5e1f24'],['carmim','#9b1c2e'],
+  ['laranja','#e67e22'],['terracota','#b5562e'],['tijolo','#9c4a2f'],['salmao','#f0a78f'],
+  ['rosa','#e79bb3'],['pink','#e84d8a'],['magenta','#c0337a'],
+  ['roxo','#6b3fa0'],['lilas','#b9a5d6'],['violeta','#7a4fb0'],
+  ['marrom','#6b4226'],['cafe','#4b3621'],['chocolate','#4b2e1e'],['caramelo','#a9743b'],['tabaco','#7a5230'],['imbuia','#5a3a22'],['mogno','#6e3326'],['cedro','#8a5a33'],['castanho','#5d3a22'],
+  ['bege','#d8c6a8'],['areia','#d6c5a0'],['palha','#e3d5ad'],['creme','#efe6cf'],['nude','#e3c9b3'],['camurca','#c9a878'],['marfim','#efe7d2'],
+  ['gelo','#eef0ea'],['perola','#ece7dd'],
+];
+const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
+const dictHex = (name) => {
+  const n = ' ' + String(name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') + ' ';
+  for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
+  return null;
+};
+const resolveColorHex = (p) => {
+  const ch = p && p.color_hex ? String(p.color_hex).trim() : '';
+  if(ch && !_PLACEHOLDER_HEX.test(ch.replace('#',''))) return ch;
+  const n = ' ' + String(p && p.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') + ' ';
+  for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
+  return ch || null;
+};
+const productBg = (p) => p && p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (resolveColorHex(p) || '#e8e2d9');
+
+// Classificador automático por palavra-chave no nome (marca/tipo).
+// A ordem importa: o primeiro menu cuja palavra-chave casar vence.
+const MENUS = [
+  { key:'arte_urbana',  label:'🎨 Arte Urbana & Spray',     kw:['arte urbana','colorgin','spray','aerossol','aerosol','grafit','graffit'] },
+  { key:'tintas',       label:'🪣 Tintas',                   kw:['tinta','esmalte','latex','látex','acrilic','acrílic','verniz','primer','seladora','fundo preparador','base coat','automotiva','suvinil','coral','sherwin'] },
+  { key:'texturas',     label:'🧱 Texturas & Massas',        kw:['textura','grafiato','massa corrida','massa acrilic','massa pva','reboco','chapisco'] },
+  { key:'epoxi',        label:'⚗️ Epóxi & Poliuretano',      kw:['epoxi','epóxi','poliuretano',' pu '] },
+  { key:'solventes',    label:'💧 Solventes & Aditivos',     kw:['thinner','solvente','diluente','aguarras','aguarrás','acelerador','secante','catalisador','endurecedor','aditivo','redutor','removedor'] },
+  { key:'adesivos',     label:'🧪 Adesivos & Colas',         kw:['adesivo','cola','silicone','vedante','veda calha','rejunte','massa epox','durepoxi'] },
+  { key:'ferramentas',  label:'🧰 Ferramentas',              kw:['alicate','tesoura','chave','martelo','abre trinca','espatula','espátula','desempenadeira','colher de pedreiro','trena','serra','furadeira','broca','lixadeira','estilete','formao','formão','grosa','lima','torques'] },
+  { key:'pintura',      label:'🖌️ Acessórios de Pintura',    kw:['rolo','pincel','trincha','bandeja','fita crepe','fita','lixa','cabo extensor','extensor','gaiola','luva','mascara','máscara','respirador','oculos','óculos','lona','plastico','plástico','crepe'] },
+  { key:'eletrica',     label:'🔌 Elétrica',                 kw:['tomada','adaptador','extens','lampada','lâmpada','disjuntor','filtro de linha','benjamim','fio ','interruptor'] },
+  { key:'equipamentos', label:'🛠️ Equipamentos',             kw:['aerografo','aerógrafo','compressor','pistola','maquina','máquina','pulverizador','airless'] },
+];
+const classify = (p) => {
+  const n = (' ' + (p.name||'') + ' ').toLowerCase();
+  for(const m of MENUS){ if(m.kw.some(k => n.includes(k))) return m.key; }
+  return 'outros';
+};
+const MENU_LABEL = Object.fromEntries(MENUS.map(m => [m.key, m.label]).concat([['outros','📦 Outros']]));
+
 const ProdutosList = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -551,12 +609,6 @@ const ProdutosList = () => {
   };
 
   useEffect(() => { loadProducts(); }, []);
-
-  const dictHex = (name) => {
-    const n = ' ' + String(name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') + ' ';
-    for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
-    return null;
-  };
 
   const fillColorsAI = async () => {
     if(aiBusy) return;
@@ -627,57 +679,19 @@ const ProdutosList = () => {
     setShowForm(true);
   };
 
-  // Dicionário determinístico: cor escrita no nome → hex. Compostos primeiro.
-  const COLOR_DICT = [
-    ['branco neve','#fbfbf7'],['branco gelo','#eef0ea'],['branco fosco','#f4f3ee'],['off white','#efece1'],['branco','#f6f5f0'],
-    ['preto fosco','#1c1c1c'],['preto','#1a1a1a'],
-    ['cinza chumbo','#4b4f54'],['cinza grafite','#3a3d40'],['grafite','#3a3d40'],['cinza claro','#c7c9c8'],['cinza escuro','#5a5d5f'],['cinza concreto','#9a9b96'],['concreto','#9a9b96'],['cinza','#9b9d9c'],['prata','#c5c7c9'],['aluminio','#b8bcc0'],
-    ['azul claro','#9ec7e8'],['azul bebe','#bcd9ee'],['azul royal','#1f4ea1'],['azul marinho','#1b2a4a'],['azul petroleo','#1f5560'],['azul turquesa','#2bb6c4'],['turquesa','#2bb6c4'],['azul','#2f6fb0'],
-    ['verde musgo','#5a6b3b'],['verde limao','#bcd64a'],['verde agua','#bfe3d8'],['verde bandeira','#1e7a3d'],['verde oliva','#6b6b3a'],['verde','#2e8b57'],
-    ['amarelo ouro','#e0a526'],['amarelo canario','#f5d427'],['amarelo','#f2c531'],['ouro','#caa233'],['dourado','#caa233'],
-    ['vermelho','#c0392b'],['vinho','#5e1f24'],['bordo','#5e1f24'],['carmim','#9b1c2e'],
-    ['laranja','#e67e22'],['terracota','#b5562e'],['tijolo','#9c4a2f'],['salmao','#f0a78f'],
-    ['rosa','#e79bb3'],['pink','#e84d8a'],['magenta','#c0337a'],
-    ['roxo','#6b3fa0'],['lilas','#b9a5d6'],['violeta','#7a4fb0'],
-    ['marrom','#6b4226'],['cafe','#4b3621'],['chocolate','#4b2e1e'],['caramelo','#a9743b'],['tabaco','#7a5230'],['imbuia','#5a3a22'],['mogno','#6e3326'],['cedro','#8a5a33'],['castanho','#5d3a22'],
-    ['bege','#d8c6a8'],['areia','#d6c5a0'],['palha','#e3d5ad'],['creme','#efe6cf'],['nude','#e3c9b3'],['camurca','#c9a878'],['marfim','#efe7d2'],
-    ['gelo','#eef0ea'],['perola','#ece7dd'],
-  ];
-  const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
-  const resolveColorHex = (p) => {
-    const ch = p && p.color_hex ? String(p.color_hex).trim() : '';
-    if(ch && !_PLACEHOLDER_HEX.test(ch.replace('#',''))) return ch;
-    const n = ' ' + String(p && p.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') + ' ';
-    for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
-    return ch || null;
-  };
-  const productBg = (p) => p && p.color_gradient ? 'linear-gradient(135deg,'+p.color_gradient+')' : (resolveColorHex(p) || '#e8e2d9');
-
-  // Classificador automático por palavra-chave no nome (marca/tipo).
-  // A ordem importa: o primeiro menu cuja palavra-chave casar vence.
-  const MENUS = [
-    { key:'arte_urbana',  label:'🎨 Arte Urbana & Spray',     kw:['arte urbana','colorgin','spray','aerossol','aerosol','grafit','graffit'] },
-    { key:'tintas',       label:'🪣 Tintas',                   kw:['tinta','esmalte','latex','látex','acrilic','acrílic','verniz','primer','seladora','fundo preparador','base coat','automotiva','suvinil','coral','sherwin'] },
-    { key:'texturas',     label:'🧱 Texturas & Massas',        kw:['textura','grafiato','massa corrida','massa acrilic','massa pva','reboco','chapisco'] },
-    { key:'epoxi',        label:'⚗️ Epóxi & Poliuretano',      kw:['epoxi','epóxi','poliuretano',' pu '] },
-    { key:'solventes',    label:'💧 Solventes & Aditivos',     kw:['thinner','solvente','diluente','aguarras','aguarrás','acelerador','secante','catalisador','endurecedor','aditivo','redutor','removedor'] },
-    { key:'adesivos',     label:'🧪 Adesivos & Colas',         kw:['adesivo','cola','silicone','vedante','veda calha','rejunte','massa epox','durepoxi'] },
-    { key:'ferramentas',  label:'🧰 Ferramentas',              kw:['alicate','tesoura','chave','martelo','abre trinca','espatula','espátula','desempenadeira','colher de pedreiro','trena','serra','furadeira','broca','lixadeira','estilete','formao','formão','grosa','lima','torques'] },
-    { key:'pintura',      label:'🖌️ Acessórios de Pintura',    kw:['rolo','pincel','trincha','bandeja','fita crepe','fita','lixa','cabo extensor','extensor','gaiola','luva','mascara','máscara','respirador','oculos','óculos','lona','plastico','plástico','crepe'] },
-    { key:'eletrica',     label:'🔌 Elétrica',                 kw:['tomada','adaptador','extens','lampada','lâmpada','disjuntor','filtro de linha','benjamim','fio ','interruptor'] },
-    { key:'equipamentos', label:'🛠️ Equipamentos',             kw:['aerografo','aerógrafo','compressor','pistola','maquina','máquina','pulverizador','airless'] },
-  ];
-  const classify = (p) => {
-    const n = (' ' + (p.name||'') + ' ').toLowerCase();
-    for(const m of MENUS){ if(m.kw.some(k => n.includes(k))) return m.key; }
-    return 'outros';
-  };
-  const MENU_LABEL = Object.fromEntries(MENUS.map(m => [m.key, m.label]).concat([['outros','📦 Outros']]));
-  const grouped = {};
-  products.forEach(p => { const k = classify(p); if(!grouped[k]) grouped[k] = []; grouped[k].push(p); });
-  const orderedKeys = MENUS.map(m=>m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length);
+  // Agrupamento por categoria — pesado quando há milhares de produtos.
+  // Só recalcula quando a lista de produtos muda (não a cada keystroke da busca).
+  const grouped = React.useMemo(() => {
+    const g = {};
+    products.forEach(p => { const k = classify(p); if(!g[k]) g[k] = []; g[k].push(p); });
+    return g;
+  }, [products]);
+  const orderedKeys = React.useMemo(
+    () => MENUS.map(m=>m.key).concat(['outros']).filter(k => grouped[k] && grouped[k].length),
+    [grouped]
+  );
   const totalItens = products.length;
-  const qLower = busca.trim().toLowerCase();
+  const qLower = React.useMemo(() => busca.trim().toLowerCase(), [busca]);
 
   const inputStyle = { width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid '+C.border, fontSize:13, outline:'none' };
   const labelStyle = { fontSize:12, color:C.muted, marginBottom:4, display:'block' };
@@ -864,23 +878,27 @@ const Analytics = () => {
     })();
   }, []);
 
+  const funnel = React.useMemo(() => {
+    const funnelTotal = data.profiles || 1;
+    return [
+      { label: 'Perfis cadastrados', n: data.profiles, pct: 100 },
+      { label: 'Leads captados', n: data.leads, pct: Math.round(data.leads / funnelTotal * 100) },
+      { label: 'Orçamentos solicitados', n: data.quotes, pct: Math.round(data.quotes / funnelTotal * 100) },
+      { label: 'Orçamentos aceitos/concluídos', n: data.quotesAccepted, pct: Math.round(data.quotesAccepted / funnelTotal * 100) },
+    ];
+  }, [data]);
+
+  const topServices = React.useMemo(() => {
+    const serviceCounts = {};
+    data.quotesData.forEach(q => {
+      const s = q.service_type || q.title || 'Outros';
+      serviceCounts[s] = (serviceCounts[s] || 0) + 1;
+    });
+    return Object.entries(serviceCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+  }, [data.quotesData]);
+
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando analytics...</div>;
 
-  const funnelTotal = data.profiles || 1;
-  const funnel = [
-    { label: 'Perfis cadastrados', n: data.profiles, pct: 100 },
-    { label: 'Leads captados', n: data.leads, pct: Math.round(data.leads / funnelTotal * 100) },
-    { label: 'Orçamentos solicitados', n: data.quotes, pct: Math.round(data.quotes / funnelTotal * 100) },
-    { label: 'Orçamentos aceitos/concluídos', n: data.quotesAccepted, pct: Math.round(data.quotesAccepted / funnelTotal * 100) },
-  ];
-
-  // Top services from quotes
-  const serviceCounts = {};
-  data.quotesData.forEach(q => {
-    const s = q.service_type || q.title || 'Outros';
-    serviceCounts[s] = (serviceCounts[s] || 0) + 1;
-  });
-  const topServices = Object.entries(serviceCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
   const serviceColors = [C.p1, C.p3, C.p7, C.p5, C.p6];
 
   return (
@@ -1391,6 +1409,13 @@ REGRAS:
   );
 };
 
+// Constantes estáticas dos Leads — movidas para módulo (eram recriadas a cada render).
+const LEAD_SEG_COLORS = { AUTOMOTIVO: '#e63946', GRAFFITI: '#8338ec', RESIDENCIAL: '#ff6b35', COMERCIAL: '#2ec4b6' };
+const LEAD_SEG_ICONS = { AUTOMOTIVO: '🚗', GRAFFITI: '🎨', 'GRAFFITI/ARTE': '🎨', RESIDENCIAL: '🏠', COMERCIAL: '🏢' };
+const LEAD_CAT_ICONS = { 'Funilaria/Auto': '🚗', 'Graffiti/Arte': '🎨', 'Pintor': '🖌', 'Reformas': '🔧', 'Construtoras': '🏗', 'Imobiliárias': '🏢', 'Arquitetura': '✏', 'Materiais': '🧱', 'Condomínios': '🏘', 'Academias': '💪', 'Bares': '🍺', 'Limpeza': '🧹', 'Marmoraria': '💎' };
+const LEAD_STATUS_COLORS = { novo: C.p3, contactado: C.p7, qualificado: C.p6, convertido: C.p1, perdido: C.p4 };
+const LEAD_PRIO_COLORS = { alta: C.p6, media: C.p7, baixa: C.muted };
+
 const Leads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1443,46 +1468,47 @@ const Leads = () => {
     fetchLeads();
   };
 
-  const statusColor = (s) => {
-    const map = { novo: C.p3, contactado: C.p7, qualificado: C.p6, convertido: C.p1, perdido: C.p4 };
-    return map[s] || C.muted;
-  };
+  const statusColor = (s) => LEAD_STATUS_COLORS[s] || C.muted;
+  const prioColor = (p) => LEAD_PRIO_COLORS[p] || C.muted;
+  const segColors = LEAD_SEG_COLORS;
 
-  const prioColor = (p) => {
-    const map = { alta: C.p6, media: C.p7, baixa: C.muted };
-    return map[p] || C.muted;
-  };
+  // Filters + sort — pesado quando há muitos leads. Memoizado por estado de filtro/busca/lista.
+  const filtered = React.useMemo(() => {
+    let out = leads;
+    if (busca) {
+      const q = busca.toLowerCase();
+      out = out.filter(l => (l.name||'').toLowerCase().includes(q) || (l.segment||'').toLowerCase().includes(q) || (l.category||'').toLowerCase().includes(q) || (l.neighborhood||'').toLowerCase().includes(q));
+    }
+    if (filtroStatus !== 'Todos') out = out.filter(l => l.status === filtroStatus.toLowerCase());
+    if (filtroSegmento !== 'TODOS') out = out.filter(l => (l.segment||'').toUpperCase() === filtroSegmento);
+    if (filtroCategoria !== 'Todas') out = out.filter(l => l.category === filtroCategoria);
 
-  const segColors = { AUTOMOTIVO: '#e63946', GRAFFITI: '#8338ec', RESIDENCIAL: '#ff6b35', COMERCIAL: '#2ec4b6' };
+    if (ordenar === 'rating') out = [...out].sort((a,b) => (b.rating||0) - (a.rating||0));
+    else if (ordenar === 'reviews') out = [...out].sort((a,b) => (b.review_count||0) - (a.review_count||0));
+    else if (ordenar === 'name') out = [...out].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    return out;
+  }, [leads, busca, filtroStatus, filtroSegmento, filtroCategoria, ordenar]);
 
-  // Filters
-  let filtered = leads;
-  if (busca) {
-    const q = busca.toLowerCase();
-    filtered = filtered.filter(l => (l.name||'').toLowerCase().includes(q) || (l.segment||'').toLowerCase().includes(q) || (l.category||'').toLowerCase().includes(q) || (l.neighborhood||'').toLowerCase().includes(q));
-  }
-  if (filtroStatus !== 'Todos') filtered = filtered.filter(l => l.status === filtroStatus.toLowerCase());
-  if (filtroSegmento !== 'TODOS') filtered = filtered.filter(l => (l.segment||'').toUpperCase() === filtroSegmento);
-  if (filtroCategoria !== 'Todas') filtered = filtered.filter(l => l.category === filtroCategoria);
+  // Segment / Category / Status counts — só dependem de leads.
+  const segments = React.useMemo(() => {
+    const s = {};
+    leads.forEach(l => { const k = (l.segment||'Outros').toUpperCase(); s[k] = (s[k]||0)+1; });
+    return s;
+  }, [leads]);
 
-  // Sort
-  if (ordenar === 'rating') filtered = [...filtered].sort((a,b) => (b.rating||0) - (a.rating||0));
-  else if (ordenar === 'reviews') filtered = [...filtered].sort((a,b) => (b.review_count||0) - (a.review_count||0));
-  else if (ordenar === 'name') filtered = [...filtered].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const categories = React.useMemo(() => {
+    const c = {};
+    leads.forEach(l => { const k = l.category||'Outros'; c[k] = (c[k]||0)+1; });
+    return c;
+  }, [leads]);
 
-  // Segment counts
-  const segments = {};
-  leads.forEach(l => { const s = (l.segment||'Outros').toUpperCase(); segments[s] = (segments[s]||0)+1; });
-
-  // Category counts
-  const categories = {};
-  leads.forEach(l => { const c = l.category||'Outros'; categories[c] = (categories[c]||0)+1; });
-
-  // Status counts
-  const statusCounts = { total: leads.length };
-  ['novo','contactado','qualificado','convertido','perdido'].forEach(s => {
-    statusCounts[s] = leads.filter(l => l.status === s).length;
-  });
+  const statusCounts = React.useMemo(() => {
+    const sc = { total: leads.length };
+    ['novo','contactado','qualificado','convertido','perdido'].forEach(s => {
+      sc[s] = leads.filter(l => l.status === s).length;
+    });
+    return sc;
+  }, [leads]);
 
   const exportCSV = () => {
     const header = ['#','Nome','Bairro','Segmento','Categoria','Rating','Reviews','Telefone','Prioridade','Status'];
@@ -1504,8 +1530,8 @@ const Leads = () => {
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando leads...</div>;
 
-  const segIcons = { AUTOMOTIVO: '🚗', GRAFFITI: '🎨', 'GRAFFITI/ARTE': '🎨', RESIDENCIAL: '🏠', COMERCIAL: '🏢' };
-  const catIcons = { 'Funilaria/Auto': '🚗', 'Graffiti/Arte': '🎨', 'Pintor': '🖌', 'Reformas': '🔧', 'Construtoras': '🏗', 'Imobiliárias': '🏢', 'Arquitetura': '✏', 'Materiais': '🧱', 'Condomínios': '🏘', 'Academias': '💪', 'Bares': '🍺', 'Limpeza': '🧹', 'Marmoraria': '💎' };
+  const segIcons = LEAD_SEG_ICONS;
+  const catIcons = LEAD_CAT_ICONS;
 
   return (
     <div>
@@ -2657,10 +2683,14 @@ const AvaliacoesTab = () => {
     })();
   }, []);
 
+  const total = reviews.length;
+  const avg = React.useMemo(
+    () => total ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / total) : 0,
+    [reviews, total]
+  );
+
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando avaliações...</div>;
 
-  const total = reviews.length;
-  const avg = total ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / total) : 0;
   const stars = (v) => {
     const n = Math.max(0, Math.min(5, Math.round(Number(v) || 0)));
     return '★'.repeat(n) + '☆'.repeat(5 - n);
@@ -2797,7 +2827,15 @@ function App() {
     })();
   }, []);
 
-  const PAGES = PAGES_DEF.map(p => ({ ...p, badge: p.badgeKey ? (badges[p.badgeKey] || null) : undefined }));
+  const PAGES = React.useMemo(
+    () => PAGES_DEF.map(p => ({ ...p, badge: p.badgeKey ? (badges[p.badgeKey] || null) : undefined })),
+    [badges]
+  );
+  // Estes hooks PRECISAM rodar antes dos early returns abaixo, senao a
+  // ordem dos hooks muda entre renders (Rules of Hooks).
+  const currentPage = React.useMemo(() => PAGES.find(p => p.id === page), [PAGES, page]);
+  const sections = React.useMemo(() => [...new Set(PAGES.map(p => p.section))], [PAGES]);
+  const handleNav = React.useCallback((id) => setPage(id), []);
 
   if (authChecking) return (
     <div style={{ minHeight:'100vh', background:C.ink, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontFamily:'Syne,sans-serif', fontSize:18, fontWeight:700 }}>
@@ -2884,9 +2922,6 @@ function App() {
     </div>
   );
 
-  const currentPage = PAGES.find(p => p.id === page);
-  const sections = [...new Set(PAGES.map(p => p.section))];
-
   return (
     <div style={{ display:'flex', minHeight:'100vh', fontFamily:'DM Sans, sans-serif' }}>
       {/* SIDEBAR */}
@@ -2897,7 +2932,7 @@ function App() {
             <div key={section}>
               <div style={{ fontSize:10, color:C.muted, letterSpacing:2, textTransform:'uppercase', padding:'12px 20px 4px' }}>{section}</div>
               {PAGES.filter(p => p.section === section).map(p => (
-                <NavItem key={p.id} icon={p.icon} label={p.label} badge={p.badge} active={page===p.id} onClick={()=>setPage(p.id)} />
+                <NavItem key={p.id} icon={p.icon} label={p.label} badge={p.badge} active={page===p.id} onClick={()=>handleNav(p.id)} />
               ))}
             </div>
           ))}
