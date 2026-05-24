@@ -350,7 +350,7 @@ function calcTinta(){
 
 // ══ ESTIMATIVA DE METRAGEM POR FOTO (PRO) ══
 function estimarAreaPorFoto(){
-  if(!_isPro){ toast('Estimativa de metragem por foto é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if (!gateProClient('Estimativa de metragem por foto')) return;
   const input = document.getElementById('calc-photo-input');
   if(!input){ toast('Erro: input de foto não encontrado'); return; }
   input.onchange = async (ev) => {
@@ -362,9 +362,8 @@ function estimarAreaPorFoto(){
     try {
       const fd = new FormData();
       fd.append('image', file);
-      const r = await fetch('/api/area-from-photo', { method: 'POST', body: fd });
-      const data = await r.json().catch(() => ({}));
-      if(!r.ok){ toast('Erro ao analisar foto: ' + (data?.error || r.status)); return; }
+      const { ok, status, data, error } = await apiPost('/api/area-from-photo', fd, { multipart: true });
+      if(!ok){ toast('Erro ao analisar foto: ' + (error || status)); return; }
       const area = Number(data?.area_m2);
       const just = String(data?.justification || '').trim();
       if(!isFinite(area) || area <= 0){ toast('Não foi possível estimar a área desta foto'); return; }
@@ -420,7 +419,7 @@ function applyProUI(){
       banner.onclick = null;
       banner.style.cursor = 'default';
       let until = '';
-      if(_proExpires){ try { until = ' · até ' + new Date(_proExpires).toLocaleDateString('pt-BR'); } catch(_){ } }
+      if(_proExpires){ until = ' · até ' + dateBR(_proExpires); }
       banner.innerHTML =
         '<div class="pro-banner-icon">✅</div>' +
         '<div class="pro-banner-text"><div class="pro-banner-title">Plano PRO ativo</div>' +
@@ -787,7 +786,7 @@ function renderPipelineCard(q){
   const frozen = ['aprovado','em_execucao','concluido'].includes(s);
   let frozenLine = '';
   if(frozen){
-    const when = q.approved_at ? ' em '+new Date(q.approved_at).toLocaleDateString('pt-BR') : '';
+    const when = q.approved_at ? ' em '+dateBR(q.approved_at) : '';
     const how = q.approval_method==='manual' ? ' · registro manual' : (q.approval_method==='app' ? ' · aprovado pelo cliente' : '');
     frozenLine = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">🔒 Escopo congelado'+when+how+'</div>';
   }
@@ -820,8 +819,9 @@ function renderPipelineCard(q){
 }
 
 async function salvarOrcamento(){
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login para salvar'); return; }
+  const ctx = requireSession('Faça login para salvar');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const d = _lastOrcData;
   if(!d || !d.total){ toast('Gere o orçamento primeiro'); return; }
   // Usa RPC create_painter_draft (SECURITY DEFINER) — força painter_id =
@@ -834,7 +834,7 @@ async function salvarOrcamento(){
     p_price:        d.total || 0,
     p_quote_data:   d
   });
-  if(error){ toast('Erro ao salvar: '+(error.message || error)); return; }
+  if(handleSbError(error, 'Erro ao salvar')) return;
   toast('Orçamento salvo no Pipeline ✅');
   closeModals();
   showScreen('pipeline');
@@ -872,7 +872,7 @@ async function enviarQuoteConfirmar(){
   const { error } = await sb.from('quotes')
     .update({ status: 'enviado', sent_at: new Date().toISOString(), price })
     .eq('id', id).eq('painter_id', currentUser.id);
-  if(error){ toast('Erro: ' + error.message); return; }
+  if(handleSbError(error)) return;
   if(q.client_id){
     notify(q.client_id, 'quote_sent', 'Você recebeu um orçamento',
       'Um profissional enviou um orçamento. Toque para ver e aprovar.', id);
@@ -884,26 +884,17 @@ async function enviarQuoteConfirmar(){
 // IA sugere o preço para um orçamento pendente/rascunho (feature PRO).
 // Em caso de aceite, injeta o valor no cache e delega para enviarQuote.
 async function sugerirPrecoQuote(id){
-  if(!_isPro){
-    toast('Sugerir preço com Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Sugerir preço com Seu Zé')) return;
   const q = (_pipelineCache||[]).find(x=>x.id===id);
   if(!q){ toast('Orçamento não encontrado'); return; }
   toast('Calculando preço com Seu Zé...');
   try {
-    const r = await fetch('/api/pricing-suggest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_type: q.service_type || q.title || '',
-        description: q.description || '',
-        area_m2: q.area_m2 || null
-      })
+    const { ok, data } = await apiPost('/api/pricing-suggest', {
+      service_type: q.service_type || q.title || '',
+      description: q.description || '',
+      area_m2: q.area_m2 || null
     });
-    const data = await r.json().catch(()=>({}));
-    if(!r.ok || !data || typeof data.price !== 'number'){
+    if(!ok || !data || typeof data.price !== 'number'){
       toast('Erro ao sugerir preço: ' + ((data && data.error) || 'Seu Zé indisponível'));
       return;
     }
@@ -938,7 +929,7 @@ async function aprovarQuoteManual(id){
     approved_by: currentUser.id, approval_method:'manual',
     approval_note: note.trim() || null, scope_snapshot: buildQuoteSnapshot(q)
   }).eq('id', id).eq('painter_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   toast('Orçamento aprovado (registro manual)');
   loadPipeline();
 }
@@ -948,7 +939,7 @@ async function recusarQuote(id){
   if(!(await appConfirm('Marcar este orçamento como recusado?', { okLabel:'Marcar como recusado' }))) return;
   const { error } = await sb.from('quotes').update({ status:'recusado' })
     .eq('id', id).eq('painter_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   toast('Orçamento recusado'); loadPipeline();
 }
 
@@ -958,7 +949,7 @@ async function setQuoteStage(id, status){
   if(status==='concluido') patch.completed_at = new Date().toISOString();
   const { error } = await sb.from('quotes').update(patch)
     .eq('id', id).eq('painter_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   // Pontos por conclusão são creditados automaticamente pelo trigger
   // trg_award_quote_completed_points (Bateria 3.2). Não chamar earnPoints aqui.
   toast(status==='concluido'?'Orçamento concluído!':'Execução iniciada'); loadPipeline();
@@ -977,7 +968,7 @@ async function aprovarQuoteCliente(id){
     scope_snapshot: buildQuoteSnapshot(q),
     client_followup_optin: followupOptin
   }).eq('id', id).eq('client_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   if(q.painter_id){
     notify(q.painter_id, 'quote_approved', 'Orçamento aprovado! 🎉',
       'O cliente aprovou o orçamento. Toque para ver os detalhes.', id);
@@ -1252,18 +1243,14 @@ async function saveCrmInterval(){
   if(isNaN(v) || v < 1) v = 1;
   if(v > 120) v = 120;
   const { error } = await sb.from('profiles').update({ followup_interval_months: v }).eq('id', currentUser.id);
-  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  if(handleSbError(error, 'Erro ao salvar')) return;
   _crmIntervalMonths = v;
   toast('Intervalo salvo ✅');
   renderCrm();
 }
 
 async function crmDraft(id){
-  if(!_isPro){
-    toast('Mensagem de reativação com Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Mensagem de reativação com Seu Zé')) return;
   const c = (_crmCache||[]).find(x => x.id === id);
   if(!c) return;
   const ta = document.getElementById('crm-msg-'+id);
@@ -1278,18 +1265,13 @@ async function crmDraft(id){
       const { data: prof } = await sb.from('profiles').select('name').eq('id', currentUser.id).single();
       painterName = (prof && prof.name) || '';
     } catch(e){}
-    const r = await fetch('/api/crm-draft', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        clientName: c.client_name || '',
-        lastService: c.last_service_desc || '',
-        monthsSince: months || 0,
-        painterName: painterName
-      })
+    const { ok, data } = await apiPost('/api/crm-draft', {
+      clientName: c.client_name || '',
+      lastService: c.last_service_desc || '',
+      monthsSince: months || 0,
+      painterName: painterName
     });
-    const data = await r.json();
-    if(!r.ok || !data.draft){ toast('Erro: '+(data.error || 'não foi possível gerar')); ta.placeholder = prevPlaceholder; return; }
+    if(!ok || !data || !data.draft){ toast('Erro: '+((data && data.error) || 'não foi possível gerar')); ta.placeholder = prevPlaceholder; return; }
     ta.value = data.draft;
     ta.placeholder = prevPlaceholder;
     toast('Rascunho gerado — revise antes de enviar ✏️');
@@ -1349,18 +1331,13 @@ async function startProCheckout(){
     const { data:{ session } } = await sb.auth.getSession();
     if(!session){ toast('Faça login para assinar'); return; }
     if(btn){ btn.textContent = 'Abrindo pagamento...'; btn.disabled = true; }
-    const r = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        userId: session.user.id,
-        email: session.user.email,
-        name: session.user.user_metadata?.name || ''
-      })
+    const { ok, data } = await apiPost('/api/checkout', {
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.user_metadata?.name || ''
     });
-    const data = await r.json();
-    if(!r.ok || !data.init_point){
-      toast('Erro ao iniciar pagamento: ' + (data.error || 'tente novamente'));
+    if(!ok || !data || !data.init_point){
+      toast('Erro ao iniciar pagamento: ' + ((data && data.error) || 'tente novamente'));
       if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
       return;
     }
@@ -1387,13 +1364,8 @@ async function checkAdminEntry(){
   try {
     const token = await getAccessToken();
     if(!token) return;
-    const r = await fetch('/api/admin-moderate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accessToken: token, action: 'check' })
-    });
-    if(!r.ok) return;
-    const data = await r.json();
+    const { ok, data } = await apiPost('/api/admin-moderate', { action: 'check' });
+    if(!ok || !data) return;
     _isAdmin = !!data.admin;
     const link = document.getElementById('mod-queue-link');
     if(link) link.style.display = _isAdmin ? '' : 'none';
@@ -1443,14 +1415,8 @@ async function modAction(postId, action, btn){
   try {
     const card = btn?.closest('div[style*="background:var(--white)"]');
     if(btn){ btn.disabled = true; btn.textContent = '...'; }
-    const token = await getAccessToken();
-    const r = await fetch('/api/admin-moderate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accessToken: token, action, postId })
-    });
-    const data = await r.json();
-    if(!r.ok || !data.ok){ toast('Erro: ' + (data.error || 'falha')); if(btn){ btn.disabled=false; btn.textContent = action==='approve'?'Aprovar':'Rejeitar'; } return; }
+    const { ok, data } = await apiPost('/api/admin-moderate', { action, postId });
+    if(!ok || !data || !data.ok){ toast('Erro: ' + ((data && data.error) || 'falha')); if(btn){ btn.disabled=false; btn.textContent = action==='approve'?'Aprovar':'Rejeitar'; } return; }
     toast(action === 'approve' ? 'Post aprovado' : 'Post rejeitado');
     if(card) card.remove();
     if(typeof loadFeed === 'function') loadFeed();
@@ -1488,11 +1454,7 @@ const _aiKnowledge = {
 let _aiChatHistory = [];
 
 async function sendAiChat(textArg, speakReply){
-  if(!_isPro){
-    toast('Chat com o Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Chat com o Seu Zé')) return;
   let text;
   if(textArg){
     text = String(textArg).trim();
@@ -1514,14 +1476,9 @@ async function sendAiChat(textArg, speakReply){
   let reply = null;
   let aiError = null;
   try {
-    const r = await fetch('/api/chat-ai', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: text, history: _aiChatHistory })
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.ok && data.reply) reply = data.reply;
-    else aiError = data.error || ('HTTP ' + r.status);
+    const { ok, data, error } = await apiPost('/api/chat-ai', { message: text, history: _aiChatHistory });
+    if (ok && data && data.reply) reply = data.reply;
+    else aiError = (data && data.error) || error;
   } catch(e) {
     aiError = String(e?.message || e);
   }
@@ -1579,11 +1536,7 @@ async function aiChatToggleVoice(){
     try { _aiVoiceAudio.pause(); } catch(e){}
     _aiVoiceAudio = null;
   }
-  if(!_isPro){
-    toast('Conversa por voz com o Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Conversa por voz com o Seu Zé')) return;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Seu navegador não suporta gravação de áudio'); return; }
   if(typeof MediaRecorder === 'undefined'){ toast('Seu navegador não suporta MediaRecorder'); return; }
   try { _aiVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
@@ -1621,10 +1574,9 @@ async function aiChatHandleVoice(blob){
   try {
     const fd = new FormData();
     fd.append('audio', blob, 'voice.webm');
-    const r = await fetch('/api/transcribe', { method:'POST', body: fd });
-    const data = await r.json();
-    if(!r.ok || !data.text){
-      toast('Não consegui entender: ' + (data.error || 'tente de novo'));
+    const { ok, data } = await apiPost('/api/transcribe', fd, { multipart: true });
+    if(!ok || !data || !data.text){
+      toast('Não consegui entender: ' + ((data && data.error) || 'tente de novo'));
       return;
     }
     await sendAiChat(data.text, true);
@@ -1666,21 +1618,16 @@ async function sugerirEscopoIA(btn){
   if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
   const prompt = 'Você é um pintor profissional. Escreva, em português, um escopo de serviço objetivo (4 a 6 linhas, sem títulos) para um orçamento de "'+servico+'", área aproximada de '+area+' m², '+comodos+' cômodo(s), '+numDemaos+' demão(s), condição da superfície: "'+condTxt+'". Liste preparação, aplicação, prazo estimado e garantia. Texto pronto para colar no orçamento.'+(obsEl && obsEl.value.trim() ? ' Considere também: '+obsEl.value.trim() : '');
   try {
-    const r = await fetch('/api/chat-ai', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: prompt, history: [] })
-    });
-    const data = await r.json().catch(() => ({}));
-    if(r.ok && data.reply){
+    const { ok, status, data } = await apiPost('/api/chat-ai', { message: prompt, history: [] });
+    if(ok && data && data.reply){
       // Remove a linha de disclaimer do assistente, se vier
       let txt = String(data.reply).replace(/^\s*Sou (o Seu Zé|um assistente virtual)[^\n]*\n+/i, '').trim();
       if(obsEl) obsEl.value = txt;
       toast('Escopo sugerido pelo Seu Zé ✨');
-    } else if(r.status === 503){
+    } else if(status === 503){
       await appAlert('A sugestão pelo Seu Zé ainda não está ativa: configure OPENAI_API_KEY ou GEMINI_API_KEY no Cloudflare Pages (Environment variables) e refaça o deploy.\n\nVocê pode preencher "Observações" manualmente e usar "Gerar Orçamento" normalmente.');
     } else {
-      await appAlert('Não foi possível gerar o escopo agora.\n\n' + (data.error || ('HTTP ' + r.status)) + '\n\nTente novamente em instantes.');
+      await appAlert('Não foi possível gerar o escopo agora.\n\n' + ((data && data.error) || ('HTTP ' + status)) + '\n\nTente novamente em instantes.');
     }
   } catch(e){
     await appAlert('Falha ao chamar o Seu Zé: ' + (e?.message || 'tente de novo'));
@@ -1690,11 +1637,7 @@ async function sugerirEscopoIA(btn){
 }
 
 function gerarOrcamentoIA(){
-  if(!_isPro){
-    toast('Orçamento com Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Orçamento com Seu Zé')) return;
   const cliente = document.getElementById('ai-orc-cliente').value.trim() || 'Cliente';
   const servico = document.getElementById('ai-orc-servico').value;
   const area = parseFloat(document.getElementById('ai-orc-area').value) || 0;
@@ -1726,7 +1669,7 @@ function gerarOrcamentoIA(){
   const total = cobranca === 'fechado' ? valorFechado : (custoTinta + custoMaoObra);
 
   const pintorName = document.getElementById('myprofile-name')?.textContent || 'Pintor';
-  const hoje = new Date().toLocaleDateString('pt-BR');
+  const hoje = dateBR(new Date());
 
   // Condição por extenso
   const condicaoMap = {'1':'Parede nova / massa corrida','1.2':'Parede antiga (demão extra)','1.5':'Concreto / tijolo aparente','0.8':'Teto liso'};
@@ -2042,7 +1985,7 @@ async function salvarJob(){
   };
   if(!job.client_name){ toast('Informe o cliente'); return; }
   const { error } = await sb.from('jobs').insert(job);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   if(job.scheduled_date) _agSel = String(job.scheduled_date).slice(0,10);
   toast('Projeto salvo!'); closeModals(); loadAgenda();
 }
@@ -2059,7 +2002,7 @@ function prefillNovoProjeto(){
 }
 
 async function otimizarDiaAgenda(){
-  if(!_isPro){ toast('Otimizar dia com Seu Zé é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if (!gateProClient('Otimizar dia com Seu Zé')) return;
   if(!_agSel){ toast('Selecione um dia'); return; }
   const dayJobs = (_agJobs||[]).filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel);
   if(dayJobs.length<2){ toast('Precisa de 2+ obras no mesmo dia'); return; }
@@ -2076,9 +2019,8 @@ async function otimizarDiaAgenda(){
         scheduled_time: j.scheduled_time||''
       }))
     };
-    const r = await fetch('/api/agenda-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const data = await r.json().catch(()=>({}));
-    if(!r.ok || !Array.isArray(data?.ordered_ids)){
+    const { ok, data } = await apiPost('/api/agenda-order', payload);
+    if(!ok || !Array.isArray(data?.ordered_ids)){
       const msg = data?.error || 'Erro ao otimizar';
       if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">${escapeHtml(msg)}</div>`;
       toast(msg);
@@ -2193,7 +2135,7 @@ async function saveEditNote(id){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   const { error } = await sb.from('notes').update({ body }).eq('id', id).eq('user_id', currentUser.id);
-  if(error){ toast('Erro: ' + error.message); return; }
+  if(handleSbError(error)) return;
   _editingNoteId = null;
   toast('Anotação atualizada ✅');
   loadNotes();
@@ -2241,13 +2183,14 @@ async function loadNotes(){
 }
 
 async function salvarNota(){
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login primeiro'); return; }
+  const ctx = requireSession();
+  if(!ctx) return;
+  const sb = ctx.sb;
   const ta = document.getElementById('note-new');
   const body = ta ? ta.value.trim() : '';
   if(!body){ toast('Escreva algo na anotação'); return; }
   const { error } = await sb.from('notes').insert({ user_id: currentUser.id, body });
-  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  if(handleSbError(error, 'Erro ao salvar')) return;
   if(ta) ta.value = '';
   toast('Anotação salva ✅');
   loadNotes();
@@ -2258,7 +2201,7 @@ async function deletarNota(id){
   if(!sb || !currentUser) return;
   if(!(await appConfirm('Excluir esta anotação?', { okLabel:'Excluir' }))) return;
   const { error } = await sb.from('notes').delete().eq('id', id).eq('user_id', currentUser.id);
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   toast('Anotação excluída');
   loadNotes();
 }
@@ -2272,7 +2215,7 @@ let _recTimerInterval = null;
 const REC_MAX_MS = 5 * 60 * 1000;
 
 async function iniciarGravacaoNota(){
-  if(!_isPro){ toast('Gravação por áudio é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if (!gateProClient('Gravação por áudio')) return;
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     toast('Seu navegador não suporta gravação de áudio'); return;
   }
@@ -2323,10 +2266,9 @@ async function transcreverAudio(blob){
   try {
     const fd = new FormData();
     fd.append('audio', blob, 'note.webm');
-    const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
-    const data = await r.json();
-    if(!r.ok || !data.text){
-      toast('Erro: ' + (data.error || 'falha na transcrição'));
+    const { ok, data } = await apiPost('/api/transcribe', fd, { multipart: true });
+    if(!ok || !data || !data.text){
+      toast('Erro: ' + ((data && data.error) || 'falha na transcrição'));
       return;
     }
     const ta = document.getElementById('note-new');
@@ -2408,7 +2350,7 @@ async function salvarFinEntry(){
     scheduled_date: ymd,
     notes: 'Lançamento financeiro'
   });
-  if(error){ toast('Erro: '+error.message); return; }
+  if(handleSbError(error)) return;
   document.getElementById('fin-nome').value='';
   document.getElementById('fin-cliente').value='';
   document.getElementById('fin-recebido').value='';
@@ -2427,7 +2369,7 @@ async function deleteFinEntry(id){
 // Análise IA do mês — PRO. Agrega últimos 30 dias vs 30 dias anteriores e
 // pede ao backend (gpt-4o-mini) um parecer curto e acionável.
 async function analisarFinanceiroIA(){
-  if(!_isPro){ toast('Análise do mês com Seu Zé é do Plano PRO ⚡'); showModal('pro-modal'); return; }
+  if (!gateProClient('Análise do mês com Seu Zé')) return;
   const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
   const resultEl = document.getElementById('fin-ai-result');
   try {
@@ -2462,13 +2404,8 @@ async function analisarFinanceiroIA(){
       material_cost: +j.material_cost || 0
     }));
 
-    const r = await fetch('/api/fin-analysis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ thisMonth, lastMonth, recentJobs })
-    });
-    const data = await r.json().catch(()=>({}));
-    if(!r.ok || !data || !data.analysis){
+    const { ok, data } = await apiPost('/api/fin-analysis', { thisMonth, lastMonth, recentJobs });
+    if(!ok || !data || !data.analysis){
       toast('Erro: '+(data && data.error ? data.error : 'Seu Zé indisponível'));
       return;
     }
@@ -2576,7 +2513,7 @@ async function loadRanking(){
   if(!painters||painters.length===0){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhum pintor encontrado nesta cidade</div>'; return; }
   el.innerHTML = painters.map((p,i)=>{
     const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'<span style="font-size:12px;font-weight:700;color:var(--muted);">#'+(i+1)+'</span>';
-    const avatar = p.avatar_url||'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+    const avatar = avatarOf({ avatar_url: p.avatar_url, name: p.name||'P' });
     const stars = p.rating_avg ? '⭐ '+(+p.rating_avg).toFixed(1) : 'Sem avaliação';
     return `<div onclick="openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border-radius:12px;margin-bottom:6px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.04);">
       <div style="width:28px;text-align:center;">${medal}</div>
@@ -2635,8 +2572,9 @@ async function loadPoints(){
 // servidor — assim o cliente NÃO consegue mais bypassar fazendo
 // UPDATE direto em profiles.is_pro pelo devtools.
 async function trocarPontosPorPRO(){
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const ctx = requireSession('Faça login');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const btn = document.getElementById('pts-redeem-btn');
   if(btn) btn.disabled = true;
   try {
@@ -2694,7 +2632,7 @@ function pedirOrcamentoPost(painterId, painterName){
   const nameEl = document.getElementById('orc-painter-name');
   const avEl = document.getElementById('orc-painter-av');
   if(nameEl) nameEl.textContent = painterName || 'Profissional';
-  if(avEl) avEl.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(painterName||'Profissional')+'&background=e8e2d9&color=1a1a2e&size=96';
+  if(avEl) avEl.src = avatarUrl(painterName||'Profissional');
   showScreen('orcamento');
 }
 
@@ -2883,8 +2821,9 @@ async function enviarOrcamentoForm(){
   if(partes.length === 1){ toast('Preencha pelo menos um campo'); return; }
 
   // Cria o pedido no pipeline do profissional e dispara a notificação.
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login para pedir orçamento'); return; }
+  const ctx = requireSession('Faça login para pedir orçamento');
+  if(!ctx) return;
+  const sb = ctx.sb;
   if(!painterId){ toast('Não foi possível identificar o profissional do post'); return; }
   if(painterId === currentUser.id){ toast('Você não pode pedir orçamento para si mesmo'); return; }
 
@@ -2998,17 +2937,11 @@ async function moderateContentAsync(text, imageUrl, hasMedia){
   try {
     const sb = getSupabase();
     const { data:{ session } } = sb ? await sb.auth.getSession() : { data:{ session:null } };
-    const r = await fetch('/api/moderate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        text: text || '',
-        imageUrl: imageUrl || '',
-        accessToken: session ? session.access_token : ''
-      })
+    const { ok, data } = await apiPost('/api/moderate', {
+      text: text || '',
+      imageUrl: imageUrl || ''
     });
-    if (!r.ok) return failSafe;
-    const data = await r.json();
+    if (!ok || !data) return failSafe;
     if (data.error || data.engine === 'failed') return failSafe;
     if (data.flagged) {
       return { approved: false, reason: 'ai:' + (data.reasons || []).join(','), severity: data.severity || 'soft' };
@@ -3216,7 +3149,7 @@ function renderConvList(container, convMap, myId){
   }
   container.innerHTML = convList.map(([convId, c]) => {
     const name = convDisplayName(c);
-    const avatar = c.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+    const avatar = c.avatar || avatarUrl(name);
     const isPintor = isProfessionalRole(c.role);
     const is3way = c.is3way || false;
     const isStore = !is3way && (
@@ -3288,7 +3221,7 @@ async function _searchNewChatUsersImpl(query){
       return;
     }
     container.innerHTML = filtered.map(p => {
-      const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'?')+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = avatarOf(p);
       const isPintor = isProfessionalRole(p.role) || isProfessionalRole(p.user_type);
       return `<div onclick="startNewChat('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
         <img src="${escapeHtml(avatar)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;">
@@ -3323,8 +3256,9 @@ function getChatReceiverId(convId, myId){
 
 async function startNewChat(userId){
   closeModals();
-  const sb = getSupabase();
-  if(!sb || !currentUser) { toast('Faça login para enviar mensagens'); return; }
+  const ctx = requireSession('Faça login para enviar mensagens');
+  if(!ctx) return;
+  const sb = ctx.sb;
 
   if(userId === 'calicolors'){
     // Find or use Cali Colors user ID
@@ -3376,7 +3310,7 @@ async function startNewChat(userId){
       chatData[convId].name = name;
       chatData[convId].sub = prof.tag ? '@' + prof.tag : '';
       chatData[convId].participants = [{
-        img: prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96',
+        img: avatarOf({ avatar_url: prof.avatar_url, name: name }),
         name: name,
         role: isProfessionalRole(prof.role||prof.user_type) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role||prof.user_type]||'Profissional') : 'Usuário'
       }];
@@ -3455,7 +3389,7 @@ async function loadNotifications(){
           + '<div class="notif-txt"><b>'+escapeHtml(n.name)+'</b>'+(n.text?'<br><span style="font-size:12px;color:#555;">'+escapeHtml(n.text)+'</span>':'')+'</div>'
           + '<div class="notif-time">'+timeAgo+'</div></div>';
       }
-      const avatar = n.avatar || 'https://ui-avatars.com/api/?name='+encodeURIComponent(n.name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = n.avatar || avatarUrl(n.name);
       let text = '';
       if(n.type === 'follow')   text = '<b>'+escapeHtml(n.name)+'</b> começou a te seguir.';
       else if(n.type === 'like') text = '<b>'+escapeHtml(n.name)+'</b> curtiu seu post. 🖌️';
@@ -3577,7 +3511,7 @@ async function loadPedidos(){
       const isClient = q.client_id === myId;
       const other = isClient ? (q.painter || {}) : (q.client || {});
       const name = other.name || 'Usuário';
-      const avatar = other.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = avatarOf({ avatar_url: other.avatar_url, name: name });
       const st = statusLabels[q.status] || q.status || 'Pendente';
       const stClass = statusClasses[q.status] || 'status-aguardando';
       const date = q.created_at ? new Date(q.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '';
@@ -3677,7 +3611,7 @@ async function openEditProfile(){
       _epSpecsSetup(prof.role || prof.user_type, prof.specialties || '');
       // Show current avatar
       const preview = document.getElementById('ep-avatar-preview');
-      if(preview) preview.src = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(prof.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
+      if(preview) preview.src = avatarOf({ avatar_url: prof.avatar_url, name: prof.name || 'U' });
       // Show current business logo (synced with shirts/camisetas)
       let logoUrl = prof.business_logo_url || null;
       if(!logoUrl){ try { logoUrl = localStorage.getItem('business_logo_url'); } catch(e){} }
@@ -3694,7 +3628,7 @@ async function openEditProfile(){
       document.getElementById('ep-specs').value = '';
       _epSpecsSetup(meta.user_type || meta.role, '');
       const preview = document.getElementById('ep-avatar-preview');
-      if(preview) preview.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(meta.name || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
+      if(preview) preview.src = avatarUrl(meta.name || 'U');
     }
   } catch(e){ console.warn('openEditProfile error:', e); }
   const r = document.getElementById('ep-radius');
@@ -3772,8 +3706,9 @@ function openEditProfileAt(section){
 
 // ══ ESPECIALIDADES — modal dedicado ══
 async function openEditEspecialidades(){
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const ctx = requireSession('Faça login');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const prof = (typeof getMyProfile === 'function') ? await getMyProfile() : null;
   const meta = (currentUser && currentUser.user_metadata) || {};
   const role = (prof && (prof.role || prof.user_type)) || meta.user_type || meta.role || 'pintor';
@@ -3797,7 +3732,7 @@ async function saveEspecialidades(){
   const sel = [...document.querySelectorAll('#specs-modal-grid .spec-chip.sel')].map(c => c.textContent.trim());
   if(sel.length === 0){ toast('Selecione pelo menos uma especialidade'); return; }
   const { error } = await sb.from('profiles').update({ specialties: sel.join(', ') }).eq('id', currentUser.id);
-  if(error){ toast('Erro: ' + error.message); return; }
+  if(handleSbError(error)) return;
   if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
   toast('Especialidades salvas ✅');
   closeModals();
@@ -3805,8 +3740,9 @@ async function saveEspecialidades(){
 
 // ══ RAIO DE ATENDIMENTO — modal dedicado ══
 async function openEditRaio(){
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const ctx = requireSession('Faça login');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const sel = document.getElementById('radius-modal-select');
   if(sel){
     sel.value = '';
@@ -3827,7 +3763,7 @@ async function saveRaio(){
   const valInt = (value === '' || value === 'estado') ? null : (parseInt(value, 10) || null);
   try {
     const { error } = await sb.from('profiles').update({ service_radius: valInt }).eq('id', currentUser.id);
-    if(error){ toast('Erro: ' + error.message); return; }
+    if(handleSbError(error)) return;
     if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
     toast('Raio salvo ✅');
     closeModals();
@@ -4519,7 +4455,7 @@ async function loadAvaliarScreen(){
     const q = quotes[0];
     const painter = q.painter || {};
     avaliarQuoteId = q.id;
-    const avatar = painter.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(painter.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+    const avatar = avatarOf({ avatar_url: painter.avatar_url, name: painter.name||'P' });
     document.getElementById('avaliar-av-img').src = avatar;
     document.getElementById('avaliar-title').textContent = painter.name || 'Pintor';
     document.getElementById('avaliar-sub').textContent = (q.service_type||q.title||'Servico') + (painter.city ? ' · '+painter.city : '') + (q.area_m2 ? ' · '+q.area_m2+'m²' : '');
@@ -4550,7 +4486,7 @@ function selectAvaliarService(quoteId){
   if(!q) return;
   avaliarQuoteId = q.id;
   const painter = q.painter || {};
-  const avatar = painter.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(painter.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+  const avatar = avatarOf({ avatar_url: painter.avatar_url, name: painter.name||'P' });
   const av = document.getElementById('avaliar-av-img'); if(av) av.src = avatar;
   const tt = document.getElementById('avaliar-title'); if(tt) tt.textContent = painter.name || 'Pintor';
   const sb2 = document.getElementById('avaliar-sub');
@@ -4560,8 +4496,9 @@ function selectAvaliarService(quoteId){
 
 async function submitAvaliacao(){
   if(!starVal){toast('Selecione uma nota primeiro!');return;}
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faca login primeiro'); return; }
+  const ctx = requireSession('Faca login primeiro');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const criteria = [];
   document.querySelectorAll('.criteria-chip.sel').forEach(c => criteria.push(c.textContent.trim()));
   const comment = document.getElementById('avalia-ta')?.value.trim() || '';
@@ -5034,8 +4971,9 @@ async function handleChatAttachment(input){
   const file = input.files[0];
   if(!file) return;
   input.value = '';
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faca login primeiro'); return; }
+  const ctx = requireSession('Faca login primeiro');
+  if(!ctx) return;
+  const sb = ctx.sb;
   toast('Enviando imagem...');
   try {
     const ext = file.name.split('.').pop();
@@ -5335,8 +5273,9 @@ function removeFromCart(index){
 
 async function submitCartOrder(){
   if(cartItems.length === 0){ toast('Carrinho vazio!'); return; }
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faca login primeiro'); return; }
+  const ctx = requireSession('Faca login primeiro');
+  if(!ctx) return;
+  const sb = ctx.sb;
   const btn = document.getElementById('cart-submit-btn');
   const originalLabel = btn.textContent;
   btn.textContent = 'Criando pedido...'; btn.disabled = true;
@@ -5357,20 +5296,15 @@ async function submitCartOrder(){
     btn.textContent = 'Gerando pagamento...';
     const { data:{ session } } = await sb.auth.getSession();
     if(!session){ throw new Error('Sessão expirada — faça login'); }
-    const r = await fetch('/api/mp-checkout-loja', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, accessToken: session.access_token })
-    });
-    const data = await r.json().catch(() => ({}));
-    if(!r.ok || !data.init_point){
+    const { ok, status, data } = await apiPost('/api/mp-checkout-loja', { orderId });
+    if(!ok || !data || !data.init_point){
       // Fallback: se MP não estiver configurado, mantém fluxo antigo
-      if(r.status === 503){
+      if(status === 503){
         toast('Pedido recebido! A loja entrará em contato (pagamento online em breve).');
         cartItems = []; saveCart(); updateCartBadge(); closeModals();
         return;
       }
-      throw new Error(data.error || ('Erro ' + r.status));
+      throw new Error((data && data.error) || ('Erro ' + status));
     }
 
     // Limpa o carrinho ANTES de redirecionar — se o user voltar, não duplica
@@ -5869,16 +5803,11 @@ async function gerarLogoIA(){
   let urls = null;
   let aiError = null;
   try {
-    const r = await fetch('/api/generate-logo', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, style })
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.ok && Array.isArray(data.urls) && data.urls.length) {
+    const { ok, data, error } = await apiPost('/api/generate-logo', { name, style });
+    if (ok && data && Array.isArray(data.urls) && data.urls.length) {
       urls = data.urls;
     } else {
-      aiError = data.error || ('HTTP ' + r.status);
+      aiError = (data && data.error) || error;
     }
   } catch(e) {
     aiError = String(e?.message || e);
@@ -6186,8 +6115,9 @@ async function loadQualsList(){
 async function addQualification(btn){
   const title = document.getElementById('q-title').value.trim();
   if(!title){ toast('Informe o título'); return; }
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const ctx = requireSession('Faça login');
+  if(!ctx) return;
+  const sb = ctx.sb;
   btn.disabled = true; btn.textContent = 'Salvando...';
   try {
     const { error } = await sb.from('qualifications').insert({
@@ -6244,8 +6174,9 @@ async function loadCoursesList(){
 async function addCourse(btn){
   const title = document.getElementById('c-title').value.trim();
   if(!title){ toast('Informe o título'); return; }
-  const sb = getSupabase();
-  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const ctx = requireSession('Faça login');
+  if(!ctx) return;
+  const sb = ctx.sb;
   btn.disabled = true; btn.textContent = 'Salvando...';
   try {
     const isFree = document.getElementById('c-free').checked;
@@ -6477,7 +6408,7 @@ async function loadPosts(feedIds, append){
       let name = prof.name || 'Usuário';
       if(name.includes('@')) name = name.split('@')[0];
       const tag = prof.tag ? '@' + prof.tag : '';
-      const avatar = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = avatarOf({ avatar_url: prof.avatar_url, name: name });
       const time = getTimeAgo(p.created_at);
       const caption = p.caption || '';
       const liked = myLikes.includes(p.id);
@@ -6616,7 +6547,7 @@ async function sendPasswordReset(){
   if(!sb){ toast('Aguarde, carregando...'); return; }
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-    if(error){ toast('Erro: ' + error.message); return; }
+    if(handleSbError(error)) return;
     toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
   } catch(e){ console.warn('sendPasswordReset:', e); toast('Erro ao enviar email'); }
 }
@@ -6630,7 +6561,7 @@ async function doSetNewPassword(){
   if(!sb){ toast('Aguarde...'); return; }
   try {
     const { error } = await sb.auth.updateUser({ password: newPw });
-    if(error){ toast('Erro: ' + error.message); return; }
+    if(handleSbError(error)) return;
     document.getElementById('reset-pw-new').value = '';
     document.getElementById('reset-pw-confirm').value = '';
     closeModals();
@@ -6823,7 +6754,7 @@ async function deleteCurrentPost(){
     ]);
     // Delete the post
     const { error } = await sb.from('posts').delete().eq('id', _currentOptPostId).eq('user_id', currentUser.id);
-    if(error){ toast('Erro ao deletar: ' + error.message); return; }
+    if(handleSbError(error, 'Erro ao deletar')) return;
     // Remove from DOM
     const postEl = document.querySelector('.mpost[data-post-id="'+_currentOptPostId+'"]');
     if(postEl) postEl.remove();
@@ -6856,7 +6787,7 @@ async function submitReport(reason){
       target_user_id: _reportUserId || null,
       reason: reason
     });
-    if(error){ toast('Erro ao enviar denúncia: ' + error.message); return; }
+    if(handleSbError(error, 'Erro ao enviar denúncia')) return;
     toast('Denúncia enviada. Obrigado — nossa equipe vai analisar.');
   } catch(e){
     console.warn('submitReport error:', e);
@@ -6904,7 +6835,7 @@ function getTimeAgo(dateStr){
   if(hrs < 24) return 'HA '+hrs+' HORA'+(hrs>1?'S':'');
   const days = Math.floor(hrs/24);
   if(days < 7) return 'HA '+days+' DIA'+(days>1?'S':'');
-  return new Date(dateStr).toLocaleDateString('pt-BR');
+  return dateBR(dateStr);
 }
 
 // Stories data grouped by user
@@ -6992,7 +6923,7 @@ async function loadStories(feedIds){
         if(name.includes('@')) name = name.split('@')[0];
         name = name.split(' ')[0];
       }
-      const avatar = p.avatar_url || g.stories[0].media_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
+      const avatar = p.avatar_url || g.stories[0].media_url || avatarUrl(p.name||'U');
       const seen = isStoryGroupSeen(g.user_id) ? ' seen' : '';
       html += `<div class="story">
         <div class="story-ring${seen}" style="cursor:pointer" onclick="openStoryViewer(${gi})"><div class="story-inner"><img src="${escapeHtml(avatar)}" alt=""></div></div>
@@ -7011,7 +6942,7 @@ async function loadStories(feedIds){
         name = name.split(' ')[0];
       }
       const initials = (p.name || 'U').split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
-      const avatar = p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=e8e2d9&color=1a1a2e&size=96`;
+      const avatar = p.avatar_url || avatarUrl(initials);
       html += `<div class="story" onclick="openUserProfile('${escapeJsArg(uid)}')">
         <div class="story-ring seen"><div class="story-inner"><img src="${escapeHtml(avatar)}" alt=""></div></div>
         <span class="story-name">${escapeHtml(name)}</span>
@@ -7086,7 +7017,7 @@ function renderCurrentStory(){
     imgEl.src = s.media_url || '';
   }
   // Update header
-  document.getElementById('story-viewer-avatar').src = p.avatar_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
+  document.getElementById('story-viewer-avatar').src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
   document.getElementById('story-viewer-name').textContent = p.name || 'User';
   document.getElementById('story-viewer-time').textContent = getTimeAgo(s.created_at);
 
@@ -7194,11 +7125,7 @@ function clearPostImages(){
 
 // Gera legenda + hashtags do post a partir da foto selecionada (PRO).
 async function gerarLegendaPost(btn){
-  if(!_isPro){
-    toast('Gerar legenda com Seu Zé é do Plano PRO ⚡');
-    showModal('pro-modal');
-    return;
-  }
+  if (!gateProClient('Gerar legenda com Seu Zé')) return;
   if(!postSelectedFiles || postSelectedFiles.length === 0){
     toast('Selecione uma foto primeiro');
     return;
@@ -7219,11 +7146,10 @@ async function gerarLegendaPost(btn){
   try {
     const fd = new FormData();
     fd.append('image', file, file.name || 'foto.jpg');
-    const r = await fetch('/api/caption', { method: 'POST', body: fd });
-    const data = await r.json().catch(() => ({}));
-    if(!r.ok){
+    const { ok, status, data, error } = await apiPost('/api/caption', fd, { multipart: true });
+    if(!ok){
       toast('Não foi possível gerar a legenda agora');
-      console.warn('caption error:', data?.error || r.status);
+      console.warn('caption error:', (data && data.error) || error || status);
       return;
     }
     const caption = (data?.caption || '').toString().trim();
@@ -7336,15 +7262,9 @@ async function publishPost(){
     } else {
       // Vídeo: dispara a análise assíncrona (frames + áudio) no servidor
       if(isVideo && insertData && insertData[0]){
-        getAccessToken().then(token => {
-          fetch('/api/moderate-video', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ accessToken: token, postId: insertData[0].id, mediaUrl: imageUrl, caption: content })
-          }).then(r => r.json()).then(() => {
-            if(typeof loadFeed === 'function') loadFeed();
-          }).catch(e => console.warn('moderate-video:', e));
-        });
+        apiPost('/api/moderate-video', { postId: insertData[0].id, mediaUrl: imageUrl, caption: content })
+          .then(() => { if(typeof loadFeed === 'function') loadFeed(); })
+          .catch(e => console.warn('moderate-video:', e));
       }
       if(isVideo){
         toast('Vídeo publicado — em análise antes de ficar visível.');
@@ -7399,7 +7319,7 @@ function initLeafletMap(){
 }
 
 function createPinIcon(painter){
-  const avatar = painter.avatar_url || painter.img || ('https://ui-avatars.com/api/?name='+encodeURIComponent(painter.name||'U')+'&background=e8e2d9&color=1a1a2e&size=96');
+  const avatar = painter.avatar_url || painter.img || avatarUrl(painter.name||'U');
   const name = (painter.name || painter.name || '').split(' ')[0];
   const rating = painter.rating_avg || painter.rating || 0;
   const featured = rating >= 4.9;
@@ -7445,7 +7365,7 @@ async function loadMapPainters(){
         marker._fromDB = true;
         marker._painterId = p.id;
         marker.on('click', () => {
-          document.getElementById('pp-img').src = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+          document.getElementById('pp-img').src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'P' });
           document.getElementById('pp-name').textContent = p.name || 'Pintor';
           document.getElementById('pp-sub').textContent = [p.city, p.state].filter(Boolean).join(', ') + (p.specialties ? ' - ' + p.specialties : '');
           document.getElementById('pp-stars').textContent = _starStr(p.rating_avg||0) + ' ' + Number(p.rating_avg||0).toFixed(1);
@@ -7506,11 +7426,11 @@ function renderPainterList(painters_list){
     const ratingNum = Number(p.rating_avg||p.rating||0);
     const stars = _starStr(ratingNum);
     const rating = ratingNum > 0 ? ratingNum.toFixed(1) : 'Novo';
-    const avatarUrl = p.avatar_url || p.img || 'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'P')+'&background=e8e2d9&color=1a1a2e&size=96';
+    const av = p.avatar_url || p.img || avatarUrl(p.name||'P');
     const location = p.city ? [p.city, p.state].filter(Boolean).join(', ') : '';
     const tipo = ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Automotivo',funileiro:'Funileiro'})[((p.profession||'').toLowerCase()==='funileiro')?'funileiro':(p.role||p.user_type||'').toLowerCase()] || '';
     return `<div onclick="openUserProfile('${escapeJsArg(p.id)}')" style="background:var(--white);border-radius:14px;padding:12px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06);">
-      <img src="${escapeHtml(avatarUrl)}" style="width:52px;height:52px;border-radius:12px;object-fit:cover">
+      <img src="${escapeHtml(av)}" style="width:52px;height:52px;border-radius:12px;object-fit:cover">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:14px;font-weight:700;">${escapeHtml(p.name || 'Profissional')}</span>${tipo?'<span style="font-size:9px;font-weight:700;background:var(--cream);color:var(--muted);padding:2px 7px;border-radius:8px;">'+escapeHtml(tipo)+'</span>':''}</div>
         <div style="font-size:12px;color:var(--muted);">${escapeHtml(location)}</div>
