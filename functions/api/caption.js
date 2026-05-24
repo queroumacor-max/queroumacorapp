@@ -2,7 +2,7 @@
 // POST multipart/form-data com campo "image" (foto, <= 8 MB).
 // Resposta: { caption: string, hashtags: string[] } (4-6 hashtags em PT-BR).
 // Requer OPENAI_API_KEY no Cloudflare Pages.
-import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -148,11 +148,4 @@ function arrayBufferToBase64(buf) {
     bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
   return btoa(bin);
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

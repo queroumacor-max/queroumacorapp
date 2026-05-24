@@ -3268,7 +3268,7 @@ function renderConvList(container, convMap, myId){
 const CALICOLORS_EMAIL = 'calicolortintas@gmail.com';
 let calicolorsUserId = null;
 
-async function searchNewChatUsers(query){
+async function _searchNewChatUsersImpl(query){
   const container = document.getElementById('new-chat-users-list');
   if(!query || query.trim().length < 2){ container.innerHTML = ''; return; }
   const sb = getSupabase();
@@ -3298,6 +3298,7 @@ async function searchNewChatUsers(query){
     }).join('');
   } catch(e){ console.warn('searchNewChatUsers error:', e); }
 }
+const searchNewChatUsers = (window.debounce ? window.debounce(_searchNewChatUsersImpl, 250) : _searchNewChatUsersImpl);
 
 // Resolve o destinatário de uma conversa de forma confiável.
 // Antes o receiver_id era deduzido quebrando o conversation_id por "_",
@@ -6583,9 +6584,9 @@ function cleanHandle(p, fb){
 }
 
 function escapeHtml(str){
-  const d = document.createElement('div');
-  d.textContent = str == null ? '' : String(str);
-  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return String(str == null ? '' : str).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
 }
 // Escapa um valor para uso DENTRO de uma string JS em atributo onclick="..."
 function escapeJsArg(str){

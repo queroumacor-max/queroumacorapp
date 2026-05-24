@@ -3,7 +3,7 @@
 // cidades brasileiras pelo texto do endereço).
 // POST { date, jobs: [{ id, client_name, address, scheduled_time }] }
 //  -> { ordered_ids: [<id1>, <id2>, ...], notes: '<racional em PT-BR>' }
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -136,11 +136,4 @@ Regras:
   const notes = typeof parsed.notes === 'string' ? parsed.notes.trim().slice(0, 400) : '';
 
   return json({ ordered_ids: ordered, notes });
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

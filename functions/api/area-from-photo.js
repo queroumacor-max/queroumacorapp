@@ -2,7 +2,7 @@
 // (foto de parede/cômodo/teto) e devolve { area_m2, justification } via
 // OpenAI gpt-4o-mini (vision). Requer OPENAI_API_KEY no Cloudflare Pages.
 // A estimativa é APROXIMADA — o app avisa o usuário para revisar.
-import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { getTokenFromForm, requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -121,11 +121,4 @@ Sem markdown, sem texto antes ou depois. area_m2 deve ser um número (pode ter c
   } catch (e) {
     return json({ error: 'OpenAI: ' + String(e?.message || e) }, 502);
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }
