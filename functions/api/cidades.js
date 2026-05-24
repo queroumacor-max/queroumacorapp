@@ -2,6 +2,8 @@
 // Cacheia no edge do Cloudflare por 30 dias (cidades quase não mudam) e
 // no navegador por 1 dia. Após o primeiro request por UF, vira hit do
 // edge — IBGE só é chamado uma vez por região.
+import { jsonResponse as json } from './_security.js';
+
 export async function onRequestGet(context) {
   const { request } = context;
   const url = new URL(request.url);
@@ -29,11 +31,4 @@ export async function onRequestGet(context) {
   } catch (e) {
     return json({ error: String(e && e.message || e) }, 500);
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

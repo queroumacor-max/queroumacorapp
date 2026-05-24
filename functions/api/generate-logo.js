@@ -1,4 +1,4 @@
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -67,11 +67,4 @@ export async function onRequestPost(context) {
   } catch (e) {
     return json({ error: String(e?.message || e) }, 500);
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

@@ -1,7 +1,7 @@
 // Moderação assíncrona de vídeo via Gemini (frames + áudio nativos).
 // O post entra como 'pending'; esta função aprova/rejeita depois.
 // Requer: GEMINI_API_KEY, SUPABASE_SERVICE_ROLE, SUPABASE_URL, SUPABASE_ANON_KEY.
-import { checkRateLimit, rateLimitResponse } from './_security.js';
+import { checkRateLimit, rateLimitResponse, jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024; // acima disso, fica pendente p/ revisão humana
@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
 
   if (!postId) return json({ error: 'postId obrigatório' }, 400);
 
-  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || serviceKey;
 
   // O dono do post precisa ser quem está pedindo a moderação
@@ -202,11 +202,4 @@ async function rejectPost(supaUrl, sHeaders, postId, mediaUrl) {
       await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders });
     } catch { /* best-effort */ }
   }
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }

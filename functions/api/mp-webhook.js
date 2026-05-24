@@ -3,6 +3,8 @@
 // Opcional (recomendado): MP_WEBHOOK_SECRET — quando definido, valida o header
 // x-signature (HMAC-SHA256) enviado pelo MP. Sem o secret, a verificação é
 // pulada (fail-open) para preservar o comportamento atual.
+import { FALLBACK_SUPABASE_URL } from './_security.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
 
@@ -46,7 +48,7 @@ export async function onRequestPost(context) {
   }
   if (!eventId) return ok('sem id');
 
-  const supaUrl = (env.SUPABASE_URL || 'https://uwqebaqweehiljsqkifm.supabase.co').replace(/\/$/, '');
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const sHeaders = {
     'apikey': serviceKey,
     'Authorization': `Bearer ${serviceKey}`,

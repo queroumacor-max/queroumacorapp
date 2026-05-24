@@ -1,7 +1,7 @@
 // Resolve a cor (hex) de produtos de tinta a partir do nome/código.
 // Usa OpenAI; cai para Gemini. Requer OPENAI_API_KEY ou GEMINI_API_KEY.
 // POST { items: [{ id, name, code }] }  ->  { colors: { id: "#rrggbb" | null } }
-import { requireAuth, requirePro, checkRateLimit, rateLimitResponse } from './_security.js';
+import { requireAuth, requirePro, checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -119,11 +119,4 @@ Regras:
     colors[it.id] = (typeof v === 'string' && HEX.test(v.trim())) ? v.trim().toLowerCase() : null;
   }
   return json({ colors });
-}
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  });
 }
