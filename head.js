@@ -10,6 +10,140 @@ function getSupabase() {
   return _supabase;
 }
 
+// ─── Helpers utilitários (B2 DRY refactor) ─────────────────────────────────
+
+// avatarUrl: gera URL pra ui-avatars (avatar genérico baseado em nome)
+function avatarUrl(name, size){
+  const s = size || 96;
+  const n = encodeURIComponent(String(name || '?').slice(0, 30));
+  return 'https://ui-avatars.com/api/?name=' + n
+    + '&background=e8e2d9&color=1a1a2e&size=' + s;
+}
+window.avatarUrl = avatarUrl;
+
+// avatarOf: lê profile.avatar_url, cai pra avatarUrl(profile.name) se não tiver
+function avatarOf(profile, size){
+  if (profile && typeof profile.avatar_url === 'string' && profile.avatar_url) {
+    return profile.avatar_url;
+  }
+  return avatarUrl(profile && profile.name, size);
+}
+window.avatarOf = avatarOf;
+
+// requireSession: guard pra ações que exigem login. Retorna {sb, user} ou null.
+// Quando null, já mostra toast. opts.toast pode ser:
+//   - false  -> silencioso
+//   - string -> usa essa mensagem
+//   - undefined/objeto sem .toast -> usa 'Faça login primeiro'
+// Ex.: requireSession() | requireSession({toast:false}) | requireSession('Faça login para salvar')
+function requireSession(opts){
+  const sb = getSupabase();
+  const ok = sb && currentUser;
+  if (!ok) {
+    let msg = 'Faça login primeiro';
+    if (typeof opts === 'string') msg = opts;
+    else if (opts && opts.toast === false) msg = null;
+    else if (opts && typeof opts.toast === 'string') msg = opts.toast;
+    if (msg && typeof toast === 'function') toast(msg);
+    return null;
+  }
+  return { sb: sb, user: currentUser };
+}
+window.requireSession = requireSession;
+
+// handleSbError: lida com erro pós-supabase. Retorna true se deve abortar.
+// Uso: if (handleSbError(error, 'Salvar')) return;
+function handleSbError(error, prefix){
+  if (!error) return false;
+  const msg = (prefix ? prefix + ': ' : 'Erro: ') + (error.message || error);
+  if (typeof toast === 'function') toast(msg);
+  return true;
+}
+window.handleSbError = handleSbError;
+
+// apiPost: chama /api/* com token JWT do Supabase automaticamente. Retorna
+// {ok, data, status, error}. Se multipart=true, body deve ser FormData.
+// O token é enviado tanto via header Authorization quanto via body.accessToken
+// (ou FormData.append para multipart) — alguns endpoints leem só do body.
+async function apiPost(path, body, opts){
+  opts = opts || {};
+  const multipart = !!opts.multipart;
+  const withToken = opts.withToken !== false;
+  let headers = {};
+  let bodyObj = body;
+  let token = null;
+  if (withToken) {
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session && session.access_token) token = session.access_token;
+      }
+    } catch(_) { /* ignora — segue sem token */ }
+  }
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  let payload;
+  if (multipart) {
+    if (token && body && typeof body.append === 'function' && !body.has('accessToken')) {
+      body.append('accessToken', token);
+    }
+    payload = body;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    bodyObj = Object.assign({}, body || {});
+    if (token && !bodyObj.accessToken) bodyObj.accessToken = token;
+    payload = JSON.stringify(bodyObj);
+  }
+  try {
+    const r = await fetch(path, { method: 'POST', headers: headers, body: payload });
+    let data = null;
+    try { data = await r.json(); } catch(_) { /* não-json */ }
+    return { ok: r.ok, status: r.status, data: data, error: r.ok ? null : ((data && data.error) || ('HTTP ' + r.status)) };
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: String(e && e.message || e) };
+  }
+}
+window.apiPost = apiPost;
+
+// gateProClient: gate de feature PRO no client. Retorna true se pode prosseguir.
+// Se não for PRO, mostra toast + abre modal. Uso: if (!gateProClient('IA Vision')) return;
+function gateProClient(featureName){
+  if (typeof _isPro !== 'undefined' && _isPro) return true;
+  if (typeof toast === 'function') toast((featureName || 'Esta função') + ' é exclusiva do Plano PRO ⚡');
+  if (typeof showModal === 'function') {
+    try { showModal('pro-modal'); } catch(_) {}
+  }
+  return false;
+}
+window.gateProClient = gateProClient;
+
+// brl: formata número em R$ brasileiro. Sempre 2 decimais.
+function brl(n){
+  const v = Number(n) || 0;
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+window.brl = brl;
+
+// dateBR: formata data em DD/MM/AAAA
+function dateBR(d){
+  try {
+    const dt = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleDateString('pt-BR');
+  } catch(_) { return ''; }
+}
+window.dateBR = dateBR;
+
+// dateTimeBR: data + hora
+function dateTimeBR(d){
+  try {
+    const dt = (d instanceof Date) ? d : new Date(d);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch(_) { return ''; }
+}
+window.dateTimeBR = dateTimeBR;
+
 // Cache curto do perfil do usuário logado. Evita várias queries idênticas
 // a 'profiles' no login — loadMyProfileData, refreshProStatus, loadUserState
 // e updateMyStoryAvatar disparam quase juntas. Com o dedup do _inflight,
@@ -166,7 +300,7 @@ async function loadMyProfileData(){
         subEl.innerHTML = subHtml || 'Configure seu perfil';
       }
       // Update myprofile avatar
-      const avatarFallback = 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatarFallback = avatarUrl(name);
       const avatarSrc = prof.avatar_url || avatarFallback;
       const myAvatar = document.getElementById('myprofile-avatar');
       if(myAvatar){
@@ -273,7 +407,7 @@ async function openFollowersModal(){
     (profs||[]).forEach(p => {
       const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
-      const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = avatarOf({ avatar_url: p.avatar_url, name: name });
       list.innerHTML += `<div onclick="hideModal('followers-modal');openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
         <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${escapeHtml(avatar)}" style="width:100%;height:100%;object-fit:cover"></div>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+escapeHtml(tag)+'</div>' : ''}</div>
@@ -300,7 +434,7 @@ async function openFollowingModal(){
     (profs||[]).forEach(p => {
       const name = p.name || 'Usuário';
       const tag = p.tag ? '@' + p.tag : '';
-      const avatar = p.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=96';
+      const avatar = avatarOf({ avatar_url: p.avatar_url, name: name });
       list.innerHTML += `<div onclick="hideModal('following-modal');openUserProfile('${escapeJsArg(p.id)}')" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;">
         <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${escapeHtml(avatar)}" style="width:100%;height:100%;object-fit:cover"></div>
         <div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>${tag ? '<div style="font-size:12px;color:var(--muted);">'+escapeHtml(tag)+'</div>' : ''}</div>
@@ -375,7 +509,7 @@ async function updateMyStoryAvatar(){
     if(profile && profile.avatar_url){
       el.src = profile.avatar_url;
     } else {
-      el.src = 'https://ui-avatars.com/api/?name='+encodeURIComponent(fullName || 'U')+'&background=e8e2d9&color=1a1a2e&size=96';
+      el.src = avatarUrl(fullName || 'U');
     }
   } catch(e){ console.warn('updateMyStoryAvatar error:', e); }
 }
@@ -564,10 +698,10 @@ async function loadPeopleSuggestions(){
     box.innerHTML = people.map(p => {
       const isPintor = isProfessionalRole(p.role) || isProfessionalRole(p.user_type);
       const roleBadge = isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>' : '';
-      const avatarUrl = p.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name||'?') + '&background=e8e2d9&color=1a1a2e&size=96';
+      const av = avatarOf(p);
       const tagDisplay = p.tag ? '@' + p.tag : '';
       return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
-        <div class="search-result-avatar"><img src="${escapeHtml(avatarUrl)}" alt=""></div>
+        <div class="search-result-avatar"><img src="${escapeHtml(av)}" alt=""></div>
         <div class="search-result-info">
           <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
           <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay && p.city ? ' · ' : ''}${escapeHtml(p.city||'')}</div>
@@ -623,10 +757,10 @@ function searchPeople(query){
       const isSelf=currentUser&&currentUser.id===p.id;
       const isPintor=isProfessionalRole(p.role)||isProfessionalRole(p.user_type);
       const roleBadge=isPintor?'<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>':'';
-      const avatarUrl=p.avatar_url||'https://ui-avatars.com/api/?name='+encodeURIComponent(p.name||'?')+'&background=e8e2d9&color=1a1a2e&size=96';
+      const av=avatarOf(p);
       const tagDisplay=p.tag?'@'+p.tag:'';
       return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
-        <div class="search-result-avatar"><img src="${escapeHtml(avatarUrl)}" alt=""></div>
+        <div class="search-result-avatar"><img src="${escapeHtml(av)}" alt=""></div>
         <div class="search-result-info">
           <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
           <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay&&p.city?' · ':''}${escapeHtml(p.city||'')}</div>
@@ -653,7 +787,7 @@ async function openUserProfile(userId, preview){
     const bioEl = screen.querySelector('.ph-bio');
     const avatarEl = screen.querySelector('.ph-avatar img');
     const name = prof.name || 'Usuário';
-    const avatar = prof.avatar_url || 'https://ui-avatars.com/api/?name='+encodeURIComponent(name)+'&background=e8e2d9&color=1a1a2e&size=200';
+    const avatar = prof.avatar_url || avatarUrl(name, 200);
     const location = (prof.city||'')+(prof.state?' · '+prof.state:'');
     const _rl = prof.role||prof.user_type||'cliente';
     const role = {pintor:'Pintor',grafiteiro:'Grafiteiro/Muralista',automotivo:'Pintor Automotivo',cliente:'Cliente'}[_rl]||'Cliente';
@@ -802,8 +936,8 @@ async function renderRealProfileTabs(userId, name){
           + '<div style="font-size:13px;color:var(--muted);">'+reviews.length+' avalia'+(reviews.length>1?'ções':'ção')+'</div></div>';
         h += reviews.map(r => {
           const rv = r.reviewer || {};
-          const av = rv.avatar_url || ('https://ui-avatars.com/api/?name='+encodeURIComponent(rv.name||'C')+'&background=e8e2d9&color=1a1a2e&size=64');
-          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '';
+          const av = rv.avatar_url || avatarUrl(rv.name||'C', 64);
+          const date = r.created_at ? dateBR(r.created_at) : '';
           const crit = Array.isArray(r.criteria) ? r.criteria : [];
           return '<div style="background:var(--white);border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);margin-bottom:9px;">'
             + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:'+((crit.length||r.comment)?'8px':'0')+';">'
