@@ -4107,7 +4107,22 @@ function sharePost(postId){
 
 const chatData = {};
 let _globalMsgSub = null;
-const _processedMsgIds = new Set();
+const _processedMsgIds = new Map(); // id -> true (Map preserves insertion order for LRU)
+const MAX_PROCESSED_IDS = 500;
+function _markProcessed(id){
+  if(_processedMsgIds.has(id)){
+    // already seen — refresh recency
+    _processedMsgIds.delete(id);
+    _processedMsgIds.set(id, true);
+    return false;
+  }
+  _processedMsgIds.set(id, true);
+  if(_processedMsgIds.size > MAX_PROCESSED_IDS){
+    const oldest = _processedMsgIds.keys().next().value;
+    _processedMsgIds.delete(oldest);
+  }
+  return true; // was new
+}
 let _chatListDebounce = null;
 
 // Global realtime subscription for messages - ensures new messages show up
@@ -4143,9 +4158,7 @@ async function handleRealtimeMsg(payload){
   if(!m || !currentUser) return;
   // Dedup: a mesma mensagem pode chegar pelos dois filtros (receiver/sender)
   if(m.id){
-    if(_processedMsgIds.has(m.id)) return;
-    _processedMsgIds.add(m.id);
-    if(_processedMsgIds.size > 500){ _processedMsgIds.clear(); _processedMsgIds.add(m.id); }
+    if(!_markProcessed(m.id)) return;
   }
   const myId = currentUser.id;
   const isMine = m.sender_id === myId;
@@ -5559,7 +5572,7 @@ function renderProductRow(p){
     + '</div>';
 }
 
-function mktSearch(q){
+function _mktSearchImpl(q){
   q = (q||'').trim().toLowerCase();
   const searchSec = document.getElementById('mkt-search-section');
   const secs = document.querySelectorAll('#mkt-sections .mkt-menu-sec');
@@ -5581,12 +5594,15 @@ function mktSearch(q){
     (p.name||'').toLowerCase().includes(q) || String(p.code||'').toLowerCase().includes(q));
   const grid = document.getElementById('mkt-search-grid');
   const title = document.getElementById('mkt-search-title');
-  if(title) title.textContent = res.length + ' resultado(s)';
+  if(title) title.textContent = res.length > 60
+    ? (res.length + ' resultados (mostrando 60 — refine a busca)')
+    : (res.length + ' resultado(s)');
   if(grid) grid.innerHTML = res.length
-    ? res.slice(0,400).map(renderProductRow).join('')
+    ? res.slice(0,60).map(renderProductRow).join('')
     : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
   if(searchSec) searchSec.style.display = 'block';
 }
+const mktSearch = (window.debounce ? window.debounce(_mktSearchImpl, 200) : _mktSearchImpl);
 
 function openProductDetail(productId){
   const p = mktProducts.find(x => x.id === productId);
@@ -6427,7 +6443,7 @@ async function loadPosts(feedIds, append){
     let commentsMap = {};
     const queries = [
       sb.from('profiles').select('id, name, tag, avatar_url, role, user_type').in('id', userIds),
-      sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true })
+      sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5)
     ];
     if(currentUser){
       queries.push(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds));
@@ -7505,7 +7521,7 @@ function renderPainterList(painters_list){
   }).join('');
 }
 
-async function filterExplorePainters(query){
+async function _filterExplorePaintersImpl(query){
   const q = (query||'').replace('@','').trim().toLowerCase();
   if(!q){
     // Show all: DB painters + local painters
@@ -7555,6 +7571,7 @@ async function filterExplorePainters(query){
   }
   renderPainterList(filtered);
 }
+const filterExplorePainters = (window.debounce ? window.debounce(_filterExplorePaintersImpl, 250) : _filterExplorePaintersImpl);
 
 function loadLocalPaintersOnMap(){
   // Fallback: show local painter data on map
