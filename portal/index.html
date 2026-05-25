@@ -9,7 +9,6 @@
 <script>
   const SUPA_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
   const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
-  window._sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 </script>
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -27,6 +26,8 @@ body { font-family: 'DM Sans', sans-serif; background: #f7f3ee; min-height:100vh
 <script type="text/babel">
 const { useState, useEffect } = React;
 // Otimizações usadas como React.useMemo / React.useCallback / React.memo abaixo.
+
+const supa = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
 const C = {
   ink: '#1a1a2e', ink2: '#16213e', cream: '#f7f3ee', border: '#e8e2d9',
@@ -139,7 +140,7 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
 // por RLS (unica policy de UPDATE e auth.uid() = id). Por isso tudo
 // vai pelo endpoint /api/admin-users com service role.
 const adminUsers = async (payload) => {
-  const { data: { session } } = await window._sb.auth.getSession();
+  const { data: { session } } = await supa.auth.getSession();
   if (!session) { alert('Sessao expirada. Entre novamente.'); return false; }
   const r = await fetch('/api/admin-users', {
     method: 'POST',
@@ -304,7 +305,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     (async () => {
-      const sb = window._sb;
+      const sb = supa;
       const [profilesRes, leadsRes, quotesRes, msgsRes] = await Promise.all([
         sb.from('profiles').select('*'),
         sb.from('leads').select('id'),
@@ -423,7 +424,7 @@ const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchPintores = async () => {
-    const { data } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
+    const { data } = await supa.from('profiles').select('*').order('created_at', { ascending: false });
     // Mostra TODOS os profissionais do tipo, sendo PRO ou nao.
     let list = (data || []).filter(isProProfile);
     if (roleFilter) list = list.filter(roleFilter);
@@ -592,7 +593,7 @@ const ProdutosList = () => {
       const byId = new Map();
       for(let pageNo = 0; pageNo < 30; pageNo++){
         const from = pageNo * PAGE;
-        const { data, error } = await window._sb.from('products').select('*').order('name').range(from, from + PAGE - 1);
+        const { data, error } = await supa.from('products').select('*').order('name').range(from, from + PAGE - 1);
         if(error) throw error;
         if(!data || data.length === 0) break;
         const before = byId.size;
@@ -617,7 +618,7 @@ const ProdutosList = () => {
     if(!confirm(pend.length + ' produto(s) sem cor. Preencher com IA (distingue tons como Vermelho Ferrari/Goiaba/Malagueta) e salvar no banco?')) return;
     let ok = 0, fail = 0, dic = 0;
     const save = async (id, hex) => {
-      const { error } = await window._sb.from('products').update({ color_hex: hex }).eq('id', id);
+      const { error } = await supa.from('products').update({ color_hex: hex }).eq('id', id);
       if(error) fail++; else ok++;
     };
     // Fase 1 — IA em lotes (ela diferencia variações de tom da mesma cor base)
@@ -653,10 +654,10 @@ const ProdutosList = () => {
       if(!productData.image_url) delete productData.image_url; // só envia se houver foto (coluna pode não existir ainda)
       if(!productData.name) { alert('Nome obrigatorio'); return; }
       if(editing) {
-        const { error } = await window._sb.from('products').update(productData).eq('id', editing);
+        const { error } = await supa.from('products').update(productData).eq('id', editing);
         if(error) throw error;
       } else {
-        const { error } = await window._sb.from('products').insert(productData);
+        const { error } = await supa.from('products').insert(productData);
         if(error) throw error;
       }
       setShowForm(false); setEditing(null);
@@ -668,7 +669,7 @@ const ProdutosList = () => {
   const deleteProduct = async (id) => {
     if(!confirm('Excluir este produto?')) return;
     try {
-      await window._sb.from('products').delete().eq('id', id);
+      await supa.from('products').delete().eq('id', id);
       loadProducts();
     } catch(e) { alert('Erro: ' + e.message); }
   };
@@ -735,9 +736,9 @@ const ProdutosList = () => {
                 try {
                   setAiBusy('Enviando foto...');
                   const path = 'products/' + Date.now() + '-' + f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-                  const { error } = await window._sb.storage.from('posts').upload(path, f, { upsert:true });
+                  const { error } = await supa.storage.from('posts').upload(path, f, { upsert:true });
                   if(error) throw error;
-                  const { data } = window._sb.storage.from('posts').getPublicUrl(path);
+                  const { data } = supa.storage.from('posts').getPublicUrl(path);
                   setForm(fm => ({ ...fm, image_url: (data && data.publicUrl) || '' }));
                 } catch(err){ alert('Erro ao enviar foto: ' + (err.message||err)); }
                 setAiBusy('');
@@ -860,7 +861,7 @@ const Analytics = () => {
 
   useEffect(() => {
     (async () => {
-      const sb = window._sb;
+      const sb = supa;
       const [pRes, lRes, qRes, mRes] = await Promise.all([
         sb.from('profiles').select('id, created_at'),
         sb.from('leads').select('id, status'),
@@ -965,10 +966,10 @@ const Chats = () => {
 
   // Load conversations list
   const loadConversations = async () => {
-    const { data: { session } } = await window._sb.auth.getSession();
+    const { data: { session } } = await supa.auth.getSession();
     if(session) setMyUserId(session.user.id);
 
-    const { data, error } = await window._sb
+    const { data, error } = await supa
       .from('messages')
       .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
       .order('created_at', { ascending: false })
@@ -978,7 +979,7 @@ const Chats = () => {
     const ids = [...new Set(data.flatMap(m => [m.sender_id, m.receiver_id]).filter(Boolean))];
     let profMap = {};
     if(ids.length > 0){
-      const { data: profs } = await window._sb.from('profiles').select('id, name, avatar_url, role, user_type, tag').in('id', ids);
+      const { data: profs } = await supa.from('profiles').select('id, name, avatar_url, role, user_type, tag').in('id', ids);
       if(profs) profs.forEach(p => { profMap[p.id] = p; });
     }
     setProfiles(profMap);
@@ -1006,7 +1007,7 @@ const Chats = () => {
     setChatLoading(true);
     setChatMsgs([]);
 
-    const { data, error } = await window._sb
+    const { data, error } = await supa
       .from('messages')
       .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
       .eq('conversation_id', convId)
@@ -1019,7 +1020,7 @@ const Chats = () => {
 
     // Realtime subscription
     if(subRef.current) subRef.current.unsubscribe();
-    subRef.current = window._sb
+    subRef.current = supa
       .channel('portal-chat-' + convId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId },
         (payload) => {
@@ -1042,7 +1043,7 @@ const Chats = () => {
     setSending(true);
     setMsgText('');
 
-    const { data: { session } } = await window._sb.auth.getSession();
+    const { data: { session } } = await supa.auth.getSession();
     if(!session){ setSending(false); return; }
 
     // Find receiver from conversation participants
@@ -1050,7 +1051,7 @@ const Chats = () => {
     const participantIds = conv ? [...conv.participants] : [];
     const receiverId = participantIds.find(id => id !== session.user.id) || null;
 
-    const { data: inserted, error } = await window._sb.from('messages').insert({
+    const { data: inserted, error } = await supa.from('messages').insert({
       sender_id: session.user.id,
       receiver_id: receiverId,
       conversation_id: openConv,
@@ -1285,7 +1286,7 @@ REGRAS:
     if (!results || results.length === 0) return;
     let saved = 0;
     for (const r of results) {
-      const { error } = await window._sb.from('leads').insert({
+      const { error } = await supa.from('leads').insert({
         name: r.name, phone: r.phone, segment: r.segment, category: r.category,
         rating: r.rating, review_count: r.review_count, neighborhood: r.neighborhood,
         city: r.city || 'Guarulhos', priority: r.priority || 'media',
@@ -1440,7 +1441,7 @@ const Leads = () => {
     }
     if (dupeIds.length > 0) {
       for (const id of dupeIds) {
-        await window._sb.from('leads').delete().eq('id', id);
+        await supa.from('leads').delete().eq('id', id);
       }
       console.log('Removed ' + dupeIds.length + ' duplicate leads');
     }
@@ -1448,7 +1449,7 @@ const Leads = () => {
   };
 
   const fetchLeads = async () => {
-    const { data, error } = await window._sb
+    const { data, error } = await supa
       .from('leads')
       .select('*')
       .order('created_at', { ascending: false });
@@ -1464,7 +1465,7 @@ const Leads = () => {
   useEffect(() => { fetchLeads(); }, []);
 
   const updateStatus = async (id, newStatus) => {
-    await window._sb.from('leads').update({ status: newStatus }).eq('id', id);
+    await supa.from('leads').update({ status: newStatus }).eq('id', id);
     fetchLeads();
   };
 
@@ -1702,7 +1703,7 @@ const Orcamentos = () => {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await window._sb
+      const { data, error } = await supa
         .from('quotes')
         .select('*, client:profiles!client_id(name), painter:profiles!painter_id(name)')
         .order('created_at', { ascending: false });
@@ -1755,10 +1756,10 @@ const ClientesList = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchClientes = async () => {
-    const { data } = await window._sb.from('profiles').select('*').order('created_at', { ascending: false });
+    const { data } = await supa.from('profiles').select('*').order('created_at', { ascending: false });
     const profiles = (data || []).filter(isClienteProfile);
     // Load invite codes generated by each user
-    const { data: invites } = await window._sb.from('invites').select('code, created_by').order('created_at', { ascending: false });
+    const { data: invites } = await supa.from('invites').select('code, created_by').order('created_at', { ascending: false });
     const inviteMap = {};
     (invites || []).forEach(inv => {
       if (!inviteMap[inv.created_by]) inviteMap[inv.created_by] = [];
@@ -1852,7 +1853,7 @@ const PostsModeracao = () => {
 
   const fetchPosts = async () => {
     setLoading(true);
-    let query = window._sb.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', { ascending: false }).limit(50);
+    let query = supa.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', { ascending: false }).limit(50);
     if(filter === 'pending') query = query.eq('status','pending');
     else if(filter === 'rejected') query = query.eq('status','rejected');
     const { data } = await query;
@@ -1863,15 +1864,15 @@ const PostsModeracao = () => {
   useEffect(() => { fetchPosts(); }, [filter]);
 
   const updateStatus = async (id, status) => {
-    await window._sb.from('posts').update({ status }).eq('id', id);
+    await supa.from('posts').update({ status }).eq('id', id);
     fetchPosts();
   };
 
   const deletePost = async (id) => {
     if(!confirm('Deletar permanentemente?')) return;
-    await window._sb.from('likes').delete().eq('post_id', id);
-    await window._sb.from('comments').delete().eq('post_id', id);
-    await window._sb.from('posts').delete().eq('id', id);
+    await supa.from('likes').delete().eq('post_id', id);
+    await supa.from('comments').delete().eq('post_id', id);
+    await supa.from('posts').delete().eq('id', id);
     fetchPosts();
   };
 
@@ -1929,7 +1930,7 @@ const AvaliacoesList = () => {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await window._sb
+      const { data, error } = await supa
         .from('quotes')
         .select('*, client:profiles!client_id(name, rating_avg), painter:profiles!painter_id(name, rating_avg)')
         .order('created_at', { ascending: false });
@@ -1992,7 +1993,7 @@ const CursosList = () => {
 
   useEffect(() => {
     (async () => {
-      const { data } = await window._sb.from('profiles').select('id, name, city, state, verified, rating_avg').order('rating_avg', { ascending: false });
+      const { data } = await supa.from('profiles').select('id, name, city, state, verified, rating_avg').order('rating_avg', { ascending: false });
       if (data) setProfiles(data.filter(p => p.verified));
       setLoading(false);
     })();
@@ -2032,7 +2033,7 @@ const MarketingPage = () => {
 
   useEffect(() => {
     (async () => {
-      const sb = window._sb;
+      const sb = supa;
       const [pRes, lRes, qRes] = await Promise.all([
         sb.from('profiles').select('id', { count: 'exact', head: true }),
         sb.from('leads').select('id', { count: 'exact', head: true }),
@@ -2101,7 +2102,7 @@ const Avisos = () => {
 
   const loadAvisos = async () => {
     try {
-      const { data, error } = await window._sb.from('announcements').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supa.from('announcements').select('*').order('created_at', { ascending: false });
       if(!error && data) setAvisos(data);
     } catch(e){ console.warn('loadAvisos error:', e); }
     setLoading(false);
@@ -2114,8 +2115,8 @@ const Avisos = () => {
     if(!message.trim()){ alert('Preencha a mensagem'); return; }
     setSaving(true);
     try {
-      const { data: { session } } = await window._sb.auth.getSession();
-      const { error } = await window._sb.from('announcements').insert({
+      const { data: { session } } = await supa.auth.getSession();
+      const { error } = await supa.from('announcements').insert({
         title: title.trim(),
         message: message.trim(),
         active: true,
@@ -2131,7 +2132,7 @@ const Avisos = () => {
 
   const toggleAviso = async (id, active) => {
     try {
-      await window._sb.from('announcements').update({ active: !active }).eq('id', id);
+      await supa.from('announcements').update({ active: !active }).eq('id', id);
       loadAvisos();
     } catch(e){ console.warn('toggleAviso error:', e); }
   };
@@ -2139,7 +2140,7 @@ const Avisos = () => {
   const deleteAviso = async (id) => {
     if(!confirm('Tem certeza que deseja excluir este aviso?')) return;
     try {
-      await window._sb.from('announcements').delete().eq('id', id);
+      await supa.from('announcements').delete().eq('id', id);
       loadAvisos();
     } catch(e){ console.warn('deleteAviso error:', e); }
   };
@@ -2195,7 +2196,7 @@ const PedidosLoja = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await window._sb.from('orders')
+        const { data, error } = await supa.from('orders')
           .select('*, user:profiles!user_id(name, phone, city, state, tag)')
           .order('created_at', { ascending: false });
         if(!error && data) setOrders(data);
@@ -2206,7 +2207,7 @@ const PedidosLoja = () => {
 
   const updateOrderStatus = async (id, status) => {
     try {
-      const { error } = await window._sb.from('orders').update({ status }).eq('id', id);
+      const { error } = await supa.from('orders').update({ status }).eq('id', id);
       if (error) { alert('Não foi possível atualizar o pedido: ' + error.message); return; }
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
     } catch(e){ alert('Erro ao atualizar o pedido.'); console.warn('updateOrderStatus error:', e); }
@@ -2282,7 +2283,7 @@ const PortalUsersList = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data, error } = await window._sb.from('profiles').select('*').eq('portal_access', true).order('created_at', { ascending: false });
+    const { data, error } = await supa.from('profiles').select('*').eq('portal_access', true).order('created_at', { ascending: false });
     if (!error && data) setUsers(data);
     else setUsers([]);
     setLoading(false);
@@ -2432,7 +2433,7 @@ const Moderacao = () => {
     setLoading(true);
     setError(null);
     try {
-      let q = window._sb.from('reports')
+      let q = supa.from('reports')
         .select('id, reporter_id, post_id, target_user_id, reason, status, created_at, reporter:profiles!reporter_id(name, avatar_url)')
         .order('created_at', { ascending: false })
         .limit(200);
@@ -2453,7 +2454,7 @@ const Moderacao = () => {
 
   const resolveReport = async (id) => {
     try {
-      await window._sb.from('reports').update({ status: 'resolved' }).eq('id', id);
+      await supa.from('reports').update({ status: 'resolved' }).eq('id', id);
       fetchReports();
     } catch (e) {
       console.warn('resolveReport error:', e);
@@ -2552,7 +2553,7 @@ const Indicacoes = () => {
   useEffect(() => {
     (async () => {
       try {
-        const sb = window._sb;
+        const sb = supa;
         const [refsRes, ptsRes] = await Promise.all([
           sb.from('referrals')
             .select('id, referrer_id, referred_id, status, bonus_points, created_at, referrer:profiles!referrer_id(name, avatar_url), referred:profiles!referred_id(name, avatar_url)')
@@ -2665,7 +2666,7 @@ const AvaliacoesTab = () => {
   useEffect(() => {
     (async () => {
       try {
-        const sb = window._sb;
+        const sb = supa;
         // Busca reviews + reviewer (cliente). Para descobrir o pintor avaliado,
         // faz join com quotes pelo quote_id.
         const { data, error } = await sb.from('reviews')
@@ -2790,7 +2791,7 @@ function App() {
 
   const loadBadges = async () => {
     try {
-      const sb = window._sb;
+      const sb = supa;
       if(!sb) return;
       const [msgsRes, quotesRes, profilesRes, leadsRes] = await Promise.all([
         sb.from('messages').select('id', { count: 'exact', head: true }),
@@ -2817,9 +2818,9 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: { session } } = await window._sb.auth.getSession();
+        const { data: { session } } = await supa.auth.getSession();
         if (session && session.user) {
-          const { data: prof } = await window._sb.from('profiles').select('portal_access').eq('id', session.user.id).single();
+          const { data: prof } = await supa.from('profiles').select('portal_access').eq('id', session.user.id).single();
           if (prof && prof.portal_access) setLoggedIn(true);
         }
       } catch(e) { /* sessão inválida: mostra login */ }
@@ -2863,7 +2864,7 @@ function App() {
           <span onClick={()=>{ setResetMode(true); setLoginError(''); setResetMsg(''); }} style={{ fontSize:12, color:C.p1, cursor:'pointer', fontWeight:600 }}>Esqueci minha senha</span>
         </div>
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { const {data,error} = await window._sb.auth.signInWithPassword({email,password:pw}); if(error) throw error; const { data: prof } = await window._sb.from('profiles').select('portal_access').eq('id', data.user.id).single(); if(!prof || !prof.portal_access){ await window._sb.auth.signOut(); throw new Error('Sem permissao. Esta conta nao tem acesso ao portal.'); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Email ou senha incorretos'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { const {data,error} = await supa.auth.signInWithPassword({email,password:pw}); if(error) throw error; const { data: prof } = await supa.from('profiles').select('portal_access').eq('id', data.user.id).single(); if(!prof || !prof.portal_access){ await supa.auth.signOut(); throw new Error('Sem permissao. Esta conta nao tem acesso ao portal.'); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Email ou senha incorretos'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           Entrar no Portal
         </button>
         <div style={{ textAlign:'center', marginTop:14 }}>
@@ -2878,7 +2879,7 @@ function App() {
           <input value={signupCode} onChange={e=>setSignupCode(e.target.value.toUpperCase())} placeholder="QUC-XXXXX" style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:18, fontWeight:700, letterSpacing:2, textAlign:'center', outline:'none', fontFamily:'monospace' }} />
         </div>
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupCode.trim()) throw new Error('Insira o codigo de convite'); const { data: inv, error } = await window._sb.from('invites').select('id, code, used, max_uses, uses, created_by').eq('code', signupCode.trim()).single(); if(error || !inv) throw new Error('Codigo invalido'); if(inv.used || (inv.max_uses > 0 && inv.uses >= inv.max_uses)) throw new Error('Este codigo ja foi utilizado'); const { data: inviter } = await window._sb.from('profiles').select('portal_access').eq('id', inv.created_by).single(); if(!inviter || !inviter.portal_access) throw new Error('Este codigo nao da acesso ao portal. O codigo precisa ser de alguem que ja tem acesso ao portal.'); setValidatedInvite(inv); setSignupStep(1); } catch(e){ setLoginError(e.message); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupCode.trim()) throw new Error('Insira o codigo de convite'); const { data: inv, error } = await supa.from('invites').select('id, code, used, max_uses, uses, created_by').eq('code', signupCode.trim()).single(); if(error || !inv) throw new Error('Codigo invalido'); if(inv.used || (inv.max_uses > 0 && inv.uses >= inv.max_uses)) throw new Error('Este codigo ja foi utilizado'); const { data: inviter } = await supa.from('profiles').select('portal_access').eq('id', inv.created_by).single(); if(!inviter || !inviter.portal_access) throw new Error('Este codigo nao da acesso ao portal. O codigo precisa ser de alguem que ja tem acesso ao portal.'); setValidatedInvite(inv); setSignupStep(1); } catch(e){ setLoginError(e.message); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           {loginLoading ? 'Validando...' : 'Validar Codigo'}
         </button>
         </>) : (<>
@@ -2897,7 +2898,7 @@ function App() {
           <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
         </div>
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 8) throw new Error('Senha deve ter no minimo 8 caracteres'); const { data: authData, error: authErr } = await window._sb.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await window._sb.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await window._sb.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 8) throw new Error('Senha deve ter no minimo 8 caracteres'); const { data: authData, error: authErr } = await supa.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await supa.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await supa.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           {loginLoading ? 'Criando conta...' : 'Criar Conta'}
         </button>
         </>)}
@@ -2911,7 +2912,7 @@ function App() {
         </div>
         {resetMsg && <div style={{color:'#2e7d32',fontSize:13,marginBottom:12,textAlign:'center'}}>{resetMsg}</div>}
         {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setResetMsg(''); setLoginLoading(true); try { if(!email) throw new Error('Informe seu email'); const {error} = await window._sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname }); if(error) throw error; setResetMsg('Link de redefinição enviado para ' + email); } catch(e){ setLoginError(e.message||'Erro ao enviar email'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setResetMsg(''); setLoginLoading(true); try { if(!email) throw new Error('Informe seu email'); const {error} = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname }); if(error) throw error; setResetMsg('Link de redefinição enviado para ' + email); } catch(e){ setLoginError(e.message||'Erro ao enviar email'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           {loginLoading ? 'Enviando...' : 'Enviar link de redefinição'}
         </button>
         <div style={{ textAlign:'center', marginTop:14 }}>
@@ -2957,7 +2958,7 @@ function App() {
             <div style={{ fontSize:12, color:C.muted }}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <button onClick={()=>{ if(window.confirm('Tem certeza que deseja sair do portal?')) { window._sb.auth.signOut(); setLoggedIn(false); } }} style={{ background:'transparent', border:'1px solid '+C.border, borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, color:C.muted }}>Sair</button>
+            <button onClick={()=>{ if(window.confirm('Tem certeza que deseja sair do portal?')) { supa.auth.signOut(); setLoggedIn(false); } }} style={{ background:'transparent', border:'1px solid '+C.border, borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, color:C.muted }}>Sair</button>
           </div>
         </div>
 
