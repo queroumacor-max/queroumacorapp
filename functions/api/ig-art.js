@@ -6,6 +6,12 @@ import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image-preview';
+// Limitamos a 1 fallback pra caber no timeout de 30s do Cloudflare Pages.
+// Imagem leva 8-20s; chain de 4 modelos = 502 garantido.
+const IMG_MODEL_FALLBACKS = [
+  'gemini-2.0-flash-exp-image-generation'
+];
+const FETCH_TIMEOUT_MS = 22000; // 22s por tentativa — sobra 6s pra outras coisas
 const MAX_INPUT_BYTES = 8 * 1024 * 1024; // 8MB de foto de entrada
 
 // Presets de estilo — chave curta no front, prompt rico aqui.
@@ -45,6 +51,15 @@ const FALLBACK_CAPTIONS = {
 };
 
 export async function onRequestPost(context) {
+  try {
+    return await handle(context);
+  } catch (e) {
+    // Garante que SEMPRE retorna JSON — nunca deixa Cloudflare devolver HTML 502
+    return json({ error: 'Erro interno: ' + String(e?.message || e) }, 500);
+  }
+}
+
+async function handle(context) {
   const { env, request } = context;
 
   if (!env.GEMINI_API_KEY) {
@@ -78,30 +93,55 @@ export async function onRequestPost(context) {
   const imgPrompt = stylePrompt + hintPart;
 
   const imgModel = env.GEMINI_IMG_MODEL || DEFAULT_IMG_MODEL;
+  // Se a env força um modelo, usa só ele; senão tenta o principal + fallbacks
+  const modelChain = env.GEMINI_IMG_MODEL ? [imgModel] : [imgModel, ...IMG_MODEL_FALLBACKS];
 
   // Dispara geração de arte + legenda em paralelo
   const [imgRes, capRes] = await Promise.all([
-    generateImage({ env, model: imgModel, prompt: imgPrompt, mime: inputMime, b64: inputB64 }),
+    generateImageWithFallback({ env, models: modelChain, prompt: imgPrompt, mime: inputMime, b64: inputB64 }),
     generateCaption({ env, styleKey, captionHint, businessName })
   ]);
 
-  if (imgRes.error) return json({ error: 'Falha ao gerar arte: ' + imgRes.error }, 502);
-  if (!imgRes.b64) return json({ error: 'Gemini não devolveu imagem' }, 502);
+  if (imgRes.error) return json({ error: 'Falha ao gerar arte: ' + imgRes.error, modelTried: imgRes.modelTried }, 502);
+  if (!imgRes.b64) return json({ error: 'Gemini não devolveu imagem (modelo: ' + (imgRes.modelTried || imgModel) + ')' }, 502);
 
   return json({
     imageDataUrl: 'data:' + (imgRes.mime || 'image/png') + ';base64,' + imgRes.b64,
     caption: capRes.text || FALLBACK_CAPTIONS[styleKey] || FALLBACK_CAPTIONS.portrait,
-    style: styleKey
+    style: styleKey,
+    model: imgRes.modelTried
   });
 }
 
+async function generateImageWithFallback({ env, models, prompt, mime, b64 }) {
+  let lastErr = '';
+  let lastModel = '';
+  for (const model of models) {
+    lastModel = model;
+    const r = await generateImage({ env, model, prompt, mime, b64 });
+    if (r.b64) return { ...r, modelTried: model };
+    lastErr = r.error || 'sem detalhe';
+    // Fallback SÓ quando o modelo não existe (404). Timeout/quota/permissão
+    // não vão melhorar com outro modelo e estouram o limite de 30s do Pages.
+    const isModelNotFound = /404|NOT_FOUND|not found|not.support/i.test(lastErr);
+    if (!isModelNotFound) {
+      return { error: lastErr, modelTried: model };
+    }
+    console.warn('ig-art: modelo', model, 'inexistente, tentando próximo:', lastErr);
+  }
+  return { error: 'Todos os modelos retornaram 404. Último: ' + lastErr, modelTried: lastModel };
+}
+
 async function generateImage({ env, model, prompt, mime, b64 }) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
     const r = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: ac.signal,
         body: JSON.stringify({
           contents: [{
             role: 'user',
@@ -111,15 +151,26 @@ async function generateImage({ env, model, prompt, mime, b64 }) {
             ]
           }],
           generationConfig: {
-            responseModalities: ['IMAGE', 'TEXT'],
+            // Ordem importa: TEXT primeiro, IMAGE depois (formato esperado pela API)
+            responseModalities: ['TEXT', 'IMAGE'],
             temperature: 0.7
           }
         })
       }
     );
     if (!r.ok) {
-      const errText = (await r.text()).slice(0, 250);
-      return { error: `Gemini ${r.status}: ${errText}` };
+      const errText = (await r.text()).slice(0, 400);
+      // Detecta erros típicos pra mensagem mais clara
+      if (r.status === 404 || /not found|NOT_FOUND/i.test(errText)) {
+        return { error: `Modelo "${model}" não encontrado (HTTP ${r.status}). ${errText.slice(0,120)}` };
+      }
+      if (r.status === 403) {
+        return { error: `Sem permissão pra usar "${model}" (HTTP 403). Habilite Imagen/Gemini Image na sua chave. ${errText.slice(0,120)}` };
+      }
+      if (r.status === 400) {
+        return { error: `Request inválido pra "${model}" (HTTP 400). ${errText.slice(0,200)}` };
+      }
+      return { error: `Gemini ${r.status} (${model}): ${errText}` };
     }
     const data = await r.json();
     const parts = data?.candidates?.[0]?.content?.parts || [];
@@ -130,9 +181,16 @@ async function generateImage({ env, model, prompt, mime, b64 }) {
         return { b64: inline.data, mime: inline.mime_type || inline.mimeType || 'image/png' };
       }
     }
-    return { error: 'Gemini retornou só texto, sem imagem' };
+    // Sem imagem na resposta — coleta o texto pra debug
+    const txt = parts.map(p => p.text).filter(Boolean).join(' ').slice(0, 200);
+    return { error: `"${model}" retornou só texto: ${txt || '(vazio)'}` };
   } catch (e) {
-    return { error: String(e?.message || e) };
+    if (e?.name === 'AbortError') {
+      return { error: `Timeout (${FETCH_TIMEOUT_MS/1000}s) gerando com "${model}"` };
+    }
+    return { error: `Erro de rede pra "${model}": ` + String(e?.message || e) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
