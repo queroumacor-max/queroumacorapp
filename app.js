@@ -1,5 +1,23 @@
 // ══ SCREENS ══
 const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','avaliar','mkt','camisetas','info','pipeline','crm'];
+
+// Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
+// "1500.50" no input e devolve Number; o blur formata pra "1.500,00".
+function parseBRL(val){
+  const raw = String(val == null ? '' : val).trim();
+  if(!raw) return 0;
+  // Normaliza: tira pontos de milhar e usa ponto como decimal
+  const n = Number(raw.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtBRL(el){
+  if(!el) return;
+  const raw = String(el.value || '').trim();
+  if(!raw){ return; }
+  const n = parseBRL(raw);
+  if(!Number.isFinite(n) || n < 0){ return; }
+  el.value = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv'];
 function showScreen(n, _fromPop){
@@ -851,7 +869,7 @@ function enviarQuote(id){
   const input = document.getElementById('qp-price-input');
   if(input){
     input.value = (+q.price || 0) > 0
-      ? String((+q.price).toFixed(2)).replace('.', ',')
+      ? (+q.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '';
   }
   showModal('quote-price-modal');
@@ -863,8 +881,7 @@ async function enviarQuoteConfirmar(){
   if(!id) return;
   const sb = getSupabase(); if(!sb || !currentUser) return;
   const input = document.getElementById('qp-price-input');
-  const raw = input ? input.value.trim() : '';
-  const price = parseFloat(String(raw).replace(/\./g, '').replace(',', '.')) || 0;
+  const price = parseBRL(input ? input.value : '');
   if(price <= 0){ toast('Informe um valor válido'); return; }
   const q = _pipelineCache.find(x => x.id === id);
   if(!q) return;
@@ -909,7 +926,7 @@ async function sugerirPrecoQuote(id){
       note.innerHTML = '<b>💡 Seu Zé sugere R$ ' + price.toLocaleString('pt-BR') + '</b>' + (justification ? '<br><span style="opacity:.85;">' + escapeHtml(justification) + '</span>' : '');
     }
     const input = document.getElementById('qp-price-input');
-    if(input) input.value = String(price.toFixed(2)).replace('.', ',');
+    if(input) input.value = price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     showModal('quote-price-modal');
     setTimeout(() => { if(input){ input.focus(); input.select(); } }, 150);
   } catch(e){
@@ -1644,16 +1661,16 @@ function gerarOrcamentoIA(){
   const comodos = parseInt(document.getElementById('ai-orc-comodos').value) || 0;
   const numDemaos = parseInt(document.getElementById('ai-orc-demaos').value) || 2;
   const fator = parseFloat(document.getElementById('ai-orc-condicao').value) || 1;
-  const precoM2 = parseFloat(document.getElementById('ai-orc-preco').value) || 0;
+  const precoM2 = parseBRL(document.getElementById('ai-orc-preco').value);
   const obs = document.getElementById('ai-orc-obs').value.trim();
   const cobranca = (document.getElementById('ai-orc-cobranca')||{}).value || 'm2';
-  const valorFechado = parseFloat((document.getElementById('ai-orc-valorfechado')||{}).value) || 0;
+  const valorFechado = parseBRL((document.getElementById('ai-orc-valorfechado')||{}).value);
   const materialMode = (document.getElementById('ai-orc-material')||{}).value || 'incluso';
   const matInc = materialMode !== 'cliente';
   const extras = ((document.getElementById('ai-orc-extras')||{}).value || '').trim();
   const formaPgto = (document.getElementById('ai-orc-pgto')||{}).value || 'À vista';
   const parcelas = parseInt((document.getElementById('ai-orc-parcelas')||{}).value) || 0;
-  const entrada = parseFloat((document.getElementById('ai-orc-entrada')||{}).value) || 0;
+  const entrada = parseBRL((document.getElementById('ai-orc-entrada')||{}).value);
   const tiposPgto = [...document.querySelectorAll('#ai-orc-tipos input[type=checkbox]:checked')].map(c=>c.value);
 
   if(area <= 0){ toast('Informe a área em m²'); return; }
@@ -1979,8 +1996,8 @@ async function salvarJob(){
     scheduled_date: document.getElementById('job-data').value||null,
     scheduled_time: document.getElementById('job-hora').value||null,
     address: document.getElementById('job-endereco').value.trim(),
-    revenue: parseFloat(document.getElementById('job-receita').value)||0,
-    material_cost: parseFloat(document.getElementById('job-custo').value)||0,
+    revenue: parseBRL(document.getElementById('job-receita').value),
+    material_cost: parseBRL(document.getElementById('job-custo').value),
     notes: document.getElementById('job-notas').value.trim()
   };
   if(!job.client_name){ toast('Informe o cliente'); return; }
@@ -2335,8 +2352,8 @@ async function salvarFinEntry(){
   const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
   const nome = (document.getElementById('fin-nome').value||'').trim();
   const cliente = (document.getElementById('fin-cliente').value||'').trim();
-  const recebido = parseFloat(document.getElementById('fin-recebido').value)||0;
-  const gasto = parseFloat(document.getElementById('fin-gasto').value)||0;
+  const recebido = parseBRL(document.getElementById('fin-recebido').value);
+  const gasto = parseBRL(document.getElementById('fin-gasto').value);
   if(!nome && !cliente){ toast('Informe o nome do projeto ou cliente'); return; }
   if(recebido<=0 && gasto<=0){ toast('Informe um valor recebido ou gasto'); return; }
   const today = new Date(); const ymd = new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -2894,41 +2911,52 @@ async function enviarOrcamentoForm(){
 // ══ PUBLISH VIDEO (REELS) ══
 // Updated publishPost to handle video media_type
 // ══ CONTENT MODERATION ══
+// Filtro local enxuto: só termos quase sempre problemáticos, com casamento
+// por palavra inteira (\b…\b). Antes o substring bloqueava "armário"
+// (arma), "pistolão" (pistola), "matar a sede" (matar), nome "Cornélio"
+// (corno). Contexto fica pra IA decidir em /api/moderate.
 const _blockedWords = [
-  'pornografia','nudez','nude','nudes','sexo','xxx','drogas','maconha','cocaina',
-  'racismo','racista','nazismo','nazi','hitler','terrorismo','terrorista',
-  'matar','assassinar','estupro','pedofilia','pedofilo',
-  'arma','revolver','pistola','fuzil','traficante','trafico',
-  'suicide','suicidio','se matar'
+  'pedofilia','pedofilo',
+  'estupro','estuprar','estuprador',
+  'cocaina','crackeira',
+  'fuzil',
+  'assassinar',
+  'suicidio',
+  'terrorismo','terrorista',
+  'pornografia',
+  'xxx',
+  'nazismo'
 ];
-const _suspectWords = [
-  'puta','caralho','foda','merda','viado','sapatao','corno',
-  'idiota','imbecil','retardado','lixo humano','vagabundo'
-];
+
+const _blockedRe = (() => {
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const alts = _blockedWords.map(w => esc(norm(w))).join('|');
+  return new RegExp('\\b(' + alts + ')\\b', 'i');
+})();
+
+// Padrões fortes de scam: encurtadores e domínios típicos de golpe.
+// URL normal (https://meusite.com.br, www.instagram.com/foo) NÃO bloqueia
+// mais — autopromoção legítima de pintor passa, Gemini avalia contexto.
+const _scamLinkRe = /(?:^|\W)(?:bit\.ly|tinyurl\.com|cutt\.ly|t\.me\/|goo\.gl\/|tiny\.cc|encurtador\.com\.br|is\.gd|shorturl\.at)/i;
 
 function moderateContent(text){
   if(!text) return { approved: true, reason: null };
   const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  // Check blocked words - auto-reject
-  for(const word of _blockedWords){
-    const w = word.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if(lower.includes(w)) return { approved: false, reason: 'blocked:'+word };
-  }
-  // Check suspect words - send to review
-  for(const word of _suspectWords){
-    const w = word.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if(lower.includes(w)) return { approved: false, reason: 'suspect:'+word };
-  }
-  // Check for URLs/links (spam prevention)
-  if(lower.match(/https?:\/\/|www\.|\.com\.br|bit\.ly|t\.me/)){
-    return { approved: false, reason: 'link_detected' };
-  }
+  const m = _blockedRe.exec(lower);
+  if(m) return { approved: false, reason: 'blocked:' + m[1] };
+  if(_scamLinkRe.test(lower)) return { approved: false, reason: 'link_suspicious' };
   return { approved: true, reason: null };
 }
 
 async function moderateContentAsync(text, imageUrl, hasMedia){
   const local = moderateContent(text || '');
-  if (!local.approved) return { approved: false, reason: local.reason, severity: 'soft' };
+  if (!local.approved) {
+    // Palavra do hard-list → bloqueio total (não vai pro portal).
+    // Encurtador suspeito → revisão humana (pode ser falso positivo).
+    const sev = String(local.reason || '').startsWith('blocked:') ? 'hard' : 'soft';
+    return { approved: false, reason: local.reason, severity: sev };
+  }
   // Fail-safe: se há mídia (imagem/vídeo) e a moderação cair, vai pra revisão
   // humana em vez de publicar direto. Texto puro que passou no filtro local publica.
   const failSafe = hasMedia
@@ -5947,6 +5975,173 @@ function _applyLogoToShirt(){
   if(btn) btn.classList.add('active');
 }
 
+// ══ AI ART GENERATOR (Instagram) ══
+// Pipeline: usuário escolhe foto + estilo → /api/ig-art devolve arte (data URL)
+// e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
+let _aiArtPhotoDataUrl = null;     // base64 da foto enviada
+let _aiArtStyle = 'portrait';
+let _aiArtResultDataUrl = null;    // base64 da arte gerada (pra reuso no post)
+let _aiArtResultCaption = '';
+
+function openAiArt(){
+  if(!gateProClient('Gerar arte pra Instagram com Seu Zé')) return;
+  _aiArtReset();
+  showModal('ai-art-modal');
+}
+
+function _aiArtPickFile(input){
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(!f.type.startsWith('image/')){ toast('Selecione uma imagem'); return; }
+  if(f.size > 8 * 1024 * 1024){ toast('Foto muito grande (máx 8MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    _aiArtPhotoDataUrl = e.target.result;
+    const img = document.getElementById('ai-art-preview');
+    const drop = document.getElementById('ai-art-drop');
+    const acts = document.getElementById('ai-art-photo-actions');
+    if(img){ img.src = e.target.result; img.style.display = 'block'; }
+    if(drop) drop.style.display = 'none';
+    if(acts) acts.style.display = 'flex';
+  };
+  reader.readAsDataURL(f);
+}
+
+function _aiArtSetStyle(el){
+  if(!el) return;
+  _aiArtStyle = el.getAttribute('data-style') || 'portrait';
+  document.querySelectorAll('#ai-art-styles .ai-art-style').forEach(c => {
+    c.classList.remove('sel');
+    c.style.border = '2px solid var(--border)';
+    c.style.background = '#fff';
+  });
+  el.classList.add('sel');
+  el.style.border = '2px solid var(--p1)';
+  el.style.background = 'rgba(255,107,53,.08)';
+}
+
+async function gerarArteIG(){
+  if(!_aiArtPhotoDataUrl){ toast('Escolha uma foto primeiro'); return; }
+  const btn = document.getElementById('ai-art-gen-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '✨ Seu Zé tá pintando...'; }
+  try {
+    const businessName = (typeof getMyProfile === 'function')
+      ? ((await getMyProfile())?.business_name || '')
+      : '';
+    const hint = (document.getElementById('ai-art-hint')?.value || '').trim();
+    const { ok, data } = await apiPost('/api/ig-art', {
+      photoDataUrl: _aiArtPhotoDataUrl,
+      style: _aiArtStyle,
+      captionHint: hint,
+      businessName
+    });
+    if(!ok || !data || !data.imageDataUrl){
+      toast((data && data.error) || 'Falha ao gerar arte');
+      return;
+    }
+    _aiArtResultDataUrl = data.imageDataUrl;
+    _aiArtResultCaption = String(data.caption || '');
+    const resImg = document.getElementById('ai-art-result-img');
+    const resCap = document.getElementById('ai-art-result-caption');
+    const resBox = document.getElementById('ai-art-result');
+    if(resImg) resImg.src = data.imageDataUrl;
+    if(resCap) resCap.value = _aiArtResultCaption;
+    if(resBox){
+      resBox.style.display = 'block';
+      setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+    toast('Arte pronta! ✨');
+  } catch(e){
+    console.warn('gerarArteIG:', e);
+    toast('Erro ao falar com o Seu Zé');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '✨ Gerar arte com Seu Zé'; }
+  }
+}
+
+function _aiArtDownload(){
+  if(!_aiArtResultDataUrl){ toast('Gere uma arte primeiro'); return; }
+  const a = document.createElement('a');
+  a.href = _aiArtResultDataUrl;
+  a.download = 'arte-ig-' + _aiArtStyle + '-' + Date.now() + '.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Arte baixada 📥');
+}
+
+function _aiArtReset(){
+  _aiArtPhotoDataUrl = null;
+  _aiArtResultDataUrl = null;
+  _aiArtResultCaption = '';
+  const img = document.getElementById('ai-art-preview');
+  const drop = document.getElementById('ai-art-drop');
+  const acts = document.getElementById('ai-art-photo-actions');
+  const resBox = document.getElementById('ai-art-result');
+  const hint = document.getElementById('ai-art-hint');
+  const input = document.getElementById('ai-art-input');
+  if(img){ img.src = ''; img.style.display = 'none'; }
+  if(drop) drop.style.display = 'block';
+  if(acts) acts.style.display = 'none';
+  if(resBox) resBox.style.display = 'none';
+  if(hint) hint.value = '';
+  if(input) input.value = '';
+  // Reseta seleção pro default "portrait"
+  const def = document.querySelector('#ai-art-styles .ai-art-style[data-style="portrait"]');
+  if(def) _aiArtSetStyle(def);
+}
+
+// Posta a arte gerada no feed do usuário usando o pipeline existente
+// (upload pra storage 'posts' + insert em posts com status approved).
+async function _aiArtPost(){
+  if(!_aiArtResultDataUrl){ toast('Gere uma arte primeiro'); return; }
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const caption = (document.getElementById('ai-art-result-caption')?.value || '').trim();
+  toast('Publicando…');
+  try {
+    // Converte data URL pra Blob
+    const m = /^data:([^;]+);base64,(.+)$/.exec(_aiArtResultDataUrl);
+    if(!m) throw new Error('arte inválida');
+    const mime = m[1];
+    const binary = atob(m[2]);
+    const arr = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) arr[i] = binary.charCodeAt(i);
+    const blob = new Blob([arr], { type: mime });
+    const ext = (mime.split('/')[1] || 'png').replace(/\W/g,'') || 'png';
+    const path = currentUser.id + '/ai-art-' + Date.now() + '.' + ext;
+    const { error: upErr } = await sb.storage.from('posts').upload(path, blob, { contentType: mime, upsert: false });
+    if(upErr) throw upErr;
+    const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+    const mediaUrl = urlData?.publicUrl;
+    if(!mediaUrl) throw new Error('sem publicUrl');
+
+    // Modera só o texto (a arte foi gerada pelo nosso pipeline; pula moderação de imagem)
+    const modResult = (typeof moderateContentAsync === 'function')
+      ? await moderateContentAsync(caption, null, false)
+      : { approved: true };
+    if(!modResult.approved && modResult.severity === 'hard'){
+      try { await sb.storage.from('posts').remove([path]); } catch(_){}
+      toast('Legenda bloqueada: ' + (modResult.reason || ''));
+      return;
+    }
+    const status = modResult.approved ? 'approved' : 'pending';
+    const { error: insErr } = await sb.from('posts').insert({
+      user_id: currentUser.id,
+      caption: caption || null,
+      media_url: mediaUrl,
+      media_type: 'image',
+      status,
+      created_at: new Date().toISOString()
+    });
+    if(insErr) throw insErr;
+    closeModals();
+    toast(status === 'approved' ? 'Post publicado no seu feed! 🎉' : 'Post enviado pra revisão');
+    if(typeof loadFeed === 'function') loadFeed();
+  } catch(e){
+    console.warn('_aiArtPost:', e);
+    toast('Erro ao publicar: ' + (e?.message || 'tente de novo'));
+  }
+}
+
 function selectAiLogo(el){
   document.querySelectorAll('.shirt-ai-logo-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
@@ -6255,7 +6450,7 @@ async function addCourse(btn){
       link: document.getElementById('c-link').value.trim() || null,
       duration: document.getElementById('c-duration').value.trim() || null,
       is_free: isFree,
-      price: isFree ? null : (parseFloat(document.getElementById('c-price').value) || null)
+      price: isFree ? null : (parseBRL(document.getElementById('c-price').value) || null)
     });
     if(error) throw error;
     ['c-title','c-sub','c-cover','c-link','c-duration','c-price'].forEach(id => document.getElementById(id).value = '');
@@ -7306,7 +7501,7 @@ async function publishPost(){
 
     // Sale data (grafiteiro)
     const forSale = document.getElementById('post-for-sale')?.checked || false;
-    const price = forSale ? (parseFloat(document.getElementById('post-price')?.value) || 0) : 0;
+    const price = forSale ? parseBRL(document.getElementById('post-price')?.value) : 0;
     const artType = forSale ? (document.getElementById('post-art-type')?.value || '') : '';
 
     const { data: insertData, error: insertErr } = await sb.from('posts').insert({
