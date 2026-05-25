@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-<script src="/head.js?v=20260524c" defer></script>
+<script src="/head.js?v=20260524d" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -638,6 +638,11 @@
           <img src="img/seu-ze.webp" alt="Seu Zé" style="width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;margin:0 auto 4px;display:block;">
           <div style="font-size:12px;font-weight:700;color:#fff;">Seu Zé</div>
           <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;">Tira dúvidas · PRO</div>
+        </div>
+        <div onclick="openAiArt()" style="background:linear-gradient(135deg,#ff6b35,#8338ec);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(131,56,236,.18);position:relative;">
+          <div style="font-size:28px;margin-bottom:6px;">🎨</div>
+          <div style="font-size:12px;font-weight:700;color:#fff;">Arte pra IG</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.85);margin-top:2px;">Foto vira post · PRO</div>
         </div>
         <div onclick="showScreen('camisetas')" style="background:var(--white);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);">
           <div style="font-size:28px;margin-bottom:6px;">👕</div>
@@ -1456,6 +1461,7 @@
     <div class="pro-feat"><span class="pro-feat-icon">🎓</span>Acesso a cursos exclusivos</div>
     <div class="pro-feat"><span class="pro-feat-icon">🤖</span>Orçamento gerado pelo Seu Zé</div>
     <div class="pro-feat"><span class="pro-feat-icon">🐻</span>Seu Zé — chat e voz pra tirar dúvidas</div>
+    <div class="pro-feat"><span class="pro-feat-icon">🎨</span>Arte pra Instagram a partir da sua foto</div>
     <button class="pro-cta" id="pro-cta-btn" onclick="startProCheckout()">Assinar Agora</button>
   </div>
 </div>
@@ -1736,6 +1742,84 @@
       </button>
     </div>
     <div style="font-size:10px;color:var(--muted);text-align:center;padding-top:8px;">Seu Zé é um ajudante virtual — confirme preços e produtos com a loja.</div>
+  </div>
+</div>
+
+<!-- ══ GERADOR DE ARTE PRA INSTAGRAM (PRO) ══ -->
+<div class="overlay" id="ai-art-modal" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;display:flex;flex-direction:column;">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#8338ec);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;">🎨</div>
+      <div style="flex:1;">
+        <div class="sheet-title" style="margin:0;font-size:16px;">Arte pra Instagram</div>
+        <div style="font-size:11px;color:var(--muted);">Foto + Seu Zé = post pronto</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;">PRO</div>
+    </div>
+    <div id="ai-art-body" style="overflow-y:auto;padding-top:8px;">
+      <!-- Foto de entrada -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">1. Sua foto</div>
+        <div onclick="document.getElementById('ai-art-input').click()" id="ai-art-drop" style="border:2px dashed var(--border);border-radius:14px;padding:24px;text-align:center;cursor:pointer;background:var(--cream);">
+          <div style="font-size:36px;margin-bottom:8px;">📷</div>
+          <div style="font-size:13px;font-weight:700;color:var(--ink);">Toque pra escolher uma foto</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Você mesmo, o trabalho, antes/depois...</div>
+        </div>
+        <img id="ai-art-preview" src="" alt="" style="display:none;width:100%;max-height:280px;object-fit:contain;border-radius:14px;background:#000;">
+        <input type="file" id="ai-art-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="_aiArtPickFile(this)">
+        <div style="display:none;margin-top:6px;gap:6px;justify-content:flex-end;" id="ai-art-photo-actions">
+          <button type="button" onclick="document.getElementById('ai-art-input').click()" style="padding:6px 10px;background:var(--cream);color:var(--ink);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">Trocar foto</button>
+        </div>
+      </div>
+      <!-- Estilo -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">2. Estilo da arte</div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" id="ai-art-styles">
+          <div class="ai-art-style sel" data-style="portrait" onclick="_aiArtSetStyle(this)" style="padding:12px 10px;border-radius:12px;border:2px solid var(--p1);background:rgba(255,107,53,.08);cursor:pointer;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">🧑‍🎨</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Retrato pintor</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Cinematográfico</div>
+          </div>
+          <div class="ai-art-style" data-style="antesdepois" onclick="_aiArtSetStyle(this)" style="padding:12px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">↔️</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Antes/Depois</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Split-screen</div>
+          </div>
+          <div class="ai-art-style" data-style="profissional" onclick="_aiArtSetStyle(this)" style="padding:12px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">✨</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Profissional</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Catálogo limpo</div>
+          </div>
+          <div class="ai-art-style" data-style="grafite" onclick="_aiArtSetStyle(this)" style="padding:12px 10px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
+            <div style="font-size:22px;margin-bottom:4px;">🎨</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Arte grafite</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Estilo mural</div>
+          </div>
+        </div>
+      </div>
+      <!-- Contexto opcional -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">3. Conta o que tem na foto (opcional)</div>
+        <input type="text" id="ai-art-hint" maxlength="180" placeholder="Ex: cozinha que acabei de pintar de verde sage" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;">
+      </div>
+      <!-- Gerar -->
+      <button id="ai-art-gen-btn" onclick="gerarArteIG()" style="width:100%;padding:14px;background:linear-gradient(135deg,#ff6b35,#8338ec);color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">✨ Gerar arte com Seu Zé</button>
+      <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px;">Cada geração consome 1 crédito. Limite 5/dia.</div>
+
+      <!-- Resultado -->
+      <div id="ai-art-result" style="display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Resultado</div>
+        <img id="ai-art-result-img" src="" alt="" style="width:100%;border-radius:14px;background:#000;margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px;">Legenda sugerida</div>
+        <textarea id="ai-art-result-caption" maxlength="800" style="width:100%;min-height:80px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;outline:none;margin-bottom:12px;"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button onclick="_aiArtPost()" style="flex:2;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;">📤 Postar no feed</button>
+          <button onclick="_aiArtDownload()" style="flex:1;padding:12px;background:var(--cream);color:var(--ink);border:1px solid var(--border);border-radius:12px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">📥 Baixar</button>
+        </div>
+        <button onclick="_aiArtReset()" style="width:100%;margin-top:8px;padding:10px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;">Gerar outra arte</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2197,7 +2281,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260524c" defer></script>
+<script src="/app.js?v=20260524d" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
