@@ -144,6 +144,48 @@ function dateTimeBR(d){
 }
 window.dateTimeBR = dateTimeBR;
 
+// Mensagens de erro padronizadas + helpers de robustez.
+const ERR = {
+  NETWORK: 'Sem conexão. Verifique sua internet e tente de novo.',
+  AUTH: 'Sessão expirada. Faça login novamente.',
+  PERMISSION: 'Você não tem permissão pra essa ação.',
+  RATE_LIMIT: 'Muitas tentativas. Aguarde um minuto.',
+  GENERIC: 'Algo deu errado. Tente de novo em instantes.'
+};
+window.ERR = ERR;
+
+async function withErrorHandling(fn, opts){
+  opts = opts || {};
+  try {
+    return await fn();
+  } catch (e) {
+    const msg = (opts.prefix ? opts.prefix + ': ' : 'Erro: ') + (e && e.message || e);
+    if (!opts.silent && typeof toast === 'function') toast(msg);
+    console.warn(opts.prefix || 'withErrorHandling', e && e.message || e);
+    return opts.fallback != null ? opts.fallback : null;
+  }
+}
+window.withErrorHandling = withErrorHandling;
+
+const _abortMap = new Map();
+async function abortableFetch(key, url, opts){
+  try {
+    const prev = _abortMap.get(key);
+    if (prev) { try { prev.abort(); } catch(_){} }
+  } catch(_) {}
+  const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  if (ac) _abortMap.set(key, ac);
+  try {
+    const r = await fetch(url, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {}));
+    if (ac && _abortMap.get(key) === ac) _abortMap.delete(key);
+    return r;
+  } catch (e) {
+    if (e && e.name === 'AbortError') return null;
+    throw e;
+  }
+}
+window.abortableFetch = abortableFetch;
+
 // Cache curto do perfil do usuário logado. Evita várias queries idênticas
 // a 'profiles' no login — loadMyProfileData, refreshProStatus, loadUserState
 // e updateMyStoryAvatar disparam quase juntas. Com o dedup do _inflight,

@@ -269,6 +269,65 @@ const Logo = () => (
   </div>
 );
 
+const AvatarCell = React.memo(function AvatarCell({ name, avatarUrl, size }) {
+  const s = size || 32;
+  const initial = ((name || '?')[0] || '?').toUpperCase();
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt="" style={{width:s,height:s,borderRadius:'50%',objectFit:'cover'}} />;
+  }
+  return (
+    <div style={{
+      width:s, height:s, borderRadius:'50%', background:'#e8e2d9',
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      fontSize: s*0.4, fontWeight:700, color:'#1a1a2e'
+    }}>{initial}</div>
+  );
+});
+
+const ProBadgeCell = React.memo(function ProBadgeCell({ profile, onChange }) {
+  const pro = isProActive(profile);
+  const paid = !!profile.mp_preapproval_id;
+  if (!pro) {
+    return (
+      <button onClick={() => setProfilePro(profile.id, true, onChange)} style={{ padding:'4px 10px', background:'#f0f0f0', border:'1px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:12 }}>
+        Habilitar PRO
+      </button>
+    );
+  }
+  const exp = profile.pro_expires_at ? new Date(profile.pro_expires_at).toLocaleDateString('pt-BR') : '—';
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+      <span style={{ padding:'2px 8px', background:'#7c4dff', color:'#fff', borderRadius:20, fontSize:11, fontWeight:700 }}>
+        {paid ? '💳 PRO' : '✋ PRO'}
+      </span>
+      <span style={{ fontSize:11, color:'#666' }}>até {exp}</span>
+      {!paid && (
+        <button onClick={() => setProfilePro(profile.id, false, onChange)} style={{ padding:'2px 6px', background:'transparent', border:'1px solid #ddd', borderRadius:4, cursor:'pointer', fontSize:10 }}>
+          Remover
+        </button>
+      )}
+    </span>
+  );
+});
+
+const PortalAccessCell = React.memo(function PortalAccessCell({ profile, onChange }) {
+  if (profile.portal_access) {
+    return (
+      <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+        <span style={{ padding:'2px 8px', background:'#10b981', color:'#fff', borderRadius:20, fontSize:11, fontWeight:700 }}>✓ Portal</span>
+        <button onClick={() => revokePortal(profile.id, onChange)} style={{ padding:'2px 6px', background:'transparent', border:'1px solid #ddd', borderRadius:4, cursor:'pointer', fontSize:10 }}>
+          Revogar
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button onClick={() => promoteToPortal(profile.id, onChange)} style={{ padding:'4px 10px', background:'#f0f0f0', border:'1px solid #ddd', borderRadius:6, cursor:'pointer', fontSize:12 }}>
+      Promover
+    </button>
+  );
+});
+
 const NavItem = React.memo(function NavItem({ icon, label, badge, active, onClick }) {
   return (
     <div onClick={onClick} style={{
@@ -459,9 +518,7 @@ const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
             <tr key={p.id} style={{ borderBottom:'1px solid '+C.border }}>
               <td style={{ padding:'10px 12px' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background:C.p1+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:C.p1, flexShrink:0 }}>
-                    {p.avatar_url ? <img src={p.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (p.name || '?')[0]}
-                  </div>
+                  <AvatarCell name={p.name} avatarUrl={p.avatar_url} size={32} />
                   <span style={{ fontWeight:600 }}>{p.name || 'Sem nome'}</span>
                 </div>
               </td>
@@ -475,32 +532,10 @@ const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
                 {p.verified ? <span style={{ background:C.p6+'22', color:C.p6, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Aprovado</span> : <span style={{ background:C.p7+'22', color:'#b8860b', borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>Pendente</span>}
               </td>
               <td style={{ padding:'10px 12px' }}>
-                {(() => {
-                  const pro = isProActive(p);
-                  const paid = !!p.mp_preapproval_id;
-                  const exp = p.pro_expires_at ? new Date(p.pro_expires_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : null;
-                  return (
-                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background: pro ? '#16a34a22' : C.border, color: pro ? '#16a34a' : C.muted }}>
-                          {pro ? 'PRO' : 'Free'}
-                        </span>
-                        <span style={{ fontSize:10, color:C.muted }} title={paid ? 'Assinatura via Mercado Pago' : 'Sem pagamento registrado'}>
-                          {paid ? '💳 Pago' : (pro ? '✋ Manual' : '— não pagou')}
-                        </span>
-                      </div>
-                      {pro && exp && <span style={{ fontSize:10, color:C.muted }}>até {exp}</span>}
-                      {pro
-                        ? <button onClick={() => setProfilePro(p.id, false, fetchPintores)} style={{ background:'none', border:'1px solid '+C.muted, color:C.muted, borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:600 }}>Remover PRO</button>
-                        : <button onClick={() => setProfilePro(p.id, true, fetchPintores)} style={{ background:'#16a34a', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:700 }}>Habilitar PRO</button>}
-                    </div>
-                  );
-                })()}
+                <ProBadgeCell profile={p} onChange={fetchPintores} />
               </td>
               <td style={{ padding:'10px 12px' }}>
-                {p.portal_access
-                  ? <button onClick={() => revokePortal(p.id, fetchPintores)} style={{ background:C.p5+'22', color:C.p5, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }} title="Remover acesso ao portal">✓ Portal</button>
-                  : <button onClick={() => promoteToPortal(p.id, fetchPintores)} style={{ background:'none', border:'1px solid '+C.p5, color:C.p5, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Promover</button>}
+                <PortalAccessCell profile={p} onChange={fetchPintores} />
               </td>
               <td style={{ padding:'10px 12px' }}>
                 <div style={{ display:'flex', gap:6 }}>
@@ -1511,6 +1546,9 @@ const Leads = () => {
     return sc;
   }, [leads]);
 
+  const sortedSegments = React.useMemo(() => Object.entries(segments).sort((a,b) => b[1]-a[1]), [segments]);
+  const sortedCategories = React.useMemo(() => Object.entries(categories).sort((a,b) => b[1]-a[1]), [categories]);
+
   const exportCSV = () => {
     const header = ['#','Nome','Bairro','Segmento','Categoria','Rating','Reviews','Telefone','Prioridade','Status'];
     const rows = filtered.map((l,i) => [i+1, l.name||'', l.neighborhood||'', l.segment||'', l.category||'', l.rating||'', l.review_count||'', l.phone||'', l.priority||'', l.status||'']);
@@ -1544,7 +1582,7 @@ const Leads = () => {
         <div style={{ background:C.white, borderRadius:20, padding:'8px 16px', display:'flex', alignItems:'center', gap:6, border:'1px solid '+C.border }}>
           <span style={{ color:C.p6, fontWeight:700, fontSize:16 }}>{statusCounts.convertido||0}</span><span style={{ color:C.muted, fontSize:12 }}>clientes</span>
         </div>
-        {Object.entries(segments).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([seg, count]) => (
+        {sortedSegments.slice(0,5).map(([seg, count]) => (
           <div key={seg} style={{ background:C.white, borderRadius:20, padding:'8px 16px', display:'flex', alignItems:'center', gap:6, border:'1px solid '+C.border }}>
             <span style={{ fontSize:14 }}>{segIcons[seg]||'📌'}</span>
             <span style={{ color:C.ink, fontWeight:700, fontSize:16 }}>{count}</span>
@@ -1579,7 +1617,7 @@ const Leads = () => {
         {/* SEGMENT CHIPS */}
         <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
           <button onClick={()=>setFiltroSegmento('TODOS')} style={{ padding:'6px 14px', borderRadius:20, border:'1px solid '+(filtroSegmento==='TODOS'?C.p1:C.border), background:filtroSegmento==='TODOS'?C.p1:'transparent', color:filtroSegmento==='TODOS'?'#fff':C.ink, cursor:'pointer', fontSize:12, fontWeight:600 }}>TODOS {leads.length}</button>
-          {Object.entries(segments).sort((a,b)=>b[1]-a[1]).map(([seg, count]) => (
+          {sortedSegments.map(([seg, count]) => (
             <button key={seg} onClick={()=>setFiltroSegmento(seg===filtroSegmento?'TODOS':seg)} style={{ padding:'6px 14px', borderRadius:20, border:'1px solid '+(filtroSegmento===seg?C.p1:C.border), background:filtroSegmento===seg?'rgba(255,107,53,0.1)':'transparent', color:filtroSegmento===seg?C.p1:C.ink, cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', gap:6 }}>
               <span>{segIcons[seg]||'📌'}</span><span>{seg}</span><span style={{ background:'rgba(0,0,0,0.08)', borderRadius:10, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{count}</span>
             </button>
@@ -1589,7 +1627,7 @@ const Leads = () => {
         {/* CATEGORY CHIPS */}
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button onClick={()=>setFiltroCategoria('Todas')} style={{ padding:'4px 12px', borderRadius:16, border:'1px solid '+(filtroCategoria==='Todas'?C.p1:C.border), background:filtroCategoria==='Todas'?C.p1:'transparent', color:filtroCategoria==='Todas'?'#fff':C.muted, cursor:'pointer', fontSize:11 }}>Todas {leads.length}</button>
-          {Object.entries(categories).sort((a,b)=>b[1]-a[1]).map(([cat, count]) => (
+          {sortedCategories.map(([cat, count]) => (
             <button key={cat} onClick={()=>setFiltroCategoria(cat===filtroCategoria?'Todas':cat)} style={{ padding:'4px 12px', borderRadius:16, border:'1px solid '+(filtroCategoria===cat?C.p1:C.border), background:filtroCategoria===cat?'rgba(255,107,53,0.08)':'transparent', color:filtroCategoria===cat?C.p1:C.muted, cursor:'pointer', fontSize:11, display:'flex', alignItems:'center', gap:4 }}>
               <span>{catIcons[cat]||'🔹'}</span><span>{cat}</span><span style={{ fontWeight:700 }}>{count}</span>
             </button>
@@ -1796,7 +1834,7 @@ const ClientesList = () => {
               <tr key={c.id || i} style={{ borderBottom:'1px solid '+C.border }}>
                 <td style={{ padding:'10px 12px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:'50%', background:C.p3+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:C.p3 }}>{(c.name || '?')[0]}</div>
+                    <AvatarCell name={c.name} avatarUrl={c.avatar_url} size={32} />
                     <span style={{ fontWeight:600 }}>{c.name || 'Sem nome'}</span>
                   </div>
                 </td>
@@ -1809,32 +1847,10 @@ const ClientesList = () => {
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c._generated_codes && c._generated_codes.length > 0 ? c._generated_codes.join(', ') : '—'}</td>
                 <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, fontWeight:700, letterSpacing:1 }}>{c.invite_code_used || '—'}</td>
                 <td style={{ padding:'10px 12px' }}>
-                  {(() => {
-                    const pro = isProActive(c);
-                    const paid = !!c.mp_preapproval_id;
-                    const exp = c.pro_expires_at ? new Date(c.pro_expires_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : null;
-                    return (
-                      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background: pro ? '#16a34a22' : C.border, color: pro ? '#16a34a' : C.muted }}>
-                            {pro ? 'PRO' : 'Free'}
-                          </span>
-                          <span style={{ fontSize:10, color:C.muted }} title={paid ? 'Assinatura via Mercado Pago' : 'Sem pagamento registrado'}>
-                            {paid ? '💳 Pago' : (pro ? '✋ Manual' : '— não pagou')}
-                          </span>
-                        </div>
-                        {pro && exp && <span style={{ fontSize:10, color:C.muted }}>até {exp}</span>}
-                        {pro
-                          ? <button onClick={() => setProfilePro(c.id, false, fetchClientes)} style={{ background:'none', border:'1px solid '+C.muted, color:C.muted, borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:600 }}>Remover PRO</button>
-                          : <button onClick={() => setProfilePro(c.id, true, fetchClientes)} style={{ background:'#16a34a', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:700 }}>Habilitar PRO</button>}
-                      </div>
-                    );
-                  })()}
+                  <ProBadgeCell profile={c} onChange={fetchClientes} />
                 </td>
                 <td style={{ padding:'10px 12px' }}>
-                  {c.portal_access
-                    ? <button onClick={() => revokePortal(c.id, fetchClientes)} style={{ background:C.p5+'22', color:C.p5, border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }} title="Remover acesso ao portal">✓ Portal</button>
-                    : <button onClick={() => promoteToPortal(c.id, fetchClientes)} style={{ background:'none', border:'1px solid '+C.p5, color:C.p5, borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Promover</button>}
+                  <PortalAccessCell profile={c} onChange={fetchClientes} />
                 </td>
               </tr>
             );
@@ -2385,26 +2401,14 @@ const PortalUsersList = () => {
               <tr key={u.id} style={{ borderBottom:'1px solid '+C.border }}>
                 <td style={{ padding:'10px 12px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:'50%', overflow:'hidden', background:C.p1+'22', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:C.p1, flexShrink:0 }}>
-                      {u.avatar_url ? <img src={u.avatar_url} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : (u.name || '?')[0]}
-                    </div>
+                    <AvatarCell name={u.name} avatarUrl={u.avatar_url} size={32} />
                     <span style={{ fontWeight:600 }}>{u.name || 'Sem nome'}</span>
                   </div>
                 </td>
                 <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.email || '—'}</td>
                 <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.role || u.user_type || 'admin'}</span></td>
                 <td style={{ padding:'10px 12px' }}>
-                  {(() => {
-                    const pro = isProActive(u);
-                    return (
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background: pro ? '#16a34a22' : C.border, color: pro ? '#16a34a' : C.muted }}>{pro ? 'PRO' : 'Free'}</span>
-                        {pro
-                          ? <button onClick={() => setProfilePro(u.id, false, fetchUsers)} style={{ background:'none', border:'1px solid '+C.muted, color:C.muted, borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:600 }}>Remover PRO</button>
-                          : <button onClick={() => setProfilePro(u.id, true, fetchUsers)} style={{ background:'#16a34a', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:10, fontWeight:700 }}>Habilitar PRO</button>}
-                      </div>
-                    );
-                  })()}
+                  <ProBadgeCell profile={u} onChange={fetchUsers} />
                 </td>
                 <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                 <td style={{ padding:'10px 12px' }}>
@@ -2772,6 +2776,19 @@ const PAGES_DEF = [
   { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesTab /> },
 ];
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('Portal crash:', error && error.message); }
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', { style:{padding:24,color:'#c00',fontFamily:'monospace',whiteSpace:'pre-wrap'} },
+        'Erro no portal: ' + (this.state.error.message || 'desconhecido') + '\nRecarregue a página.');
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [page, setPage] = useState('dashboard');
   const [loggedIn, setLoggedIn] = useState(false);
@@ -2971,7 +2988,7 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
 </script>
 </body>
 </html>

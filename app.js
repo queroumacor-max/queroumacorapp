@@ -1610,7 +1610,13 @@ async function falarSeuZe(text){
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 1500) })
     });
-    if(!r.ok){ console.warn('tts error: status', r.status); return; }
+    if(!r.ok){
+      console.warn('tts error: status', r.status);
+      try { if(_aiVoiceAudio){ _aiVoiceAudio.pause(); } } catch(_) {}
+      _aiVoiceAudio = null;
+      if(r.status === 429){ try { toast(window.ERR ? window.ERR.RATE_LIMIT : 'Muitas tentativas.'); } catch(_) {} }
+      return;
+    }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     if(_aiVoiceAudio){ try { _aiVoiceAudio.pause(); } catch(e){} }
@@ -1619,6 +1625,9 @@ async function falarSeuZe(text){
     _aiVoiceAudio.onended = () => { URL.revokeObjectURL(url); _aiVoiceAudio = null; };
   } catch(e){
     console.warn('falarSeuZe:', e && e.message || e);
+    try { if(_aiVoiceAudio){ _aiVoiceAudio.pause(); } } catch(_) {}
+    _aiVoiceAudio = null;
+    try { toast(window.ERR ? window.ERR.NETWORK : 'Sem conexão.'); } catch(_) {}
   }
 }
 
@@ -2138,7 +2147,7 @@ function saveChecklist(){
         if(data && data.id) _checklistRowId = data.id;
       }
     } catch(e){ console.warn('saveChecklist:', e && e.message || e); }
-  });
+  }).catch(e => { console.warn('checklist save:', e && e.message || e); _checklistSaveQueue = Promise.resolve(); });
 }
 
 // ══ ANOTAÇÕES (notas do pintor) ══
@@ -3229,14 +3238,17 @@ function renderConvList(container, convMap, myId){
 const CALICOLORS_EMAIL = 'calicolortintas@gmail.com';
 let calicolorsUserId = null;
 
+let _searchNewChatToken = 0;
 async function _searchNewChatUsersImpl(query){
   const container = document.getElementById('new-chat-users-list');
   if(!query || query.trim().length < 2){ container.innerHTML = ''; return; }
   const sb = getSupabase();
   if(!sb) return;
+  const myToken = ++_searchNewChatToken;
   try {
     const q = query.replace('@','').trim().toLowerCase();
     const res = await sb.from('profiles').select('id, name, tag, avatar_url, role, user_type').limit(200);
+    if(myToken !== _searchNewChatToken) return; // resposta velha, ignora
     const all = res.data || [];
     const filtered = all.filter(p => {
       if(currentUser && p.id === currentUser.id) return false;
@@ -5241,11 +5253,22 @@ async function loadUserState(){
   } catch(e){ console.warn('loadUserState:', e && e.message || e); }
 }
 
-function saveCart(){
+async function saveCart(){
+  // 1. Salva local primeiro (resiliente a falha de rede; chamadas seguintes
+  //    de saveCart() re-tentam o Supabase com o cartItems atual).
+  try {
+    if(currentUser && currentUser.id){
+      localStorage.setItem('cart_' + currentUser.id, JSON.stringify(cartItems));
+    }
+  } catch(_) {}
   const sb = getSupabase();
   if(!sb || !currentUser) return;
-  sb.from('profiles').update({ cart: cartItems }).eq('id', currentUser.id)
-    .then(({ error }) => { if(error) console.warn('saveCart:', error.message); });
+  try {
+    const { error } = await sb.from('profiles').update({ cart: cartItems }).eq('id', currentUser.id);
+    if(error) console.warn('saveCart:', error.message);
+  } catch(e){
+    console.warn('saveCart:', e && e.message || e);
+  }
 }
 
 function updateCartBadge(){
@@ -5855,6 +5878,8 @@ const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
 
 let _aiLogoCount = 0;
 function _aiLogoGenCount(){ return _aiLogoCount; }
+// FIXME(security): falha silente permite ganhar 2ª logo grátis se o update falhar.
+// Mover pra RPC SECURITY DEFINER ou trigger DB (auditoria error #2).
 function _aiLogoBumpCount(){
   _aiLogoCount = _aiLogoCount + 1;
   const sb = getSupabase();
