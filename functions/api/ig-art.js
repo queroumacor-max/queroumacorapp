@@ -6,14 +6,12 @@ import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image-preview';
-// Lista de fallback caso o modelo principal não exista/sem acesso pra essa chave.
-// Quando "nano-banana-2" sair publicamente, basta antepor o nome aqui (ou setar
-// env GEMINI_IMG_MODEL pra forçar um único modelo).
+// Limitamos a 1 fallback pra caber no timeout de 30s do Cloudflare Pages.
+// Imagem leva 8-20s; chain de 4 modelos = 502 garantido.
 const IMG_MODEL_FALLBACKS = [
-  'gemini-2.5-flash-image',
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-exp'
+  'gemini-2.0-flash-exp-image-generation'
 ];
+const FETCH_TIMEOUT_MS = 22000; // 22s por tentativa — sobra 6s pra outras coisas
 const MAX_INPUT_BYTES = 8 * 1024 * 1024; // 8MB de foto de entrada
 
 // Presets de estilo — chave curta no front, prompt rico aqui.
@@ -53,6 +51,15 @@ const FALLBACK_CAPTIONS = {
 };
 
 export async function onRequestPost(context) {
+  try {
+    return await handle(context);
+  } catch (e) {
+    // Garante que SEMPRE retorna JSON — nunca deixa Cloudflare devolver HTML 502
+    return json({ error: 'Erro interno: ' + String(e?.message || e) }, 500);
+  }
+}
+
+async function handle(context) {
   const { env, request } = context;
 
   if (!env.GEMINI_API_KEY) {
@@ -108,26 +115,33 @@ export async function onRequestPost(context) {
 
 async function generateImageWithFallback({ env, models, prompt, mime, b64 }) {
   let lastErr = '';
+  let lastModel = '';
   for (const model of models) {
+    lastModel = model;
     const r = await generateImage({ env, model, prompt, mime, b64 });
     if (r.b64) return { ...r, modelTried: model };
     lastErr = r.error || 'sem detalhe';
-    // Se erro for permissão/quota, não adianta tentar outro modelo
-    if (/403|permission|quota/i.test(lastErr)) {
-      return { error: 'Sem permissão ou quota esgotada — ' + lastErr, modelTried: model };
+    // Fallback SÓ quando o modelo não existe (404). Timeout/quota/permissão
+    // não vão melhorar com outro modelo e estouram o limite de 30s do Pages.
+    const isModelNotFound = /404|NOT_FOUND|not found|not.support/i.test(lastErr);
+    if (!isModelNotFound) {
+      return { error: lastErr, modelTried: model };
     }
-    console.warn('ig-art: modelo', model, 'falhou:', lastErr);
+    console.warn('ig-art: modelo', model, 'inexistente, tentando próximo:', lastErr);
   }
-  return { error: 'Todos os modelos falharam. Último: ' + lastErr, modelTried: models[models.length - 1] };
+  return { error: 'Todos os modelos retornaram 404. Último: ' + lastErr, modelTried: lastModel };
 }
 
 async function generateImage({ env, model, prompt, mime, b64 }) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
     const r = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: ac.signal,
         body: JSON.stringify({
           contents: [{
             role: 'user',
@@ -171,7 +185,12 @@ async function generateImage({ env, model, prompt, mime, b64 }) {
     const txt = parts.map(p => p.text).filter(Boolean).join(' ').slice(0, 200);
     return { error: `"${model}" retornou só texto: ${txt || '(vazio)'}` };
   } catch (e) {
+    if (e?.name === 'AbortError') {
+      return { error: `Timeout (${FETCH_TIMEOUT_MS/1000}s) gerando com "${model}"` };
+    }
     return { error: `Erro de rede pra "${model}": ` + String(e?.message || e) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
