@@ -89,7 +89,12 @@ async function handle(context) {
   }
 
   const stylePrompt = STYLE_PROMPTS[styleKey] || STYLE_PROMPTS.portrait;
-  const hintPart = captionHint ? ' Contexto adicional do que tem na foto: ' + captionHint + '.' : '';
+  // captionHint = mensagem do profissional (o que ele quer transmitir/destacar).
+  // Entra no prompt da arte (Gemini Image) E na legenda (Gemini Text), pra
+  // garantir que a imagem reforça visualmente o que ele quer comunicar.
+  const hintPart = captionHint
+    ? ` IMPORTANTE — o profissional quer transmitir o seguinte com essa imagem: "${captionHint}". Componha a arte reforçando visualmente essa mensagem (foco, ângulo, iluminação, destaque do que importa).`
+    : '';
   const imgPrompt = stylePrompt + hintPart;
 
   const imgModel = env.GEMINI_IMG_MODEL || DEFAULT_IMG_MODEL;
@@ -206,7 +211,7 @@ async function generateCaption({ env, styleKey, captionHint, businessName }) {
 
   let user = `Tipo de imagem: ${styleHint}.`;
   if (businessName) user += `\nNome da empresa do profissional: ${businessName}.`;
-  if (captionHint) user += `\nContexto da foto: ${captionHint}.`;
+  if (captionHint) user += `\nMensagem que o profissional quer transmitir nesse post: "${captionHint}". Construa a legenda em volta dessa mensagem, com a voz dele (1ª pessoa, jeito de quem trabalha).`;
   user += '\n\nEscreva 1 legenda curta pra esse post no Instagram. Retorne SÓ a legenda, sem aspas, sem prefixo, sem nada antes ou depois.';
 
   const { text } = await callAIText({
