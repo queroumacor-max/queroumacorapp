@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-<script src="/head.js?v=20260525d" defer></script>
+<script src="/head.js?v=20260525e" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1772,7 +1772,7 @@
           <button type="button" onclick="document.getElementById('ai-art-input').click()" style="padding:6px 10px;background:var(--cream);color:var(--ink);border:1px solid var(--border);border-radius:8px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">Trocar foto</button>
         </div>
       </div>
-      <!-- Estilo -->
+      <!-- Estilo + mensagem -->
       <div style="margin-bottom:14px;">
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">2. Estilo da arte</div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" id="ai-art-styles">
@@ -1797,11 +1797,11 @@
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">Estilo mural</div>
           </div>
         </div>
-      </div>
-      <!-- Contexto opcional -->
-      <div style="margin-bottom:14px;">
-        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">3. Conta o que tem na foto (opcional)</div>
-        <input type="text" id="ai-art-hint" maxlength="180" placeholder="Ex: cozinha que acabei de pintar de verde sage" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;">
+        <!-- Mensagem do profissional — entra no prompt da arte E na legenda -->
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">💬 O que você quer falar ou mostrar nessa arte? <span style="font-style:italic;">(opcional — o Seu Zé leva em conta)</span></div>
+          <textarea id="ai-art-hint" maxlength="280" rows="2" placeholder="Ex: destacar o acabamento liso, mostrar que sou cuidadoso com os móveis, passar profissionalismo" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box;outline:none;resize:vertical;"></textarea>
+        </div>
       </div>
       <!-- Gerar -->
       <button id="ai-art-gen-btn" onclick="gerarArteIG()" style="width:100%;padding:14px;background:linear-gradient(135deg,#ff6b35,#8338ec);color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">✨ Gerar arte com Seu Zé</button>
@@ -2281,7 +2281,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260525d" defer></script>
+<script src="/app.js?v=20260525e" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
