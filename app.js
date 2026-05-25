@@ -5878,14 +5878,26 @@ const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
 
 let _aiLogoCount = 0;
 function _aiLogoGenCount(){ return _aiLogoCount; }
-// FIXME(security): falha silente permite ganhar 2ª logo grátis se o update falhar.
-// Mover pra RPC SECURITY DEFINER ou trigger DB (auditoria error #2).
-function _aiLogoBumpCount(){
-  _aiLogoCount = _aiLogoCount + 1;
+// Atomic via RPC SECURITY DEFINER (bump_ai_logo_count): incrementa no DB
+// e devolve o novo count autoritativo. Antes era UPDATE direto com
+// falha silente — atacante podia ganhar 2ª logo grátis se rede caísse.
+async function _aiLogoBumpCount(){
   const sb = getSupabase();
-  if(sb && currentUser){
-    sb.from('profiles').update({ ai_logo_gen_count: _aiLogoCount }).eq('id', currentUser.id)
-      .then(({ error }) => { if(error) console.warn('_aiLogoBumpCount:', error.message); });
+  if(!sb || !currentUser){
+    _aiLogoCount = _aiLogoCount + 1;  // fallback otimista offline
+    return;
+  }
+  try {
+    const { data, error } = await sb.rpc('bump_ai_logo_count');
+    if (error) throw error;
+    if (data && typeof data.count === 'number') {
+      _aiLogoCount = data.count;
+    } else {
+      _aiLogoCount = _aiLogoCount + 1;
+    }
+  } catch (e) {
+    console.warn('_aiLogoBumpCount:', e && e.message || e);
+    _aiLogoCount = _aiLogoCount + 1;  // fallback otimista — não bloqueia UX
   }
   return _aiLogoCount;
 }
