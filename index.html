@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-<script src="/head.js?v=20260524b" defer></script>
+<script src="/head.js?v=20260524c" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1495,7 +1495,7 @@
     <input id="c-cover" placeholder="URL da imagem de capa (opcional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
     <input id="c-link" placeholder="Link de acesso (opcional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
-      <input id="c-price" type="number" placeholder="Preço (R$)" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
+      <input id="c-price" type="text" inputmode="decimal" placeholder="Preço (R$)" onblur="fmtBRL(this)" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
       <input id="c-duration" placeholder="Duração (ex: 4h)" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
       <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;"><input type="checkbox" id="c-free">Grátis</label>
     </div>
@@ -1511,7 +1511,7 @@
     <div class="sheet-title">💰 Valor do orçamento</div>
     <div id="qp-ia-note" style="display:none;background:linear-gradient(135deg,rgba(131,56,236,.08),rgba(255,107,53,.08));border:1px solid rgba(131,56,236,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--ink);line-height:1.55;margin-bottom:14px;"></div>
     <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;">Valor (R$)</label>
-    <input id="qp-price-input" type="text" inputmode="decimal" placeholder="Ex: 1500,00" style="width:100%;box-sizing:border-box;padding:14px;border:1.5px solid var(--border);border-radius:12px;font-size:18px;font-weight:700;font-family:DM Sans,sans-serif;outline:none;margin-bottom:14px;">
+    <input id="qp-price-input" type="text" inputmode="decimal" placeholder="Ex: 1.500,00" onblur="fmtBRL(this)" style="width:100%;box-sizing:border-box;padding:14px;border:1.5px solid var(--border);border-radius:12px;font-size:18px;font-weight:700;font-family:DM Sans,sans-serif;outline:none;margin-bottom:14px;">
     <div style="display:flex;gap:8px;">
       <button onclick="closeModals()" style="flex:1;padding:13px;background:var(--white);color:var(--ink);border:1px solid var(--border);border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Cancelar</button>
       <button onclick="enviarQuoteConfirmar()" style="flex:2;padding:13px;background:var(--ink);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Enviar pro cliente</button>
@@ -1546,7 +1546,7 @@
     <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Tipo de projeto</label><select class="auth-input" id="job-servico" style="padding:12px;"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada</option><option>Pintura automotiva</option><option>Funilaria</option><option>Grafite / Mural</option><option>Outro</option></select></div>
     <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Data</label><input class="auth-input" type="date" id="job-data"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Hora</label><input class="auth-input" type="time" id="job-hora"></div></div>
     <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Endereço</label><input class="auth-input" id="job-endereco" placeholder="Rua, bairro"></div>
-    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Receita (R$)</label><input class="auth-input" type="number" id="job-receita" placeholder="0"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Custo Material</label><input class="auth-input" type="number" id="job-custo" placeholder="0"></div></div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Receita (R$)</label><input class="auth-input" type="text" inputmode="decimal" id="job-receita" placeholder="0,00" onblur="fmtBRL(this)"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Custo Material</label><input class="auth-input" type="text" inputmode="decimal" id="job-custo" placeholder="0,00" onblur="fmtBRL(this)"></div></div>
     <div class="auth-field" style="margin-bottom:12px;"><label class="auth-label">Detalhes do projeto</label><textarea class="auth-input" id="job-notas" rows="3" placeholder="Escopo, cômodos, cores, condições, prazo..." style="resize:none;"></textarea></div>
     <button onclick="salvarJob()" style="width:100%;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar Projeto</button>
   </div>
@@ -1601,8 +1601,8 @@
       <input class="auth-input" id="fin-nome" placeholder="Nome do projeto" style="margin-bottom:8px;">
       <input class="auth-input" id="fin-cliente" placeholder="Cliente" style="margin-bottom:8px;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input class="auth-input" id="fin-recebido" type="number" placeholder="Recebido (R$)" style="flex:1;">
-        <input class="auth-input" id="fin-gasto" type="number" placeholder="Gasto (R$)" style="flex:1;">
+        <input class="auth-input" id="fin-recebido" type="text" inputmode="decimal" placeholder="Recebido (R$)" onblur="fmtBRL(this)" style="flex:1;">
+        <input class="auth-input" id="fin-gasto" type="text" inputmode="decimal" placeholder="Gasto (R$)" onblur="fmtBRL(this)" style="flex:1;">
       </div>
       <button onclick="salvarFinEntry()" style="width:100%;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">+ Adicionar</button>
     </div>
@@ -1809,11 +1809,11 @@
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
         <label class="auth-label">Valor mão de obra (R$/m²)</label>
-        <input class="auth-input" type="number" id="ai-orc-preco" placeholder="Ex: 25" step="0.5">
+        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-preco" placeholder="Ex: 25,00" onblur="fmtBRL(this)">
       </div>
       <div class="auth-field" style="flex:1;">
         <label class="auth-label">Valor fechado (R$)</label>
-        <input class="auth-input" type="number" id="ai-orc-valorfechado" placeholder="Se preço fechado">
+        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-valorfechado" placeholder="Se preço fechado" onblur="fmtBRL(this)">
       </div>
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
@@ -1837,7 +1837,7 @@
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
       <label class="auth-label">Entrada / sinal (R$, opcional)</label>
-      <input class="auth-input" type="number" id="ai-orc-entrada" placeholder="Ex: 500">
+      <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-entrada" placeholder="Ex: 500,00" onblur="fmtBRL(this)">
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
       <label class="auth-label">Aceita pagamento em</label>
@@ -1908,7 +1908,7 @@
         </label>
       </div>
       <div id="post-price-wrap" style="display:none;gap:10px;align-items:center;">
-        <div style="flex:1;"><input class="auth-input" type="number" id="post-price" placeholder="Preço (R$)" step="0.01" style="width:100%;"></div>
+        <div style="flex:1;"><input class="auth-input" type="text" inputmode="decimal" id="post-price" placeholder="Preço (R$)" onblur="fmtBRL(this)" style="width:100%;"></div>
         <div style="flex:1;">
           <select class="auth-input" id="post-art-type" style="padding:12px;width:100%;">
             <option>Tela / Quadro</option>
@@ -2197,7 +2197,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260524b" defer></script>
+<script src="/app.js?v=20260524c" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
