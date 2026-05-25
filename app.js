@@ -5982,6 +5982,173 @@ function _applyLogoToShirt(){
   if(btn) btn.classList.add('active');
 }
 
+// ══ AI ART GENERATOR (Instagram) ══
+// Pipeline: usuário escolhe foto + estilo → /api/ig-art devolve arte (data URL)
+// e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
+let _aiArtPhotoDataUrl = null;     // base64 da foto enviada
+let _aiArtStyle = 'portrait';
+let _aiArtResultDataUrl = null;    // base64 da arte gerada (pra reuso no post)
+let _aiArtResultCaption = '';
+
+function openAiArt(){
+  if(!gateProClient('Gerar arte pra Instagram com Seu Zé')) return;
+  _aiArtReset();
+  showModal('ai-art-modal');
+}
+
+function _aiArtPickFile(input){
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(!f.type.startsWith('image/')){ toast('Selecione uma imagem'); return; }
+  if(f.size > 8 * 1024 * 1024){ toast('Foto muito grande (máx 8MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    _aiArtPhotoDataUrl = e.target.result;
+    const img = document.getElementById('ai-art-preview');
+    const drop = document.getElementById('ai-art-drop');
+    const acts = document.getElementById('ai-art-photo-actions');
+    if(img){ img.src = e.target.result; img.style.display = 'block'; }
+    if(drop) drop.style.display = 'none';
+    if(acts) acts.style.display = 'flex';
+  };
+  reader.readAsDataURL(f);
+}
+
+function _aiArtSetStyle(el){
+  if(!el) return;
+  _aiArtStyle = el.getAttribute('data-style') || 'portrait';
+  document.querySelectorAll('#ai-art-styles .ai-art-style').forEach(c => {
+    c.classList.remove('sel');
+    c.style.border = '2px solid var(--border)';
+    c.style.background = '#fff';
+  });
+  el.classList.add('sel');
+  el.style.border = '2px solid var(--p1)';
+  el.style.background = 'rgba(255,107,53,.08)';
+}
+
+async function gerarArteIG(){
+  if(!_aiArtPhotoDataUrl){ toast('Escolha uma foto primeiro'); return; }
+  const btn = document.getElementById('ai-art-gen-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '✨ Seu Zé tá pintando...'; }
+  try {
+    const businessName = (typeof getMyProfile === 'function')
+      ? ((await getMyProfile())?.business_name || '')
+      : '';
+    const hint = (document.getElementById('ai-art-hint')?.value || '').trim();
+    const { ok, data } = await apiPost('/api/ig-art', {
+      photoDataUrl: _aiArtPhotoDataUrl,
+      style: _aiArtStyle,
+      captionHint: hint,
+      businessName
+    });
+    if(!ok || !data || !data.imageDataUrl){
+      toast((data && data.error) || 'Falha ao gerar arte');
+      return;
+    }
+    _aiArtResultDataUrl = data.imageDataUrl;
+    _aiArtResultCaption = String(data.caption || '');
+    const resImg = document.getElementById('ai-art-result-img');
+    const resCap = document.getElementById('ai-art-result-caption');
+    const resBox = document.getElementById('ai-art-result');
+    if(resImg) resImg.src = data.imageDataUrl;
+    if(resCap) resCap.value = _aiArtResultCaption;
+    if(resBox){
+      resBox.style.display = 'block';
+      setTimeout(() => resBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+    toast('Arte pronta! ✨');
+  } catch(e){
+    console.warn('gerarArteIG:', e);
+    toast('Erro ao falar com o Seu Zé');
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '✨ Gerar arte com Seu Zé'; }
+  }
+}
+
+function _aiArtDownload(){
+  if(!_aiArtResultDataUrl){ toast('Gere uma arte primeiro'); return; }
+  const a = document.createElement('a');
+  a.href = _aiArtResultDataUrl;
+  a.download = 'arte-ig-' + _aiArtStyle + '-' + Date.now() + '.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Arte baixada 📥');
+}
+
+function _aiArtReset(){
+  _aiArtPhotoDataUrl = null;
+  _aiArtResultDataUrl = null;
+  _aiArtResultCaption = '';
+  const img = document.getElementById('ai-art-preview');
+  const drop = document.getElementById('ai-art-drop');
+  const acts = document.getElementById('ai-art-photo-actions');
+  const resBox = document.getElementById('ai-art-result');
+  const hint = document.getElementById('ai-art-hint');
+  const input = document.getElementById('ai-art-input');
+  if(img){ img.src = ''; img.style.display = 'none'; }
+  if(drop) drop.style.display = 'block';
+  if(acts) acts.style.display = 'none';
+  if(resBox) resBox.style.display = 'none';
+  if(hint) hint.value = '';
+  if(input) input.value = '';
+  // Reseta seleção pro default "portrait"
+  const def = document.querySelector('#ai-art-styles .ai-art-style[data-style="portrait"]');
+  if(def) _aiArtSetStyle(def);
+}
+
+// Posta a arte gerada no feed do usuário usando o pipeline existente
+// (upload pra storage 'posts' + insert em posts com status approved).
+async function _aiArtPost(){
+  if(!_aiArtResultDataUrl){ toast('Gere uma arte primeiro'); return; }
+  const sb = getSupabase();
+  if(!sb || !currentUser){ toast('Faça login'); return; }
+  const caption = (document.getElementById('ai-art-result-caption')?.value || '').trim();
+  toast('Publicando…');
+  try {
+    // Converte data URL pra Blob
+    const m = /^data:([^;]+);base64,(.+)$/.exec(_aiArtResultDataUrl);
+    if(!m) throw new Error('arte inválida');
+    const mime = m[1];
+    const binary = atob(m[2]);
+    const arr = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) arr[i] = binary.charCodeAt(i);
+    const blob = new Blob([arr], { type: mime });
+    const ext = (mime.split('/')[1] || 'png').replace(/\W/g,'') || 'png';
+    const path = currentUser.id + '/ai-art-' + Date.now() + '.' + ext;
+    const { error: upErr } = await sb.storage.from('posts').upload(path, blob, { contentType: mime, upsert: false });
+    if(upErr) throw upErr;
+    const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+    const mediaUrl = urlData?.publicUrl;
+    if(!mediaUrl) throw new Error('sem publicUrl');
+
+    // Modera só o texto (a arte foi gerada pelo nosso pipeline; pula moderação de imagem)
+    const modResult = (typeof moderateContentAsync === 'function')
+      ? await moderateContentAsync(caption, null, false)
+      : { approved: true };
+    if(!modResult.approved && modResult.severity === 'hard'){
+      try { await sb.storage.from('posts').remove([path]); } catch(_){}
+      toast('Legenda bloqueada: ' + (modResult.reason || ''));
+      return;
+    }
+    const status = modResult.approved ? 'approved' : 'pending';
+    const { error: insErr } = await sb.from('posts').insert({
+      user_id: currentUser.id,
+      caption: caption || null,
+      media_url: mediaUrl,
+      media_type: 'image',
+      status,
+      created_at: new Date().toISOString()
+    });
+    if(insErr) throw insErr;
+    closeModals();
+    toast(status === 'approved' ? 'Post publicado no seu feed! 🎉' : 'Post enviado pra revisão');
+    if(typeof loadFeed === 'function') loadFeed();
+  } catch(e){
+    console.warn('_aiArtPost:', e);
+    toast('Erro ao publicar: ' + (e?.message || 'tente de novo'));
+  }
+}
+
 function selectAiLogo(el){
   document.querySelectorAll('.shirt-ai-logo-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
