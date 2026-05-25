@@ -6,6 +6,14 @@ import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image-preview';
+// Lista de fallback caso o modelo principal não exista/sem acesso pra essa chave.
+// Quando "nano-banana-2" sair publicamente, basta antepor o nome aqui (ou setar
+// env GEMINI_IMG_MODEL pra forçar um único modelo).
+const IMG_MODEL_FALLBACKS = [
+  'gemini-2.5-flash-image',
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-exp'
+];
 const MAX_INPUT_BYTES = 8 * 1024 * 1024; // 8MB de foto de entrada
 
 // Presets de estilo — chave curta no front, prompt rico aqui.
@@ -78,21 +86,39 @@ export async function onRequestPost(context) {
   const imgPrompt = stylePrompt + hintPart;
 
   const imgModel = env.GEMINI_IMG_MODEL || DEFAULT_IMG_MODEL;
+  // Se a env força um modelo, usa só ele; senão tenta o principal + fallbacks
+  const modelChain = env.GEMINI_IMG_MODEL ? [imgModel] : [imgModel, ...IMG_MODEL_FALLBACKS];
 
   // Dispara geração de arte + legenda em paralelo
   const [imgRes, capRes] = await Promise.all([
-    generateImage({ env, model: imgModel, prompt: imgPrompt, mime: inputMime, b64: inputB64 }),
+    generateImageWithFallback({ env, models: modelChain, prompt: imgPrompt, mime: inputMime, b64: inputB64 }),
     generateCaption({ env, styleKey, captionHint, businessName })
   ]);
 
-  if (imgRes.error) return json({ error: 'Falha ao gerar arte: ' + imgRes.error }, 502);
-  if (!imgRes.b64) return json({ error: 'Gemini não devolveu imagem' }, 502);
+  if (imgRes.error) return json({ error: 'Falha ao gerar arte: ' + imgRes.error, modelTried: imgRes.modelTried }, 502);
+  if (!imgRes.b64) return json({ error: 'Gemini não devolveu imagem (modelo: ' + (imgRes.modelTried || imgModel) + ')' }, 502);
 
   return json({
     imageDataUrl: 'data:' + (imgRes.mime || 'image/png') + ';base64,' + imgRes.b64,
     caption: capRes.text || FALLBACK_CAPTIONS[styleKey] || FALLBACK_CAPTIONS.portrait,
-    style: styleKey
+    style: styleKey,
+    model: imgRes.modelTried
   });
+}
+
+async function generateImageWithFallback({ env, models, prompt, mime, b64 }) {
+  let lastErr = '';
+  for (const model of models) {
+    const r = await generateImage({ env, model, prompt, mime, b64 });
+    if (r.b64) return { ...r, modelTried: model };
+    lastErr = r.error || 'sem detalhe';
+    // Se erro for permissão/quota, não adianta tentar outro modelo
+    if (/403|permission|quota/i.test(lastErr)) {
+      return { error: 'Sem permissão ou quota esgotada — ' + lastErr, modelTried: model };
+    }
+    console.warn('ig-art: modelo', model, 'falhou:', lastErr);
+  }
+  return { error: 'Todos os modelos falharam. Último: ' + lastErr, modelTried: models[models.length - 1] };
 }
 
 async function generateImage({ env, model, prompt, mime, b64 }) {
@@ -111,15 +137,26 @@ async function generateImage({ env, model, prompt, mime, b64 }) {
             ]
           }],
           generationConfig: {
-            responseModalities: ['IMAGE', 'TEXT'],
+            // Ordem importa: TEXT primeiro, IMAGE depois (formato esperado pela API)
+            responseModalities: ['TEXT', 'IMAGE'],
             temperature: 0.7
           }
         })
       }
     );
     if (!r.ok) {
-      const errText = (await r.text()).slice(0, 250);
-      return { error: `Gemini ${r.status}: ${errText}` };
+      const errText = (await r.text()).slice(0, 400);
+      // Detecta erros típicos pra mensagem mais clara
+      if (r.status === 404 || /not found|NOT_FOUND/i.test(errText)) {
+        return { error: `Modelo "${model}" não encontrado (HTTP ${r.status}). ${errText.slice(0,120)}` };
+      }
+      if (r.status === 403) {
+        return { error: `Sem permissão pra usar "${model}" (HTTP 403). Habilite Imagen/Gemini Image na sua chave. ${errText.slice(0,120)}` };
+      }
+      if (r.status === 400) {
+        return { error: `Request inválido pra "${model}" (HTTP 400). ${errText.slice(0,200)}` };
+      }
+      return { error: `Gemini ${r.status} (${model}): ${errText}` };
     }
     const data = await r.json();
     const parts = data?.candidates?.[0]?.content?.parts || [];
@@ -130,9 +167,11 @@ async function generateImage({ env, model, prompt, mime, b64 }) {
         return { b64: inline.data, mime: inline.mime_type || inline.mimeType || 'image/png' };
       }
     }
-    return { error: 'Gemini retornou só texto, sem imagem' };
+    // Sem imagem na resposta — coleta o texto pra debug
+    const txt = parts.map(p => p.text).filter(Boolean).join(' ').slice(0, 200);
+    return { error: `"${model}" retornou só texto: ${txt || '(vazio)'}` };
   } catch (e) {
-    return { error: String(e?.message || e) };
+    return { error: `Erro de rede pra "${model}": ` + String(e?.message || e) };
   }
 }
 
