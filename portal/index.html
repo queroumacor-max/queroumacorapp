@@ -800,25 +800,21 @@ const ProdutosList = () => {
       const productData = { ...form, price: parseFloat(String(form.price).replace(',','.')) || 0, stock: parseInt(form.stock) || 0 };
       if(!productData.image_url) delete productData.image_url; // só envia se houver foto (coluna pode não existir ainda)
       if(!productData.name) { alert('Nome obrigatorio'); return; }
-      if(editing) {
-        const { error } = await supa.from('products').update(productData).eq('id', editing);
-        if(error) throw error;
-      } else {
-        const { error } = await supa.from('products').insert(productData);
-        if(error) throw error;
-      }
+      // productsService.upsert cobre insert + update (quando id presente).
+      if(editing) productData.id = editing;
+      await productsService.upsert(productData);
       setShowForm(false); setEditing(null);
       setForm({ name:'', code:'', category:'tintas', volume:'18L', price:'', color_hex:'#c0622d', color_gradient:'', image_url:'', stock:0, badge:'', description:'', line:'Linha Premium', rendimento:'~10m²/L', demaos:'2', secagem:'2h', active:true });
       loadProducts();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { alert('Erro: ' + (e.message || e)); }
   };
 
   const deleteProduct = async (id) => {
     if(!confirm('Excluir este produto?')) return;
     try {
-      await supa.from('products').delete().eq('id', id);
+      await productsService.remove(id);
       loadProducts();
-    } catch(e) { alert('Erro: ' + e.message); }
+    } catch(e) { alert('Erro: ' + (e.message || e)); }
   };
 
   const editProduct = (p) => {
@@ -1431,15 +1427,22 @@ REGRAS:
 
   const saveLeads = async () => {
     if (!results || results.length === 0) return;
+    const rows = results.map(r => ({
+      name: r.name, phone: r.phone, segment: r.segment, category: r.category,
+      rating: r.rating, review_count: r.review_count, neighborhood: r.neighborhood,
+      city: r.city || 'Guarulhos', priority: r.priority || 'media',
+      address: r.address || '', source: 'ai_search', status: 'novo'
+    }));
     let saved = 0;
-    for (const r of results) {
-      const { error } = await supa.from('leads').insert({
-        name: r.name, phone: r.phone, segment: r.segment, category: r.category,
-        rating: r.rating, review_count: r.review_count, neighborhood: r.neighborhood,
-        city: r.city || 'Guarulhos', priority: r.priority || 'media',
-        address: r.address || '', source: 'ai_search', status: 'novo'
-      });
-      if (!error) saved++;
+    try {
+      await leadsService.insertBatch(rows);
+      saved = rows.length;
+    } catch (e) {
+      // Se o batch falhar, tenta um a um para nao perder todos.
+      console.warn('insertBatch leads falhou, tentando um a um:', e);
+      for (const row of rows) {
+        try { await leadsService.insertBatch([row]); saved++; } catch(_) { /* ignora */ }
+      }
     }
     alert('✅ ' + saved + ' leads salvos no banco!');
     onResults();
@@ -1536,7 +1539,7 @@ REGRAS:
                     {results.map((r,i)=>(
                       <tr key={i} style={{ borderTop:'1px solid '+C.border }}>
                         <td style={{ padding:'8px 10px', fontWeight:600 }}>{r.name}</td>
-                        <td style={{ padding:'8px 10px' }}><span style={{ background:C.p5, color:'#fff', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>{r.segment}</span></td>
+                        <td style={{ padding:'8px 10px' }}><StatusBadge status={(r.segment||'').toUpperCase()} colorMap={LEAD_SEG_COLORS} labelMap={{}} /></td>
                         <td style={{ padding:'8px 10px', color:C.muted }}>{r.category}</td>
                         <td style={{ padding:'8px 10px' }}><span style={{color:'#f5a623'}}>{'★'.repeat(Math.round(r.rating||0))}</span> {(r.rating||0).toFixed(1)}</td>
                         <td style={{ padding:'8px 10px', color:C.p3 }}>{r.phone}</td>
@@ -1588,7 +1591,7 @@ const Leads = () => {
     }
     if (dupeIds.length > 0) {
       for (const id of dupeIds) {
-        await supa.from('leads').delete().eq('id', id);
+        try { await leadsService.remove(id); } catch(e) { console.warn('leads.remove dup error:', e); }
       }
       console.log('Removed ' + dupeIds.length + ' duplicate leads');
     }
@@ -1596,14 +1599,11 @@ const Leads = () => {
   };
 
   const fetchLeads = async () => {
-    const { data, error } = await supa
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setLeads(data);
-    } else {
-      console.error('fetchLeads error:', error);
+    try {
+      const rows = await leadsService.list();
+      setLeads(rows);
+    } catch (e) {
+      console.error('fetchLeads error:', e);
       setLeads([]);
     }
     setLoading(false);
@@ -1612,8 +1612,10 @@ const Leads = () => {
   useEffect(() => { fetchLeads(); }, []);
 
   const updateStatus = async (id, newStatus) => {
-    await supa.from('leads').update({ status: newStatus }).eq('id', id);
-    fetchLeads();
+    try {
+      await leadsService.updateStatus(id, newStatus);
+      fetchLeads();
+    } catch (e) { alert('Erro ao atualizar status: ' + (e.message || e)); }
   };
 
   const statusColor = (s) => LEAD_STATUS_COLORS[s] || C.muted;
@@ -1773,7 +1775,7 @@ const Leads = () => {
                     <div style={{ fontSize:11, color:C.muted }}>{l.neighborhood || l.city || '—'}</div>
                   </td>
                   <td style={{ padding:'12px 10px' }}>
-                    <span style={{ background:segColor, color:'#fff', borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:700, textTransform:'uppercase' }}>{l.segment || '—'}</span>
+                    <StatusBadge status={(l.segment||'—').toUpperCase()} colorMap={LEAD_SEG_COLORS} labelMap={{}} />
                   </td>
                   <td style={{ padding:'12px 10px' }}>
                     <span style={{ background:'rgba(0,0,0,0.06)', color:C.ink, borderRadius:6, padding:'3px 10px', fontSize:11 }}>{l.category || '—'}</span>
@@ -1971,16 +1973,18 @@ const PostsModeracao = () => {
   const posts = data || [];
 
   const updateStatus = async (id, status) => {
-    await supa.from('posts').update({ status }).eq('id', id);
-    fetchPosts();
+    try {
+      await postsService.setStatus(id, status);
+      fetchPosts();
+    } catch (e) { alert('Erro ao atualizar post: ' + (e.message || e)); }
   };
 
   const deletePost = async (id) => {
     if(!confirm('Deletar permanentemente?')) return;
-    await supa.from('likes').delete().eq('post_id', id);
-    await supa.from('comments').delete().eq('post_id', id);
-    await supa.from('posts').delete().eq('id', id);
-    fetchPosts();
+    try {
+      await postsService.deleteWithChildren(id);
+      fetchPosts();
+    } catch (e) { alert('Erro ao deletar post: ' + (e.message || e)); }
   };
 
   return (
@@ -2011,8 +2015,8 @@ const PostsModeracao = () => {
                     <div style={{ fontSize:12, fontWeight:700 }}>{prof.name || 'User'}</div>
                     <div style={{ fontSize:10, color:C.muted }}>{prof.tag ? '@'+prof.tag : ''} · {prof.role || 'cliente'}</div>
                   </div>
-                  <span style={{ marginLeft:'auto', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background: p.status==='approved'?'#d4edda':p.status==='rejected'?'#f8d7da':'#fff3cd', color: p.status==='approved'?'#155724':p.status==='rejected'?'#721c24':'#856404' }}>
-                    {p.status==='approved'?'Aprovado':p.status==='rejected'?'Rejeitado':'Pendente'}
+                  <span style={{ marginLeft:'auto' }}>
+                    <StatusBadge status={p.status || 'pending'} colorMap={POSTS_STATUS_COLORS} labelMap={POSTS_STATUS_LABELS} />
                   </span>
                 </div>
                 {p.caption && <div style={{ fontSize:12, color:C.ink, marginBottom:8 }}>{p.caption}</div>}
@@ -2191,14 +2195,13 @@ const Avisos = () => {
     setSaving(true);
     try {
       const { data: { session } } = await supa.auth.getSession();
-      const { error } = await supa.from('announcements').insert({
+      await announcementsService.insert({
         title: title.trim(),
         message: message.trim(),
         active: true,
         created_by: session?.user?.id || null,
         created_at: new Date().toISOString()
       });
-      if(error) throw error;
       setTitle(''); setMessage('');
       loadAvisos();
     } catch(e){ alert('Erro: ' + (e.message || 'tente novamente')); }
@@ -2207,7 +2210,8 @@ const Avisos = () => {
 
   const toggleAviso = async (id, active) => {
     try {
-      await supa.from('announcements').update({ active: !active }).eq('id', id);
+      // active recebido eh o estado atual; toggle = !active
+      await announcementsService.toggle(id, !active);
       loadAvisos();
     } catch(e){ console.warn('toggleAviso error:', e); }
   };
@@ -2215,7 +2219,7 @@ const Avisos = () => {
   const deleteAviso = async (id) => {
     if(!confirm('Tem certeza que deseja excluir este aviso?')) return;
     try {
-      await supa.from('announcements').delete().eq('id', id);
+      await announcementsService.remove(id);
       loadAvisos();
     } catch(e){ console.warn('deleteAviso error:', e); }
   };
@@ -2273,14 +2277,10 @@ const PedidosLoja = () => {
 
   const updateOrderStatus = async (id, status) => {
     try {
-      const { error } = await supa.from('orders').update({ status }).eq('id', id);
-      if (error) { alert('Não foi possível atualizar o pedido: ' + error.message); return; }
+      await ordersService.updateStatus(id, status);
       refetch();
-    } catch(e){ alert('Erro ao atualizar o pedido.'); console.warn('updateOrderStatus error:', e); }
+    } catch(e){ alert('Não foi possível atualizar o pedido: ' + (e.message || e)); console.warn('updateOrderStatus error:', e); }
   };
-
-  const STATUS_COLORS = { pending: C.p7, processing: C.p1, shipped: C.p3, completed: C.p6, cancelled: C.p4 };
-  const STATUS_LABELS = { pending:'Aguardando', processing:'Em andamento', shipped:'Enviado', completed:'Concluido', cancelled:'Cancelado' };
 
   return (
     <div>
@@ -2305,8 +2305,6 @@ const PedidosLoja = () => {
               const items = o.items || [];
               const itemNames = items.map(it => it.name).join(', ');
               const st = o.status || 'pending';
-              const stColor = STATUS_COLORS[st] || C.muted;
-              const stLabel = STATUS_LABELS[st] || st;
               const data = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
               return (
                 <tr key={o.id || i} style={{ borderBottom:'1px solid '+C.border }}>
@@ -2315,7 +2313,7 @@ const PedidosLoja = () => {
                   <td style={{ padding:'10px 12px', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{itemNames || '—'}</td>
                   <td style={{ padding:'10px 12px', fontWeight:700, color:C.p1 }}>R${Number(o.total||0).toFixed(2).replace('.',',')}</td>
                   <td style={{ padding:'10px 12px' }}>
-                    <span style={{ background:stColor+'22', color:stColor, borderRadius:8, padding:'3px 10px', fontSize:11, fontWeight:600 }}>{stLabel}</span>
+                    <StatusBadge status={st} colorMap={ORDERS_STATUS_COLORS} labelMap={ORDERS_STATUS_LABELS} />
                   </td>
                   <td style={{ padding:'10px 12px', color:C.muted }}>{data}</td>
                   <td style={{ padding:'10px 12px' }}>
@@ -2499,22 +2497,12 @@ const Moderacao = () => {
 
   const resolveReport = async (id) => {
     try {
-      await supa.from('reports').update({ status: 'resolved' }).eq('id', id);
+      await reportsService.resolve(id);
       fetchReports();
     } catch (e) {
       console.warn('resolveReport error:', e);
       alert('Não foi possível resolver: ' + (e.message || e));
     }
-  };
-
-  const statusStyle = (s) => {
-    const map = {
-      pending:  { bg: C.p7 + '44', fg: '#b8860b' },
-      resolved: { bg: C.p6 + '22', fg: C.p6 },
-      dismissed:{ bg: C.muted + '22', fg: C.muted },
-    };
-    const col = map[s] || map.pending;
-    return { background: col.bg, color: col.fg, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 600 };
   };
 
   // Se a tabela `reports` não existir (erro 404/42P01), mostra placeholder.
@@ -2566,7 +2554,7 @@ const Moderacao = () => {
                       <div style={{ color:C.muted, fontSize:11, fontFamily:'monospace' }}>{targetIdShort}</div>
                     </td>
                     <td style={{ padding:'10px 12px', fontSize:12, maxWidth:240 }}>{r.reason || '—'}</td>
-                    <td style={{ padding:'10px 12px' }}><span style={statusStyle(st)}>{st}</span></td>
+                    <td style={{ padding:'10px 12px' }}><StatusBadge status={st} colorMap={REPORTS_STATUS_COLORS} labelMap={REPORTS_STATUS_LABELS} /></td>
                     <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{data}</td>
                     <td style={{ padding:'10px 12px' }}>
                       {st === 'pending' ? (
@@ -2633,16 +2621,6 @@ const Indicacoes = () => {
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando indicações...</div>;
 
-  const statusStyle = (s) => {
-    const map = {
-      completed: { bg: C.p6 + '22', fg: C.p6 },
-      pending:   { bg: C.p7 + '44', fg: '#b8860b' },
-      cancelled: { bg: C.p4 + '22', fg: C.p4 },
-    };
-    const col = map[s] || map.pending;
-    return { background: col.bg, color: col.fg, borderRadius: 8, padding: '3px 10px', fontSize: 11, fontWeight: 600 };
-  };
-
   return (
     <div>
       {/* KPIs */}
@@ -2687,7 +2665,7 @@ const Indicacoes = () => {
                   <tr key={r.id} style={{ borderBottom:'1px solid '+C.border }}>
                     <td style={{ padding:'10px 12px', fontWeight:600 }}>{r.referrer?.name || '—'}</td>
                     <td style={{ padding:'10px 12px' }}>{r.referred?.name || '—'}</td>
-                    <td style={{ padding:'10px 12px' }}><span style={statusStyle(st)}>{st}</span></td>
+                    <td style={{ padding:'10px 12px' }}><StatusBadge status={st} colorMap={REFERRALS_STATUS_COLORS} labelMap={REFERRALS_STATUS_LABELS} /></td>
                     <td style={{ padding:'10px 12px', fontWeight:700, color:C.p7 }}>{r.bonus_points != null ? '+' + r.bonus_points : '—'}</td>
                     <td style={{ padding:'10px 12px', color:C.muted, fontSize:12 }}>{data}</td>
                   </tr>
