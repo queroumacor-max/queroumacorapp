@@ -131,7 +131,7 @@ export async function onRequestPost(context) {
   const totalReais = validatedTotal;
   if (Math.abs(Number(order.total || 0) - validatedTotal) > 0.01) {
     console.warn('mp-checkout-loja: total adulterado pelo cliente, corrigindo', {
-      orderId,
+      orderIdPrefix: String(orderId).slice(0, 8),
       cliente: order.total,
       real: validatedTotal
     });

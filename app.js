@@ -395,7 +395,7 @@ async function refreshProStatus(){
     _proExpires = data?.pro_expires_at || null;
     applyProUI();
     return _isPro;
-  } catch(e){ console.warn('refreshProStatus:', e); applyProUI(); return _isPro; }
+  } catch(e){ console.warn('refreshProStatus:', e && e.message || e); applyProUI(); return _isPro; }
 }
 
 // Quando o perfil ja e PRO, troca o banner de upsell por "PRO ativo"
@@ -434,7 +434,7 @@ function applyProUI(){
         '<div class="pro-banner-sub">Destaque-se e receba mais clientes · R$39/mês</div></div>' +
         '<div class="pro-banner-arrow">›</div>';
     }
-  } catch(e){ console.warn('applyProUI:', e); }
+  } catch(e){ console.warn('applyProUI:', e && e.message || e); }
 }
 
 function checkProAccess(){
@@ -457,7 +457,7 @@ function handleProReturn(){
     // Limpa o parâmetro da URL
     const clean = window.location.pathname;
     window.history.replaceState({}, '', clean);
-  } catch(e){ console.warn('handleProReturn:', e); }
+  } catch(e){ console.warn('handleProReturn:', e && e.message || e); }
 }
 
 // CTA — Parceria Mercado Pago pra pintores (receber dos próprios clientes
@@ -519,7 +519,7 @@ function handleCompraReturn(){
         }
       } catch(e){ /* tenta de novo */ }
     }, 3000);
-  } catch(e){ console.warn('handleCompraReturn:', e); }
+  } catch(e){ console.warn('handleCompraReturn:', e && e.message || e); }
 }
 
 // Link de perfil compartilhado (?ref=<userId>): funciona como convite —
@@ -546,7 +546,7 @@ async function handleReferralParam(){
     showScreen('signup');
     if(typeof signupNext === 'function') signupNext(1); // pula o passo do código
     toast('Você foi convidado por ' + refName.split(' ')[0] + '! Crie sua conta 🎨');
-  } catch(e){ console.warn('handleReferralParam:', e); }
+  } catch(e){ console.warn('handleReferralParam:', e && e.message || e); }
 }
 
 // ══ MAIS INFORMAÇÕES E SUPORTE ══
@@ -647,7 +647,7 @@ async function notify(userId, type, title, body, refId){
       p_body:    body || '',
       p_ref_id:  refId || null
     });
-  } catch(e){ console.warn('notify:', e); }
+  } catch(e){ console.warn('notify:', e && e.message || e); }
 }
 
 // Congela o escopo+valor do orçamento como referência imutável.
@@ -721,7 +721,7 @@ async function loadPipeline(){
     _pipelineCache = quotes || [];
     renderPipeline();
   } catch(e){
-    console.error('loadPipeline:', e);
+    console.error('loadPipeline:', e && e.message || e);
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar o pipeline.</div>';
   }
 }
@@ -913,7 +913,7 @@ async function sugerirPrecoQuote(id){
     showModal('quote-price-modal');
     setTimeout(() => { if(input){ input.focus(); input.select(); } }, 150);
   } catch(e){
-    console.warn('sugerirPrecoQuote:', e);
+    console.warn('sugerirPrecoQuote:', e && e.message || e);
     toast('Erro ao falar com o Seu Zé');
   }
 }
@@ -1135,7 +1135,7 @@ async function loadCrm(){
     }
     renderCrm();
   } catch(e){
-    console.error('loadCrm:', e);
+    console.error('loadCrm:', e && e.message || e);
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar o CRM.</div>';
   }
 }
@@ -1276,7 +1276,7 @@ async function crmDraft(id){
     ta.placeholder = prevPlaceholder;
     toast('Rascunho gerado — revise antes de enviar ✏️');
   } catch(e){
-    console.error('crmDraft:', e);
+    console.error('crmDraft:', e && e.message || e);
     toast('Erro ao gerar mensagem');
     ta.placeholder = prevPlaceholder;
   }
@@ -1318,7 +1318,7 @@ async function crmSend(id){
       toast('Cliente sem opt-in ou sem telefone — não é possível enviar');
     }
   } catch(e){
-    console.error('crmSend:', e);
+    console.error('crmSend:', e && e.message || e);
     toast('Erro ao registrar o envio');
   }
 }
@@ -1343,7 +1343,7 @@ async function startProCheckout(){
     }
     window.location.href = data.init_point;
   } catch(e){
-    console.error('startProCheckout:', e);
+    console.error('startProCheckout:', e && e.message || e);
     toast('Erro ao iniciar pagamento');
     if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
   }
@@ -1369,7 +1369,7 @@ async function checkAdminEntry(){
     _isAdmin = !!data.admin;
     const link = document.getElementById('mod-queue-link');
     if(link) link.style.display = _isAdmin ? '' : 'none';
-  } catch(e){ console.warn('checkAdminEntry:', e); }
+  } catch(e){ console.warn('checkAdminEntry:', e && e.message || e); }
 }
 
 async function openModQueue(){
@@ -1406,7 +1406,7 @@ async function openModQueue(){
       </div>`;
     }).join('');
   } catch(e){
-    console.error('openModQueue:', e);
+    console.error('openModQueue:', e && e.message || e);
     if(list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Erro ao carregar.</div>';
   }
 }
@@ -1421,7 +1421,7 @@ async function modAction(postId, action, btn){
     if(card) card.remove();
     if(typeof loadFeed === 'function') loadFeed();
   } catch(e){
-    console.error('modAction:', e);
+    console.error('modAction:', e && e.message || e);
     toast('Erro ao processar');
     if(btn){ btn.disabled=false; btn.textContent = action==='approve'?'Aprovar':'Rejeitar'; }
   }
@@ -1484,7 +1484,7 @@ async function sendAiChat(textArg, speakReply){
   }
 
   if (!reply) {
-    console.warn('chat-ai fallback:', aiError);
+    console.warn('chat-ai fallback:', aiError && aiError.message || aiError);
     const query = text.toLowerCase();
     for(const [key, answer] of Object.entries(_aiKnowledge)){
       if(query.includes(key)){ reply = answer; break; }
@@ -1593,15 +1593,15 @@ async function falarSeuZe(text){
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 1500) })
     });
-    if(!r.ok){ console.warn('tts error:', await r.text().catch(()=>'')); return; }
+    if(!r.ok){ console.warn('tts error: status', r.status); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     if(_aiVoiceAudio){ try { _aiVoiceAudio.pause(); } catch(e){} }
     _aiVoiceAudio = new Audio(url);
-    _aiVoiceAudio.play().catch(e => console.warn('audio play:', e));
+    _aiVoiceAudio.play().catch(e => console.warn('audio play:', e && e.message || e));
     _aiVoiceAudio.onended = () => { URL.revokeObjectURL(url); _aiVoiceAudio = null; };
   } catch(e){
-    console.warn('falarSeuZe:', e);
+    console.warn('falarSeuZe:', e && e.message || e);
   }
 }
 
@@ -2050,7 +2050,7 @@ async function otimizarDiaAgenda(){
       </div>`;
     }
   }catch(e){
-    console.warn('otimizarDiaAgenda:', e);
+    console.warn('otimizarDiaAgenda:', e && e.message || e);
     if(box) box.innerHTML = `<div style="background:#fdecea;border:1px solid #e74c3c;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;color:#e74c3c;">Erro ao otimizar: ${escapeHtml(String(e?.message||e))}</div>`;
     toast('Erro ao otimizar');
   }
@@ -2420,7 +2420,7 @@ async function analisarFinanceiroIA(){
         + '<div style="font-size:13px;line-height:1.55;color:var(--ink);">'+escapeHtml(String(data.analysis))+'</div>';
     }
   } catch(e){
-    console.warn('analisarFinanceiroIA:', e);
+    console.warn('analisarFinanceiroIA:', e && e.message || e);
     toast('Erro ao analisar: '+(e && e.message ? e.message : 'tente novamente'));
   }
 }
@@ -2458,7 +2458,7 @@ async function loadAutoRespostas(){
     set('ar-followup', true, '', byT['follow_up']);
     set('ar-msg', true, '', byT['new_message']);
     arSync('ar-quote-on'); arSync('ar-followup-on'); arSync('ar-msg-on');
-  } catch(e){ console.warn('loadAutoRespostas:', e); }
+  } catch(e){ console.warn('loadAutoRespostas:', e && e.message || e); }
 }
 
 async function maybeAutoReply(m){
@@ -2486,7 +2486,7 @@ async function maybeAutoReply(m){
     toast('Resposta automática enviada ⚡');
     if(currentChat === m.conversation_id) openChat(m.conversation_id);
     else loadChatList();
-  } catch(e){ console.warn('maybeAutoReply:', e); }
+  } catch(e){ console.warn('maybeAutoReply:', e && e.message || e); }
 }
 
 async function salvarAutoRespostas(){
@@ -2588,7 +2588,7 @@ async function trocarPontosPorPRO(){
     loadPoints();
     if(typeof refreshProStatus === 'function') refreshProStatus();
   } catch(e){
-    console.warn('trocarPontosPorPRO:', e);
+    console.warn('trocarPontosPorPRO:', e && e.message || e);
     // Mensagens em português vêm direto do RAISE EXCEPTION da função
     toast('Erro: ' + (e.message || e));
   } finally {
@@ -2653,7 +2653,7 @@ async function comprarObra(postId, artistName, artistId, artType){
       postId);
     toast('Interesse enviado! O artista vai te chamar.');
   } catch(e){
-    console.warn('comprarObra notify:', e);
+    console.warn('comprarObra notify:', e && e.message || e);
     toast('Mande uma mensagem direta ao artista pelo perfil dele.');
   }
 }
@@ -2844,7 +2844,7 @@ async function enviarOrcamentoForm(){
         if(upErr){ console.warn('upload foto:', upErr.message); continue; }
         const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
         if(urlData && urlData.publicUrl) imageUrls.push(urlData.publicUrl);
-      } catch(e){ console.warn('upload foto:', e); }
+      } catch(e){ console.warn('upload foto:', e && e.message || e); }
     }
   }
 
@@ -2866,7 +2866,7 @@ async function enviarOrcamentoForm(){
     if(qErr) throw qErr;
     novoQuoteId = rpcId || null;
   } catch(e){
-    console.warn('enviarOrcamentoForm quote:', e);
+    console.warn('enviarOrcamentoForm quote:', e && e.message || e);
     toast('Erro ao enviar o pedido: ' + (e.message || e));
     return;
   }
@@ -2948,7 +2948,7 @@ async function moderateContentAsync(text, imageUrl, hasMedia){
     }
     return { approved: true, reason: null };
   } catch(e){
-    console.warn('moderateContentAsync fail-safe:', e);
+    console.warn('moderateContentAsync fail-safe:', e && e.message || e);
     return failSafe;
   }
 }
@@ -3006,7 +3006,7 @@ function saveConvLocal(convId, convMeta){
     const all = JSON.parse(localStorage.getItem(key) || '{}');
     all[convId] = { ...convMeta, updatedAt: new Date().toISOString() };
     localStorage.setItem(key, JSON.stringify(all));
-  } catch(e){ console.warn('saveConvLocal err:', e); }
+  } catch(e){ console.warn('saveConvLocal err:', e && e.message || e); }
 }
 function loadConvsLocal(){
   const key = getLocalConvKey();
@@ -3026,7 +3026,7 @@ function saveMsgLocal(convId, msg){
       if(msgs.length > 100) msgs.splice(0, msgs.length - 100);
       localStorage.setItem(key, JSON.stringify(msgs));
     }
-  } catch(e){ console.warn('saveMsgLocal err:', e); }
+  } catch(e){ console.warn('saveMsgLocal err:', e && e.message || e); }
 }
 function loadMsgsLocal(convId){
   const key = getLocalMsgsKey(convId);
@@ -3074,7 +3074,7 @@ async function loadChatList(){
       return;
     }
     // RPC indisponível (função não criada ainda) → cai no método antigo
-  } catch(e){ console.warn('get_conversations RPC indisponível, usando fallback:', e); }
+  } catch(e){ console.warn('get_conversations RPC indisponível, usando fallback:', e && e.message || e); }
 
   // 2b) Fallback legado (sem a RPC): busca mensagens e agrupa no cliente
   try {
@@ -3130,7 +3130,7 @@ async function loadChatList(){
       // Re-render with merged data
       renderConvList(container, loadConvsLocal(), myId);
     }
-  } catch(e){ console.warn('loadChatList supabase sync error:', e); }
+  } catch(e){ console.warn('loadChatList supabase sync error:', e && e.message || e); }
 }
 
 function _proLabel(role){
@@ -3229,7 +3229,7 @@ async function _searchNewChatUsersImpl(query){
         ${isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;">PINTOR</span>' : ''}
       </div>`;
     }).join('');
-  } catch(e){ console.warn('searchNewChatUsers error:', e); }
+  } catch(e){ console.warn('searchNewChatUsers error:', e && e.message || e); }
 }
 const searchNewChatUsers = (window.debounce ? window.debounce(_searchNewChatUsersImpl, 250) : _searchNewChatUsersImpl);
 
@@ -3397,7 +3397,7 @@ async function loadNotifications(){
       return '<div class="notif-card"><div class="notif-av"><img src="'+escapeHtml(avatar)+'" alt=""></div><div class="notif-txt">'+text+'</div><div class="notif-time">'+timeAgo+'</div></div>';
     }).join('');
   } catch(e){
-    console.error('loadNotifications error:', e);
+    console.error('loadNotifications error:', e && e.message || e);
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificações</div>';
   }
 }
@@ -3537,7 +3537,7 @@ async function loadPedidos(){
     });
     container.innerHTML = html;
   } catch(e){
-    console.error('loadPedidos error:', e);
+    console.error('loadPedidos error:', e && e.message || e);
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar pedidos</div>';
   }
 }
@@ -3630,7 +3630,7 @@ async function openEditProfile(){
       const preview = document.getElementById('ep-avatar-preview');
       if(preview) preview.src = avatarUrl(meta.name || 'U');
     }
-  } catch(e){ console.warn('openEditProfile error:', e); }
+  } catch(e){ console.warn('openEditProfile error:', e && e.message || e); }
   const r = document.getElementById('ep-radius');
   if(r){
     r.value = '';
@@ -3670,7 +3670,7 @@ async function loadCidadesDoEstado(uf){
     const html = arr.map(c => '<option value="'+escapeHtml(c.nome)+'">').join('');
     _citiesCache[uf] = html;
     dl.innerHTML = html;
-  } catch(e){ console.warn('cidades:', e); }
+  } catch(e){ console.warn('cidades:', e && e.message || e); }
 }
 function _epStateChanged(){
   const stEl = document.getElementById('ep-state');
@@ -3861,12 +3861,11 @@ async function saveEditProfile(){
           if(urlData && urlData.publicUrl){
             updates.avatar_url = urlData.publicUrl;
             avatarUploaded = true;
-            console.log('Avatar uploaded to avatars bucket:', updates.avatar_url);
           }
         } else {
           console.warn('Avatars bucket upload failed:', upErr.message);
         }
-      } catch(e){ console.warn('Avatars bucket error:', e); }
+      } catch(e){ console.warn('Avatars bucket error:', e && e.message || e); }
 
       // Fallback: try posts bucket
       if(!avatarUploaded){
@@ -3879,12 +3878,11 @@ async function saveEditProfile(){
             if(urlData && urlData.publicUrl){
               updates.avatar_url = urlData.publicUrl;
               avatarUploaded = true;
-              console.log('Avatar uploaded to posts bucket:', updates.avatar_url);
             }
           } else {
             console.warn('Posts bucket upload failed:', upErr2.message);
           }
-        } catch(e){ console.warn('Posts bucket error:', e); }
+        } catch(e){ console.warn('Posts bucket error:', e && e.message || e); }
       }
 
       // Last resort: convert to data URL and store directly
@@ -3911,8 +3909,7 @@ async function saveEditProfile(){
           canvas.getContext('2d').drawImage(img, 0, 0, w, h);
           updates.avatar_url = canvas.toDataURL('image/jpeg', 0.7);
           avatarUploaded = true;
-          console.log('Avatar saved as data URL (storage unavailable)');
-        } catch(e){ console.warn('Data URL fallback error:', e); }
+        } catch(e){ console.warn('Data URL fallback error:', e && e.message || e); }
       }
 
       if(!avatarUploaded){
@@ -3951,7 +3948,7 @@ async function saveEditProfile(){
           updates.business_logo_url = dataUrl;
           try { localStorage.setItem('business_logo_url', dataUrl); } catch(e2){}
           _logoChanged = true;
-        } catch(e2){ console.warn('logo data-url fallback falhou:', e2); }
+        } catch(e2){ console.warn('logo data-url fallback falhou:', e2 && e2.message || e2); }
       }
       _epLogoFile = null;
       btn.textContent = 'Salvando...';
@@ -3966,7 +3963,7 @@ async function saveEditProfile(){
     if(existing){
       const { error } = await sb.from('profiles').update(updates).eq('id', currentUser.id);
       if(error){
-        console.error('Profile update error:', error);
+        console.error('Profile update error:', error && error.message || error);
         throw error;
       }
     } else {
@@ -3975,7 +3972,7 @@ async function saveEditProfile(){
       updates.user_type = updates.role;
       const { error } = await sb.from('profiles').insert(updates);
       if(error){
-        console.error('Profile insert error:', error);
+        console.error('Profile insert error:', error && error.message || error);
         throw error;
       }
     }
@@ -3987,15 +3984,14 @@ async function saveEditProfile(){
       try {
         const { error: emErr } = await sb.from('profiles').update({ email: epEmail }).eq('id', currentUser.id);
         if(emErr) console.warn('email nao persistido (rode o supabase_init.sql):', emErr.message);
-      } catch(e){ console.warn('email update falhou:', e); }
+      } catch(e){ console.warn('email update falhou:', e && e.message || e); }
     }
     // Raio de atendimento: best-effort (coluna pode nao existir se o SQL
     // nao foi rodado; nao deve derrubar o resto do salvamento)
     try {
       const { error: rErr } = await sb.from('profiles').update({ service_radius: radiusToSave }).eq('id', currentUser.id);
       if(rErr) console.warn('service_radius nao persistido (rode o SQL):', rErr.message);
-    } catch(e){ console.warn('service_radius update falhou:', e); }
-    console.log('Profile saved successfully, avatar_url:', updates.avatar_url || '(unchanged)');
+    } catch(e){ console.warn('service_radius update falhou:', e && e.message || e); }
     toast('Perfil salvo!');
     closeModals();
     // Update all avatar locations after save
@@ -4027,7 +4023,7 @@ async function saveEditProfile(){
     loadMyProfileData();
     updateMyStoryAvatar();
   } catch(e){
-    console.error('saveEditProfile error:', e);
+    console.error('saveEditProfile error:', e && e.message || e);
     toast('Erro ao salvar: ' + (e.message || 'tente novamente'));
   }
   btn.textContent = 'Salvar'; btn.disabled = false;
@@ -4083,10 +4079,8 @@ async function setupGlobalMsgSubscription(){
         table: 'messages',
         filter: 'sender_id=eq.' + myId
       }, handleRealtimeMsg)
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
-      });
-  } catch(e){ console.error('setupGlobalMsgSubscription error:', e); }
+      .subscribe();
+  } catch(e){ console.error('setupGlobalMsgSubscription error:', e && e.message || e); }
 }
 
 async function handleRealtimeMsg(payload){
@@ -4139,7 +4133,7 @@ async function handleRealtimeMsg(payload){
             };
           }
         }
-      } catch(e){ console.warn('handleRealtimeMsg profile fetch:', e); }
+      } catch(e){ console.warn('handleRealtimeMsg profile fetch:', e && e.message || e); }
     } else {
       // Update existing conversation with latest message
       saveConvLocal(m.conversation_id, {
@@ -4256,7 +4250,7 @@ async function validateInvite(){
     signupNext(1);
   } catch(e){
     // If table doesn't exist yet, allow signup anyway for development
-    console.warn('Invite validation error:', e);
+    console.warn('Invite validation error:', e && e.message || e);
     validatedInviteCode = { code };
     toast('Convite aceito!');
     signupNext(1);
@@ -4295,7 +4289,7 @@ async function doSignup(){
     try {
       const sb = getSupabase();
       await sb.from('invites').update({ uses: (validatedInviteCode.uses||0)+1 }).eq('id', validatedInviteCode.id);
-    } catch(e){ console.warn('Could not update invite:', e); }
+    } catch(e){ console.warn('Could not update invite:', e && e.message || e); }
   }
 
   doRegisterSupabase(name,email,pw,role,tag);
@@ -4391,7 +4385,7 @@ async function sendChatMsg(){
       };
       const { data: res, error } = await sb.from('messages').insert(insertData).select();
       if(error){
-        console.error('sendChatMsg error:', error.message, error.details);
+        console.error('sendChatMsg error:', error.message);
         toast('Erro ao enviar: ' + error.message);
         div.classList.add('failed');
         div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
@@ -4405,7 +4399,7 @@ async function sendChatMsg(){
         saveConvLocal(currentChat, { ...existing, lastMsg: msg, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
       }
     } catch(e){
-      console.error('sendChatMsg save error:', e);
+      console.error('sendChatMsg save error:', e && e.message || e);
       toast('Erro ao enviar mensagem');
       div.classList.add('failed');
       div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
@@ -4464,7 +4458,7 @@ async function loadAvaliarScreen(){
     // Show other services as selectable list if > 1
     if(quotes.length > 1) renderAvaliarServiceList();
   } catch(e){
-    console.error('loadAvaliarScreen error:', e);
+    console.error('loadAvaliarScreen error:', e && e.message || e);
     container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum serviço para avaliar</div><div style="font-size:13px;">Solicite um orçamento primeiro</div></div>';
     if(form) form.style.display = 'none';
   }
@@ -4520,7 +4514,7 @@ async function submitAvaliacao(){
     if(document.getElementById('avalia-ta')) document.getElementById('avalia-ta').value = '';
     setTimeout(()=>showScreen('myprofile'),1200);
   } catch(e){
-    console.error('submitAvaliacao error:', e);
+    console.error('submitAvaliacao error:', e && e.message || e);
     toast('Erro ao enviar avaliacao: ' + (e.message || e));
   }
 }
@@ -4587,7 +4581,7 @@ async function sendOrc(){
   btn.querySelector('span').textContent = '📩 Enviar Solicitação';
 
   if(error){
-    console.error('sendOrc error:', error);
+    console.error('sendOrc error:', error && error.message || error);
     toast('❌ Erro ao enviar: ' + (error.message || error));
   } else {
     // Auto-distribute lead if no specific painter
@@ -4625,7 +4619,7 @@ function openChat(id) {
   renderedMsgIds.clear();
   _resetMsgColors();
   const conv = chatData[id];
-  if(!conv){ console.error('openChat: no chatData for', id); return; }
+  if(!conv){ console.error('openChat: no chatData'); return; }
 
   // Save conversation to localStorage so it appears in chat list
   const otherP = conv.participants.find(p => !p.logo) || conv.participants[0] || {};
@@ -4703,7 +4697,7 @@ function openChat(id) {
     const { data:{ session } } = await sb.auth.getSession();
     if(!session){ console.warn('openChat: no session'); return; }
 
-    console.log('openChat: loading messages for conversation', id);
+
     // Load history by conversation_id (both sent and received)
     const { data: msgs, error } = await sb.from('messages')
       .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
@@ -4711,8 +4705,7 @@ function openChat(id) {
       .order('created_at', { ascending: true })
       .limit(100);
 
-    if(error) console.error('openChat load error:', error.message, error.details);
-    console.log('openChat: loaded', msgs ? msgs.length : 0, 'messages');
+    if(error) console.error('openChat load error:', error.message);
 
     if(!error && msgs && msgs.length > 0){
       const myId = session.user.id;
@@ -4916,7 +4909,7 @@ async function sendMsg(){
   };
   const { data: insertResult, error } = await sb.from('messages').insert(insertData).select();
   if(error){
-    console.error('sendMsg error:', error.message, error.details, error.hint);
+    console.error('sendMsg error:', error.message);
     toast('Erro ao enviar: ' + error.message);
     return;
   }
@@ -5012,7 +5005,7 @@ async function handleChatAttachment(input){
     });
     toast('Imagem enviada!');
   } catch(e){
-    console.error('handleChatAttachment error:', e);
+    console.error('handleChatAttachment error:', e && e.message || e);
     toast('Erro ao enviar imagem');
   }
 }
@@ -5347,7 +5340,7 @@ async function submitCartOrder(){
     toast('Redirecionando para o Mercado Pago...');
     window.location.href = data.init_point;
   } catch(e){
-    console.error('submitCartOrder error:', e);
+    console.error('submitCartOrder error:', e && e.message || e);
     toast('Erro: ' + (e.message || 'tente novamente'));
     btn.textContent = originalLabel; btn.disabled = false;
   }
@@ -5720,7 +5713,7 @@ async function loadMktProducts(_attempt){
     _mktLoadedAt = Date.now();
     renderMktUI();
   } catch(e){
-    console.error('loadMktProducts error:', e);
+    console.error('loadMktProducts error:', e && e.message || e);
     setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
   }
 }
@@ -5898,7 +5891,7 @@ async function gerarLogoIA(){
     _aiLogoUrls = urls;
     toast('3 logos gerados pelo Seu Zé ✨');
   } else {
-    console.warn('AI logo fallback:', aiError);
+    console.warn('AI logo fallback:', aiError && aiError.message || aiError);
     const seed = _hashStr(name.toLowerCase());
     const opts = [
       { pi: seed % _aiLogoPalettes.length, ii: seed % _aiLogoIcons.length },
@@ -6183,7 +6176,7 @@ async function loadQualsList(){
       <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(q.title)}</div><div style="font-size:11px;color:var(--muted);">${escapeHtml(q.org||'')}${q.year?' · '+escapeHtml(q.year):''}</div></div>
       <button onclick="deleteQualification('${q.id}',this)" style="background:none;border:none;color:#e63946;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
     </div>`).join('');
-  } catch(e){ console.warn('loadQualsList:', e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
+  } catch(e){ console.warn('loadQualsList:', e && e.message || e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
 }
 
 async function addQualification(btn){
@@ -6208,7 +6201,7 @@ async function addQualification(btn){
     document.getElementById('q-icon').value = '🎓';
     toast('Formação adicionada');
     loadQualsList();
-  } catch(e){ console.error('addQualification:', e); toast('Erro: ' + (e.message||'falha')); }
+  } catch(e){ console.error('addQualification:', e && e.message || e); toast('Erro: ' + (e.message||'falha')); }
   btn.disabled = false; btn.textContent = 'Adicionar';
 }
 
@@ -6220,7 +6213,7 @@ async function deleteQualification(id, el){
     if(error) throw error;
     const card = el.closest('div'); if(card) card.remove();
     toast('Removido');
-  } catch(e){ console.error('deleteQualification:', e); toast('Erro ao remover'); }
+  } catch(e){ console.error('deleteQualification:', e && e.message || e); toast('Erro ao remover'); }
 }
 
 // ══ CURSOS (courses) ══
@@ -6242,7 +6235,7 @@ async function loadCoursesList(){
       <div style="flex:1;"><div style="font-size:13px;font-weight:700;">${escapeHtml(c.title)}</div><div style="font-size:11px;color:var(--muted);">${c.is_free?'Grátis':('R$'+Number(c.price||0).toFixed(2).replace('.',','))}${c.duration?' · '+escapeHtml(c.duration):''}</div></div>
       <button onclick="deleteCourse('${c.id}',this)" style="background:none;border:none;color:#e63946;font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
     </div>`).join('');
-  } catch(e){ console.warn('loadCoursesList:', e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
+  } catch(e){ console.warn('loadCoursesList:', e && e.message || e); box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Erro ao carregar.</div>'; }
 }
 
 async function addCourse(btn){
@@ -6269,7 +6262,7 @@ async function addCourse(btn){
     document.getElementById('c-free').checked = false;
     toast('Curso adicionado');
     loadCoursesList();
-  } catch(e){ console.error('addCourse:', e); toast('Erro: ' + (e.message||'falha')); }
+  } catch(e){ console.error('addCourse:', e && e.message || e); toast('Erro: ' + (e.message||'falha')); }
   btn.disabled = false; btn.textContent = 'Adicionar curso';
 }
 
@@ -6281,7 +6274,7 @@ async function deleteCourse(id, el){
     if(error) throw error;
     const card = el.closest('div'); if(card) card.remove();
     toast('Removido');
-  } catch(e){ console.error('deleteCourse:', e); toast('Erro ao remover'); }
+  } catch(e){ console.error('deleteCourse:', e && e.message || e); toast('Erro ao remover'); }
 }
 
 let _lastFeedLoad = 0;
@@ -6342,7 +6335,7 @@ async function getFollowingIds(){
     _followingIdsCacheTime = Date.now();
     return ids;
   } catch(e) {
-    console.warn('getFollowingIds error:', e);
+    console.warn('getFollowingIds error:', e && e.message || e);
     return [currentUser.id];
   }
 }
@@ -6573,7 +6566,7 @@ async function loadPosts(feedIds, append){
     }
     _feedOffset = offset + posts.length;
   } catch(e){
-    console.error('loadPosts error:', e);
+    console.error('loadPosts error:', e && e.message || e);
   }
 }
 
@@ -6613,7 +6606,7 @@ async function sendPasswordReset(){
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
     if(handleSbError(error)) return;
     toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
-  } catch(e){ console.warn('sendPasswordReset:', e); toast('Erro ao enviar email'); }
+  } catch(e){ console.warn('sendPasswordReset:', e && e.message || e); toast('Erro ao enviar email'); }
 }
 
 async function doSetNewPassword(){
@@ -6631,7 +6624,7 @@ async function doSetNewPassword(){
     closeModals();
     toast('Senha alterada com sucesso!');
     showScreen('feed');
-  } catch(e){ console.warn('doSetNewPassword:', e); toast('Erro ao salvar senha'); }
+  } catch(e){ console.warn('doSetNewPassword:', e && e.message || e); toast('Erro ao salvar senha'); }
 }
 
 async function togglePostLike(btn){
@@ -6674,7 +6667,7 @@ async function togglePostLike(btn){
     } else {
       await sb.from('likes').insert({ user_id: currentUser.id, post_id: postId });
     }
-  } catch(e){ console.warn('togglePostLike error:', e); }
+  } catch(e){ console.warn('togglePostLike error:', e && e.message || e); }
 }
 
 function toggleCommentInput(btn){
@@ -6731,7 +6724,7 @@ async function submitComment(btn){
     commentDiv.innerHTML = '<span style="flex:1"><b>'+escapeHtml(userName)+'</b> '+escapeHtml(text)+'</span>'
       + '<span onclick="deleteComment(this,\''+comment.id+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
     commentsArea.appendChild(commentDiv);
-  } catch(e){ toast('Erro ao comentar'); console.warn(e); }
+  } catch(e){ toast('Erro ao comentar'); console.warn('comment error:', e && e.message || e); }
   btn.disabled = false;
 }
 
@@ -6744,7 +6737,7 @@ async function deleteComment(el, commentId){
     const { error } = await sb.from('comments').delete().eq('id', commentId);
     if(error){ toast('Erro ao apagar'); return; }
     if(commentEl) commentEl.remove();
-  } catch(e){ toast('Erro ao apagar'); console.warn(e); }
+  } catch(e){ toast('Erro ao apagar'); console.warn('delete error:', e && e.message || e); }
 }
 
 async function toggleSavePost(btn){
@@ -6772,7 +6765,7 @@ async function toggleSavePost(btn){
     } else {
       await sb.from('saved_posts').insert({ user_id: currentUser.id, post_id: postId });
     }
-  } catch(e){ console.warn('toggleSavePost error:', e); }
+  } catch(e){ console.warn('toggleSavePost error:', e && e.message || e); }
 }
 
 // Post options modal
@@ -6824,7 +6817,7 @@ async function deleteCurrentPost(){
     if(postEl) postEl.remove();
     toast('Post deletado!');
     _currentOptPostId = null;
-  } catch(e){ toast('Erro ao deletar'); console.warn(e); }
+  } catch(e){ toast('Erro ao deletar'); console.warn('post delete error:', e && e.message || e); }
 }
 
 // Report post
@@ -6854,7 +6847,7 @@ async function submitReport(reason){
     if(handleSbError(error, 'Erro ao enviar denúncia')) return;
     toast('Denúncia enviada. Obrigado — nossa equipe vai analisar.');
   } catch(e){
-    console.warn('submitReport error:', e);
+    console.warn('submitReport error:', e && e.message || e);
     toast('Erro ao enviar denúncia');
   } finally {
     _reportPostId = null;
@@ -6886,7 +6879,7 @@ async function deleteCurrentStory(){
       renderCurrentStory();
     }
     toast('Story deletado!');
-  } catch(e){ toast('Erro ao deletar story'); console.warn(e); }
+  } catch(e){ toast('Erro ao deletar story'); console.warn('story delete error:', e && e.message || e); }
 }
 
 function getTimeAgo(dateStr){
@@ -7028,7 +7021,7 @@ async function loadStories(feedIds){
     const emptyEl = document.getElementById('feed-empty');
     if(emptyEl) emptyEl.style.display = (storyGroups.length > 0 || followedIds.length > 0) ? 'none' : 'block';
   } catch(e) {
-    console.error('loadStories error:', e);
+    console.error('loadStories error:', e && e.message || e);
   }
 }
 
@@ -7241,7 +7234,7 @@ async function gerarLegendaPost(btn){
     try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(_){}
     toast('Legenda gerada ✨');
   } catch(e){
-    console.error('gerarLegendaPost:', e);
+    console.error('gerarLegendaPost:', e && e.message || e);
     toast('Falha ao gerar legenda');
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = orig; }
@@ -7279,7 +7272,7 @@ async function publishPost(){
       const path = session.user.id + '/' + Date.now() + '.' + ext;
       const { error: upError } = await sb.storage.from('posts').upload(path, file);
       if(upError){
-        console.error('Upload error:', upError);
+        console.error('Upload error:', upError && upError.message || upError);
         toast('Erro no upload: ' + upError.message);
         btn.textContent = 'Publicar'; btn.disabled = false;
         return;
@@ -7302,7 +7295,7 @@ async function publishPost(){
         try {
           const path = imageUrl.split('/posts/').pop();
           if (path) await sb.storage.from('posts').remove([path]);
-        } catch(e){ console.warn('cleanup upload:', e); }
+        } catch(e){ console.warn('cleanup upload:', e && e.message || e); }
       }
       toast('Conteúdo bloqueado pela moderação (' + modResult.reason + ')');
       btn.textContent = 'Publicar'; btn.disabled = false;
@@ -7332,14 +7325,14 @@ async function publishPost(){
     btn.disabled = false;
 
     if(insertErr){
-      console.error('Post insert error:', insertErr);
+      console.error('Post insert error:', insertErr && insertErr.message || insertErr);
       toast('Erro ao publicar: ' + (insertErr.message || JSON.stringify(insertErr)));
     } else {
       // Vídeo: dispara a análise assíncrona (frames + áudio) no servidor
       if(isVideo && insertData && insertData[0]){
         apiPost('/api/moderate-video', { postId: insertData[0].id, mediaUrl: imageUrl, caption: content })
           .then(() => { if(typeof loadFeed === 'function') loadFeed(); })
-          .catch(e => console.warn('moderate-video:', e));
+          .catch(e => console.warn('moderate-video:', e && e.message || e));
       }
       if(isVideo){
         toast('Vídeo publicado — em análise antes de ficar visível.');
@@ -7356,7 +7349,7 @@ async function publishPost(){
       await loadFeed();
     }
   } catch(e) {
-    console.error('publishPost error:', e);
+    console.error('publishPost error:', e && e.message || e);
     toast('Erro: ' + (e.message || 'falha ao publicar'));
     if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; }
   }
@@ -7389,7 +7382,7 @@ function initLeafletMap(){
     // Also load from local painters data as fallback
     loadLocalPaintersOnMap();
   } catch(e) {
-    console.error('Leaflet init error:', e);
+    console.error('Leaflet init error:', e && e.message || e);
   }
 }
 
@@ -7470,7 +7463,7 @@ async function loadMapPainters(){
 
     renderPainterList((profiles||[]).filter(p=>_matchType(p,_exploreType)));
   } catch(e) {
-    console.error('loadMapPainters error:', e);
+    console.error('loadMapPainters error:', e && e.message || e);
   }
 }
 
@@ -7580,7 +7573,7 @@ async function _filterExplorePaintersImpl(query){
     } catch(e){
       // AbortError é esperado quando o usuário digita rápido — não logar
       if(!(e && (e.name === 'AbortError' || /aborted/i.test(String(e.message||''))))){
-        console.warn('filterExplorePainters search error:', e);
+        console.warn('filterExplorePainters search error:', e && e.message || e);
       }
     }
   }
@@ -7778,7 +7771,7 @@ async function validateAndGoStep3(){
         return;
       }
     }
-  } catch(e){ console.warn('Tag check error:', e); }
+  } catch(e){ console.warn('Tag check error:', e && e.message || e); }
   tagAvailable = true;
   statusEl.style.display = 'none';
   signupNext(3);
@@ -7813,7 +7806,7 @@ async function checkTagAvailability(){
       tagAvailable = true;
     }
   } catch(e){
-    console.warn('Tag check error:', e);
+    console.warn('Tag check error:', e && e.message || e);
     tagAvailable = true;
     statusEl.style.display = 'none';
   }
@@ -7845,7 +7838,7 @@ async function generateInviteCode(view){
         uses: 0,
         max_uses: 5
       });
-    } catch(dbErr){ console.warn('Invite DB insert skipped:', dbErr); }
+    } catch(dbErr){ console.warn('Invite DB insert skipped:', dbErr && dbErr.message || dbErr); }
     // Always show the code to the user
     generatedInviteCode[view] = code;
     document.getElementById('my-invite-code-' + view).style.display = 'block';
@@ -7855,7 +7848,7 @@ async function generateInviteCode(view){
     btn.disabled = false;
     toast('Codigo gerado!');
   } catch(e){
-    console.error('generateInviteCode error:', e);
+    console.error('generateInviteCode error:', e && e.message || e);
     toast('Erro ao gerar codigo');
     btn.textContent = 'Gerar Codigo de Convite'; btn.disabled = false;
   }
@@ -7895,7 +7888,7 @@ async function abrirMaquininha(){
           .then(({ data }) => { if(data && data.phone && !input.value){ input.value = data.phone; } }, ()=>{});
       }
     }
-  } catch(e){ console.error('abrirMaquininha error:', e); }
+  } catch(e){ console.error('abrirMaquininha error:', e && e.message || e); }
   showModal('maquininha-modal');
 }
 
@@ -7912,7 +7905,7 @@ async function entrarListaMaquininha(){
         contact: contato
       });
     }
-  } catch(e){ console.error('entrarListaMaquininha error:', e); }
+  } catch(e){ console.error('entrarListaMaquininha error:', e && e.message || e); }
   toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
   closeModals();
 }

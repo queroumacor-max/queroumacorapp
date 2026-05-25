@@ -327,7 +327,7 @@ async function loadMyProfileData(){
     }
     // Load stats (posts, followers, following)
     loadMyProfileStats();
-  } catch(e){ console.warn('loadMyProfileData error:', e); }
+  } catch(e){ console.warn('loadMyProfileData error:', e && e.message || e); }
 }
 
 async function loadMyProfileStats(){
@@ -348,7 +348,7 @@ async function loadMyProfileStats(){
     const { count: followingCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id);
     const followingEl = document.getElementById('myprofile-following-count');
     if(followingEl) followingEl.textContent = followingCount || 0;
-  } catch(e){ console.warn('loadMyProfileStats error:', e); }
+  } catch(e){ console.warn('loadMyProfileStats error:', e && e.message || e); }
   loadMyPortfolio();
 }
 
@@ -384,7 +384,7 @@ async function loadMyPortfolio(){
       </div>`;
     }).join('') + '</div>';
   } catch(e){
-    console.warn('loadMyPortfolio:', e);
+    console.warn('loadMyPortfolio:', e && e.message || e);
     box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Erro ao carregar portfólio.</div>';
   }
 }
@@ -476,7 +476,7 @@ async function shareProfile(){
         .eq('id', currentUser.id).single();
       prof = data || {};
     }
-  } catch(e){ console.warn('shareProfile profile fetch:', e); }
+  } catch(e){ console.warn('shareProfile profile fetch:', e && e.message || e); }
   const name = prof.name || document.getElementById('myprofile-name')?.textContent || 'Profissional';
   const roleMap = { pintor:'Pintor', grafiteiro:'Grafiteiro/Muralista', automotivo:'Pintor Automotivo', funileiro:'Funileiro', cliente:'Cliente' };
   const role = roleMap[String(prof.role||prof.user_type||'').toLowerCase()] || 'Profissional';
@@ -511,7 +511,7 @@ async function updateMyStoryAvatar(){
     } else {
       el.src = avatarUrl(fullName || 'U');
     }
-  } catch(e){ console.warn('updateMyStoryAvatar error:', e); }
+  } catch(e){ console.warn('updateMyStoryAvatar error:', e && e.message || e); }
 }
 
 async function doLoginSupabase(email, password) {
@@ -575,7 +575,7 @@ async function doRegisterSupabase(name, email, password, type, tag) {
         await sb.storage.from('posts').upload(path, avatarFile, { upsert: true });
         const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
         avatarUrl = urlData.publicUrl;
-      } catch(e){ console.warn('Avatar upload error:', e); }
+      } catch(e){ console.warn('Avatar upload error:', e && e.message || e); }
     }
     // Create profile record with referral tracking
     const profileData = {
@@ -603,7 +603,7 @@ async function doRegisterSupabase(name, email, password, type, tag) {
     }
     try {
       await sb.from('profiles').upsert(profileData, { onConflict: 'id' });
-    } catch(e){ console.warn('Profile create error:', e); }
+    } catch(e){ console.warn('Profile create error:', e && e.message || e); }
     // Registra a indicação — o indicador ganha pontos via trigger no banco
     if(validatedInviteCode && validatedInviteCode.created_by && validatedInviteCode.created_by !== data.user.id){
       try {
@@ -613,7 +613,7 @@ async function doRegisterSupabase(name, email, password, type, tag) {
           status: 'completed',
           bonus_points: 20
         });
-      } catch(e){ console.warn('Referral insert error:', e); }
+      } catch(e){ console.warn('Referral insert error:', e && e.message || e); }
     }
   }
   currentUser = data.user;
@@ -644,7 +644,7 @@ async function doLogoutSupabase() {
   if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
   showScreen('login');
   const sb = getSupabase();
-  if (sb) sb.auth.signOut().catch(e => console.warn('signOut:', e));
+  if (sb) sb.auth.signOut().catch(e => console.warn('signOut:', e && e.message || e));
 }
 function doLogout() {
   doLogoutSupabase();
@@ -738,7 +738,7 @@ function searchPeople(query){
         .limit(25);
       if(res.error) console.warn('searchPeople error:', res.error.message);
       data = res.data || [];
-    } catch(e) { console.warn('searchPeople exception:', e); }
+    } catch(e) { console.warn('searchPeople exception:', e && e.message || e); }
     if(!data||data.length===0){
       container.innerHTML=`<div style="text-align:center;padding:60px 20px;color:var(--muted);">
         <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="var(--border)" stroke-width="1.5" style="margin-bottom:14px;"><path d="M16 16l-3.5-3.5"/><circle cx="10" cy="10" r="7"/></svg>
@@ -834,7 +834,7 @@ async function openUserProfile(userId, preview){
     renderRealProfileTabs(userId, name);
     showScreen('profile');
   } catch(e){
-    console.error('openUserProfile error:', e);
+    console.error('openUserProfile error:', e && e.message || e);
     toast('Erro ao abrir perfil');
   }
 }
@@ -877,7 +877,7 @@ async function renderRealProfileTabs(userId, name){
         ? vids.map(p => `<div class="works-grid-item" style="position:relative"><video src="${esc(p.media_url)}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;"></video><div style="position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;"><span style="font-size:26px;color:#fff;">▶</span></div></div>`).join('')
         : emptyState('🎬', 'Nenhum vídeo publicado ainda');
     }
-  } catch(e){ console.warn('renderRealProfileTabs posts:', e); }
+  } catch(e){ console.warn('renderRealProfileTabs posts:', e && e.message || e); }
 
   try {
     const { data: quals } = await sb.from('qualifications').select('*')
@@ -891,7 +891,7 @@ async function renderRealProfileTabs(userId, name){
           </div>`).join('')
         : emptyState('🎓', 'Nenhuma formação cadastrada');
     }
-  } catch(e){ console.warn('renderRealProfileTabs quals:', e); }
+  } catch(e){ console.warn('renderRealProfileTabs quals:', e && e.message || e); }
 
   try {
     const { data: courses } = await sb.from('courses').select('*')
@@ -913,7 +913,7 @@ async function renderRealProfileTabs(userId, name){
           </div>`).join('')
         : emptyState('📚', 'Nenhum curso publicado');
     }
-  } catch(e){ console.warn('renderRealProfileTabs courses:', e); }
+  } catch(e){ console.warn('renderRealProfileTabs courses:', e && e.message || e); }
 
   try {
     const { data: pq } = await sb.from('quotes').select('id').eq('painter_id', userId);
@@ -955,7 +955,7 @@ async function renderRealProfileTabs(userId, name){
       }
     }
   } catch(e){
-    console.warn('renderRealProfileTabs reviews:', e);
+    console.warn('renderRealProfileTabs reviews:', e && e.message || e);
     const revList = screen.querySelector('#tab-reviews .reviews-list');
     if(revList) revList.innerHTML = emptyState('⭐', 'Nenhuma avaliação ainda');
   }

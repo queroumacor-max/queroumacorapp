@@ -160,7 +160,10 @@ export async function onRequestPost(context) {
   if (status === 'authorized') {
     if (proCurrency !== 'BRL' || Math.abs(proAmount - EXPECTED_PRO_AMOUNT) > 0.01) {
       console.warn('mp-webhook: preapproval com valor suspeito, ignorando ativação', {
-        userId, proAmount, proCurrency, expected: EXPECTED_PRO_AMOUNT
+        userIdPrefix: String(userId).slice(0, 8),
+        proAmount,
+        proCurrency,
+        expected: EXPECTED_PRO_AMOUNT
       });
       return ok('preapproval com valor diferente do esperado');
     }
