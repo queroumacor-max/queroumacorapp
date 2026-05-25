@@ -1,5 +1,23 @@
 // ══ SCREENS ══
 const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','avaliar','mkt','camisetas','info','pipeline','crm'];
+
+// Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
+// "1500.50" no input e devolve Number; o blur formata pra "1.500,00".
+function parseBRL(val){
+  const raw = String(val == null ? '' : val).trim();
+  if(!raw) return 0;
+  // Normaliza: tira pontos de milhar e usa ponto como decimal
+  const n = Number(raw.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtBRL(el){
+  if(!el) return;
+  const raw = String(el.value || '').trim();
+  if(!raw){ return; }
+  const n = parseBRL(raw);
+  if(!Number.isFinite(n) || n < 0){ return; }
+  el.value = n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv'];
 function showScreen(n, _fromPop){
@@ -851,7 +869,7 @@ function enviarQuote(id){
   const input = document.getElementById('qp-price-input');
   if(input){
     input.value = (+q.price || 0) > 0
-      ? String((+q.price).toFixed(2)).replace('.', ',')
+      ? (+q.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '';
   }
   showModal('quote-price-modal');
@@ -863,8 +881,7 @@ async function enviarQuoteConfirmar(){
   if(!id) return;
   const sb = getSupabase(); if(!sb || !currentUser) return;
   const input = document.getElementById('qp-price-input');
-  const raw = input ? input.value.trim() : '';
-  const price = parseFloat(String(raw).replace(/\./g, '').replace(',', '.')) || 0;
+  const price = parseBRL(input ? input.value : '');
   if(price <= 0){ toast('Informe um valor válido'); return; }
   const q = _pipelineCache.find(x => x.id === id);
   if(!q) return;
@@ -909,7 +926,7 @@ async function sugerirPrecoQuote(id){
       note.innerHTML = '<b>💡 Seu Zé sugere R$ ' + price.toLocaleString('pt-BR') + '</b>' + (justification ? '<br><span style="opacity:.85;">' + escapeHtml(justification) + '</span>' : '');
     }
     const input = document.getElementById('qp-price-input');
-    if(input) input.value = String(price.toFixed(2)).replace('.', ',');
+    if(input) input.value = price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     showModal('quote-price-modal');
     setTimeout(() => { if(input){ input.focus(); input.select(); } }, 150);
   } catch(e){
@@ -1644,16 +1661,16 @@ function gerarOrcamentoIA(){
   const comodos = parseInt(document.getElementById('ai-orc-comodos').value) || 0;
   const numDemaos = parseInt(document.getElementById('ai-orc-demaos').value) || 2;
   const fator = parseFloat(document.getElementById('ai-orc-condicao').value) || 1;
-  const precoM2 = parseFloat(document.getElementById('ai-orc-preco').value) || 0;
+  const precoM2 = parseBRL(document.getElementById('ai-orc-preco').value);
   const obs = document.getElementById('ai-orc-obs').value.trim();
   const cobranca = (document.getElementById('ai-orc-cobranca')||{}).value || 'm2';
-  const valorFechado = parseFloat((document.getElementById('ai-orc-valorfechado')||{}).value) || 0;
+  const valorFechado = parseBRL((document.getElementById('ai-orc-valorfechado')||{}).value);
   const materialMode = (document.getElementById('ai-orc-material')||{}).value || 'incluso';
   const matInc = materialMode !== 'cliente';
   const extras = ((document.getElementById('ai-orc-extras')||{}).value || '').trim();
   const formaPgto = (document.getElementById('ai-orc-pgto')||{}).value || 'À vista';
   const parcelas = parseInt((document.getElementById('ai-orc-parcelas')||{}).value) || 0;
-  const entrada = parseFloat((document.getElementById('ai-orc-entrada')||{}).value) || 0;
+  const entrada = parseBRL((document.getElementById('ai-orc-entrada')||{}).value);
   const tiposPgto = [...document.querySelectorAll('#ai-orc-tipos input[type=checkbox]:checked')].map(c=>c.value);
 
   if(area <= 0){ toast('Informe a área em m²'); return; }
@@ -1979,8 +1996,8 @@ async function salvarJob(){
     scheduled_date: document.getElementById('job-data').value||null,
     scheduled_time: document.getElementById('job-hora').value||null,
     address: document.getElementById('job-endereco').value.trim(),
-    revenue: parseFloat(document.getElementById('job-receita').value)||0,
-    material_cost: parseFloat(document.getElementById('job-custo').value)||0,
+    revenue: parseBRL(document.getElementById('job-receita').value),
+    material_cost: parseBRL(document.getElementById('job-custo').value),
     notes: document.getElementById('job-notas').value.trim()
   };
   if(!job.client_name){ toast('Informe o cliente'); return; }
@@ -2335,8 +2352,8 @@ async function salvarFinEntry(){
   const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
   const nome = (document.getElementById('fin-nome').value||'').trim();
   const cliente = (document.getElementById('fin-cliente').value||'').trim();
-  const recebido = parseFloat(document.getElementById('fin-recebido').value)||0;
-  const gasto = parseFloat(document.getElementById('fin-gasto').value)||0;
+  const recebido = parseBRL(document.getElementById('fin-recebido').value);
+  const gasto = parseBRL(document.getElementById('fin-gasto').value);
   if(!nome && !cliente){ toast('Informe o nome do projeto ou cliente'); return; }
   if(recebido<=0 && gasto<=0){ toast('Informe um valor recebido ou gasto'); return; }
   const today = new Date(); const ymd = new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -6273,7 +6290,7 @@ async function addCourse(btn){
       link: document.getElementById('c-link').value.trim() || null,
       duration: document.getElementById('c-duration').value.trim() || null,
       is_free: isFree,
-      price: isFree ? null : (parseFloat(document.getElementById('c-price').value) || null)
+      price: isFree ? null : (parseBRL(document.getElementById('c-price').value) || null)
     });
     if(error) throw error;
     ['c-title','c-sub','c-cover','c-link','c-duration','c-price'].forEach(id => document.getElementById(id).value = '');
@@ -7324,7 +7341,7 @@ async function publishPost(){
 
     // Sale data (grafiteiro)
     const forSale = document.getElementById('post-for-sale')?.checked || false;
-    const price = forSale ? (parseFloat(document.getElementById('post-price')?.value) || 0) : 0;
+    const price = forSale ? parseBRL(document.getElementById('post-price')?.value) : 0;
     const artType = forSale ? (document.getElementById('post-art-type')?.value || '') : '';
 
     const { data: insertData, error: insertErr } = await sb.from('posts').insert({
