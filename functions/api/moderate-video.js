@@ -5,12 +5,25 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024; // acima disso, fica pendente p/ revisão humana
 
 const RUBRIC =
-  'Você é um moderador. Analise TODO o vídeo (imagens ao longo do tempo, texto e ÁUDIO/fala) ' +
-  'e responda APENAS um JSON: {"flagged":bool,"severity":"none|soft|hard","reasons":[string]}. ' +
-  'severity "hard": nudez/pornografia, qualquer conteúdo sexual com menores, violência gráfica/sangue, ' +
-  'ódio com ameaça, áudio com ameaça de morte/apologia a abuso. ' +
-  'severity "soft": ofensa, golpe/scam, spam, sexual sugestivo, doxxing. ' +
-  'severity "none" se seguro (pintura, grafite, arte são seguros). reasons curtas em pt-br.';
+  'Você é um moderador de uma plataforma BRASILEIRA de pintores/grafiteiros. ' +
+  'Analise TODO o vídeo (imagens ao longo do tempo, texto e ÁUDIO/fala) e responda APENAS um JSON: ' +
+  '{"flagged":bool,"severity":"none|soft|hard","reasons":[string]}.\n' +
+  'Modere com PARCIMÔNIA: na dúvida, libere. Falso positivo machuca mais que falso negativo.\n' +
+  '\n' +
+  'severity "hard" (bloqueio): nudez explícita/pornografia, sexual com menores, ' +
+  'violência gráfica real com sangue/cadáveres, ameaça concreta de morte a pessoa específica, ' +
+  'apologia a nazismo/terrorismo/abuso infantil, venda explícita de drogas pesadas ou armas de fogo.\n' +
+  '\n' +
+  'severity "soft" (revisão humana — use com parcimônia): ' +
+  'golpe/scam claro (taxa antecipada, "ganhe sem fazer nada"), spam repetitivo, ' +
+  'doxxing de terceiro, ofensa pesada direcionada a pessoa real específica.\n' +
+  '\n' +
+  'severity "none" (LIBERA): arte de pintura/grafite/mural (mesmo polêmico, expressivo ou com nudez artística discreta), ' +
+  'telefone/WhatsApp/Instagram/PIX do PRÓPRIO prestador (é como ele trabalha), preço de serviço, ' +
+  'link pro próprio Instagram/portfolio, palavrão leve como exclamação brasileira ("foda demais", "puta arte"), ' +
+  'críticas a marcas/produtos, termos técnicos ("pistola de pintar", "matar a saudade", "armário").\n' +
+  '\n' +
+  'reasons curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam","doxxing").';
 
 export async function onRequestPost(context) {
   const { env, request } = context;

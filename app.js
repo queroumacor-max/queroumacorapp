@@ -2890,41 +2890,52 @@ async function enviarOrcamentoForm(){
 // ══ PUBLISH VIDEO (REELS) ══
 // Updated publishPost to handle video media_type
 // ══ CONTENT MODERATION ══
+// Filtro local enxuto: só termos quase sempre problemáticos, com casamento
+// por palavra inteira (\b…\b). Antes o substring bloqueava "armário"
+// (arma), "pistolão" (pistola), "matar a sede" (matar), nome "Cornélio"
+// (corno). Contexto fica pra IA decidir em /api/moderate.
 const _blockedWords = [
-  'pornografia','nudez','nude','nudes','sexo','xxx','drogas','maconha','cocaina',
-  'racismo','racista','nazismo','nazi','hitler','terrorismo','terrorista',
-  'matar','assassinar','estupro','pedofilia','pedofilo',
-  'arma','revolver','pistola','fuzil','traficante','trafico',
-  'suicide','suicidio','se matar'
+  'pedofilia','pedofilo',
+  'estupro','estuprar','estuprador',
+  'cocaina','crackeira',
+  'fuzil',
+  'assassinar',
+  'suicidio',
+  'terrorismo','terrorista',
+  'pornografia',
+  'xxx',
+  'nazismo'
 ];
-const _suspectWords = [
-  'puta','caralho','foda','merda','viado','sapatao','corno',
-  'idiota','imbecil','retardado','lixo humano','vagabundo'
-];
+
+const _blockedRe = (() => {
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const alts = _blockedWords.map(w => esc(norm(w))).join('|');
+  return new RegExp('\\b(' + alts + ')\\b', 'i');
+})();
+
+// Padrões fortes de scam: encurtadores e domínios típicos de golpe.
+// URL normal (https://meusite.com.br, www.instagram.com/foo) NÃO bloqueia
+// mais — autopromoção legítima de pintor passa, Gemini avalia contexto.
+const _scamLinkRe = /(?:^|\W)(?:bit\.ly|tinyurl\.com|cutt\.ly|t\.me\/|goo\.gl\/|tiny\.cc|encurtador\.com\.br|is\.gd|shorturl\.at)/i;
 
 function moderateContent(text){
   if(!text) return { approved: true, reason: null };
   const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  // Check blocked words - auto-reject
-  for(const word of _blockedWords){
-    const w = word.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if(lower.includes(w)) return { approved: false, reason: 'blocked:'+word };
-  }
-  // Check suspect words - send to review
-  for(const word of _suspectWords){
-    const w = word.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if(lower.includes(w)) return { approved: false, reason: 'suspect:'+word };
-  }
-  // Check for URLs/links (spam prevention)
-  if(lower.match(/https?:\/\/|www\.|\.com\.br|bit\.ly|t\.me/)){
-    return { approved: false, reason: 'link_detected' };
-  }
+  const m = _blockedRe.exec(lower);
+  if(m) return { approved: false, reason: 'blocked:' + m[1] };
+  if(_scamLinkRe.test(lower)) return { approved: false, reason: 'link_suspicious' };
   return { approved: true, reason: null };
 }
 
 async function moderateContentAsync(text, imageUrl, hasMedia){
   const local = moderateContent(text || '');
-  if (!local.approved) return { approved: false, reason: local.reason, severity: 'soft' };
+  if (!local.approved) {
+    // Palavra do hard-list → bloqueio total (não vai pro portal).
+    // Encurtador suspeito → revisão humana (pode ser falso positivo).
+    const sev = String(local.reason || '').startsWith('blocked:') ? 'hard' : 'soft';
+    return { approved: false, reason: local.reason, severity: sev };
+  }
   // Fail-safe: se há mídia (imagem/vídeo) e a moderação cair, vai pra revisão
   // humana em vez de publicar direto. Texto puro que passou no filtro local publica.
   const failSafe = hasMedia

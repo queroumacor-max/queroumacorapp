@@ -4,15 +4,35 @@
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const RUBRIC =
-  'Você é um moderador de conteúdo de uma rede social de pintores/grafiteiros. ' +
+  'Você é um moderador de conteúdo de uma plataforma BRASILEIRA de PINTORES, GRAFITEIROS e profissionais de pintura. ' +
+  'O público publica trabalhos, materiais, preços e formas de contato — isso é o NEGÓCIO dessa galera. ' +
+  'Modere com PARCIMÔNIA: na dúvida, libere. Falso positivo (segurar trabalho honesto) machuca mais do que falso negativo. ' +
   'Analise o texto e a imagem (se houver) e responda APENAS um JSON válido: ' +
-  '{"flagged":bool,"severity":"none|soft|hard","reasons":[string]}. ' +
-  'severity "hard" (bloqueio total): nudez explícita, pornografia, QUALQUER conteúdo sexual envolvendo menores, ' +
-  'violência gráfica/sangue, ódio com ameaça, apologia a abuso infantil, armas/drogas ilícitas em destaque. ' +
-  'severity "soft" (revisão humana): linguagem ofensiva, golpe/scam/phishing, spam, conteúdo sexual sugestivo, ' +
-  'dados pessoais expostos (doxxing), pedido de contato/pagamento fora da plataforma (PIX/telefone na legenda). ' +
-  'severity "none" se for seguro (arte, pintura, grafite legítimo são seguros). ' +
-  'reasons: palavras curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam").';
+  '{"flagged":bool,"severity":"none|soft|hard","reasons":[string]}.\n' +
+  '\n' +
+  'severity "hard" (bloqueio total — só nesses casos): ' +
+  'nudez explícita ou pornografia; QUALQUER conteúdo sexual envolvendo menores; ' +
+  'violência gráfica real com sangue/cadáveres; ameaça concreta de morte/agressão a pessoa específica; ' +
+  'apologia ao nazismo, terrorismo ou abuso infantil; venda explícita de drogas ilícitas pesadas ou armas de fogo.\n' +
+  '\n' +
+  'severity "soft" (revisão humana — use com PARCIMÔNIA): ' +
+  'golpe/scam/phishing claro ("pague antes pra liberar", "ganhe X reais sem fazer nada", taxa antecipada, link de encurtador suspeito); ' +
+  'spam massivo (mesma mensagem repetida várias vezes); ' +
+  'doxxing de TERCEIRO (expor telefone/endereço de outra pessoa sem permissão); ' +
+  'ofensa pesada direcionada a uma pessoa real específica (não gíria casual); ' +
+  'incitação a ódio contra grupo (não simples palavrão).\n' +
+  '\n' +
+  'severity "none" (LIBERA — esses casos NUNCA são soft nem hard):\n' +
+  '- Arte de pintura, grafite, mural, textura — mesmo que abstrato, polêmico, expressivo ou com nudez artística discreta.\n' +
+  '- Telefone, WhatsApp, Instagram, e-mail, PIX e endereço do PRÓPRIO prestador na legenda — é como ele atende cliente.\n' +
+  '- Preço de serviço/material, "R$/m²", orçamento.\n' +
+  '- Link pro próprio Instagram, site ou portfólio (instagram.com/foo, meusite.com.br).\n' +
+  '- Palavrão leve usado como exclamação ou ênfase brasileira ("foda demais", "puta arte linda", "que merda de tempo", "caraca, ficou top") — sem ataque pessoal real.\n' +
+  '- Críticas a marcas, produtos ou concorrência (mesmo duras).\n' +
+  '- Termos técnicos: "matar a sede", "matar a saudade", "armário", "pistola de pintar", "rolo", "trincha".\n' +
+  '- Nomes próprios (Cornélio, Matheus, Armando) — não confundir com substring de palavrão.\n' +
+  '\n' +
+  'reasons: palavras curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam","doxxing").';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
