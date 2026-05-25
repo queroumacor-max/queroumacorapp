@@ -37,6 +37,81 @@ const C = {
   bg: '#f7f3ee', sidebar: '#1a1a2e'
 };
 
+// ============================================================
+// StatusBadge — chip de status reutilizavel (cor + label).
+// Recebe `status`, mapa de cores e mapa de labels.
+// ============================================================
+const StatusBadge = React.memo(function StatusBadge({ status, colorMap, labelMap, size }) {
+  const s = size || 'sm';
+  const bg = (colorMap && colorMap[status]) || '#e5e7eb';
+  const label = (labelMap && labelMap[status]) || status;
+  const fontSize = s === 'sm' ? 11 : 12;
+  return (
+    <span style={{
+      display:'inline-block', padding: s === 'sm' ? '2px 8px' : '4px 12px',
+      background: bg, color:'#fff', borderRadius:20, fontSize, fontWeight:700
+    }}>{label}</span>
+  );
+});
+
+// Maps de cor/label para os varios chips de status do portal.
+// (LEAD_STATUS_COLORS / LEAD_SEG_COLORS ja existem mais abaixo perto do componente Leads.)
+const POSTS_STATUS_COLORS = { approved: '#28a745', rejected: '#e74c3c', pending: '#f0ad4e' };
+const POSTS_STATUS_LABELS = { approved: 'Aprovado', rejected: 'Rejeitado', pending: 'Pendente' };
+
+const REPORTS_STATUS_COLORS = { pending: '#b8860b', resolved: '#06d6a0', dismissed: '#9e9687' };
+const REPORTS_STATUS_LABELS = { pending: 'Pendente', resolved: 'Resolvida', dismissed: 'Descartada' };
+
+const REFERRALS_STATUS_COLORS = { completed: '#06d6a0', pending: '#b8860b', cancelled: '#e63946' };
+const REFERRALS_STATUS_LABELS = { completed: 'Completa', pending: 'Pendente', cancelled: 'Cancelada' };
+
+const ORDERS_STATUS_COLORS = { pending: '#ffd166', processing: '#ff6b35', shipped: '#2ec4b6', completed: '#06d6a0', cancelled: '#e63946' };
+const ORDERS_STATUS_LABELS = { pending: 'Aguardando', processing: 'Em andamento', shipped: 'Enviado', completed: 'Concluido', cancelled: 'Cancelado' };
+
+const LEADS_STATUS_LABELS = { novo: 'Novo', contactado: 'Contactado', qualificado: 'Qualificado', convertido: 'Convertido', perdido: 'Perdido' };
+
+// ============================================================
+// Services CRUD — wrappers de supabase com erro via throw.
+// Quem chama DEVE try/catch.
+// ============================================================
+const productsService = {
+  list: async () => { const r = await supa.from('products').select('*').order('name'); if (r.error) throw r.error; return r.data || []; },
+  upsert: async (p) => { const r = await supa.from('products').upsert(p); if (r.error) throw r.error; return r.data; },
+  remove: async (id) => { const r = await supa.from('products').delete().eq('id', id); if (r.error) throw r.error; }
+};
+
+const leadsService = {
+  list: async () => { const r = await supa.from('leads').select('*').order('created_at', {ascending:false}); if (r.error) throw r.error; return r.data || []; },
+  updateStatus: async (id, status) => { const r = await supa.from('leads').update({status}).eq('id', id); if (r.error) throw r.error; },
+  remove: async (id) => { const r = await supa.from('leads').delete().eq('id', id); if (r.error) throw r.error; },
+  insertBatch: async (rows) => { const r = await supa.from('leads').insert(rows); if (r.error) throw r.error; return r.data; }
+};
+
+const announcementsService = {
+  list: async () => { const r = await supa.from('announcements').select('*').order('created_at', {ascending:false}); if (r.error) throw r.error; return r.data || []; },
+  insert: async (a) => { const r = await supa.from('announcements').insert(a); if (r.error) throw r.error; },
+  toggle: async (id, active) => { const r = await supa.from('announcements').update({active}).eq('id', id); if (r.error) throw r.error; },
+  remove: async (id) => { const r = await supa.from('announcements').delete().eq('id', id); if (r.error) throw r.error; }
+};
+
+const postsService = {
+  setStatus: async (id, status) => { const r = await supa.from('posts').update({status}).eq('id', id); if (r.error) throw r.error; },
+  deleteWithChildren: async (id) => {
+    await supa.from('likes').delete().eq('post_id', id);
+    await supa.from('comments').delete().eq('post_id', id);
+    const r = await supa.from('posts').delete().eq('id', id);
+    if (r.error) throw r.error;
+  }
+};
+
+const ordersService = {
+  updateStatus: async (id, status) => { const r = await supa.from('orders').update({status}).eq('id', id); if (r.error) throw r.error; }
+};
+
+const reportsService = {
+  resolve: async (id) => { const r = await supa.from('reports').update({status:'resolved'}).eq('id', id); if (r.error) throw r.error; }
+};
+
 // Classificacao de perfis (consistente em todo o portal)
 const PRO_ROLES = ['pintor','grafiteiro','graffiti','automotivo','funileiro'];
 const roleOf = p => ((p && (p.role || p.user_type)) || '').toString().trim().toLowerCase();
@@ -226,6 +301,52 @@ const setProfilePro = async (id, value, after) => {
 };
 
 const isProActive = p => !!(p && p.is_pro && (!p.pro_expires_at || new Date(p.pro_expires_at) > new Date()));
+
+// Hook genérico de consulta ao Supabase: encapsula useState+useEffect+fetch.
+// queryFn recebe o client `supa` e devolve o resultado bruto da query (ou
+// uma Promise que resolve para `{ data, error }` / qualquer payload).
+function useSupabaseQuery(queryFn, deps) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  const refetch = React.useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await queryFn(supa);
+      if (res && res.error) throw res.error;
+      setData(res && res.data !== undefined ? res.data : res);
+    } catch (e) {
+      console.warn('useSupabaseQuery:', e && e.message || e);
+      setError(e);
+    } finally { setLoading(false); }
+  }, deps || []);
+  React.useEffect(() => { refetch(); }, [refetch]);
+  return { data, loading, error, refetch };
+}
+
+// Service centralizado para consultas da tabela `profiles` — evita repetir
+// `supa.from('profiles').select('*')` + filtros isPro/isCliente em cada tela.
+const profilesService = {
+  async list(opts) {
+    opts = opts || {};
+    let q = supa.from('profiles').select(opts.fields || '*');
+    if (opts.portalOnly) q = q.eq('portal_access', true);
+    if (opts.order) q = q.order(opts.order, { ascending: opts.ascending !== false });
+    if (opts.limit) q = q.limit(opts.limit);
+    const { data, error } = await q;
+    if (error) throw error;
+    let rows = data || [];
+    if (opts.painterOnly) rows = rows.filter(isProProfile);
+    if (opts.clienteOnly) rows = rows.filter(isClienteProfile);
+    if (opts.proOnly) rows = rows.filter(isProActive);
+    return rows;
+  },
+  async byId(id, fields) {
+    const { data, error } = await supa.from('profiles').select(fields || '*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+};
 
 const setProfileRole = async (id, roleKey, after) => {
   const ok = await adminUsers({ action:'set_role', userId:id, roleKey });
@@ -479,19 +600,10 @@ const Dashboard = () => {
 };
 
 const PintoresList = ({ roleFilter, title, defaultRole, emptyMsg }) => {
-  const [pintores, setPintores] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchPintores = async () => {
-    const { data } = await supa.from('profiles').select('*').order('created_at', { ascending: false });
-    // Mostra TODOS os profissionais do tipo, sendo PRO ou nao.
-    let list = (data || []).filter(isProProfile);
-    if (roleFilter) list = list.filter(roleFilter);
-    setPintores(list);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchPintores(); }, []);
+  // Mostra TODOS os profissionais do tipo, sendo PRO ou nao.
+  const { data, loading, refetch: fetchPintores } = useSupabaseQuery(() => profilesService
+    .list({ painterOnly: true, order: 'created_at', ascending: false }), []);
+  const pintores = roleFilter ? (data || []).filter(roleFilter) : (data || []);
 
   const updateVerified = (id, verified) => setProfileVerified(id, verified, fetchPintores);
 
@@ -1736,19 +1848,11 @@ const quoteStatusStyle = (s) => {
 const STATUS_MAP = Object.fromEntries(Object.entries(QUOTE_STATUS).map(([k,v]) => [k, v.label]));
 
 const Orcamentos = () => {
-  const [orcamentos, setOrcamentos] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supa
-        .from('quotes')
-        .select('*, client:profiles!client_id(name), painter:profiles!painter_id(name)')
-        .order('created_at', { ascending: false });
-      if (!error && data) setOrcamentos(data);
-      setLoading(false);
-    })();
-  }, []);
+  const { data, loading } = useSupabaseQuery((sb) => sb
+    .from('quotes')
+    .select('*, client:profiles!client_id(name), painter:profiles!painter_id(name)')
+    .order('created_at', { ascending: false }), []);
+  const orcamentos = data || [];
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando orçamentos...</div>;
 
@@ -1790,24 +1894,18 @@ const Orcamentos = () => {
 };
 
 const ClientesList = () => {
-  const [clientes, setClientes] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchClientes = async () => {
-    const { data } = await supa.from('profiles').select('*').order('created_at', { ascending: false });
-    const profiles = (data || []).filter(isClienteProfile);
+  const { data, loading, refetch: fetchClientes } = useSupabaseQuery(async (sb) => {
+    const profiles = await profilesService.list({ clienteOnly: true, order: 'created_at', ascending: false });
     // Load invite codes generated by each user
-    const { data: invites } = await supa.from('invites').select('code, created_by').order('created_at', { ascending: false });
+    const { data: invites } = await sb.from('invites').select('code, created_by').order('created_at', { ascending: false });
     const inviteMap = {};
     (invites || []).forEach(inv => {
       if (!inviteMap[inv.created_by]) inviteMap[inv.created_by] = [];
       inviteMap[inv.created_by].push(inv.code);
     });
-    setClientes(profiles.map(p => ({ ...p, _generated_codes: inviteMap[p.id] || [] })));
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchClientes(); }, []);
+    return profiles.map(p => ({ ...p, _generated_codes: inviteMap[p.id] || [] }));
+  }, []);
+  const clientes = data || [];
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando clientes...</div>;
 
@@ -1863,21 +1961,14 @@ const ClientesList = () => {
 };
 
 const PostsModeracao = () => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
-
-  const fetchPosts = async () => {
-    setLoading(true);
-    let query = supa.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', { ascending: false }).limit(50);
+  const { data, loading, refetch: fetchPosts } = useSupabaseQuery((sb) => {
+    let query = sb.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', { ascending: false }).limit(50);
     if(filter === 'pending') query = query.eq('status','pending');
     else if(filter === 'rejected') query = query.eq('status','rejected');
-    const { data } = await query;
-    setPosts(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchPosts(); }, [filter]);
+    return query;
+  }, [filter]);
+  const posts = data || [];
 
   const updateStatus = async (id, status) => {
     await supa.from('posts').update({ status }).eq('id', id);
@@ -1941,19 +2032,11 @@ const PostsModeracao = () => {
 };
 
 const AvaliacoesList = () => {
-  const [quotes, setQuotes] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supa
-        .from('quotes')
-        .select('*, client:profiles!client_id(name, rating_avg), painter:profiles!painter_id(name, rating_avg)')
-        .order('created_at', { ascending: false });
-      if (!error && data) setQuotes(data);
-      setLoading(false);
-    })();
-  }, []);
+  const { data, loading } = useSupabaseQuery((sb) => sb
+    .from('quotes')
+    .select('*, client:profiles!client_id(name, rating_avg), painter:profiles!painter_id(name, rating_avg)')
+    .order('created_at', { ascending: false }), []);
+  const quotes = data || [];
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando avaliações...</div>;
 
@@ -2004,16 +2087,11 @@ const AvaliacoesList = () => {
 };
 
 const CursosList = () => {
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supa.from('profiles').select('id, name, city, state, verified, rating_avg').order('rating_avg', { ascending: false });
-      if (data) setProfiles(data.filter(p => p.verified));
-      setLoading(false);
-    })();
-  }, []);
+  const { data, loading } = useSupabaseQuery((sb) => sb
+    .from('profiles')
+    .select('id, name, city, state, verified, rating_avg')
+    .order('rating_avg', { ascending: false }), []);
+  const profiles = (data || []).filter(p => p.verified);
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando cursos...</div>;
 
@@ -2044,25 +2122,15 @@ const CursosList = () => {
 };
 
 const MarketingPage = () => {
-  const [stats, setStats] = useState({ profiles: 0, leads: 0, quotes: 0 });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const sb = supa;
-      const [pRes, lRes, qRes] = await Promise.all([
-        sb.from('profiles').select('id', { count: 'exact', head: true }),
-        sb.from('leads').select('id', { count: 'exact', head: true }),
-        sb.from('quotes').select('id', { count: 'exact', head: true }),
-      ]);
-      setStats({
-        profiles: pRes.count || 0,
-        leads: lRes.count || 0,
-        quotes: qRes.count || 0,
-      });
-      setLoading(false);
-    })();
+  const { data, loading } = useSupabaseQuery(async (sb) => {
+    const [pRes, lRes, qRes] = await Promise.all([
+      sb.from('profiles').select('id', { count: 'exact', head: true }),
+      sb.from('leads').select('id', { count: 'exact', head: true }),
+      sb.from('quotes').select('id', { count: 'exact', head: true }),
+    ]);
+    return { data: { profiles: pRes.count || 0, leads: lRes.count || 0, quotes: qRes.count || 0 } };
   }, []);
+  const stats = data || { profiles: 0, leads: 0, quotes: 0 };
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando marketing...</div>;
 
@@ -2110,21 +2178,12 @@ const MarketingPage = () => {
 
 // ══ AVISOS (Announcements) ══
 const Avisos = () => {
-  const [avisos, setAvisos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refetch: loadAvisos } = useSupabaseQuery((sb) => sb
+    .from('announcements').select('*').order('created_at', { ascending: false }), []);
+  const avisos = data || [];
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const loadAvisos = async () => {
-    try {
-      const { data, error } = await supa.from('announcements').select('*').order('created_at', { ascending: false });
-      if(!error && data) setAvisos(data);
-    } catch(e){ console.warn('loadAvisos error:', e); }
-    setLoading(false);
-  };
-
-  useEffect(() => { loadAvisos(); }, []);
 
   const saveAviso = async () => {
     if(!title.trim()){ alert('Preencha o titulo'); return; }
@@ -2206,26 +2265,17 @@ const Avisos = () => {
 
 // ══ PEDIDOS DA LOJA (Orders) ══
 const PedidosLoja = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await supa.from('orders')
-          .select('*, user:profiles!user_id(name, phone, city, state, tag)')
-          .order('created_at', { ascending: false });
-        if(!error && data) setOrders(data);
-      } catch(e){ console.warn('loadOrders error:', e); }
-      setLoading(false);
-    })();
-  }, []);
+  const { data, loading, refetch } = useSupabaseQuery((sb) => sb
+    .from('orders')
+    .select('*, user:profiles!user_id(name, phone, city, state, tag)')
+    .order('created_at', { ascending: false }), []);
+  const orders = data || [];
 
   const updateOrderStatus = async (id, status) => {
     try {
       const { error } = await supa.from('orders').update({ status }).eq('id', id);
       if (error) { alert('Não foi possível atualizar o pedido: ' + error.message); return; }
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+      refetch();
     } catch(e){ alert('Erro ao atualizar o pedido.'); console.warn('updateOrderStatus error:', e); }
   };
 
@@ -2289,23 +2339,14 @@ const PedidosLoja = () => {
 };
 
 const PortalUsersList = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refetch: fetchUsers } = useSupabaseQuery(() => profilesService
+    .list({ portalOnly: true, order: 'created_at', ascending: false }), []);
+  const users = data || [];
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name:'', email:'', password:'' });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [formMsg, setFormMsg] = useState('');
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    const { data, error } = await supa.from('profiles').select('*').eq('portal_access', true).order('created_at', { ascending: false });
-    if (!error && data) setUsers(data);
-    else setUsers([]);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchUsers(); }, []);
 
   const createUser = async () => {
     setFormError(''); setFormMsg('');
@@ -2810,13 +2851,12 @@ function App() {
     try {
       const sb = supa;
       if(!sb) return;
-      const [msgsRes, quotesRes, profilesRes, leadsRes] = await Promise.all([
+      const [msgsRes, quotesRes, profiles, leadsRes] = await Promise.all([
         sb.from('messages').select('id', { count: 'exact', head: true }),
         sb.from('quotes').select('id', { count: 'exact', head: true }),
-        sb.from('profiles').select('role, user_type, profession, portal_access'),
+        profilesService.list({ fields: 'role, user_type, profession, portal_access' }),
         sb.from('leads').select('id', { count: 'exact', head: true }),
       ]);
-      const profiles = profilesRes.data || [];
       setBadges({
         chats: msgsRes.count || 0,
         orcamentos: quotesRes.count || 0,
