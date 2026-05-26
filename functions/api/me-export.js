@@ -3,7 +3,7 @@
 // O usuário pode salvar e levar pra outro fornecedor.
 //
 // Requer JWT do usuário no body.accessToken ou Authorization header.
-import { getToken, jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY } from './_security.js';
+import { getToken, jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -41,6 +41,11 @@ export async function onRequestPost(context) {
   if (!serviceKey) {
     return json({ error: 'Exportação temporariamente indisponível' }, 503);
   }
+
+  // Rate limit (3 exports/min): export bate em 16 queries paralelas no
+  // Supabase. Sem isso, dava pra DoS o banco com /api/me-export em loop.
+  const rl = await checkRateLimit(env, userId, 'me-export', 3);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const sHeaders = { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey };
   const get = async (table, query) => {

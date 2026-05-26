@@ -203,6 +203,14 @@ export function rateLimitResponse(rl){
 //             if (g instanceof Response) return g;
 //             const userId = g.userId;
 export async function gateProAI(env, request, body, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+  // Fail-CLOSED: se service-role key faltar, nao da pra checar PRO nem
+  // rate-limit. Sem ela, requirePro cai em fail-open e libera geral.
+  // Como esse helper guarda TODOS os endpoints de IA, retornar 503 aqui
+  // garante que nenhum endpoint PRO vire freebie por config faltando.
+  const serviceKey = env.SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    return jsonResponse({ error: 'serviço temporariamente indisponível' }, 503);
+  }
   const auth = await requireAuth(env, request, body);
   if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
   const userId = auth.user && auth.user.id;
@@ -218,6 +226,12 @@ export async function gateProAI(env, request, body, { endpoint, limit = 30, requ
 // Variante de gateProAI para endpoints multipart/form-data: extrai o token
 // do FormData (via getTokenFromForm) em vez de body.accessToken.
 export async function gateProAIForm(env, request, formData, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+  // Fail-CLOSED: mesma logica do gateProAI — se faltar service-role key,
+  // requirePro vira fail-open. Retorna 503 antes mesmo de validar token.
+  const serviceKey = env.SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    return jsonResponse({ error: 'serviço temporariamente indisponível' }, 503);
+  }
   const accessToken = getTokenFromForm(request, formData);
   const auth = await requireAuth(env, request, { accessToken });
   if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
