@@ -6,8 +6,9 @@
 // Endpoint PRO, rate-limit baixo (custo de imagem).
 //
 // Orçamento de tempo (limite Cloudflare Pages: 30s):
-//   - Imagem OpenAI: até 16s
-//   - Fallback Gemini (só em erro rápido, ex 404/403): até 6s
+//   - Imagem OpenAI: até 22s (1024x1536 vertical e 1536x1024 horizontal são
+//     mais lentos que 1024x1024 — costuma demorar 18-25s).
+//   - Fallback Gemini (só em erro rápido, ex 404/403): até 4s
 //   - Legenda (paralela): até 7s × 2 providers = 14s
 //   Promise.all = max(imagem, legenda) ≤ 22s.
 //   Outer hard-timeout em 27s GARANTE retorno JSON antes do CF matar (30s).
@@ -15,14 +16,14 @@ import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const OPENAI_IMG_MODEL = 'gpt-image-1';
-const OPENAI_IMG_TIMEOUT_MS = 16000;
+const OPENAI_IMG_TIMEOUT_MS = 22000;
 
 const GEMINI_FALLBACK_DEFAULT_MODEL = 'gemini-2.5-flash-image';
 const GEMINI_FALLBACK_MODELS = [
   'gemini-2.5-flash-image-preview',
   'gemini-2.0-flash-preview-image-generation'
 ];
-const GEMINI_FALLBACK_TIMEOUT_MS = 6000;
+const GEMINI_FALLBACK_TIMEOUT_MS = 4000;
 
 const CAPTION_TIMEOUT_MS = 7000;
 const OUTER_HARD_TIMEOUT_MS = 27000;  // < 30s do CF Pages, garante retorno JSON
