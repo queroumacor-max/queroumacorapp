@@ -23,6 +23,25 @@ function showError(ctx, err, fallback) {
 }
 window.showError = showError;
 
+// Wrapper para await que mapeia erro em showError automaticamente.
+// Uso: const data = await safeAwait(sb.from('x').select(), 'loadX', 'Erro ao carregar');
+// Retorna { data, error } do Supabase em caso de sucesso, ou null em caso de exceção.
+// Se a promise resolve com { error } (padrão Supabase), também dispara showError.
+async function safeAwait(promise, ctx, fallback) {
+  try {
+    const res = await promise;
+    if (res && res.error) {
+      showError(ctx, res.error, fallback);
+      return null;
+    }
+    return res;
+  } catch (e) {
+    showError(ctx, e, fallback);
+    return null;
+  }
+}
+window.safeAwait = safeAwait;
+
 // ═══════ OBSERVABILITY (lightweight) ═══════
 // Captura erros não-tratados + Web Vitals e envia pra /api/log-error.
 // Buffer + batch envio pra não bloquear UI.

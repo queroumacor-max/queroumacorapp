@@ -8179,17 +8179,20 @@ async function abrirMaquininha(){
 async function entrarListaMaquininha(){
   const input = document.getElementById('maquininha-contato');
   const contato = input ? input.value.trim() : '';
+  if(!currentUser){ toast('Faça login para entrar na lista'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Sem conexão. Tente de novo.'); return; }
   try {
-    const sb = getSupabase();
-    if(currentUser && sb){
-      await sb.from('feature_interest').insert({
-        user_id: currentUser.id,
-        feature: 'maquininha',
-        action: 'waitlist',
-        contact: contato
-      });
-    }
-  } catch(e){ console.error('entrarListaMaquininha error:', e && e.message || e); }
-  toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
-  closeModals();
+    const { error } = await sb.from('feature_interest').insert({
+      user_id: currentUser.id,
+      feature: 'maquininha',
+      action: 'waitlist',
+      contact: contato
+    });
+    if(error) throw error;
+    toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
+    closeModals();
+  } catch(e){
+    showError('entrarListaMaquininha', e, 'Não conseguimos registrar — tente de novo.');
+  }
 }
