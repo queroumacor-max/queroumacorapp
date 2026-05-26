@@ -1892,4 +1892,74 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- ============================================================
+-- LGPD COMPLIANCE — Wave Final (auditoria LGPD)
+-- ============================================================
+
+-- 🔴 LGPD #2 (Art. 6 II/VII): tighten SELECT em quotes + orders
+DROP POLICY IF EXISTS "Quotes are viewable by everyone" ON public.quotes;
+DROP POLICY IF EXISTS "Quotes viewable by everyone"     ON public.quotes;
+DROP POLICY IF EXISTS "Authenticated users can view all orders" ON public.orders;
+
+-- 🔴 LGPD #3 (Art. 18 VI, Art. 19): tabela de pedidos de exclusão SLA 15d
+CREATE TABLE IF NOT EXISTS public.account_deletion_requests (
+  id           uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  requested_at timestamptz DEFAULT now(),
+  status       text DEFAULT 'pending' CHECK (status IN ('pending','processing','completed','rejected')),
+  completed_at timestamptz,
+  notes        text,
+  UNIQUE (user_id)
+);
+ALTER TABLE public.account_deletion_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS deletion_request_own ON public.account_deletion_requests;
+CREATE POLICY deletion_request_own ON public.account_deletion_requests
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id OR public.is_portal_admin());
+
+DROP FUNCTION IF EXISTS public.request_account_deletion(text);
+CREATE OR REPLACE FUNCTION public.request_account_deletion(p_reason text DEFAULT NULL)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Faça login pra solicitar exclusão';
+  END IF;
+  INSERT INTO public.account_deletion_requests (user_id, notes)
+  VALUES (auth.uid(), p_reason)
+  ON CONFLICT (user_id) DO UPDATE
+    SET requested_at = now(),
+        notes = COALESCE(EXCLUDED.notes, account_deletion_requests.notes)
+  RETURNING id INTO v_id;
+  INSERT INTO public.audit_events (event_type, actor_id, target_id, target_table, target_row_id, metadata)
+  VALUES ('account_deletion_request', auth.uid(), auth.uid(), 'account_deletion_requests', v_id,
+          jsonb_build_object('reason', p_reason));
+  RETURN v_id;
+END $$;
+GRANT EXECUTE ON FUNCTION public.request_account_deletion(text) TO authenticated;
+
+-- 🟠 LGPD Art. 8 §1: evidência de consentimento
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS consent_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS consent_version text;
+
+-- 🟠 LGPD Art. 16: cleanup de retenção
+CREATE OR REPLACE FUNCTION public.cleanup_old_messages()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.messages WHERE created_at < now() - interval '2 years';
+END $$;
+GRANT EXECUTE ON FUNCTION public.cleanup_old_messages() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.cleanup_old_quotes()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.quotes
+   WHERE created_at < now() - interval '3 years'
+     AND status IN ('concluido','recusado','canceled');
+END $$;
+GRANT EXECUTE ON FUNCTION public.cleanup_old_quotes() TO service_role;
+
 NOTIFY pgrst, 'reload schema';
