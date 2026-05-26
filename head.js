@@ -477,7 +477,7 @@ async function openFollowersModal(){
       return;
     }
     const ids = data.map(f => f.follower_id);
-    const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', ids);
+    const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
       const name = p.name || 'Usuário';
@@ -504,7 +504,7 @@ async function openFollowingModal(){
       return;
     }
     const ids = data.map(f => f.following_id);
-    const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', ids);
+    const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
       const name = p.name || 'Usuário';
@@ -742,7 +742,7 @@ async function loadPeopleSuggestions(){
   const sb = getSupabase();
   if(!sb){ setTimeout(loadPeopleSuggestions, 500); return; }
   try {
-    const res = await sb.from('profiles').select('id, name, tag, avatar_url, user_type, role, city, created_at').order('created_at', { ascending: false }).limit(60);
+    const res = await sb.from('profiles_public').select('id, name, tag, avatar_url, user_type, role, city, created_at').order('created_at', { ascending: false }).limit(60);
     if(res.error){ box.innerHTML='<div style="text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;">Não foi possível carregar sugestões.</div>'; return; }
     let people = res.data || [];
     const myId = currentUser ? currentUser.id : null;
@@ -807,7 +807,7 @@ function searchPeople(query){
     try {
       // Busca no servidor (escala sem baixar a tabela inteira)
       const pat = '%' + cleanQuery + '%';
-      const res = await sb.from('profiles')
+      const res = await sb.from('profiles_public')
         .select('id, name, tag, avatar_url, user_type, role, city')
         .or('name.ilike.'+pat+',tag.ilike.'+pat+',city.ilike.'+pat)
         .limit(25);
