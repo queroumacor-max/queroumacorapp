@@ -1967,3 +1967,97 @@ END $$;
 GRANT EXECUTE ON FUNCTION public.cleanup_old_quotes() TO service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ════════════════════════════════════════════════════════════════════
+-- 🟢 WAVE 3: Hardening pós-auditoria 26/05
+-- ════════════════════════════════════════════════════════════════════
+
+-- 🔴 FIX 1: protect_profile_columns também em INSERT (evita escalada via INSERT)
+-- O trigger atual só dispara em UPDATE. Quem fizer INSERT com portal_access=true
+-- contorna a proteção. Recriar como BEFORE INSERT OR UPDATE.
+DROP TRIGGER IF EXISTS protect_profile_columns ON public.profiles;
+CREATE TRIGGER protect_profile_columns
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_columns();
+
+-- Ajuste da função para aceitar TG_OP = 'INSERT' também
+CREATE OR REPLACE FUNCTION public.protect_profile_columns()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  caller_role text;
+BEGIN
+  caller_role := current_setting('role', true);
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.is_pro = true OR NEW.portal_access = true OR NEW.role = 'admin' THEN
+      IF caller_role IS DISTINCT FROM 'service_role' AND auth.role() IS DISTINCT FROM 'service_role' THEN
+        NEW.is_pro := false;
+        NEW.portal_access := false;
+        IF NEW.role = 'admin' THEN NEW.role := 'cliente'; END IF;
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+  -- UPDATE: bloquear escalada
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    IF OLD.is_pro IS DISTINCT FROM NEW.is_pro THEN NEW.is_pro := OLD.is_pro; END IF;
+    IF OLD.portal_access IS DISTINCT FROM NEW.portal_access THEN NEW.portal_access := OLD.portal_access; END IF;
+    IF OLD.role IS DISTINCT FROM NEW.role AND NEW.role = 'admin' THEN NEW.role := OLD.role; END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+
+-- 🟠 FIX 2: UNIQUE em points(source, reference_id) — anti double-credit em race
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_source_ref
+  ON public.points(source, reference_id)
+  WHERE reference_id IS NOT NULL;
+
+-- 🟠 FIX 3: Restringir leitura de grafo social a authenticated (sem anon enumerar)
+DROP POLICY IF EXISTS "follows_select_all" ON public.follows;
+DROP POLICY IF EXISTS "Users can view all follows" ON public.follows;
+CREATE POLICY "follows_select_auth" ON public.follows
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "likes_select_all" ON public.likes;
+DROP POLICY IF EXISTS "Users can view all likes" ON public.likes;
+CREATE POLICY "likes_select_auth" ON public.likes
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "comments_select_all" ON public.comments;
+DROP POLICY IF EXISTS "Users can view all comments" ON public.comments;
+CREATE POLICY "comments_select_auth" ON public.comments
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "qualifications_select_all" ON public.qualifications;
+CREATE POLICY "qualifications_select_auth" ON public.qualifications
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "courses_select_all" ON public.courses;
+CREATE POLICY "courses_select_auth" ON public.courses
+  FOR SELECT TO authenticated USING (true);
+
+-- 🟠 FIX 4: announcements — esconder created_by para não-admin
+-- Manter SELECT público mas via uma view que omite created_by
+DROP POLICY IF EXISTS "Announcements are viewable by everyone" ON public.announcements;
+CREATE POLICY "announcements_select_active" ON public.announcements
+  FOR SELECT USING (active = true);
+
+CREATE OR REPLACE VIEW public.announcements_public WITH (security_invoker = true) AS
+SELECT id, title, body, link_url, active, created_at, updated_at
+FROM public.announcements;
+GRANT SELECT ON public.announcements_public TO anon, authenticated;
+
+-- 🟢 FIX 5: rate_limits — deny-all explícita por defense-in-depth
+DROP POLICY IF EXISTS "rate_limits_deny" ON public.rate_limits;
+CREATE POLICY "rate_limits_deny" ON public.rate_limits
+  FOR ALL TO authenticated USING (false) WITH CHECK (false);
+
+-- 🟢 FIX 6: reviews — restaurar SELECT público se foi droppada por engano
+DROP POLICY IF EXISTS "reviews_select_public" ON public.reviews;
+CREATE POLICY "reviews_select_public" ON public.reviews
+  FOR SELECT USING (true);
+
+-- 🟢 FIX 7: FK ON DELETE em announcements.created_by
+ALTER TABLE public.announcements DROP CONSTRAINT IF EXISTS announcements_created_by_fkey;
+ALTER TABLE public.announcements
+  ADD CONSTRAINT announcements_created_by_fkey
+  FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
