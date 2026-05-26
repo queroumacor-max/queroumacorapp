@@ -62,6 +62,7 @@ export async function onRequestPost(context) {
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'DALL-E timeout (45s) — tente de novo' }, 504);
-    return json({ error: String(e?.message || e) }, 500);
+    console.warn('generate-logo: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }

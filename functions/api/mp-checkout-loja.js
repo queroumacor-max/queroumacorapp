@@ -12,9 +12,7 @@
 //   - MP_ACCESS_TOKEN (access token de produção do MP — já configurado)
 //   - SUPABASE_URL, SUPABASE_ANON_KEY (já configurados)
 //   - SUPABASE_SERVICE_ROLE (opcional, fallback se anon não tiver permissão)
-import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
-
-const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
+import { jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -37,7 +35,7 @@ export async function onRequestPost(context) {
   if (!user) return json({ error: 'Sessão inválida — faça login novamente' }, 401);
 
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
+  const anonKey = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
 
   // Busca o pedido com o token do user (RLS filtra automaticamente pra ele)
   const orderRes = await fetch(
@@ -45,7 +43,9 @@ export async function onRequestPost(context) {
     { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10000) }
   );
   if (!orderRes.ok) {
-    return json({ error: 'Supabase ' + orderRes.status + ': ' + (await orderRes.text()).slice(0, 200) }, 502);
+    const txt = (await orderRes.text()).slice(0, 300);
+    console.warn('mp-checkout-loja supabase error', orderRes.status, txt);
+    return json({ error: 'Falha temporária na consulta — tente de novo' }, 502);
   }
   const rows = await orderRes.json().catch(() => []);
   const order = Array.isArray(rows) && rows[0];
@@ -181,9 +181,9 @@ export async function onRequestPost(context) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
-      return json({
-        error: 'Mercado Pago ' + r.status + ': ' + ((data?.message || data?.error || JSON.stringify(data)).slice(0, 300))
-      }, 502);
+      const detail = (data?.message || data?.error || JSON.stringify(data)).slice(0, 300);
+      console.warn('mp-checkout-loja MP error', r.status, detail);
+      return json({ error: 'Falha temporária no pagamento — tente de novo' }, 502);
     }
     const initPoint = data.init_point || data.sandbox_init_point;
     if (!initPoint) return json({ error: 'Mercado Pago não retornou init_point' }, 502);
@@ -207,13 +207,14 @@ export async function onRequestPost(context) {
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'Mercado Pago timeout (15s) — tente de novo' }, 504);
-    return json({ error: String(e?.message || e) }, 500);
+    console.warn('mp-checkout-loja: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }
 
 async function verifySupabaseToken(token, env) {
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
+  const anonKey = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
   try {
     const r = await fetch(`${supaUrl}/auth/v1/user`, {
       headers: { 'Authorization': `Bearer ${token}`, 'apikey': anonKey },

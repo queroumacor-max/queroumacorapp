@@ -79,8 +79,9 @@ REGRAS DE RESPOSTA (rígidas):
       signal: AbortSignal.timeout(25000)
     });
     if (!r.ok) {
-      const txt = (await r.text()).slice(0, 200);
-      return json({ error: `OpenAI ${r.status}: ${txt}` }, 502);
+      const txt = (await r.text()).slice(0, 300);
+      console.warn('caption OpenAI error', r.status, txt);
+      return json({ error: 'IA indisponível — tente de novo em instantes' }, 502);
     }
     const data = await r.json();
     raw = data?.choices?.[0]?.message?.content?.trim() || '';

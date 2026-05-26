@@ -36,14 +36,16 @@ export async function onRequestPost(context) {
       signal: AbortSignal.timeout(60000)
     });
     if (!r.ok) {
-      const errText = await r.text();
-      return json({ error: 'OpenAI ' + r.status + ': ' + errText.slice(0, 200) }, 502);
+      const errText = (await r.text()).slice(0, 300);
+      console.warn('transcribe OpenAI error', r.status, errText);
+      return json({ error: 'Transcrição indisponível — tente de novo em instantes' }, 502);
     }
     const data = await r.json();
     return json({ text: (data && data.text) || '' });
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'Whisper timeout (60s) — tente um áudio menor' }, 504);
-    return json({ error: String(e && e.message || e) }, 500);
+    console.warn('transcribe: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }

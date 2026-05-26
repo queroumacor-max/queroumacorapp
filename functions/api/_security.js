@@ -10,7 +10,7 @@
 // barrar requests anônimos e usuários sem PRO, respectivamente.
 
 export const FALLBACK_SUPABASE_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
-const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
+export const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
 
 // Extrai o JWT do request. Prioridade: header Authorization Bearer,
 // depois `accessToken` no body (útil para multipart, ou clientes que
@@ -51,6 +51,15 @@ export function getTokenFromForm(request, formData){
 // Quando quisermos endurecer (cliente já manda token sempre + service
 // key configurada), basta trocar os warnings por `return { error, status }`
 // nesses dois ramos. Por ora, sem quebrar nada.
+//
+// ATENCAO — requireAuth e FAIL-OPEN POR DESIGN:
+//   - Retorna { user: null, anon: true } quando token ausente/invalido/erro
+//   - NAO BLOQUEIA o request — cabe ao chamador validar `auth.user`
+//   - Use SEMPRE `gateProAI`/`gateProAIForm` em vez de chamar direto, EXCETO
+//     em endpoints que precisam ser anonimos (raro)
+//   - Se chamar direto, OBRIGATORIO ter:
+//       if (!auth.user) return json({error: 'login obrigatorio'}, 401);
+//   - moderate.js e o unico caller direto hoje (e ja tem o guard)
 export async function requireAuth(env, request, body){
   const token = getToken(request, body);
   if(!token){
@@ -110,7 +119,9 @@ export async function requirePro(env, userId){
     });
     if(!r.ok){
       console.warn('requirePro: falha ao consultar profiles', r.status);
-      return { pro: true, checked: false }; // fail-open em erro
+      // Service key configurada mas Supabase indisponível: fail-CLOSED.
+      // Atacante não bypassa PRO check via DoS no Supabase.
+      return { pro: false, checked: false, error: 'verificação indisponível' };
     }
     const rows = await r.json();
     if(!Array.isArray(rows) || rows.length === 0){
@@ -122,7 +133,8 @@ export async function requirePro(env, userId){
     return { pro: !!(prof.is_pro && notExpired), checked: true };
   } catch(e){
     console.warn('requirePro: exceção', e && e.message);
-    return { pro: true, checked: false }; // fail-open
+    // Service key configurada mas erro de rede ao Supabase: fail-CLOSED.
+    return { pro: false, checked: false, error: 'erro de rede' };
   }
 }
 

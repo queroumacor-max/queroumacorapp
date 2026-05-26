@@ -815,7 +815,7 @@ function renderPipelineCard(q){
   const photosBlock = imgs.length > 0
     ? '<div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
       + imgs.slice(0, 8).map(url =>
-          '<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener" style="flex-shrink:0;width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;display:block;"><img src="'+escapeHtml(url)+'" style="width:100%;height:100%;object-fit:cover;"></a>'
+          '<a href="'+safeUrl(url)+'" target="_blank" rel="noopener" style="flex-shrink:0;width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;display:block;"><img src="'+escapeHtml(url)+'" style="width:100%;height:100%;object-fit:cover;"></a>'
         ).join('')
       + '</div>'
     : '';
@@ -5022,7 +5022,7 @@ async function handleChatAttachment(input){
     const area = document.getElementById('msgs-area');
     const div = document.createElement('div');
     div.className = 'msg-row me';
-    div.innerHTML = '<div><div class="msg-bubble"><img src="'+imgUrl+'" style="max-width:200px;border-radius:10px;display:block;" alt="foto"></div><div class="msg-time">'+time+'</div></div>';
+    div.innerHTML = '<div><div class="msg-bubble"><img src="'+escapeHtml(imgUrl)+'" style="max-width:200px;border-radius:10px;display:block;" alt="foto"></div><div class="msg-time">'+escapeHtml(time)+'</div></div>';
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 
@@ -6744,13 +6744,13 @@ async function loadPosts(feedIds, append){
         +'<span class="act-label">Comentar</span>'
         +'</button>';
       // Compartilhar (seta)
-      html += '<button class="act-btn" onclick="sharePost(\''+p.id+'\')">'
+      html += '<button class="act-btn" onclick="sharePost(\''+escapeJsArg(p.id)+'\')">'
         +'<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>'
         +'<span class="act-label">Compartilhar</span>'
         +'</button>';
       // Orçamento (qualquer post que não seja o seu próprio)
       if(!currentUser || p.user_id !== currentUser.id){
-        html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+p.user_id+'\',\''+escapeJsArg(name)+'\')">'
+        html += '<button class="act-btn" onclick="abrirOrcamentoChat(\''+escapeJsArg(p.user_id)+'\',\''+escapeJsArg(name)+'\')">'
           +'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
           +'<span class="act-label">Orçar</span>'
           +'</button>';
@@ -6772,8 +6772,8 @@ async function loadPosts(feedIds, append){
           let cName = cp.name || 'Usuário';
           if(cName.includes('@')) cName = cName.split('@')[0];
           const canDelete = currentUser && (currentUser.id === c.user_id || currentUser.id === p.user_id);
-          const delBtn = canDelete ? ' <span onclick="deleteComment(this,\''+c.id+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>' : '';
-          html += '<div data-comment-id="'+c.id+'" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;">';
+          const delBtn = canDelete ? ' <span onclick="deleteComment(this,\''+escapeJsArg(c.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>' : '';
+          html += '<div data-comment-id="'+escapeHtml(c.id)+'" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;">';
           html += '<span style="flex:1"><b>'+escapeHtml(cName)+'</b> '+escapeHtml(c.text)+'</span>'+delBtn;
           html += '</div>';
         });
@@ -6784,7 +6784,7 @@ async function loadPosts(feedIds, append){
       if(p.for_sale && p.price > 0 && currentUser && p.user_id !== currentUser.id){
         html += '<div style="padding:6px 14px 4px;display:flex;gap:8px;">';
         html += '<button onclick="comprarObra(\''+escapeJsArg(p.id)+'\',\''+escapeJsArg(name)+'\',\''+escapeJsArg(p.user_id)+'\',\''+escapeJsArg(p.art_type||'Obra')+'\')" style="flex:1;padding:10px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">🎨 Interesse · R$ '+p.price.toLocaleString('pt-BR')+'</button>';
-        html += '<button onclick="openChatWithUser(\''+p.user_id+'\')" style="padding:10px 14px;background:var(--white);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">💬</button>';
+        html += '<button onclick="openChatWithUser(\''+escapeJsArg(p.user_id)+'\')" style="padding:10px 14px;background:var(--white);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">💬</button>';
         html += '</div>';
       }
       html += '</div>';
@@ -6961,7 +6961,7 @@ async function submitComment(btn){
     commentDiv.setAttribute('data-comment-id', comment.id);
     commentDiv.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;';
     commentDiv.innerHTML = '<span style="flex:1"><b>'+escapeHtml(userName)+'</b> '+escapeHtml(text)+'</span>'
-      + '<span onclick="deleteComment(this,\''+comment.id+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
+      + '<span onclick="deleteComment(this,\''+escapeJsArg(comment.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
     commentsArea.appendChild(commentDiv);
   } catch(e){ toast('Erro ao comentar'); console.warn('comment error:', e && e.message || e); }
   btn.disabled = false;
