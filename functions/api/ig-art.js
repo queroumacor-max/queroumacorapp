@@ -5,13 +5,16 @@
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
-const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image-preview';
-// Limitamos a 1 fallback pra caber no timeout de 30s do Cloudflare Pages.
-// Imagem leva 8-20s; chain de 4 modelos = 502 garantido.
+// Default: tenta o nome GA primeiro (Google tira "-preview" quando promove).
+// Limitamos a 2 modelos pra caber no timeout de 30s do Cloudflare Pages.
+// Imagem leva 8-20s; chain longa = 502 garantido por timeout.
+const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image';
 const IMG_MODEL_FALLBACKS = [
-  'gemini-2.0-flash-exp-image-generation'
+  'gemini-2.5-flash-image-preview'  // nome antigo (preview), alguns projetos ainda têm acesso
 ];
-const FETCH_TIMEOUT_MS = 22000; // 22s por tentativa — sobra 6s pra outras coisas
+// Timeout reduzido pra deixar margem confortável de 2 tentativas dentro do
+// limite de 30s do CF Pages: 14s × 2 = 28s no pior caso.
+const FETCH_TIMEOUT_MS = 14000;
 const MAX_INPUT_BYTES = 8 * 1024 * 1024; // 8MB de foto de entrada
 
 // Presets de estilo — chave curta no front, prompt rico aqui.
@@ -104,12 +107,21 @@ async function handle(context) {
   ]);
 
   if (imgRes.error) {
-    console.warn('ig-art img err:', imgRes.error, 'model:', imgRes.modelTried);
-    return json({ error: 'Falha ao gerar arte' }, 502);
+    // [ig-art-fail] prefix permite grep no Cloudflare Pages → Functions → Logs
+    console.error('[ig-art-fail] img-err:', imgRes.error, 'model:', imgRes.modelTried);
+    // Endpoint é PRO-gated (caller autenticado); detalhe ajuda o dev a diagnosticar
+    return json({
+      error: 'Falha ao gerar arte',
+      detail: String(imgRes.error).slice(0, 240),
+      model_tried: imgRes.modelTried
+    }, 502);
   }
   if (!imgRes.b64) {
-    console.warn('ig-art: Gemini sem imagem, model:', imgRes.modelTried || imgModel);
-    return json({ error: 'Gemini não devolveu imagem' }, 502);
+    console.error('[ig-art-fail] sem-imagem, model:', imgRes.modelTried || imgModel);
+    return json({
+      error: 'Gemini não devolveu imagem (só texto)',
+      model_tried: imgRes.modelTried || imgModel
+    }, 502);
   }
 
   return json({
@@ -128,13 +140,14 @@ async function generateImageWithFallback({ env, models, prompt, mime, b64 }) {
     const r = await generateImage({ env, model, prompt, mime, b64 });
     if (r.b64) return { ...r, modelTried: model };
     lastErr = r.error || 'sem detalhe';
-    // Fallback SÓ quando o modelo não existe (404). Timeout/quota/permissão
-    // não vão melhorar com outro modelo e estouram o limite de 30s do Pages.
-    const isModelNotFound = /404|NOT_FOUND|not found|not.support/i.test(lastErr);
-    if (!isModelNotFound) {
+    // Fallback quando o modelo não existe (404) OU não tem permissão (403).
+    // Permissão pode mudar entre modelos (ex: conta tem acesso ao preview
+    // mas não ao GA, ou vice-versa). Timeout/quota/5xx não melhoram trocando.
+    const worthRetrying = /404|NOT_FOUND|not found|not.support|403|FORBIDDEN|permission|access denied/i.test(lastErr);
+    if (!worthRetrying) {
       return { error: lastErr, modelTried: model };
     }
-    console.warn('ig-art: modelo', model, 'inexistente, tentando próximo:', lastErr);
+    console.warn('ig-art: modelo', model, 'falhou (404/403), tentando próximo:', lastErr.slice(0, 120));
   }
   return { error: 'Todos os modelos retornaram 404. Último: ' + lastErr, modelTried: lastModel };
 }

@@ -6071,9 +6071,10 @@ async function gerarArteIG(){
     });
     if(!ok || !data || !data.imageDataUrl){
       // Mostra a causa real (modelo errado, sem permissão, etc) — não engole o erro
-      const msg = (data && data.error) || error || ('HTTP ' + (status || '?'));
+      let msg = (data && data.error) || error || ('HTTP ' + (status || '?'));
+      if(data && data.detail) msg += ' — ' + data.detail;
+      if(data && data.model_tried) msg += ' [modelo: ' + data.model_tried + ']';
       console.error('ig-art falhou:', { status, data, error });
-      // Toast curto + alert com detalhe completo pra debug
       toast('Falha: ' + msg.slice(0, 80));
       if(msg.length > 80 && typeof appAlert === 'function'){
         appAlert('Detalhe técnico:\n\n' + msg);
