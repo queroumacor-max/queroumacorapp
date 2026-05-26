@@ -6,24 +6,26 @@
 // Endpoint PRO, rate-limit baixo (custo de imagem).
 //
 // Orçamento de tempo (limite Cloudflare Pages: 30s):
-//   - Imagem OpenAI: até 18s
-//   - Fallback Gemini (só em erro rápido, ex 404/403): até 8s
-//   - Legenda (paralela): até 8s × 2 providers = 16s
-//   Promise.all = max(imagem, legenda) ≤ 24s. Folga de 6s.
+//   - Imagem OpenAI: até 16s
+//   - Fallback Gemini (só em erro rápido, ex 404/403): até 6s
+//   - Legenda (paralela): até 7s × 2 providers = 14s
+//   Promise.all = max(imagem, legenda) ≤ 22s.
+//   Outer hard-timeout em 27s GARANTE retorno JSON antes do CF matar (30s).
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const OPENAI_IMG_MODEL = 'gpt-image-1';
-const OPENAI_IMG_TIMEOUT_MS = 18000;
+const OPENAI_IMG_TIMEOUT_MS = 16000;
 
 const GEMINI_FALLBACK_DEFAULT_MODEL = 'gemini-2.5-flash-image';
 const GEMINI_FALLBACK_MODELS = [
   'gemini-2.5-flash-image-preview',
   'gemini-2.0-flash-preview-image-generation'
 ];
-const GEMINI_FALLBACK_TIMEOUT_MS = 8000;
+const GEMINI_FALLBACK_TIMEOUT_MS = 6000;
 
-const CAPTION_TIMEOUT_MS = 8000;
+const CAPTION_TIMEOUT_MS = 7000;
+const OUTER_HARD_TIMEOUT_MS = 27000;  // < 30s do CF Pages, garante retorno JSON
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 
 // MODELOS DE COMPOSIÇÃO — cada estilo descreve um template visual rígido
@@ -93,8 +95,16 @@ const FALLBACK_CAPTIONS = {
 };
 
 export async function onRequestPost(context) {
+  // Race contra hard-timeout — se algo passar de 27s, devolvemos JSON 504
+  // ANTES do Cloudflare Pages matar a função aos 30s (que retorna 502 sem body).
+  const hardTimeout = new Promise(resolve => {
+    setTimeout(() => resolve(json({
+      error: 'Tempo esgotado',
+      detail: 'Gerador de arte demorou mais que o limite. Tente novamente — pode ter sido pico de uso do provedor.'
+    }, 504)), OUTER_HARD_TIMEOUT_MS);
+  });
   try {
-    return await handle(context);
+    return await Promise.race([handle(context), hardTimeout]);
   } catch (e) {
     console.warn('[ig-art-fail] handler-crash:', e && e.message);
     return json({ error: 'Erro interno', detail: String(e?.message || e).slice(0, 200) }, 500);
