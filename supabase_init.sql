@@ -2061,3 +2061,45 @@ ALTER TABLE public.announcements DROP CONSTRAINT IF EXISTS announcements_created
 ALTER TABLE public.announcements
   ADD CONSTRAINT announcements_created_by_fkey
   FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- ════════════════════════════════════════════════════════════════════
+-- 🟢 WAVE 4: Tabelas faltantes (bugs do code-vs-schema)
+-- ════════════════════════════════════════════════════════════════════
+
+-- 🔴 Bug fix: reports (denúncias) — app.js submitReport() inseria em tabela inexistente
+CREATE TABLE IF NOT EXISTS public.reports (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  reporter_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  post_id uuid REFERENCES public.posts(id) ON DELETE CASCADE,
+  target_user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  reason text NOT NULL,
+  status text DEFAULT 'pending' CHECK (status IN ('pending','reviewed','resolved','dismissed')),
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "reports_insert_auth" ON public.reports;
+CREATE POLICY "reports_insert_auth" ON public.reports FOR INSERT TO authenticated
+  WITH CHECK (reporter_id = auth.uid());
+DROP POLICY IF EXISTS "reports_select_own" ON public.reports;
+CREATE POLICY "reports_select_own" ON public.reports FOR SELECT TO authenticated
+  USING (reporter_id = auth.uid());
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique_per_post
+  ON public.reports(reporter_id, post_id) WHERE post_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reports_status_created
+  ON public.reports(status, created_at DESC);
+
+-- 🟠 Bug fix: feature_interest (métrica de "em breve" da Maquininha)
+CREATE TABLE IF NOT EXISTS public.feature_interest (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  feature text NOT NULL,
+  action text NOT NULL,
+  contact text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.feature_interest ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "feature_interest_insert_auth" ON public.feature_interest;
+CREATE POLICY "feature_interest_insert_auth" ON public.feature_interest FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid() OR user_id IS NULL);
+CREATE INDEX IF NOT EXISTS idx_feature_interest_feature_created
+  ON public.feature_interest(feature, created_at DESC);

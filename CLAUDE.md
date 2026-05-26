@@ -77,4 +77,10 @@
   `queroumacor.com.br` já tem DMARC `p=reject`. Falta o usuário adicionar
   no GoDaddy o TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:dpo@calicolors.com.br`.
   Não é code-actionable — só ele pode mexer no DNS.
+- **SQL Wave 4 — tabelas `reports` e `feature_interest` JÁ FORAM CRIADAS no
+  Supabase.** Fixa 2 bugs achados na auditoria de rede social: (1) `app.js
+  submitReport()` que estourava erro porque a tabela `reports` não existia;
+  (2) `app.js abrirMaquininha/entrarListaMaquininha` que perdiam silenciosamente
+  os cliques de interesse (tabela `feature_interest` inexistente). Não pedir
+  para rodar de novo.
 
