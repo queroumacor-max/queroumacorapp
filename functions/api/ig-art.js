@@ -57,15 +57,30 @@ const STYLE_PROMPTS = {
     'Sem rótulos de texto, sem marca d\'água, sem moldura.'
   ].join(' '),
   profissional: [
-    'MODELO: imagem de catálogo profissional minimalista estilo e-commerce premium.',
-    'COMPOSIÇÃO: sujeito/objeto/trabalho principal centralizado, isolado e em foco total,',
-    'ocupando ~70% do quadro, com respiro generoso nas bordas.',
-    'FUNDO: gradiente neutro sutil (cinza claro → branco, ou bege quente claro), totalmente liso, sem distrações.',
-    'ILUMINAÇÃO: luz difusa de softbox, sombra projetada suave embaixo do sujeito (chão refletivo leve),',
-    'highlights controlados, sem estouro de luz.',
-    'PALETA: tons neutros sofisticados, alta nitidez, look de fotografia comercial.',
-    'PRESERVE o sujeito principal da foto original idêntico — só limpe e refine o entorno.',
-    'Sem texto, sem logo, sem marca d\'água, sem borda.'
+    'MODELO: post de marketing pra Instagram de PINTOR PROFISSIONAL — o profissional aparece em destaque no ambiente recém-pintado.',
+    'COMPOSIÇÃO: ambiente interno (sala/quarto) ao fundo, o profissional centralizado em primeiro plano segurando ferramentas (pincel, paleta),',
+    'sorrindo, vestindo camisa/camiseta clean com leve respingo de tinta — aparência confiável e profissional.',
+    'HEADLINE: texto grande em PT-BR no topo, fonte sans-serif bold/condensada, parte branca + parte amarela com underline manuscrito,',
+    'mensagem tipo "TRANSFORME SEU LAR COM A MINHA ARTE!" ou similar (varie a frase mas mantenha o tom).',
+    'BADGE INFERIOR ESQUERDO: círculo amarelo com ícone de pincel + texto "PINTOR PROFISSIONAL" ao lado em pill branca.',
+    'BADGE INFERIOR DIREITO: pill creme com ícone de calendário + "AGENDE SEU ORÇAMENTO".',
+    'FOOTER: barra branca arredondada com 3 colunas: @handle do Instagram, telefone, cidade-UF, especialidade.',
+    'PALETA: terrosos quentes (bege, marrom claro), branco, amarelo cádmio. Iluminação natural de janela.',
+    'PRESERVE o rosto e a identidade da pessoa da foto original idênticos.',
+    'Formato 1:1 Instagram preferencial; ajustar pra formato pedido.'
+  ].join(' '),
+  trabalho: [
+    'MODELO: post de marketing pra Instagram de TRABALHO FINALIZADO — sem pessoas, só o ambiente pintado.',
+    'COMPOSIÇÃO: foto profissional de interior decorado (sala/quarto/cozinha) recém-pintado,',
+    'enquadramento aberto mostrando paredes, sofá/móveis decorados, plantas, luz natural entrando por janela à esquerda.',
+    'HEADLINE: texto grande sobreposto no topo em duas linhas, fonte sans-serif bold/condensada,',
+    'primeira linha em branco com leve outline preto, segunda linha em amarelo cádmio com underline manuscrito,',
+    'mensagem tipo "TRABALHO FINALIZADO. MINHA ARTE, SEU NOVO LAR." (varie mas mantenha o tom de orgulho de obra entregue).',
+    'BADGE INFERIOR DIREITO: pill creme com ícone de calendário + "AGENDE SEU ORÇAMENTO".',
+    'FOOTER: barra branca arredondada com 3 colunas: @handle + e-mail do Instagram, ícone de localização + cidade-UF, especialidade.',
+    'PALETA: tons neutros quentes (bege, off-white, marrom claro), com pontos amarelos/verdes nas almofadas/plantas. Iluminação natural difusa.',
+    'PRESERVE o ambiente, cores das paredes e móveis da foto original — só estilize iluminação e adicione as camadas gráficas.',
+    'Formato 1:1 Instagram preferencial; ajustar pra formato pedido.'
   ].join(' '),
   grafite: [
     'MODELO: arte de grafite urbano brasileiro pintado em mural de rua de São Paulo.',
@@ -89,10 +104,80 @@ const ASPECT_SIZES = {
   horizontal: { openai: '1536x1024', label: 'horizontal 3:2 (capa/banner)' }
 };
 
+// Referências visuais por estilo. Cada arquivo (se existir em /style-refs/)
+// é enviado pra IA como TEMPLATE de composição junto com a foto do usuário.
+// Se o arquivo não existir, cai no fluxo só-texto.
+const STYLE_REFERENCES = {
+  portrait:    '/style-refs/portrait.jpg',
+  antesdepois: '/style-refs/antesdepois.jpg',
+  profissional:'/style-refs/profissional.jpg',
+  trabalho:    '/style-refs/trabalho.jpg',
+  grafite:     '/style-refs/grafite.jpg'
+};
+
+// Quando uma referência é carregada, prepende esse bloco no prompt
+// pra deixar claro pra IA o que fazer com cada imagem.
+function buildReferencePrompt(styleKey, businessName, captionHint, hasPhoto2){
+  const bizPart = businessName
+    ? `Substitua qualquer marca/handle/logo de placeholder no template pela marca do profissional: "${businessName}". `
+    : 'Mantenha discreto qualquer texto/badge — não invente nomes de marca. ';
+  const hintPart = captionHint
+    ? `Headline/título principal deve transmitir: "${captionHint}". `
+    : 'Headline curta e profissional, em PT-BR, sem clichês de marketing. ';
+  if (hasPhoto2){
+    return [
+      'IMPORTANTE — você recebe TRÊS imagens.',
+      'IMAGEM 1 (TEMPLATE): use como modelo RÍGIDO de layout, divisão antes/depois, tipografia, posição dos rótulos "ANTES"/"DEPOIS", footer e elementos gráficos. Reproduza fielmente a estrutura visual.',
+      'IMAGEM 2 (ANTES): use exatamente essa foto na metade ANTES (topo ou esquerda, conforme template).',
+      'IMAGEM 3 (DEPOIS): use exatamente essa foto na metade DEPOIS (base ou direita, conforme template).',
+      bizPart + hintPart,
+      'Resultado final: composição antes/depois no estilo do TEMPLATE, com a foto 2 no antes e a foto 3 no depois.'
+    ].join(' ');
+  }
+  return [
+    'IMPORTANTE — você recebe DUAS imagens.',
+    'IMAGEM 1 (TEMPLATE): use como modelo RÍGIDO de layout, composição, tipografia, paleta, posição de badges, footer e elementos gráficos. Reproduza fielmente a estrutura visual.',
+    'IMAGEM 2 (CONTEÚDO): use o profissional, o ambiente e as cores dela como sujeito principal da arte gerada. Substitua a pessoa/cena do template pelo que está na imagem 2.',
+    bizPart + hintPart,
+    'Resultado final: arte no estilo do TEMPLATE (imagem 1) mas mostrando o conteúdo da imagem 2.'
+  ].join(' ');
+}
+
+// Tenta carregar a referência visual da rota /style-refs/<style>.jpg
+// usando ASSETS binding (Pages) se disponível, ou fetch same-origin.
+// Retorna { blob, mime } ou null se não existir.
+async function loadStyleReference({ env, request, styleKey }){
+  const path = STYLE_REFERENCES[styleKey];
+  if (!path) return null;
+  try {
+    let resp = null;
+    // Preferência: binding env.ASSETS (mais rápido, não passa pela rede)
+    if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function'){
+      const refUrl = new URL(path, request.url).toString();
+      resp = await env.ASSETS.fetch(new Request(refUrl));
+    } else {
+      // Fallback: fetch same-origin
+      const refUrl = new URL(path, request.url).toString();
+      resp = await fetch(refUrl, { signal: AbortSignal.timeout(3000) });
+    }
+    if (!resp || !resp.ok) return null;
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    // SPA fallback do _redirects pode devolver index.html no lugar — rejeita
+    if (!ct.startsWith('image/')) return null;
+    const buf = await resp.arrayBuffer();
+    if (!buf || buf.byteLength < 1024) return null; // arquivo suspeito (vazio)
+    return { blob: new Blob([buf], { type: ct }), mime: ct };
+  } catch(e) {
+    console.warn('[ig-art] loadStyleReference falhou:', String(e?.message || e));
+    return null;
+  }
+}
+
 const FALLBACK_CAPTIONS = {
   portrait: 'Pronto pra próxima obra. Bora pintar! 🎨',
   antesdepois: 'Antes e depois. Diferença que só o profissional faz. ✨',
   profissional: 'Trabalho entregue com capricho. ✅',
+  trabalho: 'Mais um lar transformado. Minha arte, seu novo espaço. 🏠',
   grafite: 'Cor na rua, arte na parede. 🎨'
 };
 
@@ -136,12 +221,13 @@ async function handle(context) {
   if (g instanceof Response) return g;
 
   const photoDataUrl = typeof body?.photoDataUrl === 'string' ? body.photoDataUrl : '';
+  const photoDataUrl2 = typeof body?.photoDataUrl2 === 'string' ? body.photoDataUrl2 : '';
   const styleKey = typeof body?.style === 'string' ? body.style : 'portrait';
   const aspectKey = typeof body?.aspect === 'string' && ASPECT_SIZES[body.aspect] ? body.aspect : 'square';
   const captionHint = typeof body?.captionHint === 'string' ? body.captionHint.trim().slice(0, 300) : '';
   const businessName = typeof body?.businessName === 'string' ? body.businessName.trim().slice(0, 80) : '';
 
-  // Valida foto: data URL com base64
+  // Valida foto principal: data URL com base64
   const m = /^data:(image\/[a-z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(photoDataUrl);
   if (!m) return json({ error: 'photoDataUrl inválida — envie uma data URL de imagem' }, 400);
   const inputMime = m[1];
@@ -150,17 +236,35 @@ async function handle(context) {
     return json({ error: 'Foto grande demais (máx 8MB). Tente uma menor.' }, 413);
   }
 
+  // Foto 2 opcional (Antes/Depois). Só faz parsing se veio.
+  let photo2 = null;
+  if (photoDataUrl2){
+    const m2 = /^data:(image\/[a-z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(photoDataUrl2);
+    if (m2){
+      const b64_2 = m2[2].replace(/\s+/g, '');
+      if ((b64_2.length * 3 / 4) <= MAX_INPUT_BYTES){
+        photo2 = { mime: m2[1], b64: b64_2 };
+      }
+    }
+  }
+
   const stylePrompt = STYLE_PROMPTS[styleKey] || STYLE_PROMPTS.portrait;
   const aspectInfo = ASPECT_SIZES[aspectKey];
   const aspectPart = ` FORMATO DE SAÍDA OBRIGATÓRIO: ${aspectInfo.label}. Componha respeitando essa proporção; nada de bordas pretas/brancas pra encaixar.`;
   const hintPart = captionHint
     ? ` IMPORTANTE — o profissional quer transmitir o seguinte com essa imagem: "${captionHint}". Componha a arte reforçando visualmente essa mensagem (foco, ângulo, iluminação, destaque do que importa).`
     : '';
-  const imgPrompt = stylePrompt + aspectPart + hintPart;
+
+  // Tenta carregar referência visual do estilo (template). Se existir,
+  // muda o pipeline pra multi-imagem (template + conteúdo do usuário).
+  const styleRef = await loadStyleReference({ env, request, styleKey });
+  const imgPrompt = styleRef
+    ? buildReferencePrompt(styleKey, businessName, captionHint, !!photo2) + ' ' + stylePrompt + aspectPart
+    : stylePrompt + aspectPart + hintPart;
 
   // Dispara geração de arte + legenda em paralelo
   const [imgRes, capRes] = await Promise.all([
-    generateImageWithFallback({ env, prompt: imgPrompt, mime: inputMime, b64: inputB64, size: aspectInfo.openai }),
+    generateImageWithFallback({ env, prompt: imgPrompt, mime: inputMime, b64: inputB64, size: aspectInfo.openai, styleRef, photo2 }),
     generateCaption({ env, styleKey, captionHint, businessName })
   ]);
 
@@ -191,13 +295,14 @@ async function handle(context) {
 
 // Pipeline: OpenAI gpt-image-1 → fallback Gemini (só em erro rápido).
 /**
- * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string }} args
+ * @typedef {{ blob: Blob, mime: string }} StyleRef
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string, styleRef?: StyleRef | null, photo2?: { mime: string, b64: string } | null }} args
  * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
  */
-async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
-  // 1. PRIMÁRIO: OpenAI gpt-image-1 (image-to-image edit)
-  const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64, size });
-  if (openaiRes.b64) return { ...openaiRes, modelTried: OPENAI_IMG_MODEL };
+async function generateImageWithFallback({ env, prompt, mime, b64, size, styleRef, photo2 }) {
+  // 1. PRIMÁRIO: OpenAI gpt-image-1 (image-to-image edit, opcional + referência + opcional foto2)
+  const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64, size, styleRef, photo2 });
+  if (openaiRes.b64) return { ...openaiRes, modelTried: OPENAI_IMG_MODEL + (styleRef ? '+ref' : '') + (photo2 ? '+2' : '') };
 
   const openaiErr = openaiRes.error || 'sem detalhe';
   console.warn('[ig-art-fail] openai-img-falhou:', openaiErr.slice(0, 240));
@@ -213,7 +318,7 @@ async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
 
   const imgModel = env.GEMINI_IMG_MODEL || GEMINI_FALLBACK_DEFAULT_MODEL;
   const modelChain = env.GEMINI_IMG_MODEL ? [imgModel] : [imgModel, ...GEMINI_FALLBACK_MODELS];
-  const geminiRes = await generateImageGeminiChain({ env, models: modelChain, prompt, mime, b64 });
+  const geminiRes = await generateImageGeminiChain({ env, models: modelChain, prompt, mime, b64, styleRef });
   if (geminiRes.b64) return { ...geminiRes, modelTried: geminiRes.modelTried };
 
   // Ambos falharam — devolve erro combinado
@@ -224,11 +329,13 @@ async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
 }
 
 // OpenAI gpt-image-1 via /v1/images/edits (multipart com a foto como entrada).
+// Quando styleRef existe, usa endpoint multi-imagem: image[] template + image[] foto(s).
+// Quando photo2 existe (caso antes/depois), envia ambas fotos como image[].
 /**
- * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string }} args
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string, styleRef?: StyleRef | null, photo2?: { mime: string, b64: string } | null }} args
  * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
  */
-async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
+async function generateImageOpenAI({ env, prompt, mime, b64, size, styleRef, photo2 }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), OPENAI_IMG_TIMEOUT_MS);
   try {
@@ -239,9 +346,32 @@ async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
     const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
     const blob = new Blob([bytes], { type: mime });
 
+    // Foto 2 opcional (caso Antes/Depois com 2 fotos)
+    let blob2 = null, ext2 = ext;
+    if (photo2 && photo2.b64 && photo2.mime){
+      const bin2 = atob(photo2.b64);
+      const bytes2 = new Uint8Array(bin2.length);
+      for (let i = 0; i < bin2.length; i++) bytes2[i] = bin2.charCodeAt(i);
+      ext2 = photo2.mime.includes('png') ? 'png' : photo2.mime.includes('webp') ? 'webp' : 'jpg';
+      blob2 = new Blob([bytes2], { type: photo2.mime });
+    }
+
     const form = new FormData();
     form.append('model', OPENAI_IMG_MODEL);
-    form.append('image', blob, `input.${ext}`);
+    if (styleRef && styleRef.blob){
+      // Ordem importa: template primeiro (IMAGEM 1), foto(s) do usuário depois
+      const refExt = (styleRef.mime || '').includes('png') ? 'png'
+        : (styleRef.mime || '').includes('webp') ? 'webp' : 'jpg';
+      form.append('image[]', styleRef.blob, `template.${refExt}`);
+      form.append('image[]', blob, `content.${ext}`);
+      if (blob2) form.append('image[]', blob2, `content2.${ext2}`);
+    } else if (blob2) {
+      // Sem template mas 2 fotos (ex: antes/depois sem ref)
+      form.append('image[]', blob, `content1.${ext}`);
+      form.append('image[]', blob2, `content2.${ext2}`);
+    } else {
+      form.append('image', blob, `input.${ext}`);
+    }
     form.append('prompt', prompt.slice(0, 4000));  // OpenAI tem limite de prompt
     form.append('size', size || '1024x1024');
     form.append('n', '1');
@@ -276,15 +406,15 @@ async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
 }
 
 /**
- * @param {{ env: Record<string, string>, models: string[], prompt: string, mime: string, b64: string }} args
+ * @param {{ env: Record<string, string>, models: string[], prompt: string, mime: string, b64: string, styleRef?: StyleRef | null, photo2?: { mime: string, b64: string } | null }} args
  * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
  */
-async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
+async function generateImageGeminiChain({ env, models, prompt, mime, b64, styleRef, photo2 }) {
   let lastErr = '';
   let lastModel = '';
   for (const model of models) {
     lastModel = model;
-    const r = await generateImageGemini({ env, model, prompt, mime, b64 });
+    const r = await generateImageGemini({ env, model, prompt, mime, b64, styleRef, photo2 });
     if (r.b64) return { ...r, modelTried: 'gemini:' + model };
     lastErr = r.error || 'sem detalhe';
     const worthRetrying = /404|NOT_FOUND|not found|not.support|403|FORBIDDEN|permission|access/i.test(lastErr);
@@ -296,13 +426,28 @@ async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
 }
 
 /**
- * @param {{ env: Record<string, string>, model: string, prompt: string, mime: string, b64: string }} args
+ * @param {{ env: Record<string, string>, model: string, prompt: string, mime: string, b64: string, styleRef?: StyleRef | null, photo2?: { mime: string, b64: string } | null }} args
  * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
  */
-async function generateImageGemini({ env, model, prompt, mime, b64 }) {
+async function generateImageGemini({ env, model, prompt, mime, b64, styleRef, photo2 }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), GEMINI_FALLBACK_TIMEOUT_MS);
   try {
+    // Monta parts: texto + (opcional) template + foto(s) do usuário.
+    // Ordem importa: template primeiro (IMAGEM 1), foto(s) depois (IMAGEM 2 [+ 3]).
+    const parts = [{ text: prompt }];
+    if (styleRef && styleRef.blob){
+      try {
+        const refBuf = await styleRef.blob.arrayBuffer();
+        const refB64 = btoa(String.fromCharCode(...new Uint8Array(refBuf)));
+        parts.push({ inline_data: { mime_type: styleRef.mime || 'image/jpeg', data: refB64 } });
+      } catch(_){ /* se falhar conversão, segue sem template */ }
+    }
+    parts.push({ inline_data: { mime_type: mime, data: b64 } });
+    if (photo2 && photo2.b64 && photo2.mime){
+      parts.push({ inline_data: { mime_type: photo2.mime, data: photo2.b64 } });
+    }
+
     const r = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${env.GEMINI_API_KEY}`,
       {
@@ -310,13 +455,7 @@ async function generateImageGemini({ env, model, prompt, mime, b64 }) {
         headers: { 'Content-Type': 'application/json' },
         signal: ac.signal,
         body: JSON.stringify({
-          contents: [{
-            role: 'user',
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mime, data: b64 } }
-            ]
-          }],
+          contents: [{ role: 'user', parts }],
           generationConfig: {
             responseModalities: ['TEXT', 'IMAGE'],
             temperature: 0.7
@@ -329,8 +468,8 @@ async function generateImageGemini({ env, model, prompt, mime, b64 }) {
       return { error: `Gemini ${r.status} (${model}): ${errText.slice(0, 200)}` };
     }
     const data = await r.json();
-    const parts = data?.candidates?.[0]?.content?.parts || [];
-    for (const p of parts) {
+    const respParts = data?.candidates?.[0]?.content?.parts || [];
+    for (const p of respParts) {
       const inline = p.inline_data || p.inlineData;
       if (inline && inline.data) {
         return { b64: inline.data, mime: inline.mime_type || inline.mimeType || 'image/png' };
@@ -355,7 +494,8 @@ async function generateCaption({ env, styleKey, captionHint, businessName }) {
   const styleHint = ({
     portrait: 'retrato profissional do pintor',
     antesdepois: 'antes/depois de uma obra',
-    profissional: 'foto profissional do trabalho entregue',
+    profissional: 'post de marketing do pintor profissional no trabalho',
+    trabalho: 'post de marketing do trabalho/ambiente recém-entregue',
     grafite: 'arte/mural em grafite'
   })[styleKey] || 'post profissional';
 
