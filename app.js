@@ -6011,10 +6011,12 @@ function _applyLogoToShirt(){
 }
 
 // ══ AI ART GENERATOR (Instagram) ══
-// Pipeline: usuário escolhe foto + estilo → /api/ig-art devolve arte (data URL)
+// Pipeline: usuário escolhe estilo → foto(s) → /api/ig-art devolve arte (data URL)
 // e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
-let _aiArtPhotoDataUrl = null;     // base64 da foto enviada
-let _aiArtStyle = 'portrait';
+// Antes/Depois usa 2 fotos (antes + depois); outros estilos usam só 1.
+let _aiArtPhotoDataUrl = null;     // base64 da foto principal (slot 1)
+let _aiArtPhotoDataUrl2 = null;    // base64 da segunda foto (slot 2, antes/depois)
+let _aiArtStyle = 'profissional';  // estilo default
 let _aiArtAspect = 'square';       // square | vertical | horizontal
 let _aiArtResultDataUrl = null;    // base64 da arte gerada (pra reuso no post)
 let _aiArtResultCaption = '';
@@ -6057,7 +6059,8 @@ function _compressImageFile(file, maxDim, quality){
   });
 }
 
-async function _aiArtPickFile(input){
+async function _aiArtPickFile(input, slot){
+  slot = (slot === 2) ? 2 : 1;
   const f = input && input.files && input.files[0];
   if(!f) return;
   if(!f.type.startsWith('image/')){ toast('Selecione uma imagem'); return; }
@@ -6067,17 +6070,26 @@ async function _aiArtPickFile(input){
     const compressed = await _compressImageFile(f, 512, 0.7);
     const approxKB = Math.round(compressed.length * 0.75 / 1024);
     if(approxKB > 900){
-      // muito improvável depois da compressão; rejeita se acontecer
       toast('Imagem ainda grande demais (' + approxKB + 'KB). Tente outra.');
       return;
     }
-    _aiArtPhotoDataUrl = compressed;
-    const img = document.getElementById('ai-art-preview');
-    const drop = document.getElementById('ai-art-drop');
-    const acts = document.getElementById('ai-art-photo-actions');
-    if(img){ img.src = compressed; img.style.display = 'block'; }
-    if(drop) drop.style.display = 'none';
-    if(acts) acts.style.display = 'flex';
+    if(slot === 2){
+      _aiArtPhotoDataUrl2 = compressed;
+      const img = document.getElementById('ai-art-preview-2');
+      const drop = document.getElementById('ai-art-drop-2');
+      const acts = document.getElementById('ai-art-photo-actions-2');
+      if(img){ img.src = compressed; img.style.display = 'block'; }
+      if(drop) drop.style.display = 'none';
+      if(acts) acts.style.display = 'flex';
+    } else {
+      _aiArtPhotoDataUrl = compressed;
+      const img = document.getElementById('ai-art-preview');
+      const drop = document.getElementById('ai-art-drop');
+      const acts = document.getElementById('ai-art-photo-actions');
+      if(img){ img.src = compressed; img.style.display = 'block'; }
+      if(drop) drop.style.display = 'none';
+      if(acts) acts.style.display = 'flex';
+    }
   } catch(e){
     console.warn('_aiArtPickFile compress:', e);
     toast('Erro ao processar imagem. Tente outra foto.');
@@ -6086,7 +6098,8 @@ async function _aiArtPickFile(input){
 
 function _aiArtSetStyle(el){
   if(!el) return;
-  _aiArtStyle = el.getAttribute('data-style') || 'portrait';
+  _aiArtStyle = el.getAttribute('data-style') || 'profissional';
+  const needsTwo = (el.getAttribute('data-photos') === '2');
   document.querySelectorAll('#ai-art-styles .ai-art-style').forEach(c => {
     c.classList.remove('sel');
     c.style.border = '2px solid var(--border)';
@@ -6095,6 +6108,28 @@ function _aiArtSetStyle(el){
   el.classList.add('sel');
   el.style.border = '2px solid var(--p1)';
   el.style.background = 'rgba(255,107,53,.08)';
+
+  // Atualiza UI das fotos: slot 1 sempre, slot 2 só pra antes/depois
+  const slot2 = document.getElementById('ai-art-slot-2');
+  const slot1Label = document.getElementById('ai-art-slot-1-label');
+  const photoTitle = document.getElementById('ai-art-photo-title');
+  if(needsTwo){
+    if(slot2) slot2.style.display = 'block';
+    if(slot1Label) slot1Label.textContent = 'FOTO ANTES';
+    if(photoTitle) photoTitle.textContent = '2. Suas fotos (antes + depois)';
+  } else {
+    if(slot2) slot2.style.display = 'none';
+    if(slot1Label) slot1Label.textContent = 'SUA FOTO';
+    if(photoTitle) photoTitle.textContent = '2. Sua foto';
+    // Limpa estado da foto 2 se trocou de antes/depois pra outro estilo
+    _aiArtPhotoDataUrl2 = null;
+    const img2 = document.getElementById('ai-art-preview-2');
+    const drop2 = document.getElementById('ai-art-drop-2');
+    const acts2 = document.getElementById('ai-art-photo-actions-2');
+    if(img2){ img2.src = ''; img2.style.display = 'none'; }
+    if(drop2) drop2.style.display = 'block';
+    if(acts2) acts2.style.display = 'none';
+  }
 }
 
 function _aiArtSetAspect(el){
@@ -6112,6 +6147,9 @@ function _aiArtSetAspect(el){
 
 async function gerarArteIG(){
   if(!_aiArtPhotoDataUrl){ toast('Escolha uma foto primeiro'); return; }
+  if(_aiArtStyle === 'antesdepois' && !_aiArtPhotoDataUrl2){
+    toast('Antes/Depois precisa de 2 fotos (antes e depois)'); return;
+  }
   const btn = document.getElementById('ai-art-gen-btn');
   if(btn){ btn.disabled = true; btn.textContent = '✨ Seu Zé tá pintando...'; }
   try {
@@ -6119,13 +6157,17 @@ async function gerarArteIG(){
       ? ((await getMyProfile())?.business_name || '')
       : '';
     const hint = (document.getElementById('ai-art-hint')?.value || '').trim();
-    const { ok, status, data, error } = await apiPost('/api/ig-art', {
+    const payload = {
       photoDataUrl: _aiArtPhotoDataUrl,
       style: _aiArtStyle,
       aspect: _aiArtAspect,
       captionHint: hint,
       businessName
-    });
+    };
+    if(_aiArtStyle === 'antesdepois' && _aiArtPhotoDataUrl2){
+      payload.photoDataUrl2 = _aiArtPhotoDataUrl2;
+    }
+    const { ok, status, data, error } = await apiPost('/api/ig-art', payload);
     if(!ok || !data || !data.imageDataUrl){
       // Mostra a causa real (modelo errado, sem permissão, etc) — não engole o erro
       let msg = (data && data.error) || error || ('HTTP ' + (status || '?'));
@@ -6169,24 +6211,38 @@ function _aiArtDownload(){
 
 function _aiArtReset(){
   _aiArtPhotoDataUrl = null;
+  _aiArtPhotoDataUrl2 = null;
   _aiArtResultDataUrl = null;
   _aiArtResultCaption = '';
+  // Slot 1
   const img = document.getElementById('ai-art-preview');
   const drop = document.getElementById('ai-art-drop');
   const acts = document.getElementById('ai-art-photo-actions');
-  const resBox = document.getElementById('ai-art-result');
-  const hint = document.getElementById('ai-art-hint');
   const input = document.getElementById('ai-art-input');
   const inputCam = document.getElementById('ai-art-input-cam');
   if(img){ img.src = ''; img.style.display = 'none'; }
   if(drop) drop.style.display = 'block';
   if(acts) acts.style.display = 'none';
-  if(resBox) resBox.style.display = 'none';
-  if(hint) hint.value = '';
   if(input) input.value = '';
   if(inputCam) inputCam.value = '';
-  // Reseta seleção pro default "portrait" + "square"
-  const def = document.querySelector('#ai-art-styles .ai-art-style[data-style="portrait"]');
+  // Slot 2
+  const img2 = document.getElementById('ai-art-preview-2');
+  const drop2 = document.getElementById('ai-art-drop-2');
+  const acts2 = document.getElementById('ai-art-photo-actions-2');
+  const input2 = document.getElementById('ai-art-input-2');
+  const inputCam2 = document.getElementById('ai-art-input-cam-2');
+  if(img2){ img2.src = ''; img2.style.display = 'none'; }
+  if(drop2) drop2.style.display = 'block';
+  if(acts2) acts2.style.display = 'none';
+  if(input2) input2.value = '';
+  if(inputCam2) inputCam2.value = '';
+  // Resto
+  const resBox = document.getElementById('ai-art-result');
+  const hint = document.getElementById('ai-art-hint');
+  if(resBox) resBox.style.display = 'none';
+  if(hint) hint.value = '';
+  // Reseta seleção pro default "profissional" + "square"
+  const def = document.querySelector('#ai-art-styles .ai-art-style[data-style="profissional"]');
   if(def) _aiArtSetStyle(def);
   const defAsp = document.querySelector('#ai-art-aspects .ai-art-aspect[data-aspect="square"]');
   if(defAsp) _aiArtSetAspect(defAsp);
