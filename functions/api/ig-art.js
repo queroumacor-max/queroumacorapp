@@ -9,7 +9,7 @@ const DEFAULT_IMG_MODEL = 'gemini-2.5-flash-image-preview';
 // Limitamos a 1 fallback pra caber no timeout de 30s do Cloudflare Pages.
 // Imagem leva 8-20s; chain de 4 modelos = 502 garantido.
 const IMG_MODEL_FALLBACKS = [
-  'gemini-2.0-flash-exp-image-generation'
+  'gemini-2.0-flash-preview-image-generation'
 ];
 const FETCH_TIMEOUT_MS = 22000; // 22s por tentativa — sobra 6s pra outras coisas
 const MAX_INPUT_BYTES = 8 * 1024 * 1024; // 8MB de foto de entrada
