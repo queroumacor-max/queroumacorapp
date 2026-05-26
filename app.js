@@ -6023,22 +6023,63 @@ function openAiArt(){
   showModal('ai-art-modal');
 }
 
-function _aiArtPickFile(input){
+// Comprime via canvas pra reduzir tamanho do request (CF Pages Functions
+// rejeita body > ~1MB). Resultado: lado maior ≤ 512px, JPEG q=0.7.
+// Base64 final fica em ~80-200KB típico (muito abaixo do limite).
+function _compressImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Falha ao decodificar imagem'));
+      img.onload = () => {
+        const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * ratio));
+        const h = Math.max(1, Math.round(img.height * ratio));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        // Fundo branco caso a imagem tenha transparência (JPEG não suporta alpha)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        try {
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch(err){ reject(err); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function _aiArtPickFile(input){
   const f = input && input.files && input.files[0];
   if(!f) return;
   if(!f.type.startsWith('image/')){ toast('Selecione uma imagem'); return; }
   if(f.size > 8 * 1024 * 1024){ toast('Foto muito grande (máx 8MB)'); return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    _aiArtPhotoDataUrl = e.target.result;
+  toast('Processando imagem...');
+  try {
+    const compressed = await _compressImageFile(f, 512, 0.7);
+    const approxKB = Math.round(compressed.length * 0.75 / 1024);
+    if(approxKB > 900){
+      // muito improvável depois da compressão; rejeita se acontecer
+      toast('Imagem ainda grande demais (' + approxKB + 'KB). Tente outra.');
+      return;
+    }
+    _aiArtPhotoDataUrl = compressed;
     const img = document.getElementById('ai-art-preview');
     const drop = document.getElementById('ai-art-drop');
     const acts = document.getElementById('ai-art-photo-actions');
-    if(img){ img.src = e.target.result; img.style.display = 'block'; }
+    if(img){ img.src = compressed; img.style.display = 'block'; }
     if(drop) drop.style.display = 'none';
     if(acts) acts.style.display = 'flex';
-  };
-  reader.readAsDataURL(f);
+  } catch(e){
+    console.warn('_aiArtPickFile compress:', e);
+    toast('Erro ao processar imagem. Tente outra foto.');
+  }
 }
 
 function _aiArtSetStyle(el){
