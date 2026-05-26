@@ -1,3 +1,4 @@
+// @ts-check
 // Gerador de arte pra Instagram a partir de uma foto.
 // Pipeline:
 //   - PRIMÁRIO: OpenAI gpt-image-1 (image-to-image via /v1/images/edits)
@@ -60,6 +61,10 @@ const FALLBACK_CAPTIONS = {
   grafite: 'Cor na rua, arte na parede. 🎨'
 };
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   try {
     return await handle(context);
@@ -69,6 +74,10 @@ export async function onRequestPost(context) {
   }
 }
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 async function handle(context) {
   const { env, request } = context;
 
@@ -134,6 +143,10 @@ async function handle(context) {
 }
 
 // Pipeline: OpenAI gpt-image-1 → fallback Gemini (só em erro rápido).
+/**
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
+ */
 async function generateImageWithFallback({ env, prompt, mime, b64 }) {
   // 1. PRIMÁRIO: OpenAI gpt-image-1 (image-to-image edit)
   const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64 });
@@ -164,6 +177,10 @@ async function generateImageWithFallback({ env, prompt, mime, b64 }) {
 }
 
 // OpenAI gpt-image-1 via /v1/images/edits (multipart com a foto como entrada).
+/**
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
+ */
 async function generateImageOpenAI({ env, prompt, mime, b64 }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), OPENAI_IMG_TIMEOUT_MS);

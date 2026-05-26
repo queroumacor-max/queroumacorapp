@@ -1,3 +1,4 @@
+// @ts-check
 // Helper compartilhado: chama OpenAI Chat Completions com fallback automático
 // para Gemini quando OpenAI faltar/falhar. Retorna { text, error } sempre.
 // Opts: { temperature, maxTokens, json } (json=true seta response_format).
@@ -6,6 +7,20 @@
 export const GEMINI_MODEL = 'gemini-2.5-flash';
 export const OPENAI_MODEL = 'gpt-4o-mini';
 
+/**
+ * @param {{
+ *   env: Record<string, string>,
+ *   systemPrompt: string,
+ *   userMessage: string,
+ *   history?: Array<{ role: 'user' | 'assistant', content: string }>,
+ *   temperature?: number,
+ *   maxTokens?: number,
+ *   json?: boolean,
+ *   prefer?: 'openai' | 'gemini',
+ *   timeoutMs?: number
+ * }} opts
+ * @returns {Promise<{ text: string, error: string }>}
+ */
 export async function callAIText({
   env, systemPrompt, userMessage,
   history = [],            // [{role:'user'|'assistant', content:'...'}]

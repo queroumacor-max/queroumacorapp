@@ -1,9 +1,14 @@
+// @ts-check
 // Estimativa de metragem por foto: recebe multipart com o campo 'image'
 // (foto de parede/cômodo/teto) e devolve { area_m2, justification } via
 // OpenAI gpt-4o-mini (vision). Requer OPENAI_API_KEY no Cloudflare Pages.
 // A estimativa é APROXIMADA — o app avisa o usuário para revisar.
 import { gateProAIForm, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {

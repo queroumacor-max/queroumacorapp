@@ -1,9 +1,14 @@
+// @ts-check
 // Assistente IA do QueroUmaCor. Usa OpenAI; se faltar/funcionar mal,
 // cai para o Gemini. Requer no Cloudflare Pages pelo menos uma das
 // variaveis: OPENAI_API_KEY ou GEMINI_API_KEY.
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {
