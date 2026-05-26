@@ -16,8 +16,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-<script src="/head.js?v=20260525d" defer></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.45.0/dist/umd/supabase.js" defer onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js';s.defer=true;document.head.appendChild(s);"></script>
+<script src="/head.js?v=20260525e" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2281,7 +2281,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260525d" defer></script>
+<script src="/app.js?v=20260525e" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

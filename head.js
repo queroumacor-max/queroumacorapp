@@ -215,9 +215,26 @@ async function getMyProfile(force){
 function invalidateMyProfile(){ _myProfileCache = null; _myProfileCacheAt = 0; }
 
 let _feedLoaded = false;
-async function initAuth() {
-  const sb = getSupabase();
-  if (!sb) return;
+async function initAuth(_retry) {
+  let sb = getSupabase();
+  // Tolerância a CDN lento/fallback: aguarda até 6s polling 200ms se supabase-js
+  // ainda não carregou (cenário: unpkg.com falhou, fallback jsdelivr ainda baixando)
+  if (!sb) {
+    const tries = _retry || 0;
+    if (tries < 30) {
+      setTimeout(() => initAuth(tries + 1), 200);
+      return;
+    }
+    // Após 6s sem supabase: notifica user e desiste
+    console.error('Supabase CDN falhou em ambos os endpoints — recarregue a página');
+    try {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px 24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:99999;font-family:system-ui;text-align:center;max-width:320px;';
+      div.innerHTML = '<div style="font-size:42px;margin-bottom:8px;">🌐</div><div style="font-weight:700;margin-bottom:6px;">Conexão instável</div><div style="font-size:13px;color:#666;margin-bottom:14px;">Não conseguimos carregar a base do app. Verifique sua internet e recarregue.</div><button onclick="window.location.reload()" style="padding:10px 20px;background:#ff6b35;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Recarregar</button>';
+      document.body.appendChild(div);
+    } catch(_){}
+    return;
+  }
 
   // Detect password recovery redirect via URL hash (Supabase appends #type=recovery)
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
