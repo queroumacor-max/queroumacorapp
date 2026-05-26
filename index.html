@@ -54,7 +54,7 @@
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg"></script>
 <script>window.CF_IMG_ENABLED=true</script>
-<script src="/head.js?v=20260526q" defer></script>
+<script src="/head.js?v=20260526r" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1849,8 +1849,8 @@
       <div style="margin-bottom:14px;">
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">1. O que você quer criar?</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="ai-art-styles">
-          <div class="ai-art-style sel" data-style="profissional" data-photos="1" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--p1);background:rgba(255,107,53,.08);cursor:pointer;text-align:center;">
-            <div style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-image:url('/style-refs/profissional.jpg');background-size:cover;background-position:center;background-color:#d8c9b3;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;">
+          <div class="ai-art-style sel" data-style="profissional" data-photos="1" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--p1);background:rgba(255,107,53,.08);cursor:pointer;text-align:center;position:relative;">
+            <div class="ai-art-tile-preview" style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-size:cover;background-position:center;background-color:#d8c9b3;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;">
               <div class="ai-art-fallback" style="position:absolute;inset:0;background:linear-gradient(180deg,#d8c9b3 0%,#a89077 100%);display:flex;align-items:flex-end;justify-content:center;">
                 <div style="position:absolute;top:6px;left:0;right:0;text-align:center;font-family:'Impact','Arial Black',sans-serif;font-size:10px;font-weight:900;color:#fff;text-shadow:1px 1px 0 #000;letter-spacing:.5px;line-height:1;">TRANSFORME<br><span style="color:#ffd234;">SEU LAR</span></div>
                 <div style="width:18px;height:22px;background:#f4cfa6;border-radius:50% 50% 40% 40%;margin-bottom:8px;"></div>
@@ -1858,9 +1858,10 @@
             </div>
             <div style="font-size:11px;font-weight:700;color:var(--ink);">Pintor c/ obra</div>
             <div style="font-size:9px;color:var(--muted);margin-top:1px;">1 foto sua</div>
+            <button class="ai-art-tile-upload" data-style-upload="profissional" onclick="event.stopPropagation();_aiArtUploadTemplate('profissional')" title="Trocar template (admin)" style="display:none;position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1;padding:0;z-index:2;">✏️</button>
           </div>
-          <div class="ai-art-style" data-style="trabalho" data-photos="1" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
-            <div style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-image:url('/style-refs/trabalho.jpg');background-size:cover;background-position:center;background-color:#e8ddc8;position:relative;overflow:hidden;">
+          <div class="ai-art-style" data-style="trabalho" data-photos="1" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;position:relative;">
+            <div class="ai-art-tile-preview" style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-size:cover;background-position:center;background-color:#e8ddc8;position:relative;overflow:hidden;">
               <div class="ai-art-fallback" style="position:absolute;inset:0;background:linear-gradient(135deg,#e8ddc8 0%,#c9b89a 100%);">
                 <div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-family:'Impact','Arial Black',sans-serif;font-size:9px;font-weight:900;color:#fff;text-shadow:1px 1px 0 #000;letter-spacing:.5px;line-height:1.05;">TRABALHO<br><span style="color:#ffd234;">FINALIZADO</span></div>
                 <div style="position:absolute;bottom:4px;left:4px;right:4px;height:12px;background:#fff;border-radius:6px;"></div>
@@ -1868,9 +1869,10 @@
             </div>
             <div style="font-size:11px;font-weight:700;color:var(--ink);">Trabalho pronto</div>
             <div style="font-size:9px;color:var(--muted);margin-top:1px;">1 foto do trampo</div>
+            <button class="ai-art-tile-upload" data-style-upload="trabalho" onclick="event.stopPropagation();_aiArtUploadTemplate('trabalho')" title="Trocar template (admin)" style="display:none;position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1;padding:0;z-index:2;">✏️</button>
           </div>
-          <div class="ai-art-style" data-style="antesdepois" data-photos="2" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
-            <div style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-image:url('/style-refs/antesdepois.jpg');background-size:cover;background-position:center;background-color:#d4cfc8;position:relative;overflow:hidden;">
+          <div class="ai-art-style" data-style="antesdepois" data-photos="2" onclick="_aiArtSetStyle(this)" style="padding:6px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;position:relative;">
+            <div class="ai-art-tile-preview" style="width:100%;aspect-ratio:1/1;border-radius:8px;margin-bottom:6px;background-size:cover;background-position:center;background-color:#d4cfc8;position:relative;overflow:hidden;">
               <div class="ai-art-fallback" style="position:absolute;inset:0;background:linear-gradient(180deg,#d8d4cd 0%,#d8d4cd 49%,#fff 49%,#fff 51%,#c46a3f 51%,#c46a3f 100%);">
                 <div style="position:absolute;top:4px;right:4px;font-size:7px;font-weight:800;color:#fff;background:rgba(0,0,0,.3);padding:1px 3px;border-radius:2px;">ANTES</div>
                 <div style="position:absolute;bottom:4px;right:4px;font-size:7px;font-weight:800;color:#fff;text-shadow:1px 1px 0 #000;">DEPOIS</div>
@@ -1878,8 +1880,10 @@
             </div>
             <div style="font-size:11px;font-weight:700;color:var(--ink);">Antes/Depois</div>
             <div style="font-size:9px;color:var(--muted);margin-top:1px;">2 fotos (antes + depois)</div>
+            <button class="ai-art-tile-upload" data-style-upload="antesdepois" onclick="event.stopPropagation();_aiArtUploadTemplate('antesdepois')" title="Trocar template (admin)" style="display:none;position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1;padding:0;z-index:2;">✏️</button>
           </div>
         </div>
+        <input type="file" id="ai-art-template-input" accept="image/png,image/jpeg,image/webp" style="display:none">
       </div>
 
       <!-- 2. Foto(s) — 1 ou 2 dependendo do estilo -->
@@ -2426,7 +2430,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526q" defer></script>
+<script src="/app.js?v=20260526r" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
