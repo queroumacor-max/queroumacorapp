@@ -12,7 +12,8 @@ export async function callAIText({
   temperature = 0.5,
   maxTokens = 500,
   json = false,
-  prefer = 'openai'        // 'openai' | 'gemini'
+  prefer = 'openai',       // 'openai' | 'gemini'
+  timeoutMs = 25000        // timeout por provider (cai pra fallback se falhar)
 }) {
   const tryOpenAI = async () => {
     if (!env.OPENAI_API_KEY) return { text: '', error: 'OPENAI_API_KEY ausente' };
@@ -28,7 +29,7 @@ export async function callAIText({
         method: 'POST',
         headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(25000)
+        signal: AbortSignal.timeout(timeoutMs)
       });
       if (!r.ok) return { text: '', error: `OpenAI ${r.status}: ${(await r.text()).slice(0,150)}` };
       const data = await r.json();
@@ -57,7 +58,7 @@ export async function callAIText({
             contents,
             generationConfig: gconf
           }),
-          signal: AbortSignal.timeout(25000)
+          signal: AbortSignal.timeout(timeoutMs)
         }
       );
       if (!r.ok) return { text: '', error: `Gemini ${r.status}: ${(await r.text()).slice(0,150)}` };
