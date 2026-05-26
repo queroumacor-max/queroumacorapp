@@ -79,14 +79,14 @@ window.handleSbError = handleSbError;
 
 // apiPost: chama /api/* com token JWT do Supabase automaticamente. Retorna
 // {ok, data, status, error}. Se multipart=true, body deve ser FormData.
-// O token é enviado tanto via header Authorization quanto via body.accessToken
-// (ou FormData.append para multipart) — alguns endpoints leem só do body.
+// O token é enviado APENAS via header Authorization: Bearer ... (o servidor
+// em functions/api/_security.js#getToken aceita ambos, mas mantemos só o
+// header pra evitar vazar o JWT em logs de body / proxies que loggam JSON).
 async function apiPost(path, body, opts){
   opts = opts || {};
   const multipart = !!opts.multipart;
   const withToken = opts.withToken !== false;
   let headers = {};
-  let bodyObj = body;
   let token = null;
   if (withToken) {
     try {
@@ -100,15 +100,10 @@ async function apiPost(path, body, opts){
   if (token) headers['Authorization'] = 'Bearer ' + token;
   let payload;
   if (multipart) {
-    if (token && body && typeof body.append === 'function' && !body.has('accessToken')) {
-      body.append('accessToken', token);
-    }
     payload = body;
   } else {
     headers['Content-Type'] = 'application/json';
-    bodyObj = Object.assign({}, body || {});
-    if (token && !bodyObj.accessToken) bodyObj.accessToken = token;
-    payload = JSON.stringify(bodyObj);
+    payload = JSON.stringify(body || {});
   }
   try {
     const r = await fetch(path, { method: 'POST', headers: headers, body: payload });
@@ -601,10 +596,16 @@ async function doLoginSupabase(email, password) {
   }
 }
 function doLogin(){
+  // Dedupe-submit: desabilita o botão Entrar enquanto a request roda
+  const _btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
+               (typeof event !== 'undefined' && event && event.submitter) ||
+               document.querySelector('#screen-login button.auth-btn:not(.secondary)');
   const email=document.getElementById('login-email').value.trim();
   const pw=document.getElementById('login-pw').value;
   if(!email||!pw){toast('⚠️ Preencha email e senha');return;}
-  doLoginSupabase(email,pw);
+  if(_btn) _btn.disabled = true;
+  Promise.resolve(doLoginSupabase(email,pw))
+    .finally(() => { if(_btn) _btn.disabled = false; });
 }
 
 async function doRegisterSupabase(name, email, password, type, tag) {

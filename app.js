@@ -4255,26 +4255,35 @@ function signupNext(step){
 }
 
 async function doSignup(){
-  const name=document.getElementById('s-name').value.trim();
-  const tag=document.getElementById('s-tag').value.trim();
-  const email=document.getElementById('s-email').value.trim();
-  const pw=document.getElementById('s-pw').value;
-  const role=selectedRole||'cliente';
-  if(!name||name.includes('@')||!email||!pw){toast('Preencha nome, email e senha corretamente');return;}
-  if(isProfessionalRole(role)){
-    const selSpecs = document.querySelectorAll('#spec-grid .spec-chip.sel').length;
-    if(selSpecs === 0){ toast('Selecione pelo menos uma especialidade'); return; }
-  }
+  // Dedupe-submit: desabilita o botão "Criar conta" enquanto a request roda
+  const _btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
+               (typeof event !== 'undefined' && event && event.submitter) ||
+               document.querySelector('#signup-step3 button.auth-btn:not(.secondary)');
+  if(_btn) _btn.disabled = true;
+  try {
+    const name=document.getElementById('s-name').value.trim();
+    const tag=document.getElementById('s-tag').value.trim();
+    const email=document.getElementById('s-email').value.trim();
+    const pw=document.getElementById('s-pw').value;
+    const role=selectedRole||'cliente';
+    if(!name||name.includes('@')||!email||!pw){toast('Preencha nome, email e senha corretamente');return;}
+    if(isProfessionalRole(role)){
+      const selSpecs = document.querySelectorAll('#spec-grid .spec-chip.sel').length;
+      if(selSpecs === 0){ toast('Selecione pelo menos uma especialidade'); return; }
+    }
 
-  // Mark invite as used
-  if(validatedInviteCode && validatedInviteCode.id){
-    try {
-      const sb = getSupabase();
-      await sb.from('invites').update({ uses: (validatedInviteCode.uses||0)+1 }).eq('id', validatedInviteCode.id);
-    } catch(e){ console.warn('Could not update invite:', e && e.message || e); }
-  }
+    // Mark invite as used
+    if(validatedInviteCode && validatedInviteCode.id){
+      try {
+        const sb = getSupabase();
+        await sb.from('invites').update({ uses: (validatedInviteCode.uses||0)+1 }).eq('id', validatedInviteCode.id);
+      } catch(e){ console.warn('Could not update invite:', e && e.message || e); }
+    }
 
-  doRegisterSupabase(name,email,pw,role,tag);
+    await doRegisterSupabase(name,email,pw,role,tag);
+  } finally {
+    if(_btn) _btn.disabled = false;
+  }
 }
 const _roleSpecs = {
   pintor: ['Residencial','Comercial','Textura','Grafiato','Piso Epóxi','Fachada','Degradê','Stencil','Industrial','Caiação'],
@@ -5344,7 +5353,10 @@ function getCategoryEmoji(cat){
 }
 
 function getProductImage(p){
-  if(p.image_url) return p.image_url;
+  if(p.image_url){
+    const safe = (typeof safeUrl === 'function') ? safeUrl(p.image_url) : '';
+    if(safe) return safe;
+  }
   if(p._imgCache !== undefined) return p._imgCache;
   const _setImg = (v) => { p._imgCache = v; return v; };
   const n = (p.name||'').toLowerCase()
@@ -5494,12 +5506,13 @@ function renderProductRow(p){
     icStyle = img ? 'background:#f5f5f5;overflow:hidden;padding:0;' : 'background:'+bg+';';
   }
   const inactive = p.active === false;
-  return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+p.id+'\')">'
+  const pidJs = escapeJsArg(p.id);
+  return '<div class="mkt-row"'+(inactive?' style="opacity:.5"':'')+' onclick="openProductDetail(\''+pidJs+'\')">'
     + '<div class="mkt-row-ic" style="'+icStyle+'">'+icContent+'</div>'
     + '<div class="mkt-row-info"><div class="mkt-row-name">'+escapeHtml(p.name||'')+(inactive?' <span style="font-size:10px;color:var(--muted);">(inativo)</span>':'')+'</div>'
     + '<div class="mkt-row-sub">'+(p.code?('Cód '+escapeHtml(String(p.code))):'')+stk+'</div>'
     + '<div class="mkt-row-price">'+price+'</div></div>'
-    + '<button class="mkt-row-add" onclick="event.stopPropagation();openProductDetail(\''+p.id+'\')">+ Carrinho</button>'
+    + '<button class="mkt-row-add" onclick="event.stopPropagation();openProductDetail(\''+pidJs+'\')">+ Carrinho</button>'
     + '</div>';
 }
 
@@ -5544,7 +5557,7 @@ function openProductDetail(productId){
   const sheet = modal.querySelector('.sheet');
   const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
   sheet.innerHTML = '<div class="sheet-handle"></div>'
-    + '<div style="height:140px;background:'+(getProductImage(p)?'#f5f5f5':bg)+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;overflow:hidden;">'+(getProductImage(p)?'<img src="'+escapeHtml(getProductImage(p))+'" alt="" style="width:100%;height:100%;object-fit:cover;">':(hasProductColor(p)?'':emoji))+'</div>'
+    + '<div style="height:140px;background:'+(getProductImage(p)?'#f5f5f5':bg)+';border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;overflow:hidden;">'+(getProductImage(p)?'<img src="'+getProductImage(p)+'" alt="" style="width:100%;height:100%;object-fit:cover;">':(hasProductColor(p)?'':emoji))+'</div>'
     + '<div style="font-size:20px;font-weight:800;font-family:Syne,sans-serif;">'+escapeHtml(p.name||'')+'</div>'
     + '<div style="font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:10px;">'+(p.code ? 'Cód. '+escapeHtml(p.code)+' · ' : '')+escapeHtml(p.line||'')+'</div>'
     + (p.description ? '<div style="font-size:13.5px;color:#555;line-height:1.5;margin-bottom:14px;">'+escapeHtml(p.description)+'</div>' : '')
@@ -5561,7 +5574,7 @@ function openProductDetail(productId){
         + '<button class="qty-btn" onclick="var i=document.getElementById(\'detail-qty\');i.value=+i.value+1;document.getElementById(\'detail-qty-total\').textContent=\'R$\'+(+i.value*'+Number(p.price||0)+').toFixed(2).replace(\'.\',\',\')">+</button>'
       + '</div>'
     + '</div>'
-    + '<button onclick="addToCart(\''+p.id+'\',+document.getElementById(\'detail-qty\').value);closeModals()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">+ Adicionar ao Carrinho · <span id="detail-qty-total">'+priceFormatted+'</span></button>';
+    + '<button onclick="addToCart(\''+escapeJsArg(p.id)+'\',+document.getElementById(\'detail-qty\').value);closeModals()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">+ Adicionar ao Carrinho · <span id="detail-qty-total">'+priceFormatted+'</span></button>';
   showModal('product-detail-modal');
 }
 
