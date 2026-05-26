@@ -137,6 +137,9 @@ Responda APENAS em JSON estrito, neste formato exato:
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'OpenAI timeout (25s) — tente de novo' }, 504);
-    return json({ error: 'Falha ao chamar a IA: ' + String(e?.message || e) }, 502);
+    // Não vaza err.message no response (pode conter detalhes internos / chave / URL);
+    // loga server-side só pra diagnóstico.
+    console.warn('pricing-suggest err:', e && e.message);
+    return json({ error: 'Falha ao chamar a IA' }, 502);
   }
 }

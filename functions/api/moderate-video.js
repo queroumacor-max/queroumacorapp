@@ -101,7 +101,8 @@ export async function onRequestPost(context) {
       return json({ status: 'pending', reason: 'vídeo grande — enviado para revisão humana' });
     }
   } catch (e) {
-    return json({ status: 'pending', reason: 'falha ao baixar vídeo: ' + String(e?.message || e) });
+    console.warn('moderate-video download err:', e && e.message);
+    return json({ status: 'pending', reason: 'falha ao baixar vídeo' });
   }
 
   try {
@@ -125,7 +126,8 @@ export async function onRequestPost(context) {
     return json({ status: 'approved' });
   } catch (e) {
     // Erro/timeout do Gemini: deixa pendente (fila admin), nunca aprova no escuro
-    return json({ status: 'pending', reason: 'análise indisponível: ' + String(e?.message || e) });
+    console.warn('moderate-video analyze err:', e && e.message);
+    return json({ status: 'pending', reason: 'análise indisponível' });
   }
 }
 

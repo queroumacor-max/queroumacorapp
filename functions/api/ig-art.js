@@ -55,7 +55,8 @@ export async function onRequestPost(context) {
     return await handle(context);
   } catch (e) {
     // Garante que SEMPRE retorna JSON — nunca deixa Cloudflare devolver HTML 502
-    return json({ error: 'Erro interno: ' + String(e?.message || e) }, 500);
+    console.warn('ig-art err:', e && e.message);
+    return json({ error: 'Erro interno' }, 500);
   }
 }
 
@@ -102,8 +103,14 @@ async function handle(context) {
     generateCaption({ env, styleKey, captionHint, businessName })
   ]);
 
-  if (imgRes.error) return json({ error: 'Falha ao gerar arte: ' + imgRes.error, modelTried: imgRes.modelTried }, 502);
-  if (!imgRes.b64) return json({ error: 'Gemini não devolveu imagem (modelo: ' + (imgRes.modelTried || imgModel) + ')' }, 502);
+  if (imgRes.error) {
+    console.warn('ig-art img err:', imgRes.error, 'model:', imgRes.modelTried);
+    return json({ error: 'Falha ao gerar arte' }, 502);
+  }
+  if (!imgRes.b64) {
+    console.warn('ig-art: Gemini sem imagem, model:', imgRes.modelTried || imgModel);
+    return json({ error: 'Gemini não devolveu imagem' }, 502);
+  }
 
   return json({
     imageDataUrl: 'data:' + (imgRes.mime || 'image/png') + ';base64,' + imgRes.b64,

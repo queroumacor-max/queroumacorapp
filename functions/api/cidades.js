@@ -8,8 +8,12 @@ export async function onRequestGet(context) {
   const { request } = context;
   const url = new URL(request.url);
   const uf = String(url.searchParams.get('uf') || '').trim().toUpperCase();
-  if (!uf || !/^[A-Z]{2}$/.test(uf)) {
-    return json({ error: 'uf inválido' }, 400);
+  // Whitelist das 27 UFs do Brasil. Antes /^[A-Z]{2}$/ aceitava qualquer
+  // par de letras (ex.: "ZZ"), que ia bater no IBGE e voltar 404. Whitelist
+  // barra cedo e evita request desnecessário pro IBGE.
+  const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+  if (!UFS.includes(uf)) {
+    return json({ error: 'UF inválida' }, 400);
   }
   try {
     const r = await fetch(

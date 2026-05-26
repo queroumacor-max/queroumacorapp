@@ -7,7 +7,7 @@
 //
 // Requer no Cloudflare Pages: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // SUPABASE_ANON_KEY.
-import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
+import { jsonResponse as json, FALLBACK_SUPABASE_URL, checkRateLimit, rateLimitResponse } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -101,6 +101,11 @@ export async function onRequestPost(context) {
   } catch (e) {
     return json({ error: 'falha ao verificar permissao' }, 502);
   }
+
+  // Rate limit pra admin (30 req/min): defesa contra script malicioso
+  // ou credencial vazada batendo no PATCH em loop.
+  const rl = await checkRateLimit(env, callerId || callerEmail, 'admin-users', 30);
+  if (!rl.allowed) return rateLimitResponse(rl);
 
   const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
     method: 'PATCH',

@@ -118,7 +118,10 @@ export async function onRequestPost(context) {
     const isTimeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
     if (isTimeout) return json({ error: 'Gemini timeout (25s) — tente de novo', engine: 'failed' }, 504);
     // Falhou: quem chama trata como indisponível (fail-safe → revisão).
-    return json({ error: `moderação indisponível: ${String(err?.message || err)}`, engine: 'failed' }, 502);
+    // Não vaza err.message no response (pode conter detalhes internos);
+    // loga server-side só pra diagnostico.
+    console.warn('moderate err:', err && err.message);
+    return json({ error: 'moderação indisponível', engine: 'failed' }, 502);
   }
 }
 
