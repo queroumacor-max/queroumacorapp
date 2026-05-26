@@ -13,9 +13,9 @@
 
 # Assets versionados (com ?v=) podem ter cache longo
 /head.js
-  Cache-Control: public, max-age=300, must-revalidate
+  Cache-Control: public, max-age=31536000, immutable
 /app.js
-  Cache-Control: public, max-age=300, must-revalidate
+  Cache-Control: public, max-age=31536000, immutable
 
 # Endpoints da API: nunca cachear + CORS restrito ao próprio domínio
 /api/*

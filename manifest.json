@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "QueroUmaCor",
   "short_name": "QueroUmaCor",
   "description": "A plataforma dos pintores profissionais",
@@ -12,18 +13,39 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": [
-    "business",
-    "lifestyle"
-  ],
+  "_todo_maskable": "icones maskable apontam pro mesmo arquivo dos 'any' — gerar variant padded depois",
+  "categories": ["business", "social"],
+  "_todo_screenshots": "TODO: adicionar screenshots do app (PNG 1080x1920 portrait + 1920x1080 landscape)",
+  "screenshots": [],
+  "share_target": {
+    "action": "/?share=1",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "lang": "pt-BR"
 }
