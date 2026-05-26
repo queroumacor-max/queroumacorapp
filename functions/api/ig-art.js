@@ -26,31 +26,63 @@ const GEMINI_FALLBACK_TIMEOUT_MS = 8000;
 const CAPTION_TIMEOUT_MS = 8000;
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 
+// MODELOS DE COMPOSIÇÃO — cada estilo descreve um template visual rígido
+// (enquadramento, distribuição dos elementos, plano de fundo, iluminação)
+// pra IA reproduzir um padrão consistente entre gerações.
 const STYLE_PROMPTS = {
   portrait: [
-    'Transforme essa foto em um retrato cinematográfico profissional, estilo capa de revista,',
-    'iluminação tipo estúdio com luz lateral suave, fundo desfocado tipo bokeh com tons quentes,',
-    'paleta de cor premium, mantenha rosto e proporções da pessoa idênticos à foto original,',
-    'composição em quadrado 1:1 para Instagram, sem texto algum, sem marca d\'água, sem borda.'
+    'MODELO: retrato cinematográfico vertical estilo capa de revista profissional.',
+    'COMPOSIÇÃO: sujeito principal centralizado, busto/cintura pra cima, ocupando ~60% do quadro,',
+    'cabeça no terço superior, olhar levemente fora do eixo, profundidade de campo rasa.',
+    'ILUMINAÇÃO: luz lateral suave tipo Rembrandt, key light quente vindo da diagonal superior,',
+    'fill light fraco no lado oposto, leve rim light separando o sujeito do fundo.',
+    'FUNDO: bokeh desfocado em tons quentes (laranja queimado, terracota, marrom-café),',
+    'gradiente vertical do escuro embaixo pra mais quente no topo.',
+    'PALETA: tons terrosos premium, alto contraste, leve granulado de filme cinematográfico.',
+    'PRESERVE rosto, traços e proporções idênticos à foto original — só estilize iluminação e fundo.',
+    'Sem texto, sem marca d\'água, sem borda.'
   ].join(' '),
   antesdepois: [
-    'Componha uma imagem split-screen ANTES/DEPOIS de um trabalho de pintura.',
-    'Esquerda (ANTES): exatamente como está hoje na foto fornecida — paredes/superfície atual, sem retoque.',
-    'Direita (DEPOIS): mesma cena imaginada após uma pintura profissional caprichada — paredes limpas, tinta uniforme, acabamento premium, sem manchas.',
-    'Divisão vertical bem no meio. Formato 1:1 Instagram. Sem texto, sem rótulos, sem marca d\'água.'
+    'MODELO: imagem ANTES/DEPOIS com divisão vertical exata bem no meio do quadro.',
+    'METADE ESQUERDA (ANTES): exatamente a cena da foto fornecida sem retoque — superfícies originais,',
+    'paredes manchadas/descascadas/sem pintura, iluminação plana e fria, leve dessaturação.',
+    'METADE DIREITA (DEPOIS): mesma cena/ângulo após pintura profissional — paredes uniformes, cor sólida e limpa,',
+    'acabamento premium sem falhas, iluminação quente e clara, saturação realçada.',
+    'LINHA DIVISÓRIA: branca fina ou sutil sombra vertical centralizada, separando as duas metades sem misturar.',
+    'O mesmo objeto/ambiente aparece nos dois lados, no mesmo ângulo, só muda o estado.',
+    'Sem rótulos de texto, sem marca d\'água, sem moldura.'
   ].join(' '),
   profissional: [
-    'Reimagine a foto como uma imagem de marketing profissional limpa do trabalho/produto principal,',
-    'fundo neutro de estúdio com leve gradiente, iluminação difusa de catálogo, paleta moderna,',
-    'mantenha o sujeito/objeto principal da foto reconhecível, formato 1:1 Instagram,',
-    'sem texto algum, sem marca d\'água, sem borda.'
+    'MODELO: imagem de catálogo profissional minimalista estilo e-commerce premium.',
+    'COMPOSIÇÃO: sujeito/objeto/trabalho principal centralizado, isolado e em foco total,',
+    'ocupando ~70% do quadro, com respiro generoso nas bordas.',
+    'FUNDO: gradiente neutro sutil (cinza claro → branco, ou bege quente claro), totalmente liso, sem distrações.',
+    'ILUMINAÇÃO: luz difusa de softbox, sombra projetada suave embaixo do sujeito (chão refletivo leve),',
+    'highlights controlados, sem estouro de luz.',
+    'PALETA: tons neutros sofisticados, alta nitidez, look de fotografia comercial.',
+    'PRESERVE o sujeito principal da foto original idêntico — só limpe e refine o entorno.',
+    'Sem texto, sem logo, sem marca d\'água, sem borda.'
   ].join(' '),
   grafite: [
-    'Reimagine a foto como uma arte de grafite urbano brasileiro vibrante,',
-    'cores saturadas e contrastantes, traços marcados e expressivos, fundo de muro de tijolo ou concreto,',
-    'estilo de mural de rua de São Paulo, mantenha o sujeito principal reconhecível,',
-    'formato 1:1 Instagram, sem texto algum, sem assinatura, sem marca d\'água.'
+    'MODELO: arte de grafite urbano brasileiro pintado em mural de rua de São Paulo.',
+    'COMPOSIÇÃO: sujeito principal da foto recriado em estilo grafite expressivo, ocupando centro do quadro,',
+    'envolvido por respingos e formas geométricas vibrantes, leve perspectiva de quem está olhando o muro.',
+    'TÉCNICA: traços marcados de spray, contornos pretos grossos, preenchimentos em cores saturadas,',
+    'detalhes em throw-up/bomb, sombras chapadas estilo cartoon-realista, alguns dripping de tinta.',
+    'PALETA: amarelo cádmio, magenta, azul ciano, laranja queimado, preto, branco — alto contraste tropical.',
+    'FUNDO: parede de tijolo aparente, concreto manchado ou portão de aço com leve grafite secundário ao fundo,',
+    'textura de muro real visível.',
+    'PRESERVE o sujeito principal reconhecível, só transformado em linguagem de mural.',
+    'Sem assinatura legível, sem marca d\'água, sem moldura.'
   ].join(' ')
+};
+
+// Mapeamento aspect → tamanho aceito pelo gpt-image-1.
+// gpt-image-1 aceita: 1024x1024 (square), 1024x1536 (vertical), 1536x1024 (horizontal).
+const ASPECT_SIZES = {
+  square:     { openai: '1024x1024', label: 'quadrado 1:1 (feed do Instagram)' },
+  vertical:   { openai: '1024x1536', label: 'vertical 2:3 (Reels/Stories)' },
+  horizontal: { openai: '1536x1024', label: 'horizontal 3:2 (capa/banner)' }
 };
 
 const FALLBACK_CAPTIONS = {
@@ -85,6 +117,7 @@ async function handle(context) {
 
   const photoDataUrl = typeof body?.photoDataUrl === 'string' ? body.photoDataUrl : '';
   const styleKey = typeof body?.style === 'string' ? body.style : 'portrait';
+  const aspectKey = typeof body?.aspect === 'string' && ASPECT_SIZES[body.aspect] ? body.aspect : 'square';
   const captionHint = typeof body?.captionHint === 'string' ? body.captionHint.trim().slice(0, 300) : '';
   const businessName = typeof body?.businessName === 'string' ? body.businessName.trim().slice(0, 80) : '';
 
@@ -98,14 +131,16 @@ async function handle(context) {
   }
 
   const stylePrompt = STYLE_PROMPTS[styleKey] || STYLE_PROMPTS.portrait;
+  const aspectInfo = ASPECT_SIZES[aspectKey];
+  const aspectPart = ` FORMATO DE SAÍDA OBRIGATÓRIO: ${aspectInfo.label}. Componha respeitando essa proporção; nada de bordas pretas/brancas pra encaixar.`;
   const hintPart = captionHint
     ? ` IMPORTANTE — o profissional quer transmitir o seguinte com essa imagem: "${captionHint}". Componha a arte reforçando visualmente essa mensagem (foco, ângulo, iluminação, destaque do que importa).`
     : '';
-  const imgPrompt = stylePrompt + hintPart;
+  const imgPrompt = stylePrompt + aspectPart + hintPart;
 
   // Dispara geração de arte + legenda em paralelo
   const [imgRes, capRes] = await Promise.all([
-    generateImageWithFallback({ env, prompt: imgPrompt, mime: inputMime, b64: inputB64 }),
+    generateImageWithFallback({ env, prompt: imgPrompt, mime: inputMime, b64: inputB64, size: aspectInfo.openai }),
     generateCaption({ env, styleKey, captionHint, businessName })
   ]);
 
@@ -129,14 +164,15 @@ async function handle(context) {
     imageDataUrl: 'data:' + (imgRes.mime || 'image/png') + ';base64,' + imgRes.b64,
     caption: capRes.text || FALLBACK_CAPTIONS[styleKey] || FALLBACK_CAPTIONS.portrait,
     style: styleKey,
+    aspect: aspectKey,
     model: imgRes.modelTried
   });
 }
 
 // Pipeline: OpenAI gpt-image-1 → fallback Gemini (só em erro rápido).
-async function generateImageWithFallback({ env, prompt, mime, b64 }) {
+async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
   // 1. PRIMÁRIO: OpenAI gpt-image-1 (image-to-image edit)
-  const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64 });
+  const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64, size });
   if (openaiRes.b64) return { ...openaiRes, modelTried: OPENAI_IMG_MODEL };
 
   const openaiErr = openaiRes.error || 'sem detalhe';
@@ -164,7 +200,7 @@ async function generateImageWithFallback({ env, prompt, mime, b64 }) {
 }
 
 // OpenAI gpt-image-1 via /v1/images/edits (multipart com a foto como entrada).
-async function generateImageOpenAI({ env, prompt, mime, b64 }) {
+async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), OPENAI_IMG_TIMEOUT_MS);
   try {
@@ -179,7 +215,7 @@ async function generateImageOpenAI({ env, prompt, mime, b64 }) {
     form.append('model', OPENAI_IMG_MODEL);
     form.append('image', blob, `input.${ext}`);
     form.append('prompt', prompt.slice(0, 4000));  // OpenAI tem limite de prompt
-    form.append('size', '1024x1024');
+    form.append('size', size || '1024x1024');
     form.append('n', '1');
     // gpt-image-1 retorna b64_json por padrão no /v1/images/edits
 
