@@ -7882,6 +7882,15 @@ async function validateAndGoStep3(){
   if(!phone){ toast('Preencha seu WhatsApp'); return; }
   if(!cityField){ toast('Preencha sua cidade'); return; }
   if(!stateField){ toast('Selecione seu estado'); return; }
+  const bday = (document.getElementById('s-birthdate')||{}).value || '';
+  if(!bday){ toast('Preencha sua data de nascimento'); return; }
+  const _bd = new Date(bday);
+  if(isNaN(_bd.getTime())){ toast('Data de nascimento inválida'); return; }
+  const _today = new Date();
+  let _age = _today.getFullYear() - _bd.getFullYear();
+  const _m = _today.getMonth() - _bd.getMonth();
+  if(_m < 0 || (_m === 0 && _today.getDate() < _bd.getDate())){ _age--; }
+  if(_age < 18){ toast('Você precisa ter 18 anos ou mais para criar uma conta'); return; }
   if(!pw || pw.length < 8){ toast('Senha deve ter no minimo 8 caracteres'); return; }
   // Check tag availability before proceeding
   const statusEl = document.getElementById('tag-status');

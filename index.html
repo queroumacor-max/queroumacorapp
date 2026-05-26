@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://unpkg.com/@supabase/supabase-js@2.45.0/dist/umd/supabase.js" defer onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js';s.defer=true;document.head.appendChild(s);"></script>
-<script src="/head.js?v=20260526a" defer></script>
+<script src="/head.js?v=20260526b" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -195,6 +195,11 @@
           <input class="auth-input" type="tel" id="s-phone" name="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 99999-9999" style="font-size:16px;">
         </div>
         <div class="auth-field">
+          <label class="auth-label" for="s-birthdate">Data de nascimento</label>
+          <input class="auth-input" type="date" id="s-birthdate" name="bday" autocomplete="bday" style="font-size:16px;" max="">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Necessário para confirmar maioridade (LGPD)</div>
+        </div>
+        <div class="auth-field">
           <label class="auth-label" for="s-city">Cidade</label>
           <input class="auth-input" type="text" id="s-city" name="city" autocomplete="address-level2" placeholder="São Paulo" style="font-size:16px;">
         </div>
@@ -243,6 +248,16 @@
         <button class="auth-btn" type="button" onclick="validateAndGoStep3()">Continuar</button>
         <button class="auth-btn secondary" type="button" onclick="signupNext(1)">Voltar</button>
       </div>
+      <script>
+        (function(){
+          var bd = document.getElementById('s-birthdate');
+          if(!bd) return;
+          var d = new Date();
+          d.setFullYear(d.getFullYear() - 18);
+          bd.max = d.toISOString().slice(0,10);
+          bd.setAttribute('min','1920-01-01');
+        })();
+      </script>
 
       <!-- STEP 3: pintor extras OR cliente prefs -->
       <div id="signup-step3" style="display:none;">
@@ -940,7 +955,7 @@
         <p class="leg-upd">Última atualização: 22 de maio de 2026</p>
         <p class="leg-p">Esta Política de Privacidade explica como o QueroUmaCor coleta, usa, compartilha e protege os seus dados pessoais, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
         <h3 class="leg-h">1. Quem é o controlador</h3>
-        <p class="leg-p">O QueroUmaCor é o controlador dos dados pessoais tratados no aplicativo. Para qualquer assunto relativo à privacidade, entre em contato pelos canais indicados em "Fale Conosco".</p>
+        <p class="leg-p">O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor). Para questões sobre privacidade ou exercer seus direitos LGPD, contate nosso Encarregado de Proteção de Dados (DPO) pelo e-mail <b>dpo@calicolors.com.br</b> ou pelos canais em "Fale Conosco".</p>
         <h3 class="leg-h">2. Dados que coletamos</h3>
         <p class="leg-p"><b>Dados de cadastro:</b> nome, e-mail, telefone, tipo de usuário (cliente ou profissional) e foto de perfil.<br><b>Dados do perfil profissional:</b> especialidades, raio de atendimento, formação, cursos e fotos do portfólio.<br><b>Dados de uso:</b> orçamentos solicitados, mensagens trocadas no chat e avaliações.<br><b>Localização aproximada:</b> usada para mostrar profissionais e serviços perto de você.<br><b>Dados técnicos:</b> informações do dispositivo e de acesso, para segurança e funcionamento do app.</p>
         <h3 class="leg-h">3. Como usamos os seus dados</h3>
@@ -948,7 +963,14 @@
         <h3 class="leg-h">4. Base legal do tratamento</h3>
         <p class="leg-p">Tratamos seus dados com base na execução do contrato (uso do app), no seu consentimento, no legítimo interesse de oferecer e aprimorar o serviço e no cumprimento de obrigações legais.</p>
         <h3 class="leg-h">5. Compartilhamento de dados</h3>
-        <p class="leg-p">Seu perfil público (nome, foto, especialidades e portfólio) é visível para outros usuários do app. Compartilhamos dados com prestadores que viabilizam o serviço — como hospedagem e banco de dados (Supabase), infraestrutura (Cloudflare) e provedores de inteligência artificial — e com autoridades, quando exigido por lei. <b>Não vendemos os seus dados pessoais.</b></p>
+        <p class="leg-p">Seu perfil público (nome, foto, especialidades e portfólio) é visível para outros usuários do app. Compartilhamos dados com os seguintes operadores que viabilizam o serviço:</p>
+        <ul style='font-size:13.5px;line-height:1.7;color:var(--ink);margin:6px 0 10px;padding-left:20px;'>
+        <li><b>Supabase Inc.</b> (EUA) — hospedagem do banco de dados, autenticação e storage</li>
+        <li><b>Cloudflare, Inc.</b> (EUA) — CDN, infraestrutura de borda e proteção contra abuso</li>
+        <li><b>OpenAI, Inc.</b> (EUA) — geração de texto e sugestões via IA (recurso 'Seu Zé')</li>
+        <li><b>Google LLC</b> (EUA) — geração de texto e sugestões via IA (Gemini, fallback do 'Seu Zé')</li>
+        </ul>
+        <p class="leg-p">A transferência internacional desses dados ocorre com base no Art. 33 da LGPD (cumprimento de obrigação legal e proteção do crédito) e nas garantias contratuais com cada operador. Também compartilhamos dados com autoridades quando exigido por lei. <b>Não vendemos os seus dados pessoais.</b></p>
         <h3 class="leg-h">6. Inteligência artificial</h3>
         <p class="leg-p">Alguns recursos usam o Seu Zé (nossa IA), como a sugestão de cores e o assistente do chat. Os dados enviados a esses recursos são utilizados apenas para gerar a resposta solicitada.</p>
         <h3 class="leg-h">7. Armazenamento e segurança</h3>
@@ -960,7 +982,7 @@
         <h3 class="leg-h">10. Localização</h3>
         <p class="leg-p">A localização aproximada é usada somente para mostrar profissionais e serviços por perto. Você pode desativá-la nas configurações do seu dispositivo.</p>
         <h3 class="leg-h">11. Menores de idade</h3>
-        <p class="leg-p">O QueroUmaCor não é destinado a menores de 18 anos.</p>
+        <p class="leg-p">O QueroUmaCor é destinado exclusivamente a maiores de 18 anos. No cadastro, exigimos a confirmação da data de nascimento e bloqueamos contas com idade inferior. Se identificarmos que uma conta pertence a menor de 18 anos, ela será encerrada e seus dados, eliminados.</p>
         <h3 class="leg-h">12. Alterações desta política</h3>
         <p class="leg-p">Podemos atualizar esta política periodicamente. Mudanças relevantes serão informadas no aplicativo.</p>
       </div>
@@ -2303,7 +2325,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526a" defer></script>
+<script src="/app.js?v=20260526b" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
