@@ -23,6 +23,62 @@ function showError(ctx, err, fallback) {
 }
 window.showError = showError;
 
+// Wrapper para await que mapeia erro em showError automaticamente.
+// Uso: const data = await safeAwait(sb.from('x').select(), 'loadX', 'Erro ao carregar');
+// Retorna { data, error } do Supabase em caso de sucesso, ou null em caso de exceção.
+// Se a promise resolve com { error } (padrão Supabase), também dispara showError.
+async function safeAwait(promise, ctx, fallback) {
+  try {
+    const res = await promise;
+    if (res && res.error) {
+      showError(ctx, res.error, fallback);
+      return null;
+    }
+    return res;
+  } catch (e) {
+    showError(ctx, e, fallback);
+    return null;
+  }
+}
+window.safeAwait = safeAwait;
+
+// ═══════ CLOUDFLARE IMAGE RESIZING ═══════
+// Roteia URLs de imagem externa (Supabase Storage, ui-avatars, etc.) através
+// de /cdn-cgi/image/{opts}/{url-crua} pra ganhar AVIF/WebP automático + resize
+// no edge do Cloudflare. Reduz bandwidth do Supabase Storage (50GB/mês no Pro).
+//
+// IMPORTANTE: feature flag default OFF. Ligar SÓ depois de habilitar
+// "Image Resizing" no dashboard do Cloudflare Pages (Settings → Speed).
+// Caso contrário /cdn-cgi/image/... retorna 404 e quebra todas as imagens.
+//
+// Pra ligar em produção: defina window.CF_IMG_ENABLED = true antes de
+// app.js rodar (ou via <script> no <head>).
+window.CF_IMG_ENABLED = window.CF_IMG_ENABLED || false;
+
+/**
+ * @param {string|null|undefined} url
+ * @param {{ w?: number, q?: number, fit?: 'cover'|'contain'|'scale-down' }} [opts]
+ * @returns {string}
+ */
+function cfImg(url, opts) {
+  if (!url) return '';
+  if (!window.CF_IMG_ENABLED) return url;
+  opts = opts || {};
+  // Same-origin: Pages serve direto, sem rerotear.
+  try {
+    const u = new URL(url, window.location.origin);
+    if (u.hostname === window.location.hostname) return url;
+  } catch (_) { return url; }
+  const params = [];
+  if (opts.w)   params.push('width=' + opts.w);
+  params.push('quality=' + (opts.q != null ? opts.q : 85));
+  params.push('fit=' + (opts.fit || 'scale-down'));
+  params.push('format=auto');
+  // Cloudflare espera URL crua (NÃO encodada) depois das opções.
+  return '/cdn-cgi/image/' + params.join(',') + '/' + url;
+}
+window.cfImg = cfImg;
+
 // ═══════ OBSERVABILITY (lightweight) ═══════
 // Captura erros não-tratados + Web Vitals e envia pra /api/log-error.
 // Buffer + batch envio pra não bloquear UI.
@@ -129,15 +185,17 @@ window.safeUrl = safeUrl;
 // avatarOf: lê profile.avatar_url, cai pra avatarUrl(profile.name) se não tiver.
 // Defense-in-depth: só aceita https:// ou data:image/ (já tem CHECK no DB,
 // mas se algum dado legado vazou, ignora qualquer outro scheme).
+// Quando CF_IMG_ENABLED, encaminha a URL final via cfImg() pra resize+AVIF/WebP
+// no edge — corta bandwidth de avatares (item de maior frequência no feed).
 function avatarOf(profile, size){
+  const s = size || 96;
   if (profile && typeof profile.avatar_url === 'string' && profile.avatar_url) {
     const url = profile.avatar_url;
-    if (/^https:\/\//i.test(url) || /^data:image\//i.test(url)) {
-      return url;
-    }
+    if (/^data:image\//i.test(url)) return url; // inline, nada a otimizar
+    if (/^https:\/\//i.test(url)) return cfImg(url, { w: s, fit: 'cover' });
     console.warn('avatarOf: URL inválida ignorada');
   }
-  return avatarUrl(profile && profile.name, size);
+  return cfImg(avatarUrl(profile && profile.name, s), { w: s, fit: 'cover' });
 }
 window.avatarOf = avatarOf;
 

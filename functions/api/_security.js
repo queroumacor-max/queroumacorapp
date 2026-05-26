@@ -1,3 +1,4 @@
+// @ts-check
 // Helpers de segurança server-side para os endpoints de IA. Arquivo com
 // prefixo `_` para que o Cloudflare Pages Functions NÃO o exponha como
 // rota HTTP — é apenas um módulo importado pelos handlers vizinhos.
@@ -19,6 +20,11 @@ export const ERR_UNAVAILABLE = 'serviço temporariamente indisponível';
 // Extrai o JWT do request. Prioridade: header Authorization Bearer,
 // depois `accessToken` no body (útil para multipart, ou clientes que
 // não setam o header).
+/**
+ * @param {Request} request
+ * @param {{ accessToken?: unknown } | null | undefined} body
+ * @returns {string}
+ */
 export function getToken(request, body){
   try {
     const auth = request.headers.get('Authorization') || request.headers.get('authorization') || '';
@@ -30,6 +36,11 @@ export function getToken(request, body){
 
 // Para multipart/form-data: pegue o accessToken do FormData e passe
 // como `{ accessToken }` para requireAuth.
+/**
+ * @param {Request} request
+ * @param {FormData | null | undefined} formData
+ * @returns {string}
+ */
 export function getTokenFromForm(request, formData){
   try {
     const auth = request.headers.get('Authorization') || request.headers.get('authorization') || '';
@@ -64,6 +75,12 @@ export function getTokenFromForm(request, formData){
 //   - Se chamar direto, OBRIGATORIO ter:
 //       if (!auth.user) return json({error: 'login obrigatorio'}, 401);
 //   - moderate.js e o unico caller direto hoje (e ja tem o guard)
+/**
+ * @param {Record<string, string>} env
+ * @param {Request} request
+ * @param {{ accessToken?: unknown } | null | undefined} body
+ * @returns {Promise<{ user: { id: string, email?: string } | null, token?: string, anon?: boolean, warn?: string, error?: string, status?: number }>}
+ */
 export async function requireAuth(env, request, body){
   const token = getToken(request, body);
   if(!token){
@@ -97,6 +114,11 @@ export async function requireAuth(env, request, body){
 // userId (ex.: requireAuth caiu em anônimo) ou SUPABASE_SERVICE_KEY.
 // Retorna { pro:true, checked:false } nesses casos. Só barra (pro:false)
 // quando o profile existe E is_pro é false ou pro_expires_at já passou.
+/**
+ * @param {Record<string, string>} env
+ * @param {string | null | undefined} userId
+ * @returns {Promise<{ pro: boolean, checked: boolean, error?: string }>}
+ */
 export async function requirePro(env, userId){
   if(!userId){
     // sem userId não dá pra consultar — fail-open
@@ -142,6 +164,11 @@ export async function requirePro(env, userId){
   }
 }
 
+/**
+ * @param {unknown} obj
+ * @param {number} [status]
+ * @returns {Response}
+ */
 export function jsonResponse(obj, status = 200){
   return new Response(JSON.stringify(obj), {
     status,
@@ -152,6 +179,13 @@ export function jsonResponse(obj, status = 200){
 // Rate limit por (user, endpoint, minuto). Devolve { allowed, count,
 // limit, retry_after_seconds }. Fail-open se algo der errado — não
 // quer bloquear usuário legítimo por problema de infra.
+/**
+ * @param {Record<string, string>} env
+ * @param {string | null | undefined} userId
+ * @param {string} endpoint
+ * @param {number} [limit]
+ * @returns {Promise<{ allowed: boolean, skipped?: boolean, count?: number, limit?: number, retry_after_seconds?: number }>}
+ */
 export async function checkRateLimit(env, userId, endpoint, limit = 30){
   if(!userId) return { allowed: true, skipped: true };
   const serviceKey = env.SUPABASE_SERVICE_ROLE
@@ -188,6 +222,10 @@ export async function checkRateLimit(env, userId, endpoint, limit = 30){
 }
 
 // Helper pra montar a resposta 429 padrão
+/**
+ * @param {{ count?: number, limit?: number, retry_after_seconds?: number }} rl
+ * @returns {Response}
+ */
 export function rateLimitResponse(rl){
   return new Response(JSON.stringify({
     error: 'Limite por minuto atingido (' + rl.count + '/' + rl.limit + '). Tente em ' + rl.retry_after_seconds + 's.',
@@ -206,7 +244,14 @@ export function rateLimitResponse(rl){
 // Uso típico: const g = await gateProAI(env, request, body, { endpoint:'chat-ai', limit:20 });
 //             if (g instanceof Response) return g;
 //             const userId = g.userId;
-export async function gateProAI(env, request, body, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+/**
+ * @param {Record<string, string>} env
+ * @param {Request} request
+ * @param {{ accessToken?: unknown } | null | undefined} body
+ * @param {{ endpoint: string, limit?: number, requirePro?: boolean }} opts
+ * @returns {Promise<Response | { userId: string | undefined, user: { id: string, email?: string } | null, token?: string }>}
+ */
+export async function gateProAI(env, request, body, { endpoint, limit = 30, requirePro: needPro = true } = /** @type {any} */ ({})) {
   // Fail-CLOSED: se service-role key faltar, nao da pra checar PRO nem
   // rate-limit. Sem ela, requirePro cai em fail-open e libera geral.
   // Como esse helper guarda TODOS os endpoints de IA, retornar 503 aqui
@@ -229,7 +274,14 @@ export async function gateProAI(env, request, body, { endpoint, limit = 30, requ
 
 // Variante de gateProAI para endpoints multipart/form-data: extrai o token
 // do FormData (via getTokenFromForm) em vez de body.accessToken.
-export async function gateProAIForm(env, request, formData, { endpoint, limit = 30, requirePro: needPro = true } = {}) {
+/**
+ * @param {Record<string, string>} env
+ * @param {Request} request
+ * @param {FormData} formData
+ * @param {{ endpoint: string, limit?: number, requirePro?: boolean }} opts
+ * @returns {Promise<Response | { userId: string | undefined, user: { id: string, email?: string } | null, token?: string }>}
+ */
+export async function gateProAIForm(env, request, formData, { endpoint, limit = 30, requirePro: needPro = true } = /** @type {any} */ ({})) {
   // Fail-CLOSED: mesma logica do gateProAI — se faltar service-role key,
   // requirePro vira fail-open. Retorna 503 antes mesmo de validar token.
   const serviceKey = env.SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;

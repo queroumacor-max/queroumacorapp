@@ -1,3 +1,4 @@
+// @ts-check
 // Cria uma assinatura recorrente (preapproval) no Mercado Pago para o Plano PRO.
 // Requer a variável de ambiente MP_ACCESS_TOKEN no Cloudflare Pages.
 // Se o cliente enviar body.accessToken, validamos no Supabase e usamos o
@@ -6,6 +7,10 @@
 // que ainda não passam o accessToken.
 import { jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.MP_ACCESS_TOKEN) {
@@ -85,6 +90,11 @@ export async function onRequestPost(context) {
 
 // Valida o accessToken no endpoint /auth/v1/user do Supabase.
 // Retorna { id, email } se válido, ou null caso contrário.
+/**
+ * @param {string} token
+ * @param {Record<string, string>} env
+ * @returns {Promise<{ id: string, email: string } | null>}
+ */
 async function verifySupabaseToken(token, env) {
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;

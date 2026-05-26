@@ -1,3 +1,4 @@
+// @ts-check
 // Sugestão de preço para orçamento de pintura.
 // Recebe { service_type, description, area_m2 } e retorna
 // { price: <number BRL>, justification: "<frase curta em PT-BR>" }.
@@ -5,6 +6,10 @@
 // Pattern: ver functions/api/chat-ai.js.
 import { gateProAI, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {

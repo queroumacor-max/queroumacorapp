@@ -1,3 +1,4 @@
+// @ts-check
 // Mercado Pago Checkout Pro para Loja — cria uma preference de pagamento
 // avulso (one-shot, NÃO assinatura) para um pedido da loja.
 //
@@ -14,6 +15,10 @@
 //   - SUPABASE_SERVICE_ROLE (opcional, fallback se anon não tiver permissão)
 import { jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
 
@@ -212,6 +217,11 @@ export async function onRequestPost(context) {
   }
 }
 
+/**
+ * @param {string} token
+ * @param {Record<string, string>} env
+ * @returns {Promise<{ id: string, email: string } | null>}
+ */
 async function verifySupabaseToken(token, env) {
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
   const anonKey = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;

@@ -1460,10 +1460,11 @@ async function openModQueue(){
     list.innerHTML = posts.map(p => {
       const cap = escapeHtml(p.caption || '');
       const mediaUrl = escapeHtml(p.media_url || '');
+      const mediaImg = p.media_url && p.media_type !== 'video' ? escapeHtml(cfImg(p.media_url, { w: 600, q: 75 })) : mediaUrl;
       const media = p.media_url
         ? (p.media_type === 'video'
             ? `<video src="${mediaUrl}" controls style="width:100%;border-radius:12px;max-height:260px;background:#000;"></video>`
-            : `<img src="${mediaUrl}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
+            : `<img src="${mediaImg}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
         : '';
       return `<div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px;">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${escapeHtml(p.media_type||'post')} · ${new Date(p.created_at).toLocaleString('pt-BR')}</div>
@@ -5432,7 +5433,7 @@ function getCategoryEmoji(cat){
 function getProductImage(p){
   if(p.image_url){
     const safe = (typeof safeUrl === 'function') ? safeUrl(p.image_url) : '';
-    if(safe) return safe;
+    if(safe) return cfImg(safe, { w: 280, fit: 'cover' });
   }
   if(p._imgCache !== undefined) return p._imgCache;
   const _setImg = (v) => { p._imgCache = v; return v; };
@@ -6770,8 +6771,9 @@ async function loadPosts(feedIds, append){
       const liked = myLikes.includes(p.id);
       const saved = savedPosts.includes(p.id);
       const isVideo = !!p.media_url && (isVideoUrl(p.media_url) || p.media_type === 'video');
-      const mediaSrc = escapeHtml(p.media_url || '');
-      const imgHtml = p.media_url ? (isVideo ? '<div class="feed-video-wrap" style="position:relative;width:100%;background:#000;"><video class="feed-video" src="'+mediaSrc+'" muted loop playsinline preload="metadata" onclick="toggleFeedVideoPlay(this)" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video><button class="feed-video-mute" onclick="event.stopPropagation();toggleFeedVideoMute(this)" aria-label="Som" style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">'+_feedVolIcon(true)+'</button></div>' : '<img src="'+mediaSrc+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
+      const mediaSrc = escapeHtml(p.media_url || ''); // <video src> mantém raw (CF Image só serve imagens)
+      const mediaImgSrc = p.media_url && !isVideo ? escapeHtml(cfImg(p.media_url, { w: 500 })) : mediaSrc;
+      const imgHtml = p.media_url ? (isVideo ? '<div class="feed-video-wrap" style="position:relative;width:100%;background:#000;"><video class="feed-video" src="'+mediaSrc+'" muted loop playsinline preload="metadata" onclick="toggleFeedVideoPlay(this)" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video><button class="feed-video-mute" onclick="event.stopPropagation();toggleFeedVideoMute(this)" aria-label="Som" style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">'+_feedVolIcon(true)+'</button></div>' : '<img src="'+mediaImgSrc+'" alt="" loading="lazy" style="width:100%;display:block;object-fit:cover;">') : '';
       const likeCount = likeCounts[p.id] || 0;
       const brushFill = liked ? 'var(--p4)' : 'none';
       const brushStroke = liked ? 'var(--p4)' : 'var(--ink)';
@@ -7367,7 +7369,7 @@ function renderCurrentStory(){
     imgEl.style.display = 'none';
     imgEl.src = '';
     vidEl.style.display = 'block';
-    vidEl.src = s.media_url || '';
+    vidEl.src = s.media_url || ''; // video: sem resize (CF Image só serve imagens)
     vidEl.muted = false;
     vidEl.currentTime = 0;
     vidEl.play().catch(() => { vidEl.muted = true; vidEl.play().catch(()=>{}); });
@@ -7376,7 +7378,7 @@ function renderCurrentStory(){
     vidEl.removeAttribute('src');
     vidEl.style.display = 'none';
     imgEl.style.display = 'block';
-    imgEl.src = s.media_url || '';
+    imgEl.src = s.media_url ? cfImg(s.media_url, { w: 800 }) : '';
   }
   // Update header
   document.getElementById('story-viewer-avatar').src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
@@ -8198,17 +8200,20 @@ async function abrirMaquininha(){
 async function entrarListaMaquininha(){
   const input = document.getElementById('maquininha-contato');
   const contato = input ? input.value.trim() : '';
+  if(!currentUser){ toast('Faça login para entrar na lista'); return; }
+  const sb = getSupabase();
+  if(!sb){ toast('Sem conexão. Tente de novo.'); return; }
   try {
-    const sb = getSupabase();
-    if(currentUser && sb){
-      await sb.from('feature_interest').insert({
-        user_id: currentUser.id,
-        feature: 'maquininha',
-        action: 'waitlist',
-        contact: contato
-      });
-    }
-  } catch(e){ console.error('entrarListaMaquininha error:', e && e.message || e); }
-  toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
-  closeModals();
+    const { error } = await sb.from('feature_interest').insert({
+      user_id: currentUser.id,
+      feature: 'maquininha',
+      action: 'waitlist',
+      contact: contato
+    });
+    if(error) throw error;
+    toast('Pronto! Avisaremos você assim que a maquininha estiver disponível.');
+    closeModals();
+  } catch(e){
+    showError('entrarListaMaquininha', e, 'Não conseguimos registrar — tente de novo.');
+  }
 }

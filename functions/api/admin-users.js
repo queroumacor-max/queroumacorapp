@@ -1,3 +1,4 @@
+// @ts-check
 // Promove/revoga acesso ao portal de um perfil.
 // O portal usa a anon key e a unica policy de UPDATE em profiles e
 // auth.uid() = id, entao um admin nao consegue alterar o profile de
@@ -9,6 +10,10 @@
 // SUPABASE_ANON_KEY.
 import { jsonResponse as json, FALLBACK_SUPABASE_URL, checkRateLimit, rateLimitResponse } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   // Aceita 3 nomes de service key pra compatibilidade

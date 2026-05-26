@@ -1,8 +1,13 @@
+// @ts-check
 // Transcrição de áudio via OpenAI Whisper. Recebe multipart com o campo
 // 'audio' e devolve { text } ou { error }. Requer OPENAI_API_KEY no
 // Cloudflare Pages.
 import { gateProAIForm, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {

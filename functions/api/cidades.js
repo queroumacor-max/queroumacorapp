@@ -1,9 +1,14 @@
+// @ts-check
 // Proxy do IBGE: GET /api/cidades?uf=SP -> { uf, cidades: [{nome}] }
 // Cacheia no edge do Cloudflare por 30 dias (cidades quase não mudam) e
 // no navegador por 1 dia. Após o primeiro request por UF, vira hit do
 // edge — IBGE só é chamado uma vez por região.
 import { jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestGet(context) {
   const { request } = context;
   const url = new URL(request.url);

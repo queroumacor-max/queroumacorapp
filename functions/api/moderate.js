@@ -1,3 +1,4 @@
+// @ts-check
 // Moderação de texto + imagem via Google Gemini.
 // Requer no Cloudflare Pages: GEMINI_API_KEY.
 // Vídeo é tratado de forma assíncrona em /api/moderate-video.
@@ -7,6 +8,10 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // Allowlist de hosts pra fetchImageInline. Antes aceitava qualquer URL
 // arbitrária (SSRF) — agora só Supabase Storage do projeto, ou data: URLs.
+/**
+ * @param {string} urlStr
+ * @returns {boolean}
+ */
 function isAllowedImageHost(urlStr){
   try {
     const u = new URL(urlStr);
@@ -47,6 +52,10 @@ const RUBRIC =
   '\n' +
   'reasons: palavras curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam","doxxing").';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.GEMINI_API_KEY) {
@@ -125,6 +134,10 @@ export async function onRequestPost(context) {
   }
 }
 
+/**
+ * @param {string} text
+ * @returns {boolean}
+ */
 function detectScam(text) {
   if (!text) return false;
   const t = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -136,6 +149,10 @@ function detectScam(text) {
   return lures.some(l => t.includes(l));
 }
 
+/**
+ * @param {string} src
+ * @returns {Promise<{ mime: string, b64: string } | null>}
+ */
 async function fetchImageInline(src) {
   // data URL (ex.: frame capturado no cliente)
   const m = /^data:([^;]+);base64,(.+)$/.exec(src);
@@ -149,6 +166,10 @@ async function fetchImageInline(src) {
   return { mime: ct, b64: bufToB64(buf) };
 }
 
+/**
+ * @param {ArrayBuffer} buf
+ * @returns {string}
+ */
 function bufToB64(buf) {
   const bytes = new Uint8Array(buf);
   let bin = '';

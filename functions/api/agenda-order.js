@@ -1,3 +1,4 @@
+// @ts-check
 // Otimiza a ordem de visitas do dia de um pintor com base nos endereços
 // (heurística da IA — não usa GPS real, só conhecimento geográfico das
 // cidades brasileiras pelo texto do endereço).
@@ -6,6 +7,10 @@
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {

@@ -1,3 +1,4 @@
+// @ts-check
 // Rascunha (NUNCA envia) uma mensagem de reativação de cliente para o
 // mini-CRM do QueroUmaCor. Usa OpenAI; cai para Gemini se faltar/falhar.
 // Requer no Cloudflare Pages pelo menos uma das variaveis:
@@ -5,6 +6,10 @@
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {
