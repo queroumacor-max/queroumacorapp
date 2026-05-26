@@ -31,6 +31,20 @@ const CAPTION_TIMEOUT_MS = 7000;
 const OUTER_HARD_TIMEOUT_MS = 28000;  // < 30s do CF Pages, garante retorno JSON
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 
+// REGRAS CRÍTICAS — prefixadas em TODO prompt. Endereçam dois problemas
+// conhecidos do gpt-image-1: (1) gramática PT-BR ruim (inventa acentos
+// tipo "SÊU", "TRABÁLHO"), (2) corte de texto nas bordas. Reservamos
+// canto superior direito vazio porque o cliente sobrepõe a logo depois.
+const HARD_RULES = [
+  'REGRAS CRÍTICAS — siga sem exceção:',
+  '(1) GRAMÁTICA PT-BR: todo texto deve estar em português do Brasil correto. NUNCA invente acentos. Palavras certas: "SEU" (nunca "SÊU"), "TRABALHO" (nunca "TRABÁLHO" nem "TRÁBALHO"), "MINHA" (nunca "MÍNHA"), "ARTE", "NOVO", "LAR", "AGENDE", "ORÇAMENTO" (com Ç e til em "Ã"), "PINTOR", "PROFISSIONAL". Se não tiver certeza de uma palavra, troque por outra mais simples. Revise CADA letra antes de finalizar.',
+  '(2) SAFE-ZONE: deixe margem mínima de 6% em cada borda da imagem. Texto, badges, logos e footer DEVEM ficar dentro dessa área segura — NADA pode ser cortado nas bordas. Letras inteiras, palavras inteiras visíveis.',
+  '(3) CANTO SUPERIOR DIREITO LIVRE: reserve um espaço quadrado vazio no canto superior direito (~18% da largura, sem texto, sem badge, sem ornamento) — o profissional vai sobrepor a logo dele lá depois.',
+  '(4) TIPOGRAFIA: use UMA fonte sans-serif bold/condensada consistente. Letras grandes, kerning normal, sem efeitos exóticos. Nada de fonte cursiva inventada.',
+  '(5) Sem palavras inventadas, sem letras misturadas com símbolos, sem "Lorem Ipsum".',
+  ''
+].join(' ');
+
 // MODELOS DE COMPOSIÇÃO — cada estilo descreve um template visual rígido
 // (enquadramento, distribuição dos elementos, plano de fundo, iluminação)
 // pra IA reproduzir um padrão consistente entre gerações.
@@ -274,9 +288,10 @@ async function handle(context) {
   // Tenta carregar referência visual do estilo (template). Se existir,
   // muda o pipeline pra multi-imagem (template + conteúdo do usuário).
   const styleRef = await loadStyleReference({ env, request, styleKey });
-  const imgPrompt = styleRef
+  const basePrompt = styleRef
     ? buildReferencePrompt(styleKey, businessName, captionHint, !!photo2) + ' ' + stylePrompt + aspectPart
     : stylePrompt + aspectPart + hintPart;
+  const imgPrompt = HARD_RULES + ' ' + basePrompt;
 
   // Dispara geração de arte + legenda em paralelo
   const [imgRes, capRes] = await Promise.all([

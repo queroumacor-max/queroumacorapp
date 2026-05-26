@@ -6018,15 +6018,65 @@ let _aiArtPhotoDataUrl = null;     // base64 da foto principal (slot 1)
 let _aiArtPhotoDataUrl2 = null;    // base64 da segunda foto (slot 2, antes/depois)
 let _aiArtStyle = 'profissional';  // estilo default
 let _aiArtAspect = 'square';       // square | vertical | horizontal
-let _aiArtResultDataUrl = null;    // base64 da arte gerada (pra reuso no post)
+let _aiArtResultDataUrl = null;    // base64 da arte gerada FINAL (pode ter logo)
 let _aiArtResultCaption = '';
+let _aiArtResultOriginal = null;   // base64 da arte SEM logo (pra alternar checkbox)
 
 function openAiArt(){
   if(!gateProClient('Gerar arte pra Instagram com Seu Zé')) return;
   _aiArtReset();
   _aiArtLoadTemplates();        // carrega previews dos tiles do storage
   _aiArtToggleAdminButtons();   // mostra/esconde botão de upload
+  _aiArtUpdateCreditsUI();      // mostra créditos restantes do dia
   showModal('ai-art-modal');
+}
+
+// Contador de créditos diário (5/dia, espelha o limit do backend).
+// Conta gerações com sucesso por usuário+dia; reseta automaticamente
+// ao virar o dia. Fonte da verdade real é o backend — isso é só UX.
+const _AI_ART_DAILY_LIMIT = 5;
+function _aiArtCreditsKey(){
+  const uid = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : 'anon';
+  const d = new Date();
+  const day = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return 'igArt:credits:' + uid + ':' + day;
+}
+function _aiArtGetUsed(){
+  try { return Math.max(0, parseInt(localStorage.getItem(_aiArtCreditsKey()) || '0', 10) || 0); }
+  catch(_){ return 0; }
+}
+function _aiArtIncUsed(){
+  try { localStorage.setItem(_aiArtCreditsKey(), String(_aiArtGetUsed() + 1)); } catch(_){}
+}
+function _aiArtMaxUsed(){
+  try { localStorage.setItem(_aiArtCreditsKey(), String(_AI_ART_DAILY_LIMIT)); } catch(_){}
+}
+function _aiArtUpdateCreditsUI(){
+  const used = _aiArtGetUsed();
+  const left = Math.max(0, _AI_ART_DAILY_LIMIT - used);
+  const num = document.getElementById('ai-art-credits-num');
+  const wrap = document.getElementById('ai-art-credits');
+  const btn = document.getElementById('ai-art-gen-btn');
+  if(num) num.textContent = left + '/' + _AI_ART_DAILY_LIMIT;
+  if(wrap){
+    // verde 3-5, amarelo 1-2, vermelho 0
+    const col = left >= 3 ? '#0a8a4f' : (left >= 1 ? '#c97a00' : '#c0392b');
+    if(num) num.style.color = col;
+    wrap.style.opacity = left === 0 ? '1' : '';
+  }
+  if(btn){
+    if(left === 0){
+      btn.disabled = true;
+      btn.textContent = '🚫 Limite diário atingido — volta amanhã';
+      btn.style.cursor = 'not-allowed';
+      btn.style.opacity = '0.65';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '✨ Gerar arte com Seu Zé';
+      btn.style.cursor = 'pointer';
+      btn.style.opacity = '';
+    }
+  }
 }
 
 // Mostra o botão ✏️ de upload nos tiles só se o user logado for admin.
@@ -6261,6 +6311,12 @@ async function gerarArteIG(){
       payload.photoDataUrl2 = _aiArtPhotoDataUrl2;
     }
     const { ok, status, data, error } = await apiPost('/api/ig-art', payload);
+    if(status === 429){
+      _aiArtMaxUsed();
+      _aiArtUpdateCreditsUI();
+      toast('Limite diário atingido (5/dia). Volta amanhã.');
+      return;
+    }
     if(!ok || !data || !data.imageDataUrl){
       // Mostra a causa real (modelo errado, sem permissão, etc) — não engole o erro
       let msg = (data && data.error) || error || ('HTTP ' + (status || '?'));
@@ -6273,11 +6329,16 @@ async function gerarArteIG(){
       }
       return;
     }
+    _aiArtIncUsed();
+    _aiArtUpdateCreditsUI();
     _aiArtResultDataUrl = data.imageDataUrl;
+    _aiArtResultOriginal = data.imageDataUrl;
     _aiArtResultCaption = String(data.caption || '');
     const resImg = document.getElementById('ai-art-result-img');
     const resCap = document.getElementById('ai-art-result-caption');
     const resBox = document.getElementById('ai-art-result');
+    const logoChk = document.getElementById('ai-art-logo-toggle');
+    if(logoChk) logoChk.checked = false;
     if(resImg) resImg.src = data.imageDataUrl;
     if(resCap) resCap.value = _aiArtResultCaption;
     if(resBox){
@@ -6293,6 +6354,109 @@ async function gerarArteIG(){
   }
 }
 
+// Sobrepõe a logo do pintor (business_logo_url) no canto superior direito
+// da arte gerada. Renderiza via canvas — não toca no backend. O usuário
+// pode marcar/desmarcar o checkbox livremente: guardamos a versão original
+// em _aiArtResultOriginal pra alternar sem perder qualidade.
+async function _aiArtToggleLogo(){
+  const chk = document.getElementById('ai-art-logo-toggle');
+  if(!chk) return;
+  if(!_aiArtResultOriginal){ toast('Gere uma arte primeiro'); chk.checked = false; return; }
+  if(!chk.checked){
+    _aiArtResultDataUrl = _aiArtResultOriginal;
+    const resImg = document.getElementById('ai-art-result-img');
+    if(resImg) resImg.src = _aiArtResultDataUrl;
+    return;
+  }
+  // Tenta logo do profile
+  let logoUrl = '';
+  try {
+    const prof = (typeof getMyProfile === 'function') ? await getMyProfile() : null;
+    logoUrl = (prof && prof.business_logo_url) || localStorage.getItem('business_logo_url') || '';
+  } catch(_){ logoUrl = ''; }
+  if(!logoUrl){
+    toast('Você ainda não cadastrou sua logo. Sobe lá no seu perfil profissional.');
+    chk.checked = false;
+    return;
+  }
+  try {
+    const composed = await _aiArtComposeWithLogo(_aiArtResultOriginal, logoUrl);
+    _aiArtResultDataUrl = composed;
+    const resImg = document.getElementById('ai-art-result-img');
+    if(resImg) resImg.src = composed;
+    toast('Logo aplicada ✨');
+  } catch(e){
+    console.warn('_aiArtToggleLogo:', e);
+    toast('Não consegui aplicar a logo (' + (e?.message || 'erro') + ')');
+    chk.checked = false;
+  }
+}
+
+// Compõe arte + logo via canvas, devolve data URL PNG.
+// Logo entra dentro de um cartão branco arredondado pra ficar legível
+// sobre qualquer fundo. Tamanho ~16% da menor dimensão, margem de 4%.
+function _aiArtComposeWithLogo(artDataUrl, logoUrl){
+  return new Promise((resolve, reject) => {
+    const artImg = new Image();
+    artImg.crossOrigin = 'anonymous';
+    artImg.onload = () => {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      logoImg.onload = () => {
+        try {
+          const W = artImg.naturalWidth, H = artImg.naturalHeight;
+          const c = document.createElement('canvas');
+          c.width = W; c.height = H;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(artImg, 0, 0, W, H);
+          // Cartão da logo no canto superior direito
+          const minDim = Math.min(W, H);
+          const box = Math.round(minDim * 0.16);
+          const pad = Math.round(minDim * 0.04);
+          const x = W - box - pad;
+          const y = pad;
+          const radius = Math.round(box * 0.18);
+          // Sombra suave
+          ctx.save();
+          ctx.shadowColor = 'rgba(0,0,0,0.25)';
+          ctx.shadowBlur = Math.round(minDim * 0.015);
+          ctx.shadowOffsetY = Math.round(minDim * 0.005);
+          // Fundo branco arredondado
+          ctx.fillStyle = '#fff';
+          _aiArtRoundRect(ctx, x, y, box, box, radius);
+          ctx.fill();
+          ctx.restore();
+          // Desenha logo dentro do cartão respeitando proporção (contain)
+          const inner = Math.round(box * 0.78);
+          const ix = x + (box - inner) / 2;
+          const iy = y + (box - inner) / 2;
+          const lw = logoImg.naturalWidth, lh = logoImg.naturalHeight;
+          const scale = Math.min(inner / lw, inner / lh);
+          const dw = lw * scale, dh = lh * scale;
+          const dx = ix + (inner - dw) / 2;
+          const dy = iy + (inner - dh) / 2;
+          ctx.drawImage(logoImg, dx, dy, dw, dh);
+          resolve(c.toDataURL('image/png'));
+        } catch(err){ reject(err); }
+      };
+      logoImg.onerror = () => reject(new Error('logo não carregou'));
+      logoImg.src = logoUrl;
+    };
+    artImg.onerror = () => reject(new Error('arte não carregou'));
+    artImg.src = artDataUrl;
+  });
+}
+
+function _aiArtRoundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
 function _aiArtDownload(){
   if(!_aiArtResultDataUrl){ toast('Gere uma arte primeiro'); return; }
   const a = document.createElement('a');
@@ -6306,7 +6470,10 @@ function _aiArtReset(){
   _aiArtPhotoDataUrl = null;
   _aiArtPhotoDataUrl2 = null;
   _aiArtResultDataUrl = null;
+  _aiArtResultOriginal = null;
   _aiArtResultCaption = '';
+  const logoChk = document.getElementById('ai-art-logo-toggle');
+  if(logoChk) logoChk.checked = false;
   // Slot 1
   const img = document.getElementById('ai-art-preview');
   const drop = document.getElementById('ai-art-drop');
