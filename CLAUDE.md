@@ -105,4 +105,10 @@
   features pendentes (sociais estilo IG, perf, observability, segurança
   externa). Sempre consultar antes de propor features novas — se já está
   no backlog, referenciar pelo ID (ex.: "atacar S1 + S6 do BACKLOG.md").
+- **NUNCA consultar o MCP Supabase no queroumacor** a menos que o usuário
+  peça explicitamente. O MCP atual está conectado a OUTRO projeto Supabase
+  (não o queroumacor `uwqebaqweehiljsqkifm.supabase.co`), então qualquer
+  `execute_sql`/`list_tables`/`apply_migration` via MCP vai pro projeto
+  errado. Pra mexer em SQL do queroumacor, colar o SQL no chat e o usuário
+  roda no SQL Editor.
 
