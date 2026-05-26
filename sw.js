@@ -1,14 +1,24 @@
 // QueroUmaCor Service Worker
-const CACHE = 'queroumacor-v12';
+const CACHE = 'queroumacor-v13';
+const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', e => {
+  // Pré-cache da página offline para servir como fallback quando a rede
+  // cair e não houver entrada no cache pra navegação.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.add(new Request(OFFLINE_URL, { cache: 'reload' })))
+      .catch(() => {})
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
+  // Apaga APENAS caches de versões antigas (nome !== CACHE atual).
+  // Não limpa o cache vigente — preserva offline.html já pré-cacheado.
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
@@ -45,9 +55,14 @@ self.addEventListener('fetch', e => {
   }
 
   // HTML / navegação: força revalidação no servidor (bypassa cache HTTP
-  // do navegador) pra não servir HTML velho. cache: 'reload'.
+  // do navegador) pra não servir HTML velho. cache: 'reload'. Se a rede
+  // falhar e nem cache tiver, cai pro /offline.html pré-cacheado.
   if (req.mode === 'navigate' || (sameOrigin && url.pathname.endsWith('.html'))) {
-    e.respondWith(fetch(req, { cache: 'reload' }).catch(() => caches.match(req)));
+    e.respondWith(
+      fetch(req, { cache: 'reload' }).catch(() =>
+        caches.match(req).then(r => r || caches.match(OFFLINE_URL))
+      )
+    );
     return;
   }
 

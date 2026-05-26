@@ -322,9 +322,12 @@ function askProDate() {
     const tomorrow = new Date(Date.now() + 86400000);
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99999;font-family:inherit;';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.setAttribute('aria-labelledby', '_proDateTitle');
     ov.innerHTML =
       '<div style="background:#fff;border-radius:14px;padding:22px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
-      + '<div style="font-size:16px;font-weight:800;color:' + C.ink + ';margin-bottom:4px;">Habilitar PRO</div>'
+      + '<div id="_proDateTitle" style="font-size:16px;font-weight:800;color:' + C.ink + ';margin-bottom:4px;">Habilitar PRO</div>'
       + '<div style="font-size:13px;color:' + C.muted + ';margin-bottom:14px;">Escolha a data de expiração do plano PRO.</div>'
       + '<input id="_proDateInput" type="date" value="' + toISO(d) + '" min="' + toISO(tomorrow) + '" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid ' + C.border + ';font-size:14px;outline:none;box-sizing:border-box;">'
       + '<div id="_proDateErr" style="color:' + C.p4 + ';font-size:12px;margin-top:8px;display:none;"></div>'
@@ -1001,7 +1004,7 @@ const ProdutosList = () => {
                   </div>
                   <div style={{ display:'flex', gap:6, marginTop:10 }}>
                     <button onClick={()=>editProduct(p)} style={{ flex:1, background:C.cream, border:'none', borderRadius:8, padding:'6px', fontSize:12, cursor:'pointer', fontWeight:600, color:C.ink }}>Editar</button>
-                    <button onClick={()=>deleteProduct(p.id)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:8, padding:'6px 10px', fontSize:12, cursor:'pointer', color:'#e63946' }}>×</button>
+                    <button aria-label="Excluir produto" onClick={()=>deleteProduct(p.id)} style={{ background:'none', border:'1px solid #e6394644', borderRadius:8, padding:'6px 10px', fontSize:12, cursor:'pointer', color:'#e63946' }}>×</button>
                   </div>
                 </div>
               );
@@ -1298,7 +1301,7 @@ const Chats = () => {
       <div style={{ display:'flex', flexDirection:'column', height:'calc(100vh - 120px)', background:C.white, borderRadius:16, overflow:'hidden', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
         {/* Chat header */}
         <div style={{ padding:'16px 20px', borderBottom:'1px solid '+C.border, display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
-          <button onClick={() => { setOpenConv(null); loadConversations(); }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:C.ink, padding:'4px 8px', borderRadius:8 }}>←</button>
+          <button aria-label="Voltar para lista de conversas" onClick={() => { setOpenConv(null); loadConversations(); }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:C.ink, padding:'4px 8px', borderRadius:8 }}>←</button>
           <div style={{ display:'flex', gap:-4 }}>
             {conv && [...conv.participants].slice(0,3).map((id, i) => {
               const p = profiles[id];
@@ -1373,6 +1376,7 @@ const Chats = () => {
             style={{ flex:1, padding:'10px 16px', borderRadius:24, border:'1px solid '+C.border, fontSize:13, outline:'none', background:'#faf8f5' }}
           />
           <button
+            aria-label="Enviar mensagem"
             onClick={sendMessage}
             disabled={sending || !msgText.trim()}
             style={{ width:40, height:40, borderRadius:'50%', background: msgText.trim() ? C.p1 : C.border, color:'#fff', border:'none', cursor: msgText.trim() ? 'pointer' : 'default', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}
@@ -1513,15 +1517,15 @@ REGRAS:
 
   if (!open) return null;
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-labelledby="ai-search-modal-title" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:620, maxHeight:'85vh', overflow:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
         <div style={{ background:'linear-gradient(135deg, #8338ec, #6b21c8)', padding:'24px 28px', borderRadius:'20px 20px 0 0' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div>
-              <div style={{ color:'#fff', fontSize:20, fontWeight:800, fontFamily:'Syne,sans-serif' }}>✨ Busca AI de Leads</div>
+              <div id="ai-search-modal-title" style={{ color:'#fff', fontSize:20, fontWeight:800, fontFamily:'Syne,sans-serif' }}>✨ Busca AI de Leads</div>
               <div style={{ color:'rgba(255,255,255,0.7)', fontSize:13, marginTop:4 }}>Powered by Claude AI — Encontre novos clientes na região</div>
             </div>
-            <button onClick={onClose} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, width:36, height:36, fontSize:18, color:'#fff', cursor:'pointer' }}>✕</button>
+            <button aria-label="Fechar busca AI" onClick={onClose} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, width:36, height:36, fontSize:18, color:'#fff', cursor:'pointer' }}>✕</button>
           </div>
         </div>
 
@@ -2086,7 +2090,7 @@ const PostsModeracao = () => {
                 <div style={{ display:'flex', gap:6 }}>
                   {p.status !== 'approved' && <button onClick={() => updateStatus(p.id, 'approved')} style={{ flex:1, padding:'6px 10px', background:'#28a745', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>✓ Aprovar</button>}
                   {p.status !== 'rejected' && <button onClick={() => updateStatus(p.id, 'rejected')} style={{ flex:1, padding:'6px 10px', background:'#ffc107', color:'#333', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>✗ Rejeitar</button>}
-                  <button onClick={() => deletePost(p.id)} style={{ padding:'6px 10px', background:'#dc3545', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>🗑</button>
+                  <button aria-label="Excluir post" onClick={() => deletePost(p.id)} style={{ padding:'6px 10px', background:'#dc3545', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>🗑</button>
                 </div>
               </div>
             </div>
@@ -3140,7 +3144,7 @@ function App() {
   return (
     <div style={{ display:'flex', minHeight:'100vh', fontFamily:'DM Sans, sans-serif' }}>
       {/* SIDEBAR */}
-      <div style={{ width:240, background:C.ink, position:'fixed', top:0, left:0, height:'100vh', overflow:'hidden', zIndex:100, display:'flex', flexDirection:'column' }}>
+      <nav aria-label="Menu administrativo" style={{ width:240, background:C.ink, position:'fixed', top:0, left:0, height:'100vh', overflow:'hidden', zIndex:100, display:'flex', flexDirection:'column' }}>
         <Logo />
         <div style={{ padding:'8px 0', marginTop:8, flex:1, overflowY:'auto' }}>
           {sections.map(section => (
@@ -3161,12 +3165,12 @@ function App() {
             </div>
           </div>
         </div>
-      </div>
+      </nav>
 
       {/* MAIN */}
       <div style={{ marginLeft:240, flex:1, display:'flex', flexDirection:'column' }}>
         {/* TOPBAR */}
-        <div style={{ background:C.white, borderBottom:'1px solid '+C.border, padding:'0 28px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:50 }}>
+        <header role="banner" style={{ background:C.white, borderBottom:'1px solid '+C.border, padding:'0 28px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:50 }}>
           <div>
             <div style={{ fontFamily:'Syne, sans-serif', fontSize:18, fontWeight:800, color:C.ink }}>{currentPage?.label}</div>
             <div style={{ fontSize:12, color:C.muted }}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
@@ -3174,12 +3178,12 @@ function App() {
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <button onClick={()=>{ if(window.confirm('Tem certeza que deseja sair do portal?')) { supa.auth.signOut(); setLoggedIn(false); } }} style={{ background:'transparent', border:'1px solid '+C.border, borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, color:C.muted }}>Sair</button>
           </div>
-        </div>
+        </header>
 
         {/* CONTENT */}
-        <div style={{ padding:28, flex:1 }}>
+        <main style={{ padding:28, flex:1 }}>
           {currentPage?.component}
-        </div>
+        </main>
       </div>
     </div>
   );
