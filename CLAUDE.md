@@ -111,4 +111,8 @@
   `execute_sql`/`list_tables`/`apply_migration` via MCP vai pro projeto
   errado. Pra mexer em SQL do queroumacor, colar o SQL no chat e o usuário
   roda no SQL Editor.
+- **Bucket `posts` agora aceita vídeo.** `allowed_mime_types` inclui
+  `image/jpeg|png|webp|gif|heic|heif` + `video/mp4|quicktime|webm`, e
+  `file_size_limit` em 50 MB. SQL já foi rodado no SQL Editor. Frontend
+  já manda `contentType` explícito no upload. Não pedir pra rodar de novo.
 
