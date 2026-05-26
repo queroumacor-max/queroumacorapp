@@ -83,6 +83,15 @@
   (2) `app.js abrirMaquininha/entrarListaMaquininha` que perdiam silenciosamente
   os cliques de interesse (tabela `feature_interest` inexistente). Não pedir
   para rodar de novo.
+- **Bucket Supabase `style-refs` JÁ FOI CRIADO** (público pra leitura, com
+  policy `"style-refs public read"` em `storage.objects` só pra SELECT, sem
+  policy de INSERT/UPDATE/DELETE — só o endpoint `/api/upload-style-ref`
+  escreve via `service_role` depois de validar `ADMIN_EMAILS`). Usado pela
+  feature "Arte pra Instagram" pra armazenar templates visuais por estilo
+  (`profissional.jpg`, `trabalho.jpg`, `antesdepois.jpg`) que admin sobe pelo
+  botão ✏️ no tile. Backend `ig-art.js` carrega de lá primeiro, com fallback
+  pra `/style-refs/<key>.jpg` no repo. Não pedir pra rodar SQL desse bucket
+  de novo.
 - **Plano Supabase: PRO ($25/mês).** Não estamos mais no free tier. Recursos
   adicionais: 8GB DB, 50GB bandwidth, 7 dias de PITR (point-in-time recovery),
   100GB storage, sem project pause por inatividade, log retention de 7 dias.
