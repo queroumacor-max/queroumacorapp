@@ -6014,6 +6014,7 @@ function _applyLogoToShirt(){
 // e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
 let _aiArtPhotoDataUrl = null;     // base64 da foto enviada
 let _aiArtStyle = 'portrait';
+let _aiArtAspect = 'square';       // square | vertical | horizontal
 let _aiArtResultDataUrl = null;    // base64 da arte gerada (pra reuso no post)
 let _aiArtResultCaption = '';
 
@@ -6095,6 +6096,19 @@ function _aiArtSetStyle(el){
   el.style.background = 'rgba(255,107,53,.08)';
 }
 
+function _aiArtSetAspect(el){
+  if(!el) return;
+  _aiArtAspect = el.getAttribute('data-aspect') || 'square';
+  document.querySelectorAll('#ai-art-aspects .ai-art-aspect').forEach(c => {
+    c.classList.remove('sel');
+    c.style.border = '2px solid var(--border)';
+    c.style.background = '#fff';
+  });
+  el.classList.add('sel');
+  el.style.border = '2px solid var(--p1)';
+  el.style.background = 'rgba(255,107,53,.08)';
+}
+
 async function gerarArteIG(){
   if(!_aiArtPhotoDataUrl){ toast('Escolha uma foto primeiro'); return; }
   const btn = document.getElementById('ai-art-gen-btn');
@@ -6107,6 +6121,7 @@ async function gerarArteIG(){
     const { ok, status, data, error } = await apiPost('/api/ig-art', {
       photoDataUrl: _aiArtPhotoDataUrl,
       style: _aiArtStyle,
+      aspect: _aiArtAspect,
       captionHint: hint,
       businessName
     });
@@ -6161,15 +6176,19 @@ function _aiArtReset(){
   const resBox = document.getElementById('ai-art-result');
   const hint = document.getElementById('ai-art-hint');
   const input = document.getElementById('ai-art-input');
+  const inputCam = document.getElementById('ai-art-input-cam');
   if(img){ img.src = ''; img.style.display = 'none'; }
   if(drop) drop.style.display = 'block';
   if(acts) acts.style.display = 'none';
   if(resBox) resBox.style.display = 'none';
   if(hint) hint.value = '';
   if(input) input.value = '';
-  // Reseta seleção pro default "portrait"
+  if(inputCam) inputCam.value = '';
+  // Reseta seleção pro default "portrait" + "square"
   const def = document.querySelector('#ai-art-styles .ai-art-style[data-style="portrait"]');
   if(def) _aiArtSetStyle(def);
+  const defAsp = document.querySelector('#ai-art-aspects .ai-art-aspect[data-aspect="square"]');
+  if(defAsp) _aiArtSetAspect(defAsp);
 }
 
 // Posta a arte gerada no feed do usuário usando o pipeline existente
