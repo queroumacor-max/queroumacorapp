@@ -1,3 +1,4 @@
+// @ts-check
 // LGPD Art. 18 V — Direito de portabilidade.
 // Devolve TODOS os dados pessoais do usuário logado em formato JSON.
 // O usuário pode salvar e levar pra outro fornecedor.
@@ -5,6 +6,10 @@
 // Requer JWT do usuário no body.accessToken ou Authorization header.
 import { getToken, jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY, checkRateLimit, rateLimitResponse } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
 

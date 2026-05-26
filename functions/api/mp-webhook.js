@@ -1,3 +1,4 @@
+// @ts-check
 // Webhook do Mercado Pago: confirma a assinatura e libera/revoga o PRO no Supabase.
 // Requer no Cloudflare Pages: MP_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 // Opcional (recomendado): MP_WEBHOOK_SECRET — quando definido, valida o header
@@ -5,6 +6,10 @@
 // pulada (fail-open) para preservar o comportamento atual.
 import { FALLBACK_SUPABASE_URL } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
 
@@ -209,10 +214,17 @@ export async function onRequestPost(context) {
 }
 
 // Mercado Pago também faz GET de validação no endpoint
+/**
+ * @returns {Promise<Response>}
+ */
 export async function onRequestGet() {
   return ok('mp-webhook ativo');
 }
 
+/**
+ * @param {string} msg
+ * @returns {Response}
+ */
 function ok(msg) {
   return new Response(JSON.stringify({ received: true, msg }), {
     status: 200,
@@ -226,6 +238,12 @@ function ok(msg) {
 // MP_WEBHOOK_SECRET (configurado no painel do MP).
 // Fail-open: se MP_WEBHOOK_SECRET não estiver definido, retorna true e loga
 // warning — preserva o comportamento atual até o secret ser configurado.
+/**
+ * @param {Request} request
+ * @param {Record<string, string>} env
+ * @param {{ data?: { id?: string } } | null | undefined} body
+ * @returns {Promise<boolean>}
+ */
 async function verifyMpSignature(request, env, body) {
   if (!env.MP_WEBHOOK_SECRET) {
     // Fail-open por padrão (preserva o flow enquanto o secret não tá colado
@@ -271,6 +289,11 @@ async function verifyMpSignature(request, env, body) {
 }
 
 // Comparação em tempo constante para evitar timing attacks
+/**
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
 function timingSafeEqualHex(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   if (a.length !== b.length) return false;

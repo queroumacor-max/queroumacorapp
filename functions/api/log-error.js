@@ -1,7 +1,12 @@
+// @ts-check
 // Recebe relatórios de erro do front + Web Vitals. Loga no console (Cloudflare).
 // Em produção, pode-se encaminhar pra Sentry/PostHog adicionando uma env.
 import { checkRateLimit, rateLimitResponse, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
 
@@ -37,6 +42,9 @@ export async function onRequestPost(context) {
 }
 
 // CORS preflight
+/**
+ * @returns {Promise<Response>}
+ */
 export async function onRequestOptions() {
   return new Response(null, { status: 204 });
 }

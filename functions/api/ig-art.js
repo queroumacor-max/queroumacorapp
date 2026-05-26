@@ -228,6 +228,10 @@ async function generateImageOpenAI({ env, prompt, mime, b64 }) {
   }
 }
 
+/**
+ * @param {{ env: Record<string, string>, models: string[], prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
+ */
 async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
   let lastErr = '';
   let lastModel = '';
@@ -244,6 +248,10 @@ async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
   return { error: 'Gemini: todos modelos falharam. Último: ' + lastErr, modelTried: 'gemini:' + lastModel };
 }
 
+/**
+ * @param {{ env: Record<string, string>, model: string, prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
+ */
 async function generateImageGemini({ env, model, prompt, mime, b64 }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), GEMINI_FALLBACK_TIMEOUT_MS);
@@ -292,6 +300,10 @@ async function generateImageGemini({ env, model, prompt, mime, b64 }) {
   }
 }
 
+/**
+ * @param {{ env: Record<string, string>, styleKey: string, captionHint: string, businessName: string }} args
+ * @returns {Promise<{ text: string }>}
+ */
 async function generateCaption({ env, styleKey, captionHint, businessName }) {
   const styleHint = ({
     portrait: 'retrato profissional do pintor',

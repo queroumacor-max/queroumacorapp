@@ -1,8 +1,13 @@
+// @ts-check
 // Text-to-speech do Seu Zé. POST { text } -> audio/mpeg.
 // Usa OpenAI tts-1 com voz 'onyx' (masculina, grave) para encarnar o
 // mestre pintor. Requer OPENAI_API_KEY no Cloudflare Pages.
 import { gateProAI, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {
