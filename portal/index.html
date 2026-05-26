@@ -112,6 +112,70 @@ const reportsService = {
   resolve: async (id) => { const r = await supa.from('reports').update({status:'resolved'}).eq('id', id); if (r.error) throw r.error; }
 };
 
+// Cria um usuario via cliente Supabase efemero (storageKey unico), para nao
+// invalidar a sessao do admin logado. Faz auth.signUp + upsert em profiles e
+// sempre fecha a sessao do cliente efemero no finally.
+//
+// Args:
+//   - name, email, password: obrigatorios (password >= 8)
+//   - role: 'cliente' | 'pintor' | 'grafiteiro' | 'automotivo' | 'admin'
+//   - profession: opcional (rotulo extra; ex.: 'funileiro')
+//   - portalAccess: se true, marca profile.portal_access = true
+//   - inviteCode: se passado, grava em profile.invite_code_used
+//   - userMetadata: campos extras para options.data do auth.signUp
+//   - extraProfile: campos extras para o upsert em profiles (email, tag,
+//     invited_by, user_type, etc.) — permite cada chamador manter o shape
+//     exato que ja gravava antes do refactor.
+//
+// Retorno: { ok: true, userId } em sucesso ou { ok: false, error } em falha.
+const authService = {
+  async signUpAppUser({ name, email, password, role, profession, portalAccess, inviteCode, userMetadata, extraProfile }) {
+    if (!email || !password) {
+      return { ok: false, error: 'Email e senha sao obrigatorios' };
+    }
+    if (password.length < 8) {
+      return { ok: false, error: 'Senha deve ter no minimo 8 caracteres' };
+    }
+    const cleanEmail = (email || '').trim();
+    const cleanName = (name || '').trim();
+    const ephemeral = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-app-create-' + Date.now() }
+    });
+    try {
+      const signUpOptions = { data: Object.assign({ name: cleanName || cleanEmail }, userMetadata || {}) };
+      const { data: authData, error: authErr } = await ephemeral.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: signUpOptions
+      });
+      if (authErr) throw authErr;
+      const userId = authData && authData.user && authData.user.id;
+      if (!userId) return { ok: false, error: 'Nao foi possivel criar usuario' };
+
+      const profile = Object.assign({
+        id: userId,
+        name: cleanName || cleanEmail,
+        role,
+        created_at: new Date().toISOString()
+      }, extraProfile || {});
+      if (profession) profile.profession = profession;
+      if (portalAccess) profile.portal_access = true;
+      if (inviteCode) profile.invite_code_used = inviteCode;
+
+      const { error: profErr } = await ephemeral.from('profiles').upsert(profile, { onConflict: 'id' });
+      if (profErr) {
+        console.warn('authService: profile upsert falhou', profErr.message);
+        return { ok: false, error: profErr.message || 'Erro ao salvar perfil' };
+      }
+      return { ok: true, userId };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || String(e) };
+    } finally {
+      try { await ephemeral.auth.signOut(); } catch(_) {}
+    }
+  }
+};
+
 // Classificacao de perfis (consistente em todo o portal)
 const PRO_ROLES = ['pintor','grafiteiro','graffiti','automotivo','funileiro'];
 const roleOf = p => ((p && (p.role || p.user_type)) || '').toString().trim().toLowerCase();
@@ -148,19 +212,18 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
     if (password.length < 8) { setErr('Senha deve ter no minimo 8 caracteres'); return; }
     const opt = APP_ROLE_OPTIONS.find(o => o.v === form.roleKey) || APP_ROLE_OPTIONS[0];
     setSaving(true);
-    let tmp;
     try {
       const tag = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_.]/g, '') + '_' + Math.random().toString(36).slice(2, 7);
-      tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-app-create' } });
-      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, user_type: opt.role, tag } } });
-      if (authErr) throw authErr;
-      if (authData.user) {
-        const prof = { id: authData.user.id, name: name || email, email, tag, role: opt.role, user_type: opt.role, created_at: new Date().toISOString() };
-        if (opt.profession) prof.profession = opt.profession;
-        const { error: upErr } = await tmp.from('profiles').upsert(prof, { onConflict: 'id' });
-        if (upErr) throw upErr;
-      }
-      await tmp.auth.signOut();
+      const res = await authService.signUpAppUser({
+        name: name || email,
+        email,
+        password,
+        role: opt.role,
+        profession: opt.profession,
+        userMetadata: { user_type: opt.role, tag },
+        extraProfile: { email, tag, user_type: opt.role }
+      });
+      if (!res.ok) { setErr(res.error || 'Erro ao criar usuario'); return; }
       setMsg('Usuario criado. Ja pode entrar no app com essas credenciais.');
       setForm({ name:'', email:'', password:'', roleKey: defaultRole || 'pintor' });
       setOpen(false);
@@ -168,7 +231,6 @@ const CreateAppUserForm = ({ onCreated, defaultRole }) => {
     } catch (e) {
       setErr(e.message || 'Erro ao criar usuario');
     } finally {
-      if (tmp) { try { await tmp.auth.signOut(); } catch(_){} }
       setSaving(false);
     }
   };
@@ -2352,25 +2414,18 @@ const PortalUsersList = () => {
     if (!email || !password) { setFormError('Email e senha sao obrigatorios'); return; }
     if (password.length < 8) { setFormError('Senha deve ter no minimo 8 caracteres'); return; }
     setSaving(true);
-    let tmp;
     try {
       const tag = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_.]/g, '') + '_' + Math.random().toString(36).slice(2, 7);
-      tmp = supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-portal-admin-create' } });
-      const { data: authData, error: authErr } = await tmp.auth.signUp({ email, password, options: { data: { name: name || email, role: 'admin', tag } } });
-      if (authErr) throw authErr;
-      if (authData.user) {
-        const { error: upErr } = await tmp.from('profiles').upsert({
-          id: authData.user.id,
-          name: name || email,
-          email,
-          tag,
-          role: 'admin',
-          portal_access: true,
-          created_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-        if (upErr) throw upErr;
-      }
-      await tmp.auth.signOut();
+      const res = await authService.signUpAppUser({
+        name: name || email,
+        email,
+        password,
+        role: 'admin',
+        portalAccess: true,
+        userMetadata: { role: 'admin', tag },
+        extraProfile: { email, tag }
+      });
+      if (!res.ok) { setFormError(res.error || 'Erro ao criar usuario'); return; }
       setFormMsg('Usuario criado com sucesso. Ele ja pode entrar no portal com essas credenciais.');
       setForm({ name:'', email:'', password:'' });
       setShowForm(false);
@@ -2378,7 +2433,6 @@ const PortalUsersList = () => {
     } catch (e) {
       setFormError(e.message || 'Erro ao criar usuario');
     } finally {
-      if (tmp) { try { await tmp.auth.signOut(); } catch(_){} }
       setSaving(false);
     }
   };
@@ -2808,6 +2862,108 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ============================================================
+// Telas de autenticacao (login / signup com convite / reset de senha).
+// Extraidas do App para deixar o componente raiz menor. Cada tela recebe
+// estado/handlers via props — fonte de verdade segue no App.
+// ============================================================
+const AuthCard = ({ children }) => (
+  <div style={{ minHeight:'100vh', background:C.ink, display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ background:C.white, borderRadius:24, padding:40, width:360, boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ fontFamily:'Syne,sans-serif', fontSize:24, fontWeight:800, marginBottom:4 }}>
+        <span style={{ color:C.ink }}>Cali</span><span style={{ color:C.p1 }}>Colors</span>
+      </div>
+      <div style={{ fontSize:13, color:C.muted, marginBottom:28 }}>Portal de Gestão QueroUmaCor</div>
+      {children}
+    </div>
+  </div>
+);
+
+function LoginScreen({ email, setEmail, pw, setPw, loginError, loginLoading, onLogin, onSwitchSignup, onSwitchReset }) {
+  return (
+    <AuthCard>
+      <div style={{ marginBottom:14 }}>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="loja@calicolors.com.br" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+      </div>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+      </div>
+      <div style={{ textAlign:'right', marginBottom:16 }}>
+        <span onClick={onSwitchReset} style={{ fontSize:12, color:C.p1, cursor:'pointer', fontWeight:600 }}>Esqueci minha senha</span>
+      </div>
+      {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
+      <button disabled={loginLoading} onClick={onLogin} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        Entrar no Portal
+      </button>
+      <div style={{ textAlign:'center', marginTop:14 }}>
+        <span onClick={onSwitchSignup} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>Criar conta no portal</span>
+      </div>
+      <div style={{ textAlign:'center', marginTop:6, fontSize:12, color:C.muted }}>Acesso exclusivo Cali Colors</div>
+    </AuthCard>
+  );
+}
+
+function SignupScreen({ step, signupCode, setSignupCode, signupName, setSignupName, email, setEmail, pw, setPw, validatedInvite, loginError, loginLoading, onValidateInvite, onCreateAccount, onBack }) {
+  return (
+    <AuthCard>
+      {step === 0 ? (<>
+        <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:6 }}>Codigo de Convite</div>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>Para criar uma conta no portal, voce precisa de um codigo de convite de alguem que ja tem acesso.</div>
+        <div style={{ marginBottom:14 }}>
+          <input value={signupCode} onChange={e=>setSignupCode(e.target.value.toUpperCase())} placeholder="QUC-XXXXX" style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:18, fontWeight:700, letterSpacing:2, textAlign:'center', outline:'none', fontFamily:'monospace' }} />
+        </div>
+        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
+        <button disabled={loginLoading} onClick={onValidateInvite} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+          {loginLoading ? 'Validando...' : 'Validar Codigo'}
+        </button>
+      </>) : (<>
+        <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:4 }}>Criar conta</div>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>Codigo <b>{validatedInvite?.code}</b> validado</div>
+        <div style={{ marginBottom:12 }}>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Nome</div>
+          <input value={signupName} onChange={e=>setSignupName(e.target.value)} placeholder="Seu nome" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+        </div>
+        <div style={{ marginBottom:12 }}>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@exemplo.com" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
+          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+        </div>
+        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
+        <button disabled={loginLoading} onClick={onCreateAccount} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+          {loginLoading ? 'Criando conta...' : 'Criar Conta'}
+        </button>
+      </>)}
+      <div style={{ textAlign:'center', marginTop:14 }}>
+        <span onClick={onBack} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>← Voltar ao login</span>
+      </div>
+    </AuthCard>
+  );
+}
+
+function ResetPasswordScreen({ email, setEmail, loginError, loginLoading, resetMsg, onReset, onBack }) {
+  return (
+    <AuthCard>
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="loja@calicolors.com.br" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
+      </div>
+      {resetMsg && <div style={{color:'#2e7d32',fontSize:13,marginBottom:12,textAlign:'center'}}>{resetMsg}</div>}
+      {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
+      <button disabled={loginLoading} onClick={onReset} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+        {loginLoading ? 'Enviando...' : 'Enviar link de redefinição'}
+      </button>
+      <div style={{ textAlign:'center', marginTop:14 }}>
+        <span onClick={onBack} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>← Voltar ao login</span>
+      </div>
+    </AuthCard>
+  );
+}
+
 function App() {
   const [page, setPage] = useState('dashboard');
   const [loggedIn, setLoggedIn] = useState(false);
@@ -2816,9 +2972,9 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
-  const [resetMode, setResetMode] = useState(false);
+  // mode: 'login' | 'signup' | 'reset' — substitui resetMode+signupMode.
+  const [mode, setMode] = useState('login');
   const [resetMsg, setResetMsg] = useState('');
-  const [signupMode, setSignupMode] = useState(false);
   const [signupName, setSignupName] = useState('');
   const [signupCode, setSignupCode] = useState('');
   const [signupStep, setSignupStep] = useState(0);
@@ -2879,84 +3035,107 @@ function App() {
     </div>
   );
 
-  if (!loggedIn) return (
-    <div style={{ minHeight:'100vh', background:C.ink, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:C.white, borderRadius:24, padding:40, width:360, boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-        <div style={{ fontFamily:'Syne,sans-serif', fontSize:24, fontWeight:800, marginBottom:4 }}>
-          <span style={{ color:C.ink }}>Cali</span><span style={{ color:C.p1 }}>Colors</span>
-        </div>
-        <div style={{ fontSize:13, color:C.muted, marginBottom:28 }}>Portal de Gestão QueroUmaCor</div>
-        {!resetMode ? (<>
-        <div style={{ marginBottom:14 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="loja@calicolors.com.br" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        <div style={{ textAlign:'right', marginBottom:16 }}>
-          <span onClick={()=>{ setResetMode(true); setLoginError(''); setResetMsg(''); }} style={{ fontSize:12, color:C.p1, cursor:'pointer', fontWeight:600 }}>Esqueci minha senha</span>
-        </div>
-        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { const {data,error} = await supa.auth.signInWithPassword({email,password:pw}); if(error) throw error; const { data: prof } = await supa.from('profiles').select('portal_access').eq('id', data.user.id).single(); if(!prof || !prof.portal_access){ await supa.auth.signOut(); throw new Error('Sem permissao. Esta conta nao tem acesso ao portal.'); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Email ou senha incorretos'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
-          Entrar no Portal
-        </button>
-        <div style={{ textAlign:'center', marginTop:14 }}>
-          <span onClick={()=>{ setSignupMode(true); setSignupStep(0); setLoginError(''); setSignupCode(''); setSignupName(''); setEmail(''); setPw(''); setValidatedInvite(null); }} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>Criar conta no portal</span>
-        </div>
-        <div style={{ textAlign:'center', marginTop:6, fontSize:12, color:C.muted }}>Acesso exclusivo Cali Colors</div>
-        </>) : signupMode ? (<>
-        {signupStep === 0 ? (<>
-        <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:6 }}>Codigo de Convite</div>
-        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>Para criar uma conta no portal, voce precisa de um codigo de convite de alguem que ja tem acesso.</div>
-        <div style={{ marginBottom:14 }}>
-          <input value={signupCode} onChange={e=>setSignupCode(e.target.value.toUpperCase())} placeholder="QUC-XXXXX" style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:18, fontWeight:700, letterSpacing:2, textAlign:'center', outline:'none', fontFamily:'monospace' }} />
-        </div>
-        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupCode.trim()) throw new Error('Insira o codigo de convite'); const { data: inv, error } = await supa.from('invites').select('id, code, used, max_uses, uses, created_by').eq('code', signupCode.trim()).single(); if(error || !inv) throw new Error('Codigo invalido'); if(inv.used || (inv.max_uses > 0 && inv.uses >= inv.max_uses)) throw new Error('Este codigo ja foi utilizado'); const { data: inviter } = await supa.from('profiles').select('portal_access').eq('id', inv.created_by).single(); if(!inviter || !inviter.portal_access) throw new Error('Este codigo nao da acesso ao portal. O codigo precisa ser de alguem que ja tem acesso ao portal.'); setValidatedInvite(inv); setSignupStep(1); } catch(e){ setLoginError(e.message); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
-          {loginLoading ? 'Validando...' : 'Validar Codigo'}
-        </button>
-        </>) : (<>
-        <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:4 }}>Criar conta</div>
-        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>Codigo <b>{validatedInvite?.code}</b> validado</div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Nome</div>
-          <input value={signupName} onChange={e=>setSignupName(e.target.value)} placeholder="Seu nome" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@exemplo.com" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        <div style={{ marginBottom:16 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Senha</div>
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="Minimo 6 caracteres" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setLoginLoading(true); try { if(!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos'); if(pw.length < 8) throw new Error('Senha deve ter no minimo 8 caracteres'); const { data: authData, error: authErr } = await supa.auth.signUp({ email: email.trim(), password: pw, options: { data: { name: signupName.trim(), role: 'admin' } } }); if(authErr) throw authErr; if(authData.user){ await supa.from('profiles').upsert({ id: authData.user.id, name: signupName.trim(), role: 'admin', portal_access: true, invite_code_used: validatedInvite.code, invited_by: validatedInvite.created_by, created_at: new Date().toISOString() }, { onConflict: 'id' });await supa.from('invites').update({ uses: (validatedInvite.uses||0)+1 }).eq('id', validatedInvite.id); } setLoggedIn(true); } catch(e){ setLoginError(e.message||'Erro ao criar conta'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
-          {loginLoading ? 'Criando conta...' : 'Criar Conta'}
-        </button>
-        </>)}
-        <div style={{ textAlign:'center', marginTop:14 }}>
-          <span onClick={()=>{ setSignupMode(false); setLoginError(''); setResetMode(false); }} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>← Voltar ao login</span>
-        </div>
-        </>) : (<>
-        <div style={{ marginBottom:20 }}>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:6 }}>Email</div>
-          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="loja@calicolors.com.br" style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, fontSize:14, outline:'none' }} />
-        </div>
-        {resetMsg && <div style={{color:'#2e7d32',fontSize:13,marginBottom:12,textAlign:'center'}}>{resetMsg}</div>}
-        {loginError && <div style={{color:'#e63946',fontSize:13,marginBottom:12,textAlign:'center'}}>{loginError}</div>}
-        <button disabled={loginLoading} onClick={async()=>{ setLoginError(''); setResetMsg(''); setLoginLoading(true); try { if(!email) throw new Error('Informe seu email'); const {error} = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname }); if(error) throw error; setResetMsg('Link de redefinição enviado para ' + email); } catch(e){ setLoginError(e.message||'Erro ao enviar email'); } finally { setLoginLoading(false); } }} style={{ width:'100%', padding:'12px', background:C.p1, color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer' }}>
-          {loginLoading ? 'Enviando...' : 'Enviar link de redefinição'}
-        </button>
-        <div style={{ textAlign:'center', marginTop:14 }}>
-          <span onClick={()=>{ setResetMode(false); setLoginError(''); setResetMsg(''); }} style={{ fontSize:13, color:C.p1, cursor:'pointer', fontWeight:600 }}>← Voltar ao login</span>
-        </div>
-        </>)}
-      </div>
-    </div>
-  );
+  if (!loggedIn) {
+    const handleLogin = async () => {
+      setLoginError(''); setLoginLoading(true);
+      try {
+        const { data, error } = await supa.auth.signInWithPassword({ email, password: pw });
+        if (error) throw error;
+        const { data: prof } = await supa.from('profiles').select('portal_access').eq('id', data.user.id).single();
+        if (!prof || !prof.portal_access) {
+          await supa.auth.signOut();
+          throw new Error('Sem permissao. Esta conta nao tem acesso ao portal.');
+        }
+        setLoggedIn(true);
+      } catch (e) {
+        setLoginError(e.message || 'Email ou senha incorretos');
+      } finally { setLoginLoading(false); }
+    };
+    const handleSwitchSignup = () => {
+      setMode('signup'); setSignupStep(0); setLoginError('');
+      setSignupCode(''); setSignupName(''); setEmail(''); setPw(''); setValidatedInvite(null);
+    };
+    const handleSwitchReset = () => { setMode('reset'); setLoginError(''); setResetMsg(''); };
+    const handleBackToLogin = () => { setMode('login'); setLoginError(''); setResetMsg(''); };
+    const handleValidateInvite = async () => {
+      setLoginError(''); setLoginLoading(true);
+      try {
+        if (!signupCode.trim()) throw new Error('Insira o codigo de convite');
+        const { data: inv, error } = await supa.from('invites').select('id, code, used, max_uses, uses, created_by').eq('code', signupCode.trim()).single();
+        if (error || !inv) throw new Error('Codigo invalido');
+        if (inv.used || (inv.max_uses > 0 && inv.uses >= inv.max_uses)) throw new Error('Este codigo ja foi utilizado');
+        const { data: inviter } = await supa.from('profiles').select('portal_access').eq('id', inv.created_by).single();
+        if (!inviter || !inviter.portal_access) throw new Error('Este codigo nao da acesso ao portal. O codigo precisa ser de alguem que ja tem acesso ao portal.');
+        setValidatedInvite(inv); setSignupStep(1);
+      } catch (e) { setLoginError(e.message); }
+      finally { setLoginLoading(false); }
+    };
+    const handleCreateAccount = async () => {
+      setLoginError(''); setLoginLoading(true);
+      try {
+        if (!signupName.trim() || !email.trim() || !pw) throw new Error('Preencha todos os campos');
+        if (pw.length < 8) throw new Error('Senha deve ter no minimo 8 caracteres');
+        const res = await authService.signUpAppUser({
+          name: signupName.trim(),
+          email: email.trim(),
+          password: pw,
+          role: 'admin',
+          portalAccess: true,
+          inviteCode: validatedInvite.code,
+          userMetadata: { role: 'admin' },
+          extraProfile: { invited_by: validatedInvite.created_by }
+        });
+        if (!res.ok) throw new Error(res.error || 'Erro ao criar conta');
+        await supa.from('invites').update({ uses: (validatedInvite.uses || 0) + 1 }).eq('id', validatedInvite.id);
+        const { error: signInErr } = await supa.auth.signInWithPassword({ email: email.trim(), password: pw });
+        if (signInErr) throw signInErr;
+        setLoggedIn(true);
+      } catch (e) {
+        setLoginError(e.message || 'Erro ao criar conta');
+      } finally { setLoginLoading(false); }
+    };
+    const handleReset = async () => {
+      setLoginError(''); setResetMsg(''); setLoginLoading(true);
+      try {
+        if (!email) throw new Error('Informe seu email');
+        const { error } = await supa.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+        if (error) throw error;
+        setResetMsg('Link de redefinição enviado para ' + email);
+      } catch (e) { setLoginError(e.message || 'Erro ao enviar email'); }
+      finally { setLoginLoading(false); }
+    };
+
+    if (mode === 'reset') return (
+      <ResetPasswordScreen
+        email={email} setEmail={setEmail}
+        loginError={loginError} loginLoading={loginLoading} resetMsg={resetMsg}
+        onReset={handleReset} onBack={handleBackToLogin}
+      />
+    );
+    if (mode === 'signup') return (
+      <SignupScreen
+        step={signupStep}
+        signupCode={signupCode} setSignupCode={setSignupCode}
+        signupName={signupName} setSignupName={setSignupName}
+        email={email} setEmail={setEmail}
+        pw={pw} setPw={setPw}
+        validatedInvite={validatedInvite}
+        loginError={loginError} loginLoading={loginLoading}
+        onValidateInvite={handleValidateInvite}
+        onCreateAccount={handleCreateAccount}
+        onBack={handleBackToLogin}
+      />
+    );
+    return (
+      <LoginScreen
+        email={email} setEmail={setEmail} pw={pw} setPw={setPw}
+        loginError={loginError} loginLoading={loginLoading}
+        onLogin={handleLogin}
+        onSwitchSignup={handleSwitchSignup}
+        onSwitchReset={handleSwitchReset}
+      />
+    );
+  }
 
   return (
     <div style={{ display:'flex', minHeight:'100vh', fontFamily:'DM Sans, sans-serif' }}>
