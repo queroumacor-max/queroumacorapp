@@ -83,4 +83,13 @@
   (2) `app.js abrirMaquininha/entrarListaMaquininha` que perdiam silenciosamente
   os cliques de interesse (tabela `feature_interest` inexistente). Não pedir
   para rodar de novo.
+- **Plano Supabase: PRO ($25/mês).** Não estamos mais no free tier. Recursos
+  adicionais: 8GB DB, 50GB bandwidth, 7 dias de PITR (point-in-time recovery),
+  100GB storage, sem project pause por inatividade, log retention de 7 dias.
+  Quando sugerir feature que precisa de mais compute / storage / backup,
+  pode contar com isso.
+- **Plano Cloudflare: PRO.** Recursos adicionais disponíveis: WAF managed
+  rules customizáveis, Image Resizing/Polish, mobile redirect, web analytics
+  RUM, page rules adicionais. Workers/Pages tem cota maior. Quando sugerir
+  feature de perf/edge (image optim, custom WAF rule), pode contar com isso.
 
