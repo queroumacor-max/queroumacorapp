@@ -92,4 +92,8 @@
   rules customizáveis, Image Resizing/Polish, mobile redirect, web analytics
   RUM, page rules adicionais. Workers/Pages tem cota maior. Quando sugerir
   feature de perf/edge (image optim, custom WAF rule), pode contar com isso.
+- **Backlog / roadmap:** ver `BACKLOG.md` na raiz. Lista categorizada de
+  features pendentes (sociais estilo IG, perf, observability, segurança
+  externa). Sempre consultar antes de propor features novas — se já está
+  no backlog, referenciar pelo ID (ex.: "atacar S1 + S6 do BACKLOG.md").
 
