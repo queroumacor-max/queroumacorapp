@@ -6520,6 +6520,26 @@ function filterFeedPosts(){
   });
 }
 const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale, price, art_type, created_at';
+
+// Busca perfis públicos com fallback: tenta profiles_public (view) primeiro;
+// se a view não existir/retornar vazio (acontece em DBs que não rodaram a
+// migration), cai pra tabela profiles direto — que tem RLS "viewable by
+// everyone" e expõe as mesmas colunas seguras.
+async function fetchPublicProfiles(sb, ids, cols){
+  cols = cols || 'id, name, tag, avatar_url, role, user_type';
+  if(!ids || !ids.length) return [];
+  try {
+    const r = await sb.from('profiles_public').select(cols).in('id', ids);
+    if(!r.error && r.data && r.data.length > 0) return r.data;
+    if(r.error) console.warn('profiles_public falhou, fallback p/ profiles:', r.error.message);
+    const fb = await sb.from('profiles').select(cols).in('id', ids);
+    if(fb.error) { console.warn('profiles fallback err:', fb.error.message); return []; }
+    return fb.data || [];
+  } catch(e){
+    console.warn('fetchPublicProfiles:', e && e.message || e);
+    return [];
+  }
+}
 let _feedOffset = 0;
 const FEED_PAGE = 30;
 
@@ -6649,7 +6669,7 @@ async function loadPosts(feedIds, append){
     let savedPosts = [];
     let commentsMap = {};
     const queries = [
-      sb.from('profiles_public').select('id, name, tag, avatar_url, role, user_type').in('id', userIds),
+      fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'),
       sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5)
     ];
     if(currentUser){
@@ -6659,7 +6679,7 @@ async function loadPosts(feedIds, append){
     }
     const results = await Promise.all(queries);
     const profMap = {};
-    (results[0].data||[]).forEach(pr => { profMap[pr.id] = pr; });
+    (results[0]||[]).forEach(pr => { profMap[pr.id] = pr; });
     posts.forEach(p => { p.profiles = profMap[p.user_id] || {}; });
     // Map comments by post_id
     (results[1].data||[]).forEach(c => {
@@ -6669,8 +6689,8 @@ async function loadPosts(feedIds, append){
     // Collect all comment user_ids to resolve names
     const commentUserIds = [...new Set((results[1].data||[]).map(c => c.user_id).filter(id => !profMap[id]))];
     if(commentUserIds.length > 0){
-      const { data: cProfs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', commentUserIds);
-      (cProfs||[]).forEach(pr => { profMap[pr.id] = pr; });
+      const cProfs = await fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url');
+      cProfs.forEach(pr => { profMap[pr.id] = pr; });
     }
     if(currentUser){
       if(results[2].data) myLikes = results[2].data.map(l => l.post_id);
@@ -7153,8 +7173,8 @@ async function loadStories(feedIds){
     const allNeededIds = [...new Set([...followedIds, ...storyUserIds])].filter(Boolean);
     let allFollowedProfiles = {};
     if(allNeededIds.length > 0){
-      const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', allNeededIds);
-      (profs||[]).forEach(pr => { allFollowedProfiles[pr.id] = pr; });
+      const profs = await fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url');
+      profs.forEach(pr => { allFollowedProfiles[pr.id] = pr; });
     }
     if(stories && stories.length > 0){
       stories.forEach(s => { s.profiles = allFollowedProfiles[s.user_id] || {}; });
