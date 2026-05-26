@@ -178,6 +178,31 @@ function avatarUrl(name, size){
 }
 window.avatarUrl = avatarUrl;
 
+// displayName: nome amigável pra UI. Se profile.name é só um email puro
+// (sem nome real), mostra só a parte antes do @. Cai pra tag se nada.
+function displayName(profile){
+  const raw = String((profile && profile.name) || '').trim();
+  if(!raw) return profile && profile.tag ? '@' + profile.tag : 'Sem nome';
+  const m = raw.match(/^([^@\s]+)@[^@\s]+\.[A-Za-z]{2,}$/);
+  if(m) return m[1];
+  return raw;
+}
+window.displayName = displayName;
+
+// avatarImgTag: <img> de avatar com fallback automático pra ui-avatars
+// se a URL principal falhar (caso típico: profile.avatar_url aponta pra
+// arquivo Supabase Storage que não existe mais). Anti-loop via dataset.fb.
+function avatarImgTag(profile, size){
+  const s = size || 96;
+  const av = avatarOf(profile, s);
+  const fb = avatarUrl(displayName(profile), s);
+  const avEsc = String(av).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fbEsc = String(fb).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return '<img src="' + avEsc + '" alt="" loading="lazy" decoding="async"'
+    + ' onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + fbEsc + '\'}">';
+}
+window.avatarImgTag = avatarImgTag;
+
 // safeUrl: valida que a URL é http(s):// e devolve string HTML-escapada,
 // pronta pra interpolar em <a href=...>. Bloqueia javascript:, data:,
 // vbscript:, file:, etc. Retorna '' se inválida. Defense-in-depth.
@@ -201,7 +226,7 @@ function avatarOf(profile, size){
     if (/^https:\/\//i.test(url)) return cfImg(url, { w: s, fit: 'cover' });
     console.warn('avatarOf: URL inválida ignorada');
   }
-  return cfImg(avatarUrl(profile && profile.name, s), { w: s, fit: 'cover' });
+  return cfImg(avatarUrl(displayName(profile), s), { w: s, fit: 'cover' });
 }
 window.avatarOf = avatarOf;
 
@@ -936,12 +961,12 @@ async function loadPeopleSuggestions(){
     box.innerHTML = people.map(p => {
       const isPintor = isProfessionalRole(p.role) || isProfessionalRole(p.user_type);
       const roleBadge = isPintor ? '<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>' : '';
-      const av = avatarOf(p);
       const tagDisplay = p.tag ? '@' + p.tag : '';
+      const niceName = displayName(p);
       return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
-        <div class="search-result-avatar"><img src="${escapeHtml(av)}" alt=""></div>
+        <div class="search-result-avatar">${avatarImgTag(p)}</div>
         <div class="search-result-info">
-          <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
+          <div class="search-result-tag">${escapeHtml(niceName)}${roleBadge}</div>
           <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay && p.city ? ' · ' : ''}${escapeHtml(p.city||'')}</div>
         </div>
         <button class="search-result-follow follow" onclick="event.stopPropagation();toggleFollow('${escapeJsArg(p.id)}',this)">Seguir</button>
@@ -995,12 +1020,12 @@ function searchPeople(query){
       const isSelf=currentUser&&currentUser.id===p.id;
       const isPintor=isProfessionalRole(p.role)||isProfessionalRole(p.user_type);
       const roleBadge=isPintor?'<span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;margin-left:5px;">PINTOR</span>':'';
-      const av=avatarOf(p);
       const tagDisplay=p.tag?'@'+p.tag:'';
+      const niceName=displayName(p);
       return `<div class="search-result-item" onclick="openUserProfile('${escapeJsArg(p.id)}')">
-        <div class="search-result-avatar"><img src="${escapeHtml(av)}" alt=""></div>
+        <div class="search-result-avatar">${avatarImgTag(p)}</div>
         <div class="search-result-info">
-          <div class="search-result-tag">${escapeHtml(p.name||'Sem nome')}${roleBadge}</div>
+          <div class="search-result-tag">${escapeHtml(niceName)}${roleBadge}</div>
           <div class="search-result-name">${escapeHtml(tagDisplay)}${tagDisplay&&p.city?' · ':''}${escapeHtml(p.city||'')}</div>
         </div>
         ${isSelf?'':`<button class="search-result-follow ${isFollowing?'following':'follow'}" onclick="event.stopPropagation();toggleFollow('${escapeJsArg(p.id)}',this)">${isFollowing?'Seguindo':'Seguir'}</button>`}
