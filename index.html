@@ -3,7 +3,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>QueroUmaCor</title>
 <meta name="description" content="QueroUmaCor — encontre pintores, grafiteiros e pintores automotivos perto de você. Peça orçamentos, veja portfólios e contrate profissionais de pintura com segurança.">
 <meta property="og:title" content="QueroUmaCor">
@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="https://unpkg.com/@supabase/supabase-js@2.45.0/dist/umd/supabase.js" defer onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js';s.defer=true;document.head.appendChild(s);"></script>
-<script src="/head.js?v=20260525e" defer></script>
+<script src="/head.js?v=20260526a" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,19 +33,19 @@
 <div class="app" id="app">
 
 <!-- TOP NAV -->
-<div class="top-nav">
-  <div class="logo">Quero<span>Uma</span>Cor</div>
+<header class="top-nav" role="banner">
+  <h1 class="logo" style="margin:0;">Quero<span>Uma</span>Cor</h1>
   <div class="nav-right">
-    <div id="pro-status-badge" onclick="showModal('pro-modal')" style="display:flex;align-items:center;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;font-family:'Syne',sans-serif;letter-spacing:1px;cursor:pointer;">GRÁTIS</div>
-    <button class="nav-btn" onclick="showScreen('chat')">
+    <button type="button" id="pro-status-badge" onclick="showModal('pro-modal')" aria-label="Ver plano PRO" style="display:flex;align-items:center;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;font-family:'Syne',sans-serif;letter-spacing:1px;cursor:pointer;border:none;">GRÁTIS</button>
+    <button class="nav-btn" type="button" onclick="showScreen('chat')" aria-label="Chat">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <div class="badge-dot" id="chat-badge-dot" style="background:var(--p4);display:none"></div>
     </button>
   </div>
-</div>
+</header>
 
 <!-- SCROLL AREA -->
-<div class="scroll" id="scroll-area">
+<main class="scroll" id="scroll-area" role="main">
 
 <!-- ══ LOGIN SCREEN ══ -->
 <div class="screen active" id="screen-login">
@@ -60,30 +60,32 @@
     </div>
 
     <div class="auth-body">
-      <div class="auth-title">Bem-vindo de volta 👋</div>
+      <h1 class="auth-title">Bem-vindo de volta 👋</h1>
       <div class="auth-sub">Entre na sua conta para continuar</div>
 
+      <form onsubmit="doLogin();return false;">
       <div class="auth-field">
-        <label class="auth-label">Email</label>
-        <input class="auth-input" type="email" id="login-email" placeholder="seu@email.com">
+        <label class="auth-label" for="login-email">Email</label>
+        <input class="auth-input" type="email" id="login-email" name="email" autocomplete="email" placeholder="seu@email.com" style="font-size:16px;">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Senha</label>
+        <label class="auth-label" for="login-pw">Senha</label>
         <div class="auth-pw-wrap">
-          <input class="auth-input" type="password" id="login-pw" placeholder="••••••••">
-          <button type="button" class="auth-pw-eye" onclick="togglePw('login-pw',this)">
+          <input class="auth-input" type="password" id="login-pw" name="password" autocomplete="current-password" placeholder="••••••••" style="font-size:16px;">
+          <button type="button" class="auth-pw-eye" aria-label="Mostrar/ocultar senha" onclick="togglePw('login-pw',this)">
             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
       </div>
       <div style="text-align:right;margin:-8px 0 14px;">
-        <span style="font-size:13px;color:var(--p1);font-weight:600;cursor:pointer;" onclick="sendPasswordReset()">Esqueceu a senha?</span>
+        <button type="button" style="background:none;border:none;font-size:13px;color:var(--p1);font-weight:600;cursor:pointer;padding:4px;font-family:inherit;" onclick="sendPasswordReset()">Esqueceu a senha?</button>
       </div>
 
-      <button class="auth-btn" type="button" onclick="doLogin()">Entrar</button>
+      <button class="auth-btn" type="submit">Entrar</button>
+      </form>
 
       <div class="auth-footer-text" style="margin-top:20px;">
-        Não tem conta? <span class="auth-footer-link" onclick="showScreen('signup')">Cadastre-se grátis</span>
+        Não tem conta? <button type="button" class="auth-footer-link" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;color:inherit;" onclick="showScreen('signup')">Cadastre-se grátis</button>
       </div>
     </div>
   </div>
@@ -111,11 +113,11 @@
 
       <!-- STEP 0: invite code -->
       <div id="signup-step0">
-        <div class="auth-title">Código de Convite</div>
+        <h1 class="auth-title">Código de Convite</h1>
         <div class="auth-sub">Para se cadastrar você precisa de um convite de alguém que já usa o app.</div>
         <div class="auth-field">
-          <label class="auth-label">Código de convite</label>
-          <input class="auth-input" type="text" id="s-invite-code" placeholder="Ex: QUC-XXXXX" style="text-transform:uppercase;letter-spacing:2px;font-weight:700;text-align:center;font-size:18px;">
+          <label class="auth-label" for="s-invite-code">Código de convite</label>
+          <input class="auth-input" type="text" id="s-invite-code" name="invite_code" autocomplete="off" placeholder="Ex: QUC-XXXXX" style="text-transform:uppercase;letter-spacing:2px;font-weight:700;text-align:center;font-size:18px;">
         </div>
         <div id="invite-error" style="color:var(--p4);font-size:13px;text-align:center;margin-bottom:10px;display:none;"></div>
         <button class="auth-btn" onclick="validateInvite()">Validar Convite</button>
@@ -157,14 +159,14 @@
 
       <!-- STEP 2: basic info -->
       <div id="signup-step2" style="display:none;">
-        <div class="auth-title" id="s2-title">Seus dados</div>
+        <h2 class="auth-title" id="s2-title">Seus dados</h2>
         <div class="auth-sub" id="s2-sub">Preencha as informações básicas</div>
         <div class="auth-field">
-          <label class="auth-label">Nome completo</label>
-          <input class="auth-input" type="text" id="s-name" placeholder="Seu nome">
+          <label class="auth-label" for="s-name">Nome completo</label>
+          <input class="auth-input" type="text" id="s-name" name="name" autocomplete="name" placeholder="Seu nome" style="font-size:16px;">
         </div>
         <div class="auth-field">
-          <label class="auth-label">Foto de perfil</label>
+          <label class="auth-label" for="signup-avatar-input">Foto de perfil</label>
           <div style="display:flex;align-items:center;gap:14px;">
             <div id="signup-avatar-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;background:var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--border);">
               <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--muted)" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -177,28 +179,28 @@
           </div>
         </div>
         <div class="auth-field">
-          <label class="auth-label">Sua tag única</label>
+          <label class="auth-label" for="s-tag">Sua tag única</label>
           <div style="position:relative;">
             <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;font-weight:600;pointer-events:none;">@</span>
-            <input class="auth-input" type="text" id="s-tag" placeholder="seunomedeusuario" style="padding-left:30px;" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_.]/g,'')" onblur="checkTagAvailability()">
+            <input class="auth-input" type="text" id="s-tag" name="username" autocomplete="username" placeholder="seunomedeusuario" style="padding-left:30px;font-size:16px;" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_.]/g,'')" onblur="checkTagAvailability()">
           </div>
           <div id="tag-status" style="font-size:12px;margin-top:4px;display:none;"></div>
         </div>
         <div class="auth-field">
-          <label class="auth-label">Email</label>
-          <input class="auth-input" type="email" id="s-email" placeholder="seu@email.com">
+          <label class="auth-label" for="s-email">Email</label>
+          <input class="auth-input" type="email" id="s-email" name="email" autocomplete="email" placeholder="seu@email.com" style="font-size:16px;">
         </div>
         <div class="auth-field">
-          <label class="auth-label">WhatsApp</label>
-          <input class="auth-input" type="tel" id="s-phone" placeholder="(11) 99999-9999">
+          <label class="auth-label" for="s-phone">WhatsApp</label>
+          <input class="auth-input" type="tel" id="s-phone" name="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 99999-9999" style="font-size:16px;">
         </div>
         <div class="auth-field">
-          <label class="auth-label">Cidade</label>
-          <input class="auth-input" type="text" id="s-city" placeholder="São Paulo">
+          <label class="auth-label" for="s-city">Cidade</label>
+          <input class="auth-input" type="text" id="s-city" name="city" autocomplete="address-level2" placeholder="São Paulo" style="font-size:16px;">
         </div>
         <div class="auth-field">
-          <label class="auth-label">Estado</label>
-          <select class="auth-input" id="s-state">
+          <label class="auth-label" for="s-state">Estado</label>
+          <select class="auth-input" id="s-state" name="state" autocomplete="address-level1" style="font-size:16px;">
             <option value="">Selecione o estado</option>
             <option value="AC">Acre</option>
             <option value="AL">Alagoas</option>
@@ -230,23 +232,23 @@
           </select>
         </div>
         <div class="auth-field">
-          <label class="auth-label">Senha</label>
+          <label class="auth-label" for="s-pw">Senha</label>
           <div class="auth-pw-wrap">
-            <input class="auth-input" type="password" id="s-pw" placeholder="Mínimo 8 caracteres">
-            <button type="button" class="auth-pw-eye" onclick="togglePw('s-pw',this)">
+            <input class="auth-input" type="password" id="s-pw" name="new-password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" style="font-size:16px;">
+            <button type="button" class="auth-pw-eye" aria-label="Mostrar/ocultar senha" onclick="togglePw('s-pw',this)">
               <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
         </div>
-        <button class="auth-btn" onclick="validateAndGoStep3()">Continuar</button>
-        <button class="auth-btn secondary" onclick="signupNext(1)">Voltar</button>
+        <button class="auth-btn" type="button" onclick="validateAndGoStep3()">Continuar</button>
+        <button class="auth-btn secondary" type="button" onclick="signupNext(1)">Voltar</button>
       </div>
 
       <!-- STEP 3: pintor extras OR cliente prefs -->
       <div id="signup-step3" style="display:none;">
         <!-- PINTOR extras -->
         <div id="s3-pintor">
-          <div class="auth-title">Seu perfil profissional</div>
+          <h2 class="auth-title">Seu perfil profissional</h2>
           <div class="auth-sub">Quanto mais completo, mais clientes você atrai!</div>
           <div style="margin-bottom:16px;">
             <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Sua profissão</div>
@@ -289,12 +291,16 @@
             </select>
           </div>
           <div class="auth-terms">Ao criar a conta, você concorda com os <span>Termos de Uso</span> e <span>Política de Privacidade</span>.</div>
-          <button class="auth-btn" style="margin-top:16px;" onclick="doSignup()">🎨 Criar minha conta</button>
-          <button class="auth-btn secondary" onclick="signupNext(2)">← Voltar</button>
+          <label style="display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:12px;line-height:1.4;cursor:pointer;">
+            <input type="checkbox" id="signup-consent-pintor" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
+            <span>Li e concordo com os <a href="#" onclick="showScreen('info');openInfoPage('termos');return false;" style="color:var(--p1);text-decoration:underline">Termos de Uso</a> e a <a href="#" onclick="showScreen('info');openInfoPage('privacidade');return false;" style="color:var(--p1);text-decoration:underline">Política de Privacidade</a>. Estou ciente do tratamento dos meus dados conforme a LGPD.</span>
+          </label>
+          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent-pintor').checked){alert('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta.');return;}doSignup()">🎨 Criar minha conta</button>
+          <button class="auth-btn secondary" type="button" onclick="signupNext(2)">← Voltar</button>
         </div>
         <!-- CLIENTE extras -->
         <div id="s3-cliente" style="display:none;">
-          <div class="auth-title">O que você precisa?</div>
+          <h2 class="auth-title">O que você precisa?</h2>
           <div class="auth-sub">Isso nos ajuda a mostrar os melhores pintores pra você</div>
           <div class="auth-field">
             <label class="auth-label">Tipo de serviço que procura</label>
@@ -317,8 +323,12 @@
             </select>
           </div>
           <div class="auth-terms">Ao criar a conta, você concorda com os <span>Termos de Uso</span> e <span>Política de Privacidade</span>.</div>
-          <button class="auth-btn" style="margin-top:16px;" onclick="doSignup()">🏠 Criar minha conta</button>
-          <button class="auth-btn secondary" onclick="signupNext(2)">← Voltar</button>
+          <label style="display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:12px;line-height:1.4;cursor:pointer;">
+            <input type="checkbox" id="signup-consent" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
+            <span>Li e concordo com os <a href="#" onclick="showScreen('info');openInfoPage('termos');return false;" style="color:var(--p1);text-decoration:underline">Termos de Uso</a> e a <a href="#" onclick="showScreen('info');openInfoPage('privacidade');return false;" style="color:var(--p1);text-decoration:underline">Política de Privacidade</a>. Estou ciente do tratamento dos meus dados conforme a LGPD.</span>
+          </label>
+          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent').checked){alert('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta.');return;}doSignup()">🏠 Criar minha conta</button>
+          <button class="auth-btn secondary" type="button" onclick="signupNext(2)">← Voltar</button>
         </div>
       </div>
 
@@ -365,9 +375,10 @@
 <!-- ══ EXPLORE / MAP SCREEN ══ -->
 <div class="screen" id="screen-explore">
   <div class="explore-screen">
-    <div class="explore-search">
-      <input class="exp-input" id="explore-search-input" type="text" placeholder="Buscar por nome, @tag ou cidade..." oninput="filterExplorePainters(this.value)">
-      <button class="exp-filter-btn" onclick="filterExplorePainters(document.getElementById('explore-search-input').value)">Filtrar</button>
+    <div class="explore-search" role="search">
+      <label for="explore-search-input" style="position:absolute;left:-9999px;">Buscar profissionais</label>
+      <input class="exp-input" id="explore-search-input" name="q" type="search" autocomplete="off" style="font-size:16px;" placeholder="Buscar por nome, @tag ou cidade..." oninput="filterExplorePainters(this.value)">
+      <button class="exp-filter-btn" type="button" onclick="filterExplorePainters(document.getElementById('explore-search-input').value)">Filtrar</button>
     </div>
     <div class="map-container" id="map-container">
       <!-- Leaflet map -->
@@ -407,15 +418,16 @@
 
 <!-- ══ SEARCH SCREEN ══ -->
 <div class="screen" id="screen-search">
-  <div style="background:var(--ink);padding:14px 16px;">
+  <form role="search" style="background:var(--ink);padding:14px 16px;" onsubmit="searchPeople(document.getElementById('search-people-input').value);return false;">
     <div style="display:flex;align-items:center;gap:10px;">
       <div style="flex:1;position:relative;">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input id="search-people-input" type="text" placeholder="Buscar por @tag ou nome..." oninput="searchPeople(this.value)" style="width:100%;padding:10px 14px 10px 38px;border-radius:12px;border:none;background:rgba(255,255,255,.1);color:#fff;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;">
+        <label for="search-people-input" style="position:absolute;left:-9999px;">Buscar pessoas</label>
+        <input id="search-people-input" name="q" type="search" autocomplete="off" placeholder="Buscar por @tag ou nome..." oninput="searchPeople(this.value)" style="width:100%;padding:10px 14px 10px 38px;border-radius:12px;border:none;background:rgba(255,255,255,.1);color:#fff;font-size:16px;font-family:'DM Sans',sans-serif;outline:none;">
       </div>
-      <button onclick="document.getElementById('search-people-input').value='';document.getElementById('search-results').innerHTML=getSearchEmpty();" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">Limpar</button>
+      <button type="button" aria-label="Limpar busca" onclick="document.getElementById('search-people-input').value='';document.getElementById('search-results').innerHTML=getSearchEmpty();" style="background:none;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">Limpar</button>
     </div>
-  </div>
+  </form>
   <div id="search-results" style="padding:8px 0;">
     <div style="text-align:center;padding:60px 20px;color:var(--muted);">
       <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -496,11 +508,11 @@
 
 <!-- ══ ORCAMENTO SCREEN ══ -->
 <div class="screen" id="screen-orcamento">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('profile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Solicitar Orçamento</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('profile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Solicitar Orçamento</h2>
   </div>
-  <div class="orc-body">
+  <form class="orc-body" onsubmit="sendOrc();return false;">
     <div class="orc-painter-card">
       <div class="opc-av"><img id="orc-painter-av" src="https://ui-avatars.com/api/?name=Profissional&background=e8e2d9&color=1a1a2e&size=96" alt=""></div>
       <div>
@@ -509,22 +521,22 @@
       </div>
     </div>
     <input type="hidden" id="orc-painter-id" value="">
-    <div class="fg"><label class="fl">Tipo de serviço</label>
-      <select id="orc-service-type" class="fs" onchange="toggleOrcOutros(this.value)"><optgroup label="Pintura"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada externa</option></optgroup><optgroup label="Grafite / Mural"><option>Grafite artístico</option><option>Mural decorativo</option><option>Painel comercial</option><option>Arte urbana</option></optgroup><optgroup label="Automotivo"><option>Pintura automotiva</option><option>Funilaria e reparo</option><option>Envelopamento</option><option>Polimento e cristalização</option></optgroup><option value="Outros">Outros</option></select>
+    <div class="fg"><label class="fl" for="orc-service-type">Tipo de serviço</label>
+      <select id="orc-service-type" name="service_type" class="fs" style="font-size:16px;" onchange="toggleOrcOutros(this.value)"><optgroup label="Pintura"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada externa</option></optgroup><optgroup label="Grafite / Mural"><option>Grafite artístico</option><option>Mural decorativo</option><option>Painel comercial</option><option>Arte urbana</option></optgroup><optgroup label="Automotivo"><option>Pintura automotiva</option><option>Funilaria e reparo</option><option>Envelopamento</option><option>Polimento e cristalização</option></optgroup><option value="Outros">Outros</option></select>
     </div>
     <div id="orc-outros-wrap" class="fg" style="display:none;">
-      <label class="fl">Descreva o tipo de serviço</label>
-      <textarea id="orc-outros-desc" class="fta" placeholder="Ex: impermeabilização, reparo de infiltração, pintura de portão..."></textarea>
+      <label class="fl" for="orc-outros-desc">Descreva o tipo de serviço</label>
+      <textarea id="orc-outros-desc" name="service_other" class="fta" style="font-size:16px;" placeholder="Ex: impermeabilização, reparo de infiltração, pintura de portão..."></textarea>
     </div>
     <div class="frow">
-      <div class="fg"><label class="fl">Metragem (m²)</label><input id="orc-area" type="number" class="fi" placeholder="Ex: 80"></div>
-      <div class="fg"><label class="fl">Cômodos</label><input id="orc-rooms" type="number" class="fi" placeholder="Ex: 4"></div>
+      <div class="fg"><label class="fl" for="orc-area">Metragem (m²)</label><input id="orc-area" name="area" type="number" class="fi" style="font-size:16px;" placeholder="Ex: 80"></div>
+      <div class="fg"><label class="fl" for="orc-rooms">Cômodos</label><input id="orc-rooms" name="rooms" type="number" class="fi" style="font-size:16px;" placeholder="Ex: 4"></div>
     </div>
-    <div class="fg"><label class="fl">Endereço</label><input id="orc-address" type="text" class="fi" placeholder="Bairro, cidade"></div>
-    <div class="fg"><label class="fl">Data desejada</label><input id="orc-date" type="date" class="fi"></div>
-    <div class="fg"><label class="fl">Descrição</label><textarea id="orc-desc" class="fta" placeholder="Cores desejadas, estado das paredes, detalhes importantes..."></textarea></div>
-    <button class="orc-submit" onclick="sendOrc()"><span>📩 Enviar Solicitação</span></button>
-  </div>
+    <div class="fg"><label class="fl" for="orc-address">Endereço</label><input id="orc-address" name="address" type="text" autocomplete="street-address" class="fi" style="font-size:16px;" placeholder="Bairro, cidade"></div>
+    <div class="fg"><label class="fl" for="orc-date">Data desejada</label><input id="orc-date" name="date" type="date" class="fi" style="font-size:16px;"></div>
+    <div class="fg"><label class="fl" for="orc-desc">Descrição</label><textarea id="orc-desc" name="description" class="fta" style="font-size:16px;" placeholder="Cores desejadas, estado das paredes, detalhes importantes..."></textarea></div>
+    <button class="orc-submit" type="submit"><span>📩 Enviar Solicitação</span></button>
+  </form>
 </div>
 
 <!-- ══ MY PROFILE (PINTOR + CLIENTE) ══ -->
@@ -857,8 +869,8 @@
 <!-- ══ MAIS INFORMAÇÕES E SUPORTE ══ -->
 <div class="screen" id="screen-info">
   <div class="orc-header">
-    <button class="back-btn" onclick="infoBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title" id="info-title">Mais informações e suporte</div>
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="infoBack()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" id="info-title" style="margin:0;">Mais informações e suporte</h2>
   </div>
   <div id="info-body" style="padding:16px 16px 100px;">
 
@@ -987,6 +999,12 @@
 
     <!-- EXCLUIR CONTA -->
     <div id="info-page-conta" style="display:none;">
+      <!-- LGPD: Baixar meus dados -->
+      <div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:6px;">📥 Baixar meus dados (LGPD)</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Faça download de todos os seus dados em formato JSON, conforme Art. 18 V da LGPD.</p>
+        <button type="button" onclick="baixarMeusDados()" style="padding:10px 16px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;min-height:44px;">Baixar JSON</button>
+      </div>
       <div style="background:var(--white);border-radius:14px;padding:18px 16px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
         <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.25);border-radius:11px;padding:13px;margin-bottom:14px;">
           <div style="font-size:13px;font-weight:700;color:var(--p4);margin-bottom:4px;">Esta ação é permanente</div>
@@ -1001,7 +1019,8 @@
         </ul>
         <p class="leg-p">Alguns dados podem ser mantidos por prazo limitado quando a guarda for exigida por lei. O pedido é processado em até 15 dias.</p>
         <p class="leg-p" style="color:var(--muted);font-size:12px;">Ao tocar no botão abaixo, abriremos o seu app de e-mail com a solicitação já preenchida. Basta enviar a mensagem para confirmar.</p>
-        <button onclick="requestAccountDeletion()" style="width:100%;padding:13px;background:var(--p4);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Solicitar exclusão da conta</button>
+        <!-- TODO: substituir por chamada RPC server-side (rpc_request_account_deletion) — hoje usa mailto -->
+        <button type="button" onclick="requestAccountDeletion()" style="width:100%;padding:13px;background:var(--p4);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;">Solicitar exclusão da conta</button>
       </div>
     </div>
 
@@ -1024,9 +1043,9 @@
 
 <!-- ══ PIPELINE DE ORÇAMENTOS ══ -->
 <div class="screen" id="screen-pipeline">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Orçamentos</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Orçamentos</h2>
   </div>
   <div id="pipeline-list" style="padding:6px 14px 100px;">
     <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>
@@ -1035,9 +1054,9 @@
 
 <!-- ══ CRM — REATIVAR CLIENTES (Feature 2) ══ -->
 <div class="screen" id="screen-crm">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Reativar clientes</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Reativar clientes</h2>
   </div>
   <div id="crm-list" style="padding:6px 14px 100px;">
     <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>
@@ -1133,7 +1152,7 @@
 
     <!-- Dynamic header -->
     <div class="chat-header" id="chat-header">
-      <button class="chat-back" onclick="showScreen('chat')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <button class="chat-back" type="button" aria-label="Voltar" onclick="showScreen('chat')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
       <div class="chat-header-avatars" id="chat-header-avatars"></div>
       <div class="chat-header-info">
         <div class="chat-header-name" id="chat-header-name">—</div>
@@ -1158,17 +1177,18 @@
     <input type="file" id="chat-file-input" accept="image/*" style="display:none" onchange="handleChatAttachment(this)">
 
     <!-- Input -->
-    <div class="chat-input-bar">
-      <button class="chat-attach" onclick="document.getElementById('chat-file-input').click()">
+    <form class="chat-input-bar" onsubmit="sendMsg();return false;">
+      <button class="chat-attach" type="button" aria-label="Anexar arquivo" onclick="document.getElementById('chat-file-input').click()">
         <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </button>
       <div class="chat-input-wrap">
-        <input type="text" id="chat-input" placeholder="Mensagem..." onkeydown="if(event.key==='Enter')sendMsg()">
+        <label for="chat-input" class="visually-hidden" style="position:absolute;left:-9999px;">Mensagem</label>
+        <input type="text" id="chat-input" name="message" style="font-size:16px;" placeholder="Mensagem..." onkeydown="if(event.key==='Enter')sendMsg()">
       </div>
-      <button class="chat-send" onclick="sendMsg()">
+      <button class="chat-send" type="submit" aria-label="Enviar mensagem">
         <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
-    </div>
+    </form>
 
   </div>
 </div>
@@ -1176,9 +1196,9 @@
 
 <!-- ══ PEDIDOS SCREEN ══ -->
 <div class="screen" id="screen-pedidos">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Meus Pedidos</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Meus Pedidos</h2>
   </div>
   <div class="pedidos-screen">
     <div class="pedidos-filter-row">
@@ -1195,9 +1215,9 @@
 
 <!-- ══ AVALIAR SCREEN ══ -->
 <div class="screen" id="screen-avaliar">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Avaliar Serviço</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Avaliar Serviço</h2>
   </div>
   <div class="avaliar-screen">
     <!-- Servico a avaliar (loaded dynamically) -->
@@ -1241,14 +1261,15 @@
   <div class="mkt-header">
     <div class="mkt-logo-row">
       <div class="mkt-logo">Loja <span>Cali Colors</span></div>
-      <button class="mkt-cart-btn" onclick="renderCartModal();showModal('cart-modal')">
+      <button class="mkt-cart-btn" type="button" aria-label="Carrinho" onclick="renderCartModal();showModal('cart-modal')">
         <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
         <div class="mkt-cart-badge" id="cart-count" style="display:none">0</div>
       </button>
     </div>
     <div class="mkt-tabs" id="mkt-tabs"></div>
-    <div class="mkt-search-wrap">
-      <input class="mkt-search-input" id="mkt-search" type="search" placeholder="Buscar produto ou código..." oninput="mktSearch(this.value)">
+    <div class="mkt-search-wrap" role="search">
+      <label for="mkt-search" style="position:absolute;left:-9999px;">Buscar produto</label>
+      <input class="mkt-search-input" id="mkt-search" name="q" type="search" autocomplete="off" placeholder="Buscar produto ou código..." style="font-size:16px;" oninput="mktSearch(this.value)">
     </div>
   </div>
 
@@ -1270,9 +1291,9 @@
 
 <!-- ══ CAMISETAS SCREEN ══ -->
 <div class="screen" id="screen-camisetas">
-  <div class="orc-header">
-    <button class="back-btn" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="orc-title">Camisetas</div>
+  <div class="orc-header" role="banner">
+    <button class="back-btn" type="button" aria-label="Voltar" onclick="showScreen('myprofile')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 class="orc-title" style="margin:0;">Camisetas</h2>
   </div>
   <div style="padding:14px;">
     <div class="shirt-section">
@@ -1372,34 +1393,34 @@
   </div>
 </div>
 
-</div><!-- end scroll -->
+</main><!-- end scroll -->
 
 </div><!-- end app -->
 
 <!-- SIDE NAV -->
-<div class="bot-nav" id="bottom-nav">
-  <div class="bn active" id="bn-feed" onclick="showScreen('feed')">
+<nav class="bot-nav" id="bottom-nav" aria-label="Navegação principal">
+  <button class="bn active" type="button" id="bn-feed" aria-label="Feed" onclick="showScreen('feed')" style="border:none;background:transparent;">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     <div class="bn-dot"></div>
-  </div>
-  <div class="bn" id="bn-search" onclick="showScreen('search')">
+  </button>
+  <button class="bn" type="button" id="bn-search" aria-label="Buscar" onclick="showScreen('search')" style="border:none;background:transparent;">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <div class="bn-dot"></div>
-  </div>
-  <div class="bn" id="bn-mkt" onclick="showScreen('mkt')">
+  </button>
+  <button class="bn" type="button" id="bn-mkt" aria-label="Loja" onclick="showScreen('mkt')" style="border:none;background:transparent;">
     <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
     <div class="bn-dot"></div>
-  </div>
-  <div class="bn" id="bn-notif" onclick="showScreen('notif')" style="position:relative;">
+  </button>
+  <button class="bn" type="button" id="bn-notif" aria-label="Notificações" onclick="showScreen('notif')" style="position:relative;border:none;background:transparent;">
     <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
     <div class="bn-dot"></div>
     <span id="notif-badge-dot" style="position:absolute;top:5px;right:9px;width:9px;height:9px;background:#e63946;border-radius:50%;display:none;"></span>
-  </div>
-  <div class="bn" id="bn-myprofile" onclick="showScreen('myprofile')">
+  </button>
+  <button class="bn" type="button" id="bn-myprofile" aria-label="Perfil" onclick="showScreen('myprofile')" style="border:none;background:transparent;">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <div class="bn-dot"></div>
-  </div>
-</div>
+  </button>
+</nav>
 
 <!-- Shirt zoom overlay -->
 <div class="shirt-zoom-overlay" id="shirt-zoom-overlay" onclick="closeShirtZoom()">
@@ -1409,7 +1430,7 @@
 </div>
 
 <!-- MODALS -->
-<div class="overlay" id="post-opts-modal" onclick="closeModals()">
+<div class="overlay" id="post-opts-modal" role="dialog" aria-modal="true" aria-label="Opções do post" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
     <div class="sheet-opt" onclick="shareCurrentPost();closeModals()"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Compartilhar</div>
@@ -1420,10 +1441,10 @@
   </div>
 </div>
 
-<div class="overlay" id="report-reason-modal" onclick="closeModals()">
+<div class="overlay" id="report-reason-modal" role="dialog" aria-modal="true" aria-labelledby="report-reason-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Denunciar post</div>
+    <h2 class="sheet-title" id="report-reason-title">Denunciar post</h2>
     <div class="sheet-opt" onclick="submitReport('Conteúdo impróprio')">Conteúdo impróprio</div>
     <div class="sheet-opt" onclick="submitReport('Spam')">Spam</div>
     <div class="sheet-opt" onclick="submitReport('Informação falsa')">Informação falsa</div>
@@ -1432,7 +1453,7 @@
 </div>
 
 <!-- FOLLOWERS MODAL -->
-<div class="overlay" id="followers-modal" onclick="hideModal('followers-modal')">
+<div class="overlay" id="followers-modal" role="dialog" aria-modal="true" aria-label="Seguidores" onclick="hideModal('followers-modal')">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:75vh;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
     <div style="font-size:16px;font-weight:800;text-align:center;padding:4px 0 12px;font-family:'Syne',sans-serif;color:var(--ink);">Seguidores</div>
@@ -1441,7 +1462,7 @@
 </div>
 
 <!-- FOLLOWING MODAL -->
-<div class="overlay" id="following-modal" onclick="hideModal('following-modal')">
+<div class="overlay" id="following-modal" role="dialog" aria-modal="true" aria-label="Seguindo" onclick="hideModal('following-modal')">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:75vh;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
     <div style="font-size:16px;font-weight:800;text-align:center;padding:4px 0 12px;font-family:'Syne',sans-serif;color:var(--ink);">Seguindo</div>
@@ -1449,10 +1470,10 @@
   </div>
 </div>
 
-<div class="overlay" id="pro-modal" onclick="closeModals()">
+<div class="overlay" id="pro-modal" role="dialog" aria-modal="true" aria-labelledby="pro-modal-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">⚡ Plano PRO</div>
+    <h2 class="sheet-title" id="pro-modal-title">⚡ Plano PRO</h2>
     <div class="pro-price"><div class="pro-price-val">R$39<span style="font-size:16px;font-weight:400">/mês</span></div><div class="pro-price-sub">Cancele quando quiser</div></div>
     <div class="pro-feat"><span class="pro-feat-icon">📥</span>Pedidos de orçamento ilimitados</div>
     <div class="pro-feat"><span class="pro-feat-icon">🏆</span>Apareça no topo das buscas e do mapa</div>
@@ -1466,19 +1487,19 @@
   </div>
 </div>
 
-<div class="overlay" id="mod-queue-modal" onclick="closeModals()">
+<div class="overlay" id="mod-queue-modal" role="dialog" aria-modal="true" aria-labelledby="mod-queue-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🛡️ Fila de Moderação</div>
+    <h2 class="sheet-title" id="mod-queue-title">🛡️ Fila de Moderação</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Conteúdo aguardando revisão antes de ficar público.</div>
     <div id="mod-queue-list"><div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div></div>
   </div>
 </div>
 
-<div class="overlay" id="manage-quals-modal" onclick="closeModals()">
+<div class="overlay" id="manage-quals-modal" role="dialog" aria-modal="true" aria-labelledby="manage-quals-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🎓 Formação</div>
+    <h2 class="sheet-title" id="manage-quals-title">🎓 Formação</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Cursos, certificados e qualificações que aparecem no seu perfil.</div>
     <input id="q-title" placeholder="Título (ex: Pintor Profissional)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
     <input id="q-org" placeholder="Instituição (ex: SENAI)" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
@@ -1491,10 +1512,10 @@
   </div>
 </div>
 
-<div class="overlay" id="manage-courses-modal" onclick="closeModals()">
+<div class="overlay" id="manage-courses-modal" role="dialog" aria-modal="true" aria-labelledby="manage-courses-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📚 Cursos</div>
+    <h2 class="sheet-title" id="manage-courses-title">📚 Cursos</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Cursos que você criou e aparecem no seu perfil.</div>
     <input id="c-title" placeholder="Título do curso" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
     <input id="c-sub" placeholder="Descrição curta" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif;font-size:14px;box-sizing:border-box;">
@@ -1511,10 +1532,10 @@
 </div>
 
 <!-- ══ VALOR DO ORÇAMENTO (manual ou pré-preenchido pela IA) ══ -->
-<div class="overlay" id="quote-price-modal" onclick="closeModals()">
+<div class="overlay" id="quote-price-modal" role="dialog" aria-modal="true" aria-labelledby="quote-price-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">💰 Valor do orçamento</div>
+    <h2 class="sheet-title" id="quote-price-title">💰 Valor do orçamento</h2>
     <div id="qp-ia-note" style="display:none;background:linear-gradient(135deg,rgba(131,56,236,.08),rgba(255,107,53,.08));border:1px solid rgba(131,56,236,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--ink);line-height:1.55;margin-bottom:14px;"></div>
     <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;">Valor (R$)</label>
     <input id="qp-price-input" type="text" inputmode="decimal" placeholder="Ex: 1.500,00" onblur="fmtBRL(this)" style="width:100%;box-sizing:border-box;padding:14px;border:1.5px solid var(--border);border-radius:12px;font-size:18px;font-weight:700;font-family:DM Sans,sans-serif;outline:none;margin-bottom:14px;">
@@ -1526,43 +1547,43 @@
 </div>
 
 <!-- ══ ESCOPO DO ORÇAMENTO (snapshot) ══ -->
-<div class="overlay" id="quote-snapshot-modal" onclick="closeModals()">
+<div class="overlay" id="quote-snapshot-modal" role="dialog" aria-modal="true" aria-labelledby="quote-snapshot-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:82vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Escopo do orçamento</div>
+    <h2 class="sheet-title" id="quote-snapshot-title">Escopo do orçamento</h2>
     <div id="quote-snapshot-body"></div>
   </div>
 </div>
 
 <!-- ══ AGENDA MODAL ══ -->
-<div class="overlay" id="agenda-modal" onclick="closeModals()">
+<div class="overlay" id="agenda-modal" role="dialog" aria-modal="true" aria-labelledby="agenda-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📅 Agenda de Projetos</div>
+    <h2 class="sheet-title" id="agenda-title">📅 Agenda de Projetos</h2>
     <div id="agenda-cal" style="margin-bottom:12px;"></div>
     <div id="agenda-day-list" style="margin-bottom:12px;"></div>
     <button onclick="closeModals();showModal('agenda-add-modal')" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">+ Novo Projeto</button>
   </div>
 </div>
-<div class="overlay" id="agenda-add-modal" onclick="closeModals()">
+<div class="overlay" id="agenda-add-modal" role="dialog" aria-modal="true" aria-labelledby="agenda-add-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Novo Projeto</div>
-    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Cliente</label><input class="auth-input" id="job-cliente" placeholder="Nome do cliente"></div>
-    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Tipo de projeto</label><select class="auth-input" id="job-servico" style="padding:12px;"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada</option><option>Pintura automotiva</option><option>Funilaria</option><option>Grafite / Mural</option><option>Outro</option></select></div>
-    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Data</label><input class="auth-input" type="date" id="job-data"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Hora</label><input class="auth-input" type="time" id="job-hora"></div></div>
-    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label">Endereço</label><input class="auth-input" id="job-endereco" placeholder="Rua, bairro"></div>
-    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label">Receita (R$)</label><input class="auth-input" type="text" inputmode="decimal" id="job-receita" placeholder="0,00" onblur="fmtBRL(this)"></div><div class="auth-field" style="flex:1;"><label class="auth-label">Custo Material</label><input class="auth-input" type="text" inputmode="decimal" id="job-custo" placeholder="0,00" onblur="fmtBRL(this)"></div></div>
-    <div class="auth-field" style="margin-bottom:12px;"><label class="auth-label">Detalhes do projeto</label><textarea class="auth-input" id="job-notas" rows="3" placeholder="Escopo, cômodos, cores, condições, prazo..." style="resize:none;"></textarea></div>
+    <h2 class="sheet-title" id="agenda-add-title">Novo Projeto</h2>
+    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label" for="job-cliente">Cliente</label><input class="auth-input" id="job-cliente" name="cliente" placeholder="Nome do cliente" style="font-size:16px;"></div>
+    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label" for="job-servico">Tipo de projeto</label><select class="auth-input" id="job-servico" name="servico" style="padding:12px;font-size:16px;"><option>Pintura residencial</option><option>Pintura comercial</option><option>Textura / Grafiato</option><option>Piso Epóxi</option><option>Fachada</option><option>Pintura automotiva</option><option>Funilaria</option><option>Grafite / Mural</option><option>Outro</option></select></div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label" for="job-data">Data</label><input class="auth-input" type="date" id="job-data" name="data" style="font-size:16px;"></div><div class="auth-field" style="flex:1;"><label class="auth-label" for="job-hora">Hora</label><input class="auth-input" type="time" id="job-hora" name="hora" style="font-size:16px;"></div></div>
+    <div class="auth-field" style="margin-bottom:10px;"><label class="auth-label" for="job-endereco">Endereço</label><input class="auth-input" id="job-endereco" name="endereco" autocomplete="street-address" placeholder="Rua, bairro" style="font-size:16px;"></div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;"><div class="auth-field" style="flex:1;"><label class="auth-label" for="job-receita">Receita (R$)</label><input class="auth-input" type="text" inputmode="decimal" id="job-receita" name="receita" placeholder="0,00" style="font-size:16px;" onblur="fmtBRL(this)"></div><div class="auth-field" style="flex:1;"><label class="auth-label" for="job-custo">Custo Material</label><input class="auth-input" type="text" inputmode="decimal" id="job-custo" name="custo" placeholder="0,00" style="font-size:16px;" onblur="fmtBRL(this)"></div></div>
+    <div class="auth-field" style="margin-bottom:12px;"><label class="auth-label" for="job-notas">Detalhes do projeto</label><textarea class="auth-input" id="job-notas" name="notas" rows="3" placeholder="Escopo, cômodos, cores, condições, prazo..." style="resize:none;font-size:16px;"></textarea></div>
     <button onclick="salvarJob()" style="width:100%;padding:12px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar Projeto</button>
   </div>
 </div>
 
 <!-- ══ CHECKLIST MODAL ══ -->
-<div class="overlay" id="checklist-modal" onclick="closeModals()">
+<div class="overlay" id="checklist-modal" role="dialog" aria-modal="true" aria-labelledby="checklist-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">✅ Checklist de Obra</div>
+    <h2 class="sheet-title" id="checklist-title">✅ Checklist de Obra</h2>
     <div id="checklist-items" style="margin-bottom:12px;"></div>
     <div style="display:flex;gap:8px;margin-bottom:12px;"><input class="auth-input" id="checklist-new" placeholder="Novo item..." style="flex:1;"><button onclick="addChecklistItem()" style="padding:10px 16px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">+</button></div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Templates rápidos:</div>
@@ -1575,10 +1596,10 @@
 </div>
 
 <!-- ══ ANOTAÇÕES MODAL ══ -->
-<div class="overlay" id="notes-modal" onclick="closeModals()">
+<div class="overlay" id="notes-modal" role="dialog" aria-modal="true" aria-labelledby="notes-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📝 Minhas Anotações</div>
+    <h2 class="sheet-title" id="notes-title">📝 Minhas Anotações</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Lembretes, medidas e recados de obra — fica salvo no seu perfil.</div>
     <textarea class="auth-input" id="note-new" placeholder="Escreva uma anotação..." rows="3" style="resize:vertical;margin-bottom:8px;"></textarea>
     <button id="rec-audio-btn" onclick="iniciarGravacaoNota()" style="width:100%;padding:10px;background:var(--cream);color:var(--ink);border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;">🎤 Gravar áudio e transcrever <span style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;">PRO</span></button>
@@ -1591,10 +1612,10 @@
 </div>
 
 <!-- ══ LUCRO / FINANCEIRO MODAL ══ -->
-<div class="overlay" id="lucro-modal" onclick="closeModals()">
+<div class="overlay" id="lucro-modal" role="dialog" aria-modal="true" aria-labelledby="lucro-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">💰 Financeiro</div>
+    <h2 class="sheet-title" id="lucro-title">💰 Financeiro</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div style="background:linear-gradient(135deg,#2ec4b6,#0b8a78);border-radius:14px;padding:16px;color:#fff;"><div style="font-size:11px;opacity:.7;">RECEITA TOTAL</div><div id="fin-receita" style="font-size:22px;font-weight:800;font-family:Syne,sans-serif;">R$ 0</div></div>
       <div style="background:linear-gradient(135deg,var(--p1),var(--p4));border-radius:14px;padding:16px;color:#fff;"><div style="font-size:11px;opacity:.7;">LUCRO LÍQUIDO</div><div id="fin-lucro" style="font-size:22px;font-weight:800;font-family:Syne,sans-serif;">R$ 0</div></div>
@@ -1629,10 +1650,10 @@
 </div>
 
 <!-- ══ MAQUININHA MODAL ══ -->
-<div class="overlay" id="maquininha-modal" onclick="closeModals()">
+<div class="overlay" id="maquininha-modal" role="dialog" aria-modal="true" aria-labelledby="maquininha-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">💳 Maquininha — em breve</div>
+    <h2 class="sheet-title" id="maquininha-title">💳 Maquininha — em breve</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
       O QueroUmaCor está selecionando <strong>parceiros curados</strong> para você receber pagamentos no cartão direto dos seus clientes.
     </div>
@@ -1648,10 +1669,10 @@
 </div>
 
 <!-- ══ AUTO-RESPOSTA MODAL ══ -->
-<div class="overlay" id="auto-resp-modal" onclick="closeModals()">
+<div class="overlay" id="auto-resp-modal" role="dialog" aria-modal="true" aria-labelledby="auto-resp-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">⚡ Respostas Automáticas</div>
+    <h2 class="sheet-title" id="auto-resp-title">⚡ Respostas Automáticas</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Configure mensagens automáticas para novos orçamentos e follow-ups.</div>
     <div style="background:var(--white);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><span style="font-size:13px;font-weight:700;">Novo Orçamento Recebido</span><div class="ar-switch on" onclick="arToggle(this)"><input type="checkbox" id="ar-quote-on" checked style="display:none;"><span class="ar-knob"></span></div></div>
@@ -1670,20 +1691,20 @@
 </div>
 
 <!-- ══ RANKING MODAL ══ -->
-<div class="overlay" id="ranking-modal" onclick="closeModals()">
+<div class="overlay" id="ranking-modal" role="dialog" aria-modal="true" aria-labelledby="ranking-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🏅 Ranking de Pintores</div>
+    <h2 class="sheet-title" id="ranking-title">🏅 Ranking de Pintores</h2>
     <div style="display:flex;gap:8px;margin-bottom:14px;"><input class="auth-input" id="ranking-city" placeholder="Digite sua cidade..." style="flex:1;" oninput="loadRanking()"><button onclick="loadRanking()" style="padding:10px 14px;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;">Buscar</button></div>
     <div id="ranking-list"><div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Busque uma cidade para ver o ranking</div></div>
   </div>
 </div>
 
 <!-- ══ REFERRAL / INDICAÇÃO MODAL ══ -->
-<div class="overlay" id="referral-modal" onclick="closeModals()">
+<div class="overlay" id="referral-modal" role="dialog" aria-modal="true" aria-labelledby="referral-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🤝 Indicações entre Pintores</div>
+    <h2 class="sheet-title" id="referral-title">🤝 Indicações entre Pintores</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Indique projetos que não pode atender e ganhe pontos quando o pintor indicado concluir.</div>
     <div style="background:linear-gradient(135deg,#2ec4b6,var(--p1));border-radius:14px;padding:16px;color:#fff;margin-bottom:14px;"><div style="font-size:11px;opacity:.7;">SEUS PONTOS</div><div id="ref-pontos" style="font-size:28px;font-weight:800;font-family:Syne,sans-serif;">0</div><div style="font-size:11px;opacity:.7;margin-top:4px;">Acumule pontos pra liberar o Plano PRO</div></div>
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px;">COMO FUNCIONA</div>
@@ -1697,10 +1718,10 @@
 </div>
 
 <!-- ══ PONTOS / CASHBACK MODAL ══ -->
-<div class="overlay" id="points-modal" onclick="closeModals()">
+<div class="overlay" id="points-modal" role="dialog" aria-modal="true" aria-labelledby="points-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🎁 Meus Pontos</div>
+    <h2 class="sheet-title" id="points-title">🎁 Meus Pontos</h2>
     <div style="background:linear-gradient(135deg,var(--p1),var(--p4));border-radius:14px;padding:20px;color:#fff;text-align:center;margin-bottom:14px;">
       <div style="font-size:11px;opacity:.7;">SALDO DISPONÍVEL</div>
       <div id="pts-saldo" style="font-size:34px;font-weight:800;font-family:Syne,sans-serif;">0 pts</div>
@@ -1717,13 +1738,13 @@
   </div>
 </div>
 
-<div class="overlay" id="ai-chat-modal" onclick="closeModals()">
+<div class="overlay" id="ai-chat-modal" role="dialog" aria-modal="true" aria-labelledby="ai-chat-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
       <img src="img/seu-ze.webp" alt="Seu Zé" style="width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;">
       <div>
-        <div class="sheet-title" style="margin:0;font-size:16px;">Seu Zé</div>
+        <h2 class="sheet-title" id="ai-chat-title" style="margin:0;font-size:16px;">Seu Zé</h2>
         <div style="font-size:11px;color:var(--muted);">Mestre pintor do QueroUmaCor</div>
       </div>
       <div style="margin-left:auto;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;">PRO</div>
@@ -1746,13 +1767,13 @@
 </div>
 
 <!-- ══ GERADOR DE ARTE PRA INSTAGRAM (PRO) ══ -->
-<div class="overlay" id="ai-art-modal" onclick="closeModals()">
+<div class="overlay" id="ai-art-modal" role="dialog" aria-modal="true" aria-labelledby="ai-art-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
       <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#ff6b35,#8338ec);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;">🎨</div>
       <div style="flex:1;">
-        <div class="sheet-title" style="margin:0;font-size:16px;">Arte pra Instagram</div>
+        <h2 class="sheet-title" id="ai-art-title" style="margin:0;font-size:16px;">Arte pra Instagram</h2>
         <div style="font-size:11px;color:var(--muted);">Foto + Seu Zé = post pronto</div>
       </div>
       <div style="background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;">PRO</div>
@@ -1823,18 +1844,18 @@
   </div>
 </div>
 
-<div class="overlay" id="ai-orc-modal" onclick="closeModals()">
+<div class="overlay" id="ai-orc-modal" role="dialog" aria-modal="true" aria-labelledby="ai-orc-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📄 Orçamento</div>
+    <h2 class="sheet-title" id="ai-orc-title">📄 Orçamento</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Preencha os dados e gere um orçamento profissional. Peça pro Seu Zé sugerir o escopo (recurso PRO).</div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Cliente</label>
-      <input class="auth-input" type="text" id="ai-orc-cliente" placeholder="Nome do cliente">
+      <label class="auth-label" for="ai-orc-cliente">Cliente</label>
+      <input class="auth-input" type="text" id="ai-orc-cliente" name="cliente" placeholder="Nome do cliente" style="font-size:16px;">
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Tipo de serviço</label>
-      <select class="auth-input" id="ai-orc-servico" style="padding:12px;">
+      <label class="auth-label" for="ai-orc-servico">Tipo de serviço</label>
+      <select class="auth-input" id="ai-orc-servico" name="servico" style="padding:12px;font-size:16px;">
         <option value="Pintura residencial interna">Pintura residencial interna</option>
         <option value="Pintura residencial externa">Pintura residencial externa</option>
         <option value="Pintura comercial">Pintura comercial</option>
@@ -1847,26 +1868,26 @@
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Área (m²)</label>
-        <input class="auth-input" type="number" id="ai-orc-area" placeholder="Ex: 80">
+        <label class="auth-label" for="ai-orc-area">Área (m²)</label>
+        <input class="auth-input" type="number" id="ai-orc-area" name="area" placeholder="Ex: 80" style="font-size:16px;">
       </div>
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Cômodos</label>
-        <input class="auth-input" type="number" id="ai-orc-comodos" placeholder="Ex: 4">
+        <label class="auth-label" for="ai-orc-comodos">Cômodos</label>
+        <input class="auth-input" type="number" id="ai-orc-comodos" name="comodos" placeholder="Ex: 4" style="font-size:16px;">
       </div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Demãos</label>
-        <select class="auth-input" id="ai-orc-demaos" style="padding:12px;">
+        <label class="auth-label" for="ai-orc-demaos">Demãos</label>
+        <select class="auth-input" id="ai-orc-demaos" name="demaos" style="padding:12px;font-size:16px;">
           <option value="2">2 demãos</option>
           <option value="1">1 demão</option>
           <option value="3">3 demãos</option>
         </select>
       </div>
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Condição</label>
-        <select class="auth-input" id="ai-orc-condicao" style="padding:12px;">
+        <label class="auth-label" for="ai-orc-condicao">Condição</label>
+        <select class="auth-input" id="ai-orc-condicao" name="condicao" style="padding:12px;font-size:16px;">
           <option value="1">Parede nova</option>
           <option value="1.2">Parede antiga</option>
           <option value="1.5">Concreto/tijolo</option>
@@ -1876,15 +1897,15 @@
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Cobrança</label>
-        <select class="auth-input" id="ai-orc-cobranca" style="padding:12px;">
+        <label class="auth-label" for="ai-orc-cobranca">Cobrança</label>
+        <select class="auth-input" id="ai-orc-cobranca" name="cobranca" style="padding:12px;font-size:16px;">
           <option value="m2">Por m²</option>
           <option value="fechado">Preço fechado</option>
         </select>
       </div>
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Material</label>
-        <select class="auth-input" id="ai-orc-material" style="padding:12px;">
+        <label class="auth-label" for="ai-orc-material">Material</label>
+        <select class="auth-input" id="ai-orc-material" name="material" style="padding:12px;font-size:16px;">
           <option value="incluso">Material incluso</option>
           <option value="cliente">Por conta do cliente</option>
         </select>
@@ -1892,22 +1913,22 @@
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Valor mão de obra (R$/m²)</label>
-        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-preco" placeholder="Ex: 25,00" onblur="fmtBRL(this)">
+        <label class="auth-label" for="ai-orc-preco">Valor mão de obra (R$/m²)</label>
+        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-preco" name="preco" placeholder="Ex: 25,00" style="font-size:16px;" onblur="fmtBRL(this)">
       </div>
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Valor fechado (R$)</label>
-        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-valorfechado" placeholder="Se preço fechado" onblur="fmtBRL(this)">
+        <label class="auth-label" for="ai-orc-valorfechado">Valor fechado (R$)</label>
+        <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-valorfechado" name="valorfechado" placeholder="Se preço fechado" style="font-size:16px;" onblur="fmtBRL(this)">
       </div>
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Materiais extras inclusos (opcional)</label>
-      <input class="auth-input" type="text" id="ai-orc-extras" placeholder="Ex: massa, selador, andaime, lona">
+      <label class="auth-label" for="ai-orc-extras">Materiais extras inclusos (opcional)</label>
+      <input class="auth-input" type="text" id="ai-orc-extras" name="extras" placeholder="Ex: massa, selador, andaime, lona" style="font-size:16px;">
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Forma de pagamento</label>
-        <select class="auth-input" id="ai-orc-pgto" style="padding:12px;">
+        <label class="auth-label" for="ai-orc-pgto">Forma de pagamento</label>
+        <select class="auth-input" id="ai-orc-pgto" name="pgto" style="padding:12px;font-size:16px;">
           <option value="À vista">À vista</option>
           <option value="Entrada + parcelas">Entrada + parcelas</option>
           <option value="Parcelado">Parcelado</option>
@@ -1915,13 +1936,13 @@
         </select>
       </div>
       <div class="auth-field" style="flex:1;">
-        <label class="auth-label">Parcelas</label>
-        <input class="auth-input" type="number" id="ai-orc-parcelas" placeholder="Ex: 3" min="1">
+        <label class="auth-label" for="ai-orc-parcelas">Parcelas</label>
+        <input class="auth-input" type="number" id="ai-orc-parcelas" name="parcelas" placeholder="Ex: 3" min="1" style="font-size:16px;">
       </div>
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Entrada / sinal (R$, opcional)</label>
-      <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-entrada" placeholder="Ex: 500,00" onblur="fmtBRL(this)">
+      <label class="auth-label" for="ai-orc-entrada">Entrada / sinal (R$, opcional)</label>
+      <input class="auth-input" type="text" inputmode="decimal" id="ai-orc-entrada" name="entrada" placeholder="Ex: 500,00" style="font-size:16px;" onblur="fmtBRL(this)">
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
       <label class="auth-label">Aceita pagamento em</label>
@@ -1944,8 +1965,8 @@
       </div>
     </div>
     <div class="auth-field" style="margin-bottom:12px;">
-      <label class="auth-label">Observações (opcional)</label>
-      <textarea class="auth-input" id="ai-orc-obs" placeholder="Paredes com infiltração, cores específicas, preparação necessária..." rows="2" style="resize:none;"></textarea>
+      <label class="auth-label" for="ai-orc-obs">Observações (opcional)</label>
+      <textarea class="auth-input" id="ai-orc-obs" name="obs" placeholder="Paredes com infiltração, cores específicas, preparação necessária..." rows="2" style="resize:none;font-size:16px;"></textarea>
     </div>
     <button onclick="sugerirEscopoIA(this)" style="width:100%;padding:12px;background:linear-gradient(135deg,#8338ec,var(--p1));color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:8px;">
       ✨ Sugerir escopo com Seu Zé <span style="background:rgba(255,255,255,.25);font-size:9px;padding:2px 7px;border-radius:10px;margin-left:4px;">PRO</span>
@@ -1957,10 +1978,10 @@
   </div>
 </div>
 
-<div class="overlay" id="post-modal" onclick="closeModals()">
+<div class="overlay" id="post-modal" role="dialog" aria-modal="true" aria-labelledby="post-modal-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title" id="post-modal-title">Nova Publicação</div>
+    <h2 class="sheet-title" id="post-modal-title">Nova Publicação</h2>
     <!-- Type toggle -->
     <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;">
       <button id="post-type-story" onclick="setPostType('story')" style="flex:1;padding:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;background:var(--white);color:var(--ink);transition:.2s;">Story</button>
@@ -2040,10 +2061,10 @@
 
 
 <!-- CART MODAL -->
-<div class="overlay" id="cart-modal" onclick="closeModals()">
+<div class="overlay" id="cart-modal" role="dialog" aria-modal="true" aria-labelledby="cart-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Meu Carrinho</div>
+    <h2 class="sheet-title" id="cart-title">Meu Carrinho</h2>
     <div id="cart-items-container"></div>
     <div style="display:flex;justify-content:space-between;padding:14px 0 8px;border-top:1px solid var(--border);margin-top:8px;">
       <div style="font-size:15px;font-weight:700;">Total</div>
@@ -2056,7 +2077,7 @@
 </div>
 
 <!-- PRODUCT DETAIL MODAL -->
-<div class="overlay" id="product-detail-modal" onclick="closeModals()">
+<div class="overlay" id="product-detail-modal" role="dialog" aria-modal="true" aria-label="Detalhes do produto" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
     <div style="height:140px;background:linear-gradient(135deg,#c4956a,#d4a870);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:60px;margin-bottom:16px;">🪣</div>
@@ -2076,10 +2097,10 @@
 </div>
 
 <!-- EDIT PROFILE MODAL -->
-<div class="overlay" id="edit-profile-modal" onclick="closeModals()">
+<div class="overlay" id="edit-profile-modal" role="dialog" aria-modal="true" aria-labelledby="edit-profile-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Editar Perfil</div>
+    <h2 class="sheet-title" id="edit-profile-title">Editar Perfil</h2>
     <!-- Avatar upload -->
     <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px;">
       <div style="position:relative;cursor:pointer;" onclick="document.getElementById('ep-avatar-input').click()">
@@ -2118,25 +2139,25 @@
       </div>
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Nome</div>
-      <input id="ep-name" type="text" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="ep-name" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Nome</label>
+      <input id="ep-name" name="name" autocomplete="name" type="text" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">@Tag</div>
-      <input id="ep-tag" type="text" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="ep-tag" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">@Tag</label>
+      <input id="ep-tag" name="username" autocomplete="username" type="text" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Email</div>
-      <input id="ep-email" type="email" placeholder="seu@email.com" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="ep-email" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Email</label>
+      <input id="ep-email" name="email" autocomplete="email" type="email" placeholder="seu@email.com" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Cidade</div>
-      <input id="ep-city" type="text" list="ep-city-list" placeholder="Comece a digitar a cidade…" autocomplete="off" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="ep-city" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Cidade</label>
+      <input id="ep-city" name="city" type="text" list="ep-city-list" placeholder="Comece a digitar a cidade…" autocomplete="address-level2" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
       <datalist id="ep-city-list"></datalist>
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Estado</div>
-      <input id="ep-state" type="text" list="ep-state-list" placeholder="Digite a UF ou o nome (ex: SP ou São Paulo)" autocomplete="off" oninput="_epStateChanged()" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;text-transform:uppercase;">
+      <label for="ep-state" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Estado</label>
+      <input id="ep-state" name="state" type="text" list="ep-state-list" placeholder="Digite a UF ou o nome (ex: SP ou São Paulo)" autocomplete="address-level1" oninput="_epStateChanged()" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;text-transform:uppercase;">
       <datalist id="ep-state-list">
         <option value="AC">Acre</option>
         <option value="AL">Alagoas</option>
@@ -2168,12 +2189,12 @@
       </datalist>
     </div>
     <div style="margin-bottom:12px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Telefone</div>
-      <input id="ep-phone" type="text" placeholder="(11) 99999-9999" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="ep-phone" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Telefone</label>
+      <input id="ep-phone" name="tel" type="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 99999-9999" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div style="margin-bottom:12px;" id="ep-radius-wrap">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Raio de atendimento</div>
-      <select id="ep-radius" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;background:#fff;">
+      <label for="ep-radius" style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Raio de atendimento</label>
+      <select id="ep-radius" name="radius" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;background:#fff;">
         <option value="">Selecione</option>
         <option value="5">Até 5 km (bairro)</option>
         <option value="10">Até 10 km</option>
@@ -2197,10 +2218,10 @@
 </div>
 
 <!-- ESPECIALIDADES MODAL -->
-<div class="overlay" id="edit-specs-modal" onclick="closeModals()">
+<div class="overlay" id="edit-specs-modal" role="dialog" aria-modal="true" aria-labelledby="edit-specs-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;overflow-y:auto;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🎨 Especialidades</div>
+    <h2 class="sheet-title" id="edit-specs-title">🎨 Especialidades</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Selecione tudo que você faz — aparece no seu perfil pro cliente.</div>
     <div id="specs-modal-grid" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;"></div>
     <button onclick="saveEspecialidades()" style="width:100%;padding:14px;background:var(--p1);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Salvar</button>
@@ -2208,10 +2229,10 @@
 </div>
 
 <!-- RAIO DE ATENDIMENTO MODAL -->
-<div class="overlay" id="edit-radius-modal" onclick="closeModals()">
+<div class="overlay" id="edit-radius-modal" role="dialog" aria-modal="true" aria-labelledby="edit-radius-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:60vh;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">📍 Raio de atendimento</div>
+    <h2 class="sheet-title" id="edit-radius-title">📍 Raio de atendimento</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Até onde você aceita ir pra atender obra?</div>
     <select id="radius-modal-select" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;background:#fff;margin-bottom:16px;">
       <option value="">Selecione</option>
@@ -2227,13 +2248,14 @@
 </div>
 
 <!-- NEW CHAT MODAL -->
-<div class="overlay" id="new-chat-modal" onclick="closeModals()">
+<div class="overlay" id="new-chat-modal" role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onclick="closeModals()">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;">
     <div class="sheet-handle"></div>
-    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;text-align:center;margin-bottom:16px;color:var(--ink);">Nova Conversa</div>
+    <h2 id="new-chat-title" style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;text-align:center;margin:0 0 16px;color:var(--ink);">Nova Conversa</h2>
     <div style="position:relative;margin-bottom:14px;">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="new-chat-search" type="text" placeholder="Buscar por nome ou @tag..." oninput="searchNewChatUsers(this.value)" style="width:100%;padding:10px 14px 10px 38px;border-radius:12px;border:1px solid var(--border);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;">
+      <label for="new-chat-search" style="position:absolute;left:-9999px;">Buscar usuários</label>
+      <input id="new-chat-search" name="q" type="search" autocomplete="off" placeholder="Buscar por nome ou @tag..." oninput="searchNewChatUsers(this.value)" style="width:100%;padding:10px 14px 10px 38px;border-radius:12px;border:1px solid var(--border);font-size:16px;outline:none;font-family:'DM Sans',sans-serif;">
     </div>
     <div id="new-chat-results" style="max-height:50vh;overflow-y:auto;">
       <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:8px 0 6px;">Sugerido</div>
@@ -2248,40 +2270,40 @@
 </div>
 
 <!-- RESET PASSWORD MODAL (recovery flow) -->
-<div class="overlay" id="reset-pw-modal">
-  <div class="sheet" onclick="event.stopPropagation()">
+<div class="overlay" id="reset-pw-modal" role="dialog" aria-modal="true" aria-labelledby="reset-pw-title">
+  <form class="sheet" onclick="event.stopPropagation()" onsubmit="doSetNewPassword();return false;">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🔑 Criar nova senha</div>
+    <h2 class="sheet-title" id="reset-pw-title">🔑 Criar nova senha</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">Escolha uma senha segura para continuar. Mínimo 8 caracteres.</div>
     <div class="auth-field">
-      <label class="auth-label">Nova senha</label>
+      <label class="auth-label" for="reset-pw-new">Nova senha</label>
       <div class="auth-pw-wrap">
-        <input class="auth-input" type="password" id="reset-pw-new" placeholder="••••••••">
-        <button type="button" class="auth-pw-eye" onclick="togglePw('reset-pw-new',this)">
+        <input class="auth-input" type="password" id="reset-pw-new" name="new-password" autocomplete="new-password" placeholder="••••••••" style="font-size:16px;">
+        <button type="button" class="auth-pw-eye" aria-label="Mostrar/ocultar senha" onclick="togglePw('reset-pw-new',this)">
           <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </div>
     <div class="auth-field" style="margin-bottom:24px;">
-      <label class="auth-label">Confirmar nova senha</label>
+      <label class="auth-label" for="reset-pw-confirm">Confirmar nova senha</label>
       <div class="auth-pw-wrap">
-        <input class="auth-input" type="password" id="reset-pw-confirm" placeholder="••••••••">
-        <button type="button" class="auth-pw-eye" onclick="togglePw('reset-pw-confirm',this)">
+        <input class="auth-input" type="password" id="reset-pw-confirm" name="confirm-password" autocomplete="new-password" placeholder="••••••••" style="font-size:16px;">
+        <button type="button" class="auth-pw-eye" aria-label="Mostrar/ocultar senha" onclick="togglePw('reset-pw-confirm',this)">
           <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </div>
-    <button class="auth-btn" type="button" onclick="doSetNewPassword()">Salvar nova senha</button>
-  </div>
+    <button class="auth-btn" type="submit">Salvar nova senha</button>
+  </form>
 </div>
 
 <!-- TOAST -->
-<div class="toast" id="toast-el"></div>
+<div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260525e" defer></script>
+<script src="/app.js?v=20260526a" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

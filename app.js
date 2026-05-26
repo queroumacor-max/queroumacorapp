@@ -104,84 +104,45 @@ window.addEventListener('popstate', function(){
 
 
 // ══ TOAST ══
+// A11y: o elemento #toast-el em index.html DEVE ter role="status" e
+// aria-live="polite" pra leitores de tela anunciarem mensagens. Wave 2-html
+// adiciona esses atributos no HTML — não setar aqui por toast() pra evitar
+// recriar o live region a cada chamada (quebra anúncio).
 let tt;
 function toast(msg){
   const el=document.getElementById('toast-el');
+  if(!el) return;
+  // Garante role/aria-live mesmo se o HTML ainda não foi atualizado.
+  if(!el.hasAttribute('role')) el.setAttribute('role','status');
+  if(!el.hasAttribute('aria-live')) el.setAttribute('aria-live','polite');
   el.textContent=msg; el.classList.add('show');
   clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),2200);
 }
 
 // ══ MODALS ══
-function showModal(id){document.getElementById(id).classList.add('open');}
-function closeModals(){document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));}
-function hideModal(id){document.getElementById(id).classList.remove('open');}
-
-// ══ BEFORE/AFTER ══
-const baStates={};
-function toggleBA(id){
-  baStates[id]=!baStates[id];
-  const a=document.getElementById(id+'-a'), b=document.getElementById(id+'-b');
-  const la=document.getElementById(id+'-la'), ld=document.getElementById(id+'-ld');
-  if(baStates[id]){a.style.opacity='0';b.style.opacity='1';if(la)la.style.opacity='.4';if(ld)ld.style.opacity='1';}
-  else{a.style.opacity='1';b.style.opacity='0';if(la)la.style.opacity='1';if(ld)ld.style.opacity='.4';}
+function showModal(id){
+  // A11y: salva foco anterior pra restaurar depois e move foco pro 1º focável do modal
+  window._lastFocus = document.activeElement;
+  const m = document.getElementById(id);
+  if(!m) return;
+  m.classList.add('open');
+  setTimeout(() => {
+    const focusable = m.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if(focusable){ try { focusable.focus(); } catch(_){} }
+  }, 50);
 }
-
-// ══ PAINT BUCKET LIKE ══
-const likes={f:1284,1:836,2:2107};
-const liked={};
-function paintLike(e,btnId,countId,color){
-  liked[btnId]=!liked[btnId];
-  const btn=document.getElementById(btnId);
-  const svg=btn.querySelector('svg path');
-  if(liked[btnId]){
-    svg.setAttribute('fill',color); svg.setAttribute('stroke',color);
-    likes[btnId.replace('lk-','')]++;
-    splashPaint(e.clientX||e.touches?.[0]?.clientX||200, e.clientY||e.touches?.[0]?.clientY||300, color);
-  } else {
-    svg.setAttribute('fill','none'); svg.setAttribute('stroke','var(--ink)');
-    likes[btnId.replace('lk-','')]--;
+function closeModals(){
+  document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));
+  // A11y: restaura foco no elemento que abriu o modal
+  if(window._lastFocus && typeof window._lastFocus.focus === 'function'){
+    try { window._lastFocus.focus(); } catch(_){}
   }
-  const cnt=document.getElementById(countId);
-  const key=btnId.replace('lk-','');
-  const n=likes[key];
-  cnt.textContent=(key==='f')?n.toLocaleString('pt-BR'):n.toLocaleString('pt-BR')+' curtidas';
 }
-
-function splashPaint(x,y,color){
-  const canvas=document.getElementById('splash-canvas');
-  const rect=canvas.getBoundingClientRect();
-  canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight;
-  const ctx=canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const cx=x-rect.left, cy=y-rect.top;
-  const blobs=16;
-  const particles=[];
-  for(let i=0;i<blobs;i++){
-    const angle=Math.random()*Math.PI*2;
-    const speed=2+Math.random()*6;
-    const size=4+Math.random()*14;
-    particles.push({x:cx,y:cy,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-3,size,alpha:1,color});
+function hideModal(id){
+  document.getElementById(id)?.classList.remove('open');
+  if(window._lastFocus && typeof window._lastFocus.focus === 'function'){
+    try { window._lastFocus.focus(); } catch(_){}
   }
-  // Central burst
-  ctx.beginPath(); ctx.arc(cx,cy,28,0,Math.PI*2);
-  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,28);
-  g.addColorStop(0,color+'cc'); g.addColorStop(1,color+'00');
-  ctx.fillStyle=g; ctx.fill();
-  let frame=0;
-  function animate(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    particles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy; p.vy+=0.3; p.alpha-=0.04;
-      if(p.alpha<=0)return;
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.size*(1-frame/30),0,Math.PI*2);
-      ctx.fillStyle=color+(Math.floor(p.alpha*255).toString(16).padStart(2,'0'));
-      ctx.fill();
-    });
-    frame++;
-    if(frame<32)requestAnimationFrame(animate);
-    else ctx.clearRect(0,0,canvas.width,canvas.height);
-  }
-  animate();
 }
 
 // ══ PAINTER DATA ══
@@ -318,11 +279,6 @@ function openPainterPopupProfile(){
   if(painters && painters[id]){ openProfile(id); }
   else if(typeof openUserProfile==='function'){ openUserProfile(id); }
 }
-function mapChip(el){
-  el.closest('.map-filters-row').querySelectorAll('.map-chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-}
-
 // ══ PROFILE TABS ══
 function switchTab(n){
   ['works','vids','certs','reviews','cursos'].forEach(t=>{
@@ -331,19 +287,6 @@ function switchTab(n){
     if(el) el.style.display=t===n?'block':'none';
   });
 }
-function filterRev(el, rating){
-  document.querySelectorAll('.rev-chip').forEach(c=>{c.style.background='var(--border)';c.style.color='var(--ink)';});
-  el.style.background='var(--ink)'; el.style.color='#fff';
-  const cards = document.querySelectorAll('#tab-reviews .rev-card, #tab-reviews [class*="rev"]');
-  cards.forEach(c => {
-    if(!rating || rating === 'all') c.style.display = '';
-    else {
-      const stars = (c.textContent.match(/⭐/g)||[]).length;
-      c.style.display = stars === parseInt(rating) ? '' : 'none';
-    }
-  });
-}
-
 // ══ CALCULATOR ══
 let demaos=2;
 function setD(n){
@@ -621,19 +564,55 @@ function supportEmail(){
   window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
 }
 async function requestAccountDeletion(){
-  if(!(await appConfirm('Tem certeza que deseja solicitar a exclusão da sua conta?\n\nEsta ação é permanente e remove seu perfil, portfólio, mensagens e avaliações.', { okLabel:'Solicitar exclusão' }))) return;
-  const u = (typeof currentUser!=='undefined' && currentUser) ? currentUser : null;
-  const subject = encodeURIComponent('Solicitação de exclusão de conta - QueroUmaCor');
-  const body = encodeURIComponent(
-    'Solicito a exclusão definitiva da minha conta no QueroUmaCor e de todos os meus dados pessoais, conforme a LGPD.\n\n' +
-    '---\n' +
-    'E-mail da conta: ' + (u && u.email ? u.email : '') + '\n' +
-    'ID do usuário: ' + (u ? u.id : '') + '\n' +
-    'Data da solicitação: ' + new Date().toLocaleString('pt-BR')
-  );
-  window.location.href = 'mailto:' + SUPPORT.email + '?subject=' + subject + '&body=' + body;
-  toast('Abrindo seu e-mail para enviar a solicitação...');
+  if(!currentUser){ toast('Faça login'); return; }
+  if(!(await appConfirm('Excluir conta? Vamos processar em até 15 dias úteis (LGPD). Você pode reabrir entrando em contato pelo email ' + (SUPPORT && SUPPORT.email || 'loja@calicolors.com.br') + '.', { okLabel:'Sim, excluir' }))) return;
+  const reason = await appPrompt('(Opcional) Por que está excluindo?', '', { okLabel: 'Confirmar pedido' });
+  if(reason === null) return;
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.rpc('request_account_deletion', { p_reason: reason || null });
+    if(error) throw error;
+    toast('Pedido registrado. Processaremos em até 15 dias. Você receberá confirmação por email.');
+  } catch(e){
+    console.warn('requestAccountDeletion:', e && e.message || e);
+    toast('Erro: ' + (e && e.message || 'tente de novo'));
+  }
 }
+window.requestAccountDeletion = requestAccountDeletion;
+
+// LGPD — baixar todos os dados do usuário (chama /api/me-export que retorna JSON).
+async function baixarMeusDados(){
+  if(!currentUser){ toast('Faça login pra baixar seus dados'); return; }
+  toast('Preparando seu arquivo...');
+  try {
+    const sb = getSupabase();
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session) throw new Error('Sessão expirada');
+    const r = await fetch('/api/me-export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token })
+    });
+    if(!r.ok){
+      const err = await r.json().catch(() => ({}));
+      toast('Erro: ' + (err.error || 'tente de novo'));
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'queroumacor-meus-dados.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    toast('Download iniciado! ✅');
+  } catch(e){
+    console.warn('baixarMeusDados:', e && e.message || e);
+    toast('Erro ao baixar dados — tente de novo');
+  }
+}
+window.baixarMeusDados = baixarMeusDados;
 
 // ══════════════════════════════════════════
 // FEATURE 1 — APROVAÇÃO DE ORÇAMENTO (pipeline)
@@ -1904,12 +1883,6 @@ async function loadMaterialSuggestions(litros){
     </div>`).join('');
 }
 
-function copiarOrcamento(){
-  const resultEl = document.getElementById('ai-orc-result');
-  const text = resultEl?.innerText || '';
-  navigator.clipboard.writeText(text).then(()=>toast('Orçamento copiado!')).catch(()=>toast('Erro ao copiar'));
-}
-
 // ══ AGENDA DE PROJETOS (calendário) ══
 let _agCur = null;   // Date: primeiro dia do mês exibido
 let _agSel = null;   // 'yyyy-mm-dd' selecionado
@@ -2622,14 +2595,6 @@ async function trocarPontosPorPRO(){
   }
 }
 
-// ══ EARN POINTS HELPER (DEPRECATED) ══
-// Mantido só como referência. Pontos agora são creditados via triggers
-// SECURITY DEFINER no banco — não chame mais essa função. INSERT direto
-// em points é bloqueado por policy (Bateria 3.2).
-async function earnPoints(userId, amount, source, refId){
-  console.warn('earnPoints() está deprecated — pontos são creditados via trigger no DB.');
-}
-
 // ══ DISTRIBUIÇÃO DE LEADS ══
 async function distribuirLead(quoteId, serviceType, city){
   const sb = getSupabase(); if(!sb) return;
@@ -2650,16 +2615,6 @@ async function distribuirLead(quoteId, serviceType, city){
     is_exclusive: isExclusive
   }).eq('id', quoteId);
   return topPainter;
-}
-
-// ══ PEDIR ORÇAMENTO VIA POST ══
-function pedirOrcamentoPost(painterId, painterName){
-  document.getElementById('orc-painter-id').value = painterId || '';
-  const nameEl = document.getElementById('orc-painter-name');
-  const avEl = document.getElementById('orc-painter-av');
-  if(nameEl) nameEl.textContent = painterName || 'Profissional';
-  if(avEl) avEl.src = avatarUrl(painterName||'Profissional');
-  showScreen('orcamento');
 }
 
 // ══ MANIFESTAR INTERESSE EM OBRA ══
@@ -2684,7 +2639,11 @@ async function comprarObra(postId, artistName, artistId, artType){
   }
 }
 
+// Alias para o wrapper canônico startChatWith (em head.js). Mantido pelos
+// callers inline (ex.: app.js:~6787 onclick="openChatWithUser('...')").
 function openChatWithUser(userId){
+  if(typeof startChatWith === 'function') return startChatWith(userId);
+  // Fallback se head.js ainda não carregou
   showScreen('chat');
   setTimeout(()=>{ if(typeof openChat==='function') openChat(userId); },300);
 }
@@ -3725,25 +3684,6 @@ function _epStateChanged(){
   if(uf.length === 2) loadCidadesDoEstado(uf);
 }
 
-function openEditProfileAt(section){
-  openEditProfile().then(() => {
-    setTimeout(() => {
-      const sheet = document.querySelector('#edit-profile-modal .sheet');
-      if(section === 'specs'){
-        const el = document.getElementById('ep-specs-wrap');
-        if(el && sheet){ sheet.scrollTop = el.offsetTop - 16; }
-        const list = document.getElementById('ep-specs-list');
-        if(list && list.style.display === 'none') toggleEpSpecs();
-      } else if(section === 'radius'){
-        const el = document.getElementById('ep-radius-wrap');
-        if(el && sheet){ sheet.scrollTop = el.offsetTop - 16; }
-        const sel = document.getElementById('ep-radius');
-        if(sel) sel.focus();
-      }
-    }, 80);
-  });
-}
-
 // ══ ESPECIALIDADES — modal dedicado ══
 async function openEditEspecialidades(){
   const ctx = requireSession('Faça login');
@@ -4245,7 +4185,9 @@ async function handleRealtimeMsg(payload){
   }
 }
 
-// Bridge function for starting chat from profile
+// Bridge function for starting chat from profile.
+// Chamado por startChatWith (head.js) depois de showScreen('chat').
+// Mantido como impl separada pra evitar recursão com startChatWith.
 function openChatConversation(userId, userName){
   startNewChat(userId);
 }
@@ -5534,30 +5476,6 @@ function _isArteUrbanaSpray(p){
   return n.includes('arte urbana') || n.includes('arte-urbana');
 }
 
-function renderProductCard(p){
-  const isSpray = _isArteUrbanaSpray(p);
-  const img = isSpray ? null : getProductImage(p);
-  const bg = productBg(p);
-  const emoji = getCategoryEmoji(p.category);
-  const badgeHtml = p.badge ? (p.badge === 'NOVO' ? '<span class="mkt-badge-new">NOVO</span>' : '<span class="mkt-badge-promo">'+p.badge+'</span>') : '';
-  const stockClass = p.stock <= 5 ? 'low' : 'ok';
-  const stockIcon = p.stock <= 5 ? '⚠️' : '✅';
-  const priceFormatted = 'R$' + Number(p.price||0).toFixed(2).replace('.',',');
-  let swatchContent;
-  if(isSpray){
-    swatchContent = badgeHtml
-      + '<img src="/products/arte-urbana-can.webp" alt="" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:95%;width:auto;object-fit:contain;pointer-events:none;">';
-  } else {
-    swatchContent = img
-      ? badgeHtml+'<img src="'+img+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">'
-      : badgeHtml+(hasProductColor(p) ? '' : emoji);
-  }
-  const swatchStyle = isSpray
-    ? 'background:'+bg+';overflow:hidden;padding:0;position:relative;'
-    : 'background:'+bg+';overflow:hidden;padding:0;';
-  return '<div class="mkt-card" onclick="openProductDetail(\''+escapeJsArg(p.id)+'\')"><div class="mkt-swatch" style="'+swatchStyle+'">'+swatchContent+'</div><div class="mkt-card-body"><div class="mkt-card-name">'+escapeHtml(p.name||'')+'</div><div class="mkt-card-code">'+escapeHtml(p.code||'')+'</div><div class="mkt-card-price">'+priceFormatted+'</div>'+(p.stock !== undefined ? '<div class="mkt-card-stock '+stockClass+'">'+stockIcon+' '+escapeHtml(String(p.stock))+' unid</div>' : '')+'<button class="mkt-card-add" onclick="event.stopPropagation();openProductDetail(\''+escapeJsArg(p.id)+'\')">+ Carrinho</button></div></div>';
-}
-
 function renderProductRow(p){
   const isSpray = _isArteUrbanaSpray(p);
   const img = isSpray ? null : getProductImage(p);
@@ -5812,17 +5730,6 @@ function closeShirtZoom() {
   const overlay = document.getElementById('shirt-zoom-overlay');
   if (overlay) overlay.classList.remove('show');
   document.body.style.overflow = '';
-}
-
-function setShirtStyle(style) {
-  const pc = document.getElementById('shirt-logo-pintor-chip');
-  const cc = document.getElementById('shirt-logo-cali-chip');
-  document.querySelectorAll('.shirt-preview').forEach(p => p.classList.remove('active'));
-  const active = document.getElementById('style-' + style);
-  if(active) active.classList.add('active');
-  if(style === 'logo-pintor') { pc.style.display='block'; cc.style.display='none'; toast('Seu logo destacado!'); }
-  else if(style === 'logo-cali') { pc.style.display='none'; cc.style.display='block'; toast('Logo Cali Colors destacado!'); }
-  else { pc.style.display='block'; cc.style.display='block'; toast('Ambos os logos!'); }
 }
 
 // ══ AI LOGO GENERATOR ══
@@ -6329,24 +6236,6 @@ async function loadBusinessLogo(){
     _applyOwnLogoToShirt(url, null);
     const btn = document.getElementById('business-logo-btn');
     if(btn) btn.textContent = '📤 Trocar meu logo';
-  }
-}
-
-function toggleLogo(which) {
-  logoState[which] = !logoState[which];
-  const btn = document.getElementById('toggle-' + which);
-  const chip = document.getElementById('shirt-logo-' + which + '-chip');
-  btn.classList.toggle('active', logoState[which]);
-  if(chip) chip.style.display = logoState[which] ? 'block' : 'none';
-  if (which === 'pintor') {
-    const chestLogo = document.getElementById('shirt-chest-logo');
-    const placeholder = document.getElementById('shirt-chest-placeholder');
-    if (chestLogo && chestLogo.src) {
-      chestLogo.style.display = logoState.pintor ? 'block' : 'none';
-      if (placeholder) placeholder.style.display = 'none';
-    } else if (placeholder) {
-      placeholder.style.display = logoState.pintor ? 'flex' : 'none';
-    }
   }
 }
 
