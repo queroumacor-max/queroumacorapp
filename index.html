@@ -54,7 +54,7 @@
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg"></script>
 <script>window.CF_IMG_ENABLED=true</script>
-<script src="/head.js?v=20260526r" defer></script>
+<script src="/head.js?v=20260526s" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1953,12 +1953,18 @@
       </div>
       <!-- Gerar -->
       <button id="ai-art-gen-btn" onclick="gerarArteIG()" style="width:100%;padding:14px;background:linear-gradient(135deg,#ff6b35,#8338ec);color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;">✨ Gerar arte com Seu Zé</button>
-      <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px;">Cada geração consome 1 crédito. Limite 5/dia.</div>
+      <div id="ai-art-credits" style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;font-weight:600;">Créditos hoje: <span id="ai-art-credits-num" style="color:var(--ink);font-weight:800;">5/5</span></div>
 
       <!-- Resultado -->
       <div id="ai-art-result" style="display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Resultado</div>
         <img id="ai-art-result-img" src="" alt="" loading="lazy" decoding="async" style="width:100%;border-radius:14px;background:#000;margin-bottom:10px;">
+        <div id="ai-art-logo-toggle-wrap" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:var(--cream);border-radius:10px;font-size:12px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;font-weight:600;color:var(--ink);">
+            <input type="checkbox" id="ai-art-logo-toggle" onchange="_aiArtToggleLogo()" style="width:16px;height:16px;cursor:pointer;">
+            <span>Colocar minha logo no canto superior direito</span>
+          </label>
+        </div>
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px;">Legenda sugerida</div>
         <textarea id="ai-art-result-caption" maxlength="800" style="width:100%;min-height:80px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;outline:none;margin-bottom:12px;"></textarea>
         <div style="display:flex;gap:8px;">
@@ -2430,7 +2436,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526r" defer></script>
+<script src="/app.js?v=20260526s" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
