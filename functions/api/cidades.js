@@ -14,7 +14,7 @@ export async function onRequestGet(context) {
   try {
     const r = await fetch(
       'https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome',
-      { cf: { cacheTtl: 2592000, cacheEverything: true } }
+      { cf: { cacheTtl: 2592000, cacheEverything: true }, signal: AbortSignal.timeout(10000) }
     );
     if (!r.ok) {
       return json({ error: 'IBGE ' + r.status }, 502);
@@ -29,6 +29,8 @@ export async function onRequestGet(context) {
       }
     });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'IBGE timeout (10s) — tente de novo' }, 504);
     return json({ error: String(e && e.message || e) }, 500);
   }
 }

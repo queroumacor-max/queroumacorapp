@@ -31,7 +31,8 @@ export async function onRequestPost(context) {
         voice: 'onyx',
         input: text,
         response_format: 'mp3'
-      })
+      }),
+      signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) {
       const err = await r.text();
@@ -43,6 +44,8 @@ export async function onRequestPost(context) {
       headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' }
     });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'OpenAI TTS timeout (30s) — tente de novo' }, 504);
     return json({ error: String(e && e.message || e) }, 500);
   }
 }

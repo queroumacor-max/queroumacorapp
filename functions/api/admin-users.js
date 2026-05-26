@@ -74,7 +74,8 @@ export async function onRequestPost(context) {
   let callerEmail = '';
   try {
     const u = await fetch(`${supaUrl}/auth/v1/user`, {
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey }
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey },
+      signal: AbortSignal.timeout(10000)
     });
     if (!u.ok) return json({ error: 'token invalido' }, 401);
     const ud = await u.json();
@@ -94,7 +95,7 @@ export async function onRequestPost(context) {
     return json({ error: 'nao autorizado (email nao admin)' }, 403);
   }
   try {
-    const g = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access`, { headers: sHeaders });
+    const g = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access`, { headers: sHeaders, signal: AbortSignal.timeout(10000) });
     const arr = await g.json();
     if (!arr?.[0]?.portal_access) return json({ error: 'nao autorizado (portal_access)' }, 403);
   } catch (e) {
@@ -104,7 +105,8 @@ export async function onRequestPost(context) {
   const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
     method: 'PATCH',
     headers: { ...sHeaders, 'Prefer': 'return=representation' },
-    body: JSON.stringify(patch)
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(10000)
   });
   if (!r.ok) return json({ error: `supabase ${r.status}: ${(await r.text()).slice(0, 150)}` }, 502);
   const updated = await r.json();

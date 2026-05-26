@@ -43,7 +43,8 @@ export async function onRequestPost(context) {
           quality: 'medium',
           background: 'transparent',
           output_format: 'png'
-        })
+        }),
+        signal: AbortSignal.timeout(45000)
       });
       if (!r.ok) {
         const errText = await r.text();
@@ -59,6 +60,8 @@ export async function onRequestPost(context) {
     if (urls.some(u => !u)) return json({ error: 'OpenAI não retornou imagem' }, 502);
     return json({ urls });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'DALL-E timeout (45s) — tente de novo' }, 504);
     return json({ error: String(e?.message || e) }, 500);
   }
 }

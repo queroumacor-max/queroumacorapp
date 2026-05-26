@@ -27,7 +27,8 @@ export async function callAIText({
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(25000)
       });
       if (!r.ok) return { text: '', error: `OpenAI ${r.status}: ${(await r.text()).slice(0,150)}` };
       const data = await r.json();
@@ -55,7 +56,8 @@ export async function callAIText({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents,
             generationConfig: gconf
-          })
+          }),
+          signal: AbortSignal.timeout(25000)
         }
       );
       if (!r.ok) return { text: '', error: `Gemini ${r.status}: ${(await r.text()).slice(0,150)}` };

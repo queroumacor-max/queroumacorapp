@@ -42,7 +42,7 @@ export async function onRequestPost(context) {
   // Busca o pedido com o token do user (RLS filtra automaticamente pra ele)
   const orderRes = await fetch(
     `${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=id,user_id,total,status,items`,
-    { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${accessToken}` } }
+    { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10000) }
   );
   if (!orderRes.ok) {
     return json({ error: 'Supabase ' + orderRes.status + ': ' + (await orderRes.text()).slice(0, 200) }, 502);
@@ -81,7 +81,7 @@ export async function onRequestPost(context) {
   const idsList = productIds.map(id => '"' + encodeURIComponent(id).replace(/"/g, '') + '"').join(',');
   const prodRes = await fetch(
     `${supaUrl}/rest/v1/products?id=in.(${idsList})&select=id,name,price,active`,
-    { headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey } }
+    { headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey }, signal: AbortSignal.timeout(10000) }
   );
   if (!prodRes.ok) {
     return json({ error: 'Falha ao validar preços dos produtos' }, 502);
@@ -143,7 +143,8 @@ export async function onRequestPost(context) {
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
-      body: JSON.stringify({ total: validatedTotal })
+      body: JSON.stringify({ total: validatedTotal }),
+      signal: AbortSignal.timeout(10000)
     }).catch(() => {});
   }
 
@@ -175,7 +176,8 @@ export async function onRequestPost(context) {
         'Authorization': 'Bearer ' + env.MP_ACCESS_TOKEN,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(pref)
+      body: JSON.stringify(pref),
+      signal: AbortSignal.timeout(15000)
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -197,11 +199,14 @@ export async function onRequestPost(context) {
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
-      body: JSON.stringify({ gateway: 'mp', payment_url: initPoint })
+      body: JSON.stringify({ gateway: 'mp', payment_url: initPoint }),
+      signal: AbortSignal.timeout(10000)
     }).catch(() => { /* não bloqueia checkout se update falhar */ });
 
     return json({ init_point: initPoint, orderId, preference_id: data.id || null });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'Mercado Pago timeout (15s) — tente de novo' }, 504);
     return json({ error: String(e?.message || e) }, 500);
   }
 }
@@ -211,7 +216,8 @@ async function verifySupabaseToken(token, env) {
   const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
   try {
     const r = await fetch(`${supaUrl}/auth/v1/user`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'apikey': anonKey }
+      headers: { 'Authorization': `Bearer ${token}`, 'apikey': anonKey },
+      signal: AbortSignal.timeout(10000)
     });
     if (!r.ok) return null;
     const u = await r.json().catch(() => null);

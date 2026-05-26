@@ -54,7 +54,8 @@ export async function onRequestPost(context) {
   let uid = '';
   try {
     const u = await fetch(`${supaUrl}/auth/v1/user`, {
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey }
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey },
+      signal: AbortSignal.timeout(10000)
     });
     if (!u.ok) return json({ error: 'token inválido' }, 401);
     uid = (await u.json())?.id || '';
@@ -74,7 +75,7 @@ export async function onRequestPost(context) {
   // Pega media_url AUTORITATIVA do DB (não confia no body)
   let mediaUrl = '';
   try {
-    const chk = await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}&select=user_id,media_url`, { headers: sHeaders });
+    const chk = await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}&select=user_id,media_url`, { headers: sHeaders, signal: AbortSignal.timeout(10000) });
     const arr = await chk.json();
     if (!arr?.[0] || arr[0].user_id !== uid) return json({ error: 'não autorizado' }, 403);
     mediaUrl = arr[0].media_url || '';
@@ -92,7 +93,7 @@ export async function onRequestPost(context) {
   // Baixa o vídeo (com limite de tamanho)
   let videoBuf, videoMime;
   try {
-    const v = await fetch(mediaUrl);
+    const v = await fetch(mediaUrl, { signal: AbortSignal.timeout(20000) });
     if (!v.ok) throw new Error(`download ${v.status}`);
     videoMime = (v.headers.get('content-type') || 'video/mp4').split(';')[0];
     videoBuf = await v.arrayBuffer();
@@ -118,7 +119,8 @@ export async function onRequestPost(context) {
     await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`, {
       method: 'PATCH',
       headers: { ...sHeaders, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ status: 'approved' })
+      body: JSON.stringify({ status: 'approved' }),
+      signal: AbortSignal.timeout(10000)
     });
     return json({ status: 'approved' });
   } catch (e) {
@@ -139,7 +141,8 @@ async function uploadToGemini(apiKey, buf, mime) {
         'X-Goog-Upload-Header-Content-Type': mime,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ file: { display_name: 'qmc_mod' } })
+      body: JSON.stringify({ file: { display_name: 'qmc_mod' } }),
+      signal: AbortSignal.timeout(45000)
     }
   );
   if (!start.ok) throw new Error(`upload start ${start.status}`);
@@ -153,7 +156,8 @@ async function uploadToGemini(apiKey, buf, mime) {
       'X-Goog-Upload-Offset': '0',
       'X-Goog-Upload-Command': 'upload, finalize'
     },
-    body: buf
+    body: buf,
+    signal: AbortSignal.timeout(45000)
   });
   if (!up.ok) throw new Error(`upload finalize ${up.status}`);
   let info = await up.json();
@@ -165,7 +169,7 @@ async function uploadToGemini(apiKey, buf, mime) {
   const deadline = Date.now() + 40000;
   while (state === 'PROCESSING' && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 2500));
-    const s = await fetch(`https://generativelanguage.googleapis.com/v1beta/${name}?key=${apiKey}`);
+    const s = await fetch(`https://generativelanguage.googleapis.com/v1beta/${name}?key=${apiKey}`, { signal: AbortSignal.timeout(10000) });
     const sd = await s.json();
     state = sd?.state; uri = sd?.uri || uri;
   }
@@ -189,7 +193,8 @@ async function analyzeVideo(apiKey, fileUri, mime, caption) {
           ]
         }],
         generationConfig: { temperature: 0, responseMimeType: 'application/json' }
-      })
+      }),
+      signal: AbortSignal.timeout(25000)
     }
   );
   if (!r.ok) throw new Error(`analyze ${r.status}`);
@@ -207,12 +212,13 @@ async function analyzeVideo(apiKey, fileUri, mime, caption) {
 async function rejectPost(supaUrl, sHeaders, postId, mediaUrl) {
   await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`, {
     method: 'DELETE',
-    headers: { ...sHeaders, 'Prefer': 'return=minimal' }
+    headers: { ...sHeaders, 'Prefer': 'return=minimal' },
+    signal: AbortSignal.timeout(10000)
   });
   if (mediaUrl && mediaUrl.includes('/posts/')) {
     const path = mediaUrl.split('/posts/').pop();
     try {
-      await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders });
+      await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders, signal: AbortSignal.timeout(10000) });
     } catch { /* best-effort */ }
   }
 }

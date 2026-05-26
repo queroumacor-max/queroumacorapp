@@ -61,7 +61,8 @@ export async function requireAuth(env, request, body){
   const anon = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
   try {
     const r = await fetch(url, {
-      headers: { 'Authorization': 'Bearer ' + token, 'apikey': anon }
+      headers: { 'Authorization': 'Bearer ' + token, 'apikey': anon },
+      signal: AbortSignal.timeout(10000)
     });
     if(!r.ok){
       console.warn('requireAuth: token inválido (' + r.status + ') — fail-open');
@@ -104,7 +105,8 @@ export async function requirePro(env, userId){
       headers: {
         'apikey': serviceKey,
         'Authorization': 'Bearer ' + serviceKey
-      }
+      },
+      signal: AbortSignal.timeout(10000)
     });
     if(!r.ok){
       console.warn('requirePro: falha ao consultar profiles', r.status);
@@ -153,7 +155,8 @@ export async function checkRateLimit(env, userId, endpoint, limit = 30){
         p_user_id: userId,
         p_endpoint: endpoint,
         p_limit: limit
-      })
+      }),
+      signal: AbortSignal.timeout(10000)
     });
     if(!r.ok) return { allowed: true, skipped: true };
     const data = await r.json();
