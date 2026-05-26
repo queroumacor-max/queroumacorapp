@@ -7669,4 +7669,4 @@ function App() {
     }
   }, currentPage?.component)));
 }
-ReactDOM.createRoot(document.getElementById('root')).render( /*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(App, null)));
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(App, null)));
