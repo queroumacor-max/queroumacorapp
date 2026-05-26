@@ -1743,15 +1743,20 @@ ALTER TABLE public.points
   ADD CONSTRAINT points_amount_sane
   CHECK (amount IS NULL OR (amount >= 0 AND amount <= 10000));
 
--- award_order_paid_points com CAP em 100 pts/order (anti admin fraud + anti
--- pedido absurdamente caro creditando milhares de pontos)
+-- award_order_paid_points com CAP em 100 pts/order + usa LEAST(total, paid_amount)
+-- (anti admin fraud + admin não pode inflar total pra creditar mais pts)
 CREATE OR REPLACE FUNCTION public.award_order_paid_points()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_pts integer;
+DECLARE v_pts integer; v_base numeric;
 BEGIN
   IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid' AND NEW.user_id IS NOT NULL THEN
-    -- Cap em 100 pts por order (1 ordem = no máximo 1 mês PRO via redeem)
-    v_pts := LEAST(100, FLOOR(COALESCE(NEW.total, 0) / 10)::integer);
+    -- Usa LEAST de total e paid_amount — anti-fraude (webhook MP é fonte de verdade)
+    v_base := LEAST(
+      COALESCE(NEW.total, 0),
+      COALESCE(NEW.paid_amount, NEW.total, 0)
+    );
+    -- Cap em 100 pts por order
+    v_pts := LEAST(100, FLOOR(v_base / 10)::integer);
     IF v_pts > 0
        AND NOT EXISTS (SELECT 1 FROM public.points WHERE source = 'order_paid' AND reference_id = NEW.id) THEN
       INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
@@ -1759,6 +1764,132 @@ BEGIN
     END IF;
   END IF;
   RETURN NEW;
+END $$;
+
+-- ============================================================
+-- HARDENING FINAL (RE-AUDITORIA SEGURANÇA — fecha 10 itens)
+-- ============================================================
+
+-- 🔴 FIX 1: posts table — ENABLE RLS + policies UPDATE/DELETE
+-- (Esquecido no hardening anterior. Sem isso, recrear DB do source = RLS off)
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS posts_owner_update ON public.posts;
+CREATE POLICY posts_owner_update ON public.posts
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id OR public.is_portal_admin())
+  WITH CHECK (auth.uid() = user_id OR public.is_portal_admin());
+
+DROP POLICY IF EXISTS posts_owner_delete ON public.posts;
+CREATE POLICY posts_owner_delete ON public.posts
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id OR public.is_portal_admin());
+
+-- 🔴 FIX 2: award_quote_completed_points exige aprovação prévia
+-- (Antes painter podia farmar pts auto-aprovando próprios quotes)
+CREATE OR REPLACE FUNCTION public.award_quote_completed_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.status = 'concluido'
+     AND OLD.status IS DISTINCT FROM 'concluido'
+     AND OLD.status IN ('aprovado','em_execucao','accepted','completed')
+     AND NEW.painter_id IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM public.points
+        WHERE source = 'quote_completed' AND reference_id = NEW.id
+     ) THEN
+    INSERT INTO public.points (user_id, amount, type, source, reference_id, created_at)
+    VALUES (NEW.painter_id, 15, 'earned', 'quote_completed', NEW.id, now());
+  END IF;
+  RETURN NEW;
+END $$;
+
+-- 🟠 FIX 3: profiles_public view (esconde phone/email/lat/lng do SELECT público)
+-- Cliente deve migrar busca/feed pra essa view; o profile completo só pro dono + admin.
+-- security_invoker = true: a view executa com a permissão de quem consulta.
+CREATE OR REPLACE VIEW public.profiles_public WITH (security_invoker = true) AS
+SELECT
+  id, name, avatar_url, bio, tag, role, user_type, profession, specialties, palette,
+  city, state, country, is_pro, verified, rating_avg, review_count,
+  service_radius, created_at, portal_access
+FROM public.profiles;
+GRANT SELECT ON public.profiles_public TO anon, authenticated;
+
+-- 🟠 FIX 4: commissions CHECK constraints (amount sano + pct 0..100)
+ALTER TABLE public.commissions DROP CONSTRAINT IF EXISTS commissions_amount_sane;
+ALTER TABLE public.commissions
+  ADD CONSTRAINT commissions_amount_sane
+  CHECK (amount IS NULL OR (amount >= 0 AND amount <= 100000));
+
+ALTER TABLE public.commissions DROP CONSTRAINT IF EXISTS commissions_pct_sane;
+ALTER TABLE public.commissions
+  ADD CONSTRAINT commissions_pct_sane
+  CHECK (commission_pct IS NULL OR (commission_pct >= 0 AND commission_pct <= 100));
+
+-- 🟡 FIX 5: referrals INSERT policy + UNIQUE (anti dupla-indicação)
+DROP POLICY IF EXISTS "Referred user can insert own referrals" ON public.referrals;
+DROP POLICY IF EXISTS referrals_referred_insert ON public.referrals;
+CREATE POLICY referrals_referred_insert ON public.referrals
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = referred_id AND referrer_id IS NOT NULL AND referrer_id <> auth.uid());
+
+ALTER TABLE public.referrals DROP CONSTRAINT IF EXISTS referrals_unique_pair;
+ALTER TABLE public.referrals
+  ADD CONSTRAINT referrals_unique_pair UNIQUE (referrer_id, referred_id);
+
+-- 🟡 FIX 6: Cleanup functions pra tabelas que crescem indefinidamente
+CREATE OR REPLACE FUNCTION public.cleanup_old_notifications()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.notifications WHERE created_at < now() - interval '90 days';
+END $$;
+GRANT EXECUTE ON FUNCTION public.cleanup_old_notifications() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.cleanup_old_audit_events()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- Compliance LGPD: 1 ano de retenção
+  DELETE FROM public.audit_events WHERE created_at < now() - interval '1 year';
+END $$;
+GRANT EXECUTE ON FUNCTION public.cleanup_old_audit_events() TO service_role;
+
+-- Pra agendar (rodar manualmente quando habilitar pg_cron):
+-- SELECT cron.schedule('cleanup_notifications', '0 3 * * 0', 'SELECT public.cleanup_old_notifications()');
+-- SELECT cron.schedule('cleanup_audit', '0 4 * * 0', 'SELECT public.cleanup_old_audit_events()');
+
+-- 🟡 FIX 7: VALIDATE constraints que ficaram NOT VALID antes
+-- Backfill defensivo: nulla URLs inválidas pré-existentes antes de validar
+UPDATE public.profiles
+   SET avatar_url = NULL
+ WHERE avatar_url IS NOT NULL
+   AND avatar_url !~ '^https://'
+   AND avatar_url !~ '^data:image/(png|jpeg|jpg|gif|webp);base64,';
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='posts' AND column_name='image_url') THEN
+    UPDATE public.posts
+       SET image_url = NULL
+     WHERE image_url IS NOT NULL
+       AND image_url !~ '^https://'
+       AND image_url !~ '^data:image/(png|jpeg|jpg|gif|webp);base64,';
+  END IF;
+END $$;
+
+-- Agora valida (idempotente: re-rodar é no-op)
+DO $$ BEGIN
+  BEGIN
+    ALTER TABLE public.profiles VALIDATE CONSTRAINT profiles_avatar_url_scheme;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'VALIDATE profiles_avatar_url_scheme falhou: %', SQLERRM;
+  END;
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_image_url_scheme') THEN
+    BEGIN
+      ALTER TABLE public.posts VALIDATE CONSTRAINT posts_image_url_scheme;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'VALIDATE posts_image_url_scheme falhou: %', SQLERRM;
+    END;
+  END IF;
 END $$;
 
 NOTIFY pgrst, 'reload schema';
