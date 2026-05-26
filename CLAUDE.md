@@ -51,4 +51,19 @@
   para o usuário copiar e rodar no Supabase SQL Editor. Criar só o arquivo
   no repo não basta — o SQL tem que aparecer no chat. Claude não tem acesso
   ao banco para rodar.
+- **SQL Wave 3 (hardening pós-auditoria 26/05) JÁ FOI EXECUTADO no Supabase.**
+  Inclui: trigger `protect_profile_columns` BEFORE INSERT OR UPDATE (impede
+  escalada de `is_pro`/`portal_access`/`role=admin` via INSERT), UNIQUE em
+  `points(source, reference_id)` (anti double-credit), policies de SELECT
+  restritas a `authenticated` em `follows`/`likes`/`comments`/`qualifications`/
+  `courses`, view `announcements_public` (esconde `created_by`), policy
+  deny-all em `rate_limits`, restauração do SELECT público de `reviews`, e FK
+  `announcements.created_by` com `ON DELETE SET NULL`. Não pedir para rodar
+  de novo.
+- **Coluna `profiles.birth_date` (date) JÁ FOI CRIADA no Supabase.** Campo
+  preenchido no signup, sem bloqueio etário. Não pedir para rodar de novo.
+- **Mailbox `loja@calicolors.com.br` está ativa e responde.** Não perguntar.
+- **Turnstile (CAPTCHA)** — está carregado no `index.html` mas nenhum
+  endpoint server-side valida o token (`siteverify`). O usuário pediu para
+  deixar assim por enquanto. Não wirar a validação sem ele pedir.
 
