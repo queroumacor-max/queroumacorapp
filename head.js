@@ -68,6 +68,12 @@ function cfImg(url, opts) {
   try {
     const u = new URL(url, window.location.origin);
     if (u.hostname === window.location.hostname) return url;
+    // Allowlist: Cloudflare Image Resizing só aceita origens configuradas
+    // como permitidas no dashboard. Pra evitar 404 silencioso, só roteia
+    // o que sabemos que está autorizado (Supabase Storage do projeto).
+    // ui-avatars.com, gravatar, etc. passam direto.
+    const isSupabaseStorage = /\.supabase\.co$/i.test(u.hostname) && /\/storage\/v\d+\/object\//.test(u.pathname);
+    if (!isSupabaseStorage) return url;
   } catch (_) { return url; }
   const params = [];
   if (opts.w)   params.push('width=' + opts.w);
