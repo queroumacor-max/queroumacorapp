@@ -115,4 +115,13 @@
   `image/jpeg|png|webp|gif|heic|heif` + `video/mp4|quicktime|webm`, e
   `file_size_limit` em 50 MB. SQL já foi rodado no SQL Editor. Frontend
   já manda `contentType` explícito no upload. Não pedir pra rodar de novo.
+- **`profiles.tag` e `profiles.username` agora são sinônimos sincronizados
+  automaticamente.** SQL já rodado: trigger `sync_profile_tag_username`
+  BEFORE INSERT/UPDATE preenche o lado vazio com o outro e propaga
+  mudanças entre os dois campos. View `profiles_public` projeta
+  `tag = coalesce(tag, username)` e `username = coalesce(username, tag)`,
+  então frontend continua usando `p.tag` (e o app só escreve em `tag`) —
+  pega valor de qualquer coluna que esteja preenchida. View NÃO tem mais
+  as colunas `palette` nem `country` (não existem no banco real, foram
+  removidas em algum momento). Não pedir pra rodar de novo.
 
