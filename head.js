@@ -653,6 +653,7 @@ async function doRegisterSupabase(name, email, password, type, tag) {
       } catch(e){ console.warn('Avatar upload error:', e && e.message || e); }
     }
     // Create profile record with referral tracking
+    const birthdate = (document.getElementById('s-birthdate')||{}).value || null;
     const profileData = {
       id: data.user.id,
       name: name,
@@ -663,6 +664,7 @@ async function doRegisterSupabase(name, email, password, type, tag) {
       state: stateName,
       phone: phone,
       avatar_url: avatarUrl,
+      birth_date: birthdate,
       created_at: new Date().toISOString()
     };
     // Profession only applies to professionals, not clients

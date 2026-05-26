@@ -17,7 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg"></script>
-<script src="/head.js?v=20260526d" defer></script>
+<script src="/head.js?v=20260526e" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -196,8 +196,8 @@
         </div>
         <div class="auth-field">
           <label class="auth-label" for="s-birthdate">Data de nascimento</label>
-          <input class="auth-input" type="date" id="s-birthdate" name="bday" autocomplete="bday" style="font-size:16px;" max="">
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Necessário para confirmar maioridade (LGPD)</div>
+          <input class="auth-input" type="date" id="s-birthdate" name="bday" autocomplete="bday" style="font-size:16px;">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Usado para personalização do seu perfil</div>
         </div>
         <div class="auth-field">
           <label class="auth-label" for="s-city">Cidade</label>
@@ -252,9 +252,7 @@
         (function(){
           var bd = document.getElementById('s-birthdate');
           if(!bd) return;
-          var d = new Date();
-          d.setFullYear(d.getFullYear() - 18);
-          bd.max = d.toISOString().slice(0,10);
+          bd.max = new Date().toISOString().slice(0,10);
           bd.setAttribute('min','1920-01-01');
         })();
       </script>
@@ -955,7 +953,7 @@
         <p class="leg-upd">Última atualização: 22 de maio de 2026</p>
         <p class="leg-p">Esta Política de Privacidade explica como o QueroUmaCor coleta, usa, compartilha e protege os seus dados pessoais, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
         <h3 class="leg-h">1. Quem é o controlador</h3>
-        <p class="leg-p">O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor). Para questões sobre privacidade ou exercer seus direitos LGPD, contate nosso Encarregado de Proteção de Dados (DPO) pelo e-mail <b>dpo@calicolors.com.br</b> ou pelos canais em "Fale Conosco".</p>
+        <p class="leg-p">O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor). Para questões sobre privacidade ou exercer seus direitos LGPD, contate nosso Encarregado de Proteção de Dados (DPO) pelo e-mail <b>loja@calicolors.com.br</b> ou pelos canais em "Fale Conosco".</p>
         <h3 class="leg-h">2. Dados que coletamos</h3>
         <p class="leg-p"><b>Dados de cadastro:</b> nome, e-mail, telefone, tipo de usuário (cliente ou profissional) e foto de perfil.<br><b>Dados do perfil profissional:</b> especialidades, raio de atendimento, formação, cursos e fotos do portfólio.<br><b>Dados de uso:</b> orçamentos solicitados, mensagens trocadas no chat e avaliações.<br><b>Localização aproximada:</b> usada para mostrar profissionais e serviços perto de você.<br><b>Dados técnicos:</b> informações do dispositivo e de acesso, para segurança e funcionamento do app.</p>
         <h3 class="leg-h">3. Como usamos os seus dados</h3>
@@ -982,7 +980,7 @@
         <h3 class="leg-h">10. Localização</h3>
         <p class="leg-p">A localização aproximada é usada somente para mostrar profissionais e serviços por perto. Você pode desativá-la nas configurações do seu dispositivo.</p>
         <h3 class="leg-h">11. Menores de idade</h3>
-        <p class="leg-p">O QueroUmaCor é destinado exclusivamente a maiores de 18 anos. No cadastro, exigimos a confirmação da data de nascimento e bloqueamos contas com idade inferior. Se identificarmos que uma conta pertence a menor de 18 anos, ela será encerrada e seus dados, eliminados.</p>
+        <p class="leg-p">O QueroUmaCor é destinado preferencialmente a maiores de 18 anos. Coletamos a data de nascimento no cadastro para personalização do perfil. O uso por menores deve contar com a autorização e o acompanhamento dos responsáveis, nos termos do Art. 14 da LGPD.</p>
         <h3 class="leg-h">12. Alterações desta política</h3>
         <p class="leg-p">Podemos atualizar esta política periodicamente. Mudanças relevantes serão informadas no aplicativo.</p>
       </div>
@@ -2325,7 +2323,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526d" defer></script>
+<script src="/app.js?v=20260526e" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

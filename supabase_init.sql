@@ -1945,6 +1945,10 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS consent_at      timestamptz,
   ADD COLUMN IF NOT EXISTS consent_version text;
 
+-- 🟠 Cadastro: data de nascimento (sem bloqueio etário; apenas registro)
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS birth_date date;
+
 -- 🟠 LGPD Art. 16: cleanup de retenção
 CREATE OR REPLACE FUNCTION public.cleanup_old_messages()
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
