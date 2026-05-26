@@ -31,6 +31,7 @@ export async function onRequestGet(context) {
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'IBGE timeout (10s) — tente de novo' }, 504);
-    return json({ error: String(e && e.message || e) }, 500);
+    console.warn('cidades: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }

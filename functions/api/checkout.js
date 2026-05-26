@@ -4,9 +4,7 @@
 // user.id / email autoritativos do token (ignorando o que veio no body).
 // Sem token, mantemos o fluxo antigo (fail-back) para não quebrar clientes
 // que ainda não passam o accessToken.
-import { jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
-
-const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
+import { jsonResponse as json, FALLBACK_SUPABASE_URL, FALLBACK_ANON_KEY } from './_security.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -68,7 +66,9 @@ export async function onRequestPost(context) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
-      return json({ error: `Mercado Pago ${r.status}: ${(data?.message || JSON.stringify(data)).slice(0, 300)}` }, 502);
+      const detail = (data?.message || JSON.stringify(data)).slice(0, 300);
+      console.warn('checkout MP error', r.status, detail);
+      return json({ error: 'Falha temporária no pagamento — tente de novo' }, 502);
     }
     const initPoint = data.init_point || data.sandbox_init_point;
     if (!initPoint) {
@@ -78,7 +78,8 @@ export async function onRequestPost(context) {
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'Mercado Pago timeout (15s) — tente de novo' }, 504);
-    return json({ error: String(e?.message || e) }, 500);
+    console.warn('checkout: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }
 
@@ -86,7 +87,7 @@ export async function onRequestPost(context) {
 // Retorna { id, email } se válido, ou null caso contrário.
 async function verifySupabaseToken(token, env) {
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
-  const anonKey = env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_FALLBACK;
+  const anonKey = env.SUPABASE_ANON_KEY || FALLBACK_ANON_KEY;
   try {
     const r = await fetch(`${supaUrl}/auth/v1/user`, {
       headers: {

@@ -58,7 +58,11 @@ export async function onRequestPost(context) {
       body: JSON.stringify({ status: 'approved' }),
       signal: AbortSignal.timeout(10000)
     });
-    if (!r.ok) return json({ error: `supabase ${r.status}: ${(await r.text()).slice(0, 150)}` }, 502);
+    if (!r.ok) {
+      const txt = (await r.text()).slice(0, 300);
+      console.warn('admin-moderate approve supabase error', r.status, txt);
+      return json({ error: 'Falha temporária na consulta — tente de novo' }, 502);
+    }
     return json({ ok: true });
   }
 
@@ -76,13 +80,22 @@ export async function onRequestPost(context) {
       headers: { ...sHeaders, 'Prefer': 'return=minimal' },
       signal: AbortSignal.timeout(10000)
     });
-    if (!d.ok) return json({ error: `supabase ${d.status}: ${(await d.text()).slice(0, 150)}` }, 502);
+    if (!d.ok) {
+      const txt = (await d.text()).slice(0, 300);
+      console.warn('admin-moderate reject supabase error', d.status, txt);
+      return json({ error: 'Falha temporária na consulta — tente de novo' }, 502);
+    }
 
     if (mediaUrl && mediaUrl.includes('/posts/')) {
-      const path = mediaUrl.split('/posts/').pop();
-      try {
-        await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders, signal: AbortSignal.timeout(10000) });
-      } catch (e) { /* best-effort */ }
+      const rawPath = mediaUrl.split('/posts/').pop() || '';
+      // Anti-traversal: bloqueia .. e URL-encoded ..
+      const path = (/^[A-Za-z0-9_\-./]+$/.test(rawPath) && !rawPath.includes('..') && !rawPath.includes('%2E') && !rawPath.includes('%2e'))
+        ? rawPath : null;
+      if (path) {
+        try {
+          await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders, signal: AbortSignal.timeout(10000) });
+        } catch (e) { /* best-effort */ }
+      }
     }
     return json({ ok: true });
   }

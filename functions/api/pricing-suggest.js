@@ -89,8 +89,9 @@ Responda APENAS em JSON estrito, neste formato exato:
       signal: AbortSignal.timeout(25000)
     });
     if (!r.ok) {
-      const errText = (await r.text()).slice(0, 200);
-      return json({ error: `OpenAI ${r.status}: ${errText}` }, 502);
+      const errText = (await r.text()).slice(0, 300);
+      console.warn('pricing-suggest OpenAI error', r.status, errText);
+      return json({ error: 'IA indisponível — tente de novo em instantes' }, 502);
     }
     const data = await r.json();
     const raw = data?.choices?.[0]?.message?.content?.trim() || '';

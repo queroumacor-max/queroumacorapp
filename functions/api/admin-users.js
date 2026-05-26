@@ -108,7 +108,11 @@ export async function onRequestPost(context) {
     body: JSON.stringify(patch),
     signal: AbortSignal.timeout(10000)
   });
-  if (!r.ok) return json({ error: `supabase ${r.status}: ${(await r.text()).slice(0, 150)}` }, 502);
+  if (!r.ok) {
+    const txt = (await r.text()).slice(0, 300);
+    console.warn('admin-users supabase error', r.status, txt);
+    return json({ error: 'Falha temporária na consulta — tente de novo' }, 502);
+  }
   const updated = await r.json();
   if (!Array.isArray(updated) || updated.length === 0) {
     return json({ error: 'perfil nao encontrado' }, 404);

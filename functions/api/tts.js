@@ -35,8 +35,9 @@ export async function onRequestPost(context) {
       signal: AbortSignal.timeout(30000)
     });
     if (!r.ok) {
-      const err = await r.text();
-      return json({ error: 'OpenAI ' + r.status + ': ' + err.slice(0, 200) }, 502);
+      const err = (await r.text()).slice(0, 300);
+      console.warn('tts OpenAI error', r.status, err);
+      return json({ error: 'TTS indisponível — tente de novo em instantes' }, 502);
     }
     const audio = await r.arrayBuffer();
     return new Response(audio, {
@@ -46,6 +47,7 @@ export async function onRequestPost(context) {
   } catch (e) {
     const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) return json({ error: 'OpenAI TTS timeout (30s) — tente de novo' }, 504);
-    return json({ error: String(e && e.message || e) }, 500);
+    console.warn('tts: exception', e && e.message || e);
+    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
   }
 }

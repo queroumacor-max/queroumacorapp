@@ -86,8 +86,9 @@ Sem markdown, sem texto antes ou depois. area_m2 deve ser um número (pode ter c
     });
 
     if (!r.ok) {
-      const errText = await r.text();
-      return json({ error: 'OpenAI ' + r.status + ': ' + errText.slice(0, 200) }, 502);
+      const errText = (await r.text()).slice(0, 300);
+      console.warn('area-from-photo OpenAI error', r.status, errText);
+      return json({ error: 'IA indisponível — tente de novo em instantes' }, 502);
     }
 
     const data = await r.json();

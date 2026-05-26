@@ -216,9 +216,14 @@ async function rejectPost(supaUrl, sHeaders, postId, mediaUrl) {
     signal: AbortSignal.timeout(10000)
   });
   if (mediaUrl && mediaUrl.includes('/posts/')) {
-    const path = mediaUrl.split('/posts/').pop();
-    try {
-      await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders, signal: AbortSignal.timeout(10000) });
-    } catch { /* best-effort */ }
+    const rawPath = mediaUrl.split('/posts/').pop() || '';
+    // Anti-traversal: bloqueia .. e URL-encoded ..
+    const path = (/^[A-Za-z0-9_\-./]+$/.test(rawPath) && !rawPath.includes('..') && !rawPath.includes('%2E') && !rawPath.includes('%2e'))
+      ? rawPath : null;
+    if (path) {
+      try {
+        await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, { method: 'DELETE', headers: sHeaders, signal: AbortSignal.timeout(10000) });
+      } catch { /* best-effort */ }
+    }
   }
 }
