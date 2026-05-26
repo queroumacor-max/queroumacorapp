@@ -21,10 +21,26 @@ function avatarUrl(name, size){
 }
 window.avatarUrl = avatarUrl;
 
-// avatarOf: lê profile.avatar_url, cai pra avatarUrl(profile.name) se não tiver
+// safeUrl: valida que a URL é http(s):// e devolve string HTML-escapada,
+// pronta pra interpolar em <a href=...>. Bloqueia javascript:, data:,
+// vbscript:, file:, etc. Retorna '' se inválida. Defense-in-depth.
+function safeUrl(s){
+  const v = String(s == null ? '' : s).trim();
+  if (!/^https?:\/\//i.test(v)) return '';
+  return v.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+window.safeUrl = safeUrl;
+
+// avatarOf: lê profile.avatar_url, cai pra avatarUrl(profile.name) se não tiver.
+// Defense-in-depth: só aceita https:// ou data:image/ (já tem CHECK no DB,
+// mas se algum dado legado vazou, ignora qualquer outro scheme).
 function avatarOf(profile, size){
   if (profile && typeof profile.avatar_url === 'string' && profile.avatar_url) {
-    return profile.avatar_url;
+    const url = profile.avatar_url;
+    if (/^https:\/\//i.test(url) || /^data:image\//i.test(url)) {
+      return url;
+    }
+    console.warn('avatarOf: URL inválida ignorada');
   }
   return avatarUrl(profile && profile.name, size);
 }
