@@ -230,6 +230,73 @@ function avatarOf(profile, size){
 }
 window.avatarOf = avatarOf;
 
+// ─── App dialogs (appConfirm / appPrompt / appAlert) ───────────────────────
+// Substituem confirm/prompt/alert nativos do navegador pra manter identidade
+// visual. Retornam Promise: appConfirm→bool, appPrompt→string|null, appAlert→void.
+// Defaults pra cancelar: clique no backdrop, ESC, ou botão cancelar.
+function _appDialog(opts){
+  return new Promise(resolve => {
+    let resolved = false;
+    const done = (val) => { if(resolved) return; resolved = true; try { document.body.removeChild(ov); } catch(_){} document.removeEventListener('keydown', onKey); resolve(val); };
+    const ov = document.createElement('div');
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;animation:appDlgFadeIn .15s ease-out;';
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'background:#fff;width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:20px 18px 22px;box-shadow:0 -6px 24px rgba(0,0,0,.18);font-family:\'DM Sans\',sans-serif;animation:appDlgSlideUp .22s ease-out;box-sizing:border-box;';
+    if(!document.getElementById('app-dlg-anim')){
+      const st = document.createElement('style');
+      st.id = 'app-dlg-anim';
+      st.textContent = '@keyframes appDlgFadeIn{from{opacity:0}to{opacity:1}}@keyframes appDlgSlideUp{from{transform:translateY(20px);opacity:.6}to{transform:translateY(0);opacity:1}}';
+      document.head.appendChild(st);
+    }
+    const msg = document.createElement('div');
+    msg.style.cssText = 'font-size:14.5px;color:#1a1a2e;line-height:1.5;white-space:pre-wrap;margin-bottom:16px;';
+    msg.textContent = opts.message || '';
+    sheet.appendChild(msg);
+    let input = null;
+    if(opts.type === 'prompt'){
+      input = document.createElement('input');
+      input.type = 'text';
+      input.value = opts.initial || '';
+      input.placeholder = opts.placeholder || '';
+      input.maxLength = 500;
+      input.style.cssText = 'width:100%;padding:11px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;font-family:\'DM Sans\',sans-serif;outline:none;margin-bottom:16px;box-sizing:border-box;';
+      input.onkeydown = (e) => { if(e.key === 'Enter'){ e.preventDefault(); done(input.value); } };
+      sheet.appendChild(input);
+    }
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+    if(opts.type !== 'alert'){
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = opts.cancelLabel || 'Cancelar';
+      cancel.style.cssText = 'flex:1;padding:13px;background:transparent;color:#1a1a2e;border:1.5px solid #ddd;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;';
+      cancel.onclick = () => done(opts.type === 'prompt' ? null : false);
+      btnRow.appendChild(cancel);
+    }
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.textContent = opts.okLabel || 'OK';
+    ok.style.cssText = 'flex:1.2;padding:13px;background:linear-gradient(135deg,#ff6b35,#8338ec);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:\'DM Sans\',sans-serif;';
+    ok.onclick = () => done(opts.type === 'prompt' ? (input ? input.value : '') : true);
+    btnRow.appendChild(ok);
+    sheet.appendChild(btnRow);
+    ov.appendChild(sheet);
+    ov.addEventListener('click', (e) => { if(e.target === ov) done(opts.type === 'prompt' ? null : false); });
+    const onKey = (e) => { if(e.key === 'Escape') done(opts.type === 'prompt' ? null : false); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    setTimeout(() => { (input || ok).focus(); }, 80);
+  });
+}
+function appConfirm(message, opts){ return _appDialog({ type:'confirm', message, okLabel: opts && opts.okLabel, cancelLabel: opts && opts.cancelLabel }); }
+function appPrompt(message, opts){ return _appDialog({ type:'prompt', message, okLabel: opts && opts.okLabel, cancelLabel: opts && opts.cancelLabel, placeholder: opts && opts.placeholder, initial: opts && opts.initial }); }
+function appAlert(message, opts){ return _appDialog({ type:'alert', message, okLabel: (opts && opts.okLabel) || 'OK' }); }
+window.appConfirm = appConfirm;
+window.appPrompt = appPrompt;
+window.appAlert = appAlert;
+
 // requireSession: guard pra ações que exigem login. Retorna {sb, user} ou null.
 // Quando null, já mostra toast. opts.toast pode ser:
 //   - false  -> silencioso
