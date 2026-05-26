@@ -16,11 +16,11 @@ export async function onRequestPost(context) {
     || env.SUPABASE_SERVICE_KEY
     || env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
-    return json({ error: 'Gestao de usuarios nao configurada (SUPABASE_SERVICE_ROLE/SUPABASE_SERVICE_KEY ausente)' }, 503);
+    return json({ error: 'Gestão de usuários não configurada (SUPABASE_SERVICE_ROLE/SUPABASE_SERVICE_KEY ausente)' }, 503);
   }
 
   let body;
-  try { body = await request.json(); } catch { return json({ error: 'JSON invalido' }, 400); }
+  try { body = await request.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
 
   const accessToken = typeof body?.accessToken === 'string' ? body.accessToken : '';
   const action = typeof body?.action === 'string' ? body.action : '';
@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
   };
 
   if (!accessToken) return json({ error: 'sem token' }, 401);
-  if (!userId) return json({ error: 'userId obrigatorio' }, 400);
+  if (!userId) return json({ error: 'userId obrigatório' }, 400);
 
   let patch;
   if (action === 'promote' || action === 'revoke') {
@@ -55,10 +55,10 @@ export async function onRequestPost(context) {
     patch = { is_pro: enable, pro_expires_at: expiresAt };
   } else if (action === 'set_role') {
     const m = ROLE_MAP[typeof body?.roleKey === 'string' ? body.roleKey : ''];
-    if (!m) return json({ error: 'roleKey invalido' }, 400);
+    if (!m) return json({ error: 'roleKey inválido' }, 400);
     patch = { ...m };
   } else {
-    return json({ error: 'acao invalida' }, 400);
+    return json({ error: 'ação inválida' }, 400);
   }
 
   const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
@@ -77,14 +77,14 @@ export async function onRequestPost(context) {
       headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': anonKey },
       signal: AbortSignal.timeout(10000)
     });
-    if (!u.ok) return json({ error: 'token invalido' }, 401);
+    if (!u.ok) return json({ error: 'token inválido' }, 401);
     const ud = await u.json();
     callerId = ud?.id || '';
     callerEmail = (ud?.email || '').toLowerCase();
   } catch (e) {
     return json({ error: 'falha ao validar token' }, 401);
   }
-  if (!callerId) return json({ error: 'token invalido' }, 401);
+  if (!callerId) return json({ error: 'token inválido' }, 401);
 
   // Dupla checagem: portal_access ATIVO no profile E email na whitelist
   // ADMIN_EMAILS. Antes, qualquer lojista com portal_access podia se
@@ -92,14 +92,14 @@ export async function onRequestPost(context) {
   // precisam bater pra evitar lojista escalando privilégios.
   const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   if (!callerEmail || !adminEmails.includes(callerEmail)) {
-    return json({ error: 'nao autorizado (email nao admin)' }, 403);
+    return json({ error: 'não autorizado (email não admin)' }, 403);
   }
   try {
     const g = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access`, { headers: sHeaders, signal: AbortSignal.timeout(10000) });
     const arr = await g.json();
-    if (!arr?.[0]?.portal_access) return json({ error: 'nao autorizado (portal_access)' }, 403);
+    if (!arr?.[0]?.portal_access) return json({ error: 'não autorizado (portal_access)' }, 403);
   } catch (e) {
-    return json({ error: 'falha ao verificar permissao' }, 502);
+    return json({ error: 'falha ao verificar permissão' }, 502);
   }
 
   // Rate limit pra admin (30 req/min): defesa contra script malicioso
@@ -120,7 +120,7 @@ export async function onRequestPost(context) {
   }
   const updated = await r.json();
   if (!Array.isArray(updated) || updated.length === 0) {
-    return json({ error: 'perfil nao encontrado' }, 404);
+    return json({ error: 'perfil não encontrado' }, 404);
   }
   return json({ ok: true, patch });
 }

@@ -12,6 +12,10 @@
 export const FALLBACK_SUPABASE_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
 export const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8';
 
+// Mensagens de erro padronizadas
+export const ERR_PRO_ONLY = 'Esta função é exclusiva do Plano PRO ⚡';
+export const ERR_UNAVAILABLE = 'serviço temporariamente indisponível';
+
 // Extrai o JWT do request. Prioridade: header Authorization Bearer,
 // depois `accessToken` no body (útil para multipart, ou clientes que
 // não setam o header).
@@ -209,14 +213,14 @@ export async function gateProAI(env, request, body, { endpoint, limit = 30, requ
   // garante que nenhum endpoint PRO vire freebie por config faltando.
   const serviceKey = env.SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
-    return jsonResponse({ error: 'serviço temporariamente indisponível' }, 503);
+    return jsonResponse({ error: ERR_UNAVAILABLE }, 503);
   }
   const auth = await requireAuth(env, request, body);
   if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
   const userId = auth.user && auth.user.id;
   if (needPro) {
     const proCheck = await requirePro(env, userId);
-    if (!proCheck.pro) return jsonResponse({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
   }
   const rl = await checkRateLimit(env, userId, endpoint, limit);
   if (!rl.allowed) return rateLimitResponse(rl);
@@ -230,7 +234,7 @@ export async function gateProAIForm(env, request, formData, { endpoint, limit = 
   // requirePro vira fail-open. Retorna 503 antes mesmo de validar token.
   const serviceKey = env.SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
-    return jsonResponse({ error: 'serviço temporariamente indisponível' }, 503);
+    return jsonResponse({ error: ERR_UNAVAILABLE }, 503);
   }
   const accessToken = getTokenFromForm(request, formData);
   const auth = await requireAuth(env, request, { accessToken });
@@ -238,7 +242,7 @@ export async function gateProAIForm(env, request, formData, { endpoint, limit = 
   const userId = auth.user && auth.user.id;
   if (needPro) {
     const proCheck = await requirePro(env, userId);
-    if (!proCheck.pro) return jsonResponse({ error: 'Esta função é exclusiva do Plano PRO ⚡' }, 403);
+    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
   }
   const rl = await checkRateLimit(env, userId, endpoint, limit);
   if (!rl.allowed) return rateLimitResponse(rl);

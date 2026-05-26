@@ -1660,7 +1660,6 @@ const Leads = () => {
       for (const id of dupeIds) {
         try { await leadsService.remove(id); } catch(e) { console.warn('leads.remove dup error:', e); }
       }
-      console.log('Removed ' + dupeIds.length + ' duplicate leads');
     }
     return dupeIds.length;
   };
