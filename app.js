@@ -7809,29 +7809,43 @@ function clearPostImages(){
   document.getElementById('post-file-input').value = '';
 }
 
-// Gera legenda + hashtags do post a partir da foto selecionada (PRO).
+// Gera legenda + hashtags do post a partir da mídia selecionada (PRO).
+// Foto: enviada direta. Vídeo: extrai um frame ~1s dentro via canvas e
+// envia como JPG — backend só sabe processar imagem.
 async function gerarLegendaPost(btn){
   if (!gateProClient('Gerar legenda com Seu Zé')) return;
   if(!postSelectedFiles || postSelectedFiles.length === 0){
-    toast('Selecione uma foto primeiro');
+    toast('Selecione uma foto ou vídeo primeiro');
     return;
   }
   const file = postSelectedFiles[0];
-  if(getMediaType(file) === 'video'){
-    toast('A legenda pelo Seu Zé só funciona com foto, não com vídeo');
+  const isVideo = getMediaType(file) === 'video';
+  if(file.size > 50 * 1024 * 1024){
+    toast(isVideo ? 'Vídeo grande demais (máx 50 MB)' : 'Foto muito grande (máx 8 MB)');
     return;
   }
-  if(file.size > 8 * 1024 * 1024){
+  if(!isVideo && file.size > 8 * 1024 * 1024){
     toast('Foto muito grande (máx 8 MB)');
     return;
   }
   const ta = document.getElementById('post-text-input');
   const orig = btn ? btn.innerHTML : '';
   if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
-  toast('Gerando legenda com Seu Zé...');
+  toast(isVideo ? 'Extraindo frame do vídeo...' : 'Gerando legenda com Seu Zé...');
   try {
+    let imgBlob;
+    let imgName;
+    if(isVideo){
+      try { imgBlob = await _extractVideoFrame(file); }
+      catch(e){ console.warn('frame extract:', e); toast('Não consegui ler o vídeo. Tente outro arquivo.'); return; }
+      imgName = 'frame.jpg';
+    } else {
+      imgBlob = file;
+      imgName = file.name || 'foto.jpg';
+    }
+    toast('Gerando legenda com Seu Zé...');
     const fd = new FormData();
-    fd.append('image', file, file.name || 'foto.jpg');
+    fd.append('image', imgBlob, imgName);
     const { ok, status, data, error } = await apiPost('/api/caption', fd, { multipart: true });
     if(!ok){
       toast('Não foi possível gerar a legenda agora');
@@ -7841,7 +7855,7 @@ async function gerarLegendaPost(btn){
     const caption = (data?.caption || '').toString().trim();
     const hashtags = Array.isArray(data?.hashtags) ? data.hashtags.filter(h => typeof h === 'string') : [];
     if(!caption && hashtags.length === 0){
-      toast('O Seu Zé não devolveu nada — tente outra foto');
+      toast('O Seu Zé não devolveu nada — tente outra mídia');
       return;
     }
     const existing = (ta.value || '').trim();
@@ -7857,6 +7871,47 @@ async function gerarLegendaPost(btn){
   } finally {
     if(btn){ btn.disabled = false; btn.innerHTML = orig; }
   }
+}
+
+// Extrai um frame ~1s dentro do vídeo via <video> + canvas, retorna Blob JPG.
+function _extractVideoFrame(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.preload = 'auto';
+    v.muted = true;
+    v.playsInline = true;
+    v.src = url;
+    let done = false;
+    const cleanup = () => { try { URL.revokeObjectURL(url); } catch(_){} };
+    const fail = (msg) => { if(done) return; done = true; cleanup(); reject(new Error(msg)); };
+    const timer = setTimeout(() => fail('timeout lendo vídeo'), 15000);
+    v.addEventListener('loadedmetadata', () => {
+      const target = Math.min(1, Math.max(0, (v.duration || 2) * 0.25));
+      try { v.currentTime = target; } catch(_) { v.currentTime = 0; }
+    });
+    v.addEventListener('seeked', () => {
+      if(done) return;
+      try {
+        const w = v.videoWidth || 720;
+        const h = v.videoHeight || 1280;
+        const maxSide = 1280;
+        const scale = Math.min(1, maxSide / Math.max(w, h));
+        const cw = Math.round(w * scale);
+        const ch = Math.round(h * scale);
+        const c = document.createElement('canvas');
+        c.width = cw; c.height = ch;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(v, 0, 0, cw, ch);
+        c.toBlob(blob => {
+          done = true; clearTimeout(timer); cleanup();
+          if(!blob) return reject(new Error('canvas vazio'));
+          resolve(blob);
+        }, 'image/jpeg', 0.85);
+      } catch(e){ fail('canvas: ' + (e?.message || e)); }
+    });
+    v.addEventListener('error', () => fail('vídeo não carregou'));
+  });
 }
 
 async function publishPost(){
@@ -7886,9 +7941,12 @@ async function publishPost(){
     // Upload image if selected
     if(postSelectedFiles.length > 0){
       const file = postSelectedFiles[0];
-      const ext = file.name.split('.').pop();
+      const ext = (file.name.split('.').pop() || '').toLowerCase() || (getMediaType(file) === 'video' ? 'mp4' : 'jpg');
       const path = session.user.id + '/' + Date.now() + '.' + ext;
-      const { error: upError } = await sb.storage.from('posts').upload(path, file);
+      const { error: upError } = await sb.storage.from('posts').upload(path, file, {
+        contentType: file.type || (getMediaType(file) === 'video' ? 'video/mp4' : 'image/jpeg'),
+        upsert: false
+      });
       if(upError){
         console.error('Upload error:', upError && upError.message || upError);
         toast('Erro no upload: ' + upError.message);
