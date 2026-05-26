@@ -66,4 +66,15 @@
 - **Turnstile (CAPTCHA)** — está carregado no `index.html` mas nenhum
   endpoint server-side valida o token (`siteverify`). O usuário pediu para
   deixar assim por enquanto. Não wirar a validação sem ele pedir.
+- **Google Search Console verificado** via DNS TXT em `queroumacor.com.br`.
+  Meta tag também está no `<head>` do `index.html`. Sitemap submetido em
+  `https://www.queroumacor.com.br/sitemap.xml`. Não mexer/remover a meta tag.
+- **HSTS preload — LEMBRETE 07/07/2026.** Hoje o header HSTS está com
+  `Max-Age 12 meses, includeSubDomains ON, Preload OFF`. Em ~07/07/2026
+  (6 semanas após 25/05/2026), adicionar `; preload` no header HSTS e
+  submeter o domínio em https://hstspreload.org. Confira `SECURITY_AUDIT_LOG.md`.
+- **DMARC pendente em `calicolors.com.br`** (não-bloqueante). O domínio
+  `queroumacor.com.br` já tem DMARC `p=reject`. Falta o usuário adicionar
+  no GoDaddy o TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:dpo@calicolors.com.br`.
+  Não é code-actionable — só ele pode mexer no DNS.
 
