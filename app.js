@@ -6680,8 +6680,8 @@ async function loadPosts(feedIds, append){
     let html = '';
     posts.forEach(p => {
       const prof = p.profiles || {};
-      let name = prof.name || 'Usuário';
-      if(name.includes('@')) name = name.split('@')[0];
+      let name = prof.name || (prof.tag ? '@' + prof.tag : 'Usuário');
+      if(name.includes('@') && !prof.tag) name = name.split('@')[0];
       const tag = prof.tag ? '@' + prof.tag : '';
       const avatar = avatarOf({ avatar_url: prof.avatar_url, name: name });
       const time = getTimeAgo(p.created_at);
@@ -6748,8 +6748,8 @@ async function loadPosts(feedIds, append){
         html += '<div class="comments-area" style="padding:4px 14px 2px;">';
         postComments.forEach(c => {
           const cp = profMap[c.user_id] || {};
-          let cName = cp.name || 'Usuário';
-          if(cName.includes('@')) cName = cName.split('@')[0];
+          let cName = cp.name || (cp.tag ? '@' + cp.tag : 'Usuário');
+          if(cName.includes('@') && !cp.tag) cName = cName.split('@')[0];
           const canDelete = currentUser && (currentUser.id === c.user_id || currentUser.id === p.user_id);
           const delBtn = canDelete ? ' <span onclick="deleteComment(this,\''+escapeJsArg(c.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>' : '';
           html += '<div data-comment-id="'+escapeHtml(c.id)+'" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;">';
@@ -7212,11 +7212,12 @@ async function loadStories(feedIds){
       </div>`;
     }
 
-    // Render followed users WITHOUT stories (profile circles)
+    // Render followed users WITHOUT stories (profile circles).
+    // Renderiza mesmo quando o profile está faltando (auth.users sem row em
+    // profiles) — usa placeholder pra não esconder o seguido.
     for(const uid of followedIds){
       if(renderedUserIds.has(uid)) continue;
-      const p = allFollowedProfiles[uid];
-      if(!p) continue;
+      const p = allFollowedProfiles[uid] || {};
       let name = p.tag ? '@' + p.tag : (p.name || 'User');
       if(!p.tag){
         if(name.includes('@')) name = name.split('@')[0];
