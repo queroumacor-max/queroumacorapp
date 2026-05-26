@@ -20,6 +20,32 @@ function fmtBRL(el){
 }
 const bnMap={feed:'bn-feed',search:'bn-search',mkt:'bn-mkt',notif:'bn-notif',myprofile:'bn-myprofile'};
 const noNav=['login','signup','chatconv'];
+
+// Mapa de screen → path da URL pública. Telas sem entrada aqui ficam como /.
+// Note: nomes das telas batem com os IDs em index.html (screen-NAME). `mkt` é a loja,
+// `myprofile` é o perfil do usuário, `orcamento` é a tela de orçamentos/pedidos.
+const SCREEN_TO_PATH = {
+  'feed': '/',
+  'explore': '/explore',
+  'mkt': '/loja',
+  'myprofile': '/perfil',
+  'chat': '/chat',
+  'orcamento': '/orcamentos',
+  'pedidos': '/pedidos',
+  'avaliar': '/avaliar',
+  'info': '/info',
+  'search': '/search',
+  'notif': '/notificacoes',
+  'crm': '/crm',
+  'pipeline': '/pipeline',
+  'calc': '/calculadora',
+  'camisetas': '/camisetas',
+  'profile': '/profissional',
+  'login': '/login',
+  'signup': '/signup'
+};
+const PATH_TO_SCREEN = Object.fromEntries(Object.entries(SCREEN_TO_PATH).map(([k, v]) => [v, k]));
+
 function showScreen(n, _fromPop){
   screens.forEach(s=>{
     const el=document.getElementById('screen-'+s);
@@ -61,46 +87,94 @@ let _navExitArmed = false;
 
 function _navSyncHistory(n, fromPop){
   if(n === _navCurScreen) return;
+  const path = SCREEN_TO_PATH[n] || '/';
   if(n === 'login' || n === 'signup'){
     _navBackStack = [];
     _navCurScreen = n;
-    try { history.replaceState({ qs:n }, ''); } catch(e){}
+    try { history.replaceState({ qs:n, screen:n }, '', path); } catch(e){}
     return;
   }
   if(!fromPop){
     _navBackStack.push(_navCurScreen);
-    try { history.pushState({ qs:n }, ''); } catch(e){}
+    try {
+      if(location.pathname !== path) history.pushState({ qs:n, screen:n }, '', path);
+      else history.pushState({ qs:n, screen:n }, '');
+    } catch(e){}
   }
   _navCurScreen = n;
 }
 
-try { history.replaceState({ qs:'feed' }, ''); } catch(e){}
-window.addEventListener('popstate', function(){
+try {
+  const _initPath = SCREEN_TO_PATH['feed'] || '/';
+  // Só substitui o path se ainda estamos na raiz (caso contrário, _bootstrapFromUrl
+  // vai cuidar de carregar a tela correspondente à URL atual e atualizar o estado).
+  if(location.pathname === '/' || location.pathname === '') {
+    history.replaceState({ qs:'feed', screen:'feed' }, '', _initPath);
+  } else {
+    history.replaceState({ qs:'feed', screen:'feed' }, '');
+  }
+} catch(e){}
+window.addEventListener('popstate', function(e){
   // 1) Modal aberto: voltar fecha o modal (não navega de tela).
   if(document.querySelector('.overlay.open')){
     closeModals();
-    try { history.pushState({ qs:_navCurScreen }, ''); } catch(e){}
+    try { history.pushState({ qs:_navCurScreen, screen:_navCurScreen }, ''); } catch(e){}
     return;
   }
-  // 2) Há tela anterior: volta para ela.
+  // 2) Se a URL atual mapeia para uma tela (forward do browser ou deep link), usa ela.
+  //    Isso permite que o botão "forward" do navegador funcione mesmo sem back-stack.
+  const urlScreen = (e && e.state && e.state.screen) || PATH_TO_SCREEN[location.pathname];
+  if(urlScreen && urlScreen !== _navCurScreen){
+    showScreen(urlScreen, true);
+    return;
+  }
+  // 3) Há tela anterior no back-stack: volta para ela.
   if(_navBackStack.length){
     const prev = _navBackStack.pop();
     showScreen(prev, true);
     return;
   }
-  // 3) Sem histórico e fora da home: vai para a home (feed).
+  // 4) Sem histórico e fora da home: vai para a home (feed).
   if(_navCurScreen !== 'feed'){
     showScreen('feed', true);
-    try { history.pushState({ qs:'feed' }, ''); } catch(e){}
+    try { history.pushState({ qs:'feed', screen:'feed' }, '', SCREEN_TO_PATH['feed'] || '/'); } catch(e){}
     return;
   }
-  // 4) Já na home: confirma a saída com toque duplo.
+  // 5) Já na home: confirma a saída com toque duplo.
   if(_navExitArmed) return; // deixa o app fechar
   _navExitArmed = true;
   toast('Toque em voltar de novo para sair');
-  try { history.pushState({ qs:'feed' }, ''); } catch(e){}
+  try { history.pushState({ qs:'feed', screen:'feed' }, '', SCREEN_TO_PATH['feed'] || '/'); } catch(e){}
   setTimeout(function(){ _navExitArmed = false; }, 2000);
 });
+
+// ══ BOOTSTRAP: deep-link / refresh em rota não-raiz ══
+// Quando o usuário abre /explore, /loja etc. direto, mostra a tela correspondente.
+// Aguarda auth resolver pra telas que precisam de currentUser (até ~3s).
+function _bootstrapFromUrl(){
+  const screen = PATH_TO_SCREEN[location.pathname];
+  if(!screen || screen === 'feed') return;
+  if(typeof showScreen !== 'function') return;
+  // Telas públicas (não precisam de auth) podem ser mostradas direto.
+  const publicScreens = ['login','signup','info','explore','mkt','search'];
+  if(publicScreens.includes(screen)){
+    showScreen(screen, true);
+    return;
+  }
+  // Telas privadas: aguarda currentUser
+  let tries = 0;
+  const t = setInterval(() => {
+    tries++;
+    if(typeof currentUser !== 'undefined' && currentUser){
+      clearInterval(t);
+      showScreen(screen, true);
+    } else if(tries > 30){
+      clearInterval(t);
+    }
+  }, 100);
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _bootstrapFromUrl);
+else _bootstrapFromUrl();
 
 
 // ══ TOAST ══

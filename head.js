@@ -14,11 +14,96 @@ function getSupabase() {
 function showError(ctx, err, fallback) {
   const msg = (err && err.message) || String(err || '');
   console.warn('['+ctx+']', msg);
+  if (typeof reportError === 'function') {
+    reportError({ type: 'manual', msg: msg, ctx: ctx });
+  }
   if (typeof toast === 'function') {
     toast(fallback || 'Algo deu errado. Tente de novo.');
   }
 }
 window.showError = showError;
+
+// ═══════ OBSERVABILITY (lightweight) ═══════
+// Captura erros não-tratados + Web Vitals e envia pra /api/log-error.
+// Buffer + batch envio pra não bloquear UI.
+const _obsBuffer = [];
+let _obsFlushScheduled = false;
+function _obsScheduleFlush() {
+  if (_obsFlushScheduled) return;
+  _obsFlushScheduled = true;
+  setTimeout(() => {
+    _obsFlushScheduled = false;
+    if (!_obsBuffer.length) return;
+    const batch = _obsBuffer.splice(0, _obsBuffer.length);
+    batch.forEach(payload => {
+      try {
+        const data = JSON.stringify(payload);
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/log-error', new Blob([data], { type: 'application/json' }));
+        } else {
+          fetch('/api/log-error', { method: 'POST', body: data, headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(() => {});
+        }
+      } catch {}
+    });
+  }, 3000);
+}
+function reportError(payload) {
+  if (!payload) return;
+  payload.url = payload.url || (location && location.href) || '';
+  payload.ua = navigator.userAgent || '';
+  _obsBuffer.push(payload);
+  _obsScheduleFlush();
+}
+window.reportError = reportError;
+
+// Erros não-tratados
+window.addEventListener('error', (e) => {
+  if (!e || !e.message) return;
+  reportError({ type: 'error', msg: e.message, stack: e.error && e.error.stack || '', ctx: 'window.onerror' });
+}, { capture: true });
+
+// Promises não-tratadas
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e && e.reason;
+  reportError({ type: 'unhandledrejection', msg: (r && r.message) || String(r || 'unknown'), stack: r && r.stack || '', ctx: 'unhandledrejection' });
+}, { capture: true });
+
+// Web Vitals (LCP, CLS, INP) — simples, sem lib
+try {
+  // LCP — Largest Contentful Paint
+  new PerformanceObserver((list) => {
+    const entries = list.getEntries();
+    const last = entries[entries.length - 1];
+    if (last) reportError({ type: 'web-vital', metric: 'LCP', value: Math.round(last.startTime), ctx: '' });
+  }).observe({ type: 'largest-contentful-paint', buffered: true });
+
+  // CLS — Cumulative Layout Shift
+  let clsValue = 0;
+  new PerformanceObserver((list) => {
+    list.getEntries().forEach((entry) => {
+      if (!entry.hadRecentInput) clsValue += entry.value;
+    });
+  }).observe({ type: 'layout-shift', buffered: true });
+  // Reporta CLS no `pagehide`
+  window.addEventListener('pagehide', () => {
+    if (clsValue > 0) reportError({ type: 'web-vital', metric: 'CLS', value: +clsValue.toFixed(3), ctx: '' });
+  });
+
+  // INP — Interaction to Next Paint
+  let maxINP = 0;
+  new PerformanceObserver((list) => {
+    list.getEntries().forEach((entry) => {
+      if (entry.duration > maxINP) maxINP = entry.duration;
+    });
+  }).observe({ type: 'event', durationThreshold: 40, buffered: true });
+  window.addEventListener('pagehide', () => {
+    if (maxINP > 0) reportError({ type: 'web-vital', metric: 'INP', value: Math.round(maxINP), ctx: '' });
+  });
+} catch { /* PerformanceObserver não suportado */ }
+
+// Pageview (analytics rudimentar)
+reportError({ type: 'pageview', msg: 'visit', ctx: location.pathname });
+// ═══════ /OBSERVABILITY ═══════
 
 // ─── Helpers utilitários (B2 DRY refactor) ─────────────────────────────────
 
