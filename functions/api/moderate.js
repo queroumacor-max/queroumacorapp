@@ -93,7 +93,8 @@ export async function onRequestPost(context) {
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
           generationConfig: { temperature: 0, responseMimeType: 'application/json' }
-        })
+        }),
+        signal: AbortSignal.timeout(25000)
       }
     );
     if (!r.ok) throw new Error(`gemini ${r.status}: ${(await r.text()).slice(0, 150)}`);
@@ -114,6 +115,8 @@ export async function onRequestPost(context) {
 
     return json({ flagged, severity, reasons, categories: {}, scores: {}, engine: 'gemini' });
   } catch (err) {
+    const isTimeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+    if (isTimeout) return json({ error: 'Gemini timeout (25s) — tente de novo', engine: 'failed' }, 504);
     // Falhou: quem chama trata como indisponível (fail-safe → revisão).
     return json({ error: `moderação indisponível: ${String(err?.message || err)}`, engine: 'failed' }, 502);
   }
@@ -135,7 +138,7 @@ async function fetchImageInline(src) {
   const m = /^data:([^;]+);base64,(.+)$/.exec(src);
   if (m) return { mime: m[1], b64: m[2] };
   if (!/^https?:\/\//.test(src)) return null;
-  const r = await fetch(src);
+  const r = await fetch(src, { signal: AbortSignal.timeout(10000) });
   if (!r.ok) return null;
   const ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
   const buf = await r.arrayBuffer();

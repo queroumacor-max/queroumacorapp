@@ -32,7 +32,8 @@ export async function onRequestPost(context) {
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + env.OPENAI_API_KEY },
-      body: upstream
+      body: upstream,
+      signal: AbortSignal.timeout(60000)
     });
     if (!r.ok) {
       const errText = await r.text();
@@ -41,6 +42,8 @@ export async function onRequestPost(context) {
     const data = await r.json();
     return json({ text: (data && data.text) || '' });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'Whisper timeout (60s) — tente um áudio menor' }, 504);
     return json({ error: String(e && e.message || e) }, 500);
   }
 }

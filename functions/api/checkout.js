@@ -63,7 +63,8 @@ export async function onRequestPost(context) {
         'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000)
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -75,6 +76,8 @@ export async function onRequestPost(context) {
     }
     return json({ init_point: initPoint, preapproval_id: data.id || null });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'Mercado Pago timeout (15s) — tente de novo' }, 504);
     return json({ error: String(e?.message || e) }, 500);
   }
 }
@@ -89,7 +92,8 @@ async function verifySupabaseToken(token, env) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'apikey': anonKey
-      }
+      },
+      signal: AbortSignal.timeout(10000)
     });
     if (!r.ok) return null;
     const u = await r.json().catch(() => null);

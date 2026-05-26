@@ -85,7 +85,8 @@ Responda APENAS em JSON estrito, neste formato exato:
         temperature: 0.3,
         max_tokens: 200,
         response_format: { type: 'json_object' }
-      })
+      }),
+      signal: AbortSignal.timeout(25000)
     });
     if (!r.ok) {
       const errText = (await r.text()).slice(0, 200);
@@ -133,6 +134,8 @@ Responda APENAS em JSON estrito, neste formato exato:
       justification: justification || 'Estimativa com base no tipo de serviço, escopo descrito e área informada.'
     });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'OpenAI timeout (25s) — tente de novo' }, 504);
     return json({ error: 'Falha ao chamar a IA: ' + String(e?.message || e) }, 502);
   }
 }

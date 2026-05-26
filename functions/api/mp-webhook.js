@@ -61,7 +61,8 @@ export async function onRequestPost(context) {
     let pay;
     try {
       const r = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(eventId)}`, {
-        headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` }
+        headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` },
+        signal: AbortSignal.timeout(15000)
       });
       if (!r.ok) return ok(`mp payment ${r.status}`);
       pay = await r.json();
@@ -78,7 +79,8 @@ export async function onRequestPost(context) {
 
     // Busca a order pra validar valor + idempotência
     const getR = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=id,total,status,tx_id`, {
-      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(10000)
     });
     if (!getR.ok) return ok(`supabase get order ${getR.status}`);
     const rows = await getR.json().catch(() => []);
@@ -124,7 +126,8 @@ export async function onRequestPost(context) {
     const upR = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
       method: 'PATCH',
       headers: sHeaders,
-      body: JSON.stringify(patch)
+      body: JSON.stringify(patch),
+      signal: AbortSignal.timeout(10000)
     });
     if (!upR.ok) {
       const t = await upR.text();
@@ -138,7 +141,8 @@ export async function onRequestPost(context) {
   let pre;
   try {
     const r = await fetch(`https://api.mercadopago.com/preapproval/${eventId}`, {
-      headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` }
+      headers: { 'Authorization': `Bearer ${env.MP_ACCESS_TOKEN}` },
+      signal: AbortSignal.timeout(15000)
     });
     if (!r.ok) return ok(`mp ${r.status}`);
     pre = await r.json();
@@ -190,7 +194,8 @@ export async function onRequestPost(context) {
     const r = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: sHeaders,
-      body: JSON.stringify(patch)
+      body: JSON.stringify(patch),
+      signal: AbortSignal.timeout(10000)
     });
     if (!r.ok) {
       const t = await r.text();

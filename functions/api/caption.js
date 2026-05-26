@@ -75,7 +75,8 @@ REGRAS DE RESPOSTA (rígidas):
         temperature: 0.7,
         response_format: { type: 'json_object' },
         max_tokens: 400
-      })
+      }),
+      signal: AbortSignal.timeout(25000)
     });
     if (!r.ok) {
       const txt = (await r.text()).slice(0, 200);
@@ -84,6 +85,8 @@ REGRAS DE RESPOSTA (rígidas):
     const data = await r.json();
     raw = data?.choices?.[0]?.message?.content?.trim() || '';
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'OpenAI timeout (25s) — tente de novo' }, 504);
     return json({ error: 'OpenAI: ' + String(e?.message || e) }, 502);
   }
 

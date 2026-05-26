@@ -81,7 +81,8 @@ Sem markdown, sem texto antes ou depois. area_m2 deve ser um número (pode ter c
         temperature: 0.2,
         response_format: { type: 'json_object' },
         max_tokens: 200
-      })
+      }),
+      signal: AbortSignal.timeout(25000)
     });
 
     if (!r.ok) {
@@ -112,6 +113,8 @@ Sem markdown, sem texto antes ou depois. area_m2 deve ser um número (pode ter c
       justification: justification || 'Estimativa visual aproximada — revise antes de comprar.'
     });
   } catch (e) {
+    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+    if (isTimeout) return json({ error: 'OpenAI timeout (25s) — tente de novo' }, 504);
     return json({ error: 'OpenAI: ' + String(e?.message || e) }, 502);
   }
 }
