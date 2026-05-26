@@ -13,7 +13,7 @@
 //   - Legenda (paralela): até 7s × 2 providers = 14s
 //   Promise.all = max(imagem, legenda) ≤ 22s.
 //   Outer hard-timeout em 27s GARANTE retorno JSON antes do CF matar (30s).
-import { gateProAI, jsonResponse as json } from './_security.js';
+import { gateProAI, jsonResponse as json, FALLBACK_SUPABASE_URL } from './_security.js';
 import { callAIText } from './_ai.js';
 
 const OPENAI_IMG_MODEL = 'gpt-image-1';
@@ -143,29 +143,44 @@ function buildReferencePrompt(styleKey, businessName, captionHint, hasPhoto2){
   ].join(' ');
 }
 
-// Tenta carregar a referência visual da rota /style-refs/<style>.jpg
-// usando ASSETS binding (Pages) se disponível, ou fetch same-origin.
-// Retorna { blob, mime } ou null se não existir.
+// Tenta carregar a referência visual do estilo. Ordem de busca:
+//   1. Supabase storage bucket style-refs (admin sobe via /api/upload-style-ref)
+//   2. Static /style-refs/<style>.jpg no repo (fallback default)
+//   3. null (cai no fluxo só-texto)
 async function loadStyleReference({ env, request, styleKey }){
+  if (!STYLE_REFERENCES[styleKey]) return null;
+
+  // 1. Tenta Supabase storage (admin pode ter sobrescrito o template)
+  const supaUrl = (env.SUPABASE_URL || FALLBACK_SUPABASE_URL).replace(/\/$/, '');
+  for (const ext of ['jpg', 'png', 'webp']){
+    try {
+      const url = `${supaUrl}/storage/v1/object/public/style-refs/${styleKey}.${ext}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (!resp.ok) continue;
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      if (!ct.startsWith('image/')) continue;
+      const buf = await resp.arrayBuffer();
+      if (!buf || buf.byteLength < 1024) continue;
+      return { blob: new Blob([buf], { type: ct }), mime: ct };
+    } catch(_){ /* tenta próxima ext */ }
+  }
+
+  // 2. Fallback: static file no repo
   const path = STYLE_REFERENCES[styleKey];
-  if (!path) return null;
   try {
     let resp = null;
-    // Preferência: binding env.ASSETS (mais rápido, não passa pela rede)
     if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function'){
       const refUrl = new URL(path, request.url).toString();
       resp = await env.ASSETS.fetch(new Request(refUrl));
     } else {
-      // Fallback: fetch same-origin
       const refUrl = new URL(path, request.url).toString();
       resp = await fetch(refUrl, { signal: AbortSignal.timeout(3000) });
     }
     if (!resp || !resp.ok) return null;
     const ct = (resp.headers.get('content-type') || '').toLowerCase();
-    // SPA fallback do _redirects pode devolver index.html no lugar — rejeita
     if (!ct.startsWith('image/')) return null;
     const buf = await resp.arrayBuffer();
-    if (!buf || buf.byteLength < 1024) return null; // arquivo suspeito (vazio)
+    if (!buf || buf.byteLength < 1024) return null;
     return { blob: new Blob([buf], { type: ct }), mime: ct };
   } catch(e) {
     console.warn('[ig-art] loadStyleReference falhou:', String(e?.message || e));

@@ -6024,7 +6024,100 @@ let _aiArtResultCaption = '';
 function openAiArt(){
   if(!gateProClient('Gerar arte pra Instagram com Seu Zé')) return;
   _aiArtReset();
+  _aiArtLoadTemplates();        // carrega previews dos tiles do storage
+  _aiArtToggleAdminButtons();   // mostra/esconde botão de upload
   showModal('ai-art-modal');
+}
+
+// Mostra o botão ✏️ de upload nos tiles só se o user logado for admin.
+function _aiArtToggleAdminButtons(){
+  const show = (typeof _isAdmin !== 'undefined' && _isAdmin);
+  document.querySelectorAll('.ai-art-tile-upload').forEach(b => {
+    b.style.display = show ? 'flex' : 'none';
+    if(show){
+      b.style.alignItems = 'center';
+      b.style.justifyContent = 'center';
+    }
+  });
+}
+
+// Carrega o template visual de cada estilo (Supabase storage ou fallback static)
+// como background do tile. Se nem o storage nem o static existirem, mantém o
+// fallback CSS-gradient já desenhado no HTML.
+function _aiArtLoadTemplates(){
+  const styles = ['profissional', 'trabalho', 'antesdepois'];
+  const supaUrl = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : '';
+  for (const key of styles){
+    const tile = document.querySelector(`#ai-art-styles .ai-art-style[data-style="${key}"] .ai-art-tile-preview`);
+    if(!tile) continue;
+    const candidates = [];
+    if(supaUrl){
+      for (const ext of ['jpg','png','webp']){
+        candidates.push(`${supaUrl}/storage/v1/object/public/style-refs/${key}.${ext}?v=${Date.now()}`);
+      }
+    }
+    candidates.push(`/style-refs/${key}.jpg`);
+    _aiArtTryLoadFirstAvailable(tile, candidates, 0);
+  }
+}
+
+function _aiArtTryLoadFirstAvailable(tile, urls, i){
+  if(i >= urls.length) return;
+  const img = new Image();
+  img.onload = () => {
+    tile.style.backgroundImage = `url('${urls[i]}')`;
+    const fb = tile.querySelector('.ai-art-fallback');
+    if(fb) fb.style.display = 'none';
+  };
+  img.onerror = () => _aiArtTryLoadFirstAvailable(tile, urls, i + 1);
+  img.src = urls[i];
+}
+
+// Upload de template do tile (admin-only). Abre file picker → compacta →
+// envia pro /api/upload-style-ref → atualiza preview do tile.
+let _aiArtUploadingStyle = null;
+function _aiArtUploadTemplate(styleKey){
+  if(typeof _isAdmin === 'undefined' || !_isAdmin){
+    toast('Só admin pode trocar template');
+    return;
+  }
+  _aiArtUploadingStyle = styleKey;
+  const input = document.getElementById('ai-art-template-input');
+  if(!input) return;
+  // Limpa handler anterior pra evitar empilhar
+  input.onchange = async function(){
+    const f = input.files && input.files[0];
+    input.value = '';
+    if(!f) return;
+    if(!f.type.startsWith('image/')){ toast('Selecione uma imagem'); return; }
+    if(f.size > 4 * 1024 * 1024){ toast('Template muito grande (máx 4MB)'); return; }
+    toast('Subindo template…');
+    try {
+      // Compacta pra ~1024px de lado maior (templates não precisam ser enormes)
+      const compressed = await _compressImageFile(f, 1024, 0.85);
+      const { ok, status, data, error } = await apiPost('/api/upload-style-ref', {
+        styleKey: _aiArtUploadingStyle,
+        photoDataUrl: compressed
+      });
+      if(!ok || !data || !data.ok){
+        const msg = (data && data.error) || error || ('HTTP ' + status);
+        toast('Falha: ' + msg);
+        return;
+      }
+      toast('Template atualizado! ✨');
+      // Atualiza o preview do tile imediatamente
+      const tile = document.querySelector(`#ai-art-styles .ai-art-style[data-style="${_aiArtUploadingStyle}"] .ai-art-tile-preview`);
+      if(tile){
+        tile.style.backgroundImage = `url('${data.url}')`;
+        const fb = tile.querySelector('.ai-art-fallback');
+        if(fb) fb.style.display = 'none';
+      }
+    } catch(e){
+      console.warn('_aiArtUploadTemplate:', e);
+      toast('Erro ao subir template');
+    }
+  };
+  input.click();
 }
 
 // Comprime via canvas pra reduzir tamanho do request (CF Pages Functions
