@@ -17,7 +17,8 @@ import { gateProAI, jsonResponse as json, FALLBACK_SUPABASE_URL } from './_secur
 import { callAIText } from './_ai.js';
 
 const OPENAI_IMG_MODEL = 'gpt-image-1';
-const OPENAI_IMG_TIMEOUT_MS = 22000;
+const OPENAI_IMG_QUALITY = 'medium';   // 'low'|'medium'|'high'|'auto'. medium ~10-18s, auto pode ir pra 30s+
+const OPENAI_IMG_TIMEOUT_MS = 24000;
 
 const GEMINI_FALLBACK_DEFAULT_MODEL = 'gemini-2.5-flash-image';
 const GEMINI_FALLBACK_MODELS = [
@@ -27,7 +28,7 @@ const GEMINI_FALLBACK_MODELS = [
 const GEMINI_FALLBACK_TIMEOUT_MS = 4000;
 
 const CAPTION_TIMEOUT_MS = 7000;
-const OUTER_HARD_TIMEOUT_MS = 27000;  // < 30s do CF Pages, garante retorno JSON
+const OUTER_HARD_TIMEOUT_MS = 28000;  // < 30s do CF Pages, garante retorno JSON
 const MAX_INPUT_BYTES = 8 * 1024 * 1024;
 
 // MODELOS DE COMPOSIÇÃO — cada estilo descreve um template visual rígido
@@ -390,6 +391,7 @@ async function generateImageOpenAI({ env, prompt, mime, b64, size, styleRef, pho
     form.append('prompt', prompt.slice(0, 4000));  // OpenAI tem limite de prompt
     form.append('size', size || '1024x1024');
     form.append('n', '1');
+    form.append('quality', OPENAI_IMG_QUALITY);  // 'medium' ~2x mais rápido que 'auto'/'high'
     // gpt-image-1 retorna b64_json por padrão no /v1/images/edits
 
     const r = await fetch('https://api.openai.com/v1/images/edits', {
