@@ -1,8 +1,13 @@
+// @ts-check
 // Análise financeira IA — recebe agregados do mês atual e anterior + amostra
 // de jobs recentes e devolve 3-4 frases curtas em PT-BR com margem, tendência
 // e uma recomendação acionável. Não inventa números.
 import { gateProAI, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {

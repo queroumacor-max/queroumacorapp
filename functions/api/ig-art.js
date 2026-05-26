@@ -1,3 +1,4 @@
+// @ts-check
 // Gerador de arte pra Instagram a partir de uma foto.
 // Pipeline:
 //   - PRIMÁRIO: OpenAI gpt-image-1 (image-to-image via /v1/images/edits)
@@ -94,6 +95,10 @@ const FALLBACK_CAPTIONS = {
   grafite: 'Cor na rua, arte na parede. 🎨'
 };
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   // Race contra hard-timeout — se algo passar de 27s, devolvemos JSON 504
   // ANTES do Cloudflare Pages matar a função aos 30s (que retorna 502 sem body).
@@ -111,6 +116,10 @@ export async function onRequestPost(context) {
   }
 }
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 async function handle(context) {
   const { env, request } = context;
 
@@ -180,6 +189,10 @@ async function handle(context) {
 }
 
 // Pipeline: OpenAI gpt-image-1 → fallback Gemini (só em erro rápido).
+/**
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
+ */
 async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
   // 1. PRIMÁRIO: OpenAI gpt-image-1 (image-to-image edit)
   const openaiRes = await generateImageOpenAI({ env, prompt, mime, b64, size });
@@ -210,6 +223,10 @@ async function generateImageWithFallback({ env, prompt, mime, b64, size }) {
 }
 
 // OpenAI gpt-image-1 via /v1/images/edits (multipart com a foto como entrada).
+/**
+ * @param {{ env: Record<string, string>, prompt: string, mime: string, b64: string, size?: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
+ */
 async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), OPENAI_IMG_TIMEOUT_MS);
@@ -257,6 +274,10 @@ async function generateImageOpenAI({ env, prompt, mime, b64, size }) {
   }
 }
 
+/**
+ * @param {{ env: Record<string, string>, models: string[], prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string, modelTried?: string }>}
+ */
 async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
   let lastErr = '';
   let lastModel = '';
@@ -273,6 +294,10 @@ async function generateImageGeminiChain({ env, models, prompt, mime, b64 }) {
   return { error: 'Gemini: todos modelos falharam. Último: ' + lastErr, modelTried: 'gemini:' + lastModel };
 }
 
+/**
+ * @param {{ env: Record<string, string>, model: string, prompt: string, mime: string, b64: string }} args
+ * @returns {Promise<{ b64?: string, mime?: string, error?: string }>}
+ */
 async function generateImageGemini({ env, model, prompt, mime, b64 }) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), GEMINI_FALLBACK_TIMEOUT_MS);
@@ -321,6 +346,10 @@ async function generateImageGemini({ env, model, prompt, mime, b64 }) {
   }
 }
 
+/**
+ * @param {{ env: Record<string, string>, styleKey: string, captionHint: string, businessName: string }} args
+ * @returns {Promise<{ text: string }>}
+ */
 async function generateCaption({ env, styleKey, captionHint, businessName }) {
   const styleHint = ({
     portrait: 'retrato profissional do pintor',

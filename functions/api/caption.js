@@ -1,3 +1,4 @@
+// @ts-check
 // Gera legenda + hashtags em PT-BR para um post de portfólio a partir de uma foto.
 // POST multipart/form-data com campo "image" (foto, <= 8 MB).
 // Resposta: { caption: string, hashtags: string[] } (4-6 hashtags em PT-BR).
@@ -6,6 +7,10 @@ import { gateProAIForm, jsonResponse as json } from './_security.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY) {
@@ -111,11 +116,19 @@ REGRAS DE RESPOSTA (rígidas):
   return json({ caption, hashtags });
 }
 
+/**
+ * @param {unknown} v
+ * @returns {string}
+ */
 function sanitizeCaption(v) {
   if (typeof v !== 'string') return '';
   return v.replace(/\s+/g, ' ').trim().slice(0, 400);
 }
 
+/**
+ * @param {unknown} arr
+ * @returns {string[]}
+ */
 function sanitizeHashtags(arr) {
   if (!Array.isArray(arr)) return [];
   const out = [];
@@ -137,6 +150,10 @@ function sanitizeHashtags(arr) {
   return out;
 }
 
+/**
+ * @param {ArrayBuffer} buf
+ * @returns {string}
+ */
 function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
   let bin = '';

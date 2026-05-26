@@ -1,8 +1,13 @@
+// @ts-check
 // Fila de moderação admin: verifica se o usuário é admin e aprova/rejeita posts.
 // Requer no Cloudflare Pages: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // SUPABASE_ANON_KEY e ADMIN_EMAILS (lista separada por vírgula).
 import { jsonResponse as json, FALLBACK_SUPABASE_URL, checkRateLimit, rateLimitResponse } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   // Aceita 3 nomes de service key pra compatibilidade

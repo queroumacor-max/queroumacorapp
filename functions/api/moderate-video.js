@@ -1,3 +1,4 @@
+// @ts-check
 // Moderação assíncrona de vídeo via Gemini (frames + áudio nativos).
 // O post entra como 'pending'; esta função aprova/rejeita depois.
 // Requer: GEMINI_API_KEY, SUPABASE_SERVICE_ROLE, SUPABASE_URL, SUPABASE_ANON_KEY.
@@ -27,6 +28,10 @@ const RUBRIC =
   '\n' +
   'reasons curtas em pt-br (ex: "nudez","sexual_menores","golpe","violencia","odio","spam","doxxing").';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   // Aceita 3 nomes de service key pra compatibilidade
@@ -131,6 +136,12 @@ export async function onRequestPost(context) {
   }
 }
 
+/**
+ * @param {string} apiKey
+ * @param {ArrayBuffer} buf
+ * @param {string} mime
+ * @returns {Promise<string>}
+ */
 async function uploadToGemini(apiKey, buf, mime) {
   const start = await fetch(
     `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
@@ -179,6 +190,13 @@ async function uploadToGemini(apiKey, buf, mime) {
   return uri;
 }
 
+/**
+ * @param {string} apiKey
+ * @param {string} fileUri
+ * @param {string} mime
+ * @param {string} caption
+ * @returns {Promise<{ flagged: boolean, severity: string, reasons: string[] }>}
+ */
 async function analyzeVideo(apiKey, fileUri, mime, caption) {
   const r = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -211,6 +229,13 @@ async function analyzeVideo(apiKey, fileUri, mime, caption) {
   };
 }
 
+/**
+ * @param {string} supaUrl
+ * @param {Record<string, string>} sHeaders
+ * @param {string} postId
+ * @param {string} mediaUrl
+ * @returns {Promise<void>}
+ */
 async function rejectPost(supaUrl, sHeaders, postId, mediaUrl) {
   await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`, {
     method: 'DELETE',

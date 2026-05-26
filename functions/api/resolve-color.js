@@ -1,9 +1,14 @@
+// @ts-check
 // Resolve a cor (hex) de produtos de tinta a partir do nome/código.
 // Usa OpenAI; cai para Gemini. Requer OPENAI_API_KEY ou GEMINI_API_KEY.
 // POST { items: [{ id, name, code }] }  ->  { colors: { id: "#rrggbb" | null } }
 import { gateProAI, jsonResponse as json } from './_security.js';
 import { callAIText } from './_ai.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestPost(context) {
   const { env, request } = context;
   if (!env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {

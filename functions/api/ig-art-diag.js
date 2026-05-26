@@ -1,3 +1,4 @@
+// @ts-check
 // Diagnóstico: lista modelos Gemini disponíveis na chave configurada.
 // Útil pra descobrir se a chave tem acesso a image generation.
 // PRO-gated (só dev autenticado) + rate-limit baixo.
@@ -7,6 +8,10 @@
 //   GET /api/ig-art-diag?openai=1 → testa também acesso a OpenAI gpt-image-1
 import { gateProAI, jsonResponse as json } from './_security.js';
 
+/**
+ * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
+ * @returns {Promise<Response>}
+ */
 export async function onRequestGet(context) {
   const { env, request } = context;
 
