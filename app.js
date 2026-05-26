@@ -1260,7 +1260,7 @@ async function crmDraft(id){
       const sb = getSupabase();
       const { data: prof } = await sb.from('profiles').select('name').eq('id', currentUser.id).single();
       painterName = (prof && prof.name) || '';
-    } catch(e){}
+    } catch(e){ console.warn('[crm-draft-painter-name]', e && e.message); }
     const { ok, data } = await apiPost('/api/crm-draft', {
       clientName: c.client_name || '',
       lastService: c.last_service_desc || '',
@@ -1577,7 +1577,7 @@ async function aiChatHandleVoice(blob){
     }
     await sendAiChat(data.text, true);
   } catch(e){
-    toast('Erro: ' + (e.message || e));
+    showError('ai-chat-voice', e, 'Não foi possível processar o áudio. Tente novamente.');
   }
 }
 
@@ -1785,7 +1785,25 @@ function gerarOrcamentoIA(){
   loadMaterialSuggestions(litros);
 }
 
+// Garante que window.jspdf está carregado antes de gerar PDF.
+// Se já estiver presente (tag estática no index.html), no-op. Senão, carrega
+// dinamicamente do path local — abrindo caminho pra remover a tag estática
+// num próximo passo e reduzir bundle inicial.
+async function ensureJsPDF() {
+  if (window.jspdf) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = '/jspdf.umd.min.js?v=2.5.1';
+    s.integrity = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';
+    s.crossOrigin = 'anonymous';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 async function compartilharOrcamento(){
+  try { await ensureJsPDF(); } catch(e){ console.warn('[ensureJsPDF]', e && e.message || e); }
   const doc = _buildOrcDoc();
   if(!doc){
     // Sem dados estruturados → compartilha o texto
@@ -1860,7 +1878,8 @@ function _buildOrcDoc(){
   doc.text('TOTAL: R$ '+(d.total||0).toLocaleString('pt-BR'),105,y+7,{align:'center'});
   return doc;
 }
-function gerarPDFOrcamento(){
+async function gerarPDFOrcamento(){
+  try { await ensureJsPDF(); } catch(e){ console.warn('[ensureJsPDF]', e && e.message || e); }
   const doc = _buildOrcDoc();
   if(!doc){ toast('Carregando PDF...'); return; }
   doc.save('orcamento-queroumacor.pdf');
@@ -2277,7 +2296,7 @@ async function transcreverAudio(blob){
     }
     toast('Áudio transcrito ✅');
   } catch(e){
-    toast('Erro: ' + (e.message || e));
+    showError('transcribe-audio', e, 'Falha ao transcrever áudio. Tente novamente.');
   }
 }
 
@@ -2587,9 +2606,8 @@ async function trocarPontosPorPRO(){
     loadPoints();
     if(typeof refreshProStatus === 'function') refreshProStatus();
   } catch(e){
-    console.warn('trocarPontosPorPRO:', e && e.message || e);
     // Mensagens em português vêm direto do RAISE EXCEPTION da função
-    toast('Erro: ' + (e.message || e));
+    showError('redeem-pro', e, (e && e.message) || 'Não foi possível trocar os pontos. Tente novamente.');
   } finally {
     if(btn) btn.disabled = false;
   }
@@ -3245,7 +3263,7 @@ function getChatReceiverId(convId, myId){
   try {
     const lc = (typeof loadConvsLocal === 'function') ? (loadConvsLocal()[convId] || null) : null;
     if(lc && lc.otherId && lc.otherId !== myId) return lc.otherId;
-  } catch(e){}
+  } catch(e){ console.warn('[other-id-from-local]', e && e.message); }
   if((cd && (cd.type === 'store' || cd.type === '3way')) || String(convId).startsWith('store_calicolors_')){
     if(calicolorsUserId && calicolorsUserId !== myId) return calicolorsUserId;
   }
@@ -3265,14 +3283,14 @@ async function startNewChat(userId){
       try {
         const { data } = await sb.from('profiles_public').select('id').eq('tag', 'calicolorstintas').limit(1);
         if(data && data.length > 0) calicolorsUserId = data[0].id;
-      } catch(e){}
+      } catch(e){ console.warn('[calicolors-by-tag]', e && e.message); }
     }
     if(!calicolorsUserId){
       // Try finding by email as fallback
       try {
         const { data } = await sb.from('profiles_public').select('id').ilike('name', '%cali%').limit(1);
         if(data && data.length > 0) calicolorsUserId = data[0].id;
-      } catch(e){}
+      } catch(e){ console.warn('[calicolors-by-name]', e && e.message); }
     }
     if(!calicolorsUserId){
       // Create a temporary store chat without DB user
@@ -3314,7 +3332,7 @@ async function startNewChat(userId){
         role: isProfessionalRole(prof.role||prof.user_type) ? ({pintor:'Pintor',grafiteiro:'Grafiteiro',automotivo:'Pintor Automotivo'}[prof.role||prof.user_type]||'Profissional') : 'Usuário'
       }];
     }
-  } catch(e){}
+  } catch(e){ console.warn('[open-chat-with-user]', e && e.message); }
 
   openChat(convId);
 }
@@ -3481,7 +3499,7 @@ async function loadPedidos(){
     } catch(e){ /* orders table might not exist yet */ }
 
     if((!quotes || quotes.length === 0) && orders.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem pedidos</div><div style="font-size:13px;">Seus orcamentos e compras aparecerão aqui</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem pedidos</div><div style="font-size:13px;">Seus orçamentos e compras aparecerão aqui</div></div>';
       return;
     }
     const statusLabels = { pending:'Aguardando', rascunho:'Rascunho', enviado:'Enviado', aprovado:'Aprovado', em_execucao:'Em execução', concluido:'Concluído', recusado:'Recusado', accepted:'Aceito', completed:'Concluido', rejected:'Rejeitado', processing:'Em andamento', shipped:'Enviado' };
@@ -3729,7 +3747,7 @@ async function openEditRaio(){
     try {
       const { data: pr } = await sb.from('profiles').select('service_radius').eq('id', currentUser.id).single();
       if(pr && pr.service_radius != null) sel.value = pr.service_radius;
-    } catch(e){}
+    } catch(e){ console.warn('[load-service-radius]', e && e.message); }
   }
   showModal('edit-radius-modal');
 }
@@ -3747,7 +3765,7 @@ async function saveRaio(){
     if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
     toast('Raio salvo ✅');
     closeModals();
-  } catch(e){ toast('Erro: ' + (e.message || e)); }
+  } catch(e){ showError('save-radius', e, 'Não foi possível salvar o raio. Tente novamente.'); }
 }
 
 function _epSpecRole(role){
@@ -4013,7 +4031,7 @@ function sharePost(postId){
   if(navigator.share){
     navigator.share({ title:'QueroUmaCor', text:'Confira este post no QueroUmaCor!', url:window.location.href }).catch(()=>{});
   } else {
-    navigator.clipboard.writeText(window.location.href).then(()=>toast('Link copiado!')).catch(()=>toast('Compartilhar nao disponivel'));
+    navigator.clipboard.writeText(window.location.href).then(()=>toast('Link copiado!')).catch(()=>toast('Compartilhar indisponível'));
   }
 }
 
@@ -4150,7 +4168,7 @@ async function handleRealtimeMsg(payload){
         }
         senderName = sp ? sp.name : '';
         senderImg = sp ? (sp.avatar_url || '') : '';
-      } catch(e){}
+      } catch(e){ console.warn('[chat-sender-name]', e && e.message); }
       if(!senderName){
         const conv = chatData[currentChat];
         const otherPart = conv ? (conv.participants.find(p => !p.logo) || conv.participants[0]) : {};
@@ -4207,7 +4225,7 @@ let validatedInviteCode = null;
 async function validateInvite(){
   const code = document.getElementById('s-invite-code').value.trim().toUpperCase();
   const errEl = document.getElementById('invite-error');
-  if(!code){ errEl.textContent='Insira o codigo de convite.'; errEl.style.display='block'; return; }
+  if(!code){ errEl.textContent='Insira o código de convite.'; errEl.style.display='block'; return; }
   errEl.style.display='none';
 
   try {
@@ -4218,17 +4236,17 @@ async function validateInvite(){
       .single();
 
     if(error || !data){
-      errEl.textContent='Codigo invalido. Verifique e tente novamente.';
+      errEl.textContent='Código inválido. Verifique e tente novamente.';
       errEl.style.display='block';
       return;
     }
     if(data.used || (data.max_uses > 0 && data.uses >= data.max_uses)){
-      errEl.textContent='Este convite ja foi utilizado.';
+      errEl.textContent='Este convite já foi utilizado.';
       errEl.style.display='block';
       return;
     }
     validatedInviteCode = data;
-    toast('Convite valido!');
+    toast('Convite válido!');
     signupNext(1);
   } catch(e){
     // If table doesn't exist yet, allow signup anyway for development
@@ -4376,8 +4394,7 @@ async function sendChatMsg(){
       };
       const { data: res, error } = await sb.from('messages').insert(insertData).select();
       if(error){
-        console.error('sendChatMsg error:', error.message);
-        toast('Erro ao enviar: ' + error.message);
+        showError('send-chat-msg', error, 'Não foi possível enviar a mensagem.');
         div.classList.add('failed');
         div.querySelector('.chat-time').textContent = 'Não enviada — toque para tentar';
         div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
@@ -4481,7 +4498,7 @@ function selectAvaliarService(quoteId){
 
 async function submitAvaliacao(){
   if(!starVal){toast('Selecione uma nota primeiro!');return;}
-  const ctx = requireSession('Faca login primeiro');
+  const ctx = requireSession('Faça login primeiro');
   if(!ctx) return;
   const sb = ctx.sb;
   const criteria = [];
@@ -4506,23 +4523,11 @@ async function submitAvaliacao(){
     setTimeout(()=>showScreen('myprofile'),1200);
   } catch(e){
     console.error('submitAvaliacao error:', e && e.message || e);
-    toast('Erro ao enviar avaliacao: ' + (e.message || e));
+    toast('Erro ao enviar avaliação: ' + (e.message || e));
   }
 }
 
 // ══ ORCAMENTO ══
-function openOrcamento(){
-  const p = painters[currentPainter];
-  if(p){
-    document.querySelector('.opc-name').innerHTML = escapeHtml(p.name||'') + (p.pro ? ' <span style="background:var(--ink);color:var(--p1);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;">PRO</span>' : '');
-    document.querySelector('.opc-av img').src = p.img || 'https://i.pravatar.cc/150?img=11';
-    document.querySelector('.opc-stars').textContent = '★★★★★ ' + (p.rating || '5.0');
-    document.querySelector('.opc-sub').textContent = p.city || '';
-  }
-  // store painter supabase_id for insert (will be filled if painter has profile in DB)
-  document.getElementById('orc-painter-id').value = p && p.supabase_id ? p.supabase_id : '';
-  showScreen('orcamento');
-}
 function toggleOrcOutros(v){
   const wrap = document.getElementById('orc-outros-wrap');
   if(!wrap) return;
@@ -4572,8 +4577,7 @@ async function sendOrc(){
   btn.querySelector('span').textContent = '📩 Enviar Solicitação';
 
   if(error){
-    console.error('sendOrc error:', error && error.message || error);
-    toast('❌ Erro ao enviar: ' + (error.message || error));
+    showError('send-quote', error, 'Não foi possível enviar a solicitação de orçamento.');
   } else {
     // Auto-distribute lead if no specific painter
     if(!painterId && quoteData) distribuirLead(quoteData.id, serviceType, address);
@@ -4887,7 +4891,7 @@ async function sendMsg(){
   const sb = getSupabase();
   if(!sb){ toast('Conexão indisponível. Tente de novo.'); return; }
   const { data:{ session } } = await sb.auth.getSession();
-  if(!session){ toast('Sessao expirada. Faca login novamente.'); return; }
+  if(!session){ toast('Sessão expirada. Faça login novamente.'); return; }
 
   const receiverId = getChatReceiverId(currentChat, session.user.id);
 
@@ -4900,8 +4904,7 @@ async function sendMsg(){
   };
   const { data: insertResult, error } = await sb.from('messages').insert(insertData).select();
   if(error){
-    console.error('sendMsg error:', error.message);
-    toast('Erro ao enviar: ' + error.message);
+    showError('send-msg', error, 'Não foi possível enviar a mensagem.');
     return;
   }
   // sucesso → grava no localStorage só agora
@@ -4955,7 +4958,7 @@ async function handleChatAttachment(input){
   const file = input.files[0];
   if(!file) return;
   input.value = '';
-  const ctx = requireSession('Faca login primeiro');
+  const ctx = requireSession('Faça login primeiro');
   if(!ctx) return;
   const sb = ctx.sb;
   toast('Enviando imagem...');
@@ -5211,7 +5214,7 @@ async function saveCart(){
     if(currentUser && currentUser.id){
       localStorage.setItem('cart_' + currentUser.id, JSON.stringify(cartItems));
     }
-  } catch(_) {}
+  } catch(e) { console.warn('[save-cart-local]', e && e.message); }
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   try {
@@ -5295,6 +5298,7 @@ function renderCartModal(){
 }
 
 function removeFromCart(index){
+  if (!confirm('Remover este item do carrinho?')) return;
   cartItems.splice(index, 1);
   saveCart();
   updateCartBadge();
@@ -5303,7 +5307,7 @@ function removeFromCart(index){
 
 async function submitCartOrder(){
   if(cartItems.length === 0){ toast('Carrinho vazio!'); return; }
-  const ctx = requireSession('Faca login primeiro');
+  const ctx = requireSession('Faça login primeiro');
   if(!ctx) return;
   const sb = ctx.sb;
   const btn = document.getElementById('cart-submit-btn');
@@ -5342,8 +5346,7 @@ async function submitCartOrder(){
     toast('Redirecionando para o Mercado Pago...');
     window.location.href = data.init_point;
   } catch(e){
-    console.error('submitCartOrder error:', e && e.message || e);
-    toast('Erro: ' + (e.message || 'tente novamente'));
+    showError('cart-checkout', e, 'Não foi possível finalizar a compra. Tente novamente.');
     btn.textContent = originalLabel; btn.disabled = false;
   }
 }
@@ -6342,7 +6345,7 @@ async function addQualification(btn){
     document.getElementById('q-icon').value = '🎓';
     toast('Formação adicionada');
     loadQualsList();
-  } catch(e){ console.error('addQualification:', e && e.message || e); toast('Erro: ' + (e.message||'falha')); }
+  } catch(e){ showError('add-qualification', e, 'Não foi possível adicionar a formação.'); }
   btn.disabled = false; btn.textContent = 'Adicionar';
 }
 
@@ -6403,7 +6406,7 @@ async function addCourse(btn){
     document.getElementById('c-free').checked = false;
     toast('Curso adicionado');
     loadCoursesList();
-  } catch(e){ console.error('addCourse:', e && e.message || e); toast('Erro: ' + (e.message||'falha')); }
+  } catch(e){ showError('add-course', e, 'Não foi possível adicionar o curso.'); }
   btn.disabled = false; btn.textContent = 'Adicionar curso';
 }
 
@@ -6456,7 +6459,7 @@ async function loadFeed(){
     const uid = currentUser ? currentUser.id : 'anon';
     localStorage.removeItem('feedCache_v2_' + uid);
     localStorage.removeItem('storiesCache_v2_' + uid);
-  } catch(_){}
+  } catch(e){ console.warn('[clear-feed-cache]', e && e.message); }
   // Fetch followingIds once, share with both
   const feedIds = await getFollowingIds();
   await Promise.all([loadStories(feedIds), loadPosts(feedIds)]);
@@ -7384,12 +7387,12 @@ async function gerarLegendaPost(btn){
 
 async function publishPost(){
   const sb = getSupabase();
-  if(!sb){ toast('Erro: Supabase nao disponivel'); return; }
+  if(!sb){ toast('Erro: Supabase indisponível'); return; }
   const btn = document.getElementById('post-publish-btn');
   const type = currentPostType; // 'story' or 'post'
   try {
     const { data:{ session } } = await sb.auth.getSession();
-    if(!session){ toast('Faca login para publicar'); return; }
+    if(!session){ toast('Faça login para publicar'); return; }
     const content = document.getElementById('post-text-input').value.trim();
 
     // Story requires image; Post can be text-only
@@ -7490,8 +7493,7 @@ async function publishPost(){
       await loadFeed();
     }
   } catch(e) {
-    console.error('publishPost error:', e && e.message || e);
-    toast('Erro: ' + (e.message || 'falha ao publicar'));
+    showError('publish-post', e, 'Não foi possível publicar o post.');
     if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; }
   }
 }
@@ -7911,7 +7913,7 @@ async function validateAndGoStep3(){
       const { data } = await sb.from('profiles_public').select('id').eq('tag', tag.toLowerCase()).limit(1);
       if(data && data.length > 0){
         statusEl.style.color = 'var(--p4)';
-        statusEl.textContent = '@' + tag + ' ja esta em uso. Escolha outra tag.';
+        statusEl.textContent = '@' + tag + ' já está em uso. Escolha outra tag.';
         tagAvailable = false;
         return;
       }
@@ -7943,11 +7945,11 @@ async function checkTagAvailability(){
     if(error) throw error;
     if(data && data.length > 0){
       statusEl.style.color = 'var(--p4)';
-      statusEl.textContent = '@' + tag + ' ja esta em uso. Escolha outra tag.';
+      statusEl.textContent = '@' + tag + ' já está em uso. Escolha outra tag.';
       tagAvailable = false;
     } else {
       statusEl.style.color = 'var(--p6)';
-      statusEl.textContent = '@' + tag + ' esta disponivel!';
+      statusEl.textContent = '@' + tag + ' está disponível!';
       tagAvailable = true;
     }
   } catch(e){
@@ -7963,13 +7965,13 @@ async function checkTagAvailability(){
 let generatedInviteCode = {};
 async function generateInviteCode(view){
   const sb = getSupabase();
-  if(!sb){ toast('Erro: Supabase nao disponivel'); return; }
+  if(!sb){ toast('Erro: Supabase indisponível'); return; }
   const btn = document.getElementById('gen-invite-btn-' + view);
   btn.textContent = 'Gerando...';
   btn.disabled = true;
   try {
     const { data:{ session } } = await sb.auth.getSession();
-    if(!session){ toast('Faca login primeiro'); btn.textContent = 'Gerar Codigo de Convite'; btn.disabled = false; return; }
+    if(!session){ toast('Faça login primeiro'); btn.textContent = 'Gerar código de convite'; btn.disabled = false; return; }
     // Generate a unique code QUC-XXXXX
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = 'QUC-';
@@ -7989,26 +7991,26 @@ async function generateInviteCode(view){
     document.getElementById('my-invite-code-' + view).style.display = 'block';
     document.getElementById('my-invite-code-value-' + view).textContent = code;
     document.getElementById('share-invite-btn-' + view).style.display = 'block';
-    btn.textContent = 'Gerar Novo Codigo';
+    btn.textContent = 'Gerar novo código';
     btn.disabled = false;
-    toast('Codigo gerado!');
+    toast('Código gerado!');
   } catch(e){
     console.error('generateInviteCode error:', e && e.message || e);
-    toast('Erro ao gerar codigo');
-    btn.textContent = 'Gerar Codigo de Convite'; btn.disabled = false;
+    toast('Erro ao gerar código');
+    btn.textContent = 'Gerar código de convite'; btn.disabled = false;
   }
 }
 
 async function shareInviteCode(view){
   const code = generatedInviteCode[view];
-  if(!code){ toast('Gere um codigo primeiro'); return; }
-  const text = 'Oi! Use meu codigo ' + code + ' para se cadastrar no QueroUmaCor - o app para pintores e clientes!';
+  if(!code){ toast('Gere um código primeiro'); return; }
+  const text = 'Oi! Use meu código ' + code + ' para se cadastrar no QueroUmaCor - o app para pintores e clientes!';
   if(navigator.share){
     navigator.share({ title: 'Convite QueroUmaCor', text: text }).catch(()=>{});
   } else if(navigator.clipboard){
-    navigator.clipboard.writeText(code).then(()=>toast('Codigo copiado!')).catch(()=>toast('Codigo: '+code));
+    navigator.clipboard.writeText(code).then(()=>toast('Código copiado!')).catch(()=>toast('Código: '+code));
   } else {
-    await appPrompt('Copie o codigo:', { initial: code });
+    await appPrompt('Copie o código:', { initial: code });
   }
 }
 

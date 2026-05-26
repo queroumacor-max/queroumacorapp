@@ -5,19 +5,54 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>QueroUmaCor</title>
-<meta name="description" content="QueroUmaCor — encontre pintores, grafiteiros e pintores automotivos perto de você. Peça orçamentos, veja portfólios e contrate profissionais de pintura com segurança.">
-<meta property="og:title" content="QueroUmaCor">
-<meta property="og:description" content="Encontre profissionais de pintura perto de você — orçamentos, portfólios e contratação num só app.">
+<link rel="canonical" href="https://queroumacor.com.br/">
+<meta name="description" content="QueroUmaCor — encontre pintores residenciais, comerciais, automotivos e grafiteiros avaliados na sua cidade. Peça orçamentos por foto, acompanhe a obra e compre tintas. Disponível em todo o Brasil.">
+<meta name="author" content="Cali Colors">
+
+<!-- Open Graph -->
 <meta property="og:type" content="website">
-<meta property="og:image" content="/icon-512.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:title" content="QueroUmaCor — Encontre pintores avaliados no Brasil">
+<meta property="og:description" content="Conecte-se a pintores, grafiteiros e funileiros. Orçamentos por foto, avaliações reais, loja de tintas Cali Colors.">
+<meta property="og:url" content="https://queroumacor.com.br/">
+<meta property="og:site_name" content="QueroUmaCor">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:image" content="https://queroumacor.com.br/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+
+<!-- Twitter Cards -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="QueroUmaCor — Encontre pintores avaliados no Brasil">
+<meta name="twitter:description" content="Conecte-se a pintores, grafiteiros e funileiros. Orçamentos por foto, avaliações reais.">
+<meta name="twitter:image" content="https://queroumacor.com.br/icon-512.png">
+
+<!-- preconnects -->
+<link rel="preconnect" href="https://uwqebaqweehiljsqkifm.supabase.co">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<!-- Structured data: Organization -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "QueroUmaCor",
+  "alternateName": "Cali Colors",
+  "url": "https://queroumacor.com.br",
+  "logo": "https://queroumacor.com.br/icon-512.png",
+  "email": "loja@calicolors.com.br",
+  "telephone": "+55-11-95976-5031",
+  "areaServed": "BR",
+  "sameAs": []
+}
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/leaflet.css?v=1.9.4" media="print" onload="this.media='all'" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
 <script src="/leaflet.js?v=1.9.4" defer integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="/jspdf.umd.min.js?v=2.5.1" defer integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg"></script>
-<script src="/head.js?v=20260526g" defer></script>
+<script src="/head.js?v=20260526h" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,6 +64,15 @@
 </head>
 
 <body>
+
+<noscript>
+  <main style="max-width:720px;margin:40px auto;padding:24px;font-family:sans-serif;color:#1a1a2e;">
+    <h2 style="font-size:26px;margin-bottom:12px;">QueroUmaCor</h2>
+    <p style="font-size:16px;line-height:1.6;color:#555;margin-bottom:18px;">Conecte-se a pintores residenciais, comerciais, automotivos e grafiteiros avaliados na sua cidade. Peça orçamentos por foto, acompanhe a obra em tempo real e compre tintas da Cali Colors.</p>
+    <p style="font-size:14px;color:#888;">Este aplicativo precisa de JavaScript para funcionar. Ative o JavaScript no seu navegador e recarregue a página.</p>
+    <p style="font-size:14px;color:#888;margin-top:14px;">Contato: <a href="mailto:loja@calicolors.com.br">loja@calicolors.com.br</a> · WhatsApp <a href="https://wa.me/5511959765031">(11) 95976-5031</a></p>
+  </main>
+</noscript>
 
 <div class="app" id="app">
 
@@ -60,7 +104,7 @@
     </div>
 
     <div class="auth-body">
-      <h1 class="auth-title">Bem-vindo de volta 👋</h1>
+      <h2 class="auth-title">Bem-vindo de volta 👋</h2>
       <div class="auth-sub">Entre na sua conta para continuar</div>
 
       <form onsubmit="doLogin();return false;">
@@ -113,7 +157,7 @@
 
       <!-- STEP 0: invite code -->
       <div id="signup-step0">
-        <h1 class="auth-title">Código de Convite</h1>
+        <h2 class="auth-title">Código de Convite</h2>
         <div class="auth-sub">Para se cadastrar você precisa de um convite de alguém que já usa o app.</div>
         <div class="auth-field">
           <label class="auth-label" for="s-invite-code">Código de convite</label>
@@ -308,7 +352,7 @@
             <input type="checkbox" id="signup-consent-pintor" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
             <span>Li e concordo com os <a href="#" onclick="showScreen('info');openInfoPage('termos');return false;" style="color:var(--p1);text-decoration:underline">Termos de Uso</a> e a <a href="#" onclick="showScreen('info');openInfoPage('privacidade');return false;" style="color:var(--p1);text-decoration:underline">Política de Privacidade</a>. Estou ciente do tratamento dos meus dados conforme a LGPD.</span>
           </label>
-          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent-pintor').checked){alert('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta.');return;}doSignup()">🎨 Criar minha conta</button>
+          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent-pintor').checked){toast('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta');return;}doSignup()">🎨 Criar minha conta</button>
           <button class="auth-btn secondary" type="button" onclick="signupNext(2)">← Voltar</button>
         </div>
         <!-- CLIENTE extras -->
@@ -340,7 +384,7 @@
             <input type="checkbox" id="signup-consent" required style="margin-top:3px;width:18px;height:18px;flex-shrink:0;">
             <span>Li e concordo com os <a href="#" onclick="showScreen('info');openInfoPage('termos');return false;" style="color:var(--p1);text-decoration:underline">Termos de Uso</a> e a <a href="#" onclick="showScreen('info');openInfoPage('privacidade');return false;" style="color:var(--p1);text-decoration:underline">Política de Privacidade</a>. Estou ciente do tratamento dos meus dados conforme a LGPD.</span>
           </label>
-          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent').checked){alert('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta.');return;}doSignup()">🏠 Criar minha conta</button>
+          <button class="auth-btn" type="button" style="margin-top:16px;" onclick="if(!document.getElementById('signup-consent').checked){toast('Você precisa concordar com os Termos e a Política de Privacidade para criar a conta');return;}doSignup()">🏠 Criar minha conta</button>
           <button class="auth-btn secondary" type="button" onclick="signupNext(2)">← Voltar</button>
         </div>
       </div>
@@ -399,7 +443,7 @@
 
       <!-- Painter popup card -->
       <div class="painter-popup" id="painter-popup">
-        <div class="pp-avatar"><img id="pp-img" src="" alt=""></div>
+        <div class="pp-avatar"><img id="pp-img" src="" alt="" loading="lazy" decoding="async"></div>
         <div class="pp-info">
           <div class="pp-name" id="pp-name">--</div>
           <div class="pp-sub" id="pp-sub">--</div>
@@ -456,7 +500,7 @@
   <!-- HERO -->
   <div class="profile-hero">
     <div class="ph-row">
-      <div class="ph-avatar"><img src="https://ui-avatars.com/api/?name=%20&background=e8e2d9&color=1a1a2e&size=200" alt=""></div>
+      <div class="ph-avatar"><img src="https://ui-avatars.com/api/?name=%20&background=e8e2d9&color=1a1a2e&size=200" alt="" loading="lazy" decoding="async"></div>
       <div class="ph-stats">
         <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">posts</div></div>
         <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">seguidores</div></div>
@@ -527,7 +571,7 @@
   </div>
   <form class="orc-body" onsubmit="sendOrc();return false;">
     <div class="orc-painter-card">
-      <div class="opc-av"><img id="orc-painter-av" src="https://ui-avatars.com/api/?name=Profissional&background=e8e2d9&color=1a1a2e&size=96" alt=""></div>
+      <div class="opc-av"><img id="orc-painter-av" src="https://ui-avatars.com/api/?name=Profissional&background=e8e2d9&color=1a1a2e&size=96" alt="" loading="lazy" decoding="async"></div>
       <div>
         <div class="opc-name" id="orc-painter-name">Profissional</div>
         <div class="opc-sub" id="orc-painter-sub"></div>
@@ -559,7 +603,7 @@
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
       <div style="width:76px;height:76px;border-radius:50%;padding:2.5px;background:conic-gradient(var(--p1),var(--p4),var(--p5),var(--p3),var(--p1));flex-shrink:0;">
         <div style="width:100%;height:100%;border-radius:50%;overflow:hidden;border:2.5px solid var(--ink);">
-          <img id="myprofile-avatar" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" style="width:100%;height:100%;object-fit:cover" alt="" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
+          <img id="myprofile-avatar" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" style="width:100%;height:100%;object-fit:cover" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
         </div>
       </div>
       <div style="flex:1;display:flex;justify-content:space-around;text-align:center;">
@@ -660,7 +704,7 @@
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">Notas e lembretes</div>
         </div>
         <div onclick="openAiChat()" style="background:linear-gradient(135deg,#2ec4b6,#8338ec);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1);position:relative;">
-          <img src="img/seu-ze.webp" alt="Seu Zé" style="width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;margin:0 auto 4px;display:block;">
+          <img src="img/seu-ze.webp" alt="Seu Zé" loading="lazy" decoding="async" style="width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;margin:0 auto 4px;display:block;">
           <div style="font-size:12px;font-weight:700;color:#fff;">Seu Zé</div>
           <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;">Tira dúvidas · PRO</div>
         </div>
@@ -1245,7 +1289,7 @@
       <div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Carregando serviços...</div>
     </div>
     <div class="avaliar-card" id="avaliar-form" style="display:none;">
-      <div class="avaliar-av"><img id="avaliar-av-img" src="" alt=""></div>
+      <div class="avaliar-av"><img id="avaliar-av-img" src="" alt="" loading="lazy" decoding="async"></div>
       <div class="avaliar-title" id="avaliar-title">—</div>
       <div class="avaliar-sub" id="avaliar-sub">—</div>
       <div class="stars-row" id="stars-row">
@@ -1345,7 +1389,7 @@
         <div class="shirt-canvas" id="shirt-canvas">
           <button class="shirt-zoom-btn" type="button" onclick="openShirtZoom()" aria-label="Ampliar">🔍</button>
           <div class="shirt-mockup" id="shirt-mockup">
-            <img class="shirt-photo" id="shirt-photo" src="/img/shirt-white.webp" alt="Camiseta branca" onerror="this.classList.add('hide'); document.getElementById('shirt-svg').classList.add('show');">
+            <img class="shirt-photo" id="shirt-photo" src="/img/shirt-white.webp" alt="Camiseta branca" loading="lazy" decoding="async" onerror="this.classList.add('hide'); document.getElementById('shirt-svg').classList.add('show');">
             <svg class="shirt-svg" id="shirt-svg" viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="shirt-grad" x1="0" y1="0" x2="0" y2="1">
@@ -1359,7 +1403,7 @@
             </svg>
             <img id="shirt-chest-logo" class="shirt-chest-logo" alt="" style="display:none">
             <div id="shirt-chest-placeholder" class="shirt-chest-placeholder">aplique seu logo</div>
-            <img id="shirt-cali-logo" class="shirt-cali-logo" src="/img/cali-colors-logo.webp" alt="Cali Colors" onerror="this.style.display='none';">
+            <img id="shirt-cali-logo" class="shirt-cali-logo" src="/img/cali-colors-logo.webp" alt="Cali Colors" loading="lazy" decoding="async" onerror="this.style.display='none';">
           </div>
           <div class="shirt-logo-overlay">
             <div class="shirt-logo-chip" id="shirt-logo-pintor-chip">seu_perfil</div>
@@ -1762,7 +1806,7 @@
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;display:flex;flex-direction:column;">
     <div class="sheet-handle"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-      <img src="img/seu-ze.webp" alt="Seu Zé" style="width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;">
+      <img src="img/seu-ze.webp" alt="Seu Zé" loading="lazy" decoding="async" style="width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;">
       <div>
         <h2 class="sheet-title" id="ai-chat-title" style="margin:0;font-size:16px;">Seu Zé</h2>
         <div style="font-size:11px;color:var(--muted);">Mestre pintor do QueroUmaCor</div>
@@ -1771,7 +1815,7 @@
     </div>
     <div id="ai-chat-msgs" style="flex:1;overflow-y:auto;padding:8px 0;min-height:200px;max-height:50vh;">
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <img src="img/seu-ze.webp" alt="Seu Zé" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;">
+        <img src="img/seu-ze.webp" alt="Seu Zé" loading="lazy" decoding="async" style="width:28px;height:28px;border-radius:50%;object-fit:cover;object-position:center top;background:#1a1a2e;flex-shrink:0;">
         <div style="background:var(--cream);border-radius:14px;padding:10px 14px;font-size:13px;color:var(--ink);max-width:85%;">Opa! Eu sou o <b>Seu Zé</b> 🐻, o ajudante aqui do QueroUmaCor. Manjo de pintura e posso te dar uma força com:<br><br>🎨 <b>Técnicas</b> - texturas, efeitos, acabamentos<br>🪣 <b>Materiais</b> - qual tinta usar, rendimento<br>💰 <b>Preços</b> - como precificar serviços<br>📐 <b>Cálculos</b> - quantidade de material<br><br>Em que posso ajudar, colega?</div>
       </div>
     </div>
@@ -1851,7 +1895,7 @@
       <!-- Resultado -->
       <div id="ai-art-result" style="display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Resultado</div>
-        <img id="ai-art-result-img" src="" alt="" style="width:100%;border-radius:14px;background:#000;margin-bottom:10px;">
+        <img id="ai-art-result-img" src="" alt="" loading="lazy" decoding="async" style="width:100%;border-radius:14px;background:#000;margin-bottom:10px;">
         <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px;">Legenda sugerida</div>
         <textarea id="ai-art-result-caption" maxlength="800" style="width:100%;min-height:80px;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical;box-sizing:border-box;outline:none;margin-bottom:12px;"></textarea>
         <div style="display:flex;gap:8px;">
@@ -2056,7 +2100,7 @@
   <!-- Header -->
   <div id="story-header" style="display:flex;align-items:center;gap:10px;padding:24px 14px 10px;position:absolute;top:0;left:0;right:0;z-index:3;background:linear-gradient(to bottom,rgba(0,0,0,.5),transparent);">
     <div style="width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid #fff;flex-shrink:0;">
-      <img id="story-viewer-avatar" src="" style="width:100%;height:100%;object-fit:cover;">
+      <img id="story-viewer-avatar" src="" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;">
     </div>
     <div style="flex:1;">
       <div id="story-viewer-name" style="color:#fff;font-size:13px;font-weight:600;"></div>
@@ -2070,7 +2114,7 @@
     </button>
   </div>
   <!-- Story image / video -->
-  <img id="story-viewer-img" src="" style="width:100%;height:100%;object-fit:contain;position:absolute;inset:0;">
+  <img id="story-viewer-img" src="" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain;position:absolute;inset:0;">
   <video id="story-viewer-video" playsinline style="display:none;width:100%;height:100%;object-fit:contain;position:absolute;inset:0;background:#000;"></video>
   <!-- Tap zones -->
   <div style="position:absolute;inset:0;display:flex;z-index:2;">
@@ -2124,7 +2168,7 @@
     <!-- Avatar upload -->
     <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px;">
       <div style="position:relative;cursor:pointer;" onclick="document.getElementById('ep-avatar-input').click()">
-        <img id="ep-avatar-preview" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--p1);" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
+        <img id="ep-avatar-preview" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" alt="" loading="lazy" decoding="async" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--p1);" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
         <div style="position:absolute;bottom:0;right:0;width:26px;height:26px;background:var(--p1);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
@@ -2323,7 +2367,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526g" defer></script>
+<script src="/app.js?v=20260526h" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /portal/
+Disallow: /api/
+Disallow: /functions/
+
+Sitemap: https://queroumacor.com.br/sitemap.xml

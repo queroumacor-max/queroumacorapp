@@ -10,6 +10,16 @@ function getSupabase() {
   return _supabase;
 }
 
+// Mostra erro amigável pro usuário + log técnico no console
+function showError(ctx, err, fallback) {
+  const msg = (err && err.message) || String(err || '');
+  console.warn('['+ctx+']', msg);
+  if (typeof toast === 'function') {
+    toast(fallback || 'Algo deu errado. Tente de novo.');
+  }
+}
+window.showError = showError;
+
 // ─── Helpers utilitários (B2 DRY refactor) ─────────────────────────────────
 
 // avatarUrl: gera URL pra ui-avatars (avatar genérico baseado em nome)
@@ -495,7 +505,7 @@ async function openFollowingModal(){
   try {
     const { data } = await sb.from('follows').select('following_id').eq('follower_id', currentUser.id);
     if(!data || data.length === 0){
-      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Voce nao segue ninguem ainda</div>';
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Você não segue ninguém ainda</div>';
       return;
     }
     const ids = data.map(f => f.following_id);
@@ -725,6 +735,7 @@ async function doLogoutSupabase() {
   if (sb) sb.auth.signOut().catch(e => console.warn('signOut:', e && e.message || e));
 }
 function doLogout() {
+  if (!confirm('Tem certeza que deseja sair da sua conta?')) return;
   doLogoutSupabase();
   toast('Você saiu da conta');
 }
