@@ -497,7 +497,7 @@ async function handleReferralParam(){
     let refName = '';
     try {
       if(sb){
-        const { data } = await sb.from('profiles').select('name').eq('id', ref).single();
+        const { data } = await sb.from('profiles_public').select('name').eq('id', ref).single();
         refName = data ? (data.name || '') : '';
       }
     } catch(e){ /* ref inválido cai abaixo */ }
@@ -2507,7 +2507,7 @@ async function loadRanking(){
   const city = document.getElementById('ranking-city').value.trim().toLowerCase();
   if(!city || city.length < 2) return;
   const sb = getSupabase(); if(!sb) return;
-  const { data: painters } = await sb.from('profiles').select('id, name, tag, avatar_url, city, state, rating_avg, role').in('role',['pintor','grafiteiro','automotivo']).ilike('city','%'+city+'%').order('rating_avg',{ascending:false,nullsFirst:false}).limit(20);
+  const { data: painters } = await sb.from('profiles_public').select('id, name, tag, avatar_url, city, state, rating_avg, role').in('role',['pintor','grafiteiro','automotivo']).ilike('city','%'+city+'%').order('rating_avg',{ascending:false,nullsFirst:false}).limit(20);
   const el = document.getElementById('ranking-list');
   if(!painters||painters.length===0){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">Nenhum pintor encontrado nesta cidade</div>'; return; }
   el.innerHTML = painters.map((p,i)=>{
@@ -2599,7 +2599,7 @@ async function trocarPontosPorPRO(){
 async function distribuirLead(quoteId, serviceType, city){
   const sb = getSupabase(); if(!sb) return;
   // Find painters in same city, matching specialty, ordered by PRO first then rating
-  let query = sb.from('profiles').select('id, name, role, city, specialties, rating_avg, portal_access')
+  let query = sb.from('profiles_public').select('id, name, role, city, specialties, rating_avg, portal_access')
     .in('role',['pintor','grafiteiro','automotivo']).ilike('city','%'+(city||'')+'%')
     .order('rating_avg',{ascending:false,nullsFirst:false}).limit(5);
   const { data: painters } = await query;
@@ -3206,7 +3206,7 @@ async function _searchNewChatUsersImpl(query){
   const myToken = ++_searchNewChatToken;
   try {
     const q = query.replace('@','').trim().toLowerCase();
-    const res = await sb.from('profiles').select('id, name, tag, avatar_url, role, user_type').limit(200);
+    const res = await sb.from('profiles_public').select('id, name, tag, avatar_url, role, user_type').limit(200);
     if(myToken !== _searchNewChatToken) return; // resposta velha, ignora
     const all = res.data || [];
     const filtered = all.filter(p => {
@@ -3263,14 +3263,14 @@ async function startNewChat(userId){
     // Find or use Cali Colors user ID
     if(!calicolorsUserId){
       try {
-        const { data } = await sb.from('profiles').select('id').eq('tag', 'calicolorstintas').limit(1);
+        const { data } = await sb.from('profiles_public').select('id').eq('tag', 'calicolorstintas').limit(1);
         if(data && data.length > 0) calicolorsUserId = data[0].id;
       } catch(e){}
     }
     if(!calicolorsUserId){
       // Try finding by email as fallback
       try {
-        const { data } = await sb.from('profiles').select('id').ilike('name', '%cali%').limit(1);
+        const { data } = await sb.from('profiles_public').select('id').ilike('name', '%cali%').limit(1);
         if(data && data.length > 0) calicolorsUserId = data[0].id;
       } catch(e){}
     }
@@ -3303,7 +3303,7 @@ async function startNewChat(userId){
 
   // Load the other user's profile
   try {
-    const { data: prof } = await sb.from('profiles').select('name, avatar_url, tag, role, user_type').eq('id', userId).single();
+    const { data: prof } = await sb.from('profiles_public').select('name, avatar_url, tag, role, user_type').eq('id', userId).single();
     if(prof){
       const name = prof.name || 'Usuário';
       chatData[convId].name = name;
@@ -4143,7 +4143,7 @@ async function handleRealtimeMsg(payload){
       let senderName = '', senderImg = '';
       try {
         const sb = getSupabase();
-        const { data: sp } = await sb.from('profiles').select('name, avatar_url, portal_access').eq('id', m.sender_id).single();
+        const { data: sp } = await sb.from('profiles_public').select('name, avatar_url, portal_access').eq('id', m.sender_id).single();
         if(sp && sp.portal_access){
           appendMsg({ id: m.id, from:'store', text: m.content, time, type: m.type || 'text', sender:'Cali Colors' });
           return;
@@ -4726,7 +4726,7 @@ function openChat(id) {
       const senderIds = [...new Set(msgs.map(m => m.sender_id).filter(Boolean))];
       let senderProfiles = {};
       if(senderIds.length > 0){
-        const { data: profs } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag, portal_access').in('id', senderIds);
+        const { data: profs } = await sb.from('profiles_public').select('id, name, avatar_url, role, user_type, tag, portal_access').in('id', senderIds);
         if(profs) profs.forEach(p => { senderProfiles[p.id] = p; });
       }
       const otherPart = conv.participants.find(p => !p.logo) || conv.participants[0];
@@ -6558,7 +6558,7 @@ async function loadPosts(feedIds, append){
     let savedPosts = [];
     let commentsMap = {};
     const queries = [
-      sb.from('profiles').select('id, name, tag, avatar_url, role, user_type').in('id', userIds),
+      sb.from('profiles_public').select('id, name, tag, avatar_url, role, user_type').in('id', userIds),
       sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5)
     ];
     if(currentUser){
@@ -6578,7 +6578,7 @@ async function loadPosts(feedIds, append){
     // Collect all comment user_ids to resolve names
     const commentUserIds = [...new Set((results[1].data||[]).map(c => c.user_id).filter(id => !profMap[id]))];
     if(commentUserIds.length > 0){
-      const { data: cProfs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', commentUserIds);
+      const { data: cProfs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', commentUserIds);
       (cProfs||[]).forEach(pr => { profMap[pr.id] = pr; });
     }
     if(currentUser){
@@ -7062,7 +7062,7 @@ async function loadStories(feedIds){
     const allNeededIds = [...new Set([...followedIds, ...storyUserIds])].filter(Boolean);
     let allFollowedProfiles = {};
     if(allNeededIds.length > 0){
-      const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url').in('id', allNeededIds);
+      const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', allNeededIds);
       (profs||[]).forEach(pr => { allFollowedProfiles[pr.id] = pr; });
     }
     if(stories && stories.length > 0){
@@ -7685,7 +7685,7 @@ async function _filterExplorePaintersImpl(query){
       _paintersSearchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       const sb = getSupabase();
       if(sb){
-        let req = sb.from('profiles')
+        let req = sb.from('profiles_public')
           .select('id, name, tag, avatar_url, city, state, specialties, rating_avg, role, user_type')
           .or('role.eq.pintor,user_type.eq.pintor')
           .ilike('name', '%'+q+'%')
@@ -7882,6 +7882,15 @@ async function validateAndGoStep3(){
   if(!phone){ toast('Preencha seu WhatsApp'); return; }
   if(!cityField){ toast('Preencha sua cidade'); return; }
   if(!stateField){ toast('Selecione seu estado'); return; }
+  const bday = (document.getElementById('s-birthdate')||{}).value || '';
+  if(!bday){ toast('Preencha sua data de nascimento'); return; }
+  const _bd = new Date(bday);
+  if(isNaN(_bd.getTime())){ toast('Data de nascimento inválida'); return; }
+  const _today = new Date();
+  let _age = _today.getFullYear() - _bd.getFullYear();
+  const _m = _today.getMonth() - _bd.getMonth();
+  if(_m < 0 || (_m === 0 && _today.getDate() < _bd.getDate())){ _age--; }
+  if(_age < 18){ toast('Você precisa ter 18 anos ou mais para criar uma conta'); return; }
   if(!pw || pw.length < 8){ toast('Senha deve ter no minimo 8 caracteres'); return; }
   // Check tag availability before proceeding
   const statusEl = document.getElementById('tag-status');
@@ -7891,7 +7900,7 @@ async function validateAndGoStep3(){
   try {
     const sb = getSupabase();
     if(sb){
-      const { data } = await sb.from('profiles').select('id').eq('tag', tag.toLowerCase()).limit(1);
+      const { data } = await sb.from('profiles_public').select('id').eq('tag', tag.toLowerCase()).limit(1);
       if(data && data.length > 0){
         statusEl.style.color = 'var(--p4)';
         statusEl.textContent = '@' + tag + ' ja esta em uso. Escolha outra tag.';
@@ -7919,7 +7928,7 @@ async function checkTagAvailability(){
   try {
     const sb = getSupabase();
     if(!sb){ tagAvailable = true; statusEl.style.display = 'none'; return; }
-    const { data, error } = await sb.from('profiles')
+    const { data, error } = await sb.from('profiles_public')
       .select('id')
       .eq('tag', tag)
       .limit(1);
