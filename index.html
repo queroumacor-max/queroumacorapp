@@ -53,7 +53,7 @@
 <script src="/jspdf.umd.min.js?v=2.5.1" defer integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 <link rel="stylesheet" href="/styles.css?v=20260518c">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg"></script>
-<script src="/head.js?v=20260526n" defer></script>
+<script src="/head.js?v=20260526o" defer></script>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ff6b35">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1885,15 +1885,24 @@
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">Split-screen</div>
           </div>
           <div class="ai-art-style" data-style="profissional" onclick="_aiArtSetStyle(this)" style="padding:8px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
-            <div style="width:100%;height:60px;border-radius:8px;margin-bottom:6px;background:linear-gradient(180deg,#f8f8f8 0%,#dcdcdc 100%);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-              <div style="width:28px;height:36px;background:linear-gradient(180deg,#fff,#e9e9e9);border-radius:4px;box-shadow:0 4px 8px rgba(0,0,0,.15);"></div>
-              <div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:34px;height:3px;background:rgba(0,0,0,.08);border-radius:50%;filter:blur(2px);"></div>
+            <div style="width:100%;height:60px;border-radius:8px;margin-bottom:6px;background:linear-gradient(180deg,#d8c9b3 0%,#a89077 100%);position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;">
+              <div style="position:absolute;top:6px;left:0;right:0;text-align:center;font-family:'Impact','Arial Black',sans-serif;font-size:10px;font-weight:900;color:#fff;text-shadow:1px 1px 0 #000;letter-spacing:.5px;line-height:1;">TRANSFORME<br><span style="color:#ffd234;">SEU LAR</span></div>
+              <div style="width:18px;height:22px;background:#f4cfa6;border-radius:50% 50% 40% 40%;margin-bottom:4px;box-shadow:0 -2px 0 #5a3010;"></div>
+              <div style="position:absolute;bottom:2px;right:4px;background:#fff8e1;border-radius:8px;padding:1px 4px;font-size:6px;font-weight:800;color:#5a3010;">📅 ORÇAMENTO</div>
             </div>
-            <div style="font-size:12px;font-weight:700;color:var(--ink);">Profissional</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Catálogo limpo</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Pintor c/ obra</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Post marketing</div>
           </div>
-          <div class="ai-art-style" data-style="grafite" onclick="_aiArtSetStyle(this)" style="padding:8px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
-            <div style="width:100%;height:60px;border-radius:8px;margin-bottom:6px;background:repeating-linear-gradient(90deg,#7a3b1c 0 18px,#5a2810 18px 20px),repeating-linear-gradient(0deg,transparent 0 12px,#3a1a08 12px 14px);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+          <div class="ai-art-style" data-style="trabalho" onclick="_aiArtSetStyle(this)" style="padding:8px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
+            <div style="width:100%;height:60px;border-radius:8px;margin-bottom:6px;background:linear-gradient(135deg,#e8ddc8 0%,#c9b89a 100%);position:relative;overflow:hidden;">
+              <div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-family:'Impact','Arial Black',sans-serif;font-size:9px;font-weight:900;color:#fff;text-shadow:1px 1px 0 #000;letter-spacing:.5px;line-height:1.05;">TRABALHO<br><span style="color:#ffd234;">FINALIZADO</span></div>
+              <div style="position:absolute;bottom:4px;left:4px;right:4px;height:14px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:3px;font-size:5px;color:#5a3010;">📷 📞 📍 ✓</div>
+            </div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);">Trabalho pronto</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Ambiente entregue</div>
+          </div>
+          <div class="ai-art-style" data-style="grafite" onclick="_aiArtSetStyle(this)" style="grid-column:span 2;padding:8px;border-radius:12px;border:2px solid var(--border);background:#fff;cursor:pointer;text-align:center;">
+            <div style="width:100%;height:50px;border-radius:8px;margin-bottom:6px;background:repeating-linear-gradient(90deg,#7a3b1c 0 18px,#5a2810 18px 20px),repeating-linear-gradient(0deg,transparent 0 12px,#3a1a08 12px 14px);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
               <div style="font-family:'Impact','Arial Black',sans-serif;font-size:18px;font-weight:900;color:#ffeb3b;text-shadow:2px 2px 0 #e91e63, -1px -1px 0 #00bcd4;transform:skewX(-10deg);letter-spacing:1px;">ART</div>
             </div>
             <div style="font-size:12px;font-weight:700;color:var(--ink);">Arte grafite</div>
@@ -2406,7 +2415,7 @@
 <!-- PAINT SPLASH CANVAS -->
 <canvas class="splash-canvas" id="splash-canvas"></canvas>
 
-<script src="/app.js?v=20260526n" defer></script>
+<script src="/app.js?v=20260526o" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
