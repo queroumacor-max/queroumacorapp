@@ -8,6 +8,20 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
 
+# index.html nunca deve ser cacheado pelo CDN/browser sem revalidação
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+/portal/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# SEO files
+/robots.txt
+  Cache-Control: public, max-age=86400
+/sitemap.xml
+  Cache-Control: public, max-age=86400
+
 # Service worker precisa ser servido com escopo amplo
 /sw.js
   Service-Worker-Allowed: /
