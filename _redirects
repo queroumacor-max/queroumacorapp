@@ -1,0 +1,5 @@
+# Fallback SPA — qualquer rota não-existente cai em /index.html (status 200)
+# Permite que /explore, /loja, /perfil etc. funcionem como URLs reais.
+/portal/*  /portal/index.html  200
+/api/*     /api/:splat         200
+/*         /index.html         200
