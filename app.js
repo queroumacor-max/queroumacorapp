@@ -6932,9 +6932,47 @@ async function loadFeed(){
     localStorage.removeItem('feedCache_v2_' + uid);
     localStorage.removeItem('storiesCache_v2_' + uid);
   } catch(e){ console.warn('[clear-feed-cache]', e && e.message); }
-  // Fetch followingIds once, share with both
-  const feedIds = await getFollowingIds();
-  await Promise.all([loadStories(feedIds), loadPosts(feedIds)]);
+  try {
+    // Fetch followingIds once, share with both
+    const feedIds = await (typeof withTimeout === 'function'
+      ? withTimeout(getFollowingIds(), 12000, 'followingIds').catch(e => { console.warn('followingIds:', e && e.message); return currentUser ? [currentUser.id] : []; })
+      : getFollowingIds());
+    await (typeof withTimeout === 'function'
+      ? withTimeout(Promise.all([loadStories(feedIds), loadPosts(feedIds)]), 15000, 'loadFeed')
+      : Promise.all([loadStories(feedIds), loadPosts(feedIds)]));
+  } catch(e){
+    console.warn('loadFeed timeout/erro:', e && e.message || e);
+    renderFeedRetry();
+  }
+}
+
+// Mostra estado de erro no lugar do skeleton quando o feed não carrega
+// (timeout de 15s, rede caiu, Supabase fora do ar etc.). O botão chama
+// loadFeed() de novo e re-injeta o skeleton enquanto tenta.
+function renderFeedRetry(){
+  const container = document.getElementById('feed-posts-area');
+  if(!container) return;
+  // Se já renderizou posts, não mexe — só age quando ainda está no skeleton.
+  if(container.querySelector('.mpost')) return;
+  container.innerHTML =
+    '<div style="text-align:center;padding:60px 24px;color:var(--muted);">'
+    + '<div style="font-size:42px;margin-bottom:10px;">🌐</div>'
+    + '<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Não conseguimos carregar o feed</div>'
+    + '<div style="font-size:13px;margin-bottom:16px;">Verifique sua conexão e tente de novo.</div>'
+    + '<button onclick="retryLoadFeed(this)" style="padding:10px 22px;background:var(--ink);color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif;">Tentar de novo</button>'
+    + '</div>';
+}
+
+function retryLoadFeed(btn){
+  if(btn){ btn.textContent = 'Carregando...'; btn.disabled = true; }
+  const container = document.getElementById('feed-posts-area');
+  if(container){
+    container.innerHTML =
+      '<div class="skel-post"><div class="skel-row"><div class="skel skel-circle"></div><div style="flex:1"><div class="skel skel-line" style="width:40%"></div></div></div><div class="skel skel-img"></div><div class="skel skel-line" style="width:60%;margin-bottom:8px"></div><div class="skel skel-line" style="width:30%"></div></div>'
+      + '<div class="skel-post"><div class="skel-row"><div class="skel skel-circle"></div><div style="flex:1"><div class="skel skel-line" style="width:50%"></div></div></div><div class="skel skel-img"></div><div class="skel skel-line" style="width:45%;margin-bottom:8px"></div><div class="skel skel-line" style="width:25%"></div></div>';
+  }
+  _lastFeedLoad = 0;
+  loadFeed();
 }
 
 let _followingIdsCache = null;
@@ -7016,7 +7054,15 @@ async function loadPosts(feedIds, append){
     query = query.or('status.eq.approved,status.is.null');
     if(feedIds.length > 0) query = query.in('user_id', feedIds);
     query = query.order('created_at', { ascending: false }).range(offset, offset + FEED_PAGE - 1);
-    let { data: posts, error } = await query;
+    let posts = [], error = null;
+    try {
+      const res = await (typeof withTimeout === 'function' ? withTimeout(query, 12000, 'posts') : query);
+      posts = res.data || [];
+      error = res.error || null;
+    } catch(e){
+      console.warn('loadPosts timeout:', e && e.message);
+      throw e; // sobe pro loadFeed renderizar o retry
+    }
     if(error){
       console.warn('loadPosts error:', error.message);
       posts = [];
@@ -7184,6 +7230,9 @@ async function loadPosts(feedIds, append){
     _feedOffset = offset + posts.length;
   } catch(e){
     console.error('loadPosts error:', e && e.message || e);
+    // Se ainda nem chegou na primeira página, o skeleton segue na tela —
+    // propaga pro loadFeed mostrar o botão de tentar de novo.
+    if(!append) throw e;
   }
 }
 
