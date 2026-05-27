@@ -63,6 +63,8 @@ window.CF_IMG_ENABLED = window.CF_IMG_ENABLED || false;
 function cfImg(url, opts) {
   if (!url) return '';
   if (!window.CF_IMG_ENABLED) return url;
+  // Data URLs (SVG inline de avatares) passam direto — não há o que otimizar.
+  if (/^data:/i.test(url)) return url;
   opts = opts || {};
   // Same-origin: Pages serve direto, sem rerotear.
   try {
@@ -169,12 +171,37 @@ reportError({ type: 'pageview', msg: 'visit', ctx: location.pathname });
 
 // ─── Helpers utilitários (B2 DRY refactor) ─────────────────────────────────
 
-// avatarUrl: gera URL pra ui-avatars (avatar genérico baseado em nome)
+// avatarUrl: gera avatar SVG inline com as iniciais do nome. Antes
+// dependia de ui-avatars.com (serviço externo) — se o DNS da rede do
+// usuário bloqueia, todos os avatares ficavam quebrados. Agora é
+// 100% client-side, zero round-trip, funciona offline.
 function avatarUrl(name, size){
   const s = size || 96;
-  const n = encodeURIComponent(String(name || '?').slice(0, 30));
-  return 'https://ui-avatars.com/api/?name=' + n
-    + '&background=e8e2d9&color=1a1a2e&size=' + s;
+  const raw = String(name || '?').trim();
+  // Extrai iniciais: "João Pedro" → "JP", "@biateste" → "BI"
+  const clean = raw.replace(/^@/, '').replace(/[^\p{L}\p{N}\s]/gu, '');
+  const parts = clean.split(/\s+/).filter(Boolean);
+  let initials = '';
+  if(parts.length >= 2) initials = (parts[0][0] + parts[1][0]);
+  else if(parts.length === 1) initials = parts[0].slice(0, 2);
+  else initials = '?';
+  initials = initials.toUpperCase().slice(0, 2);
+  // Cor determinística baseada no nome (hash simples → hue 0-360)
+  let hash = 0;
+  for(let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  const hue = Math.abs(hash) % 360;
+  const bg = `hsl(${hue},55%,80%)`;
+  const fg = `hsl(${hue},45%,25%)`;
+  // SVG inline. font-size = 42% do raio (s/2 * 0.42 * 2 = s * 0.42).
+  const fontSize = Math.round(s * 0.42);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '">'
+    + '<rect width="' + s + '" height="' + s + '" fill="' + bg + '"/>'
+    + '<text x="50%" y="50%" dy=".1em" text-anchor="middle" dominant-baseline="middle" '
+    + 'font-family="DM Sans, system-ui, sans-serif" font-weight="700" font-size="' + fontSize + '" fill="' + fg + '">'
+    + initials.replace(/[<>&]/g, '') + '</text></svg>';
+  // encodeURIComponent + decodeURIComponent dance pra escape correto.
+  // Não usa base64 (btoa quebra em chars não-Latin1 como acentos nas iniciais).
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 }
 window.avatarUrl = avatarUrl;
 
@@ -189,7 +216,7 @@ function displayName(profile){
 }
 window.displayName = displayName;
 
-// avatarImgTag: <img> de avatar com fallback automático pra ui-avatars
+// avatarImgTag: <img> de avatar com fallback automático pro SVG inline
 // se a URL principal falhar (caso típico: profile.avatar_url aponta pra
 // arquivo Supabase Storage que não existe mais). Anti-loop via dataset.fb.
 function avatarImgTag(profile, size){
