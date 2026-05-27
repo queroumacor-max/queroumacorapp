@@ -448,6 +448,21 @@ async function abortableFetch(key, url, opts){
 }
 window.abortableFetch = abortableFetch;
 
+// Race uma promise contra um timeout. Se estourar, rejeita com Error('timeout').
+// Usado pra não deixar o usuário travado no skeleton quando o Supabase / rede
+// engasga (queries que penduram pra sempre).
+function withTimeout(promise, ms, label){
+  ms = ms || 15000;
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout' + (label?' '+label:''))), ms);
+    Promise.resolve(promise).then(
+      v => { clearTimeout(t); resolve(v); },
+      e => { clearTimeout(t); reject(e); }
+    );
+  });
+}
+window.withTimeout = withTimeout;
+
 // Cache curto do perfil do usuário logado. Evita várias queries idênticas
 // a 'profiles' no login — loadMyProfileData, refreshProStatus, loadUserState
 // e updateMyStoryAvatar disparam quase juntas. Com o dedup do _inflight,
@@ -460,7 +475,8 @@ async function getMyProfile(force){
   if(!sb || !currentUser) return null;
   if(!force && _myProfileCache && Date.now() - _myProfileCacheAt < 15000) return _myProfileCache;
   if(!force && _myProfileInflight) return _myProfileInflight;
-  _myProfileInflight = sb.from('profiles').select('*').eq('id', currentUser.id).single()
+  const q = sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  _myProfileInflight = withTimeout(q, 12000, 'getMyProfile')
     .then(({ data }) => {
       _myProfileCache = data || null;
       _myProfileCacheAt = Date.now();
