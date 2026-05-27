@@ -1138,9 +1138,10 @@ async function loadCrm(){
     _crmIntervalMonths = (prof && prof.followup_interval_months) ? prof.followup_interval_months : 12;
 
     // b. Sync — a lista se monta sozinha a partir de jobs + quotes.
+    // SELECT enxuto: só campos usados em touch/keyFor/bumpDate.
     const [jobsRes, quotesRes] = await Promise.all([
-      sb.from('jobs').select('*').eq('painter_id', currentUser.id),
-      sb.from('quotes').select('*').eq('painter_id', currentUser.id).in('status', ['aprovado','em_execucao','concluido'])
+      sb.from('jobs').select('id, client_name, service_type, scheduled_date, created_at, revenue').eq('painter_id', currentUser.id),
+      sb.from('quotes').select('id, client_id, client_name, client_phone, client_followup_optin, service_type, title, status, created_at, approved_at, price').eq('painter_id', currentUser.id).in('status', ['aprovado','em_execucao','concluido'])
     ]);
     const jobs = jobsRes.data || [];
     const quotes = quotesRes.data || [];
@@ -1987,7 +1988,8 @@ function _agYmd(d){ return new Date(d.getTime() - d.getTimezoneOffset()*60000).t
 async function loadAgenda(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   await syncQuotesToJobs();
-  const { data } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
+  // SELECT enxuto: só os campos que a agenda renderiza/usa.
+  const { data } = await sb.from('jobs').select('id, status, scheduled_date, scheduled_time, client_name, service_type, address, created_at').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
   _agJobs = data || [];
   const now = new Date();
   if(!_agCur) _agCur = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -2379,7 +2381,8 @@ async function transcreverAudio(blob){
 async function loadFinanceiro(){
   const sb = getSupabase(); if(!sb||!currentUser) return;
   await syncQuotesToJobs();
-  const { data: jobs } = await sb.from('jobs').select('*').eq('painter_id', currentUser.id).eq('status','concluido').order('created_at',{ascending:false});
+  // SELECT enxuto: só os campos do dashboard financeiro.
+  const { data: jobs } = await sb.from('jobs').select('id, service_type, client_name, revenue, material_cost, created_at').eq('painter_id', currentUser.id).eq('status','concluido').order('created_at',{ascending:false});
   let receita=0, custos=0;
   (jobs||[]).forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
   const lucro = receita - custos;
@@ -3421,20 +3424,17 @@ async function loadNotifications(){
   updateNotifBadge(false);
   try {
     const myId = currentUser.id;
-    // Fetch my post IDs first
-    const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
-    const myPostIds = (myPosts || []).map(p => p.id);
-
+    // Join server-side via PostgREST nested filter (posts!inner) em vez de
+    // puxar TODOS os post IDs do usuário só pra alimentar .in(). Antes:
+    // 1 query extra de "select id from posts where user_id = me" (~500 UUIDs
+    // = ~18KB inútil pra conta ativa). Agora as queries de likes/comments
+    // já filtram pelo dono do post no servidor.
     const queries = [
       sb.from('follows').select('id, follower_id, created_at, profiles:follower_id(name, avatar_url, tag)').eq('following_id', myId).order('created_at', { ascending: false }).limit(15),
       sb.from('announcements').select('id, title, message, created_at').eq('active', true).order('created_at', { ascending: false }).limit(5).then(r=>r).catch(()=>({data:[]})),
+      sb.from('likes').select('id, user_id, post_id, created_at, posts!inner(user_id), profiles:user_id(name, avatar_url, tag)').eq('posts.user_id', myId).neq('user_id', myId).order('created_at', { ascending: false }).limit(20),
+      sb.from('comments').select('id, user_id, post_id, text, created_at, posts!inner(user_id), profiles:user_id(name, avatar_url, tag)').eq('posts.user_id', myId).neq('user_id', myId).order('created_at', { ascending: false }).limit(20)
     ];
-    if(myPostIds.length > 0){
-      queries.push(
-        sb.from('likes').select('id, user_id, post_id, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20),
-        sb.from('comments').select('id, user_id, post_id, text, created_at, profiles:user_id(name, avatar_url, tag)').in('post_id', myPostIds).neq('user_id', myId).order('created_at', { ascending: false }).limit(20)
-      );
-    }
     const results = await Promise.all(queries);
     const [followsRes, announcementsRes, likesRes, commentsRes] = results;
 
@@ -3506,20 +3506,31 @@ async function setupNotifSubscription(){
   const sb = getSupabase();
   if(!sb) return;
   const myId = currentUser.id;
-  // Fetch my post IDs once for filtering
-  const { data: myPosts } = await sb.from('posts').select('id').eq('user_id', myId);
-  const myPostIds = new Set((myPosts || []).map(p => p.id));
+  // Cache lazy de post IDs próprios: só carrega na 1ª curtida/comentário
+  // que chegar (raro). Antes baixava TODOS os IDs no boot pra todo mundo.
+  let _myPostIds = null;
+  let _myPostIdsAt = 0;
+  async function _ownsPost(postId){
+    if(!_myPostIds || Date.now() - _myPostIdsAt > 60000){
+      const { data } = await sb.from('posts').select('id').eq('user_id', myId);
+      _myPostIds = new Set((data || []).map(p => p.id));
+      _myPostIdsAt = Date.now();
+    }
+    return _myPostIds.has(postId);
+  }
 
   _notifSub = sb.channel('notif-'+myId)
-    .on('postgres_changes', { event:'INSERT', schema:'public', table:'likes' }, payload => {
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'likes' }, async payload => {
       const l = payload.new;
-      if(!l || l.user_id === myId || !myPostIds.has(l.post_id)) return;
+      if(!l || l.user_id === myId) return;
+      if(!await _ownsPost(l.post_id)) return;
       updateNotifBadge(true);
       toast('🖌️ Alguém curtiu seu post!');
     })
-    .on('postgres_changes', { event:'INSERT', schema:'public', table:'comments' }, payload => {
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'comments' }, async payload => {
       const c = payload.new;
-      if(!c || c.user_id === myId || !myPostIds.has(c.post_id)) return;
+      if(!c || c.user_id === myId) return;
+      if(!await _ownsPost(c.post_id)) return;
       updateNotifBadge(true);
       toast('💬 Alguém comentou no seu post!');
     })
@@ -3536,11 +3547,20 @@ async function setupNotifSubscription(){
 }
 
 // ══ PIPELINE AO VIVO — novo pedido aparece sem reabrir a tela ══
+// SÓ pra profissional (pintor/grafiteiro/automotivo). Cliente não tem quotes
+// onde é o painter_id, então o WebSocket nunca dispara — desperdício.
 let _pipelineSub = null;
-function setupPipelineSubscription(){
+async function setupPipelineSubscription(){
   if(_pipelineSub || !currentUser) return;
   const sb = getSupabase();
   if(!sb) return;
+  // Checa role antes de abrir o canal. getMyProfile usa cache + dedup,
+  // então não custa round-trip extra (já é chamado no boot).
+  try {
+    const prof = (typeof getMyProfile === 'function') ? await getMyProfile() : null;
+    const role = (prof && (prof.role || prof.user_type)) || (currentUser.user_metadata && (currentUser.user_metadata.user_type || currentUser.user_metadata.role)) || 'cliente';
+    if(!isProfessionalRole(role)) return;
+  } catch(_){ /* em caso de falha, segue e abre o sub (comportamento antigo) */ }
   _pipelineSub = sb.channel('pipeline-'+currentUser.id)
     .on('postgres_changes', { event:'*', schema:'public', table:'quotes', filter:'painter_id=eq.'+currentUser.id }, () => {
       const scr = document.getElementById('screen-pipeline');
@@ -7138,7 +7158,10 @@ async function loadPosts(feedIds, append){
       const isVideo = !!p.media_url && (isVideoUrl(p.media_url) || p.media_type === 'video');
       const mediaSrc = escapeHtml(p.media_url || ''); // <video src> mantém raw (CF Image só serve imagens)
       const mediaImgSrc = p.media_url && !isVideo ? escapeHtml(cfImg(p.media_url, { w: 500 })) : mediaSrc;
-      const imgHtml = p.media_url ? (isVideo ? '<div class="feed-video-wrap" style="position:relative;width:100%;background:#000;"><video class="feed-video" src="'+mediaSrc+'" autoplay muted loop playsinline preload="auto" onclick="toggleFeedVideoPlay(this)" style="width:100%;display:block;object-fit:cover;max-height:500px;"></video><button class="feed-video-mute" onclick="event.stopPropagation();toggleFeedVideoMute(this)" aria-label="Som" style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">'+_feedVolIcon(true)+'</button></div>' : '<img src="'+mediaImgSrc+'" alt="" loading="lazy" onerror="if(this.dataset.fb!==\'1\'){this.dataset.fb=\'1\';this.src=\''+mediaSrc+'\'}" style="width:100%;display:block;object-fit:cover;">') : '';
+      // preload="metadata": só baixa o cabeçalho (~50KB). O play é disparado
+      // pelo IntersectionObserver quando o post entra em vista (observeFeedVideos).
+      // Antes era preload="auto" que baixava 5-30MB POR vídeo no DOM, mesmo sem rolar.
+      const imgHtml = p.media_url ? (isVideo ? '<div class="feed-video-wrap" style="position:relative;width:100%;background:#000;aspect-ratio:1/1;"><video class="feed-video" src="'+mediaSrc+'" muted loop playsinline preload="metadata" onclick="toggleFeedVideoPlay(this)" style="width:100%;height:100%;display:block;object-fit:cover;"></video><button class="feed-video-mute" onclick="event.stopPropagation();toggleFeedVideoMute(this)" aria-label="Som" style="position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">'+_feedVolIcon(true)+'</button></div>' : '<img src="'+mediaImgSrc+'" alt="" loading="lazy" onerror="if(this.dataset.fb!==\'1\'){this.dataset.fb=\'1\';this.src=\''+mediaSrc+'\'}" style="width:100%;display:block;object-fit:cover;aspect-ratio:1/1;">') : '';
       const likeCount = likeCounts[p.id] || 0;
       const brushFill = liked ? 'var(--p4)' : 'none';
       const brushStroke = liked ? 'var(--p4)' : 'var(--ink)';
@@ -7589,6 +7612,8 @@ async function loadStories(feedIds){
     let storyQuery = sb.from('posts').select(POST_COLS).eq('media_type', 'story');
     // Só stories aprovados (ou sem status, compat) — não vaza conteúdo pendente
     storyQuery = storyQuery.or('status.eq.approved,status.is.null');
+    // Story sem media_url não tem o que mostrar — filtra no servidor.
+    storyQuery = storyQuery.not('media_url', 'is', null);
     if(feedIds.length > 0) storyQuery = storyQuery.in('user_id', feedIds);
     storyQuery = storyQuery.gte('created_at', since).order('created_at', { ascending: true }).limit(100);
     let { data: stories, error } = await storyQuery;
