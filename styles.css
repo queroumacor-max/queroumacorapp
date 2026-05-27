@@ -20,7 +20,7 @@
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);overflow:hidden;height:100vh;height:100dvh;}
 
 .app{width:100%;max-width:430px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;background:var(--cream);position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.18);}
-@media(max-width:900px){.app{max-width:100%;box-shadow:none;}.bot-nav{max-width:100%;}.overlay{max-width:100%;}.splash-canvas{max-width:100%;}}
+@media(max-width:900px){.app{max-width:100%;box-shadow:none;}.bot-nav{max-width:100%;}.overlay{max-width:100%;}}
 
 /* TOP NAV */
 .top-nav{min-height:var(--nav-h);background:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));padding-top:env(safe-area-inset-top);flex-shrink:0;position:relative;overflow:hidden;}
@@ -123,12 +123,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);o
 .mpost-featured-cap .post-time{color:rgba(255,255,255,.6);padding:0;}
 
 /* ══════════════════════════════
-   PAINT BUCKET LIKE ANIMATION
+   PINCEL DE LIKE (animação)
 ══════════════════════════════ */
-.splash-canvas{position:fixed;inset:0;pointer-events:none;z-index:999;max-width:430px;margin:0 auto;}
-@keyframes splashDrop{0%{transform:translateY(-20px) scale(.6);opacity:1;}60%{transform:translateY(0) scale(1.1);opacity:1;}100%{transform:translateY(0) scale(1);opacity:0;}}
-@keyframes splashSpreads{0%{transform:scale(0) translate(0,0);opacity:.9;}100%{transform:scale(1) translate(var(--tx),var(--ty));opacity:0;}}
-.splash-blob{position:absolute;border-radius:50%;pointer-events:none;animation:splashSpreads .6s cubic-bezier(.25,.46,.45,.94) forwards;}
 .liked-pulse svg{animation:heartSwap .35s ease forwards;}
 @keyframes heartSwap{0%{transform:scale(1);}30%{transform:scale(0);}60%{transform:scale(1.25);}100%{transform:scale(1);}}
 

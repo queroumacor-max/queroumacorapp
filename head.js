@@ -475,6 +475,9 @@ async function getMyProfile(force){
   if(!sb || !currentUser) return null;
   if(!force && _myProfileCache && Date.now() - _myProfileCacheAt < 15000) return _myProfileCache;
   if(!force && _myProfileInflight) return _myProfileInflight;
+  // Mantém SELECT * — é 1 linha só (~2KB), e múltiplos consumidores leem
+  // colunas variadas (cart, seen_stories, business_name, etc). O risco de
+  // quebrar algum não compensa o ganho de payload aqui.
   const q = sb.from('profiles').select('*').eq('id', currentUser.id).single();
   _myProfileInflight = withTimeout(q, 12000, 'getMyProfile')
     .then(({ data }) => {
@@ -671,20 +674,18 @@ async function loadMyProfileStats(){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   try {
-    // Count posts
-    const { count: postCount } = await sb.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id).neq('media_type', 'story');
+    // 3 contagens em paralelo (antes eram sequenciais — 450ms vs 150ms).
+    const [postsRes, followersRes, followingRes] = await Promise.all([
+      sb.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id).neq('media_type', 'story'),
+      sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', currentUser.id),
+      sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id)
+    ]);
     const postsEl = document.getElementById('myprofile-posts-count');
-    if(postsEl) postsEl.textContent = postCount || 0;
-
-    // Count followers (people following me)
-    const { count: followersCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', currentUser.id);
+    if(postsEl) postsEl.textContent = postsRes.count || 0;
     const followersEl = document.getElementById('myprofile-followers-count');
-    if(followersEl) followersEl.textContent = followersCount || 0;
-
-    // Count following (people I follow)
-    const { count: followingCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id);
+    if(followersEl) followersEl.textContent = followersRes.count || 0;
     const followingEl = document.getElementById('myprofile-following-count');
-    if(followingEl) followingEl.textContent = followingCount || 0;
+    if(followingEl) followingEl.textContent = followingRes.count || 0;
   } catch(e){ console.warn('loadMyProfileStats error:', e && e.message || e); }
   loadMyPortfolio();
 }
@@ -799,6 +800,7 @@ async function toggleFollowFromList(btn, userId){
     btn.style.color = 'var(--ink)';
     btn.style.border = '1px solid var(--border)';
   }
+  if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
   loadMyProfileStats();
 }
 
@@ -1121,13 +1123,29 @@ async function openUserProfile(userId, preview){
   const sb = getSupabase();
   if(!sb) return;
   try {
-    const { data: prof } = await sb.from('profiles').select('*').eq('id', userId).single();
+    // Dispara TUDO em paralelo: profile + 3 contagens + isFollowing.
+    // Antes eram 4-5 round-trips sequenciais (~600ms+); agora ~150ms.
+    // SELECT enxuto em vez de '*' (perfis têm cart/archived_conversations
+    // JSON enormes que não usamos aqui).
+    const PROF_COLS = 'id, name, tag, avatar_url, bio, city, state, role, user_type, is_pro, rating_avg, review_count';
+    const queries = [
+      sb.from('profiles').select(PROF_COLS).eq('id', userId).single(),
+      sb.from('posts').select('*',{count:'exact',head:true}).eq('user_id',userId).neq('media_type','story'),
+      sb.from('follows').select('*',{count:'exact',head:true}).eq('following_id',userId),
+      sb.from('follows').select('*',{count:'exact',head:true}).eq('follower_id',userId)
+    ];
+    if(currentUser) queries.push(sb.from('follows').select('id').eq('follower_id',currentUser.id).eq('following_id',userId).limit(1));
+    const [profRes, postRes, followersRes, followingRes, followRes] = await Promise.all(queries);
+    const prof = profRes.data;
     if(!prof){ toast('Perfil não encontrado'); return; }
-    // Check if it's own profile (preview mostra a visão pública do próprio perfil)
     if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;
     }
-    // For DB profiles, update profile screen elements directly
+    const postCount = postRes.count || 0;
+    const followersCount = followersRes.count || 0;
+    const followingCount = followingRes.count || 0;
+    const isFollowing = !!(followRes && followRes.data && followRes.data.length > 0);
+
     const screen = document.getElementById('screen-profile');
     const nameEl = screen.querySelector('.ph-name');
     const bioEl = screen.querySelector('.ph-bio');
@@ -1141,24 +1159,13 @@ async function openUserProfile(userId, preview){
     if(bioEl) bioEl.textContent = (prof.tag?'@'+prof.tag+' · ':'')+role+(location?' · '+location:'');
     if(avatarEl) avatarEl.src = avatar;
 
-    // Load stats for this user
-    const { count: postCount } = await sb.from('posts').select('*',{count:'exact',head:true}).eq('user_id',userId).neq('media_type','story');
-    const { count: followersCount } = await sb.from('follows').select('*',{count:'exact',head:true}).eq('following_id',userId);
-    const { count: followingCount } = await sb.from('follows').select('*',{count:'exact',head:true}).eq('follower_id',userId);
     const statsEl = screen.querySelector('.ph-stats');
     if(statsEl){
       statsEl.innerHTML = `
-        <div class="ph-stat"><div class="ph-stat-n">${postCount||0}</div><div class="ph-stat-l">posts</div></div>
-        <div class="ph-stat"><div class="ph-stat-n">${followersCount||0}</div><div class="ph-stat-l">seguidores</div></div>
-        <div class="ph-stat"><div class="ph-stat-n">${followingCount||0}</div><div class="ph-stat-l">seguindo</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">${postCount}</div><div class="ph-stat-l">posts</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">${followersCount}</div><div class="ph-stat-l">seguidores</div></div>
+        <div class="ph-stat"><div class="ph-stat-n">${followingCount}</div><div class="ph-stat-l">seguindo</div></div>
       `;
-    }
-
-    // Check if currently following
-    let isFollowing = false;
-    if(currentUser){
-      const { data: fol } = await sb.from('follows').select('id').eq('follower_id',currentUser.id).eq('following_id',userId).limit(1);
-      isFollowing = fol && fol.length > 0;
     }
 
     // Update buttons: Follow/Following + Chat + Cali Colors
@@ -1342,6 +1349,7 @@ async function toggleFollow(userId,btn){
     btn.style.color='#fff';
     toast('Seguindo!');
   }
+  if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
 }
 
 function togglePw(id,btn){
