@@ -8085,10 +8085,41 @@ async function publishPost(){
 let leafletMap = null;
 let mapMarkers = [];
 
-function initLeafletMap(){
+// Carrega Leaflet sob demanda (não vem mais no <head> pra economizar ~160KB
+// no first paint — só usuário do mapa paga o custo).
+async function ensureLeaflet(){
+  if(typeof L !== 'undefined') return;
+  // CSS
+  if(!document.querySelector('link[data-leaflet]')){
+    await new Promise((resolve) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/leaflet.css?v=1.9.4';
+      link.integrity = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
+      link.crossOrigin = 'anonymous';
+      link.dataset.leaflet = '1';
+      link.onload = resolve;
+      link.onerror = resolve;
+      document.head.appendChild(link);
+    });
+  }
+  // JS
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = '/leaflet.js?v=1.9.4';
+    s.integrity = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
+    s.crossOrigin = 'anonymous';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function initLeafletMap(){
   if(leafletMap) return;
   const container = document.getElementById('leaflet-map');
   if(!container) return;
+  try { await ensureLeaflet(); } catch(e){ console.error('Leaflet load fail:', e && e.message); return; }
   try {
     leafletMap = L.map('leaflet-map', {
       zoomControl: false,
@@ -8448,8 +8479,8 @@ showScreen = function(n, _fromPop){
     loadFeed();
   }
   if(n === 'explore'){
-    setTimeout(() => {
-      initLeafletMap();
+    setTimeout(async () => {
+      await initLeafletMap();
       if(leafletMap) leafletMap.invalidateSize();
     }, 200);
   }
