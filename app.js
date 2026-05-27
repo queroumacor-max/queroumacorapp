@@ -7014,16 +7014,45 @@ async function loadFeed(){
     localStorage.removeItem('feedCache_v2_' + uid);
     localStorage.removeItem('storiesCache_v2_' + uid);
   } catch(e){ console.warn('[clear-feed-cache]', e && e.message); }
+  // Após 5s sem renderizar nada, adiciona um aviso "conexão lenta" no
+  // skeleton pra reduzir ansiedade. Cancelado quando o feed carrega ou
+  // quando o retry-UI substitui.
+  const slowHint = setTimeout(() => {
+    const container = document.getElementById('feed-posts-area');
+    if(container && container.querySelector('.skel-post') && !container.querySelector('.feed-slow-hint')){
+      const hint = document.createElement('div');
+      hint.className = 'feed-slow-hint';
+      hint.style.cssText = 'text-align:center;padding:14px;color:var(--muted);font-size:12px;font-style:italic;';
+      hint.textContent = 'Conexão lenta — aguardando o servidor responder…';
+      container.insertBefore(hint, container.firstChild);
+    }
+  }, 5000);
+  const t0 = Date.now();
   try {
     // Fetch followingIds once, share with both
     const feedIds = await (typeof withTimeout === 'function'
-      ? withTimeout(getFollowingIds(), 12000, 'followingIds').catch(e => { console.warn('followingIds:', e && e.message); return currentUser ? [currentUser.id] : []; })
+      ? withTimeout(getFollowingIds(), 10000, 'followingIds').catch(e => {
+          if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx:'followingIds', msg: e && e.message });
+          console.warn('followingIds:', e && e.message);
+          return currentUser ? [currentUser.id] : [];
+        })
       : getFollowingIds());
     await (typeof withTimeout === 'function'
       ? withTimeout(Promise.all([loadStories(feedIds), loadPosts(feedIds)]), 15000, 'loadFeed')
       : Promise.all([loadStories(feedIds), loadPosts(feedIds)]));
+    clearTimeout(slowHint);
+    const elapsed = Date.now() - t0;
+    if(elapsed > 5000 && typeof reportError === 'function'){
+      // Carregou mas demorou — sinal de query slow ou rede ruim. Logar.
+      reportError({ type:'feed-slow', ctx: elapsed + 'ms / ' + document.querySelectorAll('#feed-posts-area .mpost').length + ' posts' });
+    }
   } catch(e){
-    console.warn('loadFeed timeout/erro:', e && e.message || e);
+    clearTimeout(slowHint);
+    const elapsed = Date.now() - t0;
+    console.warn('loadFeed timeout/erro (' + elapsed + 'ms):', e && e.message || e);
+    if(typeof reportError === 'function'){
+      reportError({ type:'feed-fail', ctx: elapsed + 'ms', msg: e && e.message || String(e) });
+    }
     renderFeedRetry();
   }
 }
@@ -7176,34 +7205,52 @@ async function loadPosts(feedIds, append){
     let likeCounts = {};
     let savedPosts = [];
     let commentsMap = {};
+    // CADA query interna ganha seu próprio timeout (8s) + log de qual
+    // travou. Antes, se UMA das 5 queries pendurasse, o loadFeed timeout
+    // (15s) disparava e o user via "Tentar de novo" sem saber qual quebrou.
+    // Agora: rejeição localizada vira erro com label → reportError envia
+    // pro /api/log-error e dá pra investigar server-side.
+    const _wt = (p, label) => (typeof withTimeout === 'function')
+      ? withTimeout(p, 8000, label).catch(e => {
+          if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: label, msg: e && e.message });
+          console.warn('feed step timeout:', label, e && e.message);
+          return { data: null, error: e }; // segue sem essa fatia em vez de explodir
+        })
+      : p;
     const queries = [
-      fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'),
-      sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5)
+      _wt(fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'), 'profiles'),
+      _wt(sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5), 'comments')
     ];
     if(currentUser){
-      queries.push(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds));
-      queries.push(sb.from('likes').select('post_id').in('post_id', postIds));
-      queries.push(sb.from('saved_posts').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds));
+      queries.push(_wt(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'my-likes'));
+      queries.push(_wt(sb.from('likes').select('post_id').in('post_id', postIds), 'all-likes'));
+      queries.push(_wt(sb.from('saved_posts').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'saved'));
     }
     const results = await Promise.all(queries);
     const profMap = {};
-    (results[0]||[]).forEach(pr => { profMap[pr.id] = pr; });
+    // results[0] vem de fetchPublicProfiles (retorna array direto) OU do _wt
+    // (retorna { data, error }) em caso de timeout. Cobre ambos.
+    const profsArr = Array.isArray(results[0]) ? results[0] : (results[0] && results[0].data) || [];
+    profsArr.forEach(pr => { profMap[pr.id] = pr; });
     posts.forEach(p => { p.profiles = profMap[p.user_id] || {}; });
     // Map comments by post_id
-    (results[1].data||[]).forEach(c => {
+    const commentsArr = (results[1] && results[1].data) || [];
+    commentsArr.forEach(c => {
       if(!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
       commentsMap[c.post_id].push(c);
     });
     // Collect all comment user_ids to resolve names
-    const commentUserIds = [...new Set((results[1].data||[]).map(c => c.user_id).filter(id => !profMap[id]))];
+    const commentUserIds = [...new Set(commentsArr.map(c => c.user_id).filter(id => !profMap[id]))];
     if(commentUserIds.length > 0){
-      const cProfs = await fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url');
-      cProfs.forEach(pr => { profMap[pr.id] = pr; });
+      try {
+        const cProfs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'), 5000, 'comment-profiles') : fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'));
+        (cProfs || []).forEach(pr => { profMap[pr.id] = pr; });
+      } catch(e){ console.warn('comment-profiles timeout:', e && e.message); /* segue sem nomes resolvidos */ }
     }
     if(currentUser){
-      if(results[2].data) myLikes = results[2].data.map(l => l.post_id);
-      if(results[3].data) results[3].data.forEach(l => { likeCounts[l.post_id] = (likeCounts[l.post_id]||0)+1; });
-      if(results[4].data) savedPosts = results[4].data.map(s => s.post_id);
+      if(results[2] && results[2].data) myLikes = results[2].data.map(l => l.post_id);
+      if(results[3] && results[3].data) results[3].data.forEach(l => { likeCounts[l.post_id] = (likeCounts[l.post_id]||0)+1; });
+      if(results[4] && results[4].data) savedPosts = results[4].data.map(s => s.post_id);
     }
 
     let html = '';
@@ -7679,7 +7726,16 @@ async function loadStories(feedIds){
     storyQuery = storyQuery.not('media_url', 'is', null);
     if(feedIds.length > 0) storyQuery = storyQuery.in('user_id', feedIds);
     storyQuery = storyQuery.gte('created_at', since).order('created_at', { ascending: true }).limit(100);
-    let { data: stories, error } = await storyQuery;
+    let stories = [], error = null;
+    try {
+      const res = await (typeof withTimeout === 'function' ? withTimeout(storyQuery, 8000, 'stories') : storyQuery);
+      stories = res.data || [];
+      error = res.error || null;
+    } catch(e){
+      // Stories são opcionais — se travarem, segue sem elas (não derruba o feed).
+      if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: 'stories', msg: e && e.message });
+      console.warn('loadStories timeout:', e && e.message);
+    }
     if(error){
       console.warn('loadStories error:', error.message);
       stories = [];
@@ -7691,8 +7747,13 @@ async function loadStories(feedIds){
     const allNeededIds = [...new Set([...followedIds, ...storyUserIds])].filter(Boolean);
     let allFollowedProfiles = {};
     if(allNeededIds.length > 0){
-      const profs = await fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url');
-      profs.forEach(pr => { allFollowedProfiles[pr.id] = pr; });
+      try {
+        const profs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url'), 6000, 'story-profiles') : fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url'));
+        (profs || []).forEach(pr => { allFollowedProfiles[pr.id] = pr; });
+      } catch(e){
+        if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: 'story-profiles', msg: e && e.message });
+        console.warn('story-profiles timeout:', e && e.message);
+      }
     }
     if(stories && stories.length > 0){
       stories.forEach(s => { s.profiles = allFollowedProfiles[s.user_id] || {}; });
