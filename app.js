@@ -6977,8 +6977,11 @@ function retryLoadFeed(btn){
 
 let _followingIdsCache = null;
 let _followingIdsCacheTime = 0;
+// Invalidar via invalidateFollowingIds() depois de seguir/desfollow.
+function invalidateFollowingIds(){ _followingIdsCache = null; _followingIdsCacheTime = 0; }
+window.invalidateFollowingIds = invalidateFollowingIds;
 async function getFollowingIds(){
-  if(_followingIdsCache && Date.now() - _followingIdsCacheTime < 10000) return _followingIdsCache;
+  if(_followingIdsCache && Date.now() - _followingIdsCacheTime < 60000) return _followingIdsCache;
   const sb = getSupabase();
   if(!sb || !currentUser) return [];
   try {
