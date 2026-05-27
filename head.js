@@ -496,6 +496,19 @@ async function getMyProfile(force){
 function invalidateMyProfile(){ _myProfileCache = null; _myProfileCacheAt = 0; }
 
 let _feedLoaded = false;
+
+// Defere trabalho não-crítico pro próximo idle do navegador. Usa
+// requestIdleCallback quando disponível (Chrome/FF) ou cai pra setTimeout
+// 800ms (Safari). Cap de 1500ms timeout pro rIC pra não ficar pendurado
+// indefinidamente em aba inativa.
+function _deferIdle(fn){
+  if(typeof requestIdleCallback === 'function'){
+    requestIdleCallback(() => { try { fn(); } catch(e){ console.warn('_deferIdle:', e && e.message); } }, { timeout: 1500 });
+  } else {
+    setTimeout(() => { try { fn(); } catch(e){ console.warn('_deferIdle:', e && e.message); } }, 800);
+  }
+}
+
 async function initAuth(_retry) {
   let sb = getSupabase();
   // Tolerância a CDN lento/fallback: aguarda até 6s polling 200ms se supabase-js
@@ -537,12 +550,14 @@ async function initAuth(_retry) {
       if(currentUser){
         if(typeof loadUserState==='function') loadUserState();
         autoDetectRole();
-        setupGlobalMsgSubscription();
-        setupNotifSubscription();
-        setupPipelineSubscription();
         refreshProStatus();
         checkAdminEntry();
         if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
+        _deferIdle(() => {
+          setupGlobalMsgSubscription();
+          setupNotifSubscription();
+          setupPipelineSubscription();
+        });
       } else {
         _isPro = false; _isAdmin = false; _feedLoaded = false;
         if(_globalMsgSub){ _globalMsgSub.unsubscribe(); _globalMsgSub=null; }
@@ -558,16 +573,21 @@ async function initAuth(_retry) {
     if(typeof loadUserState==='function') loadUserState();
     showScreen('feed');
     autoDetectRole();
-    setupGlobalMsgSubscription();
-    setupNotifSubscription();
-    setupPipelineSubscription();
     refreshProStatus();
     checkAdminEntry();
     handleProReturn();
     if(typeof handleCompraReturn==='function') handleCompraReturn();
-    // Load feed once right after auth
+    // Load feed PRIMEIRO — é o que o usuário vê.
     _feedLoaded = true;
     loadFeed();
+    // Sobre 3 WebSockets de realtime são caros pra mobile (handshake +
+    // keep-alive). Deferir pra idle time não atrasa a 1ª notificação de
+    // forma perceptível e libera CPU/banda pro feed render.
+    _deferIdle(() => {
+      setupGlobalMsgSubscription();
+      setupNotifSubscription();
+      setupPipelineSubscription();
+    });
   } else {
     loadFeed();
   }
@@ -583,12 +603,14 @@ async function initAuth(_retry) {
     if(currentUser){
       if(typeof loadUserState==='function') loadUserState();
       autoDetectRole();
-      setupGlobalMsgSubscription();
-      setupNotifSubscription();
-      setupPipelineSubscription();
       refreshProStatus();
       checkAdminEntry();
       if(!_feedLoaded){ _feedLoaded = true; loadFeed(); }
+      _deferIdle(() => {
+        setupGlobalMsgSubscription();
+        setupNotifSubscription();
+        setupPipelineSubscription();
+      });
     } else {
       _isPro = false;
       _isAdmin = false;
@@ -987,6 +1009,9 @@ async function doLogoutSupabase() {
   // Limpa o estado local imediatamente — não aguarda o servidor. Se o
   // signOut travar na rede, a UI já volta pra tela de login sem ficar
   // pendurada em "Saindo...".
+  // Flush pendentes ANTES de zerar currentUser, senão writes debounced
+  // de chat ficam órfãos (não conseguem montar a chave de storage).
+  if(typeof _flushConvs === 'function'){ try { _flushConvs(); _flushMsgs(); } catch(_){} }
   currentUser = null;
   if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
   showScreen('login');
