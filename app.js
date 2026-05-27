@@ -3085,45 +3085,96 @@ function convDisplayName(c){
 }
 
 // ══ LOCAL STORAGE CHAT PERSISTENCE ══
+// Cache em memória + flush debounced (300ms). Antes, cada mensagem em
+// realtime triggava read+parse+stringify+write síncronos (~5-10ms cada
+// em mobile). Em rajada de 10 msgs = 50-100ms travados na main thread.
 function getLocalConvKey(){
   return currentUser ? 'quc_convs_' + currentUser.id : null;
 }
 function getLocalMsgsKey(convId){
   return currentUser ? 'quc_msgs_' + currentUser.id + '_' + convId : null;
 }
-function saveConvLocal(convId, convMeta){
+
+let _convsCache = null;     // dict completo de convs do usuário atual
+let _convsCacheUid = null;  // pra invalidar quando trocar de usuário
+let _convsDirty = false;
+let _convsFlushTimer = null;
+const _msgsCache = new Map(); // convId -> array de msgs
+const _msgsDirty = new Set();
+let _msgsFlushTimer = null;
+
+function _ensureConvsCache(){
+  const uid = currentUser ? currentUser.id : null;
+  if(_convsCache && _convsCacheUid === uid) return _convsCache;
   const key = getLocalConvKey();
-  if(!key) return;
-  try {
-    const all = JSON.parse(localStorage.getItem(key) || '{}');
-    all[convId] = { ...convMeta, updatedAt: new Date().toISOString() };
-    localStorage.setItem(key, JSON.stringify(all));
-  } catch(e){ console.warn('saveConvLocal err:', e && e.message || e); }
+  try { _convsCache = key ? (JSON.parse(localStorage.getItem(key) || '{}')) : {}; }
+  catch(_){ _convsCache = {}; }
+  _convsCacheUid = uid;
+  return _convsCache;
+}
+
+function _flushConvs(){
+  _convsFlushTimer = null;
+  if(!_convsDirty) return;
+  _convsDirty = false;
+  const key = getLocalConvKey();
+  if(!key || !_convsCache) return;
+  try { localStorage.setItem(key, JSON.stringify(_convsCache)); }
+  catch(e){ console.warn('flushConvs:', e && e.message); }
+}
+
+function _flushMsgs(){
+  _msgsFlushTimer = null;
+  if(!_msgsDirty.size) return;
+  for(const convId of _msgsDirty){
+    const key = getLocalMsgsKey(convId);
+    if(!key) continue;
+    try { localStorage.setItem(key, JSON.stringify(_msgsCache.get(convId) || [])); }
+    catch(e){ console.warn('flushMsgs:', e && e.message); }
+  }
+  _msgsDirty.clear();
+}
+
+// Garante flush antes do usuário fechar / trocar de aba (pagehide é mais
+// confiável que beforeunload em mobile).
+window.addEventListener('pagehide', () => { _flushConvs(); _flushMsgs(); });
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){ _flushConvs(); _flushMsgs(); }
+});
+
+function saveConvLocal(convId, convMeta){
+  if(!getLocalConvKey()) return;
+  const all = _ensureConvsCache();
+  all[convId] = { ...convMeta, updatedAt: new Date().toISOString() };
+  _convsDirty = true;
+  if(!_convsFlushTimer) _convsFlushTimer = setTimeout(_flushConvs, 300);
 }
 function loadConvsLocal(){
-  const key = getLocalConvKey();
-  if(!key) return {};
-  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch(e){ return {}; }
+  return Object.assign({}, _ensureConvsCache());
 }
 function saveMsgLocal(convId, msg){
-  const key = getLocalMsgsKey(convId);
-  if(!key) return;
-  try {
-    const msgs = JSON.parse(localStorage.getItem(key) || '[]');
-    // Avoid duplicates by checking content+time
-    const isDup = msgs.some(m => m.content === msg.content && m.time === msg.time && m.from === msg.from);
-    if(!isDup){
-      msgs.push(msg);
-      // Keep last 100 messages per conversation
-      if(msgs.length > 100) msgs.splice(0, msgs.length - 100);
-      localStorage.setItem(key, JSON.stringify(msgs));
-    }
-  } catch(e){ console.warn('saveMsgLocal err:', e && e.message || e); }
+  if(!getLocalMsgsKey(convId)) return;
+  let msgs = _msgsCache.get(convId);
+  if(!msgs){
+    const key = getLocalMsgsKey(convId);
+    try { msgs = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_){ msgs = []; }
+    _msgsCache.set(convId, msgs);
+  }
+  const isDup = msgs.some(m => m.content === msg.content && m.time === msg.time && m.from === msg.from);
+  if(isDup) return;
+  msgs.push(msg);
+  if(msgs.length > 100) msgs.splice(0, msgs.length - 100);
+  _msgsDirty.add(convId);
+  if(!_msgsFlushTimer) _msgsFlushTimer = setTimeout(_flushMsgs, 300);
 }
 function loadMsgsLocal(convId){
+  let msgs = _msgsCache.get(convId);
+  if(msgs) return msgs.slice();
   const key = getLocalMsgsKey(convId);
   if(!key) return [];
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ return []; }
+  try { msgs = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_){ msgs = []; }
+  _msgsCache.set(convId, msgs);
+  return msgs.slice();
 }
 
 // ══ LOAD CHAT LIST (localStorage primary + Supabase background sync) ══
@@ -7592,6 +7643,7 @@ let storyGroups = [];
 let currentStoryGroup = 0;
 let currentStoryIndex = 0;
 let storyTimer = null; // mantido pra compat; agora guarda rAF id
+let _lastStoriesFp = ''; // fingerprint do último render — pula re-render quando idêntico
 let _storyRafId = null;
 const STORY_DURATION = 5000; // 5 seconds per story like IG
 
@@ -7667,6 +7719,21 @@ async function loadStories(feedIds){
       addStoryRing.style.background = 'rgba(255,255,255,.15)';
       addStoryEl.setAttribute('onclick', "showModal('post-modal')");
     }
+    // Fingerprint do estado renderizado: se nada mudou desde a última
+    // chamada, pula o innerHTML (evita pisca/scroll-jump da story strip
+    // quando o usuário volta pra tela do feed sem nenhuma story nova).
+    const fp = (myStoryGroup ? 'm:'+myStoryGroup.stories.length+'|' : 'a|')
+      + storyGroups.slice(myStoryGroup ? 1 : 0).map(g =>
+          g.user_id + ':' + g.stories.length + ':' + (isStoryGroupSeen(g.user_id) ? 1 : 0)
+        ).join(',')
+      + '||' + followedIds.filter(id => !(stories||[]).some(s => s.user_id === id)).join(',');
+    if(fp === _lastStoriesFp){
+      // Empty state ainda pode precisar de atualização (raros casos).
+      const emptyEl = document.getElementById('feed-empty');
+      if(emptyEl) emptyEl.style.display = (storyGroups.length > 0 || followedIds.length > 0) ? 'none' : 'block';
+      return;
+    }
+    _lastStoriesFp = fp;
     let html = addStoryEl.outerHTML;
     // Render users with stories (skip index 0 if it's own)
     const startIdx = myStoryGroup ? 1 : 0;
@@ -7724,6 +7791,7 @@ let _seenStories = {};
 function isStoryGroupSeen(userId){ return !!_seenStories[userId]; }
 function markStoryGroupSeen(userId){
   _seenStories[userId] = Date.now();
+  _lastStoriesFp = ''; // invalida fp pra próximo loadStories re-renderizar o anel "visto"
   const sb = getSupabase();
   if(sb && currentUser){
     sb.from('profiles').update({ seen_stories: _seenStories }).eq('id', currentUser.id)
