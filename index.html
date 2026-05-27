@@ -50,11 +50,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/styles.css?v=20260527a">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260527g" as="script">
-<link rel="preload" href="/app.js?v=20260527g" as="script">
+<link rel="preload" href="/head.js?v=20260527h" as="script">
+<link rel="preload" href="/app.js?v=20260527h" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <script>window.CF_IMG_ENABLED=true</script>
-<script src="/head.js?v=20260527g" defer></script>
+<script src="/head.js?v=20260527h" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
      - leaflet: lazy via ensureLeaflet() em app.js (só usado na tela Explorar)
@@ -406,7 +406,7 @@
   <div class="stories-row" id="stories-row">
     <div class="story add-story" style="cursor:pointer" onclick="showModal('post-modal')">
       <div class="story-ring" id="my-story-ring">
-        <div class="story-inner" id="my-story-inner"><img id="my-story-avatar" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" alt="" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'"></div>
+        <div class="story-inner" id="my-story-inner"><img id="my-story-avatar" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4=" alt="" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4='"></div>
         <div class="story-plus" onclick="event.stopPropagation();showModal('post-modal')">
           <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </div>
@@ -505,7 +505,7 @@
   <!-- HERO -->
   <div class="profile-hero">
     <div class="ph-row">
-      <div class="ph-avatar"><img src="https://ui-avatars.com/api/?name=%20&background=e8e2d9&color=1a1a2e&size=200" alt="" loading="lazy" decoding="async"></div>
+      <div class="ph-avatar"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4=" alt="" loading="lazy" decoding="async"></div>
       <div class="ph-stats">
         <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">posts</div></div>
         <div class="ph-stat"><div class="ph-stat-n">0</div><div class="ph-stat-l">seguidores</div></div>
@@ -576,7 +576,7 @@
   </div>
   <form class="orc-body" onsubmit="sendOrc();return false;">
     <div class="orc-painter-card">
-      <div class="opc-av"><img id="orc-painter-av" src="https://ui-avatars.com/api/?name=Profissional&background=e8e2d9&color=1a1a2e&size=96" alt="" loading="lazy" decoding="async"></div>
+      <div class="opc-av"><img id="orc-painter-av" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4=" alt="" loading="lazy" decoding="async"></div>
       <div>
         <div class="opc-name" id="orc-painter-name">Profissional</div>
         <div class="opc-sub" id="orc-painter-sub"></div>
@@ -608,7 +608,7 @@
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">
       <div style="width:76px;height:76px;border-radius:50%;padding:2.5px;background:conic-gradient(var(--p1),var(--p4),var(--p5),var(--p3),var(--p1));flex-shrink:0;">
         <div style="width:100%;height:100%;border-radius:50%;overflow:hidden;border:2.5px solid var(--ink);">
-          <img id="myprofile-avatar" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" style="width:100%;height:100%;object-fit:cover" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
+          <img id="myprofile-avatar" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4=" style="width:100%;height:100%;object-fit:cover" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4='">
         </div>
       </div>
       <div style="flex:1;display:flex;justify-content:space-around;text-align:center;">
@@ -2240,7 +2240,7 @@
     <!-- Avatar upload -->
     <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px;">
       <div style="position:relative;cursor:pointer;" onclick="document.getElementById('ep-avatar-input').click()">
-        <img id="ep-avatar-preview" src="https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96" alt="" loading="lazy" decoding="async" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--p1);" onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=U&background=e8e2d9&color=1a1a2e&size=96'">
+        <img id="ep-avatar-preview" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4=" alt="" loading="lazy" decoding="async" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--p1);" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZThlMmQ5Ii8+PGNpcmNsZSBjeD0iNDgiIGN5PSIzOCIgcj0iMTYiIGZpbGw9IiNhOGEzOWEiLz48cGF0aCBkPSJNMTYgODggYTMyIDI0IDAgMCAxIDY0IDAiIGZpbGw9IiNhOGEzOWEiLz48L3N2Zz4='">
         <div style="position:absolute;bottom:0;right:0;width:26px;height:26px;background:var(--p1);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
@@ -2436,7 +2436,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260527g" defer></script>
+<script src="/app.js?v=20260527h" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
