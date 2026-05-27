@@ -3559,13 +3559,24 @@ async function setupNotifSubscription(){
   const myId = currentUser.id;
   // Cache lazy de post IDs próprios: só carrega na 1ª curtida/comentário
   // que chegar (raro). Antes baixava TODOS os IDs no boot pra todo mundo.
+  // _myPostIdsInflight dedupa rajada de eventos (3 likes em sequência não
+  // disparam 3 SELECTs paralelos).
   let _myPostIds = null;
   let _myPostIdsAt = 0;
+  let _myPostIdsInflight = null;
   async function _ownsPost(postId){
     if(!_myPostIds || Date.now() - _myPostIdsAt > 60000){
-      const { data } = await sb.from('posts').select('id').eq('user_id', myId);
-      _myPostIds = new Set((data || []).map(p => p.id));
-      _myPostIdsAt = Date.now();
+      if(!_myPostIdsInflight){
+        _myPostIdsInflight = sb.from('posts').select('id').eq('user_id', myId)
+          .then(({ data }) => {
+            _myPostIds = new Set((data || []).map(p => p.id));
+            _myPostIdsAt = Date.now();
+            _myPostIdsInflight = null;
+            return _myPostIds;
+          })
+          .catch(e => { _myPostIdsInflight = null; throw e; });
+      }
+      try { await _myPostIdsInflight; } catch(_){ return false; }
     }
     return _myPostIds.has(postId);
   }
@@ -7722,11 +7733,15 @@ async function loadStories(feedIds){
     // Fingerprint do estado renderizado: se nada mudou desde a última
     // chamada, pula o innerHTML (evita pisca/scroll-jump da story strip
     // quando o usuário volta pra tela do feed sem nenhuma story nova).
-    const fp = (myStoryGroup ? 'm:'+myStoryGroup.stories.length+'|' : 'a|')
+    // Inclui avatar_url pra detectar troca de foto do seguido.
+    const fp = (myStoryGroup ? 'm:'+myStoryGroup.stories.length+':'+(myStoryGroup.profile.avatar_url||'')+'|' : 'a|')
       + storyGroups.slice(myStoryGroup ? 1 : 0).map(g =>
-          g.user_id + ':' + g.stories.length + ':' + (isStoryGroupSeen(g.user_id) ? 1 : 0)
+          g.user_id + ':' + g.stories.length + ':' + (g.profile.avatar_url||'') + ':' + (isStoryGroupSeen(g.user_id) ? 1 : 0)
         ).join(',')
-      + '||' + followedIds.filter(id => !(stories||[]).some(s => s.user_id === id)).join(',');
+      + '||' + followedIds.filter(id => !(stories||[]).some(s => s.user_id === id)).map(uid => {
+          const ap = allFollowedProfiles[uid] || {};
+          return uid + ':' + (ap.avatar_url || '');
+        }).join(',');
     if(fp === _lastStoriesFp){
       // Empty state ainda pode precisar de atualização (raros casos).
       const emptyEl = document.getElementById('feed-empty');
@@ -8183,32 +8198,42 @@ let mapMarkers = [];
 
 // Carrega Leaflet sob demanda (não vem mais no <head> pra economizar ~160KB
 // no first paint — só usuário do mapa paga o custo).
+let _leafletInflight = null;
 async function ensureLeaflet(){
   if(typeof L !== 'undefined') return;
-  // CSS
-  if(!document.querySelector('link[data-leaflet]')){
-    await new Promise((resolve) => {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = '/leaflet.css?v=1.9.4';
-      link.integrity = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
-      link.crossOrigin = 'anonymous';
-      link.dataset.leaflet = '1';
-      link.onload = resolve;
-      link.onerror = resolve;
-      document.head.appendChild(link);
-    });
-  }
-  // JS
-  await new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = '/leaflet.js?v=1.9.4';
-    s.integrity = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
-    s.crossOrigin = 'anonymous';
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+  // Dedup chamadas concorrentes: sem isso, abrir Explorar 2x rápido
+  // injeta 2 <script> e baixa Leaflet duas vezes.
+  if(_leafletInflight) return _leafletInflight;
+  _leafletInflight = (async () => {
+    // CSS
+    if(!document.querySelector('link[data-leaflet]')){
+      await new Promise((resolve) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/leaflet.css?v=1.9.4';
+        link.integrity = 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';
+        link.crossOrigin = 'anonymous';
+        link.dataset.leaflet = '1';
+        link.onload = resolve;
+        link.onerror = resolve;
+        document.head.appendChild(link);
+      });
+    }
+    // JS
+    if(!document.querySelector('script[data-leaflet]')){
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/leaflet.js?v=1.9.4';
+        s.integrity = 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';
+        s.crossOrigin = 'anonymous';
+        s.dataset.leaflet = '1';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+  })().catch(e => { _leafletInflight = null; throw e; });
+  return _leafletInflight;
 }
 
 async function initLeafletMap(){
