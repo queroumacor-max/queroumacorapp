@@ -7982,10 +7982,20 @@ function renderCurrentStory(){
   const imgEl = document.getElementById('story-viewer-img');
   const vidEl = document.getElementById('story-viewer-video');
   const storyIsVideo = isVideoUrl(s.media_url) || s.media_type === 'video';
+  const errEl = document.getElementById('story-viewer-err');
+  if(errEl) errEl.style.display = 'none';
+  // Mídia falhou de vez (img E vídeo): mostra aviso visível em vez de tela
+  // preta silenciosa e loga a URL pra diagnóstico server-side.
+  const showStoryMediaErr = (kind) => {
+    if(errEl) errEl.style.display = 'flex';
+    if(typeof reportError === 'function') reportError({ type: kind, ctx: s.media_url || '(sem media_url)' });
+    console.warn('[story-media-fail]', kind, s.media_url);
+  };
   if(storyIsVideo){
     imgEl.style.display = 'none';
     imgEl.src = '';
     vidEl.style.display = 'block';
+    vidEl.onerror = function(){ showStoryMediaErr('story-video-fail'); };
     vidEl.src = s.media_url || ''; // video: sem resize (CF Image só serve imagens)
     vidEl.muted = false;
     vidEl.currentTime = 0;
@@ -7998,12 +8008,15 @@ function renderCurrentStory(){
     const rawStoryImg = s.media_url || '';
     // Fallback: se a versão otimizada (cfImg) falhar, tenta a URL crua antes
     // de desistir — evita story preto se o CF Image Resizing estiver mal
-    // configurado. Anti-loop via comparação de src.
+    // configurado. Anti-loop via comparação de src. Se a crua TAMBÉM falhar,
+    // mostra aviso + loga.
+    imgEl.onload = function(){ if(errEl) errEl.style.display = 'none'; };
     imgEl.onerror = function(){
       if(rawStoryImg && imgEl.src !== rawStoryImg){ imgEl.src = rawStoryImg; }
-      else { imgEl.onerror = null; }
+      else { imgEl.onerror = null; showStoryMediaErr('story-img-fail'); }
     };
     imgEl.src = rawStoryImg ? cfImg(rawStoryImg, { w: 800 }) : '';
+    if(!rawStoryImg) showStoryMediaErr('story-no-media');
   }
   // Update header
   const svAvatar = document.getElementById('story-viewer-avatar');
