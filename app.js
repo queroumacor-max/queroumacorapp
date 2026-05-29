@@ -7221,7 +7221,6 @@ function buildFeedPostHTML(p, ctx){
       let name = prof.name || (prof.tag ? '@' + prof.tag : 'Usuário');
       if(name.includes('@') && !prof.tag) name = name.split('@')[0];
       const tag = prof.tag ? '@' + prof.tag : '';
-      const avatar = avatarOf({ avatar_url: prof.avatar_url, name: name });
       const time = getTimeAgo(p.created_at);
       const caption = p.caption || '';
       const liked = myLikes.includes(p.id);
@@ -7241,7 +7240,7 @@ function buildFeedPostHTML(p, ctx){
 
       html += '<div class="mpost" data-post-id="'+escapeHtml(p.id)+'" data-author-role="'+escapeHtml(prof.role||'')+'">';
       html += '<div class="mpost-head">';
-      html += '<div class="av-ring"><div class="av-inner"><img src="'+escapeHtml(avatar)+'" alt=""></div></div>';
+      html += '<div class="av-ring"><div class="av-inner">'+avatarImgTag(prof, 96)+'</div></div>';
       html += '<div class="post-meta"><span class="post-uname">'+escapeHtml(name)+'</span>';
       if(tag) html += ' <span class="post-city">'+escapeHtml(tag)+'</span>';
       html += '</div>';
