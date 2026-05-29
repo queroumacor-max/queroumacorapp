@@ -52,10 +52,10 @@
      fonte certa já no primeiro paint. DM Sans (corpo) segue do Google. -->
 <link rel="preload" href="/fonts/syne-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="/styles.css?v=20260527m">
+<link rel="stylesheet" href="/styles.css?v=20260527n">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260527m" as="script">
-<link rel="preload" href="/app.js?v=20260527m" as="script">
+<link rel="preload" href="/head.js?v=20260527n" as="script">
+<link rel="preload" href="/app.js?v=20260527n" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que
@@ -63,7 +63,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260527m" defer></script>
+<script src="/head.js?v=20260527n" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
      - leaflet: lazy via ensureLeaflet() em app.js (só usado na tela Explorar)
@@ -92,7 +92,7 @@
 
 <!-- TOP NAV -->
 <header class="top-nav" role="banner">
-  <h1 class="logo" style="margin:0;">Quero<span>Uma</span>Cor</h1>
+  <h1 class="logo" style="margin:0;cursor:pointer;" onclick="showScreen('feed')" role="button" tabindex="0" aria-label="Ir para o início" title="Início">Quero<span>Uma</span>Cor</h1>
   <div class="nav-right">
     <button type="button" id="pro-status-badge" onclick="showModal('pro-modal')" aria-label="Ver plano PRO" style="display:flex;align-items:center;font-size:11px;font-weight:800;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.15);color:#fff;font-family:'Syne',sans-serif;letter-spacing:1px;cursor:pointer;border:none;">GRÁTIS</button>
     <button class="nav-btn" type="button" onclick="showScreen('chat')" aria-label="Chat">
@@ -2445,7 +2445,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260527m" defer></script>
+<script src="/app.js?v=20260527n" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
