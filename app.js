@@ -1501,6 +1501,10 @@ async function modAction(postId, action, btn){
 
 function openAiOrcamento(){
   // Fazer orçamento é livre; só a geração por IA exige PRO.
+  // Zera os itens detalhados a cada abertura (senão vazam de um cliente pro
+  // próximo, já que o modal persiste no DOM).
+  const items = document.getElementById('ai-orc-items');
+  if(items) items.innerHTML = '';
   showModal('ai-orc-modal');
 }
 
@@ -1717,6 +1721,33 @@ async function sugerirEscopoIA(btn){
   }
 }
 
+// Adiciona uma linha de "item detalhado" no orçamento (descrição + valor).
+function addOrcItem(desc, valor){
+  const wrap = document.getElementById('ai-orc-items');
+  if(!wrap) return;
+  const row = document.createElement('div');
+  row.className = 'ai-orc-item-row';
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;';
+  const d = document.createElement('input');
+  d.className = 'auth-input ai-orc-item-desc';
+  d.type = 'text'; d.placeholder = 'Ex: Aplicação de massa corrida';
+  d.style.cssText = 'flex:2;font-size:15px;min-width:0;';
+  if(desc) d.value = desc;
+  const v = document.createElement('input');
+  v.className = 'auth-input ai-orc-item-val';
+  v.type = 'text'; v.inputMode = 'decimal'; v.placeholder = 'R$ (opcional)';
+  v.style.cssText = 'flex:1;font-size:15px;min-width:0;';
+  v.setAttribute('onblur', 'fmtBRL(this)');
+  if(valor) v.value = valor;
+  const rm = document.createElement('button');
+  rm.type = 'button'; rm.textContent = '×'; rm.setAttribute('aria-label', 'Remover');
+  rm.style.cssText = 'background:none;border:none;color:var(--p4);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;';
+  rm.onclick = () => row.remove();
+  row.appendChild(d); row.appendChild(v); row.appendChild(rm);
+  wrap.appendChild(row);
+  d.focus();
+}
+
 function gerarOrcamentoIA(){
   if (!gateProClient('Orçamento com Seu Zé')) return;
   const cliente = document.getElementById('ai-orc-cliente').value.trim() || 'Cliente';
@@ -1736,6 +1767,13 @@ function gerarOrcamentoIA(){
   const parcelas = parseInt((document.getElementById('ai-orc-parcelas')||{}).value) || 0;
   const entrada = parseBRL((document.getElementById('ai-orc-entrada')||{}).value);
   const tiposPgto = [...document.querySelectorAll('#ai-orc-tipos input[type=checkbox]:checked')].map(c=>c.value);
+  const garantia = ((document.getElementById('ai-orc-garantia')||{}).value || '').trim();
+  const prazoManual = ((document.getElementById('ai-orc-prazo')||{}).value || '').trim();
+  // Itens detalhados que o pintor adicionou (descrição + valor opcional).
+  const customItems = [...document.querySelectorAll('#ai-orc-items .ai-orc-item-row')].map(r => ({
+    desc: ((r.querySelector('.ai-orc-item-desc')||{}).value || '').trim(),
+    valorNum: parseBRL((r.querySelector('.ai-orc-item-val')||{}).value)
+  })).filter(it => it.desc);
 
   if(area <= 0){ toast('Informe a área em m²'); return; }
   if(cobranca === 'fechado'){
@@ -1747,7 +1785,9 @@ function gerarOrcamentoIA(){
   const l18 = Math.ceil(litros / 18);
   const custoTinta = matInc ? l18 * 320 : 0; // estimativa R$320/galão 18L premium
   const custoMaoObra = cobranca === 'fechado' ? valorFechado : area * precoM2;
-  const total = cobranca === 'fechado' ? valorFechado : (custoTinta + custoMaoObra);
+  // Itens detalhados com valor somam ao total (serviços avulsos precificados).
+  const customTotal = customItems.reduce((s,it)=> s + (it.valorNum > 0 ? it.valorNum : 0), 0);
+  const total = (cobranca === 'fechado' ? valorFechado : (custoTinta + custoMaoObra)) + customTotal;
 
   const pintorName = document.getElementById('myprofile-name')?.textContent || 'Pintor';
   const hoje = dateBR(new Date());
@@ -1788,6 +1828,13 @@ function gerarOrcamentoIA(){
     itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>Mão de obra ('+area+'m² × R$'+precoM2+'/m²)</span><span style="font-weight:600;">R$ '+custoMaoObra.toLocaleString('pt-BR')+'</span></div>';
   }
 
+  // Itens detalhados (serviços avulsos com valor individual)
+  customItems.forEach(it => {
+    const val = it.valorNum > 0 ? ('R$ ' + it.valorNum.toLocaleString('pt-BR')) : 'Incluso';
+    const bold = it.valorNum > 0 ? 'font-weight:600;' : 'color:var(--muted);';
+    itensHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span>'+escapeHtml(it.desc)+'</span><span style="'+bold+'">'+val+'</span></div>';
+  });
+
   // Forma de pagamento
   const pgtoLines = [];
   pgtoLines.push('Forma: ' + formaPgto + (parcelas>1 ? ' ('+parcelas+'x)' : ''));
@@ -1800,12 +1847,16 @@ function gerarOrcamentoIA(){
   let pgtoHtml = pgtoLines.map(l=>'<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• '+escapeHtml(l)+'</div>').join('');
 
   // Observações da IA
+  // Prazo: usa o que o pintor digitou; se vazio, cai no automático pela área.
+  const prazoTxt = prazoManual || (diasEstimados + ' dia' + (diasEstimados>1?'s':'') + ' úteis');
+  // Garantia: editável; se vazio, assume "1 ano".
+  const garantiaTxt = garantia || '1 ano';
   let aiNotes = '';
   if(obs) aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• '+escapeHtml(obs)+'</div>';
-  aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• Prazo estimado: '+diasEstimados+' dia'+(diasEstimados>1?'s':'') + ' úteis</div>';
+  aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• Prazo estimado: '+escapeHtml(prazoTxt)+'</div>';
   aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• '+numDemaos+' demão'+(numDemaos>1?'s':'')+' de tinta para acabamento perfeito</div>';
   aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• Condição: '+condicaoText+'</div>';
-  aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• Garantia de 1 ano na mão de obra</div>';
+  aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• Garantia da mão de obra: '+escapeHtml(garantiaTxt)+'</div>';
   if(comodos > 0) aiNotes += '<div style="font-size:12px;color:var(--ink);margin-bottom:4px;">• '+comodos+' cômodo'+(comodos>1?'s':'')+' inclusos no serviço</div>';
 
   const resultHtml = `
@@ -1852,7 +1903,8 @@ function gerarOrcamentoIA(){
   if(extras) pItens.push({desc:'Extras: '+extras,valor:'Incluso'});
   if(cobranca === 'fechado') pItens.push({desc:'Servico (preco fechado)',valor:'R$ '+valorFechado.toLocaleString('pt-BR')});
   else pItens.push({desc:'Mao de obra ('+area+'m2 x R$'+precoM2+'/m2)',valor:'R$ '+custoMaoObra.toLocaleString('pt-BR')});
-  _lastOrcData = {pintor:pintorName,cliente,servico,area,demaos:numDemaos,condicao:condicaoText,hoje,total,itens:pItens,obs:[obs,numDemaos+' demaos','Prazo: '+diasEstimados+' dias uteis','Garantia 1 ano'].filter(Boolean),pagamento:pgtoLines};
+  customItems.forEach(it => pItens.push({desc: it.desc, valor: it.valorNum > 0 ? ('R$ '+it.valorNum.toLocaleString('pt-BR')) : 'Incluso'}));
+  _lastOrcData = {pintor:pintorName,cliente,servico,area,demaos:numDemaos,condicao:condicaoText,hoje,total,itens:pItens,obs:[obs,numDemaos+' demaos','Prazo: '+prazoTxt,'Garantia: '+garantiaTxt].filter(Boolean),pagamento:pgtoLines};
 
   const resultEl = document.getElementById('ai-orc-result');
   resultEl.innerHTML = resultHtml;
