@@ -50,6 +50,10 @@
 /leaflet.css
   Cache-Control: public, max-age=31536000, immutable
 
+# Fontes auto-hospedadas (woff2 imutáveis — nome do arquivo muda se trocar)
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # Templates de referência da Arte IG — cache longo (mudança rara, troca de arquivo invalida)
 /style-refs/*
   Cache-Control: public, max-age=604800
