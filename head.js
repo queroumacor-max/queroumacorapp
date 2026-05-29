@@ -834,23 +834,32 @@ async function openFollowingModal(){
 async function toggleFollowFromList(btn, userId){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
-  if(btn.classList.contains('following')){
-    await sb.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', userId);
-    btn.textContent = 'Seguir';
-    btn.classList.remove('following');
-    btn.style.background = 'var(--p1)';
-    btn.style.color = '#fff';
-    btn.style.border = 'none';
-  } else {
-    await sb.from('follows').insert({ follower_id: currentUser.id, following_id: userId });
-    btn.textContent = 'Seguindo';
-    btn.classList.add('following');
-    btn.style.background = 'rgba(0,0,0,.05)';
-    btn.style.color = 'var(--ink)';
-    btn.style.border = '1px solid var(--border)';
+  btn.disabled = true;
+  try {
+    if(btn.classList.contains('following')){
+      const { error } = await sb.from('follows').delete()
+        .eq('follower_id', currentUser.id).eq('following_id', userId);
+      if(error){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', error.message); return; }
+      btn.textContent = 'Seguir';
+      btn.classList.remove('following');
+      btn.style.background = 'var(--p1)';
+      btn.style.color = '#fff';
+      btn.style.border = 'none';
+    } else {
+      const { error } = await sb.from('follows')
+        .insert({ follower_id: currentUser.id, following_id: userId });
+      if(error && error.code !== '23505'){ toast('Não foi possível seguir agora'); console.warn('follow:', error.code, error.message); return; }
+      btn.textContent = 'Seguindo';
+      btn.classList.add('following');
+      btn.style.background = 'rgba(0,0,0,.05)';
+      btn.style.color = 'var(--ink)';
+      btn.style.border = '1px solid var(--border)';
+    }
+    if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
+    loadMyProfileStats();
+  } finally {
+    btn.disabled = false;
   }
-  if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
-  loadMyProfileStats();
 }
 
 async function shareProfile(){
@@ -1382,26 +1391,52 @@ async function toggleFollow(userId,btn){
   const sb=getSupabase();
   if(!sb||!currentUser){toast('Faça login primeiro');return;}
   const isFollowing=btn.classList.contains('following');
-  if(isFollowing){
-    await sb.from('follows').delete().eq('follower_id',currentUser.id).eq('following_id',userId);
-    btn.textContent='Seguir';
-    btn.classList.remove('following');
-    btn.classList.add('follow');
-    btn.style.background='var(--p1)';
-    btn.style.border='none';
-    btn.style.color='#fff';
-    toast('Deixou de seguir');
-  } else {
-    await sb.from('follows').insert({follower_id:currentUser.id,following_id:userId});
+  // Botões da lista de busca/sugestões ficam sobre fundo claro: o estilo
+  // vem do CSS (.search-result-follow.follow / .following), então não
+  // aplicamos cor inline (senão o #fff do header escuro vaza pra cá e o
+  // texto "Seguindo" some). Só o header de perfil (fundo escuro) precisa
+  // dos estilos inline brancos.
+  const isLightCtx = btn.classList.contains('search-result-follow');
+  const paintFollowing = () => {
     btn.textContent='Seguindo';
-    btn.classList.remove('follow');
-    btn.classList.add('following');
-    btn.style.background='rgba(255,255,255,.12)';
-    btn.style.border='1px solid rgba(255,255,255,.2)';
-    btn.style.color='#fff';
-    toast('Seguindo!');
+    btn.classList.remove('follow'); btn.classList.add('following');
+    if(isLightCtx){ btn.style.background=''; btn.style.border=''; btn.style.color=''; }
+    else { btn.style.background='rgba(255,255,255,.12)'; btn.style.border='1px solid rgba(255,255,255,.2)'; btn.style.color='#fff'; }
+  };
+  const paintFollow = () => {
+    btn.textContent='Seguir';
+    btn.classList.remove('following'); btn.classList.add('follow');
+    if(isLightCtx){ btn.style.background=''; btn.style.border=''; btn.style.color=''; }
+    else { btn.style.background='var(--p1)'; btn.style.border='none'; btn.style.color='#fff'; }
+  };
+  // Só atualiza o botão se o banco confirmar. Antes o estado era otimista:
+  // se o INSERT falhava (ex.: FK pra auth.users, RLS, rede), o botão virava
+  // "Seguindo" mesmo sem linha no banco — daí o perfil (que lê do banco)
+  // mostrava "Seguir". Agora list e perfil refletem a mesma verdade.
+  btn.disabled = true;
+  try {
+    if(isFollowing){
+      const { error } = await sb.from('follows').delete()
+        .eq('follower_id',currentUser.id).eq('following_id',userId);
+      if(error){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', error.message); return; }
+      paintFollow();
+      toast('Deixou de seguir');
+    } else {
+      const { error } = await sb.from('follows')
+        .insert({follower_id:currentUser.id,following_id:userId});
+      // 23505 = unique_violation: já existe a linha → já está seguindo (sucesso).
+      if(error && error.code !== '23505'){
+        toast('Não foi possível seguir agora');
+        console.warn('follow:', error.code, error.message);
+        return;
+      }
+      paintFollowing();
+      toast('Seguindo!');
+    }
+    if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
+  } finally {
+    btn.disabled = false;
   }
-  if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
 }
 
 function togglePw(id,btn){
