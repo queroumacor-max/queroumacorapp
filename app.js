@@ -7997,10 +7997,20 @@ function renderCurrentStory(){
     vidEl.removeAttribute('src');
     vidEl.style.display = 'none';
     imgEl.style.display = 'block';
-    imgEl.src = s.media_url ? cfImg(s.media_url, { w: 800 }) : '';
+    const rawStoryImg = s.media_url || '';
+    // Fallback: se a versão otimizada (cfImg) falhar, tenta a URL crua antes
+    // de desistir — evita story preto se o CF Image Resizing estiver mal
+    // configurado. Anti-loop via comparação de src.
+    imgEl.onerror = function(){
+      if(rawStoryImg && imgEl.src !== rawStoryImg){ imgEl.src = rawStoryImg; }
+      else { imgEl.onerror = null; }
+    };
+    imgEl.src = rawStoryImg ? cfImg(rawStoryImg, { w: 800 }) : '';
   }
   // Update header
-  document.getElementById('story-viewer-avatar').src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
+  const svAvatar = document.getElementById('story-viewer-avatar');
+  svAvatar.onerror = function(){ svAvatar.onerror = null; svAvatar.src = avatarUrl(p.name||'U'); };
+  svAvatar.src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
   document.getElementById('story-viewer-name').textContent = p.name || 'User';
   document.getElementById('story-viewer-time').textContent = getTimeAgo(s.created_at);
 
