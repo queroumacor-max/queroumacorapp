@@ -848,7 +848,17 @@ async function toggleFollowFromList(btn, userId){
     } else {
       const { error } = await sb.from('follows')
         .insert({ follower_id: currentUser.id, following_id: userId });
-      if(error && error.code !== '23505'){ toast('Não foi possível seguir agora'); console.warn('follow:', error.code, error.message); return; }
+      // Confirma no banco (um trigger pode dar rollback retornando 23505 de
+      // outra tabela). Só pinta "Seguindo" se a linha realmente existir.
+      const { data: chk } = await sb.from('follows').select('id')
+        .eq('follower_id', currentUser.id).eq('following_id', userId).limit(1);
+      if(!(chk && chk.length > 0)){
+        const code = error && error.code, msg = (error && error.message) || '';
+        console.warn('follow não persistiu:', code, msg, error);
+        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(code||'?')+' '+msg });
+        toast('Não foi possível seguir' + (code ? ' (cod '+code+')' : ''));
+        return;
+      }
       btn.textContent = 'Seguindo';
       btn.classList.add('following');
       btn.style.background = 'rgba(0,0,0,.05)';
@@ -1206,6 +1216,10 @@ async function openUserProfile(userId, preview){
     const followersCount = followersRes.count || 0;
     const followingCount = followingRes.count || 0;
     const isFollowing = !!(followRes && followRes.data && followRes.data.length > 0);
+    if(currentUser && followRes && followRes.error){
+      console.warn('isFollowing read error:', followRes.error.code, followRes.error.message);
+      if(typeof reportError === 'function') reportError({ type:'isfollowing-read-error', ctx:(followRes.error.code||'?')+' '+(followRes.error.message||'') });
+    }
 
     const screen = document.getElementById('screen-profile');
     const nameEl = screen.querySelector('.ph-name');
@@ -1424,14 +1438,23 @@ async function toggleFollow(userId,btn){
     } else {
       const { error } = await sb.from('follows')
         .insert({follower_id:currentUser.id,following_id:userId});
-      // 23505 = unique_violation: já existe a linha → já está seguindo (sucesso).
-      if(error && error.code !== '23505'){
-        toast('Não foi possível seguir agora');
-        console.warn('follow:', error.code, error.message);
+      // Não confia só no retorno do insert: confirma no banco que a linha
+      // existe de fato. Um trigger em follows pode dar ROLLBACK devolvendo
+      // 23505 de OUTRA tabela (ex.: points UNIQUE) — antes isso virava
+      // "Seguindo!" falso e o perfil, que lê do banco, mostrava "Seguir".
+      // Agora só pinta se persistiu; senão mostra/loga o erro real.
+      const { data: chk } = await sb.from('follows').select('id')
+        .eq('follower_id',currentUser.id).eq('following_id',userId).limit(1);
+      if(chk && chk.length > 0){
+        paintFollowing();
+        toast('Seguindo!');
+      } else {
+        const code = error && error.code, msg = (error && error.message) || '';
+        console.warn('follow não persistiu:', code, msg, error);
+        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(code||'?')+' '+msg });
+        toast('Não foi possível seguir' + (code ? ' (cod '+code+')' : ''));
         return;
       }
-      paintFollowing();
-      toast('Seguindo!');
     }
     if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
   } finally {
