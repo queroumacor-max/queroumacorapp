@@ -4500,8 +4500,6 @@ function setMode(mode){
   const vc=document.getElementById('view-cliente');
   if(vp) vp.style.display='block';
   if(vc) vc.style.display='none';
-  const fab=document.getElementById('post-fab');
-  if(fab)fab.style.display='flex';
   const sa=document.getElementById('scroll-area');
   if(sa) sa.scrollTop=0;
 }
