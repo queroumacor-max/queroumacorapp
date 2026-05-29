@@ -52,10 +52,10 @@
      fonte certa já no primeiro paint. DM Sans (corpo) segue do Google. -->
 <link rel="preload" href="/fonts/syne-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="/styles.css?v=20260527s">
+<link rel="stylesheet" href="/styles.css?v=20260527t">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260527s" as="script">
-<link rel="preload" href="/app.js?v=20260527s" as="script">
+<link rel="preload" href="/head.js?v=20260527t" as="script">
+<link rel="preload" href="/app.js?v=20260527t" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que
@@ -63,7 +63,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260527s" defer></script>
+<script src="/head.js?v=20260527t" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
      - leaflet: lazy via ensureLeaflet() em app.js (só usado na tela Explorar)
@@ -2069,6 +2069,22 @@
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px;">
       <div class="auth-field" style="flex:1;">
+        <label class="auth-label" for="ai-orc-garantia">Garantia da mão de obra</label>
+        <input class="auth-input" type="text" id="ai-orc-garantia" name="garantia" value="1 ano" placeholder="Ex: 1 ano, 6 meses, sem garantia" style="font-size:16px;">
+      </div>
+      <div class="auth-field" style="flex:1;">
+        <label class="auth-label" for="ai-orc-prazo">Prazo de execução</label>
+        <input class="auth-input" type="text" id="ai-orc-prazo" name="prazo" placeholder="Auto pela área (ex: 3 dias úteis)" style="font-size:16px;">
+      </div>
+    </div>
+    <div class="auth-field" style="margin-bottom:12px;">
+      <label class="auth-label">Itens detalhados com valor (opcional)</label>
+      <div style="font-size:11px;color:var(--muted);margin:2px 0 6px;line-height:1.4;">Liste serviços separados pro cliente ver quanto custa cada coisa (ex.: Aplicação de massa, Lixamento). Itens <b>com valor somam ao total</b>; deixe o valor vazio pra marcar "Incluso".</div>
+      <div id="ai-orc-items"></div>
+      <button type="button" onclick="addOrcItem()" style="width:100%;padding:9px;background:var(--cream);border:1px dashed var(--border);border-radius:10px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:'DM Sans',sans-serif;">+ Adicionar item</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div class="auth-field" style="flex:1;">
         <label class="auth-label" for="ai-orc-pgto">Forma de pagamento</label>
         <select class="auth-input" id="ai-orc-pgto" name="pgto" style="padding:12px;font-size:16px;">
           <option value="À vista">À vista</option>
@@ -2448,7 +2464,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260527s" defer></script>
+<script src="/app.js?v=20260527t" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
