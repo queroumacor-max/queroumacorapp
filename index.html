@@ -52,10 +52,10 @@
      fonte certa já no primeiro paint. DM Sans (corpo) segue do Google. -->
 <link rel="preload" href="/fonts/syne-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="/styles.css?v=20260527q">
+<link rel="stylesheet" href="/styles.css?v=20260527r">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260527q" as="script">
-<link rel="preload" href="/app.js?v=20260527q" as="script">
+<link rel="preload" href="/head.js?v=20260527r" as="script">
+<link rel="preload" href="/app.js?v=20260527r" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que
@@ -63,7 +63,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260527q" defer></script>
+<script src="/head.js?v=20260527r" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
      - leaflet: lazy via ensureLeaflet() em app.js (só usado na tela Explorar)
@@ -426,7 +426,7 @@
   </div>
 
   <!-- Feed filter tabs -->
-  <div id="feed-filters" style="display:flex;gap:8px;padding:10px 14px;overflow-x:auto;background:var(--cream);border-bottom:1px solid var(--border);">
+  <div id="feed-filters" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--cream);border-bottom:1px solid var(--border);">
     <button class="feed-filter active" onclick="setFeedFilter(this,'')" style="padding:6px 14px;border-radius:20px;border:1.5px solid var(--ink);background:var(--ink);color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;">Todos</button>
     <button class="feed-filter" onclick="setFeedFilter(this,'pintor')" style="padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;">🖌️ Pintura</button>
     <button class="feed-filter" onclick="setFeedFilter(this,'grafiteiro')" style="padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;">🎨 Grafite</button>
@@ -2448,7 +2448,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260527q" defer></script>
+<script src="/app.js?v=20260527r" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

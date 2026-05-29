@@ -8864,37 +8864,43 @@ async function generateInviteCode(view){
   const sb = getSupabase();
   if(!sb){ toast('Erro: Supabase indisponível'); return; }
   const btn = document.getElementById('gen-invite-btn-' + view);
-  btn.textContent = 'Gerando...';
-  btn.disabled = true;
+  const resetBtn = (txt) => { if(btn){ btn.textContent = txt; btn.disabled = false; } };
+  if(btn){ btn.textContent = 'Gerando...'; btn.disabled = true; }
   try {
-    const { data:{ session } } = await sb.auth.getSession();
-    if(!session){ toast('Faça login primeiro'); btn.textContent = 'Gerar código de convite'; btn.disabled = false; return; }
+    // Usa currentUser direto. Antes await sb.auth.getSession() podia pendurar
+    // (rede lenta) e o botão ficava preso em "Gerando...". Fallback: getSession
+    // com timeout só se currentUser não estiver disponível.
+    let uid = currentUser && currentUser.id;
+    if(!uid){
+      try {
+        const r = await (typeof withTimeout === 'function' ? withTimeout(sb.auth.getSession(), 5000, 'getSession') : sb.auth.getSession());
+        uid = r && r.data && r.data.session && r.data.session.user && r.data.session.user.id;
+      } catch(_){}
+    }
+    if(!uid){ toast('Faça login primeiro'); resetBtn('Gerar código de convite'); return; }
     // Generate a unique code QUC-XXXXX
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = 'QUC-';
     for(let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    // Try to insert into invites table (non-blocking)
-    try {
-      await sb.from('invites').insert({
-        code: code,
-        created_by: session.user.id,
-        used: false,
-        uses: 0,
-        max_uses: 5
-      });
-    } catch(dbErr){ console.warn('Invite DB insert skipped:', dbErr && dbErr.message || dbErr); }
-    // Always show the code to the user
+    // Mostra o código IMEDIATAMENTE — não depende do insert (que pode estar
+    // lento). Persiste em background com timeout, sem travar a UI.
     generatedInviteCode[view] = code;
-    document.getElementById('my-invite-code-' + view).style.display = 'block';
-    document.getElementById('my-invite-code-value-' + view).textContent = code;
-    document.getElementById('share-invite-btn-' + view).style.display = 'block';
-    btn.textContent = 'Gerar novo código';
-    btn.disabled = false;
+    const box = document.getElementById('my-invite-code-' + view);
+    const val = document.getElementById('my-invite-code-value-' + view);
+    const shareBtn = document.getElementById('share-invite-btn-' + view);
+    if(box) box.style.display = 'block';
+    if(val) val.textContent = code;
+    if(shareBtn) shareBtn.style.display = 'block';
+    resetBtn('Gerar novo código');
     toast('Código gerado!');
+    const ins = sb.from('invites').insert({ code, created_by: uid, used: false, uses: 0, max_uses: 5 });
+    (typeof withTimeout === 'function' ? withTimeout(ins, 8000, 'invite-insert') : ins)
+      .then(res => { if(res && res.error) console.warn('invite insert:', res.error.code, res.error.message); })
+      .catch(e => console.warn('invite insert (timeout/err):', e && e.message));
   } catch(e){
     console.error('generateInviteCode error:', e && e.message || e);
     toast('Erro ao gerar código');
-    btn.textContent = 'Gerar código de convite'; btn.disabled = false;
+    resetBtn('Gerar código de convite');
   }
 }
 
