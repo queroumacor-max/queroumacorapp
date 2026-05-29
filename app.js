@@ -7002,22 +7002,71 @@ async function fetchPublicProfiles(sb, ids, cols){
 let _feedOffset = 0;
 const FEED_PAGE = 30;
 
+// ─── Cache do feed (stale-while-revalidate) ────────────────────────────────
+// Guarda DADOS compactos (JSON), não HTML, e grava fora do main thread
+// (requestIdleCallback) pra não travar a rolagem como o cache antigo de
+// ~400KB de HTML. Chave por usuário; expira em 1h. O próximo load do feed
+// pinta instantâneo daqui e revalida em background.
+function _feedCacheKey(){ return 'feedCache_v3_' + (currentUser ? currentUser.id : 'anon'); }
+
+function paintFeedFromCache(){
+  try {
+    const raw = localStorage.getItem(_feedCacheKey());
+    if(!raw) return false;
+    const c = JSON.parse(raw);
+    if(!c || !Array.isArray(c.posts) || c.posts.length === 0) return false;
+    if(Date.now() - (c.ts || 0) > 3600000) return false; // > 1h: velho demais
+    const container = document.getElementById('feed-posts-area');
+    if(!container) return false;
+    const profMap = c.profMap || {};
+    c.posts.forEach(p => { p.profiles = profMap[p.user_id] || p.profiles || {}; });
+    const ctx = { profMap, myLikes: c.myLikes || [], likeCounts: c.likeCounts || {}, savedPosts: c.savedPosts || [], commentsMap: c.commentsMap || {} };
+    container.innerHTML = c.posts.map(p => buildFeedPostHTML(p, ctx)).join('');
+    const emptyEl = document.getElementById('feed-empty');
+    if(emptyEl) emptyEl.style.display = 'none';
+    if(typeof observeFeedVideos === 'function') observeFeedVideos(true);
+    if(typeof filterFeedPosts === 'function') filterFeedPosts();
+    return true;
+  } catch(e){ console.warn('[feed-cache-read]', e && e.message); return false; }
+}
+
+function scheduleFeedCacheSave(posts, profMap, enrich){
+  enrich = enrich || {};
+  const doSave = () => {
+    try {
+      // posts sem .profiles (rehidratados do profMap no paint) pra encolher.
+      const slim = posts.map(p => { const o = Object.assign({}, p); delete o.profiles; return o; });
+      const obj = { v: 3, ts: Date.now(), posts: slim, profMap: profMap || {},
+        myLikes: enrich.myLikes || [], likeCounts: enrich.likeCounts || {},
+        savedPosts: enrich.savedPosts || [], commentsMap: enrich.commentsMap || {} };
+      const json = JSON.stringify(obj);
+      if(json.length > 300000) return; // grande demais — não cacheia (evita quota)
+      localStorage.setItem(_feedCacheKey(), json);
+    } catch(e){ console.warn('[feed-cache-write]', e && e.message); /* quota/serialize — ignora */ }
+  };
+  if(typeof requestIdleCallback === 'function') requestIdleCallback(doSave, { timeout: 2000 });
+  else setTimeout(doSave, 300);
+}
+
 async function loadFeed(){
   _lastFeedLoad = Date.now();
-  // Cache de HTML em localStorage foi removido: a string crescia até
-  // ~400KB e o setItem/getItem síncrono engasgava o main thread em
-  // mobile, sem ganho real (a hidratação dos posts via Supabase é
-  // rápida e o skeleton já cobre o primeiro paint).
-  // Limpa entradas antigas pra liberar quota (storage cap em iOS Safari).
+  // O cache v2 guardava ~400KB de HTML e engasgava o main thread no
+  // setItem/getItem síncrono. Foi substituído pelo v3 (paintFeedFromCache),
+  // que guarda DADOS compactos e grava via requestIdleCallback. Limpamos as
+  // chaves v2 legadas pra liberar quota (storage cap em iOS Safari).
   try {
     const uid = currentUser ? currentUser.id : 'anon';
     localStorage.removeItem('feedCache_v2_' + uid);
     localStorage.removeItem('storiesCache_v2_' + uid);
   } catch(e){ console.warn('[clear-feed-cache]', e && e.message); }
+  // Stale-while-revalidate: pinta o feed da última visita INSTANTANEAMENTE
+  // (do cache compacto) e revalida em background logo abaixo. Se pintou, o
+  // usuário já vê conteúdo — não mostramos skeleton nem "conexão lenta".
+  const paintedFromCache = paintFeedFromCache();
   // Após 5s sem renderizar nada, adiciona um aviso "conexão lenta" no
   // skeleton pra reduzir ansiedade. Cancelado quando o feed carrega ou
-  // quando o retry-UI substitui.
-  const slowHint = setTimeout(() => {
+  // quando o retry-UI substitui. Pulado se já pintamos do cache.
+  const slowHint = paintedFromCache ? null : setTimeout(() => {
     const container = document.getElementById('feed-posts-area');
     if(container && container.querySelector('.skel-post') && !container.querySelector('.feed-slow-hint')){
       const hint = document.createElement('div');
@@ -7038,22 +7087,23 @@ async function loadFeed(){
         })
       : getFollowingIds());
     await (typeof withTimeout === 'function'
-      ? withTimeout(Promise.all([loadStories(feedIds), loadPosts(feedIds)]), 15000, 'loadFeed')
-      : Promise.all([loadStories(feedIds), loadPosts(feedIds)]));
-    clearTimeout(slowHint);
+      ? withTimeout(Promise.all([loadStories(feedIds), loadPosts(feedIds, false, paintedFromCache)]), 15000, 'loadFeed')
+      : Promise.all([loadStories(feedIds), loadPosts(feedIds, false, paintedFromCache)]));
+    if(slowHint) clearTimeout(slowHint);
     const elapsed = Date.now() - t0;
     if(elapsed > 5000 && typeof reportError === 'function'){
       // Carregou mas demorou — sinal de query slow ou rede ruim. Logar.
       reportError({ type:'feed-slow', ctx: elapsed + 'ms / ' + document.querySelectorAll('#feed-posts-area .mpost').length + ' posts' });
     }
   } catch(e){
-    clearTimeout(slowHint);
+    if(slowHint) clearTimeout(slowHint);
     const elapsed = Date.now() - t0;
     console.warn('loadFeed timeout/erro (' + elapsed + 'ms):', e && e.message || e);
     if(typeof reportError === 'function'){
       reportError({ type:'feed-fail', ctx: elapsed + 'ms', msg: e && e.message || String(e) });
     }
-    renderFeedRetry();
+    // Se já pintamos do cache, o usuário tem conteúdo — não troca por erro.
+    if(!paintedFromCache) renderFeedRetry();
   }
 }
 
@@ -7156,105 +7206,17 @@ function observeFeedVideos(reset){
   });
 }
 
-async function loadPosts(feedIds, append){
-  try {
-    const sb = getSupabase();
-    if(!sb) return;
-    if(!feedIds) feedIds = await getFollowingIds();
-    const offset = append ? _feedOffset : 0;
-    // Build query - if user has following list, filter by it; otherwise show all recent posts
-    let query = sb.from('posts').select(POST_COLS).neq('media_type', 'story');
-    // Only show approved posts (or posts without status for backwards compat)
-    query = query.or('status.eq.approved,status.is.null');
-    if(feedIds.length > 0) query = query.in('user_id', feedIds);
-    query = query.order('created_at', { ascending: false }).range(offset, offset + FEED_PAGE - 1);
-    let posts = [], error = null;
-    try {
-      const res = await (typeof withTimeout === 'function' ? withTimeout(query, 12000, 'posts') : query);
-      posts = res.data || [];
-      error = res.error || null;
-    } catch(e){
-      console.warn('loadPosts timeout:', e && e.message);
-      throw e; // sobe pro loadFeed renderizar o retry
-    }
-    if(error){
-      console.warn('loadPosts error:', error.message);
-      posts = [];
-    }
-    const container = document.getElementById('feed-posts-area');
-    const emptyEl = document.getElementById('feed-empty');
-    if(!container) return;
-    if(!posts || posts.length === 0){
-      if(append){
-        // Acabaram os posts — remove o botão "Ver mais"
-        const mb = document.getElementById('feed-more-btn');
-        if(mb && mb.closest('div')) mb.closest('div').remove();
-      } else {
-        container.innerHTML = '';
-        _feedOffset = 0;
-        if(emptyEl) emptyEl.style.display = 'block';
-      }
-      return;
-    }
-    if(emptyEl) emptyEl.style.display = 'none';
-
-    // Load profiles, likes, comments, saved_posts ALL in parallel
-    const userIds = [...new Set(posts.map(p => p.user_id))];
-    const postIds = posts.map(p => p.id);
-    let myLikes = [];
-    let likeCounts = {};
-    let savedPosts = [];
-    let commentsMap = {};
-    // CADA query interna ganha seu próprio timeout (8s) + log de qual
-    // travou. Antes, se UMA das 5 queries pendurasse, o loadFeed timeout
-    // (15s) disparava e o user via "Tentar de novo" sem saber qual quebrou.
-    // Agora: rejeição localizada vira erro com label → reportError envia
-    // pro /api/log-error e dá pra investigar server-side.
-    const _wt = (p, label) => (typeof withTimeout === 'function')
-      ? withTimeout(p, 8000, label).catch(e => {
-          if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: label, msg: e && e.message });
-          console.warn('feed step timeout:', label, e && e.message);
-          return { data: null, error: e }; // segue sem essa fatia em vez de explodir
-        })
-      : p;
-    const queries = [
-      _wt(fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'), 'profiles'),
-      _wt(sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5), 'comments')
-    ];
-    if(currentUser){
-      queries.push(_wt(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'my-likes'));
-      queries.push(_wt(sb.from('likes').select('post_id').in('post_id', postIds), 'all-likes'));
-      queries.push(_wt(sb.from('saved_posts').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'saved'));
-    }
-    const results = await Promise.all(queries);
-    const profMap = {};
-    // results[0] vem de fetchPublicProfiles (retorna array direto) OU do _wt
-    // (retorna { data, error }) em caso de timeout. Cobre ambos.
-    const profsArr = Array.isArray(results[0]) ? results[0] : (results[0] && results[0].data) || [];
-    profsArr.forEach(pr => { profMap[pr.id] = pr; });
-    posts.forEach(p => { p.profiles = profMap[p.user_id] || {}; });
-    // Map comments by post_id
-    const commentsArr = (results[1] && results[1].data) || [];
-    commentsArr.forEach(c => {
-      if(!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
-      commentsMap[c.post_id].push(c);
-    });
-    // Collect all comment user_ids to resolve names
-    const commentUserIds = [...new Set(commentsArr.map(c => c.user_id).filter(id => !profMap[id]))];
-    if(commentUserIds.length > 0){
-      try {
-        const cProfs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'), 5000, 'comment-profiles') : fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'));
-        (cProfs || []).forEach(pr => { profMap[pr.id] = pr; });
-      } catch(e){ console.warn('comment-profiles timeout:', e && e.message); /* segue sem nomes resolvidos */ }
-    }
-    if(currentUser){
-      if(results[2] && results[2].data) myLikes = results[2].data.map(l => l.post_id);
-      if(results[3] && results[3].data) results[3].data.forEach(l => { likeCounts[l.post_id] = (likeCounts[l.post_id]||0)+1; });
-      if(results[4] && results[4].data) savedPosts = results[4].data.map(s => s.post_id);
-    }
-
-    let html = '';
-    posts.forEach(p => {
+// Monta o HTML de um post do feed. Extraído do loop de loadPosts pra ser
+// reaproveitado tanto no render progressivo quanto no paint do cache.
+// ctx = { myLikes, likeCounts, savedPosts, commentsMap, profMap }
+function buildFeedPostHTML(p, ctx){
+  ctx = ctx || {};
+  const myLikes = ctx.myLikes || [];
+  const likeCounts = ctx.likeCounts || {};
+  const savedPosts = ctx.savedPosts || [];
+  const commentsMap = ctx.commentsMap || {};
+  const profMap = ctx.profMap || {};
+  let html = '';
       const prof = p.profiles || {};
       let name = prof.name || (prof.tag ? '@' + prof.tag : 'Usuário');
       if(name.includes('@') && !prof.tag) name = name.split('@')[0];
@@ -7347,22 +7309,143 @@ async function loadPosts(feedIds, append){
         html += '</div>';
       }
       html += '</div>';
+  return html;
+}
+
+async function loadPosts(feedIds, append, skipFirstPaint){
+  try {
+    const sb = getSupabase();
+    if(!sb) return;
+    if(!feedIds) feedIds = await getFollowingIds();
+    const offset = append ? _feedOffset : 0;
+    // Build query - if user has following list, filter by it; otherwise show all recent posts
+    let query = sb.from('posts').select(POST_COLS).neq('media_type', 'story');
+    // Only show approved posts (or posts without status for backwards compat)
+    query = query.or('status.eq.approved,status.is.null');
+    if(feedIds.length > 0) query = query.in('user_id', feedIds);
+    query = query.order('created_at', { ascending: false }).range(offset, offset + FEED_PAGE - 1);
+    let posts = [], error = null;
+    try {
+      const res = await (typeof withTimeout === 'function' ? withTimeout(query, 12000, 'posts') : query);
+      posts = res.data || [];
+      error = res.error || null;
+    } catch(e){
+      console.warn('loadPosts timeout:', e && e.message);
+      throw e; // sobe pro loadFeed renderizar o retry
+    }
+    if(error){
+      console.warn('loadPosts error:', error.message);
+      posts = [];
+    }
+    const container = document.getElementById('feed-posts-area');
+    const emptyEl = document.getElementById('feed-empty');
+    if(!container) return;
+    if(!posts || posts.length === 0){
+      if(append){
+        // Acabaram os posts — remove o botão "Ver mais"
+        const mb = document.getElementById('feed-more-btn');
+        if(mb && mb.closest('div')) mb.closest('div').remove();
+      } else {
+        container.innerHTML = '';
+        _feedOffset = 0;
+        if(emptyEl) emptyEl.style.display = 'block';
+      }
+      return;
+    }
+    if(emptyEl) emptyEl.style.display = 'none';
+
+    // Render progressivo: o 1º paint precisa só de posts + perfis (autor,
+    // avatar, legenda, mídia). Curtidas/comentários/salvos entram depois e
+    // re-pintam o feed. Dispara TODAS as queries em paralelo (mesmas idas
+    // de rede de antes), mas espera só os perfis pro primeiro paint —
+    // tirando ~1-2 RTTs do caminho crítico. Cada query tem timeout próprio
+    // (8s) + log via reportError pra investigar qual fatia travou.
+    const userIds = [...new Set(posts.map(p => p.user_id))];
+    const postIds = posts.map(p => p.id);
+    const _wt = (pr, label) => (typeof withTimeout === 'function')
+      ? withTimeout(pr, 8000, label).catch(e => {
+          if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: label, msg: e && e.message });
+          console.warn('feed step timeout:', label, e && e.message);
+          return { data: null, error: e }; // segue sem essa fatia em vez de explodir
+        })
+      : pr;
+    // Dispara tudo já (paralelo). Só os perfis entram no caminho crítico.
+    const pProfiles = _wt(fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'), 'profiles');
+    const pComments = _wt(sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5), 'comments');
+    const pMyLikes  = currentUser ? _wt(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'my-likes') : null;
+    const pAllLikes = currentUser ? _wt(sb.from('likes').select('post_id').in('post_id', postIds), 'all-likes') : null;
+    const pSaved    = currentUser ? _wt(sb.from('saved_posts').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'saved') : null;
+
+    const profMap = {};
+    // Helper de pintura (fecha sobre posts/container/append).
+    const renderInto = (ctx) => {
+      let html = posts.map(p => buildFeedPostHTML(p, ctx)).join('');
+      if(posts.length === FEED_PAGE){
+        html += '<div style="text-align:center;padding:16px 0 28px;"><button id="feed-more-btn" onclick="loadMoreFeed(this)" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:10px 24px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver mais publicações</button></div>';
+      }
+      if(append){
+        const oldBtn = document.getElementById('feed-more-btn');
+        if(oldBtn && oldBtn.closest('div')) oldBtn.closest('div').remove();
+        container.insertAdjacentHTML('beforeend', html);
+        observeFeedVideos(false);
+      } else {
+        container.innerHTML = html;
+        observeFeedVideos(true);
+      }
+      if(typeof filterFeedPosts === 'function') filterFeedPosts();
+    };
+
+    // Wave A (crítica): perfis → PRIMEIRO PAINT (só no load inicial; no
+    // append esperamos os dados completos pra anexar uma vez só).
+    const profsRes = await pProfiles;
+    const profsArr = Array.isArray(profsRes) ? profsRes : (profsRes && profsRes.data) || [];
+    profsArr.forEach(pr => { profMap[pr.id] = pr; });
+    posts.forEach(p => { p.profiles = profMap[p.user_id] || {}; });
+    // Primeiro paint só no load inicial E quando o cache não pintou antes
+    // (se pintou, evitamos o flicker de tirar curtidas/comentários por ~1s
+    // até o paint completo chegar).
+    if(!append && !skipFirstPaint){
+      renderInto({ profMap, myLikes: [], likeCounts: {}, savedPosts: [], commentsMap: {} });
+    }
+
+    // Wave B (diferida): comentários + curtidas + salvos (já estavam em voo).
+    const [cRes, mlRes, alRes, svRes] = await Promise.all([
+      pComments,
+      pMyLikes  || Promise.resolve(null),
+      pAllLikes || Promise.resolve(null),
+      pSaved    || Promise.resolve(null)
+    ]);
+    const commentsMap = {};
+    const commentsArr = (cRes && cRes.data) || [];
+    commentsArr.forEach(c => {
+      if(!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
+      commentsMap[c.post_id].push(c);
     });
-    // Botão "Ver mais" só se a página veio cheia (pode haver mais)
-    if(posts.length === FEED_PAGE){
-      html += '<div style="text-align:center;padding:16px 0 28px;"><button id="feed-more-btn" onclick="loadMoreFeed(this)" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:10px 24px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver mais publicações</button></div>';
+    // Resolve nomes de autores de comentário ainda não carregados.
+    const commentUserIds = [...new Set(commentsArr.map(c => c.user_id).filter(id => !profMap[id]))];
+    if(commentUserIds.length > 0){
+      try {
+        const cProfs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'), 5000, 'comment-profiles') : fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'));
+        (cProfs || []).forEach(pr => { profMap[pr.id] = pr; });
+      } catch(e){ console.warn('comment-profiles timeout:', e && e.message); /* segue sem nomes resolvidos */ }
     }
-    if(append){
-      // Remove o botão "Ver mais" antigo e anexa só os novos posts
-      const oldBtn = document.getElementById('feed-more-btn');
-      if(oldBtn && oldBtn.closest('div')) oldBtn.closest('div').remove();
-      container.insertAdjacentHTML('beforeend', html);
-      observeFeedVideos(false);
-    } else {
-      container.innerHTML = html;
-      observeFeedVideos(true);
+    let myLikes = [], likeCounts = {}, savedPosts = [];
+    if(currentUser){
+      if(mlRes && mlRes.data) myLikes = mlRes.data.map(l => l.post_id);
+      if(alRes && alRes.data) alRes.data.forEach(l => { likeCounts[l.post_id] = (likeCounts[l.post_id]||0)+1; });
+      if(svRes && svRes.data) savedPosts = svRes.data.map(s => s.post_id);
     }
+
+    // PAINT COMPLETO (com curtidas/comentários/salvos).
+    renderInto({ profMap, myLikes, likeCounts, savedPosts, commentsMap });
     _feedOffset = offset + posts.length;
+
+    // Cache stale-while-revalidate (só página inicial): próximo load pinta
+    // instantâneo do cache enquanto revalida. Gravação assíncrona e compacta
+    // (JSON de dados, não HTML de 400KB como o cache antigo que engasgava).
+    if(!append){
+      scheduleFeedCacheSave(posts, profMap, { myLikes, likeCounts, savedPosts, commentsMap });
+    }
   } catch(e){
     console.error('loadPosts error:', e && e.message || e);
     // Se ainda nem chegou na primeira página, o skeleton segue na tela —
