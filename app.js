@@ -5289,6 +5289,12 @@ const MKT_MENUS = [
 const MKT_MENU_LABEL = Object.assign({ outros:'📦 Outros' }, ...MKT_MENUS.map(m => ({ [m.key]: m.label })));
 function mktClassify(p){
   const n = (' ' + (p && p.name || '') + ' ').toLowerCase();
+  // Overrides por marca, ANTES da heurística por palavra-chave. Sem isso,
+  // qualquer "<marca> Spray/Aerossol" caía em "Arte Urbana & Spray" (que é
+  // pra spray de grafite). Vonixx = cuidado automotivo → Outros. Metalatex e
+  // Novacor = linhas de tinta → Tintas.
+  if(n.includes('vonixx')) return 'outros';
+  if(n.includes('metalatex') || n.includes('novacor')) return 'tintas';
   for(const m of MKT_MENUS){ if(m.kw.some(k => n.includes(k))) return m.key; }
   return 'outros';
 }
