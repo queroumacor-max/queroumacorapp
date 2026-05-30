@@ -205,6 +205,24 @@ function showModal(id){
     if(focusable){ try { focusable.focus(); } catch(_){} }
   }, 50);
 }
+// Injeta um botão X no canto superior direito de TODOS os .sheet (modais
+// bottom-sheet). Antes só dava pra fechar tocando fora ou arrastando — pediram
+// um X visível. Injeção única no DOMContentLoaded, idempotente.
+function _injectSheetCloseButtons(){
+  document.querySelectorAll('.sheet').forEach(s => {
+    if(s.querySelector(':scope > .sheet-close-x')) return; // já tem
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sheet-close-x';
+    btn.setAttribute('aria-label', 'Fechar');
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    btn.addEventListener('click', (e) => { e.stopPropagation(); closeModals(); });
+    s.insertBefore(btn, s.firstChild);
+  });
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _injectSheetCloseButtons);
+else _injectSheetCloseButtons();
+
 function closeModals(){
   document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));
   // A11y: restaura foco no elemento que abriu o modal
