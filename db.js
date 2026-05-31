@@ -91,6 +91,20 @@
     }
   }
 
+  // Lista de quem segue um usuário (espelho de listFollowingIds).
+  async function listFollowerIds(userId){
+    const sb = _sb()
+    if(!sb || !userId) return []
+    try {
+      const { data, error } = await sb.from('follows').select('follower_id').eq('following_id', userId)
+      if(error){ console.warn('DB.follows.listFollowerIds:', error.message); return [] }
+      return (data || []).map(f => f.follower_id)
+    } catch(e){
+      console.warn('DB.follows.listFollowerIds exc:', e && e.message)
+      return []
+    }
+  }
+
   async function isFollowing(followerId, followingId){
     const sb = _sb()
     if(!sb || !followerId || !followingId) return false
@@ -180,7 +194,7 @@
 
   window.DB = {
     profiles: { getById, getMany, PUBLIC_COLS },
-    follows: { countFollowers, countFollowing, listFollowingIds, isFollowing, follow, unfollow },
+    follows: { countFollowers, countFollowing, listFollowingIds, listFollowerIds, isFollowing, follow, unfollow },
     posts: { getFeedPosts, getStories, COLS: POST_COLS }
   }
 })()

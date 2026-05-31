@@ -730,17 +730,18 @@ async function loadMyProfileStats(){
   if(!sb || !currentUser) return;
   try {
     // 3 contagens em paralelo (antes eram sequenciais — 450ms vs 150ms).
-    const [postsRes, followersRes, followingRes] = await Promise.all([
+    // Follows passam por DB.follows.* (Fase 1 da refatoração arquitetural).
+    const [postsRes, followersCount, followingCount] = await Promise.all([
       sb.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id).neq('media_type', 'story'),
-      sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', currentUser.id),
-      sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id)
+      DB.follows.countFollowers(currentUser.id),
+      DB.follows.countFollowing(currentUser.id)
     ]);
     const postsEl = document.getElementById('myprofile-posts-count');
     if(postsEl) postsEl.textContent = postsRes.count || 0;
     const followersEl = document.getElementById('myprofile-followers-count');
-    if(followersEl) followersEl.textContent = followersRes.count || 0;
+    if(followersEl) followersEl.textContent = followersCount || 0;
     const followingEl = document.getElementById('myprofile-following-count');
-    if(followingEl) followingEl.textContent = followingRes.count || 0;
+    if(followingEl) followingEl.textContent = followingCount || 0;
   } catch(e){ console.warn('loadMyProfileStats error:', e && e.message || e); }
   loadMyPortfolio();
 }
@@ -789,12 +790,11 @@ async function openFollowersModal(){
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Carregando...</div>';
   showModal('followers-modal');
   try {
-    const { data } = await sb.from('follows').select('follower_id').eq('following_id', currentUser.id);
-    if(!data || data.length === 0){
+    const ids = await DB.follows.listFollowerIds(currentUser.id);
+    if(ids.length === 0){
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Nenhum seguidor ainda</div>';
       return;
     }
-    const ids = data.map(f => f.follower_id);
     const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
@@ -816,12 +816,11 @@ async function openFollowingModal(){
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Carregando...</div>';
   showModal('following-modal');
   try {
-    const { data } = await sb.from('follows').select('following_id').eq('follower_id', currentUser.id);
-    if(!data || data.length === 0){
+    const ids = await DB.follows.listFollowingIds(currentUser.id);
+    if(ids.length === 0){
       list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Você não segue ninguém ainda</div>';
       return;
     }
-    const ids = data.map(f => f.following_id);
     const { data: profs } = await sb.from('profiles_public').select('id, name, tag, avatar_url').in('id', ids);
     list.innerHTML = '';
     (profs||[]).forEach(p => {
@@ -838,31 +837,25 @@ async function openFollowingModal(){
 }
 
 async function toggleFollowFromList(btn, userId){
-  const sb = getSupabase();
-  if(!sb || !currentUser) return;
+  if(!currentUser) return;
   btn.disabled = true;
+  // Fase 1 da refatoração: insert/delete + verify-after-insert moraram em
+  // DB.follows.follow/unfollow. Aqui só decidimos qual chamar e pintamos o
+  // botão com base em {ok}.
   try {
     if(btn.classList.contains('following')){
-      const { error } = await sb.from('follows').delete()
-        .eq('follower_id', currentUser.id).eq('following_id', userId);
-      if(error){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', error.message); return; }
+      const r = await DB.follows.unfollow(currentUser.id, userId);
+      if(!r.ok){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', r.code, r.message); return; }
       btn.textContent = 'Seguir';
       btn.classList.remove('following');
       btn.style.background = 'var(--p1)';
       btn.style.color = '#fff';
       btn.style.border = 'none';
     } else {
-      const { error } = await sb.from('follows')
-        .insert({ follower_id: currentUser.id, following_id: userId });
-      // Confirma no banco (um trigger pode dar rollback retornando 23505 de
-      // outra tabela). Só pinta "Seguindo" se a linha realmente existir.
-      const { data: chk } = await sb.from('follows').select('id')
-        .eq('follower_id', currentUser.id).eq('following_id', userId).limit(1);
-      if(!(chk && chk.length > 0)){
-        const code = error && error.code, msg = (error && error.message) || '';
-        console.warn('follow não persistiu:', code, msg, error);
-        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(code||'?')+' '+msg });
-        toast('Não foi possível seguir' + (code ? ' (cod '+code+')' : ''));
+      const r = await DB.follows.follow(currentUser.id, userId);
+      if(!r.ok){
+        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(r.code||'?')+' '+(r.message||'') });
+        toast('Não foi possível seguir' + (r.code ? ' (cod '+r.code+')' : ''));
         return;
       }
       btn.textContent = 'Seguindo';
@@ -1097,10 +1090,7 @@ async function loadPeopleSuggestions(){
     let people = res.data || [];
     const myId = currentUser ? currentUser.id : null;
     let followingIds = [];
-    if(myId){
-      const { data: fd } = await sb.from('follows').select('following_id').eq('follower_id', myId);
-      if(fd) followingIds = fd.map(f => f.following_id);
-    }
+    if(myId) followingIds = await DB.follows.listFollowingIds(myId);
     let myCity = '';
     if(myId){
       const { data: mp } = await sb.from('profiles').select('city').eq('id', myId).maybeSingle();
@@ -1173,10 +1163,7 @@ function searchPeople(query){
       return;
     }
     let followingIds=[];
-    if(currentUser){
-      const {data:followData}=await sb.from('follows').select('following_id').eq('follower_id',currentUser.id);
-      if(followData) followingIds=followData.map(f=>f.following_id);
-    }
+    if(currentUser) followingIds = await DB.follows.listFollowingIds(currentUser.id);
     container.innerHTML=data.map(p=>{
       const isFollowing=followingIds.includes(p.id);
       const isSelf=currentUser&&currentUser.id===p.id;
@@ -1205,27 +1192,23 @@ async function openUserProfile(userId, preview){
     // SELECT enxuto em vez de '*' (perfis têm cart/archived_conversations
     // JSON enormes que não usamos aqui).
     const PROF_COLS = 'id, name, tag, avatar_url, bio, city, state, role, user_type, is_pro, rating_avg, review_count';
+    // Follows passam por DB.follows.* (Fase 1). countFollowers/countFollowing
+    // retornam number direto; isFollowing retorna boolean direto.
     const queries = [
       sb.from('profiles').select(PROF_COLS).eq('id', userId).single(),
       sb.from('posts').select('*',{count:'exact',head:true}).eq('user_id',userId).neq('media_type','story'),
-      sb.from('follows').select('*',{count:'exact',head:true}).eq('following_id',userId),
-      sb.from('follows').select('*',{count:'exact',head:true}).eq('follower_id',userId)
+      DB.follows.countFollowers(userId),
+      DB.follows.countFollowing(userId)
     ];
-    if(currentUser) queries.push(sb.from('follows').select('id').eq('follower_id',currentUser.id).eq('following_id',userId).limit(1));
-    const [profRes, postRes, followersRes, followingRes, followRes] = await Promise.all(queries);
+    if(currentUser) queries.push(DB.follows.isFollowing(currentUser.id, userId));
+    const [profRes, postRes, followersCount, followingCount, followingFlag] = await Promise.all(queries);
     const prof = profRes.data;
     if(!prof){ toast('Perfil não encontrado'); return; }
     if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;
     }
     const postCount = postRes.count || 0;
-    const followersCount = followersRes.count || 0;
-    const followingCount = followingRes.count || 0;
-    const isFollowing = !!(followRes && followRes.data && followRes.data.length > 0);
-    if(currentUser && followRes && followRes.error){
-      console.warn('isFollowing read error:', followRes.error.code, followRes.error.message);
-      if(typeof reportError === 'function') reportError({ type:'isfollowing-read-error', ctx:(followRes.error.code||'?')+' '+(followRes.error.message||'') });
-    }
+    const isFollowing = !!followingFlag;
 
     const screen = document.getElementById('screen-profile');
     const nameEl = screen.querySelector('.ph-name');
@@ -1429,38 +1412,28 @@ async function toggleFollow(userId,btn){
     if(isLightCtx){ btn.style.background=''; btn.style.border=''; btn.style.color=''; }
     else { btn.style.background='var(--p1)'; btn.style.border='none'; btn.style.color='#fff'; }
   };
-  // Só atualiza o botão se o banco confirmar. Antes o estado era otimista:
-  // se o INSERT falhava (ex.: FK pra auth.users, RLS, rede), o botão virava
-  // "Seguindo" mesmo sem linha no banco — daí o perfil (que lê do banco)
-  // mostrava "Seguir". Agora list e perfil refletem a mesma verdade.
+  // Fase 1 da refatoração: insert/delete + verify-after-insert moram em
+  // DB.follows.follow/unfollow. Aqui só pintamos com base em {ok}.
+  // Por que verify-after-insert: trigger em follows pode dar ROLLBACK
+  // devolvendo 23505 de OUTRA tabela (ex.: points UNIQUE). Sem verify, o UI
+  // virava "Seguindo" otimisticamente e o perfil (que lê do banco) mostrava
+  // "Seguir" — list e perfil divergiam.
   btn.disabled = true;
   try {
     if(isFollowing){
-      const { error } = await sb.from('follows').delete()
-        .eq('follower_id',currentUser.id).eq('following_id',userId);
-      if(error){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', error.message); return; }
+      const r = await DB.follows.unfollow(currentUser.id, userId);
+      if(!r.ok){ toast('Não foi possível deixar de seguir'); console.warn('unfollow:', r.code, r.message); return; }
       paintFollow();
       toast('Deixou de seguir');
     } else {
-      const { error } = await sb.from('follows')
-        .insert({follower_id:currentUser.id,following_id:userId});
-      // Não confia só no retorno do insert: confirma no banco que a linha
-      // existe de fato. Um trigger em follows pode dar ROLLBACK devolvendo
-      // 23505 de OUTRA tabela (ex.: points UNIQUE) — antes isso virava
-      // "Seguindo!" falso e o perfil, que lê do banco, mostrava "Seguir".
-      // Agora só pinta se persistiu; senão mostra/loga o erro real.
-      const { data: chk } = await sb.from('follows').select('id')
-        .eq('follower_id',currentUser.id).eq('following_id',userId).limit(1);
-      if(chk && chk.length > 0){
-        paintFollowing();
-        toast('Seguindo!');
-      } else {
-        const code = error && error.code, msg = (error && error.message) || '';
-        console.warn('follow não persistiu:', code, msg, error);
-        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(code||'?')+' '+msg });
-        toast('Não foi possível seguir' + (code ? ' (cod '+code+')' : ''));
+      const r = await DB.follows.follow(currentUser.id, userId);
+      if(!r.ok){
+        if(typeof reportError === 'function') reportError({ type:'follow-not-persisted', ctx:(r.code||'?')+' '+(r.message||'') });
+        toast('Não foi possível seguir' + (r.code ? ' (cod '+r.code+')' : ''));
         return;
       }
+      paintFollowing();
+      toast('Seguindo!');
     }
     if(typeof invalidateFollowingIds === 'function') invalidateFollowingIds();
   } finally {
