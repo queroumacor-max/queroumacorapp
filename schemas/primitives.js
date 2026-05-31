@@ -3,23 +3,7 @@
 // Cada schema expõe .optional() e .refine(fn,msg) chainable (vanilla, sem Zod).
 (function(){
   'use strict';
-  function err(c, m){ return { ok:false, error:{ code:c, message:m } }; }
-  function ok(value){ return { ok:true, value }; }
-
-  // Helpers reaproveitáveis pra montar variantes encadeáveis (optional/refine).
-  function wrap(base){
-    base.optional = function(){
-      return wrap({ parse(v, extra){ return (v == null || v === '') ? ok(undefined) : base.parse(v, extra); } });
-    };
-    base.refine = function(fn, msg){
-      return wrap({ parse(v, extra){
-        const r = base.parse(v, extra);
-        if(!r.ok) return r;
-        return fn(r.value) ? r : err('refine_failed', msg || 'Valor inválido');
-      }});
-    };
-    return base;
-  }
+  const { ok, err, wrap } = window.Schemas._core;
 
   const email = wrap({ parse(v){
     if(typeof v !== 'string') return err('invalid_type', 'Email inválido');
@@ -91,6 +75,5 @@
     return ok(d);
   }});
 
-  window.Schemas = window.Schemas || {};
   Object.assign(window.Schemas, { email, password, passwordsMatch, required, brl, area, phone, cep });
 })();

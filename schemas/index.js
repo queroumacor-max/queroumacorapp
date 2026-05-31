@@ -1,7 +1,6 @@
-// schemas/index.js — meta-aggregator. Os arquivos primitives/documents/social
+// schemas/index.js — meta-aggregator. Os arquivos _core/primitives/documents/social
 // já populam window.Schemas via IIFE; este arquivo só finaliza o objeto
-// (congelando) e expõe o helper Schemas.parse(name, value) por conveniência.
-// Carregar SEMPRE depois dos outros 3 (no index.html mantém esta ordem).
+// (helper parse + lista de nomes) por conveniência. Carregar SEMPRE depois dos outros.
 (function(){
   'use strict';
   const S = window.Schemas = window.Schemas || {};
@@ -18,5 +17,6 @@
   }
 
   // Lista de schemas conhecidos (só pra introspecção/testes).
-  S._names = Object.keys(S).filter(k => k !== 'parse' && k !== '_names');
+  // Exclui helpers internos (_core, parse, _names).
+  S._names = Object.keys(S).filter(k => k !== 'parse' && k !== '_names' && k[0] !== '_');
 })();
