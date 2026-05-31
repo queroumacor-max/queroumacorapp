@@ -9,6 +9,17 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // Versionamento de API: `/api/v1/*` é alias pra `/api/*` (versão atual).
+  // Espelha o `_redirects` do projeto vanilla (Backend#21) — mantém
+  // backward-compat para clientes que já apontam pra v1. Quando vier
+  // quebra de contrato, criar `/api/v2/<endpoint>` e manter v1 até
+  // desativação.
+  async rewrites() {
+    return [
+      { source: '/api/v1/:path*', destination: '/api/:path*' },
+    ];
+  },
+
   // Cabeçalhos de segurança alinhados com /_headers do projeto vanilla.
   async headers() {
     return [

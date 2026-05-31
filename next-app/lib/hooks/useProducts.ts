@@ -45,7 +45,7 @@ export function useProducts(): UseProductsResult {
 
   const query = useQuery<Product[], Error>({
     queryKey: ['products'],
-    queryFn: () => fetchProducts({ limit: 1000 }),
+    queryFn: ({ signal }) => fetchProducts({ limit: 1000, signal }),
     staleTime: MKT_TTL,
   });
 
@@ -99,7 +99,7 @@ export function useProduct(id: string | null | undefined): {
 } {
   const query = useQuery<Product | null, Error>({
     queryKey: ['product', id ?? ''],
-    queryFn: () => fetchProduct(id ?? ''),
+    queryFn: ({ signal }) => fetchProduct(id ?? '', { signal }),
     enabled: !!id,
     staleTime: MKT_TTL,
   });

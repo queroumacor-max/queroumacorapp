@@ -13,11 +13,21 @@ import {
   getToken,
   getTokenFromForm,
   jsonResponse,
+  readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+
+// Cap específico pra style-refs: 4MB cobre PNG/JPG até ~3000x3000 com
+// qualidade alta. Acima disso é abuso / bug do cliente. JSON branch
+// trata o mesmo cap (photoDataUrl em base64 infla ~33%, então
+// 4MB de raw image vira ~5.3MB de data URL — usamos 6MB pra JSON
+// pra acomodar a inflação base64 sem rejeitar uploads legítimos).
+const MAX_MULTIPART_BYTES = 4 * 1024 * 1024;
+const MAX_JSON_BYTES = 6 * 1024 * 1024;
 import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
 import { uploadStyleRef } from '@/lib/api/_services/upload-style-ref';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -33,7 +43,13 @@ export async function POST(request: NextRequest) {
     let file: File | undefined;
 
     if (contentType.includes('multipart/form-data')) {
-      const form = await request.formData();
+      // Cheap gate via content-length antes do parse. Multipart legítimo
+      // de imagem 4MB + boundary fica em ~5MB; pegamos um pouco mais por
+      // segurança. Cap fino do File.size é feito pelo service (uploadStyleRef).
+      const form = (await readBody(request, {
+        type: 'form',
+        maxBytes: MAX_MULTIPART_BYTES + 256 * 1024,
+      })) as FormData;
       token = getTokenFromForm(request, form);
       const sk = form.get('styleKey');
       styleKey = typeof sk === 'string' ? sk.trim() : '';
@@ -44,8 +60,9 @@ export async function POST(request: NextRequest) {
     } else {
       let body: { styleKey?: unknown; photoDataUrl?: unknown; accessToken?: unknown };
       try {
-        body = (await request.json()) as typeof body;
-      } catch {
+        body = (await readBody(request, { maxBytes: MAX_JSON_BYTES })) as typeof body;
+      } catch (e) {
+        if (e instanceof ServiceError) return serviceErrorResponse(e);
         return jsonResponse({ error: 'JSON inválido' }, 400);
       }
       token = getToken(request, body);
@@ -53,9 +70,23 @@ export async function POST(request: NextRequest) {
       photoDataUrl = typeof body?.photoDataUrl === 'string' ? body.photoDataUrl : '';
     }
 
-    const { email } = await verifyAdminToken(token);
+    const { callerId, email } = await verifyAdminToken(token);
     ensureAdminEmail(email);
-    return jsonResponse(await uploadStyleRef({ styleKey, photoDataUrl, file }));
+    const result = await uploadStyleRef({ styleKey, photoDataUrl, file });
+    // Audit-log: upload de style-ref muda bucket público; rastreamos quem subiu o quê.
+    await logAuditEvent({
+      actorId: callerId || null,
+      action: 'admin.style_ref.upload',
+      targetTable: 'storage.objects',
+      targetId: styleKey,
+      changes: {
+        admin_email: email,
+        contentType: contentType.includes('multipart/form-data') ? 'multipart' : 'json',
+        fileSize: file?.size ?? null,
+      },
+      request,
+    });
+    return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('upload-style-ref crash:', e instanceof Error ? e.message : e);

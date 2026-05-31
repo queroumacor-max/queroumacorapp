@@ -20,15 +20,23 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
 import {
   fetchNotifications,
   markAsRead,
   markAllAsRead,
+  type NotificationsPage,
 } from '@/lib/services/notifications';
 import type { Notification } from '@/lib/types';
+
+const NOTIF_PAGE_SIZE = 50;
 
 export interface UseNotificationsResult {
   notifications: Notification[];
@@ -38,6 +46,10 @@ export interface UseNotificationsResult {
   markRead: (id: string) => void;
   markAll: () => void;
   isMarking: boolean;
+  // Paginação (opt-in pro UI usar quando quiser scroll infinito).
+  hasMore: boolean;
+  loadingMore: boolean;
+  loadMore: () => void;
 }
 
 export function useNotifications(): UseNotificationsResult {
@@ -46,10 +58,27 @@ export function useNotifications(): UseNotificationsResult {
 
   // queryKey inclui user.id pra isolar caches entre sessões diferentes (ex.:
   // troca de conta sem refresh) e pra que `enabled` desative com user null.
-  const query = useQuery<Notification[], Error>({
+  // pageParam é cursor ISO timestamp (null = primeira página).
+  const query = useInfiniteQuery<
+    NotificationsPage,
+    Error,
+    InfiniteData<NotificationsPage, string | null>,
+    readonly unknown[],
+    string | null
+  >({
     queryKey: ['notifications', user?.id],
-    queryFn: () => fetchNotifications(user!.id),
+    queryFn: ({ pageParam, signal }) =>
+      fetchNotifications(user!.id, {
+        cursor: pageParam,
+        limit: NOTIF_PAGE_SIZE,
+        signal,
+      }),
     enabled: !!user,
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.hasMore || !lastPage.nextCursor) return undefined;
+      return lastPage.nextCursor;
+    },
     staleTime: 30_000,
   });
 
@@ -97,7 +126,7 @@ export function useNotifications(): UseNotificationsResult {
     },
   });
 
-  const notifications = query.data ?? [];
+  const notifications = query.data?.pages.flatMap((p) => p.items) ?? [];
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return {
@@ -108,5 +137,12 @@ export function useNotifications(): UseNotificationsResult {
     markRead: markReadMutation.mutate,
     markAll: markAllMutation.mutate,
     isMarking: markReadMutation.isPending || markAllMutation.isPending,
+    hasMore: !!query.hasNextPage,
+    loadingMore: query.isFetchingNextPage,
+    loadMore: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage) {
+        query.fetchNextPage();
+      }
+    },
   };
 }

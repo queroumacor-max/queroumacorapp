@@ -1,5 +1,13 @@
-// types.ts — shared domain types for the Next.js port.
+// types.ts — DOMAIN types for the Next.js frontend (source-of-truth).
 // Modeled on /supabase_init.sql tables (profiles, posts, follows, etc.).
+//
+// Os tipos AQUI são source-of-truth pro frontend — UI, hooks, components.
+// Os tipos do BANCO ficam em `database.types.ts` (mirror cru do schema
+// Supabase, gerado mentalmente do SQL). Quando UI quer narrowing forte
+// (kanban lanes por QuoteStatus, switch sobre OrderStatus), importa daqui.
+// Quando service só passa text livre pro banco, usa o tipo do
+// database.types.ts (geralmente `string | null`).
+//
 // Kept hand-written (instead of generated from Supabase) because:
 //   - The vanilla app has been live for months and the SQL has drifted in
 //     incremental migrations; the generated `db.types.d.ts` in the repo
@@ -14,7 +22,10 @@ export type UserRole =
   | 'cliente'
   | 'admin';
 
-export type UserType = UserRole | string;
+// UserType inclui mais valores além do UserRole (ex: 'funileiro' que mapeia
+// pra 'automotivo' no profile) — `(string & {})` preserva autocomplete dos
+// literais sem fechar o tipo.
+export type UserType = UserRole | 'funileiro' | (string & {});
 
 // Subset of `profiles` columns the app reads. Everything is optional because
 // the row may come from `profiles_public` (view) which projects only a subset.
@@ -24,7 +35,7 @@ export interface Profile {
   tag?: string | null;
   username?: string | null;
   avatar_url?: string | null;
-  role?: UserRole | string | null;
+  role?: UserRole | (string & {}) | null;
   user_type?: UserType | null;
   is_pro?: boolean | null;
   is_admin?: boolean | null;
@@ -45,13 +56,28 @@ export interface Profile {
   business_logo_url?: string | null;
   business_name?: string | null;
   pro_expires_at?: string | null;
+  pro_grace_until?: string | null;
   service_radius?: number | null;
   created_at?: string | null;
 }
 
 // Status nullable porque posts antigos pré-moderação são `status IS NULL`.
 export type PostStatus = 'approved' | 'pending' | 'rejected' | null;
-export type PostMediaType = 'image' | 'video' | 'story' | string;
+
+// Closed set: o app só publica em uma dessas três mídias. Stories são posts
+// "efêmeros" (filtrados por created_at > now()-24h). O `| string` foi removido —
+// se algo no banco vier diferente, o consumer cai no fallback do `?? 'image'`.
+export type PostMediaType = 'image' | 'video' | 'story';
+
+// Tipos de arte (post.art_type) — vocabulário fechado da UI de publicar.
+// Alinha com ART_TYPES em app/publicar/Composer.tsx. Posts antigos podem
+// não ter art_type (NULL) — mantemos `null` no union por enquanto.
+export type ArtType =
+  | 'fachada'
+  | 'mural'
+  | 'interna'
+  | 'logo'
+  | 'outro';
 
 export interface Post {
   id: string;
@@ -62,7 +88,9 @@ export interface Post {
   status?: PostStatus;
   for_sale?: boolean | null;
   price?: number | null;
-  art_type?: string | null;
+  // art_type aberto pra absorver valores legados (graffiti, etc.) que não
+  // estão no closed-set ArtType. UI faz narrow quando precisa.
+  art_type?: ArtType | (string & {}) | null;
   created_at: string;
 }
 
@@ -93,7 +121,21 @@ export interface Comment {
 // mas o app vanilla também usou rótulos antigos em PT (rascunho/enviado/entregue)
 // em telas/mocks anteriores. Mantemos os dois grupos no union pra absorver
 // histórico e linhas legadas sem quebrar o tipo.
+//
+// O OrderStatus tipa o vocabulário CANÔNICO que a UI conhece (PT + EN); o
+// banco aceita qualquer text que case com a CHECK constraint:
+//   'pending','paid','amount_mismatch','refunded','canceled'
+// Pra absorver linhas legadas (rascunho/enviado/etc.) sem quebrar build,
+// `Order.status` é aberto com `(string & {})` — preserva autocomplete dos
+// literais mas aceita string arbitrário.
 export type OrderStatus =
+  // canônicos (schema check constraint atual):
+  | 'pending'
+  | 'paid'
+  | 'amount_mismatch'
+  | 'refunded'
+  | 'canceled'
+  // legados em PT (telas antigas / mocks):
   | 'rascunho'
   | 'pendente'
   | 'pago'
@@ -121,10 +163,10 @@ export interface OrderShippingAddress {
 export interface Order {
   id: string;
   user_id: string;
-  // Aberto pra string porque o banco já carregou linhas com `pending`/`paid`
-  // (em inglês) antes do union em PT ser adotado pelo frontend. UI mapeia
-  // valores desconhecidos pra "pendente" como fallback.
-  status: OrderStatus | string;
+  // OrderStatus inclui PT + EN; o `(string & {})` mantém autocomplete dos
+  // literais sem fechar o tipo. UI mapeia valores desconhecidos pra "pendente"
+  // como fallback (vide OrderCard.tsx).
+  status: OrderStatus | (string & {});
   items: OrderItem[];
   total: number;
   paid_amount?: number | null;
@@ -167,7 +209,7 @@ export interface Quote {
   painter_id: string;
   client_id?: string | null;
   client_name?: string | null;
-  status?: QuoteStatus | string;
+  status?: QuoteStatus | (string & {});
   title?: string | null;
   service_type?: string | null;
   area_m2?: number | null;
@@ -206,7 +248,7 @@ export interface Job {
   address?: string | null;
   scheduled_date?: string | null; // YYYY-MM-DD
   scheduled_time?: string | null; // texto livre, p. ex. "14:30"
-  status: JobStatus | string;
+  status: JobStatus | (string & {});
   notes?: string | null;
   revenue?: number | null;
   material_cost?: number | null;
@@ -232,6 +274,10 @@ export interface JobInput {
 // flag de leitura é boolean (`read`) e não timestamp — usamos `read=true`
 // como sentinel "leu". O conjunto de `type` válidos vem de notify_user()
 // (RPC SECURITY DEFINER) + do código do vanilla (modules/notif.js).
+//
+// O `| string` fica como ESCAPE no fim — banco aceita qualquer text e tipos
+// novos chegam antes do code ser atualizado. UI faz switch sobre os literais
+// conhecidos e cai num fallback ("Nova notificação") quando não bate.
 export type NotificationType =
   | 'like'
   | 'comment'
@@ -244,7 +290,7 @@ export type NotificationType =
   | 'announcement'
   | 'info'
   | 'system'
-  | string; // string aberto pra absorver tipos novos sem quebrar build.
+  | (string & {}); // truque (string & {}) preserva literal hints no autocomplete
 
 export interface Notification {
   id: string;
@@ -276,8 +322,13 @@ export interface Lead {
   user_id: string; // cliente que postou o serviço
   caption: string | null;
   media_url: string | null;
-  media_type: 'image' | 'video' | string | null;
+  // Lead nunca é story (filtramos no service), só image|video. Mantemos null
+  // pra absorver linhas legadas sem media_type preenchido.
+  media_type: 'image' | 'video' | null;
   price?: number | null;
-  art_type?: string | null;
+  // Posts antigos podem ter art_type livre (graffiti, etc.); mantemos string
+  // aberto aqui no Lead pra não quebrar histórico. Quem narrow é o ArtType
+  // (frontend), não o tipo do banco.
+  art_type?: ArtType | string | null;
   created_at: string;
 }

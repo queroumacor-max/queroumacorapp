@@ -114,10 +114,13 @@ export function ChatConversation({ convId }: ChatConversationProps) {
   // Pré-hidrata convMeta como participantInfo[otherId].
   useEffect(() => {
     if (!convMeta || !convMeta.otherId) return;
+    // Pré-narrowing fora do setState pra TS não perder a refinement no
+    // callback. Substitui os non-null assertions (otherId!) que existiam.
+    const otherId = convMeta.otherId;
     setParticipantInfo((prev) => {
-      if (prev.has(convMeta.otherId!)) return prev;
+      if (prev.has(otherId)) return prev;
       const next = new Map(prev);
-      next.set(convMeta.otherId!, {
+      next.set(otherId, {
         name: convMeta.name,
         avatar: convMeta.avatarUrl,
       });

@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/security';
 import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
 import { moderateAction, type ModerateAction } from '@/lib/api/_services/admin-moderate';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -45,7 +46,17 @@ export async function POST(request: NextRequest) {
     if (action !== 'approve' && action !== 'reject') {
       return jsonResponse({ error: 'ação inválida' }, 400);
     }
-    return jsonResponse(await moderateAction({ action: action as ModerateAction, postId }));
+    const result = await moderateAction({ action: action as ModerateAction, postId });
+    // Audit-log fail-open — não bloqueia resposta se gravação falhar.
+    await logAuditEvent({
+      actorId: callerId || null,
+      action: action === 'approve' ? 'admin.post.approve' : 'admin.post.reject',
+      targetTable: 'posts',
+      targetId: postId,
+      changes: { admin_email: email },
+      request,
+    });
+    return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('admin-moderate crash:', e instanceof Error ? e.message : e);

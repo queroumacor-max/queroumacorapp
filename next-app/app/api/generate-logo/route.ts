@@ -3,6 +3,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -28,10 +30,16 @@ export async function POST(request: NextRequest) {
     limit: 3,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'generate_logo',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await generateLogo({ name: body?.name, style: body?.style })
-    );
+    const result = await generateLogo({ name: body?.name, style: body?.style });
+    await recordAiUsage({ userId: g.userId, feature: 'generate_logo' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('generate-logo crash:', e instanceof Error ? e.message : e);

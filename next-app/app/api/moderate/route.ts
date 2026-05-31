@@ -5,7 +5,9 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   checkRateLimit,
+  gateAiUsage,
   rateLimitResponse,
+  recordAiUsage,
   requireAuth,
   ServiceError,
   serviceErrorResponse,
@@ -42,10 +44,19 @@ export async function POST(request: NextRequest) {
     limit: 20,
   });
   if (!rl.allowed) return rateLimitResponse(rl);
+  const aiGate = await gateAiUsage({
+    userId: auth.user.id,
+    email: auth.user.email,
+    feature: 'moderate',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await moderateContent({ text: body?.text, imageUrl: body?.imageUrl })
-    );
+    const result = await moderateContent({
+      text: body?.text,
+      imageUrl: body?.imageUrl,
+    });
+    await recordAiUsage({ userId: auth.user.id, feature: 'moderate' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('moderate crash:', e instanceof Error ? e.message : e);

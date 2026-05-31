@@ -20,6 +20,7 @@ import {
   AuthorizationError,
 } from '@/lib/errors';
 import type { Quote, QuoteSnapshot, Job } from '@/lib/types';
+import type { Json } from '@/lib/database.types';
 
 // QUOTE_STATUS — const tipada que define vocabulário + label/cor por status.
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
@@ -60,29 +61,71 @@ const QUOTE_COLS =
 
 const DEFAULT_LIMIT = 100;
 
+export interface FetchQuotesOptions {
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+export interface QuotesPage {
+  items: Quote[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 // ─── reads ──────────────────────────────────────────────────────────────
 
 /**
  * Busca todas as quotes do pintor atual, ordenadas mais novas primeiro.
  * Retorna [] se painterId vazio (consistente com fetchPedidos/fetchLeads).
  *
+ * Sobrecarga: chamada sem options retorna Quote[] (back-compat); com options
+ * habilita keyset pagination + AbortController. Cursor é ISO timestamp de
+ * created_at da última row da página anterior.
+ *
  * O caller é responsável por chamar `syncToJobs` antes/depois — não fazemos
  * aqui pra manter o read puro (sem efeito colateral). usePipeline encadeia
  * via mutation onSuccess quando precisar.
  */
-export async function fetchQuotes(painterId: string): Promise<Quote[]> {
-  if (!painterId) return [];
+export async function fetchQuotes(painterId: string): Promise<Quote[]>;
+export async function fetchQuotes(
+  painterId: string,
+  options: FetchQuotesOptions,
+): Promise<QuotesPage>;
+export async function fetchQuotes(
+  painterId: string,
+  options?: FetchQuotesOptions,
+): Promise<Quote[] | QuotesPage> {
+  if (!painterId) {
+    return options ? { items: [], nextCursor: null, hasMore: false } : [];
+  }
+  const limit = Math.max(1, options?.limit ?? DEFAULT_LIMIT);
+  const cursor = options?.cursor ?? null;
+  const signal = options?.signal;
   const sb = getSupabase();
-  const { data, error } = await sb
+  let q = sb
     .from('quotes')
     .select(QUOTE_COLS)
-    .eq('painter_id', painterId)
-    .order('created_at', { ascending: false })
-    .limit(DEFAULT_LIMIT);
+    .eq('painter_id', painterId);
+  if (cursor) {
+    q = q.lt('created_at', cursor);
+  }
+  q = q.order('created_at', { ascending: false }).limit(limit);
+  const qFinal = signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(signal)
+    : q;
+  const { data, error } = await qFinal;
   if (error) {
     throw new NetworkError(error.message, error);
   }
-  return (data ?? []) as Quote[];
+  const items = (data ?? []) as Quote[];
+  if (!options) return items;
+  const last = items[items.length - 1];
+  // created_at é optional no domain type (legado); na prática DB sempre tem.
+  // Fallback null se faltar — hasMore=false impede o caller de tentar mais.
+  const nextCursor = (last?.created_at as string | null | undefined) ?? null;
+  const hasMore = items.length >= limit && !!nextCursor;
+  return { items, nextCursor, hasMore };
 }
 
 /**
@@ -137,7 +180,9 @@ export async function saveQuote(
     p_title: input.title || input.service_type || 'Orçamento',
     p_area_m2: input.area_m2 ?? null,
     p_price: input.price,
-    p_quote_data: input.quote_data ?? null,
+    // p_quote_data: Json | undefined no schema (não aceita null direto);
+    // tratamos null como undefined (omitir = default '{}' do RPC).
+    p_quote_data: (input.quote_data ?? undefined) as Json | undefined,
   });
   if (error) {
     throw new NetworkError(error.message, error);
@@ -204,7 +249,9 @@ export async function approveQuote(
       approved_by: painterId,
       approval_method: 'manual',
       approval_note: note || null,
-      scope_snapshot: buildSnapshot(quote),
+      // QuoteSnapshot é interface tipada; jsonb column aceita `Json` literal.
+      // Cast via unknown — mesma razão do `cart` em mkt.ts.
+      scope_snapshot: buildSnapshot(quote) as unknown as Json,
     })
     .eq('id', id)
     .eq('painter_id', painterId);
@@ -251,7 +298,9 @@ export async function setQuoteStage(
     throw new ValidationError('Estágio inválido.');
   }
   const sb = getSupabase();
-  const patch: Record<string, unknown> = { status };
+  // Patch tipado em vez de Record<string, unknown> — o typed client rejeita
+  // o índice livre em favor do shape exato de quotes.Update.
+  const patch: { status: string; completed_at?: string } = { status };
   if (status === 'concluido') {
     patch.completed_at = new Date().toISOString();
   }

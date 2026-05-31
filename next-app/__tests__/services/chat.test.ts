@@ -48,6 +48,8 @@ import {
   findOrCreate3WayWithStore,
   fetchMessages,
   sendMessage,
+  softDeleteMessage,
+  undoDeleteMessage,
   uploadAttachment,
   searchUsers,
   markConversationAs3Way,
@@ -73,7 +75,9 @@ interface Spies {
   fromCalls: string[];
   selects: Array<{ table: string; cols: string }>;
   insertsByTable: Record<string, unknown[]>;
+  updatesByTable: Record<string, unknown[]>;
   eqsByTable: Record<string, Array<{ col: string; val: unknown }>>;
+  isByTable: Record<string, Array<{ col: string; val: unknown }>>;
   insByTable: Record<string, Array<{ col: string; vals: unknown[] }>>;
   rpcCalls: Array<{ fn: string }>;
   uploads: Array<{ bucket: string; path: string; mime?: string }>;
@@ -96,7 +100,9 @@ function makeFakeClient(
     fromCalls: [],
     selects: [],
     insertsByTable: {},
+    updatesByTable: {},
     eqsByTable: {},
+    isByTable: {},
     insByTable: {},
     rpcCalls: [],
     uploads: [],
@@ -140,8 +146,15 @@ function makeFakeClient(
       (spies.insertsByTable[table] ??= []).push(payload);
       return chain;
     };
-    chain.update = () => chain;
+    chain.update = (payload: unknown) => {
+      (spies.updatesByTable[table] ??= []).push(payload);
+      return chain;
+    };
     chain.delete = () => chain;
+    chain.is = (col: string, val: unknown) => {
+      (spies.isByTable[table] ??= []).push({ col, val });
+      return chain;
+    };
     chain.single = () => ({
       then: (resolve: (v: { data: unknown; error: unknown }) => void) =>
         resolve({ data: resp.single ?? resp.data ?? null, error: resp.error ?? null }),
@@ -718,6 +731,71 @@ describe('searchUsers', () => {
     expect(byId.get('2')?.isProfessional).toBe(true);
     expect(byId.get('3')?.isProfessional).toBe(true);
     expect(byId.get('4')?.isProfessional).toBe(false);
+  });
+});
+
+// ─── softDeleteMessage / undoDeleteMessage ────────────────────────────────
+
+describe('softDeleteMessage', () => {
+  it('messageId vazio → ValidationError', async () => {
+    const ctl = makeFakeClient({});
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteMessage('', 'u1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('userId vazio → ValidationError', async () => {
+    const ctl = makeFakeClient({});
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteMessage('m1', '')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('happy: UPDATE messages SET deleted_at = ISO + filtros id/sender_id + retorna undoToken', async () => {
+    const ctl = makeFakeClient({ messages: [{ data: null }] });
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await softDeleteMessage('m1', 'u1');
+    expect(ctl.spies.fromCalls).toContain('messages');
+    const update = ctl.spies.updatesByTable.messages?.[0] as { deleted_at: string };
+    expect(typeof update.deleted_at).toBe('string');
+    expect(update.deleted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const eqs = ctl.spies.eqsByTable.messages ?? [];
+    expect(eqs).toEqual(
+      expect.arrayContaining([
+        { col: 'id', val: 'm1' },
+        { col: 'sender_id', val: 'u1' },
+      ]),
+    );
+    expect(out).toEqual({ undoToken: 'm1' });
+  });
+
+  it('erro do supabase → NetworkError', async () => {
+    const ctl = makeFakeClient({
+      messages: [{ data: null, error: { message: 'rls' } }],
+    });
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteMessage('m1', 'u1')).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+describe('undoDeleteMessage', () => {
+  it('happy: UPDATE messages SET deleted_at = null + filtros id/sender_id', async () => {
+    const ctl = makeFakeClient({ messages: [{ data: null }] });
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await undoDeleteMessage('m1', 'u1');
+    expect(ctl.spies.fromCalls).toContain('messages');
+    expect(ctl.spies.updatesByTable.messages?.[0]).toEqual({ deleted_at: null });
+    const eqs = ctl.spies.eqsByTable.messages ?? [];
+    expect(eqs).toEqual(
+      expect.arrayContaining([
+        { col: 'id', val: 'm1' },
+        { col: 'sender_id', val: 'u1' },
+      ]),
+    );
+  });
+
+  it('messageId vazio → ValidationError', async () => {
+    const ctl = makeFakeClient({});
+    __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(undoDeleteMessage('', 'u1')).rejects.toBeInstanceOf(ValidationError);
   });
 });
 

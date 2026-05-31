@@ -4,6 +4,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -26,8 +28,11 @@ export async function POST(request: NextRequest) {
   }
   const g = await gateProAI(request, body, { endpoint: 'tts', limit: 10 });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({ userId: g.userId, email: g.user?.email, feature: 'tts' });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
     const { audio } = await synthesizeSpeech({ text: body?.text });
+    await recordAiUsage({ userId: g.userId, feature: 'tts' });
     return new NextResponse(audio, {
       status: 200,
       headers: {

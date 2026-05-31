@@ -69,7 +69,10 @@ export async function fetchLeads(painterId: string): Promise<Lead[]> {
 
   // 2) Quotes que o pintor já comprou apontando pra esses posts — filtra fora.
   // Se o painter não tem nenhuma quote ainda, `bought` vira [] e nada é filtrado.
-  const postIds = posts.map((p) => (p as { id: string }).id);
+  // Cast via unknown: select(string runtime) devolve GenericStringError; o
+  // domain type Lead é permissive e bate em runtime.
+  const postsList = posts as unknown as Lead[];
+  const postIds = postsList.map((p) => p.id);
   const { data: bought, error: qErr } = await sb
     .from('quotes')
     .select('post_id')
@@ -81,14 +84,16 @@ export async function fetchLeads(painterId: string): Promise<Lead[]> {
   if (qErr) {
     // eslint-disable-next-line no-console
     console.warn('fetchLeads: bought filter failed:', qErr.message);
-    return posts as Lead[];
+    return postsList;
   }
 
   const boughtSet = new Set(
-    (bought ?? []).map((q) => (q as { post_id: string }).post_id)
+    (bought ?? [])
+      .map((q) => q.post_id)
+      .filter((id): id is string => id !== null),
   );
 
-  return (posts as Lead[]).filter((p) => !boughtSet.has(p.id));
+  return postsList.filter((p) => !boughtSet.has(p.id));
 }
 
 /**

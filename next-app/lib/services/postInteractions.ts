@@ -46,14 +46,15 @@ export interface SavedPostRow {
 }
 
 // `reason` é text livre no banco mas a UI restringe ao conjunto canônico.
-// Mantemos como string aberto pra absorver tipos novos sem refator.
+// Closed-set: o ReportModal só oferece esses 5 valores; se em algum momento
+// precisarmos aceitar arbitrário, basta voltar `| (string & {})` aqui sem
+// quebrar o downstream (já tipado com este alias).
 export type ReportReason =
   | 'spam'
   | 'ofensivo'
   | 'violencia'
   | 'desinformacao'
-  | 'outros'
-  | string;
+  | 'outros';
 
 // ─── LIKES ─────────────────────────────────────────────────────────────────
 
@@ -296,11 +297,14 @@ export async function hasSaved(userId: string, postId: string): Promise<boolean>
  * é opcional — o vanilla preenche quando consegue, deixa null quando não.
  * Não fazemos dedupe (mesmo report 2x não é bug do server — RLS aceita;
  * dedupe vivia no frontend via flag _reportSubmitting).
+ *
+ * `reason` aceita `ReportReason` literal ou `string` livre — o ReportModal
+ * concatena detalhes no formato `"<reason>: <details>"` antes de chamar.
  */
 export async function reportPost(
   reporterId: string,
   postId: string,
-  reason: ReportReason,
+  reason: ReportReason | string,
   targetUserId?: string | null,
 ): Promise<void> {
   if (!reporterId) throw new ValidationError('reporterId obrigatório');
@@ -318,39 +322,113 @@ export async function reportPost(
   if (error) throw new NetworkError(error.message, error);
 }
 
-// ─── DELETE POST ───────────────────────────────────────────────────────────
+// ─── DELETE POST (soft delete + undo) ──────────────────────────────────────
 
 /**
- * Deleta post + dados relacionados (likes, comments, saved_posts).
- *
- * O schema tem `ON DELETE CASCADE` em todas as FKs apontando pra `posts.id`,
- * então em teoria deletar só a row de `posts` chega. Mas o vanilla limpa
- * explicitamente as relações antes (modules/feed-interactions.js linha 252+),
- * provavelmente pra que counts/caches atualizem mais cedo nos triggers. Aqui
- * replicamos esse comportamento via Promise.all pra manter paridade.
- *
- * O filtro `eq('user_id', userId)` no DELETE final garante que mesmo se as
- * policies RLS forem afrouxadas no futuro, esta função só apaga post do dono.
+ * Resultado do soft-delete. `undoToken` é o `postId` propriamente (a UI passa
+ * de volta pro `undoDeletePost`), mas envelopamos num objeto pra reservar
+ * espaço futuro (ex.: timestamp de quando a snackbar expira, lista de
+ * relacionados que precisam ser desfeitos juntos).
  */
-export async function deletePost(userId: string, postId: string): Promise<void> {
+export interface SoftDeleteResult {
+  undoToken: string;
+}
+
+/**
+ * Soft delete: marca `posts.deleted_at = now()` em vez de remover a row.
+ *
+ * Por que mudou (era hard delete antes):
+ *  - UX#5 do BACKLOG: usuário acidentalmente deleta post → snackbar com
+ *    "Desfazer" (10s) → undoDeletePost restaura.
+ *  - Banco#13: hard delete vira UPDATE; cleanup_soft_deleted() roda hard
+ *    delete só depois de 30 dias (cron / manual admin).
+ *
+ * Likes/comments/saved_posts NÃO são tocados aqui — a RLS atualizada esconde
+ * o post de queries normais (deleted_at IS NULL), e os relacionamentos
+ * ficam intactos pra que undoDeletePost restaure tudo de uma vez. O CASCADE
+ * de FK só dispara no hard delete (cleanup), aí limpa tudo de uma vez.
+ *
+ * O filtro `eq('user_id', userId)` no UPDATE garante que só o dono possa
+ * soft-deletar — mesmo que RLS seja afrouxada no futuro.
+ */
+export async function deletePost(
+  userId: string,
+  postId: string,
+): Promise<SoftDeleteResult> {
   if (!userId) throw new ValidationError('userId obrigatório');
   if (!postId) throw new ValidationError('postId obrigatório');
 
   const sb = getSupabase();
-  // Limpeza de relações em paralelo. Errors aqui são ignorados — se a tabela
-  // não existe ou RLS bloqueia, o CASCADE da FK ainda vai limpar quando o
-  // DELETE de posts rodar. Mantemos paridade com o vanilla que também não
-  // verificava o resultado dessas três chamadas.
-  await Promise.all([
-    sb.from('likes').delete().eq('post_id', postId),
-    sb.from('comments').delete().eq('post_id', postId),
-    sb.from('saved_posts').delete().eq('post_id', postId),
-  ]);
-
   const { error } = await sb
     .from('posts')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', postId)
     .eq('user_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+  return { undoToken: postId };
+}
+
+/**
+ * Reverte soft delete: limpa `deleted_at`. Idempotente (chamar 2x não
+ * estoura erro). Retorna void — o caller já sabe qual postId restaurou.
+ */
+export async function undoDeletePost(
+  userId: string,
+  postId: string,
+): Promise<void> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('posts')
+    .update({ deleted_at: null })
+    .eq('id', postId)
+    .eq('user_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+// ─── DELETE COMMENT (soft delete + undo) ───────────────────────────────────
+
+/**
+ * Soft delete de comment. Substitui o hard delete anterior (DELETE FROM
+ * comments WHERE id = ?). RLS de SELECT esconde comments soft-deleted dos
+ * outros usuários — owner + admin ainda enxergam.
+ *
+ * NÃO usa eq('user_id') no filter porque a policy original permitia ao dono
+ * do post deletar comments alheios. Mantemos esse comportamento — quem tem
+ * permissão de UPDATE (via RLS) consegue soft-deletar.
+ */
+export async function softDeleteComment(
+  commentId: string,
+  userId: string,
+): Promise<SoftDeleteResult> {
+  if (!commentId) throw new ValidationError('commentId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('comments')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', commentId);
+  if (error) throw new NetworkError(error.message, error);
+  return { undoToken: commentId };
+}
+
+/**
+ * Reverte soft delete de comment. Idempotente.
+ */
+export async function undoDeleteComment(
+  commentId: string,
+  userId: string,
+): Promise<void> {
+  if (!commentId) throw new ValidationError('commentId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('comments')
+    .update({ deleted_at: null })
+    .eq('id', commentId);
   if (error) throw new NetworkError(error.message, error);
 }

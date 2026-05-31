@@ -42,6 +42,9 @@ import {
   hasSaved,
   reportPost,
   deletePost,
+  undoDeletePost,
+  softDeleteComment,
+  undoDeleteComment,
 } from '../../lib/services/postInteractions';
 import { NetworkError, ValidationError } from '../../lib/errors';
 
@@ -527,9 +530,12 @@ describe('reportPost', () => {
   });
 });
 
-// ─── deletePost ────────────────────────────────────────────────────────────
+// ─── deletePost (soft delete) ──────────────────────────────────────────────
+// Mudança: deletePost agora faz UPDATE SET deleted_at = now() em vez de
+// DELETE em cascata. Retorna { undoToken: postId }. Cleanup hard delete
+// vive em cleanup_soft_deleted() no banco (cron / admin manual).
 
-describe('deletePost', () => {
+describe('deletePost (soft delete)', () => {
   it('postId vazio → ValidationError', async () => {
     const { client } = makeFakeClient();
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
@@ -542,34 +548,115 @@ describe('deletePost', () => {
     await expect(deletePost('', 'p1')).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('happy: bate em likes, comments, saved_posts e posts (filtros corretos)', async () => {
+  it('happy: UPDATE posts SET deleted_at = ISO; eq id/user_id; retorna undoToken', async () => {
     const { client, spies } = makeFakeClient();
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
-    await deletePost('u1', 'p1');
-    // 4 chamadas de from: likes, comments, saved_posts, posts (ordem do
-    // Promise.all não é garantida pras 3 primeiras, mas todas precisam estar).
+    const out = await deletePost('u1', 'p1');
+    // Bate em posts uma única vez agora (sem mais cleanup paralelo).
     const tables = spies.from.mock.calls.map((c) => c[0]);
-    expect(tables).toContain('likes');
-    expect(tables).toContain('comments');
-    expect(tables).toContain('saved_posts');
-    expect(tables).toContain('posts');
-    // posts DELETE precisa ter eq('user_id') E eq('id') (defensa contra
-    // cross-user delete mesmo se RLS afrouxar).
-    expect(spies.eq).toHaveBeenCalledWith('user_id', 'u1');
+    expect(tables).toEqual(['posts']);
+    // O update precisa carregar deleted_at em string ISO.
+    const updateCall = spies.update.mock.calls[0]?.[0] as { deleted_at: string };
+    expect(typeof updateCall.deleted_at).toBe('string');
+    expect(updateCall.deleted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Filtros de eq: id E user_id (defesa contra cross-user delete).
     expect(spies.eq).toHaveBeenCalledWith('id', 'p1');
+    expect(spies.eq).toHaveBeenCalledWith('user_id', 'u1');
+    // undoToken === postId.
+    expect(out).toEqual({ undoToken: 'p1' });
   });
 
-  it('error no delete final → NetworkError', async () => {
-    // 3 deletes da limpeza ok, 4o (posts) falha.
+  it('error do supabase → NetworkError', async () => {
     const { client } = makeFakeClient({
-      responses: [
-        { data: null, error: null }, // likes delete
-        { data: null, error: null }, // comments delete
-        { data: null, error: null }, // saved_posts delete
-        { data: null, error: { message: 'rls' } }, // posts delete
-      ],
+      error: { message: 'rls bloqueou' },
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     await expect(deletePost('u1', 'p1')).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+// ─── undoDeletePost ────────────────────────────────────────────────────────
+
+describe('undoDeletePost', () => {
+  it('postId vazio → ValidationError', async () => {
+    const { client } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(undoDeletePost('u1', '')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('userId vazio → ValidationError', async () => {
+    const { client } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(undoDeletePost('', 'p1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('happy: UPDATE posts SET deleted_at = null com filtros id/user_id', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await undoDeletePost('u1', 'p1');
+    expect(spies.from).toHaveBeenCalledWith('posts');
+    expect(spies.update).toHaveBeenCalledWith({ deleted_at: null });
+    expect(spies.eq).toHaveBeenCalledWith('id', 'p1');
+    expect(spies.eq).toHaveBeenCalledWith('user_id', 'u1');
+  });
+
+  it('error do supabase → NetworkError', async () => {
+    const { client } = makeFakeClient({
+      error: { message: 'rls' },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(undoDeletePost('u1', 'p1')).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+// ─── softDeleteComment / undoDeleteComment ─────────────────────────────────
+
+describe('softDeleteComment', () => {
+  it('commentId vazio → ValidationError', async () => {
+    const { client } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteComment('', 'u1')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('userId vazio → ValidationError', async () => {
+    const { client } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteComment('c1', '')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('happy: UPDATE comments SET deleted_at = ISO, eq id, retorna undoToken', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await softDeleteComment('c1', 'u1');
+    expect(spies.from).toHaveBeenCalledWith('comments');
+    const update = spies.update.mock.calls[0]?.[0] as { deleted_at: string };
+    expect(update.deleted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(spies.eq).toHaveBeenCalledWith('id', 'c1');
+    expect(out).toEqual({ undoToken: 'c1' });
+  });
+
+  it('error → NetworkError', async () => {
+    const { client } = makeFakeClient({
+      error: { message: 'rls' },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(softDeleteComment('c1', 'u1')).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+describe('undoDeleteComment', () => {
+  it('happy: UPDATE comments SET deleted_at = null', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await undoDeleteComment('c1', 'u1');
+    expect(spies.from).toHaveBeenCalledWith('comments');
+    expect(spies.update).toHaveBeenCalledWith({ deleted_at: null });
+    expect(spies.eq).toHaveBeenCalledWith('id', 'c1');
+  });
+
+  it('commentId vazio → ValidationError', async () => {
+    const { client } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(undoDeleteComment('', 'u1')).rejects.toBeInstanceOf(ValidationError);
   });
 });

@@ -3,6 +3,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAIForm,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -28,10 +30,16 @@ export async function POST(request: NextRequest) {
     limit: 10,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'transcribe',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await transcribeAudio({ audio: formData.get('audio') })
-    );
+    const result = await transcribeAudio({ audio: formData.get('audio') });
+    await recordAiUsage({ userId: g.userId, feature: 'transcribe' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('transcribe crash:', e instanceof Error ? e.message : e);

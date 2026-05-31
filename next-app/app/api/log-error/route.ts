@@ -13,7 +13,7 @@
 // portar checkRateLimit, ajustar a RPC pra aceitar prefixo "ip:".
 
 import type { NextRequest } from 'next/server';
-import { ServiceError, jsonResponse, serviceErrorResponse } from '@/lib/api/security';
+import { ServiceError, jsonResponse, readBody, serviceErrorResponse } from '@/lib/api/security';
 
 export const runtime = 'edge';
 
@@ -52,11 +52,14 @@ interface SafeErrorPayload {
 export async function POST(request: NextRequest) {
   try {
     // Body inválido: vanilla retorna 200 silenciosamente pra evitar loop de
-    // log-error → log-error. Mantemos o mesmo comportamento.
+    // log-error → log-error. Mantemos o mesmo comportamento — mas se for
+    // 413 (payload abusivo), retorna o status normalmente: cliente honesto
+    // jamais envia >1MB de log de erro, então um 413 ajuda a flagar abuso.
     let body: LogErrorBody;
     try {
-      body = (await request.json()) as LogErrorBody;
-    } catch {
+      body = (await readBody(request, { maxBytes: 1024 * 1024 })) as LogErrorBody;
+    } catch (e) {
+      if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
       return jsonResponse({ ok: true });
     }
 

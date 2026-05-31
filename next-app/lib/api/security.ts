@@ -369,6 +369,182 @@ export async function gateProAI(
   return { userId, user: auth.user, token: auth.token };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// AI usage gating (Pagamentos#18, #19).
+// ─────────────────────────────────────────────────────────────────────────
+
+import {
+  getAiUsageThisMonthViaRest,
+  getPlanLimitViaRest,
+  isProActiveViaRest,
+  recordAiUsageViaRest,
+} from './_services/_billing-helpers';
+
+/**
+ * Checa limite mensal de IA. Retorna NextResponse 429 com Retry-After se
+ * passou; senão retorna `{ allowed, used, limit, plan }` pro caller decidir.
+ *
+ * É chamado APÓS `gateProAI` (que já garantiu auth + PRO + rate limit por
+ * minuto). Este gate é por mês, escala mais alta — só barra se o usuário
+ * realmente abusou no plano dele.
+ *
+ * Resolução do plano:
+ *   1. isAdmin → 'admin' (limite 99999)
+ *   2. is_pro_active (RPC com grace) → 'pro' (limite 500)
+ *   3. fallback → 'free' (limite 30)
+ *
+ * Fail-open: se DB não responde, libera (preferimos perder telemetria a
+ * travar usuário PRO legítimo).
+ */
+export async function gateAiUsage(opts: {
+  userId: string | undefined;
+  email?: string | null;
+  feature: string;
+}): Promise<NextResponse | { allowed: true; plan: 'free' | 'pro' | 'admin'; used: number; limit: number }> {
+  const { userId, email, feature } = opts;
+  if (!userId) {
+    // Sem userId, gateProAI já deveria ter barrado; aqui é defesa em prof.
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+  const serviceKey = getServiceKey();
+  if (!serviceKey) {
+    // Sem service key, não dá pra checar — fail-open.
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+
+  // Resolve plano.
+  let plan: 'free' | 'pro' | 'admin' = 'free';
+  if (email && isAdminEmail(email)) {
+    plan = 'admin';
+  } else {
+    const isPro = await isProActiveViaRest({ supaUrl, serviceKey, userId });
+    if (isPro) plan = 'pro';
+  }
+
+  const [limit, used] = await Promise.all([
+    getPlanLimitViaRest({ supaUrl, serviceKey, plan }),
+    getAiUsageThisMonthViaRest({ supaUrl, serviceKey, userId }),
+  ]);
+
+  if (used >= limit) {
+    return NextResponse.json(
+      {
+        error: `Limite mensal de IA atingido (${used}/${limit}). ${plan === 'free' ? 'Vire PRO pra mais.' : 'Aguarde o próximo mês.'}`,
+        used,
+        limit,
+        plan,
+        feature,
+      },
+      { status: 429 }
+    );
+  }
+  return { allowed: true, plan, used, limit };
+}
+
+/**
+ * Registra 1 uso de feature de IA. Chamado APÓS sucesso da chamada upstream.
+ * Falha silenciosa.
+ */
+export async function recordAiUsage(opts: {
+  userId: string | undefined;
+  feature: string;
+  costUnits?: number;
+}): Promise<void> {
+  const { userId, feature, costUnits = 1 } = opts;
+  if (!userId) return;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) return;
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return;
+  }
+  await recordAiUsageViaRest({
+    supaUrl,
+    serviceKey,
+    userId,
+    feature,
+    costUnits,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Max payload guards (Backend#26).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Default cap pra payloads JSON/form. Multipart com upload deve passar
+ * `maxBytes` explícito (ex.: 4MB pra style-refs, 50MB pra posts).
+ *
+ * 10MB é generoso o suficiente pro 99% dos endpoints atuais (log-error,
+ * admin-*, chat-ai) mas barra payload pathológico que faria o edge runtime
+ * estourar memória antes mesmo de parsear.
+ */
+export const DEFAULT_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+
+export interface ReadBodyOptions {
+  /** Limite em bytes; default `DEFAULT_MAX_BYTES`. */
+  maxBytes?: number;
+  /** Tipo de parse. `json` (default) faz `JSON.parse`; `form` retorna `FormData`. */
+  type?: 'json' | 'form';
+}
+
+/**
+ * Lê e parseia o body do request com hard cap em bytes.
+ *
+ * Estratégia:
+ *   1. Cheap path: se `content-length` declarado > maxBytes, 413 imediato.
+ *      Cliente honesto declara content-length; atacante tentando burlar via
+ *      `Transfer-Encoding: chunked` cai na verificação pós-leitura.
+ *   2. Para `type: 'json'`, lê como texto e verifica byte-length de novo
+ *      antes de `JSON.parse` — pega chunked que extrapolou.
+ *   3. Para `type: 'form'`, delega para `request.formData()` (que respeita
+ *      `bodyParserLimit` do Next runtime); cap aqui é defensivo.
+ *
+ * Throws `ServiceError(413)` em overflow ou `ServiceError(400)` em JSON
+ * inválido. Route handler captura via `serviceErrorResponse`.
+ */
+export async function readBody(
+  request: NextRequest | Request,
+  options: ReadBodyOptions = {}
+): Promise<unknown> {
+  const max = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  const contentLengthHeader = request.headers.get('content-length');
+  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+  if (Number.isFinite(contentLength) && contentLength > max) {
+    throw new ServiceError(`Payload too large: ${contentLength} > ${max}`, 413);
+  }
+
+  if (options.type === 'form') {
+    // Não dá pra checar tamanho real do FormData antes de parsear; o
+    // content-length header serve como gate primário. Quem precisa de cap
+    // mais fino (validar tamanho de cada File field) deve fazer no handler.
+    return await request.formData();
+  }
+
+  const text = await request.text();
+  // Byte-length real (UTF-8 pode inflar 2-4x vs `length`). TextEncoder
+  // disponível em edge runtime + node runtime.
+  const byteLength =
+    typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(text).length : text.length;
+  if (byteLength > max) {
+    throw new ServiceError(`Payload too large after read: ${byteLength} > ${max}`, 413);
+  }
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ServiceError('Invalid JSON body', 400);
+  }
+}
+
 /**
  * Variante multipart de `gateProAI`: extrai o token do FormData.
  */

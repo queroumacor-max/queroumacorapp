@@ -1,4 +1,4 @@
-// chat-messages.ts — fetch + envio de mensagens.
+// chat-messages.ts — fetch + envio + soft delete de mensagens.
 
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
@@ -8,6 +8,7 @@ import {
   type MessageType,
   type RawMessageRow,
 } from './chat-types';
+import type { SoftDeleteResult } from './postInteractions';
 
 // Limite default de mensagens carregadas por conversa. Vanilla usava 100
 // (saveMsgLocal trimava em 100); aqui 50 é o ponto de partida — paginação
@@ -30,10 +31,15 @@ export async function fetchMessages(
   if (!convId) return [];
   const sb = getSupabase();
   const safeLimit = Math.min(Math.max(1, limit), MESSAGES_LIMIT_MAX);
+  // Defesa em profundidade — a RLS já esconde soft-deleted, mas filtramos
+  // no cliente também pra não depender de policy atualizada em outros
+  // contextos (ex.: portal admin que pode ver tudo, mas a UI normal não
+  // quer mostrar bolha "deletada").
   const { data, error } = await sb
     .from('messages')
     .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
     .eq('conversation_id', convId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(safeLimit);
   if (error) throw new NetworkError(error.message, error);
@@ -93,4 +99,51 @@ export async function markConversationAs3Way(
   toId: string,
 ): Promise<void> {
   await sendMessage(convId, fromId, toId, '__STORE_ADDED__', 'system');
+}
+
+// ─── SOFT DELETE + UNDO ────────────────────────────────────────────────────
+
+/**
+ * Soft delete de mensagem: marca `deleted_at = now()` em vez de remover. A
+ * RLS atualizada esconde mensagens com deleted_at IS NOT NULL de SELECTs
+ * normais (admin ainda vê via policy de portal_access).
+ *
+ * Filtramos eq('sender_id') no UPDATE — só o remetente pode soft-deletar a
+ * mensagem própria (receiver não tem permissão pelo RLS atual).
+ */
+export async function softDeleteMessage(
+  messageId: string,
+  userId: string,
+): Promise<SoftDeleteResult> {
+  if (!messageId) throw new ValidationError('messageId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .eq('sender_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+  return { undoToken: messageId };
+}
+
+/**
+ * Reverte soft delete de mensagem. Idempotente — chamar 2x não estoura
+ * erro. RLS já filtra pra sender_id = auth.uid().
+ */
+export async function undoDeleteMessage(
+  messageId: string,
+  userId: string,
+): Promise<void> {
+  if (!messageId) throw new ValidationError('messageId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('messages')
+    .update({ deleted_at: null })
+    .eq('id', messageId)
+    .eq('sender_id', userId);
+  if (error) throw new NetworkError(error.message, error);
 }

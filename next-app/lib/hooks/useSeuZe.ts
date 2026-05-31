@@ -32,6 +32,7 @@ import {
   type ChatMessage,
 } from '@/lib/services/aiChat';
 import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder';
+import { errMsg } from '@/lib/utils';
 
 // ThreadMessage é o que a UI consome — adiciona id estável (pra React key) e
 // flag de "speaking" (pra UI mostrar spinner no botão de ouvir enquanto o
@@ -170,7 +171,7 @@ export function useSeuZe(): UseSeuZeResult {
         // Reusa o mesmo fluxo de envio de texto.
         sendMutation.mutate(text);
       } catch (e) {
-        const msg = (e as Error)?.message || 'Erro ao transcrever áudio';
+        const msg = errMsg(e) || 'Erro ao transcrever áudio';
         setVoiceError(msg);
       } finally {
         setIsTranscribing(false);

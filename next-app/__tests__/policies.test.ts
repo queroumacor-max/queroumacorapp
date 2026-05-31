@@ -89,6 +89,52 @@ describe('Policies — PRO gating', () => {
     expect(canSeeProFeature({ id: '1', is_pro: true })).toBe(true);
     expect(canSeeProFeature({ id: '1', is_admin: true })).toBe(true);
   });
+
+  it('canSeeProFeature: expired pro_expires_at sem grace → false', () => {
+    const pastIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    expect(
+      canSeeProFeature({ id: '1', is_pro: true, pro_expires_at: pastIso })
+    ).toBe(false);
+  });
+
+  it('canSeeProFeature: expired pro_expires_at COM grace futuro → true', () => {
+    const pastIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const graceIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    expect(
+      canSeeProFeature({
+        id: '1',
+        is_pro: true,
+        pro_expires_at: pastIso,
+        pro_grace_until: graceIso,
+      })
+    ).toBe(true);
+  });
+
+  it('canSeeProFeature: pro_expires_at futuro → true mesmo sem grace', () => {
+    const futureIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    expect(
+      canSeeProFeature({ id: '1', is_pro: true, pro_expires_at: futureIso })
+    ).toBe(true);
+  });
+
+  it('canSeeProFeature: grace já expirou também → false', () => {
+    const pastIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const graceExpiredIso = new Date(
+      Date.now() - 1 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    expect(
+      canSeeProFeature({
+        id: '1',
+        is_pro: true,
+        pro_expires_at: pastIso,
+        pro_grace_until: graceExpiredIso,
+      })
+    ).toBe(false);
+  });
+
+  it('canSeeProFeature: admin sempre passa, mesmo com is_pro=false', () => {
+    expect(canSeeProFeature({ id: 'a', is_admin: true, is_pro: false })).toBe(true);
+  });
 });
 
 describe('Policies — social', () => {

@@ -31,6 +31,8 @@
 // o NextResponse. NUNCA throw: anti-retry-storm.
 
 import { getServiceKey, getSupabaseUrl } from '../security';
+import { recordInvoiceViaRest } from './_billing-helpers';
+import { logAuditEvent } from '../audit';
 
 const MP_TIMEOUT_MS = 15000;
 const SUPA_TIMEOUT_MS = 10000;
@@ -153,6 +155,7 @@ export async function processMpWebhook(args: {
       supaUrl,
       serviceKey,
       sHeaders,
+      reqHeaders: headers,
     });
   }
 
@@ -160,7 +163,9 @@ export async function processMpWebhook(args: {
   return await processPreapprovalEvent({
     eventId,
     supaUrl,
+    serviceKey,
     sHeaders,
+    reqHeaders: headers,
   });
 }
 
@@ -171,8 +176,9 @@ async function processPaymentEvent(opts: {
   supaUrl: string;
   serviceKey: string;
   sHeaders: Record<string, string>;
+  reqHeaders: Headers;
 }): Promise<WebhookResult> {
-  const { eventId, supaUrl, serviceKey, sHeaders } = opts;
+  const { eventId, supaUrl, serviceKey, sHeaders, reqHeaders } = opts;
 
   let pay: MpPaymentResponse;
   try {
@@ -264,7 +270,82 @@ async function processPaymentEvent(opts: {
     const t = await upR.text().catch(() => '');
     return ok(`supabase update ${upR.status}: ${t.slice(0, 150)}`);
   }
+
+  // Audit-log: pagamento concluído (paid/amount_mismatch/refunded/cancelled).
+  // Actor null porque webhook é server-to-server; target_table=orders.
+  // fail-open: helper já não throws.
+  await logAuditEvent({
+    actorId: null,
+    action: `mp.order.${patch.status}`,
+    targetTable: 'orders',
+    targetId: orderId,
+    changes: {
+      mp_status: status,
+      tx_id: String(eventId),
+      paid_amount: patch.paid_amount,
+      payment_method: paymentMethod,
+    },
+    request: { headers: reqHeaders },
+  });
+
+  // Hardening#11 — registra invoice pra conciliação. Idempotente por
+  // external_id via RPC upsert_invoice. Falha aqui NÃO reverte o pagamento
+  // (order já está paid no banco) — apenas loga pra investigação.
+  await recordInvoiceViaRest({
+    supaUrl,
+    serviceKey,
+    invoice: {
+      // Ordens são por order; user_id fica null aqui (orders.user_id seria
+      // melhor, mas o webhook não tem esse campo na resposta — pode ser
+      // recuperado depois via reconciliação).
+      user_id: null,
+      external_id: String(eventId),
+      provider: 'mercadopago',
+      type: mapInvoiceTypeFromOrderStatus(String(patch.status)),
+      amount: Number(patch.paid_amount ?? order.total ?? transactionAmount ?? 0),
+      currency: 'BRL',
+      status: mapInvoiceStatusFromOrderStatus(String(patch.status)),
+      metadata: {
+        order_id: orderId,
+        payment_method: paymentMethod,
+        mp_status: status,
+      },
+      paid_at:
+        patch.status === 'paid'
+          ? (patch.paid_at as string | undefined) ?? new Date().toISOString()
+          : null,
+    },
+  });
+
   return ok('order ' + (patch.status || 'updated'));
+}
+
+/**
+ * Mapeia `orders.status` (paid|refunded|cancelled|canceled|amount_mismatch)
+ * pro enum de `invoices.status`. amount_mismatch vira 'failed' (não 'paid'
+ * porque o produto não foi liberado).
+ */
+function mapInvoiceStatusFromOrderStatus(orderStatus: string): import('./_billing-helpers').InvoiceStatus {
+  switch (orderStatus) {
+    case 'paid':
+      return 'paid';
+    case 'refunded':
+      return 'refunded';
+    case 'cancelled':
+    case 'canceled':
+      return 'cancelled';
+    case 'amount_mismatch':
+      return 'failed';
+    default:
+      return 'pending';
+  }
+}
+
+/**
+ * Refund é o único tipo "especial"; tudo mais é 'order' (one-shot).
+ */
+function mapInvoiceTypeFromOrderStatus(orderStatus: string): import('./_billing-helpers').InvoiceType {
+  return orderStatus === 'refunded' ? 'refund' : 'order';
 }
 
 // ── Preapproval (PRO) ──────────────────────────────────────────────────────
@@ -272,9 +353,11 @@ async function processPaymentEvent(opts: {
 async function processPreapprovalEvent(opts: {
   eventId: string;
   supaUrl: string;
+  serviceKey: string;
   sHeaders: Record<string, string>;
+  reqHeaders: Headers;
 }): Promise<WebhookResult> {
-  const { eventId, supaUrl, sHeaders } = opts;
+  const { eventId, supaUrl, serviceKey, sHeaders, reqHeaders } = opts;
 
   let pre: MpPreapprovalResponse;
   try {
@@ -347,6 +430,55 @@ async function processPreapprovalEvent(opts: {
   } catch {
     return ok('erro ao atualizar supabase');
   }
+
+  // Audit-log: mudança de subscription PRO (activate/cancel/pause).
+  // actor_id é o usuário cuja subscription mudou — webhook é server-to-server
+  // mas a ação afeta este usuário diretamente.
+  await logAuditEvent({
+    actorId: userId,
+    action: `mp.subscription.${status}`,
+    targetTable: 'profiles',
+    targetId: userId,
+    changes: {
+      mp_preapproval_id: eventId,
+      mp_status: status,
+      is_pro_new: patch.is_pro,
+      pro_amount: proAmount,
+      pro_currency: proCurrency,
+    },
+    request: { headers: reqHeaders },
+  });
+
+  // Hardening#11 — registra invoice de subscription. Idempotente por
+  // external_id (mp preapproval id). O trigger handle_invoice_paid propaga
+  // o pro_expires_at automaticamente, MAS o webhook também já faz isso
+  // explicitamente acima (compat com fluxo legado, sem duplicar dias). O
+  // trigger só roda se status='paid' E foi transição (idempotente).
+  const isAuthorized = status === 'authorized';
+  await recordInvoiceViaRest({
+    supaUrl,
+    serviceKey,
+    invoice: {
+      user_id: userId,
+      external_id: String(eventId),
+      provider: 'mercadopago',
+      type: 'subscription',
+      amount: proAmount,
+      currency: proCurrency || 'BRL',
+      status: isAuthorized
+        ? 'paid'
+        : status === 'cancelled'
+          ? 'cancelled'
+          : status === 'paused'
+            ? 'failed'
+            : 'pending',
+      metadata: {
+        mp_preapproval_id: eventId,
+        mp_status: status,
+      },
+      paid_at: isAuthorized ? new Date().toISOString() : null,
+    },
+  });
 
   return ok('ok');
 }

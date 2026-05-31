@@ -10,13 +10,13 @@
 //   - `env.CF_PAGES_COMMIT_SHA` substituído por `NEXT_PUBLIC_APP_VERSION`
 //     (setar via Cloudflare Pages build env quando portarmos o deploy).
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'edge';
 
 const SUPABASE_TIMEOUT_MS = 2000;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabaseUrl = process.env.SUPABASE_URL;
   let supabaseLive = false;
   if (supabaseUrl) {
@@ -33,6 +33,10 @@ export async function GET() {
     }
   }
 
+  // `x-request-id` setado pelo middleware. Eco no body facilita debug
+  // ("UptimeRobot tá vendo X, qual request foi?").
+  const requestId = request.headers.get('x-request-id') ?? 'unknown';
+
   return NextResponse.json(
     {
       status: 'ok',
@@ -41,11 +45,13 @@ export async function GET() {
       region: process.env.VERCEL_REGION || process.env.CF_REGION || 'unknown',
       version: process.env.NEXT_PUBLIC_APP_VERSION || 'dev',
       supabase: supabaseLive,
+      request_id: requestId,
     },
     {
       headers: {
         'cache-control': 'no-store',
         'access-control-allow-origin': '*',
+        'x-request-id': requestId,
       },
     }
   );

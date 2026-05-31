@@ -18,6 +18,7 @@
 // Tipos INLINE (spec: NÃO tocar em lib/types.ts).
 
 import { getSupabase } from '@/lib/supabase';
+import type { Json } from '@/lib/database.types';
 import {
   NetworkError,
   ValidationError,
@@ -89,6 +90,8 @@ export interface ProductFilter {
   search?: string | null;
   // Pra paginar no futuro; default = 1000 (pega tudo).
   limit?: number;
+  // signal pra cancelar fetch quando query desmonta/invalida.
+  signal?: AbortSignal;
 }
 
 // Resposta de submitOrder: id da order criada + total persistido.
@@ -290,11 +293,15 @@ const PRODUCT_COLS =
 export async function fetchProducts(filter: ProductFilter = {}): Promise<Product[]> {
   const limit = filter.limit ?? 1000;
   const sb = getSupabase();
-  const { data, error } = await sb
+  const q = sb
     .from('products')
     .select(PRODUCT_COLS)
     .order('name')
     .limit(limit);
+  const qFinal = filter.signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(filter.signal)
+    : q;
+  const { data, error } = await qFinal;
   if (error) {
     throw new NetworkError(error.message, error);
   }
@@ -321,14 +328,21 @@ export async function fetchProducts(filter: ProductFilter = {}): Promise<Product
  * pra que a página de detalhe possa renderizar uma tela "produto removido"
  * ao invés de error boundary.
  */
-export async function fetchProduct(id: string): Promise<Product | null> {
+export async function fetchProduct(
+  id: string,
+  options?: { signal?: AbortSignal },
+): Promise<Product | null> {
   if (!id) return null;
   const sb = getSupabase();
-  const { data, error } = await sb
+  const q = sb
     .from('products')
     .select(PRODUCT_COLS)
     .eq('id', id)
     .maybeSingle();
+  const qFinal = options?.signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(options.signal)
+    : q;
+  const { data, error } = await qFinal;
   if (error) {
     throw new NetworkError(error.message, error);
   }
@@ -369,9 +383,12 @@ export async function fetchCart(userId: string): Promise<CartItem[]> {
 export async function saveCart(userId: string, items: CartItem[]): Promise<void> {
   if (!userId) throw new ValidationError('Faça login.');
   const sb = getSupabase();
+  // jsonb column: CartItem[] não tem index-signature `[string]: Json`, então
+  // precisa de cast `unknown` (mesmo padrão que `supabase gen types` força em
+  // qualquer payload tipado). Runtime serialização é JSON.stringify normal.
   const { error } = await sb
     .from('profiles')
-    .update({ cart: items })
+    .update({ cart: items as unknown as Json })
     .eq('id', userId);
   if (error) {
     throw new NetworkError(error.message, error);
@@ -408,7 +425,7 @@ export async function submitOrder(
     .from('orders')
     .insert({
       user_id: userId,
-      items,
+      items: items as unknown as Json, // jsonb column — mesmo padrão de saveCart
       total,
       status: 'pending',
       created_at: new Date().toISOString(),

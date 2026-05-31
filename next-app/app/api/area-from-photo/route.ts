@@ -4,6 +4,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAIForm,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -29,10 +31,16 @@ export async function POST(request: NextRequest) {
     limit: 5,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'area_from_photo',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await estimateAreaFromPhoto({ image: formData.get('image') })
-    );
+    const result = await estimateAreaFromPhoto({ image: formData.get('image') });
+    await recordAiUsage({ userId: g.userId, feature: 'area_from_photo' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('area-from-photo crash:', e instanceof Error ? e.message : e);

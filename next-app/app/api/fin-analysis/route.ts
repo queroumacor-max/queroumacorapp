@@ -3,6 +3,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -33,14 +35,20 @@ export async function POST(request: NextRequest) {
     limit: 5,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'fin_analysis',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await analyzeFinancials({
-        thisMonth: body?.thisMonth,
-        lastMonth: body?.lastMonth,
-        recentJobs: body?.recentJobs,
-      })
-    );
+    const result = await analyzeFinancials({
+      thisMonth: body?.thisMonth,
+      lastMonth: body?.lastMonth,
+      recentJobs: body?.recentJobs,
+    });
+    await recordAiUsage({ userId: g.userId, feature: 'fin_analysis' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('fin-analysis crash:', e instanceof Error ? e.message : e);

@@ -2,6 +2,7 @@
 // Mocka fetch global pra controlar resposta do Supabase liveness check.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { NextRequest } from 'next/server';
 
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
@@ -16,11 +17,15 @@ afterEach(() => {
   process.env = { ...originalEnv };
 });
 
+function mkReq(headers: Record<string, string> = {}): NextRequest {
+  return new Request('https://app.test/api/health', { headers }) as unknown as NextRequest;
+}
+
 describe('GET /api/health', () => {
   it('returns 200 with status=ok payload (no SUPABASE_URL → supabase=false)', async () => {
     delete process.env.SUPABASE_URL;
     const { GET } = await import('@/app/api/health/route');
-    const res = await GET();
+    const res = await GET(mkReq());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
@@ -32,7 +37,7 @@ describe('GET /api/health', () => {
   it('sets no-store cache-control', async () => {
     delete process.env.SUPABASE_URL;
     const { GET } = await import('@/app/api/health/route');
-    const res = await GET();
+    const res = await GET(mkReq());
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
@@ -42,7 +47,7 @@ describe('GET /api/health', () => {
     process.env.SUPABASE_ANON_KEY = 'anon-test';
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('', { status: 401 }));
     const { GET } = await import('@/app/api/health/route');
-    const res = await GET();
+    const res = await GET(mkReq());
     const body = await res.json();
     expect(body.supabase).toBe(true);
   });
@@ -51,8 +56,25 @@ describe('GET /api/health', () => {
     process.env.SUPABASE_URL = 'https://example.supabase.co';
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'));
     const { GET } = await import('@/app/api/health/route');
-    const res = await GET();
+    const res = await GET(mkReq());
     const body = await res.json();
     expect(body.supabase).toBe(false);
+  });
+
+  it('echoes x-request-id from header into body + response header', async () => {
+    delete process.env.SUPABASE_URL;
+    const { GET } = await import('@/app/api/health/route');
+    const res = await GET(mkReq({ 'x-request-id': 'req-abc-123' }));
+    expect(res.headers.get('x-request-id')).toBe('req-abc-123');
+    const body = await res.json();
+    expect(body.request_id).toBe('req-abc-123');
+  });
+
+  it('falls back to "unknown" when no x-request-id header (middleware would inject)', async () => {
+    delete process.env.SUPABASE_URL;
+    const { GET } = await import('@/app/api/health/route');
+    const res = await GET(mkReq());
+    const body = await res.json();
+    expect(body.request_id).toBe('unknown');
   });
 });

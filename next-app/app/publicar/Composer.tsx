@@ -17,13 +17,14 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { MediaUploader } from './MediaUploader';
 import { MediaPreview } from './MediaPreview';
 import { CaptionInput } from './CaptionInput';
 import { usePublishPost } from '@/lib/hooks/usePublishPost';
+import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   uploadMedia,
   compressImage,
@@ -99,6 +100,32 @@ export function Composer() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState(0);
+
+  // Autosave (UX#6): persiste só campos texto/toggle do composer em
+  // localStorage. Arquivos (File[]) NÃO entram — File não é serializável e o
+  // user precisa re-selecionar mídia se voltar pro draft (constraint do spec:
+  // não autosave de arquivos). Restore aplica via setState individuais.
+  const autosaveValues = useMemo(
+    () => ({ postType, caption, forSale, priceText, artType }),
+    [postType, caption, forSale, priceText, artType]
+  );
+  const autosave = useAutosave<typeof autosaveValues>({
+    key: 'post_composer',
+    values: autosaveValues,
+    onRestore: (restored) => {
+      if (typeof restored.postType === 'string') setPostType(restored.postType);
+      if (typeof restored.caption === 'string') setCaption(restored.caption);
+      if (typeof restored.forSale === 'boolean') setForSale(restored.forSale);
+      if (typeof restored.priceText === 'string') setPriceText(restored.priceText);
+      if (typeof restored.artType === 'string') setArtType(restored.artType);
+    },
+  });
+  useEffect(() => {
+    if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
+      setDraftSavedAt(autosave.lastSavedAt);
+    }
+  }, [autosaveValues, autosave.lastSavedAt, draftSavedAt]);
 
   const handleFiles = useCallback(
     (incoming: File[]) => {
@@ -196,6 +223,9 @@ export function Composer() {
         setCaption('');
         setForSale(false);
         setPriceText('');
+        // Apaga rascunho persistido — não faz sentido restaurar após publish.
+        autosave.clear();
+        setDraftSavedAt(0);
         router.push('/feed');
       })
       .catch(() => {
@@ -210,6 +240,7 @@ export function Composer() {
     priceText,
     artType,
     router,
+    autosave,
   ]);
 
   if (authLoading) {
@@ -408,6 +439,16 @@ export function Composer() {
       >
         {submitting ? 'Publicando…' : 'Publicar'}
       </button>
+
+      {draftSavedAt > 0 ? (
+        <p
+          className="text-xs text-[color:var(--color-muted)] text-center"
+          role="status"
+          aria-live="polite"
+        >
+          Rascunho salvo
+        </p>
+      ) : null}
     </div>
   );
 }

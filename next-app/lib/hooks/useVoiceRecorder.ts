@@ -20,6 +20,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { errMsg } from '@/lib/utils';
 
 export interface UseVoiceRecorderOptions {
   // Callback disparado quando a gravação para e o Blob está pronto.
@@ -139,8 +140,7 @@ export function useVoiceRecorder(
     try {
       recorder = new MediaRecorder(stream);
     } catch (e) {
-      const msg =
-        'Erro ao iniciar gravação: ' + ((e as Error)?.message || 'erro');
+      const msg = 'Erro ao iniciar gravação: ' + (errMsg(e) || 'erro');
       cleanup();
       if (isMountedRef.current) setError(msg);
       onErrorRef.current?.(msg);
@@ -166,8 +166,7 @@ export function useVoiceRecorder(
     try {
       recorder.start();
     } catch (e) {
-      const msg =
-        'Erro ao iniciar gravação: ' + ((e as Error)?.message || 'erro');
+      const msg = 'Erro ao iniciar gravação: ' + (errMsg(e) || 'erro');
       cleanup();
       if (isMountedRef.current) setError(msg);
       onErrorRef.current?.(msg);
