@@ -12,7 +12,7 @@
 // aria-live="polite" pra leitores de tela anunciarem mensagens. Wave 2-html
 // adiciona esses atributos no HTML — não setar aqui por toast() pra evitar
 // recriar o live region a cada chamada (quebra anúncio).
-var tt;
+// tt → state encapsulado em modules/avaliacao.js (Fase 4 etapa 2 cleanup).
 // toast → modules/utils.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODALS ══
@@ -62,7 +62,7 @@ var demaos=2;
 
 // ══ AI FEATURES (PRO) ══
 var _isPro = false;
-var _proExpires = null;
+// _proExpires → state encapsulado em modules/pro.js (Fase 4 etapa 2 cleanup).
 
 // refreshProStatus → modules/pro.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -86,24 +86,9 @@ var _proExpires = null;
 // handleReferralParam → modules/pro.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MAIS INFORMAÇÕES E SUPORTE ══
-const SUPPORT = {
-  // Canal de atendimento (Fale Conosco) e solicitações de exclusão de
-  // conta (LGPD) — contato da Cali Colors.
-  email: 'loja@calicolors.com.br',
-  // WhatsApp de atendimento: DDI+DDD+número só dígitos.
-  // Cali Colors: (11) 95976-5031.
-  whatsapp: '5511959765031'
-};
-const _infoTitles = {
-  menu:'Mais informações e suporte',
-  ajuda:'Central de Ajuda',
-  contato:'Fale Conosco',
-  privacidade:'Política de Privacidade',
-  termos:'Termos de Uso',
-  conta:'Excluir minha conta',
-  sobre:'Sobre o QueroUmaCor'
-};
-var _infoPage = 'menu';
+// SUPPORT → state encapsulado em modules/info.js (Fase 4 etapa 2 cleanup).
+// _infoTitles → state encapsulado em modules/info.js (Fase 4 etapa 2 cleanup).
+// _infoPage → state encapsulado em modules/info.js (Fase 4 etapa 2 cleanup).
 // openInfoPage → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
 // infoBack → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
 // supportWhatsApp → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -120,16 +105,8 @@ window.baixarMeusDados = baixarMeusDados;
 // Ciclo: rascunho/pending → enviado → aprovado → em_execucao → concluido (+ recusado)
 // ══════════════════════════════════════════
 
-const QUOTE_STATUS = {
-  pending:    { label:'A orçar',     color:'#8a8a99' },
-  rascunho:   { label:'Rascunho',    color:'#8a8a99' },
-  enviado:    { label:'Enviado',     color:'#f4a300' },
-  aprovado:   { label:'Aprovado',    color:'#2ec4b6' },
-  em_execucao:{ label:'Em execução', color:'#3a86ff' },
-  concluido:  { label:'Concluído',   color:'#16a34a' },
-  recusado:   { label:'Recusado',    color:'#e63946' }
-};
-var _pipelineCache = [];
+// QUOTE_STATUS → state encapsulado em modules/pipeline.js (Fase 4 etapa 2 cleanup).
+// _pipelineCache → state encapsulado em modules/pipeline.js (Fase 4 etapa 2 cleanup).
 
 // Notificação in-app: cria uma linha em notifications para o usuário destino.
 // notify → modules/notif.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -150,7 +127,7 @@ var _pipelineCache = [];
 
 // salvarOrcamento → modules/pipeline.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _quotePriceTarget = null;
+// _quotePriceTarget → state encapsulado em modules/pipeline.js (Fase 4 etapa 2 cleanup).
 
 // enviarQuote → modules/pipeline.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -177,8 +154,8 @@ var _quotePriceTarget = null;
 // Recurso PRO. Consentimento (LGPD) é cidadão de primeira classe.
 // ══════════════════════════════════════════
 
-var _crmCache = [];
-var _crmIntervalMonths = 12;
+// _crmCache → state encapsulado em modules/crm.js (Fase 4 etapa 2 cleanup).
+// _crmIntervalMonths → state encapsulado em modules/crm.js (Fase 4 etapa 2 cleanup).
 
 // Normaliza nome de cliente para dedup (lowercase + trim + colapsa espaços).
 // crmNormName → modules/utils.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -217,7 +194,7 @@ async function getAccessToken(){
 // ── Dashboard de erros (admin) ───────────────────────────────────────────
 // Substitui Sentry: lê a tabela `errors` via /api/admin-errors-list (que
 // usa service_role e gate por ADMIN_EMAILS). Sem novo SaaS externo.
-var _errsState = { offset: 0, limit: 50, total: 0 };
+// _errsState → state encapsulado em modules/admin-mod.js (Fase 4 etapa 2 cleanup).
 
 // openErrorsAdmin → modules/admin-mod.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -236,31 +213,20 @@ var _errsState = { offset: 0, limit: 50, total: 0 };
 // openAiChat → modules/ai-chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // AI Chat - knowledge base for painting professionals
-const _aiKnowledge = {
-  'tinta':    'Para paredes internas, recomendo tinta acrílica acetinada (melhor custo-benefício). Para áreas úmidas, use tinta acrílica semi-brilho. Para fachadas, tinta elastomérica. Rendimento médio: 10-12m²/L por demão.',
-  'textura':  'Texturas mais pedidas: Grafiato (rolo texturizado), Marmorato (efeito mármore com espátula), Cimento Queimado (2-3 demãos de massa + verniz). Preço médio: R$35-60/m² dependendo da técnica.',
-  'preco':    'Valores médios de mão de obra: Pintura simples R$18-25/m², Textura R$35-60/m², Epóxi R$50-80/m², Fachada R$25-40/m². Sempre inclua material + mão de obra + deslocamento no orçamento.',
-  'epoxi':    'Piso epóxi: lixar o piso, aplicar primer epóxi, 2-3 demãos de epóxi (intervalo de 12h). Rendimento: 4-6m²/L. Cura total: 7 dias. Preço médio: R$50-80/m² com material.',
-  'rendimento':'Tinta acrílica: 10-12m²/L. Massa corrida: 4-6m²/L. Selador: 8-10m²/L. Textura: 2-4m²/L. Sempre compre 10% a mais como margem de segurança.',
-  'preparo':  'Preparação é 70% do resultado! 1) Limpe a parede. 2) Lixe com lixa 150. 3) Aplique massa corrida nas imperfeições. 4) Lixe novamente com 220. 5) Aplique selador. 6) Pinte com rolo de lã.',
-  'cor':      'Tendências: tons terrosos (terracota, argila), verde-salvia, azul petróleo. Para ambientes pequenos: cores claras ampliam. Para destaque: parede accent em tom mais escuro. Sempre teste uma amostra antes!',
-  'ferramenta':'Kit básico: rolo de lã 23cm, trincha 2" e 3", bandeja, fita crepe, lona plástica, espátula, lixa 150 e 220, escada. Para textura: desempenadeira de aço e espátula de plástico.',
-  'infiltracao':'Antes de pintar parede com infiltração: 1) Resolva a causa da infiltração. 2) Raspe a área afetada. 3) Aplique impermeabilizante. 4) Massa corrida após secar. 5) Selador. 6) Pintura. Sem resolver a causa, volta sempre.',
-  'calculo':  'Cálculo rápido: meça comprimento × altura de cada parede. Subtraia portas (1.6m²) e janelas (2.4m²). Multiplique pelo número de demãos. Divida pelo rendimento da tinta (10m²/L). Adicione 10% de margem.'
-};
+// _aiKnowledge → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
 
-var _aiChatHistory = [];
+// _aiChatHistory → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
 
 // sendAiChat → modules/ai-chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODO CONVERSAÇÃO POR VOZ COM O SEU ZÉ (PRO) ══
 // Grava a fala → Whisper transcreve → manda no chat-ai → resposta do
 // Seu Zé é falada de volta via OpenAI TTS.
-var _aiVoiceRecorder = null;
-var _aiVoiceChunks = [];
-var _aiVoiceStream = null;
-var _aiVoiceAutoStop = null;
-var _aiVoiceAudio = null;
+// _aiVoiceRecorder → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
+// _aiVoiceChunks → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
+// _aiVoiceStream → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
+// _aiVoiceAutoStop → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
+// _aiVoiceAudio → state encapsulado em modules/ai-chat.js (Fase 4 etapa 2 cleanup).
 
 // aiChatToggleVoice → modules/ai-chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -295,9 +261,9 @@ var _lastOrcData = {};
 // loadMaterialSuggestions → modules/orcamento-pdf.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AGENDA DE PROJETOS (calendário) ══
-var _agCur = null;   // Date: primeiro dia do mês exibido
-var _agSel = null;   // 'yyyy-mm-dd' selecionado
-var _agJobs = [];     // cache dos projetos do usuário
+// _agCur → state encapsulado em modules/agenda.js (Fase 4 etapa 2 cleanup).
+// _agSel → state encapsulado em modules/agenda.js (Fase 4 etapa 2 cleanup).
+// _agJobs → state encapsulado em modules/agenda.js (Fase 4 etapa 2 cleanup).
 
 // _agYmd → modules/agenda.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -320,14 +286,10 @@ var _agJobs = [];     // cache dos projetos do usuário
 // otimizarDiaAgenda → modules/agenda.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ CHECKLIST DE OBRA ══
-var _checklistItems = [];
-var _checklistRowId = null;
-var _checklistSaveQueue = Promise.resolve();
-const _checklistTemplates = {
-  pintura: ['Proteger pisos com lona','Fita crepe em rodapés e batentes','Lixar paredes (lixa 150)','Aplicar massa corrida','Lixar massa (lixa 220)','Aplicar selador','1ª demão de tinta','2ª demão de tinta','Retoques finais','Limpeza do local'],
-  textura: ['Proteger pisos e móveis','Preparar massa texturizada','Aplicar base/selador','Aplicar textura com desempenadeira','Aguardar secagem (4h)','Pintar sobre textura','Retoques','Limpeza'],
-  epoxi: ['Lixar piso','Limpar com desengraxante','Aplicar primer epóxi','Aguardar 12h secagem','1ª demão epóxi','2ª demão epóxi','Aguardar 7 dias cura total','Entrega']
-};
+// _checklistItems → state encapsulado em modules/checklist.js (Fase 4 etapa 2 cleanup).
+// _checklistRowId → state encapsulado em modules/checklist.js (Fase 4 etapa 2 cleanup).
+// _checklistSaveQueue → state encapsulado em modules/checklist.js (Fase 4 etapa 2 cleanup).
+// _checklistTemplates → state encapsulado em modules/checklist.js (Fase 4 etapa 2 cleanup).
 
 // renderChecklist → modules/checklist.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -343,7 +305,7 @@ const _checklistTemplates = {
 // saveChecklist → modules/checklist.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ ANOTAÇÕES (notas do pintor) ══
-var _editingNoteId = null;
+// _editingNoteId → state encapsulado em modules/notes.js (Fase 4 etapa 2 cleanup).
 // startEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
 // cancelEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
 // saveEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -356,11 +318,11 @@ var _editingNoteId = null;
 
 // ══ GRAVAÇÃO DE ÁUDIO → TRANSCRIÇÃO (PRO) ══
 // Grava até 5 min de áudio, manda pro Whisper e cola o texto na nota.
-var _recMediaRecorder = null;
-var _recChunks = [];
-var _recStartTime = 0;
-var _recTimerInterval = null;
-const REC_MAX_MS = 5 * 60 * 1000;
+// _recMediaRecorder → state encapsulado em modules/audio-stt.js (Fase 4 etapa 2 cleanup).
+// _recChunks → state encapsulado em modules/audio-stt.js (Fase 4 etapa 2 cleanup).
+// _recStartTime → state encapsulado em modules/audio-stt.js (Fase 4 etapa 2 cleanup).
+// _recTimerInterval → state encapsulado em modules/audio-stt.js (Fase 4 etapa 2 cleanup).
+// REC_MAX_MS → state encapsulado em modules/audio-stt.js (Fase 4 etapa 2 cleanup).
 
 // iniciarGravacaoNota → modules/audio-stt.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -380,8 +342,8 @@ const REC_MAX_MS = 5 * 60 * 1000;
 // analisarFinanceiroIA → modules/financeiro.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AUTO-RESPOSTAS ══
-var _autoReplyCfg = null;          // cache da config new_message
-const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
+// _autoReplyCfg → state encapsulado em modules/autoresp.js (Fase 4 etapa 2 cleanup).
+// _autoRepliedConvs → state encapsulado em modules/autoresp.js (Fase 4 etapa 2 cleanup).
 
 // arToggle → modules/autoresp.js (Fase 4 etapa 2). Shim em /shims.js.
 // arSync → modules/autoresp.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -437,30 +399,14 @@ const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
 // por palavra inteira (\b…\b). Antes o substring bloqueava "armário"
 // (arma), "pistolão" (pistola), "matar a sede" (matar), nome "Cornélio"
 // (corno). Contexto fica pra IA decidir em /api/moderate.
-const _blockedWords = [
-  'pedofilia','pedofilo',
-  'estupro','estuprar','estuprador',
-  'cocaina','crackeira',
-  'fuzil',
-  'assassinar',
-  'suicidio',
-  'terrorismo','terrorista',
-  'pornografia',
-  'xxx',
-  'nazismo'
-];
+// _blockedWords → state encapsulado em modules/content-mod.js (Fase 4 etapa 2 cleanup).
 
-const _blockedRe = (() => {
-  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'');
-  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const alts = _blockedWords.map(w => esc(norm(w))).join('|');
-  return new RegExp('\\b(' + alts + ')\\b', 'i');
-})();
+// _blockedRe → state encapsulado em modules/content-mod.js (Fase 4 etapa 2 cleanup).
 
 // Padrões fortes de scam: encurtadores e domínios típicos de golpe.
 // URL normal (https://meusite.com.br, www.instagram.com/foo) NÃO bloqueia
 // mais — autopromoção legítima de pintor passa, Gemini avalia contexto.
-const _scamLinkRe = /(?:^|\W)(?:bit\.ly|tinyurl\.com|cutt\.ly|t\.me\/|goo\.gl\/|tiny\.cc|encurtador\.com\.br|is\.gd|shorturl\.at)/i;
+// _scamLinkRe → state encapsulado em modules/content-mod.js (Fase 4 etapa 2 cleanup).
 
 // moderateContent → modules/content-mod.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -490,13 +436,13 @@ var currentChat = null;
 // getLocalConvKey → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 // getLocalMsgsKey → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _convsCache = null;     // dict completo de convs do usuário atual
-var _convsCacheUid = null;  // pra invalidar quando trocar de usuário
-var _convsDirty = false;
-var _convsFlushTimer = null;
-const _msgsCache = new Map(); // convId -> array de msgs
-const _msgsDirty = new Set();
-var _msgsFlushTimer = null;
+// _convsCache → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _convsCacheUid → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _convsDirty → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _convsFlushTimer → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgsCache → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgsDirty → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgsFlushTimer → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
 
 // _ensureConvsCache → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -556,9 +502,9 @@ var _pipelineSub = null;
 // ══ LOAD PEDIDOS FROM SUPABASE ══
 // loadPedidos → modules/pedidos.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _epAvatarFile = null; // holds selected avatar file for upload
-var _epLogoFile = null;   // holds selected business logo file for upload
-var _epLogoClear = false; // user clicked "Remover" → wipe business_logo_url on save
+// _epAvatarFile → state encapsulado em modules/profile-edit.js (Fase 4 etapa 2 cleanup).
+// _epLogoFile → state encapsulado em modules/profile-edit.js (Fase 4 etapa 2 cleanup).
+// _epLogoClear → state encapsulado em modules/profile-edit.js (Fase 4 etapa 2 cleanup).
 
 // previewAvatar → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -571,18 +517,8 @@ var _epLogoClear = false; // user clicked "Remover" → wipe business_logo_url o
 // openEditProfile → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AUTOCOMPLETE: cidade pelo estado (IBGE) ══
-const _citiesCache = {};
-const _ufByName = {
-  'acre':'AC','alagoas':'AL','amapa':'AP','amapá':'AP','amazonas':'AM',
-  'bahia':'BA','ceara':'CE','ceará':'CE','distrito federal':'DF',
-  'espirito santo':'ES','espírito santo':'ES','goias':'GO','goiás':'GO',
-  'maranhao':'MA','maranhão':'MA','mato grosso':'MT','mato grosso do sul':'MS',
-  'minas gerais':'MG','para':'PA','pará':'PA','paraiba':'PB','paraíba':'PB',
-  'parana':'PR','paraná':'PR','pernambuco':'PE','piaui':'PI','piauí':'PI',
-  'rio de janeiro':'RJ','rio grande do norte':'RN','rio grande do sul':'RS',
-  'rondonia':'RO','rondônia':'RO','roraima':'RR','santa catarina':'SC',
-  'sao paulo':'SP','são paulo':'SP','sergipe':'SE','tocantins':'TO'
-};
+// _citiesCache → state encapsulado em modules/profile-edit.js (Fase 4 etapa 2 cleanup).
+// _ufByName → state encapsulado em modules/profile-edit.js (Fase 4 etapa 2 cleanup).
 // loadCidadesDoEstado → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 // _epStateChanged → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -613,7 +549,7 @@ var _globalMsgSub = null;
 const _processedMsgIds = new Map(); // id -> true (Map preserves insertion order for LRU)
 const MAX_PROCESSED_IDS = 500;
 // _markProcessed → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
-var _chatListDebounce = null;
+// _chatListDebounce → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
 
 // Global realtime subscription for messages - ensures new messages show up
 // setupGlobalMsgSubscription → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -627,7 +563,7 @@ var _chatListDebounce = null;
 
 
 // ══ AUTH ══
-var selectedRole='pintor';
+// selectedRole → state encapsulado em modules/signup-flow.js (Fase 4 etapa 2 cleanup).
 // selectRole → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
 var validatedInviteCode = null;
 
@@ -645,7 +581,7 @@ const _roleSpecs = {
 // loadSpecsForRole → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // toggleSpec → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
-const _proRoles = ['pintor','grafiteiro','automotivo'];
+// _proRoles → state encapsulado em modules/signup-flow.js (Fase 4 etapa 2 cleanup).
 // isProfessionalRole → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // selectProfession → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -665,13 +601,13 @@ document.addEventListener('keydown',e=>{
 });
 
 // ══ AVALIAÇÃO ══
-var starVal=0;
-const starLabels=['','Ruim 😞','Regular 😐','Bom 🙂','Muito bom 😄','Excelente! 🤩'];
+// starVal → state encapsulado em modules/avaliacao.js (Fase 4 etapa 2 cleanup).
+// starLabels → state encapsulado em modules/avaliacao.js (Fase 4 etapa 2 cleanup).
 // setStar → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 // toggleCriteria → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var avaliarQuoteId = null;
-var _avaliarQuotes = [];
+// avaliarQuoteId → state encapsulado em modules/avaliacao.js (Fase 4 etapa 2 cleanup).
+// _avaliarQuotes → state encapsulado em modules/avaliacao.js (Fase 4 etapa 2 cleanup).
 // loadAvaliarScreen → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // renderAvaliarServiceList → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -694,18 +630,11 @@ const renderedMsgIds = new Set();
 // _msgKind → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Cor do balao por PESSOA (cada participante uma cor estavel), nao por papel.
-const _msgMeColor    = { fg:'#0f9d6b', chip:'#dff5ec', bub:'#e7f8f1', bd:'#bfe8d7' };
-const _msgStoreColor = { fg:'#7a30d6', chip:'#efe7fb', bub:'#f3edfb', bd:'#d9c7f5' };
-const _msgPalette = [
-  { fg:'#2563eb', chip:'#e8f0fe', bub:'#eef4ff', bd:'#cdddfb' }, // azul
-  { fg:'#d2541f', chip:'#fff1e8', bub:'#fff3ec', bd:'#f6d4bf' }, // laranja
-  { fg:'#be1e63', chip:'#fde8f1', bub:'#fef3f8', bd:'#f5c9dd' }, // rosa
-  { fg:'#15803d', chip:'#e3f9ec', bub:'#ecfdf3', bd:'#b8e8cd' }, // verde
-  { fg:'#a16207', chip:'#fdf6dd', bub:'#fffbeb', bd:'#f3e3a8' }, // amarelo
-  { fg:'#4338ca', chip:'#e6ecff', bub:'#f0f5ff', bd:'#c7d2fe' }, // indigo
-];
-var _msgColorMap = {};
-var _msgColorIdx = 0;
+// _msgMeColor → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgStoreColor → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgPalette → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgColorMap → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
+// _msgColorIdx → state encapsulado em modules/chat.js (Fase 4 etapa 2 cleanup).
 // _resetMsgColors → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 // _msgColors → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -728,24 +657,10 @@ var logoState = {pintor: true, cali: true};
 var mktProducts = [];
 
 // Dicionário determinístico: cor escrita no nome → hex. Compostos primeiro.
-const COLOR_DICT = [
-  ['branco neve','#fbfbf7'],['branco gelo','#eef0ea'],['branco fosco','#f4f3ee'],['off white','#efece1'],['branco','#f6f5f0'],
-  ['preto fosco','#1c1c1c'],['preto','#1a1a1a'],
-  ['cinza chumbo','#4b4f54'],['cinza grafite','#3a3d40'],['grafite','#3a3d40'],['cinza claro','#c7c9c8'],['cinza escuro','#5a5d5f'],['cinza concreto','#9a9b96'],['concreto','#9a9b96'],['cinza','#9b9d9c'],['prata','#c5c7c9'],['aluminio','#b8bcc0'],
-  ['azul claro','#9ec7e8'],['azul bebe','#bcd9ee'],['azul royal','#1f4ea1'],['azul marinho','#1b2a4a'],['azul petroleo','#1f5560'],['azul turquesa','#2bb6c4'],['turquesa','#2bb6c4'],['azul','#2f6fb0'],
-  ['verde musgo','#5a6b3b'],['verde limao','#bcd64a'],['verde agua','#bfe3d8'],['verde bandeira','#1e7a3d'],['verde oliva','#6b6b3a'],['verde','#2e8b57'],
-  ['amarelo ouro','#e0a526'],['amarelo canario','#f5d427'],['amarelo','#f2c531'],['ouro','#caa233'],['dourado','#caa233'],
-  ['vermelho','#c0392b'],['vinho','#5e1f24'],['bordo','#5e1f24'],['carmim','#9b1c2e'],
-  ['laranja','#e67e22'],['terracota','#b5562e'],['tijolo','#9c4a2f'],['salmao','#f0a78f'],
-  ['rosa','#e79bb3'],['pink','#e84d8a'],['magenta','#c0337a'],
-  ['roxo','#6b3fa0'],['lilas','#b9a5d6'],['violeta','#7a4fb0'],
-  ['marrom','#6b4226'],['cafe','#4b3621'],['chocolate','#4b2e1e'],['caramelo','#a9743b'],['tabaco','#7a5230'],['imbuia','#5a3a22'],['mogno','#6e3326'],['cedro','#8a5a33'],['castanho','#5d3a22'],
-  ['bege','#d8c6a8'],['areia','#d6c5a0'],['palha','#e3d5ad'],['creme','#efe6cf'],['nude','#e3c9b3'],['camurca','#c9a878'],['marfim','#efe7d2'],
-  ['gelo','#eef0ea'],['perola','#ece7dd'],
-];
+// COLOR_DICT → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
 // _normTxt → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 // Cores "placeholder" que NÃO contam como cor escolhida de verdade
-const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
+// _PLACEHOLDER_HEX → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
 // resolveColorHex → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 // productBg → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 // true quando o produto tem cor (gradiente, hex real ou cor pelo nome) → mostrar swatch limpo, sem emoji
@@ -753,19 +668,8 @@ const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
 
 // Mesma classificação automática do portal (marca/tipo no nome do produto).
 // A ordem importa: o primeiro menu cuja palavra-chave casar vence.
-const MKT_MENUS = [
-  { key:'arte_urbana',  label:'🎨 Arte Urbana & Spray',   kw:['arte urbana','colorgin','spray','aerossol','aerosol','grafit','graffit'] },
-  { key:'tintas',       label:'🪣 Tintas',                 kw:['tinta','esmalte','latex','látex','acrilic','acrílic','verniz','primer','seladora','fundo preparador','base coat','automotiva','suvinil','coral','sherwin'] },
-  { key:'texturas',     label:'🧱 Texturas & Massas',      kw:['textura','grafiato','massa corrida','massa acrilic','massa pva','reboco','chapisco'] },
-  { key:'epoxi',        label:'⚗️ Epóxi & Poliuretano',    kw:['epoxi','epóxi','poliuretano',' pu '] },
-  { key:'solventes',    label:'💧 Solventes & Aditivos',   kw:['thinner','solvente','diluente','aguarras','aguarrás','acelerador','secante','catalisador','endurecedor','aditivo','redutor','removedor'] },
-  { key:'adesivos',     label:'🧪 Adesivos & Colas',       kw:['adesivo','cola','silicone','vedante','veda calha','rejunte','massa epox','durepoxi'] },
-  { key:'ferramentas',  label:'🧰 Ferramentas',            kw:['alicate','tesoura','chave','martelo','abre trinca','espatula','espátula','desempenadeira','colher de pedreiro','trena','serra','furadeira','broca','lixadeira','estilete','formao','formão','grosa','lima','torques'] },
-  { key:'pintura',      label:'🖌️ Acessórios de Pintura',  kw:['rolo','pincel','trincha','bandeja','fita crepe','fita','lixa','cabo extensor','extensor','gaiola','luva','mascara','máscara','respirador','oculos','óculos','lona','plastico','plástico','crepe'] },
-  { key:'eletrica',     label:'🔌 Elétrica',               kw:['tomada','adaptador','extens','lampada','lâmpada','disjuntor','filtro de linha','benjamim','fio ','interruptor'] },
-  { key:'equipamentos', label:'🛠️ Equipamentos',           kw:['aerografo','aerógrafo','compressor','pistola','maquina','máquina','pulverizador','airless'] },
-];
-const MKT_MENU_LABEL = Object.assign({ outros:'📦 Outros' }, ...MKT_MENUS.map(m => ({ [m.key]: m.label })));
+// MKT_MENUS → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
+// MKT_MENU_LABEL → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
 // mktClassify → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Virtualização básica: renderiza em batches de 80 com IntersectionObserver
@@ -808,15 +712,15 @@ updateCartBadge();
 
 // openProductDetail → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _mktLoadedAt = 0;
-var _mktGrouped = {};
-const _MKT_TTL = 5 * 60 * 1000; // 5 min
+// _mktLoadedAt → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
+// _mktGrouped → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
+// _MKT_TTL → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
 
 // Constrói abas + seções. Só renderiza as linhas da 1ª seção; as demais
 // são renderizadas sob demanda em mktTab() (lazy).
 // renderMktUI → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
-const _MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b/i;
+// _MKT_HIDDEN → state encapsulado em modules/mkt.js (Fase 4 etapa 2 cleanup).
 // _isMktHidden → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // loadMktProducts → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -832,40 +736,20 @@ const _MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b/i;
 // closeShirtZoom → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AI LOGO GENERATOR ══
-const _aiLogoPalettes = [
-  ['#ff6b35','#1a1a2e','#fff5f0'],
-  ['#2ec4b6','#1a1a2e','#e8f8f6'],
-  ['#8338ec','#fff','#f3ecff'],
-  ['#e63946','#1d3557','#f1faee'],
-  ['#0077b6','#fff','#caf0f8'],
-  ['#06a77d','#1a1a2e','#e8f5e9']
-];
-const _aiLogoIcons = [
-  // paint roller
-  '<g><rect x="14" y="10" width="36" height="10" rx="2" fill="{c1}"/><rect x="28" y="20" width="8" height="6" fill="{c2}"/><rect x="24" y="26" width="16" height="22" rx="2" fill="{c1}"/><rect x="28" y="48" width="8" height="6" fill="{c2}"/></g>',
-  // paint brush
-  '<g><rect x="10" y="44" width="30" height="6" rx="2" fill="{c2}" transform="rotate(-30 25 47)"/><path d="M40 18 L52 30 L46 36 L34 24 Z" fill="{c1}"/><path d="M34 24 L40 18 L36 14 L30 20 Z" fill="{c2}"/></g>',
-  // paint bucket
-  '<g><path d="M18 22 L46 22 L42 52 L22 52 Z" fill="{c1}"/><ellipse cx="32" cy="22" rx="14" ry="3" fill="{c2}"/><path d="M22 18 Q32 8 42 18" stroke="{c2}" stroke-width="2" fill="none"/><rect x="28" y="30" width="8" height="14" fill="{c2}" opacity=".4"/></g>',
-  // color palette
-  '<g><path d="M32 12 C46 12 54 20 54 32 C54 38 50 42 44 42 L40 42 C36 42 34 44 34 48 C34 52 30 54 26 54 C18 54 12 46 12 36 C12 22 20 12 32 12 Z" fill="{c1}"/><circle cx="22" cy="24" r="3" fill="{c2}"/><circle cx="32" cy="20" r="3" fill="{c3}"/><circle cx="42" cy="24" r="3" fill="{c2}"/><circle cx="46" cy="34" r="3" fill="{c3}"/></g>',
-  // wall + roller stripe
-  '<g><rect x="8" y="14" width="48" height="36" rx="3" fill="{c3}"/><rect x="8" y="14" width="48" height="12" fill="{c1}"/><rect x="38" y="8" width="6" height="22" rx="1" fill="{c2}"/></g>',
-  // drop / paint splash
-  '<g><path d="M32 10 C40 22 46 30 46 38 C46 46 40 52 32 52 C24 52 18 46 18 38 C18 30 24 22 32 10 Z" fill="{c1}"/><circle cx="26" cy="38" r="3" fill="{c3}" opacity=".7"/></g>'
-];
+// _aiLogoPalettes → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
+// _aiLogoIcons → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
 
 // _hashStr → modules/ai-logo.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // _renderAiLogoSvg → modules/ai-logo.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _aiLogoSelected = null;
-var _aiLogoLastName = '';
+// _aiLogoSelected → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
+// _aiLogoLastName → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
 
-var _aiLogoUrls = null;
+// _aiLogoUrls → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
 
-const AI_LOGO_REGEN_PRICE_BRL = 1.99;
-const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
+// AI_LOGO_REGEN_PRICE_BRL → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
+// _aiLogoFmtBRL → state encapsulado em modules/ai-logo.js (Fase 4 etapa 2 cleanup).
 
 var _aiLogoCount = 0;
 // _aiLogoGenCount → modules/ai-logo.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -886,20 +770,20 @@ var _aiLogoCount = 0;
 // Pipeline: usuário escolhe estilo → foto(s) → /api/ig-art devolve arte (data URL)
 // e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
 // Antes/Depois usa 2 fotos (antes + depois); outros estilos usam só 1.
-var _aiArtPhotoDataUrl = null;     // base64 da foto principal (slot 1)
-var _aiArtPhotoDataUrl2 = null;    // base64 da segunda foto (slot 2, antes/depois)
-var _aiArtStyle = 'profissional';  // estilo default
-var _aiArtAspect = 'square';       // square | vertical | horizontal
-var _aiArtResultDataUrl = null;    // base64 da arte gerada FINAL (pode ter logo)
-var _aiArtResultCaption = '';
-var _aiArtResultOriginal = null;   // base64 da arte SEM logo (pra alternar checkbox)
+// _aiArtPhotoDataUrl → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtPhotoDataUrl2 → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtStyle → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtAspect → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtResultDataUrl → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtResultCaption → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
+// _aiArtResultOriginal → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
 
 // openAiArt → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Contador de créditos diário (5/dia, espelha o limit do backend).
 // Conta gerações com sucesso por usuário+dia; reseta automaticamente
 // ao virar o dia. Fonte da verdade real é o backend — isso é só UX.
-const _AI_ART_DAILY_LIMIT = 5;
+// _AI_ART_DAILY_LIMIT → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
 // _aiArtCreditsKey → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 // _aiArtGetUsed → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 // _aiArtIncUsed → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -918,7 +802,7 @@ const _AI_ART_DAILY_LIMIT = 5;
 
 // Upload de template do tile (admin-only). Abre file picker → compacta →
 // envia pro /api/upload-style-ref → atualiza preview do tile.
-var _aiArtUploadingStyle = null;
+// _aiArtUploadingStyle → state encapsulado em modules/ai-art.js (Fase 4 etapa 2 cleanup).
 // _aiArtUploadTemplate → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Comprime via canvas pra reduzir tamanho do request (CF Pages Functions
@@ -988,7 +872,7 @@ document.head.appendChild(styleTag);
 // ══════════════════════════════
 //  CHANGE 1: DYNAMIC FEED
 // ══════════════════════════════
-var currentPostType = 'post';
+// currentPostType → state encapsulado em modules/feed-publish.js (Fase 4 etapa 2 cleanup).
 // setPostType → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // openPortfolioComposer → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1014,7 +898,7 @@ var currentPostType = 'post';
 // deleteCourse → modules/quals-courses.js (Fase 4 etapa 2). Shim em /shims.js.
 
 var _lastFeedLoad = 0;
-var _feedRoleFilter = '';
+// _feedRoleFilter → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
 
 // setFeedFilter → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1026,8 +910,8 @@ const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale
 // migration), cai pra tabela profiles direto — que tem RLS "viewable by
 // everyone" e expõe as mesmas colunas seguras.
 // fetchPublicProfiles → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
-var _feedOffset = 0;
-const FEED_PAGE = 30;
+// _feedOffset → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
+// FEED_PAGE → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
 
 // ─── Cache do feed (stale-while-revalidate) ────────────────────────────────
 // Guarda DADOS compactos (JSON), não HTML, e grava fora do main thread
@@ -1049,8 +933,8 @@ const FEED_PAGE = 30;
 
 // retryLoadFeed → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _followingIdsCache = null;
-var _followingIdsCacheTime = 0;
+// _followingIdsCache → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
+// _followingIdsCacheTime → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
 // Invalidar via invalidateFollowingIds() depois de seguir/desfollow.
 // invalidateFollowingIds → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 window.invalidateFollowingIds = invalidateFollowingIds;
@@ -1059,9 +943,9 @@ window.invalidateFollowingIds = invalidateFollowingIds;
 // ══ AUTOPLAY DE VÍDEOS NO FEED (estilo Instagram) ══
 // Vídeos começam mudos (regra de autoplay dos navegadores); o botão de
 // som no canto liga/desliga o áudio para a sessão inteira.
-var _feedMuted = true;
-var _feedVideoObserver = null;
-var _obsVideos = new WeakSet();
+// _feedMuted → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
+// _feedVideoObserver → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
+// _obsVideos → state encapsulado em modules/feed.js (Fase 4 etapa 2 cleanup).
 
 // _feedVolIcon → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1109,8 +993,8 @@ var _obsVideos = new WeakSet();
 // toggleSavePost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Post options modal
-var _currentOptPostId = null;
-var _currentOptUserId = null;
+// _currentOptPostId → state encapsulado em modules/feed-interactions.js (Fase 4 etapa 2 cleanup).
+// _currentOptUserId → state encapsulado em modules/feed-interactions.js (Fase 4 etapa 2 cleanup).
 
 // openPostOpts → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1123,8 +1007,8 @@ var _currentOptUserId = null;
 // deleteCurrentPost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Report post
-var _reportPostId = null;
-var _reportUserId = null;
+// _reportPostId → state encapsulado em modules/feed-interactions.js (Fase 4 etapa 2 cleanup).
+// _reportUserId → state encapsulado em modules/feed-interactions.js (Fase 4 etapa 2 cleanup).
 
 // reportPost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1142,9 +1026,9 @@ var _reportUserId = null;
 var storyGroups = [];
 var currentStoryGroup = 0;
 var currentStoryIndex = 0;
-var storyTimer = null; // mantido pra compat; agora guarda rAF id
-var _lastStoriesFp = ''; // fingerprint do último render — pula re-render quando idêntico
-var _storyRafId = null;
+// storyTimer → state encapsulado em modules/stories.js (Fase 4 etapa 2 cleanup).
+// _lastStoriesFp → state encapsulado em modules/stories.js (Fase 4 etapa 2 cleanup).
+// _storyRafId → state encapsulado em modules/stories.js (Fase 4 etapa 2 cleanup).
 const STORY_DURATION = 5000; // 5 seconds per story like IG
 
 // _stopStoryAnim → modules/stories.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1168,7 +1052,7 @@ var _seenStories = {};
 // ══════════════════════════════
 //  CHANGE 2: POSTING SYSTEM
 // ══════════════════════════════
-var postSelectedFiles = [];
+// postSelectedFiles → state encapsulado em modules/feed-publish.js (Fase 4 etapa 2 cleanup).
 
 // handlePostFiles → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1190,32 +1074,32 @@ var postSelectedFiles = [];
 //  CHANGE 3: LEAFLET MAP
 // ══════════════════════════════
 var leafletMap = null;
-var mapMarkers = [];
+// mapMarkers → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 
 // Carrega Leaflet sob demanda (não vem mais no <head> pra economizar ~160KB
 // no first paint — só usuário do mapa paga o custo).
-var _leafletInflight = null;
+// _leafletInflight → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 // ensureLeaflet → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // initLeafletMap → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // createPinIcon → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var dbPainters = [];
+// dbPainters → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 // Índice pré-construído pra buscar pintor em O(1) por inclusão. Evita
 // re-tokenizar 80 strings a cada tecla. Invalidado quando dbPainters muda.
-var _paintersIndex = null;
+// _paintersIndex → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 // _invalidatePaintersIndex → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // _buildPaintersIndex → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // AbortController pra cancelar fetch fallback anterior se o usuário
 // digitar mais rápido que a rede responde.
-var _paintersSearchAbort = null;
+// _paintersSearchAbort → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 
 // loadMapPainters → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // _starStr → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
-var _exploreType = 'all';
+// _exploreType → state encapsulado em modules/map.js (Fase 4 etapa 2 cleanup).
 // _matchType → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // exploreType → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1230,8 +1114,8 @@ var _exploreType = 'all';
 // ══════════════════════════════
 //  CHANGE 4: ARCHIVE CONVERSATIONS
 // ══════════════════════════════
-var archivedConvs = [];
-var archivedExpanded = false;
+// archivedConvs → state encapsulado em modules/archive.js (Fase 4 etapa 2 cleanup).
+// archivedExpanded → state encapsulado em modules/archive.js (Fase 4 etapa 2 cleanup).
 
 // loadArchivedConvs → modules/archive.js (Fase 4 etapa 2). Shim em /shims.js.
 // saveArchivedConvs → modules/archive.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1250,7 +1134,7 @@ var archivedExpanded = false;
 //  SCREEN HOOKS
 // ══════════════════════════════
 // Wrap showScreen to add hooks for dynamic loading
-const _origShowScreen = showScreen;
+// _origShowScreen → state encapsulado em modules/screen-hooks.js (Fase 4 etapa 2 cleanup).
 showScreen = function(n, _fromPop){
   _origShowScreen(n, _fromPop);
   if(n === 'myprofile'){
@@ -1273,7 +1157,7 @@ showScreen = function(n, _fromPop){
 // ══════════════════════════════
 //  TAG UNIQUENESS CHECK
 // ══════════════════════════════
-var tagAvailable = false;
+// tagAvailable → state encapsulado em modules/signup-tag.js (Fase 4 etapa 2 cleanup).
 var tagCheckTimeout;
 
 // validateAndGoStep3 → modules/signup-tag.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1283,7 +1167,7 @@ var tagCheckTimeout;
 // ══════════════════════════════
 //  INVITE CODE GENERATION
 // ══════════════════════════════
-var generatedInviteCode = {};
+// generatedInviteCode → state encapsulado em modules/invite.js (Fase 4 etapa 2 cleanup).
 // generateInviteCode → modules/invite.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // shareInviteCode → modules/invite.js (Fase 4 etapa 2). Shim em /shims.js.
