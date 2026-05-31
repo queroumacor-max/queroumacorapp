@@ -1,27 +1,27 @@
-// lib/api/security.ts — port parcial de `functions/api/_security.js`.
+// lib/api/security.ts — port de `functions/api/_security.js` para Next.js.
 //
-// Cobre o necessário pros 3 endpoints portados nesta sessão
-// (health, log-error, cidades): ServiceError + jsonResponse +
-// serviceErrorResponse + getToken + requireAuth (skeleton) +
-// checkRateLimit (skeleton fail-open).
+// Cobre os endpoints já portados (health, log-error, cidades) + os 6 desta
+// sessão (auth-rate-check, me-export, admin-errors-list, admin-moderate,
+// admin-users, upload-style-ref).
 //
-// AINDA NÃO portados (próximas sessões — usar como TODO list):
-//   - `requirePro` / `gateProAI` / `gateProAIForm` — bundle PRO+auth+rate-limit
-//     usado por todos os endpoints de IA. Requer SUPABASE_SERVICE_ROLE_KEY no
-//     env do edge runtime e cuidado com o fail-CLOSED quando a key falta.
-//   - `getTokenFromForm` — variante multipart (transcribe, upload-style-ref).
-//   - `rateLimitResponse` — pareado com `checkRateLimit` completo (RPC
-//     `check_rate_limit` no Supabase).
-//   - Mensagens padronizadas `ERR_PRO_ONLY` / `ERR_UNAVAILABLE`.
-//   - `FALLBACK_SUPABASE_URL` / `FALLBACK_ANON_KEY` — no Next preferimos
-//     falhar cedo via env-var ausente; o vanilla mantinha fallback pra
-//     sobreviver a CF binding faltando.
-//
-// Quando portar: replicar a semântica FAIL-OPEN (auth) vs FAIL-CLOSED (PRO
-// check com service key configurada) descrita em detalhes em `_security.js`.
+// Diferenças do vanilla:
+//   - Sem FALLBACK_SUPABASE_URL / FALLBACK_ANON_KEY — env-var ausente
+//     falha cedo (`getSupabaseUrl()` throws ServiceError 503). Em Next o
+//     edge precisa ter `SUPABASE_URL` / `SUPABASE_ANON_KEY` configuradas
+//     no Cloudflare Pages / Vercel; sem isso, o app inteiro quebra mesmo
+//     em runtime, então melhor falhar com 503 do que com fallback velho.
+//   - `requireAuth` em modo "strict" (`requireAuthStrict`) — usado pelos
+//     endpoints novos (me-export, admin-*) que NÃO podem ser anônimos.
+//     A versão fail-open original (`requireAuth`) continua disponível pra
+//     compatibilidade com endpoints que ainda dependem dela.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+
+export const ERR_PRO_ONLY = 'Esta função é exclusiva do Plano PRO ⚡';
+export const ERR_UNAVAILABLE = 'serviço temporariamente indisponível';
+
+const AUTH_TIMEOUT_MS = 10000;
+const RATE_LIMIT_TIMEOUT_MS = 10000;
 
 export class ServiceError extends Error {
   status: number;
@@ -49,6 +49,30 @@ export function serviceErrorResponse(err: ServiceError): NextResponse {
 }
 
 /**
+ * Resolve env-vars do Supabase. Throws ServiceError 503 se ausentes —
+ * no Next preferimos fail-fast a fallback hardcoded.
+ */
+export function getSupabaseUrl(): string {
+  const url = process.env.SUPABASE_URL;
+  if (!url) throw new ServiceError(ERR_UNAVAILABLE, 503);
+  return url.replace(/\/$/, '');
+}
+
+export function getSupabaseAnonKey(): string {
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!key) throw new ServiceError(ERR_UNAVAILABLE, 503);
+  return key;
+}
+
+export function getServiceKey(): string | undefined {
+  return (
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
+
+/**
  * Extrai o JWT do request. Prioridade: header Authorization Bearer,
  * depois `accessToken` no body (útil pra multipart ou clientes que não
  * setam o header). Mesma assinatura do vanilla `_security.getToken`.
@@ -63,6 +87,23 @@ export function getToken(
   return '';
 }
 
+/**
+ * Variante multipart: extrai do FormData. Mesma prioridade
+ * (Authorization header > formData.get('accessToken')).
+ */
+export function getTokenFromForm(
+  request: NextRequest | Request,
+  formData: FormData | null | undefined
+): string {
+  const auth = request.headers.get('authorization') || request.headers.get('Authorization') || '';
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  if (formData && typeof formData.get === 'function') {
+    const v = formData.get('accessToken');
+    if (typeof v === 'string') return v;
+  }
+  return '';
+}
+
 export interface AuthResult {
   user: { id: string; email?: string } | null;
   token?: string;
@@ -73,12 +114,12 @@ export interface AuthResult {
 }
 
 /**
- * Valida JWT do Supabase. FAIL-OPEN: retorna `{ user: null, anon: true }`
+ * Valida JWT via `/auth/v1/user`. FAIL-OPEN: retorna `{ user: null, anon: true }`
  * quando token ausente/inválido — chamador é responsável por barrar quando
- * `user` for null. Veja a doc detalhada em `_security.js`.
+ * `user` for null. Equivalente ao vanilla `_security.requireAuth`.
  *
- * Diferença pro vanilla: usamos o cliente `@supabase/supabase-js` em vez
- * de chamar `/auth/v1/user` direto via fetch. Mesmo comportamento.
+ * Usa `fetch` direto (não `@supabase/supabase-js`) pra controlar timeout
+ * e ficar compatível com edge runtime sem dependência client-side.
  */
 export async function requireAuth(
   request: NextRequest | Request,
@@ -87,23 +128,83 @@ export async function requireAuth(
   const token = getToken(request, body);
   if (!token) return { user: null, anon: true };
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) {
+  let supabaseUrl: string;
+  let anonKey: string;
+  try {
+    supabaseUrl = getSupabaseUrl();
+    anonKey = getSupabaseAnonKey();
+  } catch {
     console.warn('requireAuth: SUPABASE_URL/ANON_KEY ausentes — fail-open');
     return { user: null, anon: true, warn: 'supabase_config_missing' };
   }
   try {
-    const sb = createClient(supabaseUrl, anonKey);
-    const { data, error } = await sb.auth.getUser(token);
-    if (error || !data?.user?.id) {
-      return { user: null, anon: true, warn: 'token_invalid' };
-    }
-    return { user: { id: data.user.id, email: data.user.email }, token };
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: anonKey },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+    });
+    if (!res.ok) return { user: null, anon: true, warn: 'token_invalid' };
+    const user = await res.json();
+    if (!user?.id) return { user: null, anon: true, warn: 'invalid_user' };
+    return { user: { id: user.id, email: user.email }, token };
   } catch (e) {
     console.warn('requireAuth: erro de rede — fail-open:', e instanceof Error ? e.message : e);
     return { user: null, anon: true, warn: 'network_error' };
   }
+}
+
+/**
+ * Versão FAIL-CLOSED de requireAuth: throws ServiceError em vez de retornar
+ * anon. Usada por endpoints que NÃO podem ser anônimos (me-export, admin-*).
+ *
+ * @returns { user: { id, email }, token } — sempre com user populado
+ */
+export async function requireAuthStrict(
+  request: NextRequest | Request,
+  body?: { accessToken?: unknown } | null
+): Promise<{ user: { id: string; email: string }; token: string }> {
+  const token = getToken(request, body);
+  if (!token) throw new ServiceError('login obrigatório', 401);
+
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+
+  let res: Response;
+  try {
+    res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: anonKey },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+    });
+  } catch {
+    throw new ServiceError('falha ao validar token', 401);
+  }
+  if (!res.ok) throw new ServiceError('token inválido', 401);
+  const user = await res.json();
+  if (!user?.id) throw new ServiceError('sessão inválida', 401);
+  return {
+    user: { id: user.id, email: (user.email || '').toLowerCase() },
+    token,
+  };
+}
+
+/**
+ * Checa se `email` está em ADMIN_EMAILS (comma-separated env var).
+ * Equivalente ao vanilla `_admin.isAdminEmail`.
+ */
+export function isAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const admins = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(email.toLowerCase());
+}
+
+/**
+ * Throw ServiceError 403 se email não for admin. Equivalente ao vanilla
+ * `_admin.ensureAdminEmail`.
+ */
+export function ensureAdminEmail(email: string | null | undefined): void {
+  if (!isAdminEmail(email)) throw new ServiceError('não autorizado', 403);
 }
 
 export interface RateLimitResult {
@@ -111,24 +212,75 @@ export interface RateLimitResult {
   skipped?: boolean;
   count?: number;
   limit?: number;
-  retryAfter?: number;
+  retry_after_seconds?: number;
 }
 
 /**
- * Rate limit por (user, endpoint, minuto). SKELETON FAIL-OPEN nesta
- * sessão — sempre retorna `{ allowed: true, skipped: true }`. A versão
- * completa do vanilla chama a RPC `check_rate_limit` no Supabase via
- * service-role; portar quando precisarmos endurecer os endpoints de IA.
+ * Rate limit real via RPC `check_rate_limit` no Supabase. FAIL-OPEN se:
+ *   - userId vazio (request anônimo);
+ *   - SUPABASE_SERVICE_ROLE_KEY ausente;
+ *   - RPC retornar erro/timeout.
  *
- * Aceita `opts` no formato que os endpoints novos vão usar (action +
- * max + windowSeconds), mas internamente ignora pra fail-open. Quando
- * portar de verdade, traduzir pros nomes da RPC (p_user_id, p_endpoint,
- * p_limit) e respeitar `windowSeconds` no SQL.
+ * Equivalente ao vanilla `_security.checkRateLimit`.
  */
-export async function checkRateLimit(
-  _request: NextRequest | Request,
-  _opts: { action: string; max?: number; windowSeconds?: number }
-): Promise<RateLimitResult> {
-  // TODO migration: portar lógica completa de `_security.js#checkRateLimit`.
-  return { allowed: true, skipped: true };
+export async function checkRateLimit(opts: {
+  userId: string | null | undefined;
+  endpoint: string;
+  limit?: number;
+}): Promise<RateLimitResult> {
+  const { userId, endpoint, limit = 30 } = opts;
+  if (!userId) return { allowed: true, skipped: true };
+  const serviceKey = getServiceKey();
+  if (!serviceKey) return { allowed: true, skipped: true };
+
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return { allowed: true, skipped: true };
+  }
+
+  try {
+    const res = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_endpoint: endpoint,
+        p_limit: limit,
+      }),
+      signal: AbortSignal.timeout(RATE_LIMIT_TIMEOUT_MS),
+    });
+    if (!res.ok) return { allowed: true, skipped: true };
+    const data = await res.json();
+    return {
+      allowed: !!data?.allowed,
+      count: data?.count || 0,
+      limit: data?.limit || limit,
+      retry_after_seconds: data?.retry_after_seconds || 60,
+    };
+  } catch {
+    return { allowed: true, skipped: true };
+  }
+}
+
+/**
+ * Resposta 429 padrão pareada com `checkRateLimit`.
+ */
+export function rateLimitResponse(rl: RateLimitResult): NextResponse {
+  const retry = rl.retry_after_seconds || 60;
+  return NextResponse.json(
+    {
+      error: `Limite por minuto atingido (${rl.count}/${rl.limit}). Tente em ${retry}s.`,
+      retry_after: retry,
+    },
+    {
+      status: 429,
+      headers: { 'retry-after': String(retry) },
+    }
+  );
 }
