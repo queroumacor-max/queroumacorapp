@@ -139,20 +139,37 @@ function makeFile(name: string, type: string, size: number): File {
 
 let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
 
-function mockFetchOnce(response: Response | Error): void {
+// Aceita um JSON body + status, ou um Error pra simular falha de rede.
+// Importante: cada call do fetch precisa devolver um Response NOVO porque
+// Response.json() só pode ser consumido uma vez (e alguns testes assertam
+// duas vezes — `rejects.toBeInstanceOf` + `rejects.toMatchObject`).
+function mockFetchJSON(body: unknown, status = 200): void {
   if (fetchSpy) fetchSpy.mockRestore();
   fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as ReturnType<
     typeof vi.spyOn
   >;
-  if (response instanceof Error) {
-    (
-      fetchSpy as unknown as { mockRejectedValue: (e: Error) => void }
-    ).mockRejectedValue(response);
-  } else {
-    (
-      fetchSpy as unknown as { mockResolvedValue: (r: Response) => void }
-    ).mockResolvedValue(response);
-  }
+  (
+    fetchSpy as unknown as {
+      mockImplementation: (fn: () => Promise<Response>) => void;
+    }
+  ).mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  );
+}
+
+function mockFetchError(error: Error): void {
+  if (fetchSpy) fetchSpy.mockRestore();
+  fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as ReturnType<
+    typeof vi.spyOn
+  >;
+  (
+    fetchSpy as unknown as { mockRejectedValue: (e: Error) => void }
+  ).mockRejectedValue(error);
 }
 
 beforeEach(() => {
