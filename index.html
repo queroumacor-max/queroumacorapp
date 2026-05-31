@@ -185,7 +185,7 @@
 <script src="/modules/map.js?v=20260531h" defer></script>
 <!-- Fase 4 wave 4: features pesadas (chat e profile-edit ficam pra próxima wave). -->
 <script src="/modules/mkt.js?v=20260531i" defer></script>
-<script src="/modules/feed.js?v=20260531i" defer></script>
+<script src="/modules/feed.js?v=20260531m" defer></script>
 <script src="/modules/feed-publish.js?v=20260531i" defer></script>
 <script src="/modules/stories.js?v=20260531i" defer></script>
 <script src="/modules/orcamento-form.js?v=20260531i" defer></script>
@@ -209,7 +209,7 @@
      (wrap de dispatchers). install() do screen-hooks NÃO é auto-executado
      porque app.js ainda tem o wrap rodando; quando migrar, chamar
      window.Modules.screenHooks.install() no boot. -->
-<script src="/modules/nav.js?v=20260531l" defer></script>
+<script src="/modules/nav.js?v=20260531m" defer></script>
 <script src="/modules/screen-hooks.js?v=20260531k" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
@@ -2679,7 +2679,7 @@
      wirado. Function declarations remanescentes em app.js sobrepõem por
      hoisting; funções deletadas usam o shim. -->
 <script src="/shims.js?v=20260531b" defer></script>
-<script src="/app.js?v=20260531e" defer></script>
+<script src="/app.js?v=20260531f" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
