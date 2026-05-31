@@ -86,12 +86,50 @@ export interface Comment {
   created_at: string;
 }
 
+// Order = pedido da loja Cali Colors. O status original do schema (linha 1128
+// supabase_init.sql) é o conjunto `pending|paid|amount_mismatch|refunded|canceled`,
+// mas o app vanilla também usou rótulos antigos em PT (rascunho/enviado/entregue)
+// em telas/mocks anteriores. Mantemos os dois grupos no union pra absorver
+// histórico e linhas legadas sem quebrar o tipo.
+export type OrderStatus =
+  | 'rascunho'
+  | 'pendente'
+  | 'pago'
+  | 'enviado'
+  | 'entregue'
+  | 'cancelado';
+
+export interface OrderItem {
+  product_id: string;
+  name: string;
+  qty: number;
+  price: number;
+}
+
+export interface OrderShippingAddress {
+  cep: string;
+  rua: string;
+  numero: string;
+  complemento?: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+}
+
 export interface Order {
   id: string;
   user_id: string;
+  // Aberto pra string porque o banco já carregou linhas com `pending`/`paid`
+  // (em inglês) antes do union em PT ser adotado pelo frontend. UI mapeia
+  // valores desconhecidos pra "pendente" como fallback.
+  status: OrderStatus | string;
+  items: OrderItem[];
   total: number;
-  status: string;
+  paid_amount?: number | null;
+  shipping_address?: OrderShippingAddress | null;
+  tracking_code?: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 // Quote = orçamento. `status` segue o vocabulário em PT-BR usado pelo
@@ -125,12 +163,34 @@ export interface Job {
   created_at: string;
 }
 
+// Notification — alinhado com o schema real em supabase_init.sql (linha
+// 1008+): colunas `type, title, body, ref_id, read (boolean), actor_id`. A
+// flag de leitura é boolean (`read`) e não timestamp — usamos `read=true`
+// como sentinel "leu". O conjunto de `type` válidos vem de notify_user()
+// (RPC SECURITY DEFINER) + do código do vanilla (modules/notif.js).
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'message'
+  | 'quote_sent'
+  | 'quote_approved'
+  | 'order'
+  | 'review'
+  | 'announcement'
+  | 'info'
+  | 'system'
+  | string; // string aberto pra absorver tipos novos sem quebrar build.
+
 export interface Notification {
   id: string;
-  user_id: string;
-  type: string;
-  payload?: Record<string, unknown> | null;
-  read_at?: string | null;
+  user_id: string | null;
+  actor_id?: string | null;
+  type?: NotificationType | null;
+  title?: string | null;
+  body?: string | null;
+  ref_id?: string | null;
+  read?: boolean | null;
   created_at: string;
 }
 
@@ -140,4 +200,20 @@ export interface MutationResult {
   ok: boolean;
   code?: string;
   message?: string;
+}
+
+// Lead = post marcado com for_sale=true. Pintor PRO "compra" o lead criando
+// uma quote pra ele (RLS força painter_id = auth.uid()). Esse shape é o que
+// LeadsList consome — não inclui caminho de pagamento/pontos, isso vive na
+// camada de service. Campos opcionais nullable refletem o schema real de
+// `posts` (caption pode ser null, price pode estar vazio em legado).
+export interface Lead {
+  id: string;
+  user_id: string; // cliente que postou o serviço
+  caption: string | null;
+  media_url: string | null;
+  media_type: 'image' | 'video' | string | null;
+  price?: number | null;
+  art_type?: string | null;
+  created_at: string;
 }
