@@ -7660,6 +7660,8 @@ async function sendPasswordReset(){
   if(!email || !/^\S+@\S+\.\S+$/.test(email)){ toast('Digite seu email no campo acima primeiro'); return; }
   const sb = getSupabase();
   if(!sb){ toast('Aguarde, carregando...'); return; }
+  // Rate limit advisory: bloqueia mais de 5 resets/min do mesmo IP.
+  if(typeof _authRateCheck === 'function' && !(await _authRateCheck('reset'))) return;
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/update-password' });
     if(handleSbError(error)) return;
