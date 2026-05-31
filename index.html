@@ -66,6 +66,25 @@
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
 <script src="/head.js?v=20260531b" defer></script>
+<!-- Badge "STAGING": aparece em qualquer host que NÃO seja queroumacor.com.br
+     (preview deploys *.pages.dev e dev local). Cloudflare Pages já adiciona
+     X-Robots-Tag: noindex nos *.pages.dev por default, então buscadores não
+     indexam — o badge é só pra humanos saberem que não é produção. -->
+<style>.staging-badge{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;background:#f59e0b;color:#1a1a2e;font:800 11px/1.5 monospace;letter-spacing:.5px;padding:2px 12px;border-radius:0 0 8px 8px;pointer-events:none;}</style>
+<script>
+(function(){
+  var host = location.hostname;
+  // Produção: queroumacor.com.br e www.queroumacor.com.br → sem badge.
+  if(/(?:^|\.)queroumacor\.com\.br$/i.test(host)) return;
+  var el = document.createElement('div');
+  el.className = 'staging-badge';
+  el.textContent = '🧪 STAGING · ' + host;
+  // Esperar o body existir (HTML parsing); o defer scripts já garantem isso
+  // pra head.js, mas este inline pode rodar antes do </body>.
+  if(document.body){ document.body.appendChild(el); }
+  else { document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(el); }); }
+})();
+</script>
 <!-- Camada de dados (window.DB) e validação (window.Validators) — Fase 0 da
      refatoração arquitetural. Carregam ENTRE head.js (define getSupabase)
      e app.js (passará a usar DB.* nas fases seguintes). Funções internas
