@@ -567,8 +567,12 @@ async function initAuth(_retry) {
     currentUser = session ? session.user : null;
     // Clean the recovery hash from URL without triggering navigation
     history.replaceState(null, '', window.location.pathname + window.location.search);
-    showScreen('feed');
-    // Small delay so the feed screen renders before the modal opens
+    // Vai pra tela "casca" /update-password (não o feed) — senão o feed
+    // carrega por trás do modal de nova senha, confundindo o usuário.
+    showScreen('update-password');
+    // Backup: _initUpdatePasswordScreen (chamado por showScreen) já abre o
+    // modal; mantemos o setTimeout como rede de segurança caso a sessão
+    // ainda esteja propagando no SDK.
     setTimeout(() => { if(typeof showModal === 'function') showModal('reset-pw-modal'); }, 80);
     sb.auth.onAuthStateChange((event, session) => {
       if(event === 'PASSWORD_RECOVERY') return; // already handled above
@@ -623,7 +627,9 @@ async function initAuth(_retry) {
     currentUser = session ? session.user : null;
     invalidateMyProfile();
     if(event === 'PASSWORD_RECOVERY'){
-      if(typeof showScreen === 'function') showScreen('feed');
+      // Vai pra /update-password (não feed) pra não mostrar o feed atrás
+      // do modal de nova senha. _initUpdatePasswordScreen abre o modal.
+      if(typeof showScreen === 'function') showScreen('update-password');
       setTimeout(() => { if(typeof showModal === 'function') showModal('reset-pw-modal'); }, 80);
       return;
     }
