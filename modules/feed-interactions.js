@@ -17,6 +17,11 @@
   let _reportUserId = null;
 
   // ══ CURTIR ══
+  // Anti-double-emit: dedupe via flag por postId. Sem isso, double-click rápido
+  // pode disparar 2x o emit de post.liked (UI vira/desvira, mas o handler de
+  // notif via Events.on rodaria 2x). O flag protege também contra raça do DB.
+  const _liking = Object.create(null);
+
   async function togglePostLike(btn){
     const svg = btn.querySelector('svg');
     const postEl = btn.closest('.mpost');
@@ -51,13 +56,28 @@
     if(!postId) return;
     const sb = getSupabase();
     if(!sb || !currentUser) return;
+    if(_liking[postId]) return; // dedupe rajada de cliques
+    _liking[postId] = true;
     try {
       if(isLiked){
         await sb.from('likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
       } else {
-        await sb.from('likes').insert({ user_id: currentUser.id, post_id: postId });
+        const { error } = await sb.from('likes').insert({ user_id: currentUser.id, post_id: postId });
+        if(error) throw error;
+        // Fluxo principal via Events.post.liked agora; quem precisa de side-
+        // effect (notif pro autor, analytics) escuta no bus. Só emite QUANDO
+        // o INSERT em likes confirmou — não no flip otimista da UI.
+        if(window.Events){
+          const postOwnerId = postEl ? postEl.dataset.authorId || null : null;
+          window.Events.emit('post.liked', {
+            postId: postId,
+            postOwnerId: postOwnerId,
+            likedByUserId: currentUser.id
+          });
+        }
       }
     } catch(e){ console.warn('togglePostLike error:', e && e.message || e); }
+    finally { delete _liking[postId]; }
   }
 
   // ══ COMENTAR ══

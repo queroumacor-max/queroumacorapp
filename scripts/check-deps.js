@@ -26,7 +26,7 @@ const AS_JSON = process.argv.includes('--json');
 
 // ── 1) Coleta arquivos do escopo ───────────────────────────────────────────
 const ROOT_FILES = ['app.js','head.js','shims.js','db.js','utils.js',
-  'policies.js','validators.js','errors.js','logger.js','config.js','events.js'];
+  'policies.js','errors.js','logger.js','config.js','events.js'];
 const listDir = (rel) => {
   const dir = path.join(ROOT, rel);
   return fs.existsSync(dir)
@@ -36,7 +36,7 @@ const listDir = (rel) => {
 const FILES = ROOT_FILES.filter(f => fs.existsSync(path.join(ROOT, f)))
   .concat(listDir('modules')).concat(listDir('schemas'));
 
-const NS_PARENTS = new Set(['Modules','DB','Utils','Policies','Validators',
+const NS_PARENTS = new Set(['Modules','DB','Utils','Policies',
   'Errors','AppErrors','Logger','Config','Schemas','Events']);
 
 // ── 2) Helpers ─────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ if(AS_JSON){
 } else {
   const L = ['# Dependency analysis', '',
     'Heurística estática (regex sobre `NS.X` em namespaces conhecidos:',
-    '`Modules`, `DB`, `Utils`, `Policies`, `Validators`, `Errors`, `Schemas`,',
+    '`Modules`, `DB`, `Utils`, `Policies`, `Errors`, `Schemas`,',
     '`Events`, `Logger`, `Config`). Limitações em `DEPENDENCIES.md`.', '',
     '## Top-level (no deps from project files)'];
   topLevel.length ? topLevel.forEach(f => L.push('- ' + f)) : L.push('- (none)');

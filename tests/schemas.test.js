@@ -136,20 +136,3 @@ describe('Schemas — chainable helpers', () => {
   });
 });
 
-describe('Schemas → backward-compat com Validators (delegação)', () => {
-  // Carrega validators.js em CIMA do mesmo fakeWindow que já tem Schemas:
-  // o adapter viaSchema() deve preferir o caminho Schemas.
-  const vsrc = readFileSync(join(__dirname, '..', 'validators.js'), 'utf8');
-  new Function('window', vsrc)(fakeWindow);
-  const V = fakeWindow.Validators;
-  it('validateEmail continua retornando { ok } / { ok, error:string }', () => {
-    expect(V.validateEmail('a@b.co').ok).toBe(true);
-    const bad = V.validateEmail('foo');
-    expect(bad.ok).toBe(false);
-    expect(typeof bad.error).toBe('string');
-  });
-  it('validateCPF preserva forma antiga', () => {
-    expect(V.validateCPF('529.982.247-25').ok).toBe(true);
-    expect(V.validateCPF('529.982.247-99').error).toBe('CPF inválido');
-  });
-});

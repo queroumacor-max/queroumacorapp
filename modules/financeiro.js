@@ -151,6 +151,19 @@
     }
   }
 
+  // ══ EVENTS WIRING — pro.upgraded ══
+  // Re-renderiza o financeiro se a tela estiver aberta pra refletir features
+  // PRO desbloqueadas (análise IA do mês). Call sites diretos continuam
+  // funcionando como fallback durante rollout — eventos são aditivos.
+  if(window.Events){
+    window.Events.on('pro.upgraded', function(){
+      const scr = document.getElementById('screen-financeiro');
+      if(scr && scr.classList.contains('active')){
+        try { loadFinanceiro(); } catch(e){ console.warn('[events] pro.upgraded financeiro:', e && e.message); }
+      }
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.financeiro = {
     loadFinanceiro, salvarFinEntry, deleteFinEntry, analisarFinanceiroIA

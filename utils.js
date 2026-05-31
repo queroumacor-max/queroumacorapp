@@ -1,3 +1,4 @@
+// @ts-check
 // utils.js — funções utilitárias puras (sem DOM/rede pesado) extraídas
 // do app.js. Fase 4 da modularização (etapa 1: COPIA pra criar a camada;
 // próximo PR migra call sites e remove duplicatas do app.js).
@@ -7,6 +8,7 @@
 
   // Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
   // "1500.50" no input e devolve Number; o blur formata pra "1.500,00".
+  /** @param {unknown} val @returns {number} */
   function parseBRL(val){
     const raw = String(val == null ? '' : val).trim();
     if(!raw) return 0;
@@ -14,6 +16,7 @@
     const n = Number(raw.replace(/\./g, '').replace(',', '.'));
     return Number.isFinite(n) ? n : 0;
   }
+  /** @param {HTMLInputElement | null | undefined} el @returns {void} */
   function fmtBRL(el){
     if(!el) return;
     const raw = String(el.value || '').trim();
@@ -25,7 +28,9 @@
 
   // adiciona esses atributos no HTML — não setar aqui por toast() pra evitar
   // recriar o live region a cada chamada (quebra anúncio).
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
   let tt;
+  /** @param {string} msg @returns {void} */
   function toast(msg){
     const el=document.getElementById('toast-el');
     if(!el) return;
@@ -37,6 +42,7 @@
   }
 
   // ══ MODALS ══
+  /** @param {string} id @returns {void} */
   function showModal(id){
     // A11y: salva foco anterior pra restaurar depois e move foco pro 1º focável do modal
     window._lastFocus = document.activeElement;
@@ -49,6 +55,7 @@
     }, 50);
   }
 
+  /** @returns {void} */
   function closeModals(){
     document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));
     // A11y: restaura foco no elemento que abriu o modal
@@ -56,6 +63,7 @@
       try { window._lastFocus.focus(); } catch(_){}
     }
   }
+  /** @param {string} id @returns {void} */
   function hideModal(id){
     document.getElementById(id)?.classList.remove('open');
     if(window._lastFocus && typeof window._lastFocus.focus === 'function'){
@@ -63,16 +71,19 @@
     }
   }
 
+  /** @param {unknown} str @returns {string} */
   function escapeHtml(str){
     return String(str == null ? '' : str).replace(/[&<>"']/g, ch => ({
       '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
     }[ch]));
   }
   // Escapa um valor para uso DENTRO de uma string JS em atributo onclick="..."
+  /** @param {unknown} str @returns {string} */
   function escapeJsArg(str){
     return String(str == null ? '' : str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/[<>]/g, '');
   }
 
+  /** @param {string | null | undefined} dateStr @returns {string} */
   function getTimeAgo(dateStr){
     if(!dateStr) return '';
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -86,15 +97,22 @@
     return dateBR(dateStr);
   }
 
+  /** @param {string | null | undefined} s @returns {string} */
   function stripEmail(s){
     if(!s) return s;
     return String(s).replace(/([A-Za-z0-9._%+\-]+)@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, '@$1');
   }
+  /**
+   * @param {{ tag?: string, name?: string } | null | undefined} p
+   * @param {string} [fb]
+   * @returns {string}
+   */
   function cleanHandle(p, fb){
     if(p && p.tag) return '@' + p.tag;
     return stripEmail((p && p.name) || fb || 'Usuário');
   }
 
+  /** @param {File | null | undefined} file @returns {'video' | 'image'} */
   function getMediaType(file){
     if(!file) return 'image';
     if(file.type && file.type.startsWith('video/')) return 'video';
@@ -135,6 +153,7 @@
     });
   }
 
+  /** @param {string | null | undefined} u @returns {boolean} */
   function isVideoUrl(u){
     return /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|#|$)/i.test(u || '');
   }
@@ -196,11 +215,13 @@
   function _agYmd(d){ return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
 
   // Normaliza nome de cliente para dedup (lowercase + trim + colapsa espaços).
+  /** @param {unknown} s @returns {string} */
   function crmNormName(s){
     return String(s||'').toLowerCase().trim().replace(/\s+/g,' ');
   }
 
   // Meses inteiros entre uma data e hoje.
+  /** @param {string | null | undefined} dateStr @returns {number | null} */
   function crmMonthsSince(dateStr){
     if(!dateStr) return null;
     const d = new Date(dateStr);

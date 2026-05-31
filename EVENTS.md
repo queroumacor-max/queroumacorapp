@@ -81,10 +81,34 @@ Evite verbos no imperativo (`refresh-feed`, `delete-post`) — esses são
 
 ---
 
+## Eventos wireados (rollout 2026-05)
+
+Os 5 primeiros fluxos vivos no produto. Padrão validado: publisher emite
+inline no call site (sem wrapper), subscribers registram handlers no IIFE
+do módulo dele durante o boot. Chamadas diretas legadas (notify direto,
+cleanup direto no head.js logout) permanecem como **fallback durante o
+rollout** — eventos são aditivos, não destrutivos.
+
+| Evento            | Publisher                                       | Subscriber(s)                                                       | Payload                                       |
+|-------------------|--------------------------------------------------|----------------------------------------------------------------------|-----------------------------------------------|
+| `auth.logged_in`  | `head.js doLoginSupabase` + `initAuth` (session) | (nenhum — hook pronto pra analytics futuro)                          | `{ userId, email }`                           |
+| `auth.logged_out` | `head.js doLogoutSupabase` (ANTES de zerar state) | `modules/chat.js` (flush cache + fecha realtime), `modules/notif.js` (limpa badge + unsubscribe) | `{}`                                          |
+| `post.liked`      | `modules/feed-interactions.js togglePostLike` (após INSERT confirmar; dedup via `_liking[postId]`) | `modules/notif.js` (cria notificação pro autor via `notify_user` RPC) | `{ postId, postOwnerId, likedByUserId }`      |
+| `pro.upgraded`    | `modules/pro.js handleProReturn` (quando polling detecta `is_pro=true`) | `modules/crm.js`, `modules/financeiro.js`, `modules/pipeline.js`, `modules/agenda.js` (re-render da tela ativa) | `{ userId, expiresAt }`                       |
+| `feed.refreshed`  | `modules/feed.js loadFeed` (ao final do load sem erro) | `head.js` (log de métrica via `Logger.info` ou fallback `console.info`) | `{ count, durationMs }`                       |
+
+**Defensividade**: todos os call sites checam `if(window.Events)` antes de
+`emit`/`on` pra que rollback de events.js não quebre nada. Em `head.js`, o
+subscriber de `feed.refreshed` defere o `on()` pra `DOMContentLoaded`
+porque head.js carrega ANTES de events.js no `index.html`.
+
+Coberto por `tests/events-integration.test.js` (7 testes).
+
+---
+
 ## Eventos sugeridos para wirar no futuro
 
-Hoje **não há call site no código** usando o bus — é infraestrutura
-disponível. Quando a feature pedir desacoplamento, candidatos óbvios:
+Quando a feature pedir desacoplamento, candidatos óbvios:
 
 | Evento                   | Publisher                          | Subscriber sugerido                                  |
 |--------------------------|------------------------------------|------------------------------------------------------|

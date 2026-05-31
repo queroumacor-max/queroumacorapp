@@ -181,6 +181,19 @@
     }
   }
 
+  // ══ EVENTS WIRING — pro.upgraded ══
+  // Quando o pro ativa, recarrega a agenda se aberta pra refletir features
+  // PRO desbloqueadas (otimizar dia com IA). Chamada direta continua
+  // funcionando como fallback durante rollout — eventos são aditivos.
+  if(window.Events){
+    window.Events.on('pro.upgraded', function(){
+      const scr = document.getElementById('screen-agenda');
+      if(scr && scr.classList.contains('active')){
+        try { loadAgenda(); } catch(e){ console.warn('[events] pro.upgraded agenda:', e && e.message); }
+      }
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.agenda = {
     loadAgenda, agMonth, agSelect, renderAgendaCal, renderAgendaDay,

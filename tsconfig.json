@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "db.js",
+    "policies.js",
+    "errors.js",
+    "logger.js",
+    "config.js",
+    "utils.js",
+    "events.js",
+    "schemas/**/*.js",
+    "functions/api/**/*.js",
+    "scripts/**/*.js",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests/**",
+    "e2e/**",
+    "modules/**",
+    "app.js",
+    "head.js",
+    "shims.js",
+    "*.min.js",
+    "supabase.js",
+    "portal/**",
+    "sw.js",
+    "types.js",
+    "leaflet.js"
+  ]
+}

@@ -31,7 +31,10 @@
   legados continuem funcionando. Carrega ANTES do `app.js`.
 - `head.js` — boot, auth, helpers de fetch, observabilidade, perfil.
 - `db.js` — fachada `window.DB` sobre Supabase (profiles/follows/posts).
-- `validators.js` — `window.Validators` (funções puras de validação).
+- `schemas/` (`_core.js`, `primitives.js`, `documents.js`, `social.js`,
+  `index.js`) — `window.Schemas` (regras de validação shape estilo Zod;
+  `parse(v) → { ok, value?, error?:{code,message} }`, chainable via
+  `.optional()` e `.refine(fn,msg)`).
 - `policies.js` — `window.Policies` (RBAC + ownership puro, sem rede).
 - `utils.js` — `window.Utils` (helpers puros: parseBRL, toast, escapeHtml,
   getTimeAgo, etc.). Re-exportado como globals via `shims.js`.
@@ -62,8 +65,8 @@ Scripts carregados em `index.html` via `<script defer>`, nesta ordem
    `loadMyProfileData`, helpers (`brl`, `dateBR`, `avatarUrl`, `cfImg`,
    `gateProClient`, `withTimeout`, `safeAwait`, `withErrorHandling`).
 3. `config.js` / `utils.js` / `errors.js` / `logger.js` / `policies.js` /
-   `db.js` / `validators.js` — camadas fundacionais. Expostas em
-   `window.Config`, `window.Utils`, `window.Errors`, etc.
+   `db.js` / `schemas/*` — camadas fundacionais. Expostas em
+   `window.Config`, `window.Utils`, `window.Errors`, `window.Schemas`, etc.
 4. `modules/*.js` (44 arquivos, ~10000 linhas) — features encapsuladas em
    IIFE. Cada módulo registra `window.Modules.X = { ... }`.
 5. `shims.js` — republica `Modules.X.fn` e `Utils.X` como bare globals em
@@ -173,7 +176,7 @@ não roteáveis.
   `X-Robots-Tag: noindex` automático nos `*.pages.dev`.
 - **Sem build step** — o repo é servido como está. Exceção: `build:portal`
   pré-compila o JSX do portal admin.
-- **Cache-busting**: `index.html` carrega `head.js`, `db.js`, `validators.js`
+- **Cache-busting**: `index.html` carrega `head.js`, `db.js`, `schemas/*`
   e `app.js` com `?v=AAAAMMDD<letra>` (ex.: `?v=20260531d`). **DEVE ser
   bumpado** sempre que o arquivo muda — senão Cloudflare serve a versão
   antiga do cache.
@@ -188,8 +191,8 @@ não roteáveis.
 - `npm test` → `vitest run` (sem watch).
 - `tests/_security.test.js` — `getToken`, `getTokenFromForm` e contratos
   do helper de auth.
-- `tests/validators.test.js` — 13 validadores (email, senha, match, tag,
-  CPF/CNPJ etc.).
+- `tests/schemas.test.js` — 13 schemas (email, senha, match, tag,
+  CPF/CNPJ etc.) + helpers chainable (`.optional()`, `.refine()`).
 - `tests/db.test.js` — smoke do shape de `window.DB` + caminho degradado
   (sem Supabase → tudo retorna seguro).
 - **Sem teste de UI/E2E**. Smoke manual por feature após cada mudança
@@ -211,7 +214,7 @@ não roteáveis.
    │   1. supabase.js (UMD)
    │   2. head.js     (auth, currentUser, apiPost, getSupabase)
    │   3. db.js       (window.DB)
-   │   4. validators.js (window.Validators)
+   │   4. schemas/* (window.Schemas)
    │   5. app.js      (features + showScreen)
    ▼
 [head.js boot]

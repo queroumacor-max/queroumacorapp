@@ -1,3 +1,4 @@
+// @ts-check
 // schemas/index.js — meta-aggregator. Os arquivos _core/primitives/documents/social
 // já populam window.Schemas via IIFE; este arquivo só finaliza o objeto
 // (helper parse + lista de nomes) por conveniência. Carregar SEMPRE depois dos outros.
@@ -7,6 +8,12 @@
 
   // Helper opcional: Schemas.parse('email', 'a@b.co') === Schemas.email.parse('a@b.co').
   if(typeof S.parse !== 'function'){
+    /**
+     * @param {string} name
+     * @param {any} value
+     * @param {any} [extra]
+     * @returns {{ ok: boolean, value?: any, error?: { code: string, message: string } }}
+     */
     S.parse = function(name, value, extra){
       const schema = S[name];
       if(!schema || typeof schema.parse !== 'function'){

@@ -1133,26 +1133,14 @@ var leafletMap = null;
 // ══════════════════════════════
 //  SCREEN HOOKS
 // ══════════════════════════════
-// Wrap showScreen to add hooks for dynamic loading
-// _origShowScreen → state encapsulado em modules/screen-hooks.js (Fase 4 etapa 2 cleanup).
-showScreen = function(n, _fromPop){
-  _origShowScreen(n, _fromPop);
-  if(n === 'myprofile'){
-    autoDetectRole();
-  }
-  if(n === 'feed'){
-    loadFeed();
-  }
-  if(n === 'explore'){
-    setTimeout(async () => {
-      await initLeafletMap();
-      if(leafletMap) leafletMap.invalidateSize();
-    }, 200);
-  }
-  if(n === 'chat'){
-    setTimeout(initArchiveButtons, 100);
-  }
-};
+// Wrap showScreen com dispatchers por tela (autoDetectRole, loadFeed, etc.).
+// O wrap mora em modules/screen-hooks.js — install() captura window.showScreen
+// atual e re-publica wrapped. Foi inline aqui na Fase 4 etapa 2, mas a cleanup
+// deletou o `const _origShowScreen = showScreen` e deixou o consumer órfão
+// (bug "_origShowScreen is not defined" em prod). Fix: delegar pro módulo.
+if(window.Modules && window.Modules.screenHooks){
+  window.Modules.screenHooks.install();
+}
 
 // ══════════════════════════════
 //  TAG UNIQUENESS CHECK

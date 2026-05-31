@@ -330,16 +330,18 @@ describe('GET /api/cidades', () => {
         body: [{ nome: 'São Paulo' }, { nome: 'Campinas' }, { extra: 'ignored', nome: 'Santos' }]
       }
     });
+    // env sem KV binding → X-Cache: BYPASS (comportamento pré-KV preservado).
     const res = await invoke(cidadesHandler, {
       method: 'GET',
       url: 'https://x/api/cidades?uf=sp',
-      env: {}
+      env: { KV: undefined }
     });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.uf).toBe('SP');
     expect(json.cidades).toEqual([{ nome: 'São Paulo' }, { nome: 'Campinas' }, { nome: 'Santos' }]);
     expect(res.headers.get('cache-control')).toMatch(/max-age=86400/);
+    expect(res.headers.get('x-cache')).toBe('BYPASS');
   });
 
   it('returns 502 when IBGE returns non-2xx', async () => {
@@ -349,9 +351,64 @@ describe('GET /api/cidades', () => {
     const res = await invoke(cidadesHandler, {
       method: 'GET',
       url: 'https://x/api/cidades?uf=RJ',
-      env: {}
+      env: { KV: undefined }
     });
     expect(res.status).toBe(502);
+  });
+
+  it('serves from KV cache (HIT) without calling IBGE when key exists', async () => {
+    const cached = [{ nome: 'São Paulo' }, { nome: 'Guarulhos' }];
+    const fakeKV = {
+      get: vi.fn(async (_key, _type) => cached),
+      put: vi.fn(async () => {})
+    };
+    const fetchMock = installFetchMock({
+      // Se o IBGE for chamado por engano, devolve algo claramente diferente
+      // pra falhar o assert de payload abaixo.
+      'servicodados.ibge.gov.br': { body: [{ nome: 'NÃO_DEVERIA_BATER' }] }
+    });
+    const res = await invoke(cidadesHandler, {
+      method: 'GET',
+      url: 'https://x/api/cidades?uf=SP',
+      env: { KV: fakeKV }
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.uf).toBe('SP');
+    expect(json.cidades).toEqual(cached);
+    expect(res.headers.get('x-cache')).toBe('HIT');
+    expect(fakeKV.get).toHaveBeenCalledWith('cidades:SP', 'json');
+    expect(fakeKV.put).not.toHaveBeenCalled();
+    // Confirma que IBGE NÃO foi chamado.
+    const ibgeCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('servicodados.ibge.gov.br'));
+    expect(ibgeCalls.length).toBe(0);
+  });
+
+  it('on KV MISS fetches IBGE and writes-back to KV with 7d TTL', async () => {
+    const fakeKV = {
+      get: vi.fn(async () => null),
+      put: vi.fn(async () => {})
+    };
+    installFetchMock({
+      'servicodados.ibge.gov.br': {
+        body: [{ nome: 'Rio de Janeiro' }, { nome: 'Niterói' }]
+      }
+    });
+    const res = await invoke(cidadesHandler, {
+      method: 'GET',
+      url: 'https://x/api/cidades?uf=RJ',
+      env: { KV: fakeKV }
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.cidades).toEqual([{ nome: 'Rio de Janeiro' }, { nome: 'Niterói' }]);
+    expect(res.headers.get('x-cache')).toBe('MISS');
+    expect(fakeKV.get).toHaveBeenCalledWith('cidades:RJ', 'json');
+    expect(fakeKV.put).toHaveBeenCalledTimes(1);
+    const [putKey, putValue, putOpts] = fakeKV.put.mock.calls[0];
+    expect(putKey).toBe('cidades:RJ');
+    expect(JSON.parse(putValue)).toEqual([{ nome: 'Rio de Janeiro' }, { nome: 'Niterói' }]);
+    expect(putOpts).toEqual({ expirationTtl: 7 * 24 * 3600 });
   });
 });
 

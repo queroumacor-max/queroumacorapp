@@ -80,7 +80,21 @@
       const iv = setInterval(async () => {
         tries++;
         const pro = await refreshProStatus();
-        if(pro){ clearInterval(iv); toast('Plano PRO ativado! 🎉'); }
+        if(pro){
+          clearInterval(iv);
+          toast('Plano PRO ativado! 🎉');
+          // Fluxo principal via Events.pro.upgraded agora. Subscribers em
+          // modules/crm.js / financeiro.js / pipeline.js / agenda.js
+          // refazem o render pra desbloquear features PRO. Cada um continua
+          // chamando applyProUI/refreshProStatus direto também durante o
+          // rollout — eventos são aditivos.
+          if(window.Events && currentUser){
+            window.Events.emit('pro.upgraded', {
+              userId: currentUser.id,
+              expiresAt: _proExpires
+            });
+          }
+        }
         else if(tries >= 6){ clearInterval(iv); toast('Pagamento em processamento. O PRO será liberado em instantes.'); }
       }, 4000);
       // Limpa o parâmetro da URL

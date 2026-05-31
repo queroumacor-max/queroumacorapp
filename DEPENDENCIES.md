@@ -38,7 +38,6 @@ O script vive em `scripts/check-deps.js` (≤200 linhas, sem deps novas, roda em
                             │                                 │
                             │  schemas/{primitives,documents, │
                             │           social,index}.js      │
-                            │  validators.js                  │
                             │  shims.js                       │
                             └────────────────┬────────────────┘
                                              │  consumed by
@@ -59,14 +58,13 @@ O script vive em `scripts/check-deps.js` (≤200 linhas, sem deps novas, roda em
 
 Order canônico de load em `index.html` (resumo):
 `supabase.js` → `head.js` → `config/utils/events/errors/logger/policies/db` →
-`schemas/{_core,primitives,documents,social,index}` → `validators` →
+`schemas/{_core,primitives,documents,social,index}` →
 `modules/*` (42 arquivos) → `app.js` → `shims.js`.
 
 ## Arestas reais detectadas (17)
 
 ```
 shims.js                  → utils.js                     (window.Utils)
-validators.js             → schemas/_core.js, index.js   (Schemas.parse)
 
 schemas/documents.js      → schemas/_core.js, index.js   (Schemas._core)
 schemas/primitives.js     → schemas/_core.js, index.js   (idem)

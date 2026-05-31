@@ -415,6 +415,19 @@
       .subscribe();
   }
 
+  // ══ EVENTS WIRING — pro.upgraded ══
+  // Quando o pro ativa, recarrega o pipeline se aberto pra refletir features
+  // PRO desbloqueadas (sugerir preço com IA, snapshots avançados). Chamada
+  // direta continua funcionando como fallback durante rollout.
+  if(window.Events){
+    window.Events.on('pro.upgraded', function(){
+      const scr = document.getElementById('screen-pipeline');
+      if(scr && scr.classList.contains('active')){
+        try { loadPipeline(); } catch(e){ console.warn('[events] pro.upgraded pipeline:', e && e.message); }
+      }
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.pipeline = {
     QUOTE_STATUS,

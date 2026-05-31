@@ -58,7 +58,7 @@ Job `validate` (Ubuntu, timeout 5min):
 2. `actions/setup-node@v4` com Node 20 + cache npm
 3. `npm ci` — instalacao limpa das deps
 4. **Syntax check (`node -c`)** sobre `app.js`, `head.js`, `db.js`,
-   `validators.js`, `types.js`, `sw.js`. Pega erros de parse antes do
+   `schemas/*.js`, `types.js`, `sw.js`. Pega erros de parse antes do
    deploy.
 5. **Asset reference check** — grep no `index.html` pega cada path
    referenciado com `?v=`, verifica que o arquivo existe no disco. Falha
@@ -137,6 +137,12 @@ Configurar em **Production** e (se diferente) em **Preview**.
 Apos mudar uma env var, o Cloudflare Pages exige um novo deploy para
 propagar (pode ser um deploy vazio via "Retry deployment" no painel).
 
+**Bindings** (separados de env vars; Settings -> Functions):
+
+| Binding | Tipo         | Uso                                          |
+| ------- | ------------ | -------------------------------------------- |
+| `KV`    | KV namespace | Cache edge p/ `/api/cidades` (ver [KV.md](./KV.md)) |
+
 ---
 
 ## 7. Cache strategy (`_headers`)
@@ -145,7 +151,7 @@ propagar (pode ser um deploy vazio via "Retry deployment" no painel).
 
 Servidos com `Cache-Control: public, max-age=31536000, immutable`:
 
-- `/head.js`, `/app.js`, `/db.js`, `/validators.js`, `/shims.js`
+- `/head.js`, `/app.js`, `/db.js`, `/schemas/*`, `/shims.js`
 - `/errors.js`, `/logger.js`, `/policies.js`, `/config.js`, `/utils.js`
 - `/modules/*` (todos os 44 modulos da Fase 4)
 - `/supabase.js`, `/jspdf.umd.min.js`
@@ -183,6 +189,23 @@ HTML referencia uma nova querystring, o browser baixa de novo.
 ### Style refs (Arte IG)
 
 `/style-refs/*`: `public, max-age=604800` (1 semana — troca rara).
+
+### KV cache (edge, compartilhado entre PoPs)
+
+Endpoints `/api/*` que precisam de cache cross-region duradouro usam
+Cloudflare KV (binding `env.KV`). Hoje em uso por:
+
+- `GET /api/cidades?uf=<UF>` — proxy IBGE, TTL 7d, chave `cidades:<UF>`.
+
+Camadas: browser → CDN → **KV** → origin. KV sobrevive a purges do CDN
+e fica abaixo dele. Header `X-Cache: HIT|MISS|BYPASS` indica a origem
+do response. Detalhes operacionais (setup do binding, debug, custos,
+padrão pra novas chaves) em [KV.md](./KV.md).
+
+**Setup pelo usuário** (não-Claude-actionable): criar namespace
+`queroumacor-kv` no painel Cloudflare e bindar como `KV` em Pages →
+Settings → Functions → KV namespace bindings. Sem o binding o endpoint
+funciona normalmente (cai em `BYPASS`, bate IBGE em cada MISS de CDN).
 
 ---
 
@@ -249,7 +272,7 @@ qualquer um destes arquivos:
 - `head.js`
 - `db.js`
 - `shims.js`
-- `validators.js`
+- qualquer `schemas/*.js`
 - qualquer `modules/*.js`
 - (qualquer outro arquivo na lista de assets immutables da secao 7)
 

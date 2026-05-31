@@ -541,6 +541,38 @@ function _deferIdle(fn){
   }
 }
 
+// ══ EVENTS WIRING — feed.refreshed (log de métrica) ══
+// Subscriber pro evento emitido em modules/feed.js loadFeed() quando o load
+// completou sem erro. Útil pra debug + analytics futuro. Usa window.Logger
+// se existir, senão cai pra console.info (mesma severidade). NÃO fazer
+// chamada DB / IO pesado aqui — handler tem que ser barato.
+// IMPORTANTE: events.js carrega DEPOIS de head.js no index.html (linha 165
+// vs 135), então window.Events ainda não existe quando o IIFE roda. Defere
+// o wiring pro DOMContentLoaded — nesse ponto events.js já registrou o bus.
+(function _wireFeedRefreshedLog(){
+  function attach(){
+    if(!window.Events) return; // events.js não carregou — degrada silencioso
+    window.Events.on('feed.refreshed', function(p){
+      try {
+        var msg = '[feed.refreshed] count=' + (p && p.count) + ' durationMs=' + (p && p.durationMs);
+        if(window.Logger && typeof window.Logger.info === 'function'){
+          window.Logger.info(msg);
+        } else {
+          console.info(msg);
+        }
+      } catch(_){}
+    });
+  }
+  if(window.Events){ attach(); }
+  else if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', attach, { once: true });
+  } else {
+    // DOM já está pronto mas events.js pode ainda não ter sido executado;
+    // microtask deixa o IIFE do events.js rodar antes.
+    setTimeout(attach, 0);
+  }
+})();
+
 async function initAuth(_retry) {
   let sb = getSupabase();
   // Tolerância a CDN lento/fallback: aguarda até 6s polling 200ms se supabase-js
@@ -606,6 +638,14 @@ async function initAuth(_retry) {
 
   if (session) {
     currentUser = session.user;
+    // auth.logged_in dispara também pra sessão restaurada (refresh, retorno
+    // do app). Sem subscriber hoje; hook pronto pra analytics futuro.
+    if(window.Events){
+      window.Events.emit('auth.logged_in', {
+        userId: session.user.id,
+        email: session.user.email || ''
+      });
+    }
     if(typeof loadUserState==='function') loadUserState();
     showScreen('feed');
     autoDetectRole();
@@ -950,7 +990,19 @@ async function doLoginSupabase(email, password) {
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) { toast('Erro: ' + error.message); }
-    else { currentUser = data.user; autoDetectRole(); showScreen('feed'); }
+    else {
+      currentUser = data.user;
+      // Fluxo principal via Events.auth.logged_in agora. Sem subscriber hoje;
+      // hook pronto pra analytics futuro. Emitido SÓ no caminho de sucesso.
+      if(window.Events){
+        window.Events.emit('auth.logged_in', {
+          userId: data.user.id,
+          email: data.user.email || ''
+        });
+      }
+      autoDetectRole();
+      showScreen('feed');
+    }
   } catch(e) {
     toast('Erro de conexão: ' + e.message);
   }
@@ -1082,6 +1134,13 @@ async function doLogoutSupabase() {
   // Flush pendentes ANTES de zerar currentUser, senão writes debounced
   // de chat ficam órfãos (não conseguem montar a chave de storage).
   if(typeof _flushConvs === 'function'){ try { _flushConvs(); _flushMsgs(); } catch(_){} }
+  // Fluxo principal via Events.auth.logged_out agora. Subscribers em
+  // modules/chat.js (flush _convsCache + fecha realtime) e modules/notif.js
+  // (limpa badge + unsubscribe realtime). Emitido ANTES de zerar
+  // currentUser/_isPro/_isAdmin pra que handlers vejam o estado pré-logout
+  // se precisarem. Cleanup direto abaixo permanece como fallback durante
+  // rollout — eventos são aditivos.
+  if(window.Events){ window.Events.emit('auth.logged_out', {}); }
   currentUser = null;
   if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
   showScreen('login');

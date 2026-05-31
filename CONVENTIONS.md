@@ -14,14 +14,14 @@
 
 ## Arquivos
 - ES modules (com import/export): só em /functions/api/ e /tests/.
-- IIFE com window.X: em /modules/, db.js, validators.js, errors.js, logger.js, policies.js, config.js, utils.js.
+- IIFE com window.X: em /modules/, /schemas/, db.js, errors.js, logger.js, policies.js, config.js, utils.js.
 - HTML: SPA single-page (index.html).
 - CSS: styles.css + inline em element-level quando hot.
 
 ## Imports
 - Não duplicar utility entre arquivos — use Utils.X de /utils.js.
 - Constantes compartilhadas: Config.X em /config.js.
-- Validação: Validators.X em /validators.js.
+- Validação: Schemas.X.parse(v) em /schemas/ (`primitives.js`, `documents.js`, `social.js`). Retorno `{ ok, value? } | { ok:false, error:{ code, message } }`.
 - Erros: AppErrors.X em /errors.js.
 - Logs: Logger.X em /logger.js.
 - Authz: Policies.canX em /policies.js.

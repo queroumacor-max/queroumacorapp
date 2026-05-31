@@ -12,12 +12,18 @@
 //  - emit() não devolve resultado dos handlers (fire-and-forget pra async)
 // Pra side-effects críticos (cobrança, e-mail), use call direto ou wire numa
 // fila persistente trocando este adapter.
+/** @typedef {(payload?: any) => any} EventHandler */
 (function(){
   'use strict';
 
   // event_name -> Set<handler>. Set garante de-dup e remoção O(1).
+  /** @type {Map<string, Set<EventHandler>>} */
   const handlers = new Map();
 
+  /**
+   * @param {string} name
+   * @returns {Set<EventHandler>}
+   */
   function _getSet(name){
     let s = handlers.get(name);
     if(!s){ s = new Set(); handlers.set(name, s); }
@@ -26,6 +32,11 @@
 
   // Registra um handler. Devolve uma função "unsubscribe" — chame pra remover
   // sem precisar guardar a referência original.
+  /**
+   * @param {string} name
+   * @param {EventHandler} handler
+   * @returns {() => void}
+   */
   function on(name, handler){
     if(typeof name !== 'string' || !name){ return function(){}; }
     if(typeof handler !== 'function'){ return function(){}; }
@@ -34,6 +45,11 @@
   }
 
   // Remove um handler específico. No-op se não estiver registrado.
+  /**
+   * @param {string} name
+   * @param {EventHandler} handler
+   * @returns {void}
+   */
   function off(name, handler){
     const s = handlers.get(name);
     if(!s) return;
@@ -46,6 +62,11 @@
   // (sync) ou rejeita (async), o resto da chain segue. Handlers async são
   // fire-and-forget: agendados via Promise.resolve().then(...) pra não bloquear
   // o publisher. Não há await; emit() devolve void.
+  /**
+   * @param {string} name
+   * @param {any} [payload]
+   * @returns {void}
+   */
   function emit(name, payload){
     const s = handlers.get(name);
     if(!s || s.size === 0) return;
@@ -73,8 +94,14 @@
   // Açúcar pra registrar handler de uso único. Remove a si mesmo no primeiro
   // disparo, ANTES de executar a callback original (evita re-entry infinito se
   // a callback emitir o mesmo evento).
+  /**
+   * @param {string} name
+   * @param {EventHandler} handler
+   * @returns {() => void}
+   */
   function once(name, handler){
     if(typeof handler !== 'function') return function(){};
+    /** @type {EventHandler} */
     function wrapper(payload){
       off(name, wrapper);
       return handler(payload);
@@ -84,8 +111,14 @@
 
   // Introspect (debug + tests). Subscript com `_` pra sinalizar "não-API
   // pública estável" — call sites de produção não devem depender.
+  /** @returns {string[]} */
   function _list(){ return Array.from(handlers.keys()); }
-  function _count(name){ return handlers.has(name) ? handlers.get(name).size : 0; }
+  /** @param {string} name @returns {number} */
+  function _count(name){
+    const s = handlers.get(name);
+    return s ? s.size : 0;
+  }
+  /** @returns {void} */
   function _clear(){ handlers.clear(); } // reset entre testes
 
   window.Events = { on: on, off: off, emit: emit, once: once,

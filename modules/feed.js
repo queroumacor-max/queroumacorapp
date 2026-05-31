@@ -161,6 +161,13 @@
         : Promise.all([loadStories(feedIds), loadPosts(feedIds, false, paintedFromCache)]));
       if(slowHint) clearTimeout(slowHint);
       const elapsed = Date.now() - t0;
+      // Fluxo principal via Events.feed.refreshed agora; head.js escuta pra
+      // log de métrica (Logger.info). Disparado SÓ quando load completou sem
+      // throw — caminho de erro abaixo NÃO emite.
+      if(window.Events){
+        const count = document.querySelectorAll('#feed-posts-area .mpost').length;
+        window.Events.emit('feed.refreshed', { count: count, durationMs: elapsed });
+      }
       if(elapsed > 5000 && typeof reportError === 'function'){
         // Carregou mas demorou — sinal de query slow ou rede ruim. Logar.
         reportError({ type:'feed-slow', ctx: elapsed + 'ms / ' + document.querySelectorAll('#feed-posts-area .mpost').length + ' posts' });
@@ -298,7 +305,7 @@
         const paletteFill = saved ? 'var(--p1)' : 'none';
         const paletteStroke = saved ? 'var(--p1)' : 'var(--ink)';
 
-        html += '<div class="mpost" data-post-id="'+escapeHtml(p.id)+'" data-author-role="'+escapeHtml(prof.role||'')+'">';
+        html += '<div class="mpost" data-post-id="'+escapeHtml(p.id)+'" data-author-id="'+escapeHtml(p.user_id||'')+'" data-author-role="'+escapeHtml(prof.role||'')+'">';
         html += '<div class="mpost-head">';
         html += '<div class="av-ring"><div class="av-inner">'+avatarImgTag(prof, 96)+'</div></div>';
         html += '<div class="post-meta"><span class="post-uname">'+escapeHtml(name)+'</span>';
