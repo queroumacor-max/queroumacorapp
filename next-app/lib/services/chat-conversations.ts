@@ -18,18 +18,28 @@ import {
  * Caminho preferido: RPC `get_conversations` (1 round-trip, agrega no PG).
  * Fallback: busca todas as mensagens onde o user é sender OU receiver e
  * agrupa no client + resolve perfis (replicação do loadChatList legado).
+ *
+ * `signal` opcional cancela todas as queries em voo via AbortSignal — útil
+ * pra evitar race condition quando o usuário troca de aba rapidamente.
  */
 export async function fetchConversations(
   userId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ConversationMeta[]> {
   if (!userId) return [];
 
   const sb = getSupabase();
+  const signal = options?.signal;
+  const withSignal = <Q>(q: Q): Q => {
+    if (!signal) return q;
+    return (q as unknown as { abortSignal: (s: AbortSignal) => Q }).abortSignal(signal);
+  };
 
   // 1) Tentativa via RPC. Se a função não existe, cai pro fallback. NÃO
   //    levantamos NetworkError aqui — agregação client é fallback válido.
   try {
-    const { data: rows, error } = await sb.rpc('get_conversations');
+    const rpcCall = sb.rpc('get_conversations');
+    const { data: rows, error } = await withSignal(rpcCall);
     if (!error && Array.isArray(rows)) {
       return rows.map((r: Record<string, unknown>) => rpcRowToMeta(r, userId));
     }
@@ -39,18 +49,22 @@ export async function fetchConversations(
 
   // 2) Fallback: messages onde sou sender OU receiver, agrupar por conv_id.
   const [sentRes, recvRes] = await Promise.all([
-    sb
-      .from('messages')
-      .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
-      .eq('sender_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(200),
-    sb
-      .from('messages')
-      .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
-      .eq('receiver_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(200),
+    withSignal(
+      sb
+        .from('messages')
+        .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
+        .eq('sender_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+    ),
+    withSignal(
+      sb
+        .from('messages')
+        .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
+        .eq('receiver_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(200),
+    ),
   ]);
   if (sentRes.error) throw new NetworkError(sentRes.error.message, sentRes.error);
   if (recvRes.error) throw new NetworkError(recvRes.error.message, recvRes.error);
@@ -106,10 +120,11 @@ export async function fetchConversations(
   );
   const profMap = new Map<string, Record<string, unknown>>();
   if (otherIds.length > 0) {
-    const { data: profs } = await sb
+    const profQ = sb
       .from('profiles_public')
       .select('id, name, avatar_url, tag, role, user_type')
       .in('id', otherIds);
+    const { data: profs } = await withSignal(profQ);
     for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
       profMap.set(String(p.id), p);
     }

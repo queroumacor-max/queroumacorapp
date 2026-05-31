@@ -25,24 +25,58 @@ import type { Order } from '@/lib/types';
 const ORDER_COLS = 'id, user_id, status, items, total, paid_amount, created_at';
 
 // 50 é o limite pedido pelo spec; bate com a UX de "últimos pedidos" sem
-// virar página gigante. Pra paginação futura, partir daqui com offset/range.
+// virar página gigante. Pra paginação cursor-based, opt-in via options.
 const DEFAULT_LIMIT = 50;
 
+export interface FetchPedidosOptions {
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+export interface PedidosPage {
+  items: Order[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 /**
- * Busca os últimos pedidos da loja do usuário em ordem reverse-chronological.
+ * Busca os pedidos da loja do usuário em ordem reverse-chronological.
  * Retorna [] se userId vazio (consistente com fetchNotifications) pra que o
  * caller não precise checar antes — null seria mais ergonômico mas quebra
  * o invariante `Array.isArray(pedidos)` em quem consome o resultado.
+ *
+ * Sobrecarga: sem options retorna `Order[]` (back-compat); com options
+ * retorna `PedidosPage` com cursor + signal pra infinite scroll/cancel.
  */
-export async function fetchPedidos(userId: string): Promise<Order[]> {
-  if (!userId) return [];
+export async function fetchPedidos(userId: string): Promise<Order[]>;
+export async function fetchPedidos(
+  userId: string,
+  options: FetchPedidosOptions,
+): Promise<PedidosPage>;
+export async function fetchPedidos(
+  userId: string,
+  options?: FetchPedidosOptions,
+): Promise<Order[] | PedidosPage> {
+  if (!userId) {
+    return options ? { items: [], nextCursor: null, hasMore: false } : [];
+  }
+  const limit = Math.max(1, options?.limit ?? DEFAULT_LIMIT);
+  const cursor = options?.cursor ?? null;
+  const signal = options?.signal;
   const sb = getSupabase();
-  const { data, error } = await sb
+  let q = sb
     .from('orders')
     .select(ORDER_COLS)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(DEFAULT_LIMIT);
+    .eq('user_id', userId);
+  if (cursor) {
+    q = q.lt('created_at', cursor);
+  }
+  q = q.order('created_at', { ascending: false }).limit(limit);
+  const qFinal = signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(signal)
+    : q;
+  const { data, error } = await qFinal;
   if (error) {
     throw new NetworkError(error.message, error);
   }
@@ -50,5 +84,10 @@ export async function fetchPedidos(userId: string): Promise<Order[]> {
   // domain type Order tipa `items: OrderItem[]`. Em runtime é a mesma
   // string JSON; o cast só silencia o type system. Zod/validation
   // poderia parsear estrito, mas Order é loose-shape no app.
-  return (data ?? []) as unknown as Order[];
+  const items = (data ?? []) as unknown as Order[];
+  if (!options) return items;
+  const last = items[items.length - 1] as { created_at?: string | null } | undefined;
+  const nextCursor = last?.created_at ?? null;
+  const hasMore = items.length >= limit && !!nextCursor;
+  return { items, nextCursor, hasMore };
 }

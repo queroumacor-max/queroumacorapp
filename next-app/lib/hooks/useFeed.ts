@@ -18,7 +18,12 @@
 
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchFeed, FEED_PAGE_SIZE, type FeedPost } from '@/lib/services/feed';
+import {
+  fetchFeed,
+  FEED_PAGE_SIZE,
+  type FeedPage,
+  type FeedPost,
+} from '@/lib/services/feed';
 import type { UserRole } from '@/lib/types';
 
 export interface UseFeedOptions {
@@ -43,29 +48,35 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
   const roleFilter = options.roleFilter ?? null;
   const followingOnly = options.followingOnly ?? true;
 
+  // pageParam = cursor ISO timestamp (created_at do último post da página
+  // anterior). null = primeira página (sem cursor, devolve as N mais
+  // recentes). Cursor-based dropa offset shift quando posts novos entram
+  // entre fetches e é O(log n) em vez de O(n) no Postgres.
   const query = useInfiniteQuery<
-    FeedPost[],
+    FeedPage,
     Error,
-    InfiniteData<FeedPost[], number>,
+    InfiniteData<FeedPage, string | null>,
     readonly unknown[],
-    number
+    string | null
   >({
     queryKey: ['feed', user?.id ?? null, roleFilter, followingOnly],
-    queryFn: async ({ pageParam }) =>
+    queryFn: async ({ pageParam, signal }) =>
       fetchFeed({
         userId: user?.id ?? null,
-        offset: pageParam,
+        cursor: pageParam,
         limit: FEED_PAGE_SIZE,
         roleFilter,
         followingOnly,
+        // signal cancela fetch quando o componente desmonta ou a query é
+        // invalidada — evita race conditions e wastes de banda.
+        signal,
       }),
-    initialPageParam: 0,
-    // getNextPageParam: a próxima página começa onde a anterior parou.
-    // Se a última retornou MENOS que o page size, chegamos no fim — devolve
-    // undefined pra TanStack saber que `hasNextPage` é false.
-    getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage || lastPage.length < FEED_PAGE_SIZE) return undefined;
-      return allPages.reduce((sum, page) => sum + page.length, 0);
+    initialPageParam: null,
+    // getNextPageParam: cursor da próxima página = nextCursor da última.
+    // Se hasMore=false ou nextCursor=null, retorna undefined → fim do feed.
+    getNextPageParam: (lastPage) => {
+      if (!lastPage || !lastPage.hasMore || !lastPage.nextCursor) return undefined;
+      return lastPage.nextCursor;
     },
     // staleTime: 30s — alinhado com o default do QueryProvider. Feed muda
     // mais rápido que profile/notifications mas 30s evita refetch agressivo
@@ -73,7 +84,7 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
     staleTime: 30_000,
   });
 
-  const posts = query.data?.pages.flat() ?? [];
+  const posts = query.data?.pages.flatMap((p) => p.items) ?? [];
 
   return {
     posts,

@@ -31,6 +31,7 @@ import { z } from 'zod';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
+import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   getCidadesByUF,
   uploadAvatar,
@@ -77,6 +78,7 @@ export function EditProfileForm() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(0);
 
   const {
     register,
@@ -111,6 +113,25 @@ export function EditProfileForm() {
       address: profile.address ?? '',
     });
   }, [profile, reset]);
+
+  // Autosave (UX#6): persiste rascunho a cada 5s em localStorage e
+  // restaura no mount. Não cobre avatar (File) nem campos readonly.
+  // O onRestore só dispara se já existir draft válido (TTL 7d).
+  const watchedValues = watch();
+  const autosave = useAutosave<FormData>({
+    key: 'profile_edit',
+    values: watchedValues as FormData,
+    onRestore: (restored) => {
+      reset(restored);
+    },
+  });
+  // Trigger UI badge "Rascunho salvo" — react ao lastSavedAt do hook via
+  // efeito leve no values.
+  useEffect(() => {
+    if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
+      setDraftSavedAt(autosave.lastSavedAt);
+    }
+  }, [watchedValues, autosave.lastSavedAt, draftSavedAt]);
 
   // Watch state pra disparar o fetch de cidades quando UF muda. Mesmo
   // comportamento do vanilla _epStateChanged + loadCidadesDoEstado.
@@ -191,6 +212,9 @@ export function EditProfileForm() {
 
       setSubmitSuccess(true);
       setAvatarFile(null); // limpa preview pós-save
+      // Apaga rascunho pra não restaurar valores antigos no próximo mount.
+      autosave.clear();
+      setDraftSavedAt(0);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : 'Erro ao salvar');
     }
@@ -407,6 +431,16 @@ export function EditProfileForm() {
       >
         {isUpdating ? 'Salvando...' : 'Salvar'}
       </button>
+
+      {draftSavedAt > 0 && !submitSuccess ? (
+        <p
+          className="text-xs text-[color:var(--color-muted)] text-center"
+          role="status"
+          aria-live="polite"
+        >
+          Rascunho salvo
+        </p>
+      ) : null}
     </form>
   );
 }

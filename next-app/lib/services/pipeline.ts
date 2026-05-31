@@ -61,29 +61,71 @@ const QUOTE_COLS =
 
 const DEFAULT_LIMIT = 100;
 
+export interface FetchQuotesOptions {
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+export interface QuotesPage {
+  items: Quote[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 // ─── reads ──────────────────────────────────────────────────────────────
 
 /**
  * Busca todas as quotes do pintor atual, ordenadas mais novas primeiro.
  * Retorna [] se painterId vazio (consistente com fetchPedidos/fetchLeads).
  *
+ * Sobrecarga: chamada sem options retorna Quote[] (back-compat); com options
+ * habilita keyset pagination + AbortController. Cursor é ISO timestamp de
+ * created_at da última row da página anterior.
+ *
  * O caller é responsável por chamar `syncToJobs` antes/depois — não fazemos
  * aqui pra manter o read puro (sem efeito colateral). usePipeline encadeia
  * via mutation onSuccess quando precisar.
  */
-export async function fetchQuotes(painterId: string): Promise<Quote[]> {
-  if (!painterId) return [];
+export async function fetchQuotes(painterId: string): Promise<Quote[]>;
+export async function fetchQuotes(
+  painterId: string,
+  options: FetchQuotesOptions,
+): Promise<QuotesPage>;
+export async function fetchQuotes(
+  painterId: string,
+  options?: FetchQuotesOptions,
+): Promise<Quote[] | QuotesPage> {
+  if (!painterId) {
+    return options ? { items: [], nextCursor: null, hasMore: false } : [];
+  }
+  const limit = Math.max(1, options?.limit ?? DEFAULT_LIMIT);
+  const cursor = options?.cursor ?? null;
+  const signal = options?.signal;
   const sb = getSupabase();
-  const { data, error } = await sb
+  let q = sb
     .from('quotes')
     .select(QUOTE_COLS)
-    .eq('painter_id', painterId)
-    .order('created_at', { ascending: false })
-    .limit(DEFAULT_LIMIT);
+    .eq('painter_id', painterId);
+  if (cursor) {
+    q = q.lt('created_at', cursor);
+  }
+  q = q.order('created_at', { ascending: false }).limit(limit);
+  const qFinal = signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(signal)
+    : q;
+  const { data, error } = await qFinal;
   if (error) {
     throw new NetworkError(error.message, error);
   }
-  return (data ?? []) as Quote[];
+  const items = (data ?? []) as Quote[];
+  if (!options) return items;
+  const last = items[items.length - 1];
+  // created_at é optional no domain type (legado); na prática DB sempre tem.
+  // Fallback null se faltar — hasMore=false impede o caller de tentar mais.
+  const nextCursor = (last?.created_at as string | null | undefined) ?? null;
+  const hasMore = items.length >= limit && !!nextCursor;
+  return { items, nextCursor, hasMore };
 }
 
 /**

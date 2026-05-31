@@ -42,7 +42,13 @@ export async function POST(request: NextRequest) {
     let file: File | undefined;
 
     if (contentType.includes('multipart/form-data')) {
-      const form = await request.formData();
+      // Cheap gate via content-length antes do parse. Multipart legítimo
+      // de imagem 4MB + boundary fica em ~5MB; pegamos um pouco mais por
+      // segurança. Cap fino do File.size é feito pelo service (uploadStyleRef).
+      const form = (await readBody(request, {
+        type: 'form',
+        maxBytes: MAX_MULTIPART_BYTES + 256 * 1024,
+      })) as FormData;
       token = getTokenFromForm(request, form);
       const sk = form.get('styleKey');
       styleKey = typeof sk === 'string' ? sk.trim() : '';
@@ -53,8 +59,9 @@ export async function POST(request: NextRequest) {
     } else {
       let body: { styleKey?: unknown; photoDataUrl?: unknown; accessToken?: unknown };
       try {
-        body = (await request.json()) as typeof body;
-      } catch {
+        body = (await readBody(request, { maxBytes: MAX_JSON_BYTES })) as typeof body;
+      } catch (e) {
+        if (e instanceof ServiceError) return serviceErrorResponse(e);
         return jsonResponse({ error: 'JSON inválido' }, 400);
       }
       token = getToken(request, body);

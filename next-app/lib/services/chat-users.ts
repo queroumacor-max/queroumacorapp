@@ -22,15 +22,20 @@ const SEARCH_MIN_QUERY_LENGTH = 2;
 export async function searchUsers(
   query: string,
   excludeIds: string[] = [],
+  options?: { signal?: AbortSignal },
 ): Promise<UserMini[]> {
   const q = (query ?? '').replace('@', '').trim().toLowerCase();
   if (q.length < SEARCH_MIN_QUERY_LENGTH) return [];
 
   const sb = getSupabase();
-  const { data, error } = await sb
+  const builder = sb
     .from('profiles_public')
     .select('id, name, tag, avatar_url, role, user_type')
     .limit(200);
+  const builderFinal = options?.signal
+    ? (builder as unknown as { abortSignal: (s: AbortSignal) => typeof builder }).abortSignal(options.signal)
+    : builder;
+  const { data, error } = await builderFinal;
   if (error) throw new NetworkError(error.message, error);
 
   const excludeSet = new Set(excludeIds);

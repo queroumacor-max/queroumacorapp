@@ -10,10 +10,11 @@
 
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { usePipeline } from '@/lib/hooks/usePipeline';
+import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   QUOTE_STATUS,
   fetchQuote,
@@ -76,6 +77,26 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // direto via link sem passar pelo kanban primeiro).
   const [localQuote, setLocalQuote] = useState<Quote | null>(null);
   const [fetching, setFetching] = useState(false);
+
+  // Rascunho de notas privadas por orçamento — não bate no banco, só
+  // localStorage. Persistido com TTL 7d pelo useAutosave. Útil pra o
+  // pintor anotar lembretes ("ligar quinta", "cliente prefere fosco") sem
+  // poluir a tabela quotes. Key `quote_${id}` por spec UX#6.
+  const [internalNote, setInternalNote] = useState('');
+  const [draftSavedAt, setDraftSavedAt] = useState(0);
+  const noteValues = useMemo(() => ({ note: internalNote }), [internalNote]);
+  const autosave = useAutosave<{ note: string }>({
+    key: `quote_${id}`,
+    values: noteValues,
+    onRestore: (restored) => {
+      if (typeof restored.note === 'string') setInternalNote(restored.note);
+    },
+  });
+  useEffect(() => {
+    if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
+      setDraftSavedAt(autosave.lastSavedAt);
+    }
+  }, [noteValues, autosave.lastSavedAt, draftSavedAt]);
 
   // Prefere a quote do hook (mantida fresh pelo realtime); fallback pra
   // fetch direto se não estiver no cache.
@@ -406,6 +427,39 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
             Concluir
           </button>
         ) : null}
+      </section>
+
+      {/* Bloco de anotações privadas autosaved (UX#6). Visível só pra quem
+          é dono — outros usuários nem chegam até aqui (RLS na quote). */}
+      <section className="mt-4 bg-white rounded-2xl border border-[color:var(--color-border)] p-4">
+        <label
+          htmlFor="quote-internal-note"
+          className="block text-xs font-bold uppercase text-[color:var(--color-muted)] mb-2"
+        >
+          Anotações internas
+        </label>
+        <textarea
+          id="quote-internal-note"
+          value={internalNote}
+          onChange={(e) => setInternalNote(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Lembretes só seus (ex.: cliente prefere fosco, ligar quinta)…"
+          className="w-full px-3 py-2 border border-[color:var(--color-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+        />
+        {draftSavedAt > 0 ? (
+          <p
+            className="mt-2 text-xs text-[color:var(--color-muted)]"
+            role="status"
+            aria-live="polite"
+          >
+            Rascunho salvo
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-[color:var(--color-muted)]">
+            Salvo só no seu dispositivo. Não compartilhado com o cliente.
+          </p>
+        )}
       </section>
     </main>
   );

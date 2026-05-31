@@ -280,24 +280,47 @@ async function getByUser(userId: string, opts: GetByUserOpts = {}): Promise<Quer
 
 interface GetFeedPostsOpts {
   cols?: string;
+  // offset-based (legacy) — mantido pra back-compat; mas cursor é preferido.
+  // Se ambos vierem, cursor ganha (mais robusto).
   offset?: number;
   limit?: number;
   feedIds?: string[];
+  // Cursor ISO timestamp (created_at da última row da página anterior). Quando
+  // presente, usa keyset pagination (.lt('created_at', cursor)) em vez de
+  // offset-based (.range()) — não shifta resultados quando posts novos chegam,
+  // e é O(log n) em vez de O(n) no Postgres pra deep pagination.
+  cursor?: string | null;
+  // signal pra cancelar a query (TanStack `useQuery({signal})` propaga aqui).
+  signal?: AbortSignal;
 }
 
 async function getFeedPosts(opts: GetFeedPostsOpts = {}): Promise<QueryResult<Post>> {
   const sb = _sb();
   if (!sb) return { data: [], error: { message: 'no-client' } };
   const cols = opts.cols || POST_COLS;
-  const offset = opts.offset || 0;
   const limit = opts.limit || 30;
   const feedIds = opts.feedIds || [];
   let q = sb.from('posts').select(cols).neq('media_type', 'story');
   // status nulo = posts antigos pré-moderação; mantemos compat aceitando ambos.
   q = q.or('status.eq.approved,status.is.null');
   if (feedIds.length > 0) q = q.in('user_id', feedIds);
-  q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
-  const r = await q;
+  if (opts.cursor) {
+    // Keyset: pega rows mais antigas que o cursor; order desc + limit dá a
+    // próxima janela determinística mesmo com INSERTs concorrentes.
+    q = q.lt('created_at', opts.cursor);
+    q = q.order('created_at', { ascending: false }).limit(limit);
+  } else if (typeof opts.offset === 'number' && opts.offset > 0) {
+    // Legacy offset path — só usado se caller passar offset > 0 explícito.
+    q = q.order('created_at', { ascending: false }).range(opts.offset, opts.offset + limit - 1);
+  } else {
+    q = q.order('created_at', { ascending: false }).limit(limit);
+  }
+  // .abortSignal() existe no PostgrestBuilder mas a tipagem é tardia em alguns
+  // builds — cast pra `unknown` evita stuck no genérico.
+  const qWithSignal = opts.signal
+    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(opts.signal)
+    : q;
+  const r = await qWithSignal;
   return { data: (r.data as unknown as Post[] | null) ?? [], error: r.error };
 }
 

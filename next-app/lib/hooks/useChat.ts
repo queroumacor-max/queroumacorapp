@@ -66,7 +66,7 @@ export function useConversations(): UseConversationsResult {
   const { user } = useAuth();
   const query = useQuery<ConversationMeta[], Error>({
     queryKey: ['chat', 'conversations', user?.id ?? null],
-    queryFn: () => fetchConversations(user!.id),
+    queryFn: ({ signal }) => fetchConversations(user!.id, { signal }),
     enabled: !!user,
     staleTime: 15_000,
   });
@@ -308,7 +308,7 @@ export function useSearchUsers(
 ): UseSearchUsersResult {
   const result = useQuery<UserMini[], Error>({
     queryKey: ['chat', 'search-users', query, excludeIds.join(',')],
-    queryFn: () => searchUsers(query, excludeIds),
+    queryFn: ({ signal }) => searchUsers(query, excludeIds, { signal }),
     enabled: query.trim().length >= 2,
     staleTime: 30_000,
   });

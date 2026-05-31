@@ -58,8 +58,15 @@ export interface FeedPost extends Post {
 export interface FetchFeedParams {
   // userId logado — opcional pra suportar feed público (não logado vê todos).
   userId?: string | null;
+  // offset legado — mantido pra back-compat com callers antigos; cursor é
+  // preferido. Se ambos vierem, cursor ganha.
   offset?: number;
   limit?: number;
+  // Cursor de keyset pagination: ISO timestamp da última row da página
+  // anterior. .lt('created_at', cursor) devolve a próxima janela sem shift
+  // quando posts novos entram entre páginas (vs offset, que duplicaria/pula).
+  // Performance: O(log n) com index em created_at vs O(n) do offset.
+  cursor?: string | null;
   // Filtro por role do autor (pintor/grafiteiro/automotivo). Vazio = todos.
   // No vanilla era client-side (filterFeedPosts no DOM); aqui sobe pro
   // fetch pra a paginação respeitar o filtro (evita carregar 30 posts e
@@ -70,6 +77,20 @@ export interface FetchFeedParams {
   // Se false/undefined, lista posts globais — usado em "Descobrir" no
   // futuro. Por enquanto sempre true no caller (FeedView).
   followingOnly?: boolean;
+  // signal pra abortar fetches em voo quando o componente desmonta ou a
+  // query é invalidada (TanStack `useQuery({signal})` propaga aqui).
+  signal?: AbortSignal;
+}
+
+// Página de feed retornada por fetchFeed — shape de cursor pagination.
+//   - items: posts enriquecidos da página atual;
+//   - nextCursor: created_at da última row (ou null se chegou no fim);
+//   - hasMore: true se a página veio cheia (provável próxima existe).
+// Caller (useInfiniteQuery) lê nextCursor pra próxima fetch.
+export interface FeedPage {
+  items: FeedPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 // Limite default — bate com FEED_PAGE = 30 do vanilla (modules/feed.js linha 22).
@@ -96,7 +117,7 @@ export async function fetchPublicProfiles(ids: string[]): Promise<Profile[]> {
 // têm sua própria página/feature). Devolve posts já enriquecidos com profile,
 // liked, saved, likeCount e comments — pronto pra renderizar.
 
-export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[]> {
+export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage> {
   const offset = Math.max(0, params.offset ?? 0);
   const limit = Math.min(
     Math.max(1, params.limit ?? FEED_PAGE_DEFAULT),
@@ -105,12 +126,15 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
   const userId = params.userId ?? null;
   const roleFilter = params.roleFilter ?? null;
   const followingOnly = params.followingOnly ?? false;
+  const cursor = params.cursor ?? null;
+  const signal = params.signal;
 
   // Wave A: posts crus. DB.posts.getFeedPosts já lida com:
   //   - filtro media_type != 'story',
   //   - status = approved OR NULL (compat pré-moderação),
-  //   - paginação por range(offset, offset+limit-1),
-  //   - feedIds vazio = lista global.
+  //   - cursor (.lt('created_at', cursor)) ou offset legado,
+  //   - feedIds vazio = lista global,
+  //   - abortSignal pra cancel quando query desmonta/invalida.
   let feedIds: string[] = [];
   if (followingOnly && userId) {
     // Lista de quem o user segue + o próprio user (mesma lógica de
@@ -124,12 +148,16 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
     feedIds,
     offset,
     limit,
+    cursor,
+    signal,
   });
   if (postsRes.error) {
     throw new NetworkError(postsRes.error.message || 'Falha ao carregar feed', postsRes.error);
   }
   const posts = postsRes.data ?? [];
-  if (posts.length === 0) return [];
+  if (posts.length === 0) {
+    return { items: [], nextCursor: null, hasMore: false };
+  }
 
   const userIds = [...new Set(posts.map((p) => p.user_id))];
   const postIds = posts.map((p) => p.id);
@@ -141,22 +169,38 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
   // dependentes depois.
   const sb = getSupabase();
 
+  // Helper: propaga `signal` pro PostgrestBuilder via `.abortSignal()`. A
+  // tipagem é tardia em alguns builds do supabase-js, então passamos por
+  // unknown — runtime suporta sempre que > 2.0.
+  const withSignal = <Q>(q: Q): Q => {
+    if (!signal) return q;
+    return (q as unknown as { abortSignal: (s: AbortSignal) => Q }).abortSignal(signal);
+  };
+
   const profilesP = fetchPublicProfiles(userIds);
-  const commentsP = sb
-    .from('comments')
-    .select('id, post_id, user_id, text, created_at')
-    .in('post_id', postIds)
-    .order('created_at', { ascending: true });
-  const allLikesP = sb.from('likes').select('post_id').in('post_id', postIds);
+  const commentsP = withSignal(
+    sb
+      .from('comments')
+      .select('id, post_id, user_id, text, created_at')
+      .in('post_id', postIds)
+      .order('created_at', { ascending: true }),
+  );
+  const allLikesP = withSignal(
+    sb.from('likes').select('post_id').in('post_id', postIds),
+  );
   const myLikesP = userId
-    ? sb.from('likes').select('post_id').eq('user_id', userId).in('post_id', postIds)
+    ? withSignal(
+        sb.from('likes').select('post_id').eq('user_id', userId).in('post_id', postIds),
+      )
     : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null });
   const savedP = userId
-    ? sb
-        .from('saved_posts')
-        .select('post_id')
-        .eq('user_id', userId)
-        .in('post_id', postIds)
+    ? withSignal(
+        sb
+          .from('saved_posts')
+          .select('post_id')
+          .eq('user_id', userId)
+          .in('post_id', postIds),
+      )
     : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null });
 
   const [profiles, commentsRes, allLikesRes, myLikesRes, savedRes] = await Promise.all([
@@ -234,11 +278,22 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
     };
   });
 
+  // Cursor da próxima página = created_at do último post desta página (já em
+  // desc order). hasMore=true se a página veio cheia — heurística simples:
+  // se vieram MENOS posts que o limite, é fim (não tem mais). Note que o
+  // roleFilter só filtra DEPOIS, então o cursor reflete o último post bruto
+  // da página (não da lista filtrada) — isso é correto pra paginação avançar
+  // mesmo se a página filtrada ficar vazia.
+  const lastRaw = posts[posts.length - 1];
+  const nextCursor = lastRaw?.created_at ?? null;
+  const hasMore = posts.length >= limit;
+
+  let items = enriched;
   if (roleFilter) {
     const role = String(roleFilter).toLowerCase();
-    return enriched.filter((p) => String(p.profile.role ?? '').toLowerCase() === role);
+    items = enriched.filter((p) => String(p.profile.role ?? '').toLowerCase() === role);
   }
-  return enriched;
+  return { items, nextCursor, hasMore };
 }
 
 // Re-exporta a constante de page size pra o hook usar como pageSize default.

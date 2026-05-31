@@ -121,6 +121,18 @@
   (2) `app.js abrirMaquininha/entrarListaMaquininha` que perdiam silenciosamente
   os cliques de interesse (tabela `feature_interest` inexistente). Não pedir
   para rodar de novo.
+- **SQL Wave 5 (2026-05-31) — PENDENTE de execução no Supabase.** Tabelas
+  `consent_log` (LGPD trilha de consentimento por tipo/versão, RLS user-owned),
+  `audit_log` (auditoria de ações administrativas — admin reads via
+  `is_portal_admin()`; convive com `audit_events` granular trigger-driven),
+  `invite_codes` (expiração default 30 dias + `invite_code_valid(text)` RPC),
+  função `cleanup_orphan_media()` + `execute_cleanup_orphan_media()`
+  (admin-only, deleta arquivos do bucket `posts` sem post referenciando, com
+  janela de 7 dias). Cleanup retroativo de `audit_log > 1 ano` via
+  `cleanup_old_audit_log()`. Migration única em
+  `/migrations/2026-05-31-consent-audit-invites-cleanup.sql`. Client TS de
+  consent em `next-app/lib/services/consent.ts`. Trocar para "JÁ EXECUTADO"
+  após o usuário rodar no SQL Editor.
 - **Bucket Supabase `style-refs` JÁ FOI CRIADO** (público pra leitura, com
   policy `"style-refs public read"` em `storage.objects` só pra SELECT, sem
   policy de INSERT/UPDATE/DELETE — só o endpoint `/api/upload-style-ref`
@@ -162,4 +174,15 @@
   pega valor de qualquer coluna que esteja preenchida. View NÃO tem mais
   as colunas `palette` nem `country` (não existem no banco real, foram
   removidas em algum momento). Não pedir pra rodar de novo.
+- **SQL Wave 6 (2026-05-31) — PENDENTE de execução no Supabase.** Full-text
+  search (Banco#9): colunas geradas `search_vector tsvector` em `posts`
+  (caption), `products` (name + description com pesos A/B) e `profiles`
+  (name + bio + tag com pesos A/B/A), todas com índice GIN. Função RPC
+  `search_all(p_query text, p_limit int)` agrega resultados das 3 tabelas
+  (com `plainto_tsquery('portuguese')`, `ts_headline` pra snippet e
+  `ts_rank` pra score), filtrando posts por `status='approved'`. Migration
+  única em `/migrations/2026-05-31-fulltext-search.sql`. Service TS em
+  `next-app/lib/services/search.ts`, hook `useSearch` com debounce 300ms,
+  página `/search` com input + grupos (Pintores/Posts/Produtos). Trocar
+  para "JÁ EXECUTADO" após o usuário rodar no SQL Editor.
 
