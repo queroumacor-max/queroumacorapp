@@ -96,7 +96,7 @@
   expose('archive', ['loadArchivedConvs','saveArchivedConvs','initArchiveButtons','archiveConversation','unarchiveConversation','applyArchivedState','toggleArchivedSection']);
 
   // ── auth-pw (reset / update password)
-  expose('authPw', ['sendPasswordReset','doSetNewPassword']);
+  expose('authPw', ['sendPasswordReset','doSetNewPassword','_initUpdatePasswordScreen']);
 
   // ── content-mod (moderação de conteúdo)
   expose('contentMod', ['moderateContent','moderateContentAsync']);
@@ -117,7 +117,7 @@
   expose('stories', ['loadStories','isStoryGroupSeen','markStoryGroupSeen','openStoryViewer','closeStoryViewer','renderCurrentStory','storyNext','storyPrev']);
 
   // ── orcamento-form (formulário de orçamento)
-  expose('orcamentoForm', ['abrirOrcamentoChat','addOrcPhotos','renderOrcPhotos','removeOrcPhoto','enviarOrcamentoForm','toggleOrcOutros','sendOrc']);
+  expose('orcamentoForm', ['abrirOrcamentoChat','addOrcPhotos','renderOrcPhotos','removeOrcPhoto','enviarOrcamentoForm','toggleOrcOutros','sendOrc','openChat']);
 
   // ── ai-art (Arte IG / imagens IA)
   expose('aiArt', ['openAiArt','gerarArteIG']);
@@ -126,7 +126,7 @@
   expose('aiChat', ['openAiOrcamento','openAiChat','sendAiChat','aiChatToggleVoice','aiChatStopVoice','aiChatHandleVoice','falarSeuZe','sugerirEscopoIA','addOrcItem','gerarOrcamentoIA']);
 
   // ── ai-logo (Logo IA / camiseta personalizada)
-  expose('aiLogo', ['gerarLogoIA','selectAiLogo','usarLogoIA','salvarLogoNoPerfil','baixarLogo','uploadBusinessLogo','loadBusinessLogo']);
+  expose('aiLogo', ['gerarLogoIA','selectAiLogo','usarLogoIA','salvarLogoNoPerfil','baixarLogo','uploadBusinessLogo','loadBusinessLogo','_applyOwnLogoToShirt']);
 
   // ── pipeline (kanban de orçamentos / pipeline)
   expose('pipeline', ['QUOTE_STATUS','buildQuoteSnapshot','syncQuotesToJobs','loadPipeline','renderPipeline','renderPipelineCard','salvarOrcamento','enviarQuote','enviarQuoteConfirmar','sugerirPrecoQuote','aprovarQuoteManual','recusarQuote','setQuoteStage','aprovarQuoteCliente','verSnapshot','setupPipelineSubscription']);
@@ -135,7 +135,7 @@
   expose('crm', ['loadCrm','renderCrm','renderCrmCard','saveCrmInterval','crmDraft','crmSend']);
 
   // ── chat (DM 1:1 + 3-way Cali)
-  expose('chat', ['chatTab','applyChatFilter','convDisplayName','getLocalConvKey','getLocalMsgsKey','saveConvLocal','loadConvsLocal','saveMsgLocal','loadMsgsLocal','loadChatList','renderConvList','searchNewChatUsers','startNewChat','openChatConversation','getChatReceiverId','setupGlobalMsgSubscription','handleRealtimeMsg','sendChatMsg','sendMsg','handleChatAttachment','renderMessages','appendMsg','addStoreToChat','CALICOLORS_EMAIL']);
+  expose('chat', ['chatTab','applyChatFilter','convDisplayName','getLocalConvKey','getLocalMsgsKey','saveConvLocal','loadConvsLocal','saveMsgLocal','loadMsgsLocal','loadChatList','renderConvList','searchNewChatUsers','startNewChat','openChatConversation','getChatReceiverId','setupGlobalMsgSubscription','handleRealtimeMsg','sendChatMsg','sendMsg','handleChatAttachment','renderMessages','appendMsg','addStoreToChat','CALICOLORS_EMAIL','_resetMsgColors']);
 
   // ── profile-edit (editar perfil + especialidades + raio)
   expose('profileEdit', ['previewAvatar','previewEpLogo','removeEpLogo','openEditProfile','loadCidadesDoEstado','openEditEspecialidades','saveEspecialidades','openEditRaio','saveRaio','toggleEpSpecs','saveEditProfile','sharePost']);

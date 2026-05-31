@@ -312,7 +312,11 @@ async function generateImageWithFallback({ env, prompt, mime, b64, size, styleRe
 
   const imgModel = env.GEMINI_IMG_MODEL || GEMINI_FALLBACK_DEFAULT_MODEL;
   const modelChain = env.GEMINI_IMG_MODEL ? [imgModel] : [imgModel, ...GEMINI_FALLBACK_MODELS];
-  const geminiRes = await generateImageGeminiChain({ env, models: modelChain, prompt, mime, b64, styleRef });
+  // photo2 É CRÍTICO no fallback Gemini — sem ele, modo "Antes/Depois" perde
+  // a foto do Depois quando OpenAI falha e cai pra Gemini (TS pegou via
+  // inferência: callee desestrutura photo2, callsite no openai já passa,
+  // este só não passava). Bug detectado pelo tsc --checkJs.
+  const geminiRes = await generateImageGeminiChain({ env, models: modelChain, prompt, mime, b64, styleRef, photo2 });
   if (geminiRes.b64) return { ...geminiRes, modelTried: geminiRes.modelTried };
 
   return {

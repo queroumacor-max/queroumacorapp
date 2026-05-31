@@ -160,6 +160,10 @@ const HEAD_HELPERS = [
   'getMyProfile','apiPost','updateMyStoryAvatar','doRegisterSupabase',
   'safeUrl','openUserProfile','loadMyProfileData','startChatWith',
   'getSearchEmpty','invalidateMyProfile','_authRateCheck','getAccessToken',
+  // Funções com prefixo `_` que shims.js republica intencionalmente
+  // (IIFE-private em módulos mas chamadas bare por outros módulos / boot).
+  '_consumeInviteFromUrl','_flushConvs','_flushMsgs','openChat',
+  '_initUpdatePasswordScreen','_applyOwnLogoToShirt','_resetMsgColors',
 ];
 
 // Estado top-level declarado em app.js (var X) que outros módulos leem/escrevem.
