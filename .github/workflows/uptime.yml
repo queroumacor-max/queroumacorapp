@@ -1,0 +1,154 @@
+name: Uptime monitor
+
+# Pings production /api/health every 10 minutes. On failure, opens (or
+# comments on) a GitHub issue. On recovery, closes the open issue.
+#
+# Uses `gh` CLI (preinstalled on ubuntu-latest) so no extra dependencies.
+# State is tracked entirely via the open/closed status of issues with the
+# canonical title below — no DB, no artifacts.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  HEALTH_URL: https://queroumacor.com.br/api/health
+  ISSUE_TITLE: 'Uptime alert: /api/health failing'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        id: ping
+        continue-on-error: true
+        run: |
+          set +e
+          response=$(curl -fsS --max-time 10 "$HEALTH_URL" 2>&1)
+          code=$?
+          set -e
+
+          if [ $code -eq 0 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Health check OK"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Health check FAILED (curl exit $code)"
+          fi
+
+          # Capture output for downstream steps (multiline-safe).
+          {
+            echo "body<<HEALTH_EOF"
+            echo "$response"
+            echo "HEALTH_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: File or comment issue on failure
+        if: steps.ping.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PING_BODY: ${{ steps.ping.outputs.body }}
+          PING_EXIT: ${{ steps.ping.outputs.exit_code }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eo pipefail
+
+          timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Find existing open issue (exact title match). `gh issue list`
+          # uses substring on --search, so we filter the JSON to be exact.
+          existing=$(gh issue list \
+            --repo "$GH_REPO" \
+            --state open \
+            --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title \
+            --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" \
+            2>/dev/null | head -n1 || true)
+
+          # Build the body once, reused for create + comment.
+          read -r -d '' body_template <<EOF || true
+          **Timestamp (UTC):** $timestamp
+          **curl exit code:** $PING_EXIT
+          **Endpoint:** $HEALTH_URL
+          **Workflow run:** $RUN_URL
+
+          <details><summary>curl output</summary>
+
+          \`\`\`
+          $PING_BODY
+          \`\`\`
+
+          </details>
+          EOF
+
+          if [ -z "$existing" ]; then
+            echo "No open uptime issue found — creating one."
+            # Prepend an intro on the first occurrence so the issue body
+            # explains what it is for a human reader.
+            full_body=$(printf '%s\n\n%s\n\n---\n\n%s\n' \
+              "The production health endpoint failed to respond within 10s." \
+              "This issue is opened by \`.github/workflows/uptime.yml\` and will be auto-closed when the endpoint recovers. Subsequent failures will be added as comments." \
+              "$body_template")
+
+            gh issue create \
+              --repo "$GH_REPO" \
+              --title "$ISSUE_TITLE" \
+              --body "$full_body" \
+              --label "uptime" 2>/dev/null \
+              || gh issue create \
+                --repo "$GH_REPO" \
+                --title "$ISSUE_TITLE" \
+                --body "$full_body"
+          else
+            echo "Open uptime issue found: #$existing — appending comment."
+            gh issue comment "$existing" \
+              --repo "$GH_REPO" \
+              --body "Still failing.
+
+          $body_template"
+          fi
+
+      - name: Close issue on recovery
+        if: steps.ping.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eo pipefail
+
+          existing=$(gh issue list \
+            --repo "$GH_REPO" \
+            --state open \
+            --search "in:title \"$ISSUE_TITLE\"" \
+            --json number,title \
+            --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" \
+            2>/dev/null | head -n1 || true)
+
+          if [ -z "$existing" ]; then
+            echo "Health OK and no open uptime issue — nothing to do."
+            exit 0
+          fi
+
+          timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Health recovered — closing issue #$existing."
+
+          gh issue comment "$existing" \
+            --repo "$GH_REPO" \
+            --body "Recovered at $timestamp.
+
+          The endpoint \`$HEALTH_URL\` responded successfully. Closing.
+
+          Workflow run: $RUN_URL"
+
+          gh issue close "$existing" \
+            --repo "$GH_REPO" \
+            --reason completed
