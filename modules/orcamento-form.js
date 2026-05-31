@@ -104,9 +104,10 @@
     obs.style.cssText = fieldStyle + 'resize:none;';
 
     const btn = document.createElement('button');
+    btn.id = 'orc-chat-submit-btn';
     btn.textContent = 'Enviar orçamento';
     btn.style.cssText = 'width:100%;margin-top:18px;padding:15px;background:var(--ink);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;touch-action:manipulation;';
-    btn.addEventListener('click', enviarOrcamentoForm);
+    btn.addEventListener('click', (e) => enviarOrcamentoForm(e && e.currentTarget));
 
     sheet.append(
       handle, title, sub,
@@ -160,7 +161,11 @@
     renderOrcPhotos();
   }
 
-  async function enviarOrcamentoForm(){
+  async function enviarOrcamentoForm(btnArg){
+    // Double-submit guard + loading visual no botão "Enviar orçamento".
+    // btnArg vem do click handler (e.currentTarget); fallback via id.
+    const btn = btnArg || document.getElementById('orc-chat-submit-btn');
+    if(btn && btn.dataset._loading) return;
     const p = window._orcPainter || {};
     const painterId = p.id;
     const painterName = p.name || '';
@@ -194,66 +199,73 @@
 
     const serviceType = (tipo && tipo !== 'Selecione…') ? tipo : 'Solicitação de orçamento';
 
-    // Upload das fotos (até 5) — coleta as URLs públicas
-    const photos = window._orcPhotos || [];
-    const imageUrls = [];
-    if(photos.length > 0){
-      toast('Enviando fotos...');
-      for(let i = 0; i < photos.length; i++){
-        const f = photos[i];
-        try {
-          const extRaw = (f.name || '').split('.').pop() || 'jpg';
-          const ext = extRaw.toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
-          const path = currentUser.id + '/quote_' + Date.now() + '_' + i + '.' + ext;
-          const { error: upErr } = await sb.storage.from('posts').upload(path, f, { upsert: false, contentType: f.type });
-          if(upErr){ console.warn('upload foto:', upErr.message); continue; }
-          const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
-          if(urlData && urlData.publicUrl) imageUrls.push(urlData.publicUrl);
-        } catch(e){ console.warn('upload foto:', e && e.message || e); }
-      }
-    }
-
-    let novoQuoteId = null;
+    // Validações passaram — agora trava o botão até concluir (upload + RPC).
+    const restore = (typeof setButtonLoading === 'function')
+      ? setButtonLoading(btn, 'Enviando...')
+      : (() => { if(btn) btn.disabled = false; });
+    if(typeof setButtonLoading !== 'function' && btn) btn.disabled = true;
     try {
-      // Usa RPC create_quote_from_post (SECURITY DEFINER) — força client_id
-      const { data: rpcId, error: qErr } = await sb.rpc('create_quote_from_post', {
-        p_painter_id:    painterId,
-        p_post_id:       null,
-        p_title:         serviceType,
-        p_service_type:  serviceType,
-        p_area_m2:       null,
-        p_address:       null,
-        p_description:   partes.slice(1).join('\n') || null,
-        p_proposed_date: null,
-        p_images:        imageUrls,
-        p_lead_type:     'exclusive'
-      });
-      if(qErr) throw qErr;
-      novoQuoteId = rpcId || null;
-    } catch(e){
-      console.warn('enviarOrcamentoForm quote:', e && e.message || e);
-      toast('Erro ao enviar o pedido: ' + (e.message || e));
-      return;
-    }
-    window._orcPhotos = [];
-    const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
-    await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
-      meuNome + ' solicitou um orçamento. Veja no seu pipeline.', novoQuoteId);
+      // Upload das fotos (até 5) — coleta as URLs públicas
+      const photos = window._orcPhotos || [];
+      const imageUrls = [];
+      if(photos.length > 0){
+        toast('Enviando fotos...');
+        for(let i = 0; i < photos.length; i++){
+          const f = photos[i];
+          try {
+            const extRaw = (f.name || '').split('.').pop() || 'jpg';
+            const ext = extRaw.toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+            const path = currentUser.id + '/quote_' + Date.now() + '_' + i + '.' + ext;
+            const { error: upErr } = await sb.storage.from('posts').upload(path, f, { upsert: false, contentType: f.type });
+            if(upErr){ console.warn('upload foto:', upErr.message); continue; }
+            const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+            if(urlData && urlData.publicUrl) imageUrls.push(urlData.publicUrl);
+          } catch(e){ console.warn('upload foto:', e && e.message || e); }
+        }
+      }
 
-    const overlay = document.getElementById('orc-chat-overlay');
-    if(overlay) overlay.remove();
-    window._orcPainter = null;
-    toast('Pedido de orçamento enviado! ✅');
+      let novoQuoteId = null;
+      try {
+        // Usa RPC create_quote_from_post (SECURITY DEFINER) — força client_id
+        const { data: rpcId, error: qErr } = await sb.rpc('create_quote_from_post', {
+          p_painter_id:    painterId,
+          p_post_id:       null,
+          p_title:         serviceType,
+          p_service_type:  serviceType,
+          p_area_m2:       null,
+          p_address:       null,
+          p_description:   partes.slice(1).join('\n') || null,
+          p_proposed_date: null,
+          p_images:        imageUrls,
+          p_lead_type:     'exclusive'
+        });
+        if(qErr) throw qErr;
+        novoQuoteId = rpcId || null;
+      } catch(e){
+        console.warn('enviarOrcamentoForm quote:', e && e.message || e);
+        toast('Erro ao enviar o pedido: ' + (e.message || e));
+        return;
+      }
+      window._orcPhotos = [];
+      const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
+      await notify(painterId, 'quote_request', 'Novo pedido de orçamento 📋',
+        meuNome + ' solicitou um orçamento. Veja no seu pipeline.', novoQuoteId);
 
-    window._orcPreMsg = partes.join('\n');
-    showScreen('chat');
-    setTimeout(()=>{
-      if(typeof openChat==='function') openChat(painterId);
+      const overlay = document.getElementById('orc-chat-overlay');
+      if(overlay) overlay.remove();
+      window._orcPainter = null;
+      toast('Pedido de orçamento enviado! ✅');
+
+      window._orcPreMsg = partes.join('\n');
+      showScreen('chat');
       setTimeout(()=>{
-        const input = document.getElementById('chat-input') || document.getElementById('chat-input-field');
-        if(input){ input.value = window._orcPreMsg; input.focus(); window._orcPreMsg = null; }
-      }, 600);
-    }, 300);
+        if(typeof openChat==='function') openChat(painterId);
+        setTimeout(()=>{
+          const input = document.getElementById('chat-input') || document.getElementById('chat-input-field');
+          if(input){ input.value = window._orcPreMsg; input.focus(); window._orcPreMsg = null; }
+        }, 600);
+      }, 300);
+    } finally { restore(); }
   }
 
   // ══ ORCAMENTO ══

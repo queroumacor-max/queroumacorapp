@@ -474,9 +474,21 @@
     if(title) title.textContent = res.length > 60
       ? (res.length + ' resultados (mostrando 60 — refine a busca)')
       : (res.length + ' resultado(s)');
-    if(grid) grid.innerHTML = res.length
-      ? res.slice(0,60).map(renderProductRow).join('')
-      : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
+    if(grid){
+      if(res.length){
+        grid.innerHTML = res.slice(0,60).map(renderProductRow).join('');
+      } else if(typeof emptyState === 'function'){
+        grid.innerHTML = emptyState({
+          icon: '🔎',
+          title: 'Nenhum produto encontrado',
+          message: 'Tente buscar outra palavra ou volte pra todos os produtos.',
+          actionLabel: 'Limpar busca',
+          actionOnclick: "var i=document.getElementById('mkt-search');if(i){i.value='';i.dispatchEvent(new Event('input'));}"
+        });
+      } else {
+        grid.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
+      }
+    }
     if(searchSec) searchSec.style.display = 'block';
   }
   const mktSearch = (typeof window !== 'undefined' && window.debounce ? window.debounce(_mktSearchImpl, 200) : _mktSearchImpl);
@@ -595,15 +607,28 @@
 
   async function loadMktProducts(_attempt){
     _attempt = _attempt || 0;
-    const setSec = (msg) => { const el = document.getElementById('mkt-sections'); if(el) el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
+    const el = () => document.getElementById('mkt-sections');
+    const setSec = (msg) => { const e = el(); if(e) e.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
     if(mktProducts.length && (Date.now() - _mktLoadedAt) < _MKT_TTL){
       renderMktUI();
       return;
     }
+    // Skeleton loading (só na primeira carga, não no retry que mostra erro acima)
+    if(_attempt === 0){
+      const e = el();
+      if(e && typeof skeletonRows === 'function'){
+        e.innerHTML = '<div style="grid-column:1/-1;">' + skeletonRows(6, { height: '70px' }) + '</div>';
+      }
+    }
     const sb = getSupabase();
     if(!sb){
       if(_attempt < 20){ setTimeout(() => loadMktProducts(_attempt + 1), 500); return; }
-      setSec('Não foi possível conectar. <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      const e = el();
+      if(e && typeof errorState === 'function'){
+        e.innerHTML = '<div style="grid-column:1/-1;">' + errorState('Não foi possível conectar.', () => loadMktProducts(0)) + '</div>';
+      } else {
+        setSec('Não foi possível conectar. <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      }
       return;
     }
     try {
@@ -624,7 +649,12 @@
       renderMktUI();
     } catch(e){
       console.error('loadMktProducts error:', e && e.message || e);
-      setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      const target = el();
+      if(target && typeof errorState === 'function'){
+        target.innerHTML = '<div style="grid-column:1/-1;">' + errorState('Erro ao carregar produtos: ' + String(e && e.message || e), () => loadMktProducts(0)) + '</div>';
+      } else {
+        setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      }
     }
   }
 
