@@ -1,5 +1,17 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Fase 4 etapa 2 da modularização: COMPLETA (2026-05-31).** `app.js`
+  caiu de **9176 → 1299 linhas (-86%)**. 338 funções foram extraídas em
+  44 módulos sob `modules/*.js` (cada um é um IIFE registrando
+  `window.Modules.X`). O bridge `shims.js` republica
+  `Modules.X.fn → window.fn` (+ `Utils.X → window.X`) e carrega ANTES do
+  `app.js` no `index.html` pra que bare calls em boot-code já tenham as
+  globals wireadas. **HTML inline handlers (`onclick="loadFeed()"`)
+  continuam funcionando** — toda função visível ao HTML segue exposta como
+  `window.X` via shim. NÃO refatorar HTML pra `addEventListener` sem
+  necessidade; o padrão IIFE+shim é deliberado pra preservar o contrato.
+  85 testes unitários cobrem o que migrou (shims + policies + db +
+  validators + security). Para detalhes ver `ARCHITECTURE.md`.
 - **Sentry** **JÁ ESTÁ CONECTADO ao GitHub do projeto** (integração de
   releases/commits/issues entre Sentry ↔ GitHub). Convive com a tabela
   caseira `errors` + dashboard `/admin/errors`; ainda não há decisão se o
