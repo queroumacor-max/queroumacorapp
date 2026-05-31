@@ -45,7 +45,7 @@ export function canEditProfile(
 // Dono do post sempre pode deletar; admin sempre pode (moderação).
 export function canDeletePost(
   user: MaybeUser,
-  post: { user_id?: string } | null | undefined
+  post: { id?: string; user_id?: string } | null | undefined
 ): boolean {
   if (!user || !user.id || !post) return false;
   if (post.user_id && user.id === post.user_id) return true;
