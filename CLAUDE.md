@@ -11,7 +11,7 @@
   `window.X` via shim. NÃO refatorar HTML pra `addEventListener` sem
   necessidade; o padrão IIFE+shim é deliberado pra preservar o contrato.
   85 testes unitários cobrem o que migrou (shims + policies + db +
-  validators + security). Para detalhes ver `ARCHITECTURE.md`.
+  schemas + security). Para detalhes ver `ARCHITECTURE.md`.
 - **Sentry** **JÁ ESTÁ CONECTADO ao GitHub do projeto** (integração de
   releases/commits/issues entre Sentry ↔ GitHub). Convive com a tabela
   caseira `errors` + dashboard `/admin/errors`; ainda não há decisão se o

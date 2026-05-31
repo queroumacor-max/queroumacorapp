@@ -1,0 +1,19 @@
+node_modules/
+dist/
+
+# Bundles minificados de terceiros (vendored) — não vale lintar
+*.min.js
+jspdf.umd.min.js
+leaflet.js
+portal/react.production.min.js
+portal/react-dom.production.min.js
+
+# Cliente Supabase UMD vendored
+supabase.js
+
+# Pasta futura de migração Next (caso exista)
+next-app/
+
+# Build de portal e outros artefatos (jsx-transpilado via @babel/standalone)
+portal/app.js
+portal/app.jsx

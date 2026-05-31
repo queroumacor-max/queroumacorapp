@@ -67,7 +67,6 @@
 <link rel="preload" href="/schemas/documents.js?v=20260531a" as="script">
 <link rel="preload" href="/schemas/social.js?v=20260531a" as="script">
 <link rel="preload" href="/schemas/index.js?v=20260531a" as="script">
-<link rel="preload" href="/validators.js?v=20260531a" as="script">
 <link rel="preload" href="/modules/info.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/calc.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/checklist.js?v=20260531g" as="script">
@@ -153,11 +152,10 @@
   else { document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(el); }); }
 })();
 </script>
-<!-- Libs de fundação (window.AppErrors / Logger / Policies / DB / Validators).
-     Carregam ENTRE head.js (que define getSupabase + reportError) e app.js
-     (que passará a usar essas libs nas próximas fases). errors/logger/
-     policies não dependem de Supabase — funções puras. db.js depende de
-     getSupabase (lazy). validators.js é puro. -->
+<!-- Libs de fundação (window.AppErrors / Logger / Policies / DB / Schemas).
+     Carregam ENTRE head.js (que define getSupabase + reportError) e app.js.
+     errors/logger/policies não dependem de Supabase — funções puras. db.js
+     depende de getSupabase (lazy). schemas/ é puro. -->
 <script src="/config.js?v=20260531f" defer></script>
 <script src="/utils.js?v=20260531f" defer></script>
 <!-- events.js — pub/sub bus in-memory (window.Events). Carrega DEPOIS de utils.js
@@ -169,14 +167,13 @@
 <script src="/policies.js?v=20260531e" defer></script>
 <script src="/db.js?v=20260531b" defer></script>
 <!-- schemas/ — fonte canônica das regras de validação (shape estilo Zod).
-     Carregam ANTES de validators.js pra que o adapter viaSchema() ache
-     window.Schemas e delegue (call sites antigos seguem chamando Validators). -->
+     parse(v) → { ok, value?, error?:{code,message} }. Chainable via .optional()
+     e .refine(fn,msg). Call sites consomem window.Schemas.X.parse(v). -->
 <script src="/schemas/_core.js?v=20260531a" defer></script>
 <script src="/schemas/primitives.js?v=20260531a" defer></script>
 <script src="/schemas/documents.js?v=20260531a" defer></script>
 <script src="/schemas/social.js?v=20260531a" defer></script>
 <script src="/schemas/index.js?v=20260531a" defer></script>
-<script src="/validators.js?v=20260531a" defer></script>
 <!-- Fase 4 etapa 2: módulos extraídos do app.js (folhas pequenas). Cada um
      expõe window.Modules.<feature>. Cópias do app.js — call sites em app.js
      ainda usam os originais; migração gradual em PRs futuros. -->

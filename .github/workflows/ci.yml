@@ -31,6 +31,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ESLint — pega no-undef (var/func não declarada), TDZ refs
+      # (no-use-before-define), redeclares, e implicit globals. Errors
+      # bloqueiam o merge; warnings (no-console, no-unused-vars) só
+      # avisam. Config em .eslintrc.cjs.
+      - name: ESLint
+        run: npm run lint
+        continue-on-error: false
+
       # Pega erros de parse antes do deploy (caso o user vibe-code esqueça
       # de fechar uma chave ou misture sintaxe).
       - name: Syntax check (node -c)

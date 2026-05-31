@@ -1,3 +1,4 @@
+// @ts-check
 // db.js — fachada fina sobre o Supabase pra centralizar queries repetidas.
 // Não substitui as call sites existentes; vive em paralelo a app.js/head.js
 // pra que migrações futuras sejam graduais. Tudo pendurado em window.DB.
@@ -7,6 +8,7 @@
   // getSupabase() mora em head.js, que carrega ANTES daqui. Mesmo assim,
   // resolvemos lazy: capturar no parse arrisca pegar uma referência antiga
   // se head.js trocar o client (recriação em re-login, por exemplo).
+  /** @returns {any} Supabase client ou null */
   function _sb(){
     if(typeof getSupabase !== 'function') return null
     try { return getSupabase() } catch(e){ return null }
@@ -21,6 +23,11 @@
   const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale, price, art_type, created_at'
 
   // ─── profiles ──────────────────────────────────────────────────────────
+  /**
+   * @param {string} id
+   * @param {string} [cols]
+   * @returns {Promise<Record<string, any> | null>}
+   */
   async function getById(id, cols){
     const sb = _sb()
     if(!sb || !id) return null
@@ -36,6 +43,11 @@
     }
   }
 
+  /**
+   * @param {string[]} ids
+   * @param {string} [cols]
+   * @returns {Promise<Array<Record<string, any>>>}
+   */
   async function getMany(ids, cols){
     if(!ids || !ids.length) return []
     const useCols = cols || PUBLIC_COLS
@@ -60,6 +72,10 @@
   }
 
   // ─── follows ───────────────────────────────────────────────────────────
+  /**
+   * @param {string} userId
+   * @returns {Promise<number>}
+   */
   async function countFollowers(userId){
     const sb = _sb()
     if(!sb || !userId) return 0
@@ -69,6 +85,10 @@
     } catch(e){ console.warn('DB.follows.countFollowers:', e && e.message); return 0 }
   }
 
+  /**
+   * @param {string} userId
+   * @returns {Promise<number>}
+   */
   async function countFollowing(userId){
     const sb = _sb()
     if(!sb || !userId) return 0
@@ -78,6 +98,10 @@
     } catch(e){ console.warn('DB.follows.countFollowing:', e && e.message); return 0 }
   }
 
+  /**
+   * @param {string} userId
+   * @returns {Promise<string[]>}
+   */
   async function listFollowingIds(userId){
     const sb = _sb()
     if(!sb || !userId) return []
@@ -92,6 +116,10 @@
   }
 
   // Lista de quem segue um usuário (espelho de listFollowingIds).
+  /**
+   * @param {string} userId
+   * @returns {Promise<string[]>}
+   */
   async function listFollowerIds(userId){
     const sb = _sb()
     if(!sb || !userId) return []
@@ -105,6 +133,11 @@
     }
   }
 
+  /**
+   * @param {string} followerId
+   * @param {string} followingId
+   * @returns {Promise<boolean>}
+   */
   async function isFollowing(followerId, followingId){
     const sb = _sb()
     if(!sb || !followerId || !followingId) return false
@@ -119,6 +152,11 @@
     }
   }
 
+  /**
+   * @param {string} followerId
+   * @param {string} followingId
+   * @returns {Promise<{ ok: boolean, code?: string, message?: string }>}
+   */
   async function follow(followerId, followingId){
     const sb = _sb()
     if(!sb) return { ok:false, code:'no-client', message:'Supabase client indisponível' }
@@ -143,6 +181,11 @@
     }
   }
 
+  /**
+   * @param {string} followerId
+   * @param {string} followingId
+   * @returns {Promise<{ ok: boolean, code?: string, message?: string }>}
+   */
   async function unfollow(followerId, followingId){
     const sb = _sb()
     if(!sb) return { ok:false, code:'no-client', message:'Supabase client indisponível' }
@@ -164,6 +207,11 @@
   // Conta posts não-stories de um usuário (usado em stats do perfil próprio
   // e no openUserProfile de outro). Default: exclui stories pra bater com
   // o card de "posts" do perfil estilo IG. opts.includeStories pra incluir.
+  /**
+   * @param {string} userId
+   * @param {{ includeStories?: boolean }} [opts]
+   * @returns {Promise<number>}
+   */
   async function countByUser(userId, opts){
     const sb = _sb()
     if(!sb || !userId) return 0
@@ -182,6 +230,11 @@
   //   onlyApproved  — adiciona filtro de status (default false; portfolio
   //                   próprio mostra pending, perfil alheio só approved)
   //   includeStories — default false
+  /**
+   * @param {string} userId
+   * @param {{ limit?: number, cols?: string, onlyApproved?: boolean, includeStories?: boolean }} [opts]
+   * @returns {Promise<{ data: any[] | null, error: any }> | any}
+   */
   function getByUser(userId, opts){
     opts = opts || {}
     const sb = _sb()
@@ -195,6 +248,10 @@
     return q
   }
 
+  /**
+   * @param {{ cols?: string, offset?: number, limit?: number, feedIds?: string[] }} [opts]
+   * @returns {Promise<{ data: any[] | null, error: any }> | any}
+   */
   function getFeedPosts(opts){
     opts = opts || {}
     const sb = _sb()
@@ -211,6 +268,10 @@
     return q
   }
 
+  /**
+   * @param {{ cols?: string, feedIds?: string[], sinceISO?: string, limit?: number }} [opts]
+   * @returns {Promise<{ data: any[] | null, error: any }> | any}
+   */
   function getStories(opts){
     opts = opts || {}
     const sb = _sb()

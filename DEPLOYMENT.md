@@ -184,6 +184,23 @@ HTML referencia uma nova querystring, o browser baixa de novo.
 
 `/style-refs/*`: `public, max-age=604800` (1 semana — troca rara).
 
+### KV cache (edge, compartilhado entre PoPs)
+
+Endpoints `/api/*` que precisam de cache cross-region duradouro usam
+Cloudflare KV (binding `env.KV`). Hoje em uso por:
+
+- `GET /api/cidades?uf=<UF>` — proxy IBGE, TTL 7d, chave `cidades:<UF>`.
+
+Camadas: browser → CDN → **KV** → origin. KV sobrevive a purges do CDN
+e fica abaixo dele. Header `X-Cache: HIT|MISS|BYPASS` indica a origem
+do response. Detalhes operacionais (setup do binding, debug, custos,
+padrão pra novas chaves) em [KV.md](./KV.md).
+
+**Setup pelo usuário** (não-Claude-actionable): criar namespace
+`queroumacor-kv` no painel Cloudflare e bindar como `KV` em Pages →
+Settings → Functions → KV namespace bindings. Sem o binding o endpoint
+funciona normalmente (cai em `BYPASS`, bate IBGE em cada MISS de CDN).
+
 ---
 
 ## 8. Routing (`_redirects`)
