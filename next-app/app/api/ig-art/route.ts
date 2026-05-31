@@ -5,6 +5,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -55,6 +57,12 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   }
   const g = await gateProAI(request, body, { endpoint: 'ig-art', limit: 5 });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'ig_art',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   const result = await generateIgArt({
     request,
     photoDataUrl: body.photoDataUrl,
@@ -64,5 +72,6 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     captionHint: body.captionHint,
     businessName: body.businessName,
   });
+  await recordAiUsage({ userId: g.userId, feature: 'ig_art' });
   return NextResponse.json(result);
 }

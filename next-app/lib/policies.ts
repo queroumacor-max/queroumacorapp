@@ -19,6 +19,8 @@ export interface PolicyUser {
   display_name?: string | null;
   tag?: string | null;
   username?: string | null;
+  pro_expires_at?: string | null;
+  pro_grace_until?: string | null;
 }
 
 // Aceita `Profile` direto ou o subset mais enxuto — facilita chamar com
@@ -86,10 +88,39 @@ export function canModerateContent(user: MaybeUser): boolean {
 
 // Features PRO: liberadas para assinantes PRO e para admins (admin
 // testa/dá suporte sem precisar de PRO próprio).
+//
+// Grace period (Pagamentos#17): se `pro_expires_at` já passou MAS
+// `pro_grace_until` está no futuro, ainda considera ativo. Webhook MP
+// preenche `pro_grace_until = pro_expires_at + 3 days` quando recebe um
+// failed payment retry — dá margem pro usuário regularizar antes do PRO
+// virar pumpkin. Server-side equivalente: RPC `is_pro_active(uuid)`.
+//
+// Quando o perfil vem da view `profiles_public` ou de uma fonte que NÃO
+// projeta `pro_grace_until`, o campo vira undefined e o comportamento é
+// idêntico ao anterior (fallback pra is_pro puro).
 export function canSeeProFeature(user: MaybeUser): boolean {
   if (!user) return false;
-  if (user.is_pro === true) return true;
-  return isAdmin(user);
+  if (isAdmin(user)) return true;
+  if (user.is_pro !== true) return false;
+  const now = Date.now();
+  // is_pro true: confere se a janela de validade ainda cobre — soma
+  // expires_at OU grace_until (a maior). Se nenhum dos dois existe, o
+  // banco confiou no is_pro=true → libera (legacy/admin path).
+  const expiresAt = parseDate(user.pro_expires_at);
+  const graceUntil = parseDate(
+    (user as { pro_grace_until?: string | null }).pro_grace_until
+  );
+  if (expiresAt === null && graceUntil === null) return true;
+  const futureOk = (expiresAt !== null && expiresAt > now) ||
+                   (graceUntil !== null && graceUntil > now);
+  return futureOk;
+}
+
+// Helper local: parse timestamp ISO → ms. Retorna null pra ausente/inválido.
+function parseDate(v: string | null | undefined): number | null {
+  if (!v) return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
 }
 
 // Não pode seguir a si mesmo, e ambos os ids precisam existir.

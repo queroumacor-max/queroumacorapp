@@ -56,6 +56,7 @@ export interface Profile {
   business_logo_url?: string | null;
   business_name?: string | null;
   pro_expires_at?: string | null;
+  pro_grace_until?: string | null;
   service_radius?: number | null;
   created_at?: string | null;
 }

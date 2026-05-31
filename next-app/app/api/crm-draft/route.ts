@@ -3,6 +3,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -34,15 +36,21 @@ export async function POST(request: NextRequest) {
     limit: 10,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'crm_draft',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(
-      await draftReactivationMessage({
-        clientName: body?.clientName,
-        lastService: body?.lastService,
-        monthsSince: body?.monthsSince,
-        painterName: body?.painterName,
-      })
-    );
+    const result = await draftReactivationMessage({
+      clientName: body?.clientName,
+      lastService: body?.lastService,
+      monthsSince: body?.monthsSince,
+      painterName: body?.painterName,
+    });
+    await recordAiUsage({ userId: g.userId, feature: 'crm_draft' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('crm-draft crash:', e instanceof Error ? e.message : e);

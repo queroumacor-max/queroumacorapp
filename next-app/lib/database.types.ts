@@ -497,6 +497,7 @@ export type Database = {
           images?: Json | null;
           approval_note?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };

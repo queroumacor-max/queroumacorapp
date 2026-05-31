@@ -3,6 +3,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -28,8 +30,16 @@ export async function POST(request: NextRequest) {
     limit: 30,
   });
   if (g instanceof NextResponse) return g;
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'resolve_color',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
   try {
-    return NextResponse.json(await resolveColors({ items: body?.items }));
+    const result = await resolveColors({ items: body?.items });
+    await recordAiUsage({ userId: g.userId, feature: 'resolve_color' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('resolve-color crash:', e instanceof Error ? e.message : e);

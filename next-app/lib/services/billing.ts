@@ -22,6 +22,14 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+// O Database typed client (lib/database.types.ts) ainda não tem as tabelas/RPCs
+// novas desta wave (invoices, ai_usage, plan_limits, is_pro_active,
+// ai_usage_this_month, upsert_invoice). Pra não bloquear build até o
+// `generate_typescript_types` rodar, usamos `SupabaseClient` genérico aqui.
+//
+// Quando o user rodar a migration e regerar database.types.ts, podemos
+// remover este cast e voltar a usar `SupabaseClient<Database>`.
+
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
 export type InvoiceType = 'subscription' | 'order' | 'refund';
@@ -95,8 +103,11 @@ const FALLBACK_LIMITS: Record<PlanName, PlanLimit> = {
 
 type AnyClient = SupabaseClient | ReturnType<typeof getSupabase>;
 
-function resolveClient(client?: AnyClient | null): AnyClient {
-  return client ?? getSupabase();
+// Cast pra `SupabaseClient` (sem generic Database) — as tabelas/RPCs novas
+// desta wave ainda não estão no Database type. Os métodos são estruturalmente
+// idênticos em runtime.
+function resolveClient(client?: AnyClient | null): SupabaseClient {
+  return (client ?? getSupabase()) as unknown as SupabaseClient;
 }
 
 // ─── Invoice CRUD ──────────────────────────────────────────────────────────

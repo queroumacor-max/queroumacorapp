@@ -4,8 +4,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   checkRateLimit,
+  gateAiUsage,
   getServiceKey,
   rateLimitResponse,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -45,7 +47,13 @@ export async function POST(request: NextRequest) {
       limit: 3,
     });
     if (!rl.allowed) return rateLimitResponse(rl);
+    const aiGate = await gateAiUsage({
+      userId: uid,
+      feature: 'moderate_video',
+    });
+    if (aiGate instanceof NextResponse) return aiGate;
     const out = await moderateVideoPost({ userId: uid, postId, caption });
+    await recordAiUsage({ userId: uid, feature: 'moderate_video' });
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
