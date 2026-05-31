@@ -297,6 +297,20 @@
     }
   }
 
+  // ══ EVENTS WIRING — pro.upgraded ══
+  // Quando pro.js detecta ativação do PRO, re-renderiza a tela de CRM se ela
+  // estiver aberta — sai do estado "Reativar clientes é PRO" pra carregar a
+  // lista real. Chamada direta a refreshProStatus/loadCrm em outros call
+  // sites permanece como fallback durante rollout — eventos são aditivos.
+  if(window.Events){
+    window.Events.on('pro.upgraded', function(){
+      const scr = document.getElementById('screen-crm');
+      if(scr && scr.classList.contains('active')){
+        try { loadCrm(); } catch(e){ console.warn('[events] pro.upgraded crm:', e && e.message); }
+      }
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.crm = {
     loadCrm, renderCrm, renderCrmCard,

@@ -143,7 +143,7 @@ PR review:
 - `index.html` carrega assets versionados com `?v=YYYYMMDD<letra>` (ex.:
   `?v=20260531c`).
 - **Bumpar SEMPRE** ao mudar `app.js`, `head.js`, `db.js`, `shims.js`,
-  `validators.js`, ou qualquer `modules/*.js` — lista completa em
+  qualquer `schemas/*.js`, ou qualquer `modules/*.js` — lista completa em
   `DEPLOYMENT.md §10`.
 - Esquecer = navegador serve do cache `max-age=31536000, immutable` e a
   correção não chega no usuário por até 1 ano.
@@ -180,9 +180,9 @@ PR review:
 
 ### Cobertura mínima exigida
 
-Toda função pública nova em **foundation libs** (`db.js`, `validators.js`,
-`policies.js`, `schemas/`, `errors.js`) DEVE ter teste. Sem exceção —
-essas são as camadas auditáveis (ver `LAYERS.md §4`).
+Toda função pública nova em **foundation libs** (`db.js`, `schemas/`,
+`policies.js`, `errors.js`) DEVE ter teste. Sem exceção — essas são as
+camadas auditáveis (ver `LAYERS.md §4`).
 
 Para `modules/*.js`, teste unit é **bem-vindo** mas não obrigatório (a
 maioria mistura UI + use case e cobrir dá pouco ROI). Smoke manual no
@@ -202,7 +202,7 @@ mantenha as duas em sincronia.
 - [ ] Convenções OK (`npm run lint:conventions`).
 - [ ] Lint OK (`npm run lint`).
 - [ ] Cache-bump nos assets versionados aplicado se mudei
-      `app.js`/`head.js`/`db.js`/`shims.js`/`validators.js`/`modules/*`.
+      `app.js`/`head.js`/`db.js`/`shims.js`/`schemas/*`/`modules/*`.
 - [ ] Preview deploy testado (`<slug>.queroumacorapp.pages.dev`).
 - [ ] Docs atualizadas se mudei arquitetura/API/contrato público
       (`ARCHITECTURE.md`, `API.md`, `DATABASE.md`, `EVENTS.md`, ADRs).
@@ -258,7 +258,7 @@ Referência operacional em `LAYERS.md §6`. Resumo:
 
 | Tipo de mudança                                  | Onde                                                                 |
 | ------------------------------------------------ | -------------------------------------------------------------------- |
-| Regra pura (RBAC, validação, formatação)         | `policies.js`, `validators.js`, `schemas/`, ou parte pura de `utils.js`. Sem deps. Teste obrigatório. |
+| Regra pura (RBAC, validação, formatação)         | `policies.js`, `schemas/`, ou parte pura de `utils.js`. Sem deps. Teste obrigatório. |
 | Acesso a tabela nova (≥2 call sites)             | Método em `db.js` com `try/catch` retornando valor seguro. Atualizar `tests/db.test.js`. |
 | Acesso pontual (1 call site)                     | `sb.from('X')` direto no módulo. Promover a `db.js` só quando duplicar. |
 | Feature inteira nova no client                   | Novo `modules/X.js` no padrão IIFE + bump em `shims.js` pras fns que viram inline handlers. |

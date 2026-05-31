@@ -49,7 +49,7 @@ Passos pra reproduzir o teste manual:
 ## Cache-busting
 
 <!-- Bumpou `?v=YYYYMMDD<letra>` no index.html se mexeu em algum destes:
-     app.js, head.js, db.js, shims.js, validators.js, modules/*.js,
+     app.js, head.js, db.js, shims.js, schemas/*.js, modules/*.js,
      ou qualquer outro asset listado em DEPLOYMENT.md §10? -->
 
 - [ ] Não tocou em asset versionado

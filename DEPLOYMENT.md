@@ -58,7 +58,7 @@ Job `validate` (Ubuntu, timeout 5min):
 2. `actions/setup-node@v4` com Node 20 + cache npm
 3. `npm ci` — instalacao limpa das deps
 4. **Syntax check (`node -c`)** sobre `app.js`, `head.js`, `db.js`,
-   `validators.js`, `types.js`, `sw.js`. Pega erros de parse antes do
+   `schemas/*.js`, `types.js`, `sw.js`. Pega erros de parse antes do
    deploy.
 5. **Asset reference check** — grep no `index.html` pega cada path
    referenciado com `?v=`, verifica que o arquivo existe no disco. Falha
@@ -151,7 +151,7 @@ propagar (pode ser um deploy vazio via "Retry deployment" no painel).
 
 Servidos com `Cache-Control: public, max-age=31536000, immutable`:
 
-- `/head.js`, `/app.js`, `/db.js`, `/validators.js`, `/shims.js`
+- `/head.js`, `/app.js`, `/db.js`, `/schemas/*`, `/shims.js`
 - `/errors.js`, `/logger.js`, `/policies.js`, `/config.js`, `/utils.js`
 - `/modules/*` (todos os 44 modulos da Fase 4)
 - `/supabase.js`, `/jspdf.umd.min.js`
@@ -272,7 +272,7 @@ qualquer um destes arquivos:
 - `head.js`
 - `db.js`
 - `shims.js`
-- `validators.js`
+- qualquer `schemas/*.js`
 - qualquer `modules/*.js`
 - (qualquer outro arquivo na lista de assets immutables da secao 7)
 

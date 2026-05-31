@@ -169,6 +169,30 @@
       .subscribe();
   }
 
+  // ══ EVENTS WIRING — post.liked + auth.logged_out ══
+  // post.liked: cria notificação in-app pro autor do post (notify() chama a
+  //   RPC notify_user com SECURITY DEFINER). Não substitui a curtida em si,
+  //   só notifica. Skip se o curtidor é o próprio dono.
+  // auth.logged_out: limpa o badge + desinscreve o realtime channel.
+  //   Cleanup direto no head.js (linhas ~657) permanece como fallback
+  //   durante rollout — eventos são aditivos.
+  if(window.Events){
+    window.Events.on('post.liked', async function(p){
+      try {
+        if(!p || !p.postOwnerId || !p.likedByUserId) return;
+        if(p.postOwnerId === p.likedByUserId) return;
+        await notify(p.postOwnerId, 'like', 'curtiu seu post', '', p.postId || null);
+      } catch(e){ console.warn('[events] post.liked handler:', e && e.message); }
+    });
+    window.Events.on('auth.logged_out', function(){
+      try { updateNotifBadge(false); } catch(_){}
+      if(window._notifSub){
+        try { window._notifSub.unsubscribe(); } catch(_){}
+        window._notifSub = null;
+      }
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.notif = { notify, loadNotifications, updateNotifBadge, setupNotifSubscription };
 })();

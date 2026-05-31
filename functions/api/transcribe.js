@@ -1,56 +1,24 @@
 // @ts-check
-// Transcrição de áudio via OpenAI Whisper. Recebe multipart com o campo
-// 'audio' e devolve { text } ou { error }. Requer OPENAI_API_KEY no
-// Cloudflare Pages.
-import { gateProAIForm, jsonResponse as json } from './_security.js';
+// Controller fino — transcrição de áudio via Whisper. Lógica em `./_services/transcribe.js`.
+import { gateProAIForm, jsonResponse as json, serviceErrorResponse, ServiceError } from './_security.js';
+import { transcribeAudio } from './_services/transcribe.js';
 
 /**
  * @param {{ request: Request, env: Record<string, string>, params: Record<string, string> }} context
  * @returns {Promise<Response>}
  */
-export async function onRequestPost(context) {
-  const { env, request } = context;
+export async function onRequestPost({ env, request }) {
   if (!env.OPENAI_API_KEY) {
     return json({ error: 'Transcrição não configurada: defina OPENAI_API_KEY' }, 503);
   }
-
-  let formData;
-  try { formData = await request.formData(); }
-  catch { return json({ error: 'FormData inválido' }, 400); }
-
+  let formData; try { formData = await request.formData(); } catch { return json({ error: 'FormData inválido' }, 400); }
   const g = await gateProAIForm(env, request, formData, { endpoint: 'transcribe', limit: 10 });
   if (g instanceof Response) return g;
-
-  const audio = formData.get('audio');
-  if (!audio) return json({ error: 'audio obrigatório' }, 400);
-
-  // Whisper aceita até 25 MB
-  const size = audio.size || 0;
-  if (size > 25 * 1024 * 1024) return json({ error: 'Áudio acima de 25 MB' }, 413);
-
-  const upstream = new FormData();
-  upstream.append('file', audio, 'audio.webm');
-  upstream.append('model', 'whisper-1');
-  upstream.append('language', 'pt');
-
   try {
-    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + env.OPENAI_API_KEY },
-      body: upstream,
-      signal: AbortSignal.timeout(60000)
-    });
-    if (!r.ok) {
-      const errText = (await r.text()).slice(0, 300);
-      console.warn('transcribe OpenAI error', r.status, errText);
-      return json({ error: 'Transcrição indisponível — tente de novo em instantes' }, 502);
-    }
-    const data = await r.json();
-    return json({ text: (data && data.text) || '' });
+    return json(await transcribeAudio({ env, audio: formData.get('audio') }));
   } catch (e) {
-    const isTimeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
-    if (isTimeout) return json({ error: 'Whisper timeout (60s) — tente um áudio menor' }, 504);
-    console.warn('transcribe: exception', e && e.message || e);
-    return json({ error: 'Erro interno — tente de novo em instantes' }, 500);
+    if (e instanceof ServiceError) return serviceErrorResponse(e);
+    console.warn('transcribe crash:', e && e.message);
+    return json({ error: 'Erro interno' }, 500);
   }
 }

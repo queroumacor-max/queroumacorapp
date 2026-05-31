@@ -57,7 +57,7 @@ Stack resultante:
 - **Stack legível.** Qualquer dev JS lê o código sem framework lore.
   Onboarding humano (e do agent) é direto.
 - **Migração futura é viável.** `LAYERS.md §7` mapeia o caminho: domain
-  puro (`policies.js`, `validators.js`, `errors.js`) migra 1:1 pra `.ts`;
+  puro (`policies.js`, `schemas/`, `errors.js`) migra 1:1 pra `.ts`;
   `db.js` vira interface; `modules/*` viram componentes/hooks; endpoints
   viram Route Handlers. Estimativa: 70% find & replace, 30% reescrita de
   UI. Sem tech-debt insuperável.
