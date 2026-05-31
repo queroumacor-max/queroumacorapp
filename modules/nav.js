@@ -138,6 +138,51 @@
     }, 100);
   }
 
+  // ══ POPSTATE HANDLER (botão voltar do Android / browser back) ══
+  // Migrado do app.js boot code pra usar o estado IIFE-private deste módulo.
+  try {
+    const _initPath = SCREEN_TO_PATH['feed'] || '/';
+    if(location.pathname === '/' || location.pathname === '') {
+      history.replaceState({ qs:'feed', screen:'feed' }, '', _initPath);
+    } else {
+      history.replaceState({ qs:'feed', screen:'feed' }, '');
+    }
+  } catch(e){}
+  window.addEventListener('popstate', function(e){
+    if(document.querySelector('.overlay.open')){
+      closeModals();
+      try { history.pushState({ qs:_navCurScreen, screen:_navCurScreen }, ''); } catch(e){}
+      return;
+    }
+    const urlScreen = (e && e.state && e.state.screen) || PATH_TO_SCREEN[location.pathname];
+    if(urlScreen && urlScreen !== _navCurScreen){
+      showScreen(urlScreen, true);
+      return;
+    }
+    if(_navBackStack.length){
+      const prev = _navBackStack.pop();
+      showScreen(prev, true);
+      return;
+    }
+    if(_navCurScreen !== 'feed'){
+      showScreen('feed', true);
+      try { history.pushState({ qs:'feed', screen:'feed' }, '', SCREEN_TO_PATH['feed'] || '/'); } catch(e){}
+      return;
+    }
+    if(_navExitArmed) return;
+    _navExitArmed = true;
+    if(typeof toast === 'function') toast('Toque em voltar de novo para sair');
+    try { history.pushState({ qs:'feed', screen:'feed' }, '', SCREEN_TO_PATH['feed'] || '/'); } catch(e){}
+    setTimeout(function(){ _navExitArmed = false; }, 2000);
+  });
+
+  // ══ BOOTSTRAP: agendado pra rodar quando o DOM estiver pronto ══
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _bootstrapFromUrl);
+  } else {
+    _bootstrapFromUrl();
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.nav = {
     showScreen,

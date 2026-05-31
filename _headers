@@ -39,6 +39,8 @@
   Cache-Control: public, max-age=31536000, immutable
 /validators.js
   Cache-Control: public, max-age=31536000, immutable
+/shims.js
+  Cache-Control: public, max-age=31536000, immutable
 /errors.js
   Cache-Control: public, max-age=31536000, immutable
 /logger.js
