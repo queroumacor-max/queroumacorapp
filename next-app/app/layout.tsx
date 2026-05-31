@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/components/AuthProvider';
+import { OnboardingModal } from '@/components/OnboardingModal';
 import { QueryProvider } from '@/components/QueryProvider';
 import './globals.css';
 
@@ -23,7 +24,13 @@ export default function RootLayout({
             consomem ambos (useNotifications etc.) tenham acesso ao user no
             queryKey/enabled sem ordem de inicialização ambígua. */}
         <AuthProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            {children}
+            {/* Tutorial inicial — render condicional via useOnboarding;
+                aparece 1x por navegador (flag `onboarding_seen_v1` em
+                localStorage) pra todos os usuários, autenticados ou não. */}
+            <OnboardingModal />
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

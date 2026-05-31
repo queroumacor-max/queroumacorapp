@@ -797,6 +797,115 @@ export type Database = {
         };
         Relationships: [];
       };
+      // ─── consent_log ─────────────────────────────────────────────────────
+      // SQL Wave 5 (2026-05-31). LGPD audit trail.
+      consent_log: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          consent_type: string;
+          consent_version: string;
+          consent_given: boolean;
+          ip_address: string | null;
+          user_agent: string | null;
+          granted_at: string;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          consent_type: string;
+          consent_version?: string;
+          consent_given: boolean;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          granted_at?: string;
+          revoked_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          consent_type?: string;
+          consent_version?: string;
+          consent_given?: boolean;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          granted_at?: string;
+          revoked_at?: string | null;
+        };
+        Relationships: [];
+      };
+      // ─── audit_log ───────────────────────────────────────────────────────
+      // SQL Wave 5 (2026-05-31). Auditoria de ações administrativas (catálogo
+      // manual; convive com `audit_events`, que é o trigger-driven granular).
+      audit_log: {
+        Row: {
+          id: number;
+          actor_id: string | null;
+          action: string;
+          target_table: string | null;
+          target_id: string | null;
+          changes: Json | null;
+          ip_address: string | null;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          actor_id?: string | null;
+          action: string;
+          target_table?: string | null;
+          target_id?: string | null;
+          changes?: Json | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          actor_id?: string | null;
+          action?: string;
+          target_table?: string | null;
+          target_id?: string | null;
+          changes?: Json | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      // ─── invite_codes ────────────────────────────────────────────────────
+      // SQL Wave 5 (2026-05-31). Códigos de convite com expiração default 30d.
+      invite_codes: {
+        Row: {
+          code: string;
+          created_by: string | null;
+          created_at: string;
+          expires_at: string | null;
+          used_count: number;
+          max_uses: number | null;
+          metadata: Json | null;
+        };
+        Insert: {
+          code: string;
+          created_by?: string | null;
+          created_at?: string;
+          expires_at?: string | null;
+          used_count?: number;
+          max_uses?: number | null;
+          metadata?: Json | null;
+        };
+        Update: {
+          code?: string;
+          created_by?: string | null;
+          created_at?: string;
+          expires_at?: string | null;
+          used_count?: number;
+          max_uses?: number | null;
+          metadata?: Json | null;
+        };
+        Relationships: [];
+      };
       // ─── checklists ──────────────────────────────────────────────────────
       checklists: {
         Row: {

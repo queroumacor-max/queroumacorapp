@@ -9,6 +9,7 @@ import {
   getToken,
   jsonResponse,
   rateLimitResponse,
+  readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -23,8 +24,9 @@ export async function POST(request: NextRequest) {
   }
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = (await readBody(request, { maxBytes: 1024 * 1024 })) as Record<string, unknown>;
+  } catch (e) {
+    if (e instanceof ServiceError) return serviceErrorResponse(e);
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
   try {

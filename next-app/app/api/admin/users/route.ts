@@ -10,6 +10,7 @@ import {
   isAdminEmail,
   jsonResponse,
   rateLimitResponse,
+  readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -44,8 +45,9 @@ export async function POST(request: NextRequest) {
     roleKey?: unknown;
   };
   try {
-    body = (await request.json()) as typeof body;
-  } catch {
+    body = (await readBody(request, { maxBytes: 1024 * 1024 })) as typeof body;
+  } catch (e) {
+    if (e instanceof ServiceError) return serviceErrorResponse(e);
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
   const userId = typeof body?.userId === 'string' ? body.userId : '';

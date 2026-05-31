@@ -369,6 +369,76 @@ export async function gateProAI(
   return { userId, user: auth.user, token: auth.token };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Max payload guards (Backend#26).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Default cap pra payloads JSON/form. Multipart com upload deve passar
+ * `maxBytes` explícito (ex.: 4MB pra style-refs, 50MB pra posts).
+ *
+ * 10MB é generoso o suficiente pro 99% dos endpoints atuais (log-error,
+ * admin-*, chat-ai) mas barra payload pathológico que faria o edge runtime
+ * estourar memória antes mesmo de parsear.
+ */
+export const DEFAULT_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+
+export interface ReadBodyOptions {
+  /** Limite em bytes; default `DEFAULT_MAX_BYTES`. */
+  maxBytes?: number;
+  /** Tipo de parse. `json` (default) faz `JSON.parse`; `form` retorna `FormData`. */
+  type?: 'json' | 'form';
+}
+
+/**
+ * Lê e parseia o body do request com hard cap em bytes.
+ *
+ * Estratégia:
+ *   1. Cheap path: se `content-length` declarado > maxBytes, 413 imediato.
+ *      Cliente honesto declara content-length; atacante tentando burlar via
+ *      `Transfer-Encoding: chunked` cai na verificação pós-leitura.
+ *   2. Para `type: 'json'`, lê como texto e verifica byte-length de novo
+ *      antes de `JSON.parse` — pega chunked que extrapolou.
+ *   3. Para `type: 'form'`, delega para `request.formData()` (que respeita
+ *      `bodyParserLimit` do Next runtime); cap aqui é defensivo.
+ *
+ * Throws `ServiceError(413)` em overflow ou `ServiceError(400)` em JSON
+ * inválido. Route handler captura via `serviceErrorResponse`.
+ */
+export async function readBody(
+  request: NextRequest | Request,
+  options: ReadBodyOptions = {}
+): Promise<unknown> {
+  const max = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  const contentLengthHeader = request.headers.get('content-length');
+  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+  if (Number.isFinite(contentLength) && contentLength > max) {
+    throw new ServiceError(`Payload too large: ${contentLength} > ${max}`, 413);
+  }
+
+  if (options.type === 'form') {
+    // Não dá pra checar tamanho real do FormData antes de parsear; o
+    // content-length header serve como gate primário. Quem precisa de cap
+    // mais fino (validar tamanho de cada File field) deve fazer no handler.
+    return await request.formData();
+  }
+
+  const text = await request.text();
+  // Byte-length real (UTF-8 pode inflar 2-4x vs `length`). TextEncoder
+  // disponível em edge runtime + node runtime.
+  const byteLength =
+    typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(text).length : text.length;
+  if (byteLength > max) {
+    throw new ServiceError(`Payload too large after read: ${byteLength} > ${max}`, 413);
+  }
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ServiceError('Invalid JSON body', 400);
+  }
+}
+
 /**
  * Variante multipart de `gateProAI`: extrai o token do FormData.
  */

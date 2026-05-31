@@ -13,9 +13,18 @@ import {
   getToken,
   getTokenFromForm,
   jsonResponse,
+  readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+
+// Cap específico pra style-refs: 4MB cobre PNG/JPG até ~3000x3000 com
+// qualidade alta. Acima disso é abuso / bug do cliente. JSON branch
+// trata o mesmo cap (photoDataUrl em base64 infla ~33%, então
+// 4MB de raw image vira ~5.3MB de data URL — usamos 6MB pra JSON
+// pra acomodar a inflação base64 sem rejeitar uploads legítimos).
+const MAX_MULTIPART_BYTES = 4 * 1024 * 1024;
+const MAX_JSON_BYTES = 6 * 1024 * 1024;
 import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
 import { uploadStyleRef } from '@/lib/api/_services/upload-style-ref';
 
