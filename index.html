@@ -105,6 +105,21 @@
 <link rel="preload" href="/modules/nav.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/screen-hooks.js?v=20260531k" as="script">
 <link rel="preload" href="/app.js?v=20260531d" as="script">
+<!-- Sentry browser SDK (loader script). DSN baked into the URL. Auto-captura
+     window.onerror + unhandledrejection antes mesmo de qualquer outro script
+     carregar. A onLoad customiza environment com base no hostname (production
+     em queroumacor.com.br, preview em *.pages.dev e dev local). Convive com
+     /api/log-error (tabela errors caseira) — defense in depth. -->
+<script src="https://js.sentry-cdn.com/e19aa766953a6e70aeb09a52ea1046a7.min.js" crossorigin="anonymous"></script>
+<script>
+  if (window.Sentry && Sentry.onLoad) {
+    Sentry.onLoad(function(){
+      Sentry.init({
+        environment: /(?:^|\.)queroumacor\.com\.br$/i.test(location.hostname) ? 'production' : 'preview'
+      });
+    });
+  }
+</script>
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que

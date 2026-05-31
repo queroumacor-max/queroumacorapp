@@ -7,10 +7,13 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "build:portal": "node scripts/build-portal.js"
   },
   "devDependencies": {
     "vitest": "^1.6.0",
-    "@babel/standalone": "^7.24.0"
+    "@babel/standalone": "^7.24.0",
+    "@playwright/test": "^1.48.0"
   }
 }

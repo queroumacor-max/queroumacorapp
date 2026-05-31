@@ -1,0 +1,60 @@
+name: Rollback main
+
+# Reverte main pro commit anterior (ou um SHA escolhido) via force-push.
+# Isso dispara automaticamente o deploy.yml que faz o CF Pages deploy
+# da versao anterior. So manual — protegido por input `confirm=ROLLBACK`.
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "SHA alvo (default: HEAD~1 de main)"
+        required: false
+        default: ""
+      confirm:
+        description: 'Digite ROLLBACK pra confirmar'
+        required: true
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate confirm input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "ROLLBACK" ]; then
+            echo "Confirmacao invalida. Esperado literal 'ROLLBACK'."
+            exit 1
+          fi
+
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "claude-bot"
+          git config user.email "claude-bot@users.noreply.github.com"
+
+      - name: Reset main to target
+        run: |
+          target="${{ github.event.inputs.target_sha }}"
+          if [ -z "$target" ]; then
+            target="HEAD~1"
+          fi
+          echo "Resetting main to: $target"
+          git reset --hard "$target"
+          echo "NEW_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Force push main
+        run: git push --force origin main
+
+      - name: Report
+        run: |
+          echo "main agora aponta para: $NEW_SHA"
+          echo "deploy.yml vai rodar automaticamente."
