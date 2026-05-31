@@ -17,6 +17,20 @@
     return;
   }
   const M = window.Modules;
+
+  // ── Utils (utils.js): helpers puros expostos como globals
+  if(window.Utils){
+    const U = window.Utils;
+    ['parseBRL','fmtBRL','toast','showModal','closeModals','hideModal',
+     'escapeHtml','escapeJsArg','getTimeAgo','stripEmail','cleanHandle',
+     'getMediaType','_compressImageFile','isVideoUrl','_extractVideoFrame',
+     '_normTxt','_hashStr','_starStr','_agYmd',
+     'crmNormName','crmMonthsSince'].forEach(k=>{
+      if(typeof U[k] !== 'undefined') window[k] = U[k];
+    });
+  } else {
+    console.warn('[shims] window.Utils indefinido');
+  }
   // Helper: atribui Modules.<ns>[k] -> window[k] para cada k em keys
   function expose(ns, keys){
     const mod = M[ns];

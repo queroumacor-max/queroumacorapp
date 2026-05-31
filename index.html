@@ -209,7 +209,7 @@
      (wrap de dispatchers). install() do screen-hooks NÃO é auto-executado
      porque app.js ainda tem o wrap rodando; quando migrar, chamar
      window.Modules.screenHooks.install() no boot. -->
-<script src="/modules/nav.js?v=20260531k" defer></script>
+<script src="/modules/nav.js?v=20260531l" defer></script>
 <script src="/modules/screen-hooks.js?v=20260531k" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
@@ -2674,12 +2674,12 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
+<!-- shims.js: Fase 4 etapa 2. Roda ANTES do app.js pra que bare calls em
+     boot-code (linha 107: _bootstrapFromUrl()) encontrem window.X já
+     wirado. Function declarations remanescentes em app.js sobrepõem por
+     hoisting; funções deletadas usam o shim. -->
+<script src="/shims.js?v=20260531b" defer></script>
 <script src="/app.js?v=20260531e" defer></script>
-<!-- shims.js: Fase 4 etapa 2. Roda DEPOIS do app.js (defer mantém ordem de
-     execução do document) e sobrepõe window.X = Modules.foo.X, permitindo
-     deletar funções duplicadas do app.js sem quebrar HTML inline handlers
-     e bare calls remanescentes. -->
-<script src="/shims.js?v=20260531a" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
