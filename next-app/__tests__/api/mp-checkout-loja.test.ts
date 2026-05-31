@@ -190,7 +190,7 @@ describe('POST /api/mp-checkout-loja', () => {
         )
       )
       // PATCH order gateway+payment_url
-      .mockResolvedValueOnce(new Response('', { status: 204 }));
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
     globalThis.fetch = fetchMock;
     const { POST } = await import('@/app/api/mp-checkout-loja/route');
     const res = await POST(mkReq({ orderId: 'ord-1', accessToken: 'jwt' }));
