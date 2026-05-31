@@ -283,8 +283,11 @@
     if(!address){ toast('⚠️ Informe o endereço.'); return; }
 
     const btn = document.querySelector('.orc-submit');
-    btn.disabled = true;
-    btn.querySelector('span').textContent = 'Enviando...';
+    // Double-submit guard: ignora cliques repetidos enquanto envia.
+    if(btn && btn.dataset._loading) return;
+    if(btn){ btn.disabled = true; btn.dataset._loading = '1'; }
+    const _btnSpan = btn ? btn.querySelector('span') : null;
+    if(_btnSpan) _btnSpan.textContent = 'Enviando...';
 
     // Usa RPC create_quote_from_post (SECURITY DEFINER) — força client_id =
     // auth.uid() no servidor, impedindo forjar pedido em nome de outro user.
@@ -302,8 +305,8 @@
     });
     const quoteData = newQuoteId ? { id: newQuoteId } : null;
 
-    btn.disabled = false;
-    btn.querySelector('span').textContent = '📩 Enviar Solicitação';
+    if(btn){ btn.disabled = false; delete btn.dataset._loading; }
+    if(_btnSpan) _btnSpan.textContent = '📩 Enviar Solicitação';
 
     if(error){
       showError('send-quote', error, 'Não foi possível enviar a solicitação de orçamento.');

@@ -94,12 +94,17 @@
   }
 
   async function addCourse(btn){
+    // Double-submit guard: ignora clique repetido enquanto request roda
+    if(btn && btn.dataset._loading) return;
     const title = document.getElementById('c-title').value.trim();
     if(!title){ toast('Informe o título'); return; }
     const ctx = requireSession('Faça login');
     if(!ctx) return;
     const sb = ctx.sb;
-    btn.disabled = true; btn.textContent = 'Salvando...';
+    const restore = (typeof setButtonLoading === 'function')
+      ? setButtonLoading(btn, 'Salvando...')
+      : (() => { if(btn){ btn.disabled = false; btn.textContent = 'Adicionar curso'; } });
+    if(typeof setButtonLoading !== 'function' && btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
     try {
       const isFree = document.getElementById('c-free').checked;
       const { error } = await sb.from('courses').insert({
@@ -118,7 +123,7 @@
       toast('Curso adicionado');
       loadCoursesList();
     } catch(e){ showError('add-course', e, 'Não foi possível adicionar o curso.'); }
-    btn.disabled = false; btn.textContent = 'Adicionar curso';
+    finally { restore(); }
   }
 
   async function deleteCourse(id, el){

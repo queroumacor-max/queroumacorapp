@@ -71,6 +71,8 @@
   // Foto: enviada direta. Vídeo: extrai um frame ~1s dentro via canvas e
   // envia como JPG — backend só sabe processar imagem.
   async function gerarLegendaPost(btn){
+    // Double-submit guard: ignora cliques repetidos enquanto a legenda gera.
+    if(btn && btn.dataset._loading) return;
     if (!gateProClient('Gerar legenda com Seu Zé')) return;
     if(!postSelectedFiles || postSelectedFiles.length === 0){
       toast('Selecione uma foto ou vídeo primeiro');
@@ -88,7 +90,7 @@
     }
     const ta = document.getElementById('post-text-input');
     const orig = btn ? btn.innerHTML : '';
-    if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
+    if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; btn.dataset._loading = '1'; }
     toast(isVideo ? 'Extraindo frame do vídeo...' : 'Gerando legenda com Seu Zé...');
     try {
       let imgBlob;
@@ -127,7 +129,7 @@
       console.error('gerarLegendaPost:', e && e.message || e);
       toast('Falha ao gerar legenda');
     } finally {
-      if(btn){ btn.disabled = false; btn.innerHTML = orig; }
+      if(btn){ btn.disabled = false; btn.innerHTML = orig; delete btn.dataset._loading; }
     }
   }
 
@@ -176,6 +178,8 @@
     const sb = getSupabase();
     if(!sb){ toast('Erro: Supabase indisponível'); return; }
     const btn = document.getElementById('post-publish-btn');
+    // Double-submit guard: ignora cliques repetidos enquanto publica.
+    if(btn && btn.dataset._loading) return;
     const type = currentPostType; // 'story' or 'post'
     try {
       const { data:{ session } } = await sb.auth.getSession();
@@ -194,6 +198,7 @@
 
       btn.textContent = 'Publicando...';
       btn.disabled = true;
+      if(btn) btn.dataset._loading = '1';
       let imageUrl = null;
 
       // Upload image if selected
@@ -209,6 +214,7 @@
           console.error('Upload error:', upError && upError.message || upError);
           toast('Erro no upload: ' + upError.message);
           btn.textContent = 'Publicar'; btn.disabled = false;
+          if(btn) delete btn.dataset._loading;
           return;
         }
         const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
@@ -233,6 +239,7 @@
         }
         toast('Conteúdo bloqueado pela moderação (' + modResult.reason + ')');
         btn.textContent = 'Publicar'; btn.disabled = false;
+        if(btn) delete btn.dataset._loading;
         return;
       }
       // Vídeo sempre entra pendente até a análise assíncrona liberar
@@ -257,6 +264,7 @@
 
       btn.textContent = 'Publicar';
       btn.disabled = false;
+      if(btn) delete btn.dataset._loading;
 
       if(insertErr){
         console.error('Post insert error:', insertErr && insertErr.message || insertErr);
@@ -284,7 +292,7 @@
       }
     } catch(e) {
       showError('publish-post', e, 'Não foi possível publicar o post.');
-      if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; }
+      if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; delete btn.dataset._loading; }
     }
   }
 

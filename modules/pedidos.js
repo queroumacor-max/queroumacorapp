@@ -13,6 +13,8 @@
     const sb = getSupabase();
     const container = document.getElementById('pedidos-list');
     if(!sb || !currentUser || !container) return;
+    // Skeleton enquanto carrega (3 cards de ~100px — altura típica do pedido-card).
+    container.innerHTML = skeletonRows(3, { height: '100px' });
     try {
       const myId = currentUser.id;
       // Load quotes (orcamentos)
@@ -33,7 +35,13 @@
       } catch(e){ /* orders table might not exist yet */ }
 
       if((!quotes || quotes.length === 0) && orders.length === 0){
-        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem pedidos</div><div style="font-size:13px;">Seus orçamentos e compras aparecerão aqui</div></div>';
+        container.innerHTML = emptyState({
+          icon: '📦',
+          title: 'Sem pedidos da loja',
+          message: 'Quando comprar tintas/EPI na loja, os pedidos aparecem aqui. Orçamentos com profissionais também ficam nesta tela.',
+          actionLabel: 'Ver loja',
+          actionOnclick: "showScreen('mkt')"
+        });
         return;
       }
       const statusLabels = { pending:'Aguardando', rascunho:'Rascunho', enviado:'Enviado', aprovado:'Aprovado', em_execucao:'Em execução', concluido:'Concluído', recusado:'Recusado', accepted:'Aceito', completed:'Concluido', rejected:'Rejeitado', processing:'Em andamento', shipped:'Enviado' };
@@ -89,7 +97,10 @@
       container.innerHTML = html;
     } catch(e){
       console.error('loadPedidos error:', e && e.message || e);
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar pedidos</div>';
+      container.innerHTML = errorState(
+        'Não foi possível carregar os pedidos. Tente de novo.',
+        () => loadPedidos()
+      );
     }
   }
 

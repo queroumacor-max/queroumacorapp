@@ -36,9 +36,16 @@
   // porque (a) não tinha fluxo de pagamento real, (b) admin malicioso podia
   // marcar a order como 'paid' e disparar trigger de pontos. Hoje só
   // notifica o artista; venda real vai usar fluxo MP quando existir.
+  // Guard por (artistId + postId): dois cliques rápidos no botão "Interesse"
+  // do feed disparariam 2 notificações pro artista (spam). Guard em memória
+  // dura o tempo da sessão — recarregar zera (intencional, é só anti-spam).
+  const _comprarObraInFlight = new Set();
   async function comprarObra(postId, artistName, artistId, artType){
     if(!currentUser){ toast('Faça login pra falar com o artista'); return; }
+    const key = String(artistId||'') + ':' + String(postId||'');
+    if(_comprarObraInFlight.has(key)){ return; }
     if(!(await appConfirm('Manifestar interesse em "'+artType+'" de '+artistName+'? O artista será notificado e entra em contato.', { okLabel:'Manifestar interesse' }))) return;
+    _comprarObraInFlight.add(key);
     const meuNome = (currentUser.user_metadata && currentUser.user_metadata.name) || 'Um cliente';
     // Usa notify_user RPC (SECURITY DEFINER que valida relação) — fallback
     // silencioso se não houver quote/conversa prévia.
@@ -50,6 +57,8 @@
     } catch(e){
       console.warn('comprarObra notify:', e && e.message || e);
       toast('Mande uma mensagem direta ao artista pelo perfil dele.');
+    } finally {
+      _comprarObraInFlight.delete(key);
     }
   }
 

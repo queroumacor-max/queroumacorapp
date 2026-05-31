@@ -286,12 +286,17 @@
   }
 
   async function gerarArteIG(){
+    const btn = document.getElementById('ai-art-gen-btn');
+    // CRÍTICO: créditos IA são FINITOS (5/dia) — double-click chamaria
+    // /api/ig-art 2x e queimaria 2 créditos do dia. Guard ANTES de tudo.
+    if(btn && btn.dataset._loading) return;
     if(!_aiArtPhotoDataUrl){ toast('Escolha uma foto primeiro'); return; }
     if(_aiArtStyle === 'antesdepois' && !_aiArtPhotoDataUrl2){
       toast('Antes/Depois precisa de 2 fotos (antes e depois)'); return;
     }
-    const btn = document.getElementById('ai-art-gen-btn');
-    if(btn){ btn.disabled = true; btn.textContent = '✨ Seu Zé tá pintando...'; }
+    const restore = (typeof setButtonLoading === 'function')
+      ? setButtonLoading(btn, '✨ Seu Zé tá pintando...')
+      : (() => { if(btn){ btn.disabled = false; btn.textContent = '✨ Gerar arte com Seu Zé'; } });
     try {
       const businessName = (typeof getMyProfile === 'function')
         ? ((await getMyProfile())?.business_name || '')
@@ -347,7 +352,10 @@
       console.warn('gerarArteIG:', e);
       toast('Erro ao falar com o Seu Zé');
     } finally {
-      if(btn){ btn.disabled = false; btn.textContent = '✨ Gerar arte com Seu Zé'; }
+      restore();
+      // Se chegou no limite (response 429 ou _aiArtIncUsed bateu no teto),
+      // reaplica o estado "limite atingido" — _aiArtUpdateCreditsUI cuida disso.
+      try { _aiArtUpdateCreditsUI(); } catch(_){}
     }
   }
 

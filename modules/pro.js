@@ -105,13 +105,23 @@
 
   // CTA — Parceria Mercado Pago pra pintores (receber dos próprios clientes
   // via PIX/cartão/maquininha). Abre o cadastro do MP em nova aba.
+  // Guard em memória: o CTA é um <div>, não <button>, e cliques duplicados
+  // abriam 2 abas do MP simultaneamente (já passou pelo appConfirm). Trava
+  // por 3s (intervalo razoável pro popup blocker não atrapalhar).
+  let _abrirParceriaMPInFlight = false;
   async function abrirParceriaMP(){
-    const goSignup = await appConfirm(
-      'Receba pagamentos dos seus clientes via Mercado Pago: PIX instantâneo, cartão até 12x e maquininha. Sem mensalidade. Vamos te levar pro cadastro?',
-      { okLabel: 'Quero me cadastrar', cancelLabel: 'Agora não' }
-    );
-    if(!goSignup) return;
-    window.open('https://www.mercadopago.com.br/registration/landing', '_blank', 'noopener,noreferrer');
+    if(_abrirParceriaMPInFlight) return;
+    _abrirParceriaMPInFlight = true;
+    try {
+      const goSignup = await appConfirm(
+        'Receba pagamentos dos seus clientes via Mercado Pago: PIX instantâneo, cartão até 12x e maquininha. Sem mensalidade. Vamos te levar pro cadastro?',
+        { okLabel: 'Quero me cadastrar', cancelLabel: 'Agora não' }
+      );
+      if(!goSignup) return;
+      window.open('https://www.mercadopago.com.br/registration/landing', '_blank', 'noopener,noreferrer');
+    } finally {
+      setTimeout(() => { _abrirParceriaMPInFlight = false; }, 3000);
+    }
   }
 
   // Retorno do checkout Mercado Pago (Loja). URL: /?compra=<orderId>&status=success|failure|pending
@@ -194,12 +204,16 @@
 
   async function startProCheckout(){
     const btn = document.getElementById('pro-cta-btn');
+    // Double-submit guard: cria preferência no Mercado Pago — duplo click
+    // cria 2 preferências (cobra 2x) antes do redirect efetivar.
+    if(btn && btn.dataset._loading) return;
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Abrindo pagamento...') : () => {};
+    let redirecting = false;
     try {
       const sb = getSupabase();
       if(!sb){ toast('Erro: Supabase indisponível'); return; }
       const { data:{ session } } = await sb.auth.getSession();
       if(!session){ toast('Faça login para assinar'); return; }
-      if(btn){ btn.textContent = 'Abrindo pagamento...'; btn.disabled = true; }
       const { ok, data } = await apiPost('/api/checkout', {
         userId: session.user.id,
         email: session.user.email,
@@ -207,14 +221,16 @@
       });
       if(!ok || !data || !data.init_point){
         toast('Erro ao iniciar pagamento: ' + ((data && data.error) || 'tente novamente'));
-        if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
         return;
       }
+      // Botão fica travado até o redirect efetivar — pula restore.
+      redirecting = true;
       window.location.href = data.init_point;
     } catch(e){
       console.error('startProCheckout:', e && e.message || e);
       toast('Erro ao iniciar pagamento');
-      if(btn){ btn.textContent = 'Assinar Agora'; btn.disabled = false; }
+    } finally {
+      if(!redirecting) restore();
     }
   }
 

@@ -27,7 +27,17 @@
 
   function renderChecklist(){
     const el = document.getElementById('checklist-items');
-    if(_checklistItems.length===0){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:12px;font-size:13px;">Adicione itens ou use um template</div>'; return; }
+    if(!el) return;
+    if(_checklistItems.length===0){
+      // Empty state padronizado — usa Utils.emptyState via shim. Sem actionLabel
+      // porque os botões de template já vivem fora do container (logo acima).
+      el.innerHTML = emptyState({
+        icon: '📋',
+        title: 'Checklist vazio',
+        message: 'Adicione itens manualmente ou escolha um template acima (Pintura, Textura, Epóxi) pra começar.'
+      });
+      return;
+    }
     el.innerHTML = _checklistItems.map((item,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <input type="checkbox" ${item.done?'checked':''} onchange="_checklistItems[${i}].done=this.checked;saveChecklist()" style="width:18px;height:18px;accent-color:var(--p1);">
       <span style="flex:1;font-size:13px;${item.done?'text-decoration:line-through;color:var(--muted);':''}">${escapeHtml(item.text)}</span>
@@ -50,6 +60,10 @@
   async function loadChecklist(){
     const sb = getSupabase();
     if(!sb || !currentUser){ _checklistItems = []; _checklistRowId = null; renderChecklist(); return; }
+    // Skeleton enquanto o Supabase responde — evita o "flash" de empty state
+    // antes de saber se o usuário tem itens salvos.
+    const el = document.getElementById('checklist-items');
+    if(el) el.innerHTML = skeletonRows(4, { height: '40px', margin: '6px' });
     try {
       const { data } = await sb.from('checklists').select('id, items')
         .eq('user_id', currentUser.id).order('created_at',{ascending:false}).limit(1);

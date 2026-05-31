@@ -31,6 +31,11 @@
     if(!currentUser){ toast('Faça login para entrar na lista'); return; }
     const sb = getSupabase();
     if(!sb){ toast('Sem conexão. Tente de novo.'); return; }
+    // Double-submit guard: dois cliques rápidos inserem 2 linhas
+    // duplicadas em feature_interest (não tem UNIQUE no schema).
+    const btn = document.getElementById('maquininha-waitlist-btn');
+    if(btn && btn.dataset._loading) return;
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Registrando...') : () => {};
     try {
       const { error } = await sb.from('feature_interest').insert({
         user_id: currentUser.id,
@@ -43,6 +48,8 @@
       closeModals();
     } catch(e){
       showError('entrarListaMaquininha', e, 'Não conseguimos registrar — tente de novo.');
+    } finally {
+      restore();
     }
   }
 
