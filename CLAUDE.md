@@ -6,6 +6,12 @@
 - Regra de fluxo: após cada correção/melhoria concluída, fazer commit no
   branch de trabalho e **merge para `main`** automaticamente (deploy do
   Cloudflare Pages é automático a partir do `main`).
+- **Preview deploys do Cloudflare Pages**: toda branch que NÃO é `main`
+  ganha um preview deploy automático em `<branch-slug>.queroumacorapp.pages.dev`.
+  Pra features arriscadas (mudanças visuais, fluxos críticos, refactors),
+  testar primeiro no preview antes do merge. App mostra banner amarelo
+  "🧪 STAGING" no topo quando rodando fora de `queroumacor.com.br`. Detalhes
+  do workflow em `STAGING.md`.
 - **Após cada merge pra `main`**, aguardar a janela típica de deploy do
   Cloudflare Pages (~90s a partir do push) usando Bash com `run_in_background`
   (`sleep 90 && echo deploy-pronto`) e, quando a notificação chegar, avisar o
