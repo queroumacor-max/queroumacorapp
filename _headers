@@ -35,6 +35,10 @@
   Cache-Control: public, max-age=31536000, immutable
 /app.js
   Cache-Control: public, max-age=31536000, immutable
+/db.js
+  Cache-Control: public, max-age=31536000, immutable
+/validators.js
+  Cache-Control: public, max-age=31536000, immutable
 /supabase.js
   Cache-Control: public, max-age=31536000, immutable
 /jspdf.umd.min.js
