@@ -369,10 +369,14 @@ window.handleSbError = handleSbError;
 // O token é enviado APENAS via header Authorization: Bearer ... (o servidor
 // em functions/api/_security.js#getToken aceita ambos, mas mantemos só o
 // header pra evitar vazar o JWT em logs de body / proxies que loggam JSON).
+// opts.signal: AbortSignal opcional — permite ao caller cancelar a request
+// (ex.: usuário sai da tela antes da IA responder). Quando abortado,
+// retorna { ok:false, status:0, data:null, error:'aborted', aborted:true }.
 async function apiPost(path, body, opts){
   opts = opts || {};
   const multipart = !!opts.multipart;
   const withToken = opts.withToken !== false;
+  const signal = opts.signal || null;
   let headers = {};
   let token = null;
   if (withToken) {
@@ -393,11 +397,16 @@ async function apiPost(path, body, opts){
     payload = JSON.stringify(body || {});
   }
   try {
-    const r = await fetch(path, { method: 'POST', headers: headers, body: payload });
+    const init = { method: 'POST', headers: headers, body: payload };
+    if (signal) init.signal = signal;
+    const r = await fetch(path, init);
     let data = null;
     try { data = await r.json(); } catch(_) { /* não-json */ }
     return { ok: r.ok, status: r.status, data: data, error: r.ok ? null : ((data && data.error) || ('HTTP ' + r.status)) };
   } catch (e) {
+    if (e && e.name === 'AbortError') {
+      return { ok: false, status: 0, data: null, error: 'aborted', aborted: true };
+    }
     return { ok: false, status: 0, data: null, error: String(e && e.message || e) };
   }
 }
@@ -1546,5 +1555,40 @@ function debounce(fn, ms = 250){
   };
 }
 window.debounce = debounce;
+
+// ═══════ OFFLINE STATE INDICATOR ═══════
+// Banner persistente no topo quando navigator.onLine === false. Quando volta
+// online, remove o banner + dispara toast. NÃO-bloqueante: o usuário ainda
+// pode tentar interagir (cache do SW pode servir o que dá; cliques que
+// dependem de rede vão falhar e cair nos toasts de erro normais).
+// Pareado com o AbortController dos endpoints IA: se o user volta online
+// e re-tenta, a request anterior (se ainda viva) é cancelada antes da nova.
+(function setupOfflineIndicator(){
+  function showOfflineBanner(){
+    if (document.getElementById('_offline-banner')) return;
+    const div = document.createElement('div');
+    div.id = '_offline-banner';
+    div.setAttribute('role', 'alert');
+    div.setAttribute('aria-live', 'polite');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#e76f51;color:#fff;text-align:center;padding:8px 14px;font-size:13px;font-weight:600;font-family:\'DM Sans\',sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.15);';
+    div.textContent = '📶 Sem conexão — algumas funcionalidades podem não funcionar';
+    if (document.body) document.body.appendChild(div);
+    else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(div), { once: true });
+  }
+  function hideOfflineBanner(){
+    const el = document.getElementById('_offline-banner');
+    if (el) el.remove();
+    if (typeof toast === 'function') toast('🟢 Conexão restaurada');
+  }
+  window.addEventListener('offline', showOfflineBanner);
+  window.addEventListener('online', hideOfflineBanner);
+  // Estado inicial: navegador pode já estar offline na hora do boot.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // Defere pro DOM estar pronto pra inserir o banner.
+    if (document.body) showOfflineBanner();
+    else document.addEventListener('DOMContentLoaded', showOfflineBanner, { once: true });
+  }
+})();
+// ═══════ /OFFLINE INDICATOR ═══════
 
 window.addEventListener('DOMContentLoaded', () => { initAuth(); });

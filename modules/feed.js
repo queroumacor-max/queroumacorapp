@@ -273,9 +273,130 @@
     });
   }
 
+  // ─── Paint incremental (R14) ───────────────────────────────────────────────
+  // Atualiza um post JÁ renderizado no DOM trocando SÓ os fragmentos que
+  // dependem de likes/comments/saves — sem repintar o post inteiro nem o
+  // feed. Chamado pelo Wave B do loadPosts depois do primeiro paint, e
+  // também pode ser usado por código externo que invalida contadores.
+  // Mantém os botões/handlers existentes (event bindings inline sobrevivem).
+  function updatePostInPlace(postEl, p, ctx){
+    if(!postEl || !p) return;
+    ctx = ctx || {};
+    const myLikes = ctx.myLikes || [];
+    const likeCounts = ctx.likeCounts || {};
+    const savedPosts = ctx.savedPosts || [];
+    const commentsMap = ctx.commentsMap || {};
+    const profMap = ctx.profMap || {};
+    const liked = myLikes.includes(p.id);
+    const saved = savedPosts.includes(p.id);
+    const likeCount = likeCounts[p.id] || 0;
+    // ── Pincel (like) ──
+    const likeBtn = postEl.querySelector('.mpost-actions .act-btn:first-child');
+    if(likeBtn){
+      const svg = likeBtn.querySelector('svg');
+      if(svg){
+        svg.style.fill = liked ? 'var(--p4)' : 'none';
+        svg.style.stroke = liked ? 'var(--p4)' : 'var(--ink)';
+      }
+      const labelEl = likeBtn.querySelector('.act-label');
+      if(labelEl) labelEl.textContent = 'Curtir' + (likeCount > 0 ? ' · ' + likeCount : '');
+    }
+    // ── Linha "N curtidas" abaixo das actions ──
+    let likeTextEl = postEl.querySelector('div[style*="padding:0 14px 2px"]');
+    if(likeCount > 0){
+      const txt = likeCount + ' curtida' + (likeCount > 1 ? 's' : '');
+      if(likeTextEl){
+        likeTextEl.textContent = txt;
+        likeTextEl.style.display = '';
+      } else {
+        // Inserir entre .mpost-actions e .post-cap/.comments-area/.post-time
+        const actions = postEl.querySelector('.mpost-actions');
+        if(actions){
+          const div = document.createElement('div');
+          div.style.cssText = 'padding:0 14px 2px;font-size:12px;font-weight:700;color:var(--ink);';
+          div.textContent = txt;
+          actions.insertAdjacentElement('afterend', div);
+        }
+      }
+    } else if(likeTextEl){
+      likeTextEl.style.display = 'none';
+    }
+    // ── Salvar (paleta) ──
+    const saveBtn = postEl.querySelector('.save-btn');
+    if(saveBtn){
+      const svg = saveBtn.querySelector('svg');
+      if(svg){
+        svg.style.fill = saved ? 'var(--p1)' : 'none';
+        svg.style.stroke = saved ? 'var(--p1)' : 'var(--ink)';
+      }
+    }
+    // ── Comentários persistidos ──
+    // Render-once: só popula a área se ainda não tem comentários renderizados.
+    // Evita duplicar comentários otimistas que submitComment já injetou.
+    const postComments = commentsMap[p.id] || [];
+    if(postComments.length > 0){
+      let commentsArea = postEl.querySelector('.comments-area');
+      const alreadyRendered = commentsArea && commentsArea.querySelectorAll('[data-comment-id]').length > 0;
+      if(!alreadyRendered){
+        if(!commentsArea){
+          commentsArea = document.createElement('div');
+          commentsArea.className = 'comments-area';
+          commentsArea.style.cssText = 'padding:4px 14px 2px;';
+          // Insere logo após a linha "N curtidas" (ou após .post-cap / .mpost-actions)
+          const cap = postEl.querySelector('.post-cap');
+          const timeEl = postEl.querySelector('.post-time');
+          if(timeEl) postEl.insertBefore(commentsArea, timeEl);
+          else if(cap) cap.insertAdjacentElement('afterend', commentsArea);
+        }
+        let html = '';
+        postComments.forEach(c => {
+          const cp = profMap[c.user_id] || {};
+          let cName = cp.name || (cp.tag ? '@' + cp.tag : 'Usuário');
+          if(cName.includes('@') && !cp.tag) cName = cName.split('@')[0];
+          const canDelete = currentUser && (currentUser.id === c.user_id || currentUser.id === p.user_id);
+          const delBtn = canDelete ? ' <span onclick="deleteComment(this,\''+escapeJsArg(c.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>' : '';
+          html += '<div data-comment-id="'+escapeHtml(c.id)+'" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;">';
+          html += '<span style="flex:1"><b>'+escapeHtml(cName)+'</b> '+escapeHtml(c.text)+'</span>'+delBtn;
+          html += '</div>';
+        });
+        commentsArea.insertAdjacentHTML('beforeend', html);
+      }
+    }
+  }
+
+  // Patch dirigido no cache compacto v3 — chamado por togglePostLike /
+  // toggleSavePost / submitComment pra manter a próxima pintura instantânea
+  // (paintFeedFromCache) coerente com o estado atual. Não repinta o DOM:
+  // só toca em localStorage. Falha silenciosa (quota / serialize errors).
+  function updateFeedCacheEntry(postId, patch){
+    try {
+      if(!postId || !patch) return;
+      const key = _feedCacheKey();
+      const raw = localStorage.getItem(key);
+      if(!raw) return;
+      const c = JSON.parse(raw);
+      if(!c) return;
+      c.myLikes = c.myLikes || [];
+      c.likeCounts = c.likeCounts || {};
+      c.savedPosts = c.savedPosts || [];
+      if(patch.liked === true && !c.myLikes.includes(postId)) c.myLikes.push(postId);
+      if(patch.liked === false){ c.myLikes = c.myLikes.filter(id => id !== postId); }
+      if(typeof patch.likeDelta === 'number'){
+        const next = (c.likeCounts[postId] || 0) + patch.likeDelta;
+        if(next > 0) c.likeCounts[postId] = next; else delete c.likeCounts[postId];
+      }
+      if(patch.saved === true && !c.savedPosts.includes(postId)) c.savedPosts.push(postId);
+      if(patch.saved === false){ c.savedPosts = c.savedPosts.filter(id => id !== postId); }
+      const json = JSON.stringify(c);
+      if(json.length > 300000) return;
+      localStorage.setItem(key, json);
+    } catch(e){ /* quota / serialize — ignora */ }
+  }
+
   // Monta o HTML de um post do feed. Extraído do loop de loadPosts pra ser
   // reaproveitado tanto no render progressivo quanto no paint do cache.
   // ctx = { myLikes, likeCounts, savedPosts, commentsMap, profMap }
+  // PURA: recebe post + ctx, devolve string HTML. Não toca em DOM.
   function buildFeedPostHTML(p, ctx){
     ctx = ctx || {};
     const myLikes = ctx.myLikes || [];
@@ -439,21 +560,41 @@
       const pSaved    = currentUser ? _wt(sb.from('saved_posts').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'saved') : null;
 
       const profMap = {};
-      // Helper de pintura (fecha sobre posts/container/append).
+      // Helper de pintura inicial (full paint OU append). Wave B NÃO chama
+      // mais isso — usa patchExisting() abaixo pra updates incrementais.
       const renderInto = (ctx) => {
         let html = posts.map(p => buildFeedPostHTML(p, ctx)).join('');
         if(posts.length === FEED_PAGE){
           html += '<div style="text-align:center;padding:16px 0 28px;"><button id="feed-more-btn" onclick="loadMoreFeed(this)" style="background:none;border:1.5px solid var(--border);border-radius:20px;padding:10px 24px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:\'DM Sans\',sans-serif;">Ver mais publicações</button></div>';
         }
         if(append){
+          // Pagination: insertAdjacentHTML('beforeend') preserva DOM existente
+          // (não força re-layout dos posts antigos) e é mais rápido que
+          // `innerHTML +=` (que rebuilda tudo). O observer reusa o WeakSet
+          // _obsVideos pra só observar vídeos novos.
           const oldBtn = document.getElementById('feed-more-btn');
           if(oldBtn && oldBtn.closest('div')) oldBtn.closest('div').remove();
           container.insertAdjacentHTML('beforeend', html);
           observeFeedVideos(false);
         } else {
+          // Full paint (load inicial ou retry). Aqui o innerHTML = é OK
+          // porque o feed ou está vazio (skeleton) ou veio do cache stale.
           container.innerHTML = html;
           observeFeedVideos(true);
         }
+        if(typeof filterFeedPosts === 'function') filterFeedPosts();
+      };
+
+      // Paint incremental do Wave B: percorre os posts JÁ no DOM e
+      // atualiza só likes/comments/saves via updatePostInPlace, sem
+      // re-renderizar o feed inteiro. Reduz Wave B de O(n) re-renders
+      // pra O(n) updates pontuais (sem re-layout da timeline, sem
+      // re-attach de IntersectionObserver, sem flicker de mídia).
+      const patchExisting = (ctx) => {
+        posts.forEach(p => {
+          const el = container.querySelector('.mpost[data-post-id="'+(p.id || '').replace(/"/g,'\\"')+'"]');
+          if(el) updatePostInPlace(el, p, ctx);
+        });
         if(typeof filterFeedPosts === 'function') filterFeedPosts();
       };
 
@@ -498,8 +639,22 @@
         if(svRes && svRes.data) savedPosts = svRes.data.map(s => s.post_id);
       }
 
-      // PAINT COMPLETO (com curtidas/comentários/salvos).
-      renderInto({ profMap, myLikes, likeCounts, savedPosts, commentsMap });
+      // PAINT INCREMENTAL (R14): em vez de re-renderizar a lista toda,
+      // verifica se os posts já estão no DOM (vieram do primeiro paint OU
+      // do paintFeedFromCache) e patcha só likes/comments/saves em cada um.
+      // Se ainda não estão (caso raro: skipFirstPaint=true mas paint do
+      // cache falhou), aí sim cai no renderInto pra primeiro paint.
+      const ctxFull = { profMap, myLikes, likeCounts, savedPosts, commentsMap };
+      const hasRenderedPosts = !append && posts.length > 0 && container.querySelector('.mpost[data-post-id]');
+      if(hasRenderedPosts){
+        patchExisting(ctxFull);
+        // Sem reset do observer — os vídeos já estão observados desde o
+        // primeiro paint. Roda observeFeedVideos(false) só pra capturar
+        // qualquer vídeo que não estava no cache mas está no fetch novo.
+        observeFeedVideos(false);
+      } else {
+        renderInto(ctxFull);
+      }
       _feedOffset = offset + posts.length;
 
       // Cache stale-while-revalidate (só página inicial): próximo load pinta
@@ -534,11 +689,11 @@
   window.Modules.feed = {
     setFeedFilter, filterFeedPosts,
     fetchPublicProfiles,
-    paintFeedFromCache, scheduleFeedCacheSave,
+    paintFeedFromCache, scheduleFeedCacheSave, updateFeedCacheEntry,
     loadFeed, renderFeedRetry, retryLoadFeed,
     invalidateFollowingIds, getFollowingIds,
     toggleFeedVideoMute, toggleFeedVideoPlay, observeFeedVideos,
-    buildFeedPostHTML, loadPosts, loadMoreFeed,
+    buildFeedPostHTML, updatePostInPlace, loadPosts, loadMoreFeed,
     getLastFeedLoad
   };
 })();
