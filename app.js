@@ -504,12 +504,8 @@ let _msgsFlushTimer = null;
 
 // _flushMsgs → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
-// Garante flush antes do usuário fechar / trocar de aba (pagehide é mais
-// confiável que beforeunload em mobile).
-window.addEventListener('pagehide', () => { _flushConvs(); _flushMsgs(); });
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden'){ _flushConvs(); _flushMsgs(); }
-});
+// Listeners pagehide+visibilitychange → modules/chat.js (movidos junto com
+// _flushConvs/_flushMsgs, que ficam IIFE-private e não eram acessíveis daqui).
 
 // saveConvLocal → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 // loadConvsLocal → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
