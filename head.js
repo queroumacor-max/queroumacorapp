@@ -920,9 +920,33 @@ async function updateMyStoryAvatar(){
   } catch(e){ console.warn('updateMyStoryAvatar error:', e && e.message || e); }
 }
 
+// Rate limit advisory de auth: pergunta ao /api/auth-rate-check se este IP
+// pode tentar login/signup/reset. Se 429, mostra toast e retorna false
+// (cliente NÃO bate no Supabase). Fail-open: se o endpoint estiver fora,
+// segue com a tentativa de auth normal — defesa em profundidade.
+async function _authRateCheck(action){
+  try {
+    const r = await fetch('/api/auth-rate-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action || 'login' })
+    });
+    if (r.status === 429) {
+      let secs = 60;
+      try { const j = await r.json(); if (j && j.retry_after) secs = j.retry_after; } catch(_) {}
+      toast('Muitas tentativas. Tente em ' + secs + 's.');
+      return false;
+    }
+    return true;
+  } catch(_) {
+    return true; // fail-open: rede caiu, não bloqueia auth
+  }
+}
+
 async function doLoginSupabase(email, password) {
   const sb = getSupabase();
   if (!sb) { toast('Erro: Supabase não carregou'); return; }
+  if (!(await _authRateCheck('login'))) return;
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) { toast('Erro: ' + error.message); }
@@ -947,6 +971,7 @@ function doLogin(){
 async function doRegisterSupabase(name, email, password, type, tag) {
   const sb = getSupabase();
   if (!sb) { showScreen('feed'); return; }
+  if (!(await _authRateCheck('signup'))) return;
   const phone = document.getElementById('s-phone') ? document.getElementById('s-phone').value.trim() : '';
   const cityName = document.getElementById('s-city') ? document.getElementById('s-city').value.trim() : '';
   const stateName = document.getElementById('s-state') ? document.getElementById('s-state').value.trim() : '';
