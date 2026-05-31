@@ -3,6 +3,14 @@
 > Cloudflare Pages Functions. Cada `<name>.js` vira rota `POST /api/<name>` (ou GET, dependendo do export).
 > Files prefixed com `_` (ex: `_security.js`, `_ai.js`) NÃO viram rotas — só módulos compartilhados.
 
+## Versionamento
+
+A API atual é **v1 implícita**. `/api/v1/*` é alias pra `/api/*` (via `_redirects`),
+então `/api/v1/health` e `/api/health` levam ao mesmo handler. **Política:**
+- **Mudanças aditivas** (campo novo no body/response, novo endpoint): ficam em `/api/*` (v1).
+- **Quebras de contrato** (renomear/remover campo, mudar status code, etc.): criar `/api/v2/<nome>.js` (subpasta), manter o v1 funcionando até desativação anunciada.
+- **Removal**: aviso de 30 dias antes de tirar um endpoint do ar; durante esse período, header `Deprecation: true` na resposta.
+
 ## Autenticação
 - Token JWT do Supabase em `Authorization: Bearer <jwt>` (preferido)
 - OU `body.accessToken` (fallback; multipart usa `formData.get('accessToken')`)
