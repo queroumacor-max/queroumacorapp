@@ -972,6 +972,14 @@
     toast('Cali Colors foi adicionada ao chat! 🎨');
   }
 
+  // Garante flush antes do usuário fechar / trocar de aba (pagehide é mais
+  // confiável que beforeunload em mobile). Migrado do app.js — _flushConvs e
+  // _flushMsgs são IIFE-private e não acessíveis cross-script.
+  window.addEventListener('pagehide', () => { _flushConvs(); _flushMsgs(); });
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden'){ _flushConvs(); _flushMsgs(); }
+  });
+
   window.Modules = window.Modules || {};
   window.Modules.chat = {
     // Tabs / filtro
