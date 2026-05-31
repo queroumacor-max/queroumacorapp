@@ -1,0 +1,356 @@
+// postInteractions.ts — service layer das interações sociais sobre posts:
+// curtir, comentar, salvar, denunciar, deletar. Espelha o subset do vanilla
+// (modules/feed-interactions.js) sem a parte DOM/UI — só I/O puro contra o
+// Supabase, com types inline porque o shape difere de lib/types.ts (em
+// particular, `comments.text`, NÃO `comments.body`, e `reports` exige tripla
+// reporter/post/reason).
+//
+// Schema relevante (supabase_init.sql):
+//   - likes: id, user_id, post_id, created_at; UNIQUE(user_id, post_id)
+//   - comments: id, post_id, user_id, text (NOT NULL), created_at
+//   - saved_posts: id, user_id, post_id, created_at; UNIQUE(user_id, post_id)
+//   - reports: id, reporter_id, post_id, target_user_id?, reason (NOT NULL),
+//     status DEFAULT 'pending', created_at
+//
+// Convenções:
+//   - Funções idempotentes (toggleLike/toggleSave) consultam estado atual e
+//     fazem delete OR insert (delete-or-insert), evitando depender de UPSERT
+//     no caller. Retornam o novo estado (`liked: boolean`) pra UI usar em
+//     onSuccess sem precisar refetchar a contagem inteira.
+//   - Funções de leitura retornam [] / 0 em ausência de IDs (mesma convenção
+//     dos outros services do projeto) — caller que tem optional chaining
+//     na queryKey não precisa de guard extra.
+//   - Erros sobem como NetworkError com message do Supabase. Casos "no-op"
+//     (ID vazio) NÃO estouram — só short-circuit.
+
+import { getSupabase } from '@/lib/supabase';
+import { NetworkError, ValidationError } from '@/lib/errors';
+
+// Types inline (em vez de importar do types.ts) — o shape do `Comment` em
+// types.ts usa `body`, mas o schema real do banco é `text`. Em vez de mexer
+// no type global (que pode ser usado em outro contexto), declaramos local.
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  text: string;
+  created_at: string;
+}
+
+export interface SavedPostRow {
+  id: string;
+  user_id: string;
+  post_id: string;
+  created_at: string;
+}
+
+// `reason` é text livre no banco mas a UI restringe ao conjunto canônico.
+// Mantemos como string aberto pra absorver tipos novos sem refator.
+export type ReportReason =
+  | 'spam'
+  | 'ofensivo'
+  | 'violencia'
+  | 'desinformacao'
+  | 'outros'
+  | string;
+
+// ─── LIKES ─────────────────────────────────────────────────────────────────
+
+/**
+ * Toggle idempotente de like. Consulta estado atual via select+maybeSingle e
+ * decide entre delete/insert. Retorna o novo estado (`liked: boolean`) e a
+ * contagem total atualizada — UI usa em onSuccess pra reconciliar otimismo
+ * sem precisar refetchar.
+ *
+ * Race possível: dois clicks rápidos em sequência podem rodar dois "select
+ * → insert" e o segundo insert quebrar no UNIQUE(user_id,post_id). Tratamos
+ * o `23505` (unique violation) como sucesso silencioso pra blindar o caller
+ * que já está usando mutation otimista (a UI já refletiu, banco recusou
+ * idempotentemente — sem erro do ponto de vista do produto).
+ */
+export async function toggleLike(
+  userId: string,
+  postId: string,
+): Promise<{ liked: boolean; count: number }> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+
+  const sb = getSupabase();
+  // Estado atual: existe linha (user,post)?
+  const { data: existing, error: selErr } = await sb
+    .from('likes')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+  if (selErr) throw new NetworkError(selErr.message, selErr);
+
+  let liked: boolean;
+  if (existing) {
+    const { error } = await sb
+      .from('likes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('post_id', postId);
+    if (error) throw new NetworkError(error.message, error);
+    liked = false;
+  } else {
+    const { error } = await sb
+      .from('likes')
+      .insert({ user_id: userId, post_id: postId });
+    // 23505 (PG unique_violation) = corrida entre dois inserts; trata como
+    // sucesso (a linha existe → o usuário curtiu → estado final correto).
+    if (error && (error as { code?: string }).code !== '23505') {
+      throw new NetworkError(error.message, error);
+    }
+    liked = true;
+  }
+  const count = await countLikes(postId);
+  return { liked, count };
+}
+
+/**
+ * Lista os user_ids que curtiram um post. Útil pra mostrar "X e Y curtiram".
+ */
+export async function fetchLikes(postId: string): Promise<string[]> {
+  if (!postId) return [];
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('likes')
+    .select('user_id')
+    .eq('post_id', postId);
+  if (error) throw new NetworkError(error.message, error);
+  return ((data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
+}
+
+/**
+ * Conta likes do post via `count: 'exact', head: true` — não traz rows,
+ * só o número. Bem mais barato que `select('id')` + length.
+ */
+export async function countLikes(postId: string): Promise<number> {
+  if (!postId) return 0;
+  const sb = getSupabase();
+  const { count, error } = await sb
+    .from('likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('post_id', postId);
+  if (error) throw new NetworkError(error.message, error);
+  return count ?? 0;
+}
+
+/**
+ * Verifica se um usuário já curtiu um post. Usado em useLike pra hidratar o
+ * estado inicial sem precisar fazer dois fetches em paralelo no caller.
+ */
+export async function hasLiked(userId: string, postId: string): Promise<boolean> {
+  if (!userId || !postId) return false;
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('likes')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+  if (error) throw new NetworkError(error.message, error);
+  return !!data;
+}
+
+// ─── COMMENTS ──────────────────────────────────────────────────────────────
+
+/**
+ * Insere comentário. Texto trimado e validado: vazio → ValidationError (o
+ * caller já valida via Zod ou button-disabled, mas guard defensivo evita
+ * que rows vazias entrem no banco). Retorna a row completa pra UI poder
+ * appendar otimisticamente sem refetch.
+ */
+export async function addComment(
+  userId: string,
+  postId: string,
+  text: string,
+): Promise<PostComment> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+  const trimmed = (text || '').trim();
+  if (!trimmed) throw new ValidationError('Comentário vazio');
+
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('comments')
+    .insert({ post_id: postId, user_id: userId, text: trimmed })
+    .select('id, post_id, user_id, text, created_at')
+    .single();
+  if (error) throw new NetworkError(error.message, error);
+  if (!data) throw new NetworkError('Comentário não retornado');
+  return data as PostComment;
+}
+
+/**
+ * Deleta comentário. RLS no banco restringe a (a) dono do comment, (b) dono
+ * do post (policy "Post owners can delete comments"). Não fazemos check
+ * adicional aqui — o Supabase devolve erro se o user não tem permissão.
+ * userId é exigido só pra forçar o caller a estar autenticado.
+ */
+export async function deleteComment(
+  commentId: string,
+  userId: string,
+): Promise<void> {
+  if (!commentId) throw new ValidationError('commentId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+  const sb = getSupabase();
+  const { error } = await sb.from('comments').delete().eq('id', commentId);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+/**
+ * Lista comentários de um post, mais antigos primeiro (estilo IG/FB).
+ */
+export async function fetchComments(postId: string): Promise<PostComment[]> {
+  if (!postId) return [];
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('comments')
+    .select('id, post_id, user_id, text, created_at')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true });
+  if (error) throw new NetworkError(error.message, error);
+  return (data ?? []) as PostComment[];
+}
+
+// ─── SAVED POSTS ───────────────────────────────────────────────────────────
+
+/**
+ * Toggle idempotente do "salvar post". Mesmo pattern do toggleLike — select
+ * → delete-or-insert, com 23505 swallow no insert. Retorna novo estado.
+ */
+export async function toggleSave(
+  userId: string,
+  postId: string,
+): Promise<{ saved: boolean }> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+
+  const sb = getSupabase();
+  const { data: existing, error: selErr } = await sb
+    .from('saved_posts')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+  if (selErr) throw new NetworkError(selErr.message, selErr);
+
+  if (existing) {
+    const { error } = await sb
+      .from('saved_posts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('post_id', postId);
+    if (error) throw new NetworkError(error.message, error);
+    return { saved: false };
+  }
+  const { error } = await sb
+    .from('saved_posts')
+    .insert({ user_id: userId, post_id: postId });
+  if (error && (error as { code?: string }).code !== '23505') {
+    throw new NetworkError(error.message, error);
+  }
+  return { saved: true };
+}
+
+/**
+ * Lista os posts salvos por um usuário (rows da tabela, não posts hidratados —
+ * o caller faz join se precisar de caption/media via select('post_id, posts(*)')).
+ */
+export async function fetchSaved(userId: string): Promise<SavedPostRow[]> {
+  if (!userId) return [];
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('saved_posts')
+    .select('id, user_id, post_id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw new NetworkError(error.message, error);
+  return (data ?? []) as SavedPostRow[];
+}
+
+/**
+ * Verifica se um usuário salvou um post (hidrata estado inicial em useSavedPosts).
+ */
+export async function hasSaved(userId: string, postId: string): Promise<boolean> {
+  if (!userId || !postId) return false;
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('saved_posts')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+  if (error) throw new NetworkError(error.message, error);
+  return !!data;
+}
+
+// ─── REPORTS ───────────────────────────────────────────────────────────────
+
+/**
+ * Insere denúncia. `reason` é obrigatório (NOT NULL no schema). `targetUserId`
+ * é opcional — o vanilla preenche quando consegue, deixa null quando não.
+ * Não fazemos dedupe (mesmo report 2x não é bug do server — RLS aceita;
+ * dedupe vivia no frontend via flag _reportSubmitting).
+ */
+export async function reportPost(
+  reporterId: string,
+  postId: string,
+  reason: ReportReason,
+  targetUserId?: string | null,
+): Promise<void> {
+  if (!reporterId) throw new ValidationError('reporterId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+  const trimmedReason = (reason || '').trim();
+  if (!trimmedReason) throw new ValidationError('Motivo obrigatório');
+
+  const sb = getSupabase();
+  const { error } = await sb.from('reports').insert({
+    reporter_id: reporterId,
+    post_id: postId,
+    target_user_id: targetUserId ?? null,
+    reason: trimmedReason,
+  });
+  if (error) throw new NetworkError(error.message, error);
+}
+
+// ─── DELETE POST ───────────────────────────────────────────────────────────
+
+/**
+ * Deleta post + dados relacionados (likes, comments, saved_posts).
+ *
+ * O schema tem `ON DELETE CASCADE` em todas as FKs apontando pra `posts.id`,
+ * então em teoria deletar só a row de `posts` chega. Mas o vanilla limpa
+ * explicitamente as relações antes (modules/feed-interactions.js linha 252+),
+ * provavelmente pra que counts/caches atualizem mais cedo nos triggers. Aqui
+ * replicamos esse comportamento via Promise.all pra manter paridade.
+ *
+ * O filtro `eq('user_id', userId)` no DELETE final garante que mesmo se as
+ * policies RLS forem afrouxadas no futuro, esta função só apaga post do dono.
+ */
+export async function deletePost(userId: string, postId: string): Promise<void> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!postId) throw new ValidationError('postId obrigatório');
+
+  const sb = getSupabase();
+  // Limpeza de relações em paralelo. Errors aqui são ignorados — se a tabela
+  // não existe ou RLS bloqueia, o CASCADE da FK ainda vai limpar quando o
+  // DELETE de posts rodar. Mantemos paridade com o vanilla que também não
+  // verificava o resultado dessas três chamadas.
+  await Promise.all([
+    sb.from('likes').delete().eq('post_id', postId),
+    sb.from('comments').delete().eq('post_id', postId),
+    sb.from('saved_posts').delete().eq('post_id', postId),
+  ]);
+
+  const { error } = await sb
+    .from('posts')
+    .delete()
+    .eq('id', postId)
+    .eq('user_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+}
