@@ -46,7 +46,9 @@ async function getById(id: string, cols?: string): Promise<Profile | null> {
       logger.warn('DB.profiles.getById', r.error.message);
       return null;
     }
-    return (r.data as unknown as Profile) || null;
+    // Cast: o select aceita string dinâmica (`cols`), então o type checker
+    // não sabe quais colunas vêm. Fallback é o domain type Profile (permissive).
+    return (r.data as Profile | null) ?? null;
   } catch (e) {
     logger.warn('DB.profiles.getById exc', (e as Error)?.message ?? String(e));
     return null;

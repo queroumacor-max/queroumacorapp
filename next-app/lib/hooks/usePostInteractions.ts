@@ -269,7 +269,9 @@ export function useSavedPosts(userIdParam?: string): UseSavedPostsResult {
 // ─── useReportPost ─────────────────────────────────────────────────────────
 
 export interface UseReportPostResult {
-  report: (postId: string, reason: ReportReason, targetUserId?: string | null) => Promise<void>;
+  // reason aceita string livre — o ReportModal concatena detalhes no
+  // formato "<reason>: <details>", então o type não fecha em ReportReason.
+  report: (postId: string, reason: ReportReason | string, targetUserId?: string | null) => Promise<void>;
   isReporting: boolean;
   error: Error | null;
 }
@@ -286,7 +288,7 @@ export function useReportPost(): UseReportPostResult {
   const mut = useMutation<
     void,
     Error,
-    { postId: string; reason: ReportReason; targetUserId?: string | null }
+    { postId: string; reason: ReportReason | string; targetUserId?: string | null }
   >({
     mutationFn: ({ postId, reason, targetUserId }) =>
       reportPostSvc(userId, postId, reason, targetUserId ?? null),

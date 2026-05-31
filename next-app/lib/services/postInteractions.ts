@@ -46,14 +46,15 @@ export interface SavedPostRow {
 }
 
 // `reason` é text livre no banco mas a UI restringe ao conjunto canônico.
-// Mantemos como string aberto pra absorver tipos novos sem refator.
+// Closed-set: o ReportModal só oferece esses 5 valores; se em algum momento
+// precisarmos aceitar arbitrário, basta voltar `| (string & {})` aqui sem
+// quebrar o downstream (já tipado com este alias).
 export type ReportReason =
   | 'spam'
   | 'ofensivo'
   | 'violencia'
   | 'desinformacao'
-  | 'outros'
-  | string;
+  | 'outros';
 
 // ─── LIKES ─────────────────────────────────────────────────────────────────
 
@@ -296,11 +297,14 @@ export async function hasSaved(userId: string, postId: string): Promise<boolean>
  * é opcional — o vanilla preenche quando consegue, deixa null quando não.
  * Não fazemos dedupe (mesmo report 2x não é bug do server — RLS aceita;
  * dedupe vivia no frontend via flag _reportSubmitting).
+ *
+ * `reason` aceita `ReportReason` literal ou `string` livre — o ReportModal
+ * concatena detalhes no formato `"<reason>: <details>"` antes de chamar.
  */
 export async function reportPost(
   reporterId: string,
   postId: string,
-  reason: ReportReason,
+  reason: ReportReason | string,
   targetUserId?: string | null,
 ): Promise<void> {
   if (!reporterId) throw new ValidationError('reporterId obrigatório');

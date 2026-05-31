@@ -226,7 +226,10 @@ describe('updateProfile', () => {
     expect(updateCall.tag).toBe('fulano');
     expect(updateCall.state).toBe('SP');
     expect(updateCall.name).toBe('Fulano');
-    expect(updateCall.updated_at).toBeDefined();
+    // `updated_at` foi removido — coluna não existe em `profiles` no schema
+    // (supabase_init.sql). O vanilla setava como no-op silencioso; o typed
+    // client agora rejeita. Garante que NÃO está mais sendo enviado.
+    expect(updateCall.updated_at).toBeUndefined();
   });
 
   it('error path → joga NetworkError', async () => {
