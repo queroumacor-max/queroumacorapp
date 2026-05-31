@@ -66,7 +66,7 @@
   expose('pointsRefs', ['loadReferrals','loadPoints','trocarPontosPorPRO']);
 
   // ── invite (convite entre pintores)
-  expose('invite', ['generateInviteCode','shareInviteCode']);
+  expose('invite', ['generateInviteCode','shareInviteCode','_consumeInviteFromUrl']);
 
   // ── maquininha (maquininha)
   expose('maquininha', ['abrirMaquininha','entrarListaMaquininha']);
