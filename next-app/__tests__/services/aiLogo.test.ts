@@ -205,12 +205,7 @@ describe('generateLogos', () => {
       'https://cdn/logo3.png',
       'https://cdn/logo4.png',
     ];
-    mockFetchOnce(
-      new Response(JSON.stringify({ urls }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    mockFetchJSON({ urls });
     const out = await generateLogos({
       name: 'Cali Colors',
       slogan: 'cores que vivem',
@@ -242,12 +237,7 @@ describe('generateLogos', () => {
   });
 
   it('HTTP 401 com error body → NetworkError com a message do backend', async () => {
-    mockFetchOnce(
-      new Response(JSON.stringify({ error: 'PRO only' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    mockFetchJSON({ error: 'PRO only' }, 401);
     await expect(generateLogos({ name: 'Foo' })).rejects.toBeInstanceOf(
       NetworkError,
     );
@@ -257,19 +247,14 @@ describe('generateLogos', () => {
   });
 
   it('resposta 200 sem urls → NetworkError', async () => {
-    mockFetchOnce(
-      new Response(JSON.stringify({ urls: [] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    mockFetchJSON({ urls: [] });
     await expect(generateLogos({ name: 'Foo' })).rejects.toBeInstanceOf(
       NetworkError,
     );
   });
 
   it('fetch rejeita (rede caiu) → NetworkError', async () => {
-    mockFetchOnce(new Error('network down'));
+    mockFetchError(new Error('network down'));
     await expect(generateLogos({ name: 'Foo' })).rejects.toBeInstanceOf(
       NetworkError,
     );

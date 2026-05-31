@@ -18,21 +18,36 @@ import { NetworkError, ValidationError } from '../../lib/errors';
 // direto pra que restoreAllMocks limpe sem manter ref velha.
 let fetchSpy: ReturnType<typeof vi.spyOn> | null = null;
 
-function mockFetchOnce(response: Response | Error): void {
+// Importante: cada call do fetch precisa devolver Response NOVO porque
+// Response.json() só pode ser consumido uma vez (alguns testes assertam
+// 2x — `rejects.toBeInstanceOf` + `rejects.toMatchObject`).
+function mockFetchJSON(body: unknown, status = 200): void {
   if (fetchSpy) fetchSpy.mockRestore();
-  // Usa cast pra unknown — overload do fetch nativo conflita com mock estrito.
   fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as ReturnType<
     typeof vi.spyOn
   >;
-  if (response instanceof Error) {
-    (fetchSpy as unknown as { mockRejectedValue: (e: Error) => void }).mockRejectedValue(
-      response,
-    );
-  } else {
-    (fetchSpy as unknown as {
-      mockResolvedValue: (r: Response) => void;
-    }).mockResolvedValue(response);
-  }
+  (
+    fetchSpy as unknown as {
+      mockImplementation: (fn: () => Promise<Response>) => void;
+    }
+  ).mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  );
+}
+
+function mockFetchError(error: Error): void {
+  if (fetchSpy) fetchSpy.mockRestore();
+  fetchSpy = vi.spyOn(globalThis, 'fetch') as unknown as ReturnType<
+    typeof vi.spyOn
+  >;
+  (
+    fetchSpy as unknown as { mockRejectedValue: (e: Error) => void }
+  ).mockRejectedValue(error);
 }
 
 beforeEach(() => {
@@ -68,12 +83,7 @@ describe('transcribeAudio', () => {
   });
 
   it('happy path: posta multipart e retorna text', async () => {
-    mockFetchOnce(
-      new Response(JSON.stringify({ text: 'olá mundo' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    mockFetchJSON({ text: 'olá mundo' });
     const blob = new Blob([new Uint8Array([1, 2, 3, 4])], {
       type: 'audio/webm',
     });
@@ -97,12 +107,7 @@ describe('transcribeAudio', () => {
   });
 
   it('HTTP 503 com error body → NetworkError com a message do backend', async () => {
-    mockFetchOnce(
-      new Response(
-        JSON.stringify({ error: 'Transcrição não configurada' }),
-        { status: 503, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    mockFetchJSON({ error: 'Transcrição não configurada' }, 503);
     const blob = new Blob([new Uint8Array([1])], { type: 'audio/webm' });
     await expect(transcribeAudio(blob)).rejects.toBeInstanceOf(NetworkError);
     await expect(transcribeAudio(blob)).rejects.toMatchObject({
@@ -111,18 +116,13 @@ describe('transcribeAudio', () => {
   });
 
   it('resposta 200 sem text → NetworkError', async () => {
-    mockFetchOnce(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    mockFetchJSON({});
     const blob = new Blob([new Uint8Array([1])], { type: 'audio/webm' });
     await expect(transcribeAudio(blob)).rejects.toBeInstanceOf(NetworkError);
   });
 
   it('fetch rejeita (rede caiu) → NetworkError', async () => {
-    mockFetchOnce(new Error('network down'));
+    mockFetchError(new Error('network down'));
     const blob = new Blob([new Uint8Array([1])], { type: 'audio/webm' });
     await expect(transcribeAudio(blob)).rejects.toBeInstanceOf(NetworkError);
     await expect(transcribeAudio(blob)).rejects.toMatchObject({
