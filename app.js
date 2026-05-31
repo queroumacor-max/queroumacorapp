@@ -12,7 +12,7 @@
 // aria-live="polite" pra leitores de tela anunciarem mensagens. Wave 2-html
 // adiciona esses atributos no HTML — não setar aqui por toast() pra evitar
 // recriar o live region a cada chamada (quebra anúncio).
-let tt;
+var tt;
 // toast → modules/utils.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODALS ══
@@ -43,7 +43,7 @@ else _injectSheetCloseButtons();
 const painters={};
 
 // ══ LOAD PROFILE DYNAMICALLY ══
-let currentPainter='carlos';
+var currentPainter='carlos';
 // openProfile → modules/profile-mock.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ EXPLORE MAP ══
@@ -53,7 +53,7 @@ let currentPainter='carlos';
 // ══ PROFILE TABS ══
 // switchTab → modules/profile-mock.js (Fase 4 etapa 2). Shim em /shims.js.
 // ══ CALCULATOR ══
-let demaos=2;
+var demaos=2;
 // setD → modules/calc.js (Fase 4 etapa 2). Shim em /shims.js.
 // calcTinta → modules/calc.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -61,8 +61,8 @@ let demaos=2;
 // estimarAreaPorFoto → modules/calc.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AI FEATURES (PRO) ══
-let _isPro = false;
-let _proExpires = null;
+var _isPro = false;
+var _proExpires = null;
 
 // refreshProStatus → modules/pro.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -103,7 +103,7 @@ const _infoTitles = {
   conta:'Excluir minha conta',
   sobre:'Sobre o QueroUmaCor'
 };
-let _infoPage = 'menu';
+var _infoPage = 'menu';
 // openInfoPage → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
 // infoBack → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
 // supportWhatsApp → modules/info.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -129,7 +129,7 @@ const QUOTE_STATUS = {
   concluido:  { label:'Concluído',   color:'#16a34a' },
   recusado:   { label:'Recusado',    color:'#e63946' }
 };
-let _pipelineCache = [];
+var _pipelineCache = [];
 
 // Notificação in-app: cria uma linha em notifications para o usuário destino.
 // notify → modules/notif.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -150,7 +150,7 @@ let _pipelineCache = [];
 
 // salvarOrcamento → modules/pipeline.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _quotePriceTarget = null;
+var _quotePriceTarget = null;
 
 // enviarQuote → modules/pipeline.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -177,8 +177,8 @@ let _quotePriceTarget = null;
 // Recurso PRO. Consentimento (LGPD) é cidadão de primeira classe.
 // ══════════════════════════════════════════
 
-let _crmCache = [];
-let _crmIntervalMonths = 12;
+var _crmCache = [];
+var _crmIntervalMonths = 12;
 
 // Normaliza nome de cliente para dedup (lowercase + trim + colapsa espaços).
 // crmNormName → modules/utils.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -202,7 +202,7 @@ let _crmIntervalMonths = 12;
 // startProCheckout → modules/pro.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODERAÇÃO ADMIN ══
-let _isAdmin = false;
+var _isAdmin = false;
 
 async function getAccessToken(){
   try {
@@ -217,7 +217,7 @@ async function getAccessToken(){
 // ── Dashboard de erros (admin) ───────────────────────────────────────────
 // Substitui Sentry: lê a tabela `errors` via /api/admin-errors-list (que
 // usa service_role e gate por ADMIN_EMAILS). Sem novo SaaS externo.
-let _errsState = { offset: 0, limit: 50, total: 0 };
+var _errsState = { offset: 0, limit: 50, total: 0 };
 
 // openErrorsAdmin → modules/admin-mod.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -249,18 +249,18 @@ const _aiKnowledge = {
   'calculo':  'Cálculo rápido: meça comprimento × altura de cada parede. Subtraia portas (1.6m²) e janelas (2.4m²). Multiplique pelo número de demãos. Divida pelo rendimento da tinta (10m²/L). Adicione 10% de margem.'
 };
 
-let _aiChatHistory = [];
+var _aiChatHistory = [];
 
 // sendAiChat → modules/ai-chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODO CONVERSAÇÃO POR VOZ COM O SEU ZÉ (PRO) ══
 // Grava a fala → Whisper transcreve → manda no chat-ai → resposta do
 // Seu Zé é falada de volta via OpenAI TTS.
-let _aiVoiceRecorder = null;
-let _aiVoiceChunks = [];
-let _aiVoiceStream = null;
-let _aiVoiceAutoStop = null;
-let _aiVoiceAudio = null;
+var _aiVoiceRecorder = null;
+var _aiVoiceChunks = [];
+var _aiVoiceStream = null;
+var _aiVoiceAutoStop = null;
+var _aiVoiceAudio = null;
 
 // aiChatToggleVoice → modules/ai-chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -286,7 +286,7 @@ let _aiVoiceAudio = null;
 // compartilharOrcamento → modules/orcamento-pdf.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ PDF GENERATION ══
-let _lastOrcData = {};
+var _lastOrcData = {};
 // Monta o documento jsPDF do orçamento e o retorna (null se sem dados/lib)
 // _buildOrcDoc → modules/orcamento-pdf.js (Fase 4 etapa 2). Shim em /shims.js.
 // gerarPDFOrcamento → modules/orcamento-pdf.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -295,9 +295,9 @@ let _lastOrcData = {};
 // loadMaterialSuggestions → modules/orcamento-pdf.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AGENDA DE PROJETOS (calendário) ══
-let _agCur = null;   // Date: primeiro dia do mês exibido
-let _agSel = null;   // 'yyyy-mm-dd' selecionado
-let _agJobs = [];     // cache dos projetos do usuário
+var _agCur = null;   // Date: primeiro dia do mês exibido
+var _agSel = null;   // 'yyyy-mm-dd' selecionado
+var _agJobs = [];     // cache dos projetos do usuário
 
 // _agYmd → modules/agenda.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -320,9 +320,9 @@ let _agJobs = [];     // cache dos projetos do usuário
 // otimizarDiaAgenda → modules/agenda.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ CHECKLIST DE OBRA ══
-let _checklistItems = [];
-let _checklistRowId = null;
-let _checklistSaveQueue = Promise.resolve();
+var _checklistItems = [];
+var _checklistRowId = null;
+var _checklistSaveQueue = Promise.resolve();
 const _checklistTemplates = {
   pintura: ['Proteger pisos com lona','Fita crepe em rodapés e batentes','Lixar paredes (lixa 150)','Aplicar massa corrida','Lixar massa (lixa 220)','Aplicar selador','1ª demão de tinta','2ª demão de tinta','Retoques finais','Limpeza do local'],
   textura: ['Proteger pisos e móveis','Preparar massa texturizada','Aplicar base/selador','Aplicar textura com desempenadeira','Aguardar secagem (4h)','Pintar sobre textura','Retoques','Limpeza'],
@@ -343,7 +343,7 @@ const _checklistTemplates = {
 // saveChecklist → modules/checklist.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ ANOTAÇÕES (notas do pintor) ══
-let _editingNoteId = null;
+var _editingNoteId = null;
 // startEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
 // cancelEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
 // saveEditNote → modules/notes.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -356,10 +356,10 @@ let _editingNoteId = null;
 
 // ══ GRAVAÇÃO DE ÁUDIO → TRANSCRIÇÃO (PRO) ══
 // Grava até 5 min de áudio, manda pro Whisper e cola o texto na nota.
-let _recMediaRecorder = null;
-let _recChunks = [];
-let _recStartTime = 0;
-let _recTimerInterval = null;
+var _recMediaRecorder = null;
+var _recChunks = [];
+var _recStartTime = 0;
+var _recTimerInterval = null;
 const REC_MAX_MS = 5 * 60 * 1000;
 
 // iniciarGravacaoNota → modules/audio-stt.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -380,7 +380,7 @@ const REC_MAX_MS = 5 * 60 * 1000;
 // analisarFinanceiroIA → modules/financeiro.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ AUTO-RESPOSTAS ══
-let _autoReplyCfg = null;          // cache da config new_message
+var _autoReplyCfg = null;          // cache da config new_message
 const _autoRepliedConvs = new Set(); // evita loop/repeticao por conversa
 
 // arToggle → modules/autoresp.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -476,7 +476,7 @@ const _scamLinkRe = /(?:^|\W)(?:bit\.ly|tinyurl\.com|cutt\.ly|t\.me\/|goo\.gl\/|
 })();
 
 // ══ CHAT SYSTEM ══
-let currentChat = null;
+var currentChat = null;
 // chatTab → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // applyChatFilter → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -490,13 +490,13 @@ let currentChat = null;
 // getLocalConvKey → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 // getLocalMsgsKey → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _convsCache = null;     // dict completo de convs do usuário atual
-let _convsCacheUid = null;  // pra invalidar quando trocar de usuário
-let _convsDirty = false;
-let _convsFlushTimer = null;
+var _convsCache = null;     // dict completo de convs do usuário atual
+var _convsCacheUid = null;  // pra invalidar quando trocar de usuário
+var _convsDirty = false;
+var _convsFlushTimer = null;
 const _msgsCache = new Map(); // convId -> array de msgs
 const _msgsDirty = new Set();
-let _msgsFlushTimer = null;
+var _msgsFlushTimer = null;
 
 // _ensureConvsCache → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -521,9 +521,9 @@ let _msgsFlushTimer = null;
 
 // ══ NEW CHAT MODAL ══
 const CALICOLORS_EMAIL = 'calicolortintas@gmail.com';
-let calicolorsUserId = null;
+var calicolorsUserId = null;
 
-let _searchNewChatToken = 0;
+var _searchNewChatToken = 0;
 // _searchNewChatUsersImpl + searchNewChatUsers → modules/chat.js (Fase 4
 // etapa 2). O módulo já cria a versão debounced internamente e expõe via
 // shim em /shims.js. NÃO recriar aqui — referenciaria _searchNewChatUsersImpl
@@ -544,21 +544,21 @@ let _searchNewChatToken = 0;
 
 // updateNotifBadge → modules/notif.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _notifSub = null;
+var _notifSub = null;
 // setupNotifSubscription → modules/notif.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ PIPELINE AO VIVO — novo pedido aparece sem reabrir a tela ══
 // SÓ pra profissional (pintor/grafiteiro/automotivo). Cliente não tem quotes
 // onde é o painter_id, então o WebSocket nunca dispara — desperdício.
-let _pipelineSub = null;
+var _pipelineSub = null;
 // setupPipelineSubscription → modules/pipeline.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ LOAD PEDIDOS FROM SUPABASE ══
 // loadPedidos → modules/pedidos.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _epAvatarFile = null; // holds selected avatar file for upload
-let _epLogoFile = null;   // holds selected business logo file for upload
-let _epLogoClear = false; // user clicked "Remover" → wipe business_logo_url on save
+var _epAvatarFile = null; // holds selected avatar file for upload
+var _epLogoFile = null;   // holds selected business logo file for upload
+var _epLogoClear = false; // user clicked "Remover" → wipe business_logo_url on save
 
 // previewAvatar → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -609,11 +609,11 @@ const _ufByName = {
 // sharePost → modules/profile-edit.js (Fase 4 etapa 2). Shim em /shims.js.
 
 const chatData = {};
-let _globalMsgSub = null;
+var _globalMsgSub = null;
 const _processedMsgIds = new Map(); // id -> true (Map preserves insertion order for LRU)
 const MAX_PROCESSED_IDS = 500;
 // _markProcessed → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
-let _chatListDebounce = null;
+var _chatListDebounce = null;
 
 // Global realtime subscription for messages - ensures new messages show up
 // setupGlobalMsgSubscription → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -627,9 +627,9 @@ let _chatListDebounce = null;
 
 
 // ══ AUTH ══
-let selectedRole='pintor';
+var selectedRole='pintor';
 // selectRole → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
-let validatedInviteCode = null;
+var validatedInviteCode = null;
 
 // validateInvite → modules/signup-flow.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -665,13 +665,13 @@ document.addEventListener('keydown',e=>{
 });
 
 // ══ AVALIAÇÃO ══
-let starVal=0;
+var starVal=0;
 const starLabels=['','Ruim 😞','Regular 😐','Bom 🙂','Muito bom 😄','Excelente! 🤩'];
 // setStar → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 // toggleCriteria → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let avaliarQuoteId = null;
-let _avaliarQuotes = [];
+var avaliarQuoteId = null;
+var _avaliarQuotes = [];
 // loadAvaliarScreen → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // renderAvaliarServiceList → modules/avaliacao.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -684,7 +684,7 @@ let _avaliarQuotes = [];
 // toggleOrcOutros → modules/orcamento-form.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // sendOrc → modules/orcamento-form.js (Fase 4 etapa 2). Shim em /shims.js.
-let chatStoreAdded = false;
+var chatStoreAdded = false;
 
 // Track which message IDs are already rendered to avoid duplicates
 const renderedMsgIds = new Set();
@@ -704,8 +704,8 @@ const _msgPalette = [
   { fg:'#a16207', chip:'#fdf6dd', bub:'#fffbeb', bd:'#f3e3a8' }, // amarelo
   { fg:'#4338ca', chip:'#e6ecff', bub:'#f0f5ff', bd:'#c7d2fe' }, // indigo
 ];
-let _msgColorMap = {};
-let _msgColorIdx = 0;
+var _msgColorMap = {};
+var _msgColorIdx = 0;
 // _resetMsgColors → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 // _msgColors → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -721,11 +721,11 @@ let _msgColorIdx = 0;
 
 
 // ══ MARKETPLACE ══
-let cartCount = 0;
-let cartItems = [];
-let shirtQty = 1;
-let logoState = {pintor: true, cali: true};
-let mktProducts = [];
+var cartCount = 0;
+var cartItems = [];
+var shirtQty = 1;
+var logoState = {pintor: true, cali: true};
+var mktProducts = [];
 
 // Dicionário determinístico: cor escrita no nome → hex. Compostos primeiro.
 const COLOR_DICT = [
@@ -807,8 +807,8 @@ const mktSearch = (window.debounce ? window.debounce(_mktSearchImpl, 200) : _mkt
 
 // openProductDetail → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _mktLoadedAt = 0;
-let _mktGrouped = {};
+var _mktLoadedAt = 0;
+var _mktGrouped = {};
 const _MKT_TTL = 5 * 60 * 1000; // 5 min
 
 // Constrói abas + seções. Só renderiza as linhas da 1ª seção; as demais
@@ -858,15 +858,15 @@ const _aiLogoIcons = [
 
 // _renderAiLogoSvg → modules/ai-logo.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _aiLogoSelected = null;
-let _aiLogoLastName = '';
+var _aiLogoSelected = null;
+var _aiLogoLastName = '';
 
-let _aiLogoUrls = null;
+var _aiLogoUrls = null;
 
 const AI_LOGO_REGEN_PRICE_BRL = 1.99;
 const _aiLogoFmtBRL = v => 'R$ ' + v.toFixed(2).replace('.', ',');
 
-let _aiLogoCount = 0;
+var _aiLogoCount = 0;
 // _aiLogoGenCount → modules/ai-logo.js (Fase 4 etapa 2). Shim em /shims.js.
 // Atomic via RPC SECURITY DEFINER (bump_ai_logo_count): incrementa no DB
 // e devolve o novo count autoritativo. Antes era UPDATE direto com
@@ -885,13 +885,13 @@ let _aiLogoCount = 0;
 // Pipeline: usuário escolhe estilo → foto(s) → /api/ig-art devolve arte (data URL)
 // e legenda → usuário posta no feed ou baixa. PRO + rate-limit no backend.
 // Antes/Depois usa 2 fotos (antes + depois); outros estilos usam só 1.
-let _aiArtPhotoDataUrl = null;     // base64 da foto principal (slot 1)
-let _aiArtPhotoDataUrl2 = null;    // base64 da segunda foto (slot 2, antes/depois)
-let _aiArtStyle = 'profissional';  // estilo default
-let _aiArtAspect = 'square';       // square | vertical | horizontal
-let _aiArtResultDataUrl = null;    // base64 da arte gerada FINAL (pode ter logo)
-let _aiArtResultCaption = '';
-let _aiArtResultOriginal = null;   // base64 da arte SEM logo (pra alternar checkbox)
+var _aiArtPhotoDataUrl = null;     // base64 da foto principal (slot 1)
+var _aiArtPhotoDataUrl2 = null;    // base64 da segunda foto (slot 2, antes/depois)
+var _aiArtStyle = 'profissional';  // estilo default
+var _aiArtAspect = 'square';       // square | vertical | horizontal
+var _aiArtResultDataUrl = null;    // base64 da arte gerada FINAL (pode ter logo)
+var _aiArtResultCaption = '';
+var _aiArtResultOriginal = null;   // base64 da arte SEM logo (pra alternar checkbox)
 
 // openAiArt → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -917,7 +917,7 @@ const _AI_ART_DAILY_LIMIT = 5;
 
 // Upload de template do tile (admin-only). Abre file picker → compacta →
 // envia pro /api/upload-style-ref → atualiza preview do tile.
-let _aiArtUploadingStyle = null;
+var _aiArtUploadingStyle = null;
 // _aiArtUploadTemplate → modules/ai-art.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Comprime via canvas pra reduzir tamanho do request (CF Pages Functions
@@ -973,7 +973,10 @@ let _aiArtUploadingStyle = null;
 // buyShirt → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // ══ MODE TOGGLE (PINTOR / CLIENTE) ══
-let currentMode='pintor';
+// var (não let) pra hoisting → window.currentMode = undefined imediatamente,
+// evitando TDZ quando head.js loadMyProfileData() roda antes desta linha
+// (auth assíncrona pode disparar antes do final do parse de app.js).
+var currentMode='pintor';
 
 
 // ══ TYPING ANIMATION CSS ══
@@ -984,7 +987,7 @@ document.head.appendChild(styleTag);
 // ══════════════════════════════
 //  CHANGE 1: DYNAMIC FEED
 // ══════════════════════════════
-let currentPostType = 'post';
+var currentPostType = 'post';
 // setPostType → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // openPortfolioComposer → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1009,8 +1012,8 @@ let currentPostType = 'post';
 
 // deleteCourse → modules/quals-courses.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _lastFeedLoad = 0;
-let _feedRoleFilter = '';
+var _lastFeedLoad = 0;
+var _feedRoleFilter = '';
 
 // setFeedFilter → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1022,7 +1025,7 @@ const POST_COLS = 'id, user_id, caption, media_url, media_type, status, for_sale
 // migration), cai pra tabela profiles direto — que tem RLS "viewable by
 // everyone" e expõe as mesmas colunas seguras.
 // fetchPublicProfiles → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
-let _feedOffset = 0;
+var _feedOffset = 0;
 const FEED_PAGE = 30;
 
 // ─── Cache do feed (stale-while-revalidate) ────────────────────────────────
@@ -1045,8 +1048,8 @@ const FEED_PAGE = 30;
 
 // retryLoadFeed → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _followingIdsCache = null;
-let _followingIdsCacheTime = 0;
+var _followingIdsCache = null;
+var _followingIdsCacheTime = 0;
 // Invalidar via invalidateFollowingIds() depois de seguir/desfollow.
 // invalidateFollowingIds → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 window.invalidateFollowingIds = invalidateFollowingIds;
@@ -1055,9 +1058,9 @@ window.invalidateFollowingIds = invalidateFollowingIds;
 // ══ AUTOPLAY DE VÍDEOS NO FEED (estilo Instagram) ══
 // Vídeos começam mudos (regra de autoplay dos navegadores); o botão de
 // som no canto liga/desliga o áudio para a sessão inteira.
-let _feedMuted = true;
-let _feedVideoObserver = null;
-let _obsVideos = new WeakSet();
+var _feedMuted = true;
+var _feedVideoObserver = null;
+var _obsVideos = new WeakSet();
 
 // _feedVolIcon → modules/feed.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1105,8 +1108,8 @@ let _obsVideos = new WeakSet();
 // toggleSavePost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Post options modal
-let _currentOptPostId = null;
-let _currentOptUserId = null;
+var _currentOptPostId = null;
+var _currentOptUserId = null;
 
 // openPostOpts → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1119,8 +1122,8 @@ let _currentOptUserId = null;
 // deleteCurrentPost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Report post
-let _reportPostId = null;
-let _reportUserId = null;
+var _reportPostId = null;
+var _reportUserId = null;
 
 // reportPost → modules/feed-interactions.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1132,19 +1135,22 @@ let _reportUserId = null;
 // getTimeAgo → modules/utils.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // Stories data grouped by user
-let storyGroups = [];
-let currentStoryGroup = 0;
-let currentStoryIndex = 0;
-let storyTimer = null; // mantido pra compat; agora guarda rAF id
-let _lastStoriesFp = ''; // fingerprint do último render — pula re-render quando idêntico
-let _storyRafId = null;
+// var (não let) pelos mesmos motivos de currentMode acima: modules/stories.js
+// lê/escreve esses vars via scope compartilhado, e loadStories() pode ser
+// chamado antes desta linha rodar. var hoisting evita TDZ.
+var storyGroups = [];
+var currentStoryGroup = 0;
+var currentStoryIndex = 0;
+var storyTimer = null; // mantido pra compat; agora guarda rAF id
+var _lastStoriesFp = ''; // fingerprint do último render — pula re-render quando idêntico
+var _storyRafId = null;
 const STORY_DURATION = 5000; // 5 seconds per story like IG
 
 // _stopStoryAnim → modules/stories.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // loadStories → modules/stories.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _seenStories = {};
+var _seenStories = {};
 // isStoryGroupSeen → modules/stories.js (Fase 4 etapa 2). Shim em /shims.js.
 // markStoryGroupSeen → modules/stories.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1161,7 +1167,7 @@ let _seenStories = {};
 // ══════════════════════════════
 //  CHANGE 2: POSTING SYSTEM
 // ══════════════════════════════
-let postSelectedFiles = [];
+var postSelectedFiles = [];
 
 // handlePostFiles → modules/feed-publish.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1182,33 +1188,33 @@ let postSelectedFiles = [];
 // ══════════════════════════════
 //  CHANGE 3: LEAFLET MAP
 // ══════════════════════════════
-let leafletMap = null;
-let mapMarkers = [];
+var leafletMap = null;
+var mapMarkers = [];
 
 // Carrega Leaflet sob demanda (não vem mais no <head> pra economizar ~160KB
 // no first paint — só usuário do mapa paga o custo).
-let _leafletInflight = null;
+var _leafletInflight = null;
 // ensureLeaflet → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // initLeafletMap → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // createPinIcon → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let dbPainters = [];
+var dbPainters = [];
 // Índice pré-construído pra buscar pintor em O(1) por inclusão. Evita
 // re-tokenizar 80 strings a cada tecla. Invalidado quando dbPainters muda.
-let _paintersIndex = null;
+var _paintersIndex = null;
 // _invalidatePaintersIndex → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // _buildPaintersIndex → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // AbortController pra cancelar fetch fallback anterior se o usuário
 // digitar mais rápido que a rede responde.
-let _paintersSearchAbort = null;
+var _paintersSearchAbort = null;
 
 // loadMapPainters → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // _starStr → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
-let _exploreType = 'all';
+var _exploreType = 'all';
 // _matchType → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 // exploreType → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1222,8 +1228,8 @@ const filterExplorePainters = (window.debounce ? window.debounce(_filterExploreP
 // ══════════════════════════════
 //  CHANGE 4: ARCHIVE CONVERSATIONS
 // ══════════════════════════════
-let archivedConvs = [];
-let archivedExpanded = false;
+var archivedConvs = [];
+var archivedExpanded = false;
 
 // loadArchivedConvs → modules/archive.js (Fase 4 etapa 2). Shim em /shims.js.
 // saveArchivedConvs → modules/archive.js (Fase 4 etapa 2). Shim em /shims.js.
@@ -1265,8 +1271,8 @@ showScreen = function(n, _fromPop){
 // ══════════════════════════════
 //  TAG UNIQUENESS CHECK
 // ══════════════════════════════
-let tagAvailable = false;
-let tagCheckTimeout;
+var tagAvailable = false;
+var tagCheckTimeout;
 
 // validateAndGoStep3 → modules/signup-tag.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1275,7 +1281,7 @@ let tagCheckTimeout;
 // ══════════════════════════════
 //  INVITE CODE GENERATION
 // ══════════════════════════════
-let generatedInviteCode = {};
+var generatedInviteCode = {};
 // generateInviteCode → modules/invite.js (Fase 4 etapa 2). Shim em /shims.js.
 
 // shareInviteCode → modules/invite.js (Fase 4 etapa 2). Shim em /shims.js.
