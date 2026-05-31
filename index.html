@@ -54,10 +54,10 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/styles.css?v=20260527x">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260527x" as="script">
-<link rel="preload" href="/db.js?v=20260527y" as="script">
+<link rel="preload" href="/head.js?v=20260527z" as="script">
+<link rel="preload" href="/db.js?v=20260527z" as="script">
 <link rel="preload" href="/validators.js?v=20260527y" as="script">
-<link rel="preload" href="/app.js?v=20260527x" as="script">
+<link rel="preload" href="/app.js?v=20260527z" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que
@@ -65,12 +65,12 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260527x" defer></script>
+<script src="/head.js?v=20260527z" defer></script>
 <!-- Camada de dados (window.DB) e validação (window.Validators) — Fase 0 da
      refatoração arquitetural. Carregam ENTRE head.js (define getSupabase)
      e app.js (passará a usar DB.* nas fases seguintes). Funções internas
      são lazy: chamam getSupabase() no momento do uso, não no parse. -->
-<script src="/db.js?v=20260527y" defer></script>
+<script src="/db.js?v=20260527z" defer></script>
 <script src="/validators.js?v=20260527y" defer></script>
 <!-- jspdf, leaflet e turnstile NÃO carregam aqui de propósito:
      - jspdf: lazy via ensureJsPDF() em app.js (só usado pra PDF de orçamento)
@@ -2485,7 +2485,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260527x" defer></script>
+<script src="/app.js?v=20260527z" defer></script>
 
 <script>
 if('serviceWorker' in navigator){

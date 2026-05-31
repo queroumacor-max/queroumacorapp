@@ -7219,11 +7219,10 @@ function invalidateFollowingIds(){ _followingIdsCache = null; _followingIdsCache
 window.invalidateFollowingIds = invalidateFollowingIds;
 async function getFollowingIds(){
   if(_followingIdsCache && Date.now() - _followingIdsCacheTime < 60000) return _followingIdsCache;
-  const sb = getSupabase();
-  if(!sb || !currentUser) return [];
+  if(!currentUser) return [];
   try {
-    const { data } = await sb.from('follows').select('following_id').eq('follower_id', currentUser.id);
-    const ids = (data || []).map(f => f.following_id);
+    // Fase 1 da refatoração: query agora via DB.follows.listFollowingIds.
+    const ids = await DB.follows.listFollowingIds(currentUser.id);
     ids.push(currentUser.id);
     _followingIdsCache = ids;
     _followingIdsCacheTime = Date.now();
