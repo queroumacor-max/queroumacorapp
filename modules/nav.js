@@ -70,7 +70,13 @@
     const pp=document.getElementById('painter-popup');
     if(pp)pp.classList.remove('show');
     if(n==='chatconv'){setTimeout(()=>{const a=document.getElementById('msgs-area');if(a)a.scrollTop=a.scrollHeight;},150);}
-    if(n==='feed' && (!_lastFeedLoad || Date.now()-_lastFeedLoad > 30000)){ loadFeed(); }
+    if(n==='feed'){
+      // _lastFeedLoad agora vive IIFE-private no módulo feed (não vaza por let
+      // entre scripts), então lemos via accessor. Gate de 30s preservado.
+      const last = (window.Modules && window.Modules.feed && window.Modules.feed.getLastFeedLoad)
+        ? window.Modules.feed.getLastFeedLoad() : 0;
+      if(!last || Date.now()-last > 30000){ loadFeed(); }
+    }
     if(n==='mkt') { loadMktProducts(); updateCartBadge(); }
     if(n==='myprofile'){ loadMyProfileData(); refreshProStatus(); }
     if(n==='chat'){ loadChatList(); const cb=document.getElementById('chat-badge-dot'); if(cb) cb.style.display='none'; }

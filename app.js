@@ -528,8 +528,10 @@ const CALICOLORS_EMAIL = 'calicolortintas@gmail.com';
 let calicolorsUserId = null;
 
 let _searchNewChatToken = 0;
-// _searchNewChatUsersImpl → modules/chat.js (Fase 4 etapa 2). Shim em /shims.js.
-const searchNewChatUsers = (window.debounce ? window.debounce(_searchNewChatUsersImpl, 250) : _searchNewChatUsersImpl);
+// _searchNewChatUsersImpl + searchNewChatUsers → modules/chat.js (Fase 4
+// etapa 2). O módulo já cria a versão debounced internamente e expõe via
+// shim em /shims.js. NÃO recriar aqui — referenciaria _searchNewChatUsersImpl
+// que vive IIFE-private no módulo.
 
 // Resolve o destinatário de uma conversa de forma confiável.
 // Antes o receiver_id era deduzido quebrando o conversation_id por "_",

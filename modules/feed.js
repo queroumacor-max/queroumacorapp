@@ -517,6 +517,12 @@
     filterFeedPosts();
   }
 
+  // Accessor pra que código externo (nav.showScreen, modal close) possa
+  // decidir se vale recarregar o feed sem precisar de let global. Substitui
+  // o uso direto de window._lastFeedLoad que quebrava após a modularização
+  // (let não vaza pra outros <script> tags).
+  function getLastFeedLoad(){ return _lastFeedLoad; }
+
   window.Modules = window.Modules || {};
   window.Modules.feed = {
     setFeedFilter, filterFeedPosts,
@@ -525,6 +531,7 @@
     loadFeed, renderFeedRetry, retryLoadFeed,
     invalidateFollowingIds, getFollowingIds,
     toggleFeedVideoMute, toggleFeedVideoPlay, observeFeedVideos,
-    buildFeedPostHTML, loadPosts, loadMoreFeed
+    buildFeedPostHTML, loadPosts, loadMoreFeed,
+    getLastFeedLoad
   };
 })();
