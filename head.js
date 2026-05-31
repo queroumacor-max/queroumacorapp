@@ -115,6 +115,11 @@ function reportError(payload) {
   if (!payload) return;
   payload.url = payload.url || (location && location.href) || '';
   payload.ua = navigator.userAgent || '';
+  // user_id permite agregar erros por usuário no dashboard /admin/errors.
+  // Só inclui se logado — anon errors ficam sem user_id (NULL na tabela).
+  if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) {
+    payload.user_id = currentUser.id;
+  }
   _obsBuffer.push(payload);
   _obsScheduleFlush();
 }
