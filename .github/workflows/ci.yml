@@ -1,0 +1,69 @@
+name: CI
+
+# Roda em toda branch que NÃO é main (main já tem o deploy.yml) e em PRs
+# direcionados pra main. Falha bloqueia o merge (se branch protection ligar).
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Pega erros de parse antes do deploy (caso o user vibe-code esqueça
+      # de fechar uma chave ou misture sintaxe).
+      - name: Syntax check (node -c)
+        run: |
+          set -e
+          for f in app.js head.js db.js validators.js types.js sw.js; do
+            echo "→ $f"
+            node -c "$f"
+          done
+
+      # Catch comum: bumpou ?v= mas digitou o caminho errado. Confere que
+      # cada asset referenciado no index.html (com ?v=) existe no disco.
+      # Usa for-loop em vez de pipe pra `while` (subshell não propaga var).
+      - name: Asset reference check
+        run: |
+          set -e
+          missing=0
+          paths=$(grep -oE '"/[a-zA-Z0-9_/-]+\.(js|css|woff2)\?v=[0-9a-zA-Z.]+"' index.html | sed 's/"//g; s/\?v=.*//' | sort -u)
+          for path in $paths; do
+            rel=".$path"
+            if [ ! -f "$rel" ]; then
+              echo "❌ MISSING: $rel referenciado no index.html"
+              missing=1
+            else
+              echo "✓ $rel"
+            fi
+          done
+          test $missing -eq 0 || { echo "Asset reference check: FALHOU"; exit 1; }
+          echo "Asset reference check: OK"
+
+      # Vitest está nas devDeps. Roda os testes existentes; se ainda não
+      # houver nenhum, Vitest sai com 0 emitindo aviso (--passWithNoTests
+      # é o default em 1.x). Quando o setup de testes (item #7) for shipado,
+      # isso vai começar a falhar genuinamente em regressão.
+      - name: Tests (Vitest)
+        run: npm test -- --passWithNoTests
