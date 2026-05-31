@@ -57,7 +57,7 @@
 <link rel="preload" href="/head.js?v=20260531c" as="script">
 <link rel="preload" href="/db.js?v=20260531b" as="script">
 <link rel="preload" href="/validators.js?v=20260527y" as="script">
-<link rel="preload" href="/app.js?v=20260531b" as="script">
+<link rel="preload" href="/app.js?v=20260531c" as="script">
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <!-- CF Image Resizing desligado: o /cdn-cgi/image/ está retornando erro pras
      imagens do Supabase Storage (origem não habilitada no dashboard), o que
@@ -776,6 +776,11 @@
           <div style="font-size:28px;margin-bottom:6px;">🛡️</div>
           <div style="font-size:12px;font-weight:700;color:#fff;">Moderação</div>
           <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;" id="mod-queue-count">Fila de revisão</div>
+        </div>
+        <div id="errors-admin-link" onclick="openErrorsAdmin()" style="display:none;background:var(--ink);border-radius:16px;padding:16px 10px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1);">
+          <div style="font-size:28px;margin-bottom:6px;">🐛</div>
+          <div style="font-size:12px;font-weight:700;color:#fff;">Erros</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;">Log do client</div>
         </div>
       </div>
 
@@ -1608,6 +1613,51 @@
     <h2 class="sheet-title" id="mod-queue-title">🛡️ Fila de Moderação</h2>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Conteúdo aguardando revisão antes de ficar público.</div>
     <div id="mod-queue-list"><div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- Dashboard caseiro de erros (admin). Substitui Sentry — lê da tabela
+     `errors` via /api/admin-errors-list (auth por ADMIN_EMAILS). -->
+<div class="overlay" id="errors-admin-modal" role="dialog" aria-modal="true" aria-labelledby="errors-admin-title" onclick="closeModals()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;max-width:600px;">
+    <div class="sheet-handle"></div>
+    <h2 class="sheet-title" id="errors-admin-title">🐛 Erros do client</h2>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Eventos enviados pelo <code>reportError()</code> do front + Web Vitals.</div>
+    <!-- Filtros -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      <select id="errs-type" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;flex:1;min-width:120px;">
+        <option value="">Todos os tipos</option>
+        <option value="error">error</option>
+        <option value="unhandledrejection">unhandledrejection</option>
+        <option value="web-vital">web-vital</option>
+        <option value="manual">manual</option>
+        <option value="feed-step-timeout">feed-step-timeout</option>
+        <option value="follow-not-persisted">follow-not-persisted</option>
+        <option value="isfollowing-read-error">isfollowing-read-error</option>
+        <option value="story-img-fail">story-img-fail</option>
+        <option value="story-video-fail">story-video-fail</option>
+        <option value="feed-fail">feed-fail</option>
+        <option value="feed-slow">feed-slow</option>
+      </select>
+      <select id="errs-since" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;">
+        <option value="1">Última 1h</option>
+        <option value="6">6h</option>
+        <option value="24" selected>24h</option>
+        <option value="168">7 dias</option>
+        <option value="720">30 dias</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <input id="errs-search" placeholder="Buscar na msg..." style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;">
+      <button onclick="loadErrorsAdmin(0)" style="padding:8px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Buscar</button>
+    </div>
+    <div id="errs-meta" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
+    <div id="errs-list"><div style="text-align:center;color:var(--muted);padding:30px;">Carregando...</div></div>
+    <div id="errs-pager" style="display:none;margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <button id="errs-prev" onclick="errsPager(-1)" style="padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">← Anterior</button>
+      <span id="errs-page-info" style="font-size:12px;color:var(--muted);"></span>
+      <button id="errs-next" onclick="errsPager(1)" style="padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Próxima →</button>
+    </div>
   </div>
 </div>
 
@@ -2504,7 +2554,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260531b" defer></script>
+<script src="/app.js?v=20260531c" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
