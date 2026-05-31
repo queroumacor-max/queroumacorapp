@@ -2674,7 +2674,12 @@
 <!-- TOAST -->
 <div class="toast" id="toast-el" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="/app.js?v=20260531d" defer></script>
+<script src="/app.js?v=20260531e" defer></script>
+<!-- shims.js: Fase 4 etapa 2. Roda DEPOIS do app.js (defer mantém ordem de
+     execução do document) e sobrepõe window.X = Modules.foo.X, permitindo
+     deletar funções duplicadas do app.js sem quebrar HTML inline handlers
+     e bare calls remanescentes. -->
+<script src="/shims.js?v=20260531a" defer></script>
 
 <script>
 if('serviceWorker' in navigator){
