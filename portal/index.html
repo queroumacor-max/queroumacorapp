@@ -6,6 +6,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portal Cali Colors | QueroUmaCor</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Sentry browser SDK pro projeto queroumacor-portal (React). Loader script
+     com a public key do DSN; auto-baixa o SDK completo e captura window.onerror
+     + unhandledrejection. Sentry.onLoad ajusta environment baseado no hostname.
+     Se o Loader Script não estiver habilitado no painel do Sentry pra esse
+     projeto, esta URL retorna 404 (não quebra a página); nesse caso, ligar
+     "Loader Script" em Settings → queroumacor-portal → Client Keys (DSN). -->
+<script src="https://js.sentry-cdn.com/1aec40d2b26a01cacec14f03b982c612.min.js" crossorigin="anonymous"></script>
+<script>
+  if (window.Sentry && Sentry.onLoad) {
+    Sentry.onLoad(function(){
+      Sentry.init({
+        environment: /(?:^|\.)queroumacor\.com\.br$/i.test(location.hostname) ? 'production' : 'preview'
+      });
+    });
+  }
+</script>
 <script src="/supabase.js?v=2.45.0" defer integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous"></script>
 <script>
   const SUPA_URL = 'https://uwqebaqweehiljsqkifm.supabase.co';
