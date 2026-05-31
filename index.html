@@ -54,9 +54,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/styles.css?v=20260527x">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260531g" as="script">
+<link rel="preload" href="/head.js?v=20260531h" as="script">
 <link rel="preload" href="/config.js?v=20260531f" as="script">
-<link rel="preload" href="/utils.js?v=20260531h" as="script">
+<link rel="preload" href="/utils.js?v=20260531i" as="script">
 <link rel="preload" href="/events.js?v=20260531b" as="script">
 <link rel="preload" href="/errors.js?v=20260531e" as="script">
 <link rel="preload" href="/logger.js?v=20260531e" as="script">
@@ -89,12 +89,12 @@
 <link rel="preload" href="/modules/map.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/mkt.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/feed.js?v=20260531n" as="script">
-<link rel="preload" href="/modules/feed-publish.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/feed-publish.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/stories.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/orcamento-form.js?v=20260531j" as="script">
-<link rel="preload" href="/modules/ai-art.js?v=20260531j" as="script">
-<link rel="preload" href="/modules/ai-chat.js?v=20260531i" as="script">
-<link rel="preload" href="/modules/ai-logo.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/ai-art.js?v=20260531k" as="script">
+<link rel="preload" href="/modules/ai-chat.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/ai-logo.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/pipeline.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/crm.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/chat.js?v=20260531n" as="script">
@@ -132,7 +132,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260531g" defer></script>
+<script src="/head.js?v=20260531h" defer></script>
 <!-- Badge "STAGING": aparece em qualquer host que NÃO seja queroumacor.com.br
      (preview deploys *.pages.dev e dev local). Cloudflare Pages já adiciona
      X-Robots-Tag: noindex nos *.pages.dev por default, então buscadores não
@@ -157,7 +157,7 @@
      errors/logger/policies não dependem de Supabase — funções puras. db.js
      depende de getSupabase (lazy). schemas/ é puro. -->
 <script src="/config.js?v=20260531f" defer></script>
-<script src="/utils.js?v=20260531h" defer></script>
+<script src="/utils.js?v=20260531i" defer></script>
 <!-- events.js — pub/sub bus in-memory (window.Events). Carrega DEPOIS de utils.js
      e ANTES de qualquer módulo de modules/, pra que handlers já estejam wireados
      no boot. Detalhes em EVENTS.md. -->
@@ -201,12 +201,12 @@
 <!-- Fase 4 wave 4: features pesadas (chat e profile-edit ficam pra próxima wave). -->
 <script src="/modules/mkt.js?v=20260531k" defer></script>
 <script src="/modules/feed.js?v=20260531n" defer></script>
-<script src="/modules/feed-publish.js?v=20260531j" defer></script>
+<script src="/modules/feed-publish.js?v=20260531k" defer></script>
 <script src="/modules/stories.js?v=20260531i" defer></script>
 <script src="/modules/orcamento-form.js?v=20260531j" defer></script>
-<script src="/modules/ai-art.js?v=20260531j" defer></script>
-<script src="/modules/ai-chat.js?v=20260531i" defer></script>
-<script src="/modules/ai-logo.js?v=20260531j" defer></script>
+<script src="/modules/ai-art.js?v=20260531k" defer></script>
+<script src="/modules/ai-chat.js?v=20260531j" defer></script>
+<script src="/modules/ai-logo.js?v=20260531k" defer></script>
 <script src="/modules/pipeline.js?v=20260531j" defer></script>
 <script src="/modules/crm.js?v=20260531j" defer></script>
 <!-- Fase 4 wave 5: chat + profile-edit + remaining features. -->

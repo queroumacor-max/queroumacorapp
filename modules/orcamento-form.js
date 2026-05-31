@@ -355,9 +355,11 @@
     _resetMsgColors();
     const conv = chatData[id];
     if(!conv){ console.error('openChat: no chatData'); return; }
+    // R24: participants pode vir vazio/ausente em conv recém-criada
+    conv.participants = Array.isArray(conv.participants) ? conv.participants : [];
 
     // Save conversation to localStorage so it appears in chat list
-    const otherP = conv.participants.find(p => !p.logo) || conv.participants[0] || {};
+    const otherP = conv.participants.find(p => p && !p.logo) || conv.participants[0] || {};
     const _prevConv = (typeof loadConvsLocal === 'function') ? (loadConvsLocal()[id] || {}) : {};
     const _otherId = conv.otherId || _prevConv.otherId || '';
     if(_otherId) conv.otherId = _otherId;
@@ -375,6 +377,7 @@
 
     // Header
     const avatarsEl = document.getElementById('chat-header-avatars');
+    if(!avatarsEl){ console.warn('openChat: chat-header-avatars missing'); return; }
     if(conv.type==='3way' || conv.type==='store'){
       const parts = conv.participants.slice(0,3);
       avatarsEl.innerHTML = parts.map((p,i)=>`
@@ -385,16 +388,19 @@
         </div>`).join('');
       avatarsEl.style.width=(parts.length*10+22)+'px';
     } else {
-      const p=conv.participants[0];
+      // R23: participants[0] pode ser undefined em conv malformada
+      const p = conv.participants[0] || {};
       avatarsEl.innerHTML=`<div class="cha-av" style="left:0;width:36px;height:36px;"><img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}"></div>`;
       avatarsEl.style.width='36px';
     }
 
-    document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
-    document.getElementById('chat-header-sub').textContent = conv.sub;
+    const chnName = document.getElementById('chat-header-name');
+    const chnSub  = document.getElementById('chat-header-sub');
+    if(chnName) chnName.textContent = stripEmail(conv.name || '');
+    if(chnSub)  chnSub.textContent  = conv.sub || '';
 
     const partRow = document.getElementById('participant-row');
-    if(conv.type==='3way'){
+    if(partRow && conv.type==='3way'){
       partRow.style.display='flex';
       partRow.innerHTML = conv.participants.map(p=>`
         <div class="part-chip ${p.logo?'store':''}">

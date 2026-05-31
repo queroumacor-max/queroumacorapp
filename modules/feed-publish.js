@@ -115,7 +115,14 @@
       toast('Gerando legenda com Seu Zé...');
       const fd = new FormData();
       fd.append('image', imgBlob, imgName);
-      const { ok, status, data, error } = await apiPost('/api/caption', fd, { multipart: true });
+      // Cancellable: se o usuário fechar o composer antes da legenda chegar
+      // (rede lenta), aborta — não pinta texto no textarea órfão.
+      const res = await apiPostCancellable('post:caption', '/api/caption', fd, { multipart: true });
+      if (res && res.aborted) {
+        console.info('caption: cancelado pelo usuário (modal fechado)');
+        return;
+      }
+      const { ok, status, data, error } = res;
       if(!ok){
         toast('Não foi possível gerar a legenda agora');
         console.warn('caption error:', (data && data.error) || error || status);
@@ -229,8 +236,7 @@
         if(upError){
           console.error('Upload error:', upError && upError.message || upError);
           toast('Erro no upload: ' + upError.message);
-          btn.textContent = 'Publicar'; btn.disabled = false;
-          if(btn) delete btn.dataset._loading;
+          if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; delete btn.dataset._loading; }
           return;
         }
         const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
@@ -254,8 +260,7 @@
           } catch(e){ console.warn('cleanup upload:', e && e.message || e); }
         }
         toast('Conteúdo bloqueado pela moderação (' + modResult.reason + ')');
-        btn.textContent = 'Publicar'; btn.disabled = false;
-        if(btn) delete btn.dataset._loading;
+        if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; delete btn.dataset._loading; }
         return;
       }
       // Vídeo sempre entra pendente até a análise assíncrona liberar
@@ -278,9 +283,11 @@
         created_at: new Date().toISOString()
       }).select();
 
-      btn.textContent = 'Publicar';
-      btn.disabled = false;
-      if(btn) delete btn.dataset._loading;
+      if(btn){
+        btn.textContent = 'Publicar';
+        btn.disabled = false;
+        delete btn.dataset._loading;
+      }
 
       if(insertErr){
         console.error('Post insert error:', insertErr && insertErr.message || insertErr);
@@ -300,7 +307,9 @@
           toast(type === 'story' ? 'Story publicado!' : 'Post publicado!');
         }
         closeModals();
-        document.getElementById('post-text-input').value = '';
+        // R23: textarea pode já não existir após closeModals
+        const taPost = document.getElementById('post-text-input');
+        if(taPost) taPost.value = '';
         clearPostImages();
         // Reset type to story for next time
         setPostType('story');

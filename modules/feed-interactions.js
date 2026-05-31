@@ -106,8 +106,14 @@
     const timeEl = postEl.querySelector('.post-time');
     if(timeEl) postEl.insertBefore(box, timeEl);
     else postEl.appendChild(box);
-    box.querySelector('input').focus();
-    box.querySelector('input').addEventListener('keydown', function(e){ if(e.key==='Enter') submitComment(box.querySelector('button')); });
+    // R23: input/button acabaram de ser injetados, mas guard defensivo cobre
+    // CSS mal carregado / DOM detached em test envs.
+    const inputEl = box.querySelector('input');
+    const sendBtn = box.querySelector('button');
+    if(inputEl){
+      inputEl.focus();
+      inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter' && sendBtn) submitComment(sendBtn); });
+    }
   }
 
   // Guard de double-submit: o botão "Enviar" do comentário pode receber
@@ -213,7 +219,9 @@
     _currentOptPostId = postId;
     _currentOptUserId = userId;
     const isOwn = currentUser && currentUser.id === userId;
-    document.getElementById('opt-delete-post').style.display = isOwn ? 'flex' : 'none';
+    // R23: botão "Deletar" pode não estar no DOM se modal nunca foi montado
+    const delBtn = document.getElementById('opt-delete-post');
+    if(delBtn) delBtn.style.display = isOwn ? 'flex' : 'none';
     showModal('post-opts-modal');
   }
 
