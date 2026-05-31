@@ -19,8 +19,11 @@ describe('getToken', () => {
     expect(getToken(req, {})).toBe('');
   });
 
-  it('prioriza body.accessToken sobre header', () => {
+  it('prioriza Authorization header sobre body.accessToken', () => {
+    // getToken lê Authorization primeiro e retorna se for Bearer; body é
+    // fallback. Esse comportamento sustenta o apiPost (injeta no header).
+    // O teste original esperava o contrário — bug latente descoberto pelo CI.
     const req = { headers: { get: () => 'Bearer header-token' } };
-    expect(getToken(req, { accessToken: 'body-token' })).toBe('body-token');
+    expect(getToken(req, { accessToken: 'body-token' })).toBe('header-token');
   });
 });
