@@ -21,11 +21,20 @@
 ## Estrutura do repo
 
 - `index.html` — SPA principal, ~2300 linhas. Todas as telas em `div.screen`.
-- `app.js` — lógica da SPA (~9100 linhas, 350 funções globais).
+- `app.js` — lógica residual da SPA (~1300 linhas pós-Fase 4 etapa 2 —
+  reduzido de ~9100 linhas; sobra state vars, boot one-shots e helpers
+  exclusivos. Funções de feature vivem em `modules/`).
+- `modules/` — 44 módulos IIFE (`window.Modules.X`), cada um cobre uma
+  feature isolada (feed, chat, mkt, agenda, ranking, ai-chat, etc.).
+- `shims.js` — ponte `window.Modules.X.fn → window.fn` (+ `window.Utils.X
+  → window.X`) pra que HTML inline handlers (onclick="...") e bare calls
+  legados continuem funcionando. Carrega ANTES do `app.js`.
 - `head.js` — boot, auth, helpers de fetch, observabilidade, perfil.
 - `db.js` — fachada `window.DB` sobre Supabase (profiles/follows/posts).
 - `validators.js` — `window.Validators` (funções puras de validação).
 - `policies.js` — `window.Policies` (RBAC + ownership puro, sem rede).
+- `utils.js` — `window.Utils` (helpers puros: parseBRL, toast, escapeHtml,
+  getTimeAgo, etc.). Re-exportado como globals via `shims.js`.
 - `errors.js` / `logger.js` / `types.js` — helpers globais.
 - `styles.css` — único arquivo de CSS.
 - `supabase.js`, `jspdf.umd.min.js`, `leaflet.js/css` — libs self-hosted (SRI).
@@ -45,21 +54,37 @@
 
 ## Frontend
 
-Cinco scripts carregados em `index.html` via `<script defer>`, nesta ordem:
+Scripts carregados em `index.html` via `<script defer>`, nesta ordem
+(execução respeitando ordem de declaração porque defer é serial):
 
 1. `supabase.js` — UMD do supabase-js (SRI travado).
 2. `head.js` — define `getSupabase()`, `currentUser`, `apiPost`, auth,
    `loadMyProfileData`, helpers (`brl`, `dateBR`, `avatarUrl`, `cfImg`,
    `gateProClient`, `withTimeout`, `safeAwait`, `withErrorHandling`).
-3. `db.js` — define `window.DB` (`profiles`, `follows`, `posts`). Lazy:
-   chama `getSupabase()` no momento do uso.
-4. `validators.js` — define `window.Validators` (email, senha, tag, CPF/CNPJ,
-   etc.). 13 validadores, retorno uniforme `{ok, error?, value?}`.
-5. `app.js` — features. Estado de tela controlado pelo array `screens` na
-   linha 2 (`feed`, `chat`, `mkt`, `pedidos`, `crm`, `pipeline`, ...).
+3. `config.js` / `utils.js` / `errors.js` / `logger.js` / `policies.js` /
+   `db.js` / `validators.js` — camadas fundacionais. Expostas em
+   `window.Config`, `window.Utils`, `window.Errors`, etc.
+4. `modules/*.js` (44 arquivos, ~10000 linhas) — features encapsuladas em
+   IIFE. Cada módulo registra `window.Modules.X = { ... }`.
+5. `shims.js` — republica `Modules.X.fn` e `Utils.X` como bare globals em
+   `window` pra HTML inline handlers (onclick) e código legado seguirem
+   funcionando. **Roda ANTES de `app.js`** pra que boot calls em app.js
+   (`_bootstrapFromUrl()`, `_consumeInviteFromUrl()`, `updateCartBadge()`)
+   já tenham as window.* wireadas.
+6. `app.js` — agora ~1300 linhas: state vars residuais, boot one-shots
+   (`_injectSheetCloseButtons`), `getAccessToken` (helper auth), e
+   comentários sentinela apontando pra cada feature que migrou.
 
 Padrão de modal: `.sheet` (overlay clicável → painel). Cache offline via
 `sw.js`. Sem bundler; tudo é global em `window`.
+
+### Por que IIFE + shim em vez de ES modules?
+
+ES modules quebrariam HTML inline handlers (`onclick="loadFeed()"`) — esses
+exigem que a função esteja em `window`. Refatorar todos os inline handlers
+pra `addEventListener` ia ser uma 2ª onda de risco. O padrão IIFE + shim
+mantém a mesma superfície (window globals) com encapsulamento por módulo
+e abre caminho pra migração futura (ESM ou bundler) sem big-bang.
 
 ## Backend (`/functions/api/`)
 
