@@ -49,6 +49,8 @@
   Cache-Control: public, max-age=31536000, immutable
 /utils.js
   Cache-Control: public, max-age=31536000, immutable
+/modules/*
+  Cache-Control: public, max-age=31536000, immutable
 /supabase.js
   Cache-Control: public, max-age=31536000, immutable
 /jspdf.umd.min.js
