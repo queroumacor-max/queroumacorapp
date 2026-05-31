@@ -6,6 +6,13 @@
 - Regra de fluxo: após cada correção/melhoria concluída, fazer commit no
   branch de trabalho e **merge para `main`** automaticamente (deploy do
   Cloudflare Pages é automático a partir do `main`).
+- **Após cada merge pra `main`**, aguardar a janela típica de deploy do
+  Cloudflare Pages (~90s a partir do push) usando Bash com `run_in_background`
+  (`sleep 90 && echo deploy-pronto`) e, quando a notificação chegar, avisar o
+  usuário que **provavelmente** está no ar — sendo explícito que é tempo
+  decorrido, não confirmação real (egress do container bloqueia
+  `queroumacor.com.br` com `host_not_allowed`, e o GitHub MCP não expõe status
+  de deploy do Cloudflare Pages). Pedir confirmação do lado do usuário.
 - Branch de trabalho atual: `claude/new-session-V0v78`.
 - `OPENAI_API_KEY` **e** `GEMINI_API_KEY` **já estão configuradas no Cloudflare
   Pages**. Não perguntar de novo. (Usadas por `chat-ai.js` e
