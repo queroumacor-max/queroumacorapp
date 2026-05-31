@@ -412,6 +412,59 @@ async function apiPost(path, body, opts){
 }
 window.apiPost = apiPost;
 
+// Registry de AbortControllers por chave lógica. Quando o caller dispara
+// uma request com a mesma chave (ex.: "ai-chat:send"), a request anterior
+// é cancelada antes da nova começar. Útil pra:
+//   - usuário clica "enviar" 2x rápido no chat → só a última resposta pinta
+//   - usuário fecha a tela/modal antes da IA responder → cancela via
+//     cancelApi(key)
+// USAR SÓ PRA REQUESTS ONDE O RESULTADO É CONSUMIDO POR UMA UI VIVA.
+// Pra fire-and-forget (logs, beacons, fan-out) NÃO usar — o servidor já
+// pode ter processado e cancelar não desfaz.
+const _apiCtrls = new Map();
+function _apiGetCtrl(key){
+  if (typeof AbortController === 'undefined') return null;
+  const prev = _apiCtrls.get(key);
+  if (prev) { try { prev.abort(); } catch(_) {} }
+  const ac = new AbortController();
+  _apiCtrls.set(key, ac);
+  return ac;
+}
+function cancelApi(key){
+  const ctrl = _apiCtrls.get(key);
+  if (ctrl) {
+    try { ctrl.abort(); } catch(_) {}
+    _apiCtrls.delete(key);
+  }
+}
+window.cancelApi = cancelApi;
+
+// registerApiCtrl: pra fetch direto (não via apiPost) que quer participar
+// do registry de cancelamento. Cancela qualquer ctrl anterior na mesma key
+// e devolve o novo. Caller passa ctrl.signal pro fetch. Útil pro /api/tts
+// (resposta é Blob, não JSON — não cabe no apiPost).
+function registerApiCtrl(key){
+  return _apiGetCtrl(key);
+}
+window.registerApiCtrl = registerApiCtrl;
+
+// apiPostCancellable: wrapper de apiPost com cancelamento automático por
+// chave. Cancela qualquer request anterior com a mesma `key` antes de
+// disparar a nova. Quando o caller fecha a tela / modal, chama
+// cancelApi(key) pra abortar a request em voo (cliente para de esperar,
+// mas servidor pode ter processado — não tente "rollback" desse jeito).
+async function apiPostCancellable(key, path, body, opts){
+  const ac = _apiGetCtrl(key);
+  const merged = Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {});
+  try {
+    return await apiPost(path, body, merged);
+  } finally {
+    // Só remove se ainda é o ctrl atual (outra request pode ter assumido).
+    if (ac && _apiCtrls.get(key) === ac) _apiCtrls.delete(key);
+  }
+}
+window.apiPostCancellable = apiPostCancellable;
+
 // gateProClient: gate de feature PRO no client. Retorna true se pode prosseguir.
 // Se não for PRO, mostra toast + abre modal. Uso: if (!gateProClient('IA Vision')) return;
 function gateProClient(featureName){

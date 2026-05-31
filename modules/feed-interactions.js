@@ -78,6 +78,15 @@
           });
         }
       }
+      // R14 paint incremental: patcha o cache compacto (não repinta DOM).
+      // Próxima paintFeedFromCache fica coerente com o flip otimista que
+      // já está visível agora. Falha silenciosa interna ao helper.
+      try {
+        const mod = window.Modules && window.Modules.feed;
+        if(mod && typeof mod.updateFeedCacheEntry === 'function'){
+          mod.updateFeedCacheEntry(postId, { liked: !isLiked, likeDelta: isLiked ? -1 : 1 });
+        }
+      } catch(_){}
     } catch(e){ console.warn('togglePostLike error:', e && e.message || e); }
     finally { delete _liking[postId]; }
   }
@@ -189,6 +198,13 @@
       } else {
         await sb.from('saved_posts').insert({ user_id: currentUser.id, post_id: postId });
       }
+      // R14 paint incremental: mantém cache compacto coerente. Sem repaint.
+      try {
+        const mod = window.Modules && window.Modules.feed;
+        if(mod && typeof mod.updateFeedCacheEntry === 'function'){
+          mod.updateFeedCacheEntry(postId, { saved: !isSaved });
+        }
+      } catch(_){}
     } catch(e){ console.warn('toggleSavePost error:', e && e.message || e); }
   }
 

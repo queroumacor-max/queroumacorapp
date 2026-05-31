@@ -54,6 +54,10 @@
 - `.github/workflows/` — `ci.yml` + `deploy.yml`.
 - `CLAUDE.md`, `STAGING.md`, `ARCHITECTURE_PLAN.md`, `BACKLOG.md`,
   `SECURITY_AUDIT_LOG.md` — docs.
+- `_layers/` — índice nominal Clean Architecture (4 subpastas
+  `domain/application/infrastructure/ui` com READMEs apontando pros
+  arquivos reais; sem código). Resolve item A5 da auditoria sem mover
+  arquivos. Ver `LAYERS.md` pro trade-off completo.
 
 ## Frontend
 

@@ -25,7 +25,7 @@
      'escapeHtml','escapeJsArg','getTimeAgo','stripEmail','cleanHandle',
      'getMediaType','_compressImageFile','isVideoUrl','_extractVideoFrame',
      '_normTxt','_hashStr','_starStr','_agYmd',
-     'crmNormName','crmMonthsSince',
+     'crmNormName','crmMonthsSince','throttle',
      // UX helpers (item #19/#20/#21/#22 do audit React)
      'setButtonLoading','emptyState','errorState','skeletonRows'].forEach(k=>{
       if(typeof U[k] !== 'undefined') window[k] = U[k];
@@ -110,7 +110,7 @@
   expose('mkt', ['resolveColorHex','productBg','hasProductColor','mktClassify','loadUserState','saveCart','updateCartBadge','addToCart','changeCartQty','renderCartModal','removeFromCart','submitCartOrder','getCategoryEmoji','getProductImage','renderProductRow','openProductDetail','mktTab','mktSearch','renderMktUI','loadMktProducts','changeQty','setSizeBtn','setShirtColor','openShirtZoom','closeShirtZoom','buyShirt']);
 
   // ── feed (feed principal)
-  expose('feed', ['setFeedFilter','filterFeedPosts','fetchPublicProfiles','paintFeedFromCache','scheduleFeedCacheSave','loadFeed','renderFeedRetry','retryLoadFeed','invalidateFollowingIds','getFollowingIds','toggleFeedVideoMute','toggleFeedVideoPlay','observeFeedVideos','buildFeedPostHTML','loadPosts','loadMoreFeed']);
+  expose('feed', ['setFeedFilter','filterFeedPosts','fetchPublicProfiles','paintFeedFromCache','scheduleFeedCacheSave','updateFeedCacheEntry','loadFeed','renderFeedRetry','retryLoadFeed','invalidateFollowingIds','getFollowingIds','toggleFeedVideoMute','toggleFeedVideoPlay','observeFeedVideos','buildFeedPostHTML','updatePostInPlace','loadPosts','loadMoreFeed']);
 
   // ── feed-publish (composer)
   expose('feedPublish', ['setPostType','openPortfolioComposer','previewPublicProfile','handlePostFiles','clearPostImages','gerarLegendaPost','publishPost']);

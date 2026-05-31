@@ -67,12 +67,26 @@
 
     let reply = null;
     let aiError = null;
+    let aborted = false;
     try {
-      const { ok, data, error } = await apiPost('/api/chat-ai', { message: text, history: _aiChatHistory });
-      if (ok && data && data.reply) reply = data.reply;
-      else aiError = (data && data.error) || error;
+      // Cancela qualquer chat-ai anterior em voo (usuário mandou pergunta
+      // nova antes da primeira terminar — só queremos a última resposta).
+      // Se o user sair da tela do modal, openAiChat/closeModals chama
+      // cancelApi('ai-chat:send') e a Promise resolve com aborted=true.
+      const res = await apiPostCancellable('ai-chat:send', '/api/chat-ai', { message: text, history: _aiChatHistory });
+      if (res && res.aborted) { aborted = true; }
+      else if (res && res.ok && res.data && res.data.reply) reply = res.data.reply;
+      else aiError = (res && res.data && res.data.error) || (res && res.error);
     } catch(e) {
       aiError = String(e?.message || e);
+    }
+
+    // Cancelamento silencioso: usuário saiu da tela ou disparou nova pergunta.
+    // Remove o typing indicator e segue — NÃO pinta resposta órfã.
+    if (aborted) {
+      const typingEl = document.getElementById(typingId);
+      if (typingEl) typingEl.remove();
+      return;
     }
 
     if (!reply) {
@@ -179,12 +193,18 @@
 
   async function falarSeuZe(text){
     if(!text) return;
+    // Registra um AbortController sob a chave 'ai-chat:tts'. Se uma nova
+    // resposta chegar (ou cancelApi for chamado no fechamento do modal),
+    // o fetch é abortado e não toca áudio órfão.
+    const ac = (typeof registerApiCtrl === 'function') ? registerApiCtrl('ai-chat:tts') : null;
     try {
-      const r = await fetch('/api/tts', {
+      const init = {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ text: text.slice(0, 1500) })
-      });
+      };
+      if (ac) init.signal = ac.signal;
+      const r = await fetch('/api/tts', init);
       if(!r.ok){
         console.warn('tts error: status', r.status);
         try { if(_aiVoiceAudio){ _aiVoiceAudio.pause(); } } catch(_) {}
@@ -199,6 +219,9 @@
       _aiVoiceAudio.play().catch(e => console.warn('audio play:', e && e.message || e));
       _aiVoiceAudio.onended = () => { URL.revokeObjectURL(url); _aiVoiceAudio = null; };
     } catch(e){
+      // AbortError = cancelamento silencioso (modal fechou ou nova resposta
+      // chegou). Não mostra toast nem zera audio que esteja tocando algo válido.
+      if (e && e.name === 'AbortError') return;
       console.warn('falarSeuZe:', e && e.message || e);
       try { if(_aiVoiceAudio){ _aiVoiceAudio.pause(); } } catch(_) {}
       _aiVoiceAudio = null;
@@ -219,7 +242,11 @@
     if(btn){ btn.disabled = true; btn.innerHTML = '✨ Gerando...'; }
     const prompt = 'Você é um pintor profissional. Escreva, em português, um escopo de serviço objetivo (4 a 6 linhas, sem títulos) para um orçamento de "'+servico+'", área aproximada de '+area+' m², '+comodos+' cômodo(s), '+numDemaos+' demão(s), condição da superfície: "'+condTxt+'". Liste preparação, aplicação, prazo estimado e garantia. Texto pronto para colar no orçamento.'+(obsEl && obsEl.value.trim() ? ' Considere também: '+obsEl.value.trim() : '');
     try {
-      const { ok, status, data } = await apiPost('/api/chat-ai', { message: prompt, history: [] });
+      // Cancela qualquer "sugerir escopo" anterior em voo. Idêntico ao
+      // padrão de ai-chat:send — usuário pode clicar 2x; só importa o último.
+      const res = await apiPostCancellable('ai-orc:escopo', '/api/chat-ai', { message: prompt, history: [] });
+      if (res && res.aborted) return;
+      const { ok, status, data } = res;
       if(ok && data && data.reply){
         // Remove a linha de disclaimer do assistente, se vier
         let txt = String(data.reply).replace(/^\s*Sou (o Seu Zé|um assistente virtual)[^\n]*\n+/i, '').trim();

@@ -312,7 +312,17 @@
       if(_aiArtStyle === 'antesdepois' && _aiArtPhotoDataUrl2){
         payload.photoDataUrl2 = _aiArtPhotoDataUrl2;
       }
-      const { ok, status, data, error } = await apiPost('/api/ig-art', payload);
+      // Cancellable: se o usuário fechar o modal antes de o Seu Zé responder,
+      // closeModals/hideModal dispara cancelApi('ai-art:gen') e a Promise
+      // resolve com aborted=true. ATENÇÃO: o backend pode já ter consumido
+      // o crédito; só não pintamos UI órfã. Se isso for um problema, mover
+      // o _aiArtIncUsed() pra resposta confirmada (já é o que fazemos).
+      const res = await apiPostCancellable('ai-art:gen', '/api/ig-art', payload);
+      if (res && res.aborted) {
+        console.info('ig-art: cancelado pelo usuário (modal fechado)');
+        return;
+      }
+      const { ok, status, data, error } = res;
       if(status === 429){
         _aiArtMaxUsed();
         _aiArtUpdateCreditsUI();
