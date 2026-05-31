@@ -284,3 +284,113 @@ export function rateLimitResponse(rl: RateLimitResult): NextResponse {
     }
   );
 }
+
+/**
+ * Consulta `profiles.is_pro` + `pro_expires_at` via service_role.
+ * FAIL-OPEN quando userId vazio ou service key ausente (mantém compat
+ * com vanilla). FAIL-CLOSED quando service key existe mas Supabase
+ * está indisponível — atacante não bypassa PRO via DoS.
+ */
+export async function requirePro(
+  userId: string | null | undefined
+): Promise<{ pro: boolean; checked: boolean; error?: string }> {
+  if (!userId) return { pro: true, checked: false };
+  const serviceKey = getServiceKey();
+  if (!serviceKey) {
+    console.warn('requirePro: service key não configurada — fail-open');
+    return { pro: true, checked: false };
+  }
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return { pro: true, checked: false };
+  }
+  const url = `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(
+    userId
+  )}&select=is_pro,pro_expires_at`;
+  try {
+    const r = await fetch(url, {
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+    });
+    if (!r.ok) {
+      console.warn('requirePro: falha ao consultar profiles', r.status);
+      return { pro: false, checked: false, error: 'verificação indisponível' };
+    }
+    const rows = (await r.json()) as Array<{ is_pro?: unknown; pro_expires_at?: unknown }>;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { pro: false, checked: true };
+    }
+    const prof = rows[0];
+    const notExpired =
+      !prof.pro_expires_at ||
+      new Date(prof.pro_expires_at as string).getTime() > Date.now();
+    return { pro: !!(prof.is_pro && notExpired), checked: true };
+  } catch (e) {
+    console.warn('requirePro: exceção', e instanceof Error ? e.message : e);
+    return { pro: false, checked: false, error: 'erro de rede' };
+  }
+}
+
+export interface GateProAIOk {
+  userId: string | undefined;
+  user: { id: string; email?: string } | null;
+  token?: string;
+}
+
+/**
+ * Bundle: requireAuth + requirePro + checkRateLimit. Retorna NextResponse de
+ * erro se barrou, ou `{ userId, user, token }` se passou.
+ * Espelha `gateProAI` do vanilla `_security.js`.
+ *
+ * Fail-CLOSED quando service-role key ausente — senão requirePro vira
+ * fail-open e libera geral.
+ */
+export async function gateProAI(
+  request: NextRequest | Request,
+  body: { accessToken?: unknown } | null | undefined,
+  opts: { endpoint: string; limit?: number; requirePro?: boolean }
+): Promise<NextResponse | GateProAIOk> {
+  const { endpoint, limit = 30, requirePro: needPro = true } = opts;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) {
+    return jsonResponse({ error: ERR_UNAVAILABLE }, 503);
+  }
+  const auth = await requireAuth(request, body);
+  if (auth.error) return jsonResponse({ error: auth.error }, auth.status || 401);
+  const userId = auth.user?.id;
+  if (needPro) {
+    const proCheck = await requirePro(userId);
+    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
+  }
+  const rl = await checkRateLimit({ userId, endpoint, limit });
+  if (!rl.allowed) return rateLimitResponse(rl);
+  return { userId, user: auth.user, token: auth.token };
+}
+
+/**
+ * Variante multipart de `gateProAI`: extrai o token do FormData.
+ */
+export async function gateProAIForm(
+  request: NextRequest | Request,
+  formData: FormData,
+  opts: { endpoint: string; limit?: number; requirePro?: boolean }
+): Promise<NextResponse | GateProAIOk> {
+  const { endpoint, limit = 30, requirePro: needPro = true } = opts;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) {
+    return jsonResponse({ error: ERR_UNAVAILABLE }, 503);
+  }
+  const accessToken = getTokenFromForm(request, formData);
+  const auth = await requireAuth(request, { accessToken });
+  if (auth.error) return jsonResponse({ error: auth.error }, auth.status || 401);
+  const userId = auth.user?.id;
+  if (needPro) {
+    const proCheck = await requirePro(userId);
+    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
+  }
+  const rl = await checkRateLimit({ userId, endpoint, limit });
+  if (!rl.allowed) return rateLimitResponse(rl);
+  return { userId, user: auth.user, token: auth.token };
+}

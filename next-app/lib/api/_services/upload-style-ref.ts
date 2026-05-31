@@ -86,7 +86,9 @@ export async function uploadStyleRef(args: {
       'x-upsert': 'true',
       'Cache-Control': 'public, max-age=60',
     },
-    body: bytes,
+    // `fetch` BodyInit não aceita Uint8Array<ArrayBufferLike> direto na lib DOM
+    // do TS 5.7+; passar o ArrayBuffer subjacente resolve sem allocar nada novo.
+    body: bytes.buffer as ArrayBuffer,
   });
   if (!r.ok) {
     const txt = (await r.text()).slice(0, 400);
