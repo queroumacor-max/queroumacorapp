@@ -96,7 +96,9 @@
   function renderErrorsAdmin(rows){
     const list = document.getElementById('errs-list');
     if(!list) return;
-    if(!rows.length){
+    // R24: rows pode vir undefined/null se o caller passou direto da resposta
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if(!safeRows.length){
       list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;">Nenhum erro no período. 🎉</div>';
       return;
     }
@@ -108,7 +110,7 @@
       'feed-slow': '#f59e0b', 'feed-step-timeout': '#f59e0b',
       'story-img-fail': '#f59e0b', 'story-video-fail': '#f59e0b'
     };
-    list.innerHTML = rows.map(r => {
+    list.innerHTML = safeRows.map(r => {
       const tColor = typeColor[r.type] || 'var(--ink)';
       const when = r.created_at ? new Date(r.created_at).toLocaleString('pt-BR') : '';
       const uidShort = r.user_id ? String(r.user_id).slice(0, 8) : '';
@@ -150,13 +152,15 @@
               ? `<video src="${mediaUrl}" controls style="width:100%;border-radius:12px;max-height:260px;background:#000;"></video>`
               : `<img src="${mediaImg}" style="width:100%;border-radius:12px;max-height:260px;object-fit:cover;">`)
           : '';
+        // R23: p.created_at pode ser null em row corrompida — evita "Invalid Date"
+        const when = p.created_at ? new Date(p.created_at).toLocaleString('pt-BR') : '';
         return `<div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${escapeHtml(p.media_type||'post')} · ${new Date(p.created_at).toLocaleString('pt-BR')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${escapeHtml(p.media_type||'post')} · ${when}</div>
           ${media}
           ${cap ? `<div style="font-size:13px;color:var(--ink);margin:8px 0;">${cap}</div>` : ''}
           <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="modAction('${escapeJsArg(p.id)}','approve',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#2ec4b6;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Aprovar</button>
-            <button onclick="modAction('${escapeJsArg(p.id)}','reject',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e63946;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Rejeitar</button>
+            <button onclick="modAction('${escapeJsArg(p.id||'')}','approve',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#2ec4b6;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Aprovar</button>
+            <button onclick="modAction('${escapeJsArg(p.id||'')}','reject',this)" style="flex:1;padding:10px;border:none;border-radius:10px;background:#e63946;color:#fff;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Rejeitar</button>
           </div>
         </div>`;
       }).join('');

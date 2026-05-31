@@ -55,9 +55,30 @@
     }, 50);
   }
 
+  // Lista de chaves de requests IA que devem ser canceladas quando o
+  // usuário fecha QUALQUER modal. Cada caller registra uma chave via
+  // cancelApi() (head.js). Mantida aqui pra evitar import cíclico utils↔head.
+  // Ex.: usuário abre "Seu Zé", pergunta algo, fecha o modal antes da
+  // resposta — request é abortada e nada pinta numa UI que não existe mais.
+  const _MODAL_CANCEL_KEYS = [
+    'ai-chat:send',
+    'ai-chat:tts',
+    'ai-orc:escopo',
+    'ai-art:gen',
+    'ai-logo:gen',
+    'post:caption'
+  ];
+  function _cancelModalRequests(){
+    if (typeof window.cancelApi !== 'function') return;
+    for (const k of _MODAL_CANCEL_KEYS) {
+      try { window.cancelApi(k); } catch(_) {}
+    }
+  }
+
   /** @returns {void} */
   function closeModals(){
     document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));
+    _cancelModalRequests();
     // A11y: restaura foco no elemento que abriu o modal
     if(window._lastFocus && typeof window._lastFocus.focus === 'function'){
       try { window._lastFocus.focus(); } catch(_){}
@@ -66,6 +87,7 @@
   /** @param {string} id @returns {void} */
   function hideModal(id){
     document.getElementById(id)?.classList.remove('open');
+    _cancelModalRequests();
     if(window._lastFocus && typeof window._lastFocus.focus === 'function'){
       try { window._lastFocus.focus(); } catch(_){}
     }
@@ -220,6 +242,38 @@
     return String(s||'').toLowerCase().trim().replace(/\s+/g,' ');
   }
 
+  // Throttle: chama fn no PRIMEIRO call + máximo 1x a cada `ms` enquanto receber calls.
+  // Diferente de debounce (em head.js): throttle GARANTE execução em rate fixo;
+  // debounce ESPERA pausa. Uso pra: scroll, resize, mousemove, autosave em
+  // input change (não pra busca de texto — use debounce). Trailing call
+  // garante que o último estado seja capturado mesmo se a sequência de
+  // chamadas parar antes da janela `ms` completar.
+  /**
+   * @template {(...args: any[]) => any} F
+   * @param {F} fn
+   * @param {number} ms
+   * @returns {(...args: Parameters<F>) => void}
+   */
+  function throttle(fn, ms){
+    let last = 0;
+    let trailing = null;
+    return function throttled(...args){
+      const now = Date.now();
+      const elapsed = now - last;
+      if(elapsed >= ms){
+        last = now;
+        fn.apply(this, args);
+      } else {
+        // Garante trailing call pra capturar o último estado.
+        clearTimeout(trailing);
+        trailing = setTimeout(() => {
+          last = Date.now();
+          fn.apply(this, args);
+        }, ms - elapsed);
+      }
+    };
+  }
+
   // Meses inteiros entre uma data e hoje.
   /** @param {string | null | undefined} dateStr @returns {number | null} */
   function crmMonthsSince(dateStr){
@@ -305,7 +359,7 @@
     escapeHtml, escapeJsArg, getTimeAgo, stripEmail, cleanHandle,
     getMediaType, _compressImageFile, isVideoUrl, _extractVideoFrame,
     _normTxt, _hashStr, _starStr, _agYmd,
-    crmNormName, crmMonthsSince,
+    crmNormName, crmMonthsSince, throttle,
     setButtonLoading, emptyState, errorState, skeletonRows
   };
 })();

@@ -162,6 +162,9 @@ const HEAD_HELPERS = [
   'getMyProfile','apiPost','updateMyStoryAvatar','doRegisterSupabase',
   'safeUrl','openUserProfile','loadMyProfileData','startChatWith',
   'getSearchEmpty','invalidateMyProfile','_authRateCheck','getAccessToken',
+  // Helpers de rate-limiting: debounce vive em head.js, throttle em utils.js
+  // (shimado pra window.throttle via shims.js). Ambos top-level globals.
+  'debounce','throttle',
   // Funções com prefixo `_` que shims.js republica intencionalmente
   // (IIFE-private em módulos mas chamadas bare por outros módulos / boot).
   '_consumeInviteFromUrl','_flushConvs','_flushMsgs','openChat',

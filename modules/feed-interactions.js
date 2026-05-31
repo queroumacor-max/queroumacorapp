@@ -23,10 +23,12 @@
   const _liking = Object.create(null);
 
   async function togglePostLike(btn){
+    if(!btn) return;
     const svg = btn.querySelector('svg');
     const postEl = btn.closest('.mpost');
     const postId = postEl ? postEl.dataset.postId : null;
-    const isLiked = svg.style.fill === 'var(--p4)';
+    const isLiked = svg && svg.style.fill === 'var(--p4)';
+    if(!svg) return;
 
     // Toggle UI immediately
     if(isLiked){
@@ -76,12 +78,22 @@
           });
         }
       }
+      // R14 paint incremental: patcha o cache compacto (não repinta DOM).
+      // Próxima paintFeedFromCache fica coerente com o flip otimista que
+      // já está visível agora. Falha silenciosa interna ao helper.
+      try {
+        const mod = window.Modules && window.Modules.feed;
+        if(mod && typeof mod.updateFeedCacheEntry === 'function'){
+          mod.updateFeedCacheEntry(postId, { liked: !isLiked, likeDelta: isLiked ? -1 : 1 });
+        }
+      } catch(_){}
     } catch(e){ console.warn('togglePostLike error:', e && e.message || e); }
     finally { delete _liking[postId]; }
   }
 
   // ══ COMENTAR ══
   function toggleCommentInput(btn){
+    if(!btn) return;
     const postEl = btn.closest('.mpost');
     if(!postEl) return;
     let box = postEl.querySelector('.comment-input-box');
@@ -94,8 +106,14 @@
     const timeEl = postEl.querySelector('.post-time');
     if(timeEl) postEl.insertBefore(box, timeEl);
     else postEl.appendChild(box);
-    box.querySelector('input').focus();
-    box.querySelector('input').addEventListener('keydown', function(e){ if(e.key==='Enter') submitComment(box.querySelector('button')); });
+    // R23: input/button acabaram de ser injetados, mas guard defensivo cobre
+    // CSS mal carregado / DOM detached em test envs.
+    const inputEl = box.querySelector('input');
+    const sendBtn = box.querySelector('button');
+    if(inputEl){
+      inputEl.focus();
+      inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter' && sendBtn) submitComment(sendBtn); });
+    }
   }
 
   // Guard de double-submit: o botão "Enviar" do comentário pode receber
@@ -104,10 +122,13 @@
   // dataset._loading (compatível com setButtonLoading do Utils) como
   // flag in-flight e devolve o estado no finally.
   async function submitComment(btn){
-    if(btn && btn.dataset._loading) return;
+    if(!btn) return;
+    if(btn.dataset._loading) return;
     const box = btn.closest('.comment-input-box');
+    if(!box) return;
     const input = box.querySelector('input');
-    const text = input.value.trim();
+    if(!input) return;
+    const text = (input.value || '').trim();
     if(!text) return;
     const postEl = box.closest('.mpost');
     const postId = postEl ? postEl.dataset.postId : null;
@@ -124,7 +145,7 @@
         return;
       }
       const { data: comment, error } = await sb.from('comments').insert({ post_id: postId, user_id: currentUser.id, text: text }).select('id').single();
-      if(error){ toast('Erro ao comentar'); return; }
+      if(error || !comment){ toast('Erro ao comentar'); return; }
       // Show comment in UI
       let commentsArea = postEl.querySelector('.comments-area');
       if(!commentsArea){
@@ -135,17 +156,18 @@
       }
       const userName = document.getElementById('myprofile-name')?.textContent || 'Voce';
       const commentDiv = document.createElement('div');
-      commentDiv.setAttribute('data-comment-id', comment.id);
+      commentDiv.setAttribute('data-comment-id', comment.id || '');
       commentDiv.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);margin-bottom:4px;';
       commentDiv.innerHTML = '<span style="flex:1"><b>'+escapeHtml(userName)+'</b> '+escapeHtml(text)+'</span>'
-        + '<span onclick="deleteComment(this,\''+escapeJsArg(comment.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
+        + '<span onclick="deleteComment(this,\''+escapeJsArg(comment.id || '')+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
       commentsArea.appendChild(commentDiv);
     } catch(e){ toast('Erro ao comentar'); console.warn('comment error:', e && e.message || e); }
     finally { restoreBtn(); }
   }
 
   async function deleteComment(el, commentId){
-    if(!currentUser) return;
+    if(!currentUser || !commentId) return;
+    if(!el) return;
     const sb = getSupabase();
     if(!sb) return;
     const commentEl = el.closest('[data-comment-id]');
@@ -182,6 +204,13 @@
       } else {
         await sb.from('saved_posts').insert({ user_id: currentUser.id, post_id: postId });
       }
+      // R14 paint incremental: mantém cache compacto coerente. Sem repaint.
+      try {
+        const mod = window.Modules && window.Modules.feed;
+        if(mod && typeof mod.updateFeedCacheEntry === 'function'){
+          mod.updateFeedCacheEntry(postId, { saved: !isSaved });
+        }
+      } catch(_){}
     } catch(e){ console.warn('toggleSavePost error:', e && e.message || e); }
   }
 
@@ -190,7 +219,9 @@
     _currentOptPostId = postId;
     _currentOptUserId = userId;
     const isOwn = currentUser && currentUser.id === userId;
-    document.getElementById('opt-delete-post').style.display = isOwn ? 'flex' : 'none';
+    // R23: botão "Deletar" pode não estar no DOM se modal nunca foi montado
+    const delBtn = document.getElementById('opt-delete-post');
+    if(delBtn) delBtn.style.display = isOwn ? 'flex' : 'none';
     showModal('post-opts-modal');
   }
 

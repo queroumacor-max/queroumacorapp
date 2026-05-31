@@ -81,8 +81,12 @@
 
   function renderAgendaDay(){
     const el = document.getElementById('agenda-day-list'); if(!el) return;
-    const items = _agJobs
-      .filter(j=> j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel)
+    // R23: _agSel pode ser null se renderAgendaDay for chamado antes do loadAgenda
+    if(!_agSel) _agSel = _agYmd(new Date());
+    // R24: _agJobs pode ainda não ter carregado
+    const jobs = Array.isArray(_agJobs) ? _agJobs : [];
+    const items = jobs
+      .filter(j=> j && j.scheduled_date && String(j.scheduled_date).slice(0,10)===_agSel)
       .sort((a,b)=> String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')));
     const [yy,mm,dd] = _agSel.split('-');
     const label = `${dd}/${mm}/${yy}`;
@@ -114,16 +118,18 @@
 
   async function salvarJob(){
     const sb = getSupabase(); if(!sb||!currentUser) return;
+    // R23: getElementById pode retornar null se o modal não foi montado
+    const _val = (id) => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
     const job = {
       painter_id: currentUser.id,
-      client_name: document.getElementById('job-cliente').value.trim(),
-      service_type: document.getElementById('job-servico').value,
-      scheduled_date: document.getElementById('job-data').value||null,
-      scheduled_time: document.getElementById('job-hora').value||null,
-      address: document.getElementById('job-endereco').value.trim(),
-      revenue: parseBRL(document.getElementById('job-receita').value),
-      material_cost: parseBRL(document.getElementById('job-custo').value),
-      notes: document.getElementById('job-notas').value.trim()
+      client_name: _val('job-cliente').trim(),
+      service_type: _val('job-servico'),
+      scheduled_date: _val('job-data')||null,
+      scheduled_time: _val('job-hora')||null,
+      address: _val('job-endereco').trim(),
+      revenue: parseBRL(_val('job-receita')),
+      material_cost: parseBRL(_val('job-custo')),
+      notes: _val('job-notas').trim()
     };
     if(!job.client_name){ toast('Informe o cliente'); return; }
     const { error } = await sb.from('jobs').insert(job);

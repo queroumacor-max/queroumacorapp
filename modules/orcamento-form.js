@@ -281,17 +281,24 @@
     const { data:{ session } } = await sb.auth.getSession();
     if(!session){ toast('⚠️ Faça login para enviar orçamento.'); return; }
 
-    const painterId = document.getElementById('orc-painter-id').value || null;
-    const rawType = document.getElementById('orc-service-type').value;
-    const outrosDesc = (document.getElementById('orc-outros-desc')||{}).value?.trim();
+    // R23: getElementById pode retornar null se o formulário não foi montado
+    const _val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const painterId = _val('orc-painter-id') || null;
+    const rawType = _val('orc-service-type');
+    const outrosDesc = (_val('orc-outros-desc') || '').trim();
     const serviceType = rawType === 'Outros' ? ('Outros: ' + (outrosDesc || '').slice(0,120)) : rawType;
-    const area = parseFloat(document.getElementById('orc-area').value) || null;
-    const address = document.getElementById('orc-address').value.trim();
-    const proposedDate = document.getElementById('orc-date').value || null;
-    const description = document.getElementById('orc-desc').value.trim();
+    const area = parseFloat(_val('orc-area')) || null;
+    const address = _val('orc-address').trim();
+    const proposedDate = _val('orc-date') || null;
+    const description = _val('orc-desc').trim();
 
     if(!rawType){ toast('⚠️ Selecione o tipo de serviço.'); return; }
-    if(rawType === 'Outros' && !outrosDesc){ toast('⚠️ Descreva o tipo de serviço.'); document.getElementById('orc-outros-desc').focus(); return; }
+    if(rawType === 'Outros' && !outrosDesc){
+      toast('⚠️ Descreva o tipo de serviço.');
+      const _od = document.getElementById('orc-outros-desc');
+      if(_od) _od.focus();
+      return;
+    }
     if(!address){ toast('⚠️ Informe o endereço.'); return; }
 
     const btn = document.querySelector('.orc-submit');
@@ -355,9 +362,11 @@
     _resetMsgColors();
     const conv = chatData[id];
     if(!conv){ console.error('openChat: no chatData'); return; }
+    // R24: participants pode vir vazio/ausente em conv recém-criada
+    conv.participants = Array.isArray(conv.participants) ? conv.participants : [];
 
     // Save conversation to localStorage so it appears in chat list
-    const otherP = conv.participants.find(p => !p.logo) || conv.participants[0] || {};
+    const otherP = conv.participants.find(p => p && !p.logo) || conv.participants[0] || {};
     const _prevConv = (typeof loadConvsLocal === 'function') ? (loadConvsLocal()[id] || {}) : {};
     const _otherId = conv.otherId || _prevConv.otherId || '';
     if(_otherId) conv.otherId = _otherId;
@@ -375,6 +384,7 @@
 
     // Header
     const avatarsEl = document.getElementById('chat-header-avatars');
+    if(!avatarsEl){ console.warn('openChat: chat-header-avatars missing'); return; }
     if(conv.type==='3way' || conv.type==='store'){
       const parts = conv.participants.slice(0,3);
       avatarsEl.innerHTML = parts.map((p,i)=>`
@@ -385,33 +395,37 @@
         </div>`).join('');
       avatarsEl.style.width=(parts.length*10+22)+'px';
     } else {
-      const p=conv.participants[0];
+      // R23: participants[0] pode ser undefined em conv malformada
+      const p = conv.participants[0] || {};
       avatarsEl.innerHTML=`<div class="cha-av" style="left:0;width:36px;height:36px;"><img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}"></div>`;
       avatarsEl.style.width='36px';
     }
 
-    document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
-    document.getElementById('chat-header-sub').textContent = conv.sub;
+    const chnName = document.getElementById('chat-header-name');
+    const chnSub  = document.getElementById('chat-header-sub');
+    if(chnName) chnName.textContent = stripEmail(conv.name || '');
+    if(chnSub)  chnSub.textContent  = conv.sub || '';
 
     const partRow = document.getElementById('participant-row');
-    if(conv.type==='3way'){
+    if(partRow && conv.type==='3way'){
       partRow.style.display='flex';
       partRow.innerHTML = conv.participants.map(p=>`
         <div class="part-chip ${p.logo?'store':''}">
           ${p.logo
             ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:'Syne',sans-serif;">CC</span></div>`
             : `<img src="${escapeHtml(p.img||'')}" alt="${escapeHtml(p.name||'')}">`}
-          <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
+          <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name||''))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
         </div>`).join('');
-    } else {
+    } else if(partRow) {
       partRow.style.display='none';
     }
 
     const invBar = document.getElementById('invite-store-bar');
-    invBar.style.display = (conv.type==='direct') ? 'flex' : 'none';
+    if(invBar) invBar.style.display = (conv.type==='direct') ? 'flex' : 'none';
 
     // Render saved messages from localStorage first (instant)
-    const savedMsgs = loadMsgsLocal(id);
+    // R24: loadMsgsLocal pode retornar [] ou undefined
+    const savedMsgs = loadMsgsLocal(id) || [];
     if(savedMsgs.length > 0){
       const localRendered = savedMsgs.map(m => {
         const t = m.time ? new Date(m.time) : new Date();
@@ -420,7 +434,7 @@
       });
       renderMessages(localRendered);
     } else {
-      renderMessages(conv.messages);
+      renderMessages(conv.messages || []);
     }
     showScreen('chatconv');
     setTimeout(()=>{ const area=document.getElementById('msgs-area'); if(area) area.scrollTop=area.scrollHeight; },200);
@@ -454,26 +468,34 @@
           conv.name = conv.name.includes('Cali Colors') ? conv.name : conv.name + ' + Cali Colors';
           conv.sub = '3 participantes · Chat 3-way ativo';
           chatStoreAdded = true;
-          // Update header for 3-way
-          document.getElementById('chat-header-name').textContent = stripEmail(conv.name);
-          document.getElementById('chat-header-sub').textContent = conv.sub;
-          document.getElementById('invite-store-bar').style.display = 'none';
+          // Update header for 3-way — R23: tela pode ter mudado durante o
+          // round-trip de mensagens; guarda cada getElementById.
+          const _hn = document.getElementById('chat-header-name');
+          if(_hn) _hn.textContent = stripEmail(conv.name||'');
+          const _hs = document.getElementById('chat-header-sub');
+          if(_hs) _hs.textContent = conv.sub || '';
+          const _ib = document.getElementById('invite-store-bar');
+          if(_ib) _ib.style.display = 'none';
           const avatarsEl = document.getElementById('chat-header-avatars');
           const parts = conv.participants.slice(0,3);
-          avatarsEl.innerHTML = parts.map((p,i)=>`
-            <div class="cha-av" style="left:${i*10}px;z-index:${3-i}">
-              ${p.logo
-                ? '<div style="width:100%;height:100%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
-                : '<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
-            </div>`).join('');
-          avatarsEl.style.width=(parts.length*10+22)+'px';
+          if(avatarsEl){
+            avatarsEl.innerHTML = parts.map((p,i)=>`
+              <div class="cha-av" style="left:${i*10}px;z-index:${3-i}">
+                ${p.logo
+                  ? '<div style="width:100%;height:100%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>'
+                  : '<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
+              </div>`).join('');
+            avatarsEl.style.width=(parts.length*10+22)+'px';
+          }
           const partRow = document.getElementById('participant-row');
-          partRow.style.display='flex';
-          partRow.innerHTML = conv.participants.map(p=>`
-            <div class="part-chip ${p.logo?'store':''}">
-              ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
-              <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
-            </div>`).join('');
+          if(partRow){
+            partRow.style.display='flex';
+            partRow.innerHTML = conv.participants.map(p=>`
+              <div class="part-chip ${p.logo?'store':''}">
+                ${p.logo?'<div style="width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;"><span style="font-size:8px;font-weight:800;color:var(--p1);font-family:\'Syne\',sans-serif;">CC</span></div>':'<img src="'+escapeHtml(p.img||'')+'" alt="'+escapeHtml(p.name||'')+'">'}
+                <div><div class="part-chip-name">${escapeHtml(stripEmail(p.name||''))}</div><div class="part-chip-role">${escapeHtml(p.role||'')}</div></div>
+              </div>`).join('');
+          }
         }
         // Load profiles for all senders to show correct names in 3-way
         const senderIds = [...new Set(msgs.map(m => m.sender_id).filter(Boolean))];
@@ -509,7 +531,7 @@
         });
         renderMessages(realMsgs);
         const area=document.getElementById('msgs-area');
-        area.scrollTop=area.scrollHeight;
+        if(area) area.scrollTop=area.scrollHeight;
       }
 
       // Realtime handled by global subscription (setupGlobalMsgSubscription)

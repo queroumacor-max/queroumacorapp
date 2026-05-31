@@ -132,15 +132,27 @@
     try {
       let urls = null;
       let aiError = null;
+      let aborted = false;
       try {
-        const { ok, data, error } = await apiPost('/api/generate-logo', { name, style });
-        if (ok && data && Array.isArray(data.urls) && data.urls.length) {
-          urls = data.urls;
+        // Cancellable: fechar modal aborta. CRÍTICO: 1ª geração é grátis
+        // mas 2ª+ é PAGA (R$1,99) — o backend pode ter cobrado mesmo se
+        // cancelamos. Por isso _aiLogoBumpCount() só roda na resposta válida.
+        const res = await apiPostCancellable('ai-logo:gen', '/api/generate-logo', { name, style });
+        if (res && res.aborted) { aborted = true; }
+        else if (res && res.ok && res.data && Array.isArray(res.data.urls) && res.data.urls.length) {
+          urls = res.data.urls;
         } else {
-          aiError = (data && data.error) || error;
+          aiError = (res && res.data && res.data.error) || (res && res.error);
         }
       } catch(e) {
         aiError = String(e?.message || e);
+      }
+
+      // Cancelamento silencioso: usuário fechou o modal antes de receber
+      // os logos. Sai sem renderizar (e sem queimar o crédito local).
+      if (aborted) {
+        console.info('generate-logo: cancelado pelo usuário (modal fechado)');
+        return;
       }
 
       const grid = document.getElementById('ai-logo-grid');

@@ -16,12 +16,15 @@
     currentPostType = type;
     const storyBtn = document.getElementById('post-type-story');
     const postBtn = document.getElementById('post-type-post');
-    if(type === 'story'){
-      storyBtn.style.background = 'var(--ink)'; storyBtn.style.color = '#fff';
-      postBtn.style.background = 'var(--white)'; postBtn.style.color = 'var(--ink)';
-    } else {
-      postBtn.style.background = 'var(--ink)'; postBtn.style.color = '#fff';
-      storyBtn.style.background = 'var(--white)'; storyBtn.style.color = 'var(--ink)';
+    // R23: pode ser chamado antes do modal carregar — guard nos botões
+    if(storyBtn && postBtn){
+      if(type === 'story'){
+        storyBtn.style.background = 'var(--ink)'; storyBtn.style.color = '#fff';
+        postBtn.style.background = 'var(--white)'; postBtn.style.color = 'var(--ink)';
+      } else {
+        postBtn.style.background = 'var(--ink)'; postBtn.style.color = '#fff';
+        storyBtn.style.background = 'var(--white)'; storyBtn.style.color = 'var(--ink)';
+      }
     }
     // Show sale fields for grafiteiro on post type
     const saleFields = document.getElementById('post-sale-fields');
@@ -46,13 +49,16 @@
   let postSelectedFiles = [];
 
   function handlePostFiles(input){
-    const files = Array.from(input.files);
+    // R23: input.files pode ser null se o handler vier de um trigger sintético
+    const files = (input && input.files) ? Array.from(input.files) : [];
     if(!files.length) return;
     postSelectedFiles = [files[0]]; // only 1 image for story
     const previewArea = document.getElementById('post-preview-area');
     const previewImages = document.getElementById('post-preview-images');
-    previewArea.style.display = 'block';
-    document.getElementById('post-picker-area').style.display = 'none';
+    const pickerArea = document.getElementById('post-picker-area');
+    if(previewArea) previewArea.style.display = 'block';
+    if(pickerArea) pickerArea.style.display = 'none';
+    if(!previewImages) return;
     previewImages.innerHTML = '';
     const url = URL.createObjectURL(files[0]);
     previewImages.innerHTML = getMediaType(files[0]) === 'video'
@@ -62,9 +68,12 @@
 
   function clearPostImages(){
     postSelectedFiles = [];
-    document.getElementById('post-preview-area').style.display = 'none';
-    document.getElementById('post-picker-area').style.display = 'block';
-    document.getElementById('post-file-input').value = '';
+    const previewArea = document.getElementById('post-preview-area');
+    const pickerArea = document.getElementById('post-picker-area');
+    const fileInput = document.getElementById('post-file-input');
+    if(previewArea) previewArea.style.display = 'none';
+    if(pickerArea) pickerArea.style.display = 'block';
+    if(fileInput) fileInput.value = '';
   }
 
   // Gera legenda + hashtags do post a partir da mídia selecionada (PRO).
@@ -106,18 +115,28 @@
       toast('Gerando legenda com Seu Zé...');
       const fd = new FormData();
       fd.append('image', imgBlob, imgName);
-      const { ok, status, data, error } = await apiPost('/api/caption', fd, { multipart: true });
+      // Cancellable: se o usuário fechar o composer antes da legenda chegar
+      // (rede lenta), aborta — não pinta texto no textarea órfão.
+      const res = await apiPostCancellable('post:caption', '/api/caption', fd, { multipart: true });
+      if (res && res.aborted) {
+        console.info('caption: cancelado pelo usuário (modal fechado)');
+        return;
+      }
+      const { ok, status, data, error } = res;
       if(!ok){
         toast('Não foi possível gerar a legenda agora');
         console.warn('caption error:', (data && data.error) || error || status);
         return;
       }
       const caption = (data?.caption || '').toString().trim();
+      // R24: data.hashtags pode vir null/undefined do backend
       const hashtags = Array.isArray(data?.hashtags) ? data.hashtags.filter(h => typeof h === 'string') : [];
       if(!caption && hashtags.length === 0){
         toast('O Seu Zé não devolveu nada — tente outra mídia');
         return;
       }
+      // R23: ta pode não existir se o modal foi fechado durante a geração
+      if(!ta){ toast('Modal fechou — legenda perdida'); return; }
       const existing = (ta.value || '').trim();
       const tagLine = hashtags.join(' ');
       const built = [caption, tagLine].filter(Boolean).join('\n\n');
@@ -184,7 +203,9 @@
     try {
       const { data:{ session } } = await sb.auth.getSession();
       if(!session){ toast('Faça login para publicar'); return; }
-      const content = document.getElementById('post-text-input').value.trim();
+      // R23: textarea pode não existir se modal já fechou
+      const ta = document.getElementById('post-text-input');
+      const content = (ta && ta.value ? ta.value.trim() : '');
 
       // Story requires image; Post can be text-only
       if(type === 'story' && postSelectedFiles.length === 0){
@@ -196,9 +217,11 @@
         return;
       }
 
-      btn.textContent = 'Publicando...';
-      btn.disabled = true;
-      if(btn) btn.dataset._loading = '1';
+      if(btn){
+        btn.textContent = 'Publicando...';
+        btn.disabled = true;
+        btn.dataset._loading = '1';
+      }
       let imageUrl = null;
 
       // Upload image if selected
@@ -213,8 +236,7 @@
         if(upError){
           console.error('Upload error:', upError && upError.message || upError);
           toast('Erro no upload: ' + upError.message);
-          btn.textContent = 'Publicar'; btn.disabled = false;
-          if(btn) delete btn.dataset._loading;
+          if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; delete btn.dataset._loading; }
           return;
         }
         const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
@@ -238,8 +260,7 @@
           } catch(e){ console.warn('cleanup upload:', e && e.message || e); }
         }
         toast('Conteúdo bloqueado pela moderação (' + modResult.reason + ')');
-        btn.textContent = 'Publicar'; btn.disabled = false;
-        if(btn) delete btn.dataset._loading;
+        if(btn){ btn.textContent = 'Publicar'; btn.disabled = false; delete btn.dataset._loading; }
         return;
       }
       // Vídeo sempre entra pendente até a análise assíncrona liberar
@@ -262,9 +283,11 @@
         created_at: new Date().toISOString()
       }).select();
 
-      btn.textContent = 'Publicar';
-      btn.disabled = false;
-      if(btn) delete btn.dataset._loading;
+      if(btn){
+        btn.textContent = 'Publicar';
+        btn.disabled = false;
+        delete btn.dataset._loading;
+      }
 
       if(insertErr){
         console.error('Post insert error:', insertErr && insertErr.message || insertErr);
@@ -284,7 +307,9 @@
           toast(type === 'story' ? 'Story publicado!' : 'Post publicado!');
         }
         closeModals();
-        document.getElementById('post-text-input').value = '';
+        // R23: textarea pode já não existir após closeModals
+        const taPost = document.getElementById('post-text-input');
+        if(taPost) taPost.value = '';
         clearPostImages();
         // Reset type to story for next time
         setPostType('story');

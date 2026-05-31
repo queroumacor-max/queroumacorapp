@@ -369,10 +369,14 @@ window.handleSbError = handleSbError;
 // O token é enviado APENAS via header Authorization: Bearer ... (o servidor
 // em functions/api/_security.js#getToken aceita ambos, mas mantemos só o
 // header pra evitar vazar o JWT em logs de body / proxies que loggam JSON).
+// opts.signal: AbortSignal opcional — permite ao caller cancelar a request
+// (ex.: usuário sai da tela antes da IA responder). Quando abortado,
+// retorna { ok:false, status:0, data:null, error:'aborted', aborted:true }.
 async function apiPost(path, body, opts){
   opts = opts || {};
   const multipart = !!opts.multipart;
   const withToken = opts.withToken !== false;
+  const signal = opts.signal || null;
   let headers = {};
   let token = null;
   if (withToken) {
@@ -393,15 +397,73 @@ async function apiPost(path, body, opts){
     payload = JSON.stringify(body || {});
   }
   try {
-    const r = await fetch(path, { method: 'POST', headers: headers, body: payload });
+    const init = { method: 'POST', headers: headers, body: payload };
+    if (signal) init.signal = signal;
+    const r = await fetch(path, init);
     let data = null;
     try { data = await r.json(); } catch(_) { /* não-json */ }
     return { ok: r.ok, status: r.status, data: data, error: r.ok ? null : ((data && data.error) || ('HTTP ' + r.status)) };
   } catch (e) {
+    if (e && e.name === 'AbortError') {
+      return { ok: false, status: 0, data: null, error: 'aborted', aborted: true };
+    }
     return { ok: false, status: 0, data: null, error: String(e && e.message || e) };
   }
 }
 window.apiPost = apiPost;
+
+// Registry de AbortControllers por chave lógica. Quando o caller dispara
+// uma request com a mesma chave (ex.: "ai-chat:send"), a request anterior
+// é cancelada antes da nova começar. Útil pra:
+//   - usuário clica "enviar" 2x rápido no chat → só a última resposta pinta
+//   - usuário fecha a tela/modal antes da IA responder → cancela via
+//     cancelApi(key)
+// USAR SÓ PRA REQUESTS ONDE O RESULTADO É CONSUMIDO POR UMA UI VIVA.
+// Pra fire-and-forget (logs, beacons, fan-out) NÃO usar — o servidor já
+// pode ter processado e cancelar não desfaz.
+const _apiCtrls = new Map();
+function _apiGetCtrl(key){
+  if (typeof AbortController === 'undefined') return null;
+  const prev = _apiCtrls.get(key);
+  if (prev) { try { prev.abort(); } catch(_) {} }
+  const ac = new AbortController();
+  _apiCtrls.set(key, ac);
+  return ac;
+}
+function cancelApi(key){
+  const ctrl = _apiCtrls.get(key);
+  if (ctrl) {
+    try { ctrl.abort(); } catch(_) {}
+    _apiCtrls.delete(key);
+  }
+}
+window.cancelApi = cancelApi;
+
+// registerApiCtrl: pra fetch direto (não via apiPost) que quer participar
+// do registry de cancelamento. Cancela qualquer ctrl anterior na mesma key
+// e devolve o novo. Caller passa ctrl.signal pro fetch. Útil pro /api/tts
+// (resposta é Blob, não JSON — não cabe no apiPost).
+function registerApiCtrl(key){
+  return _apiGetCtrl(key);
+}
+window.registerApiCtrl = registerApiCtrl;
+
+// apiPostCancellable: wrapper de apiPost com cancelamento automático por
+// chave. Cancela qualquer request anterior com a mesma `key` antes de
+// disparar a nova. Quando o caller fecha a tela / modal, chama
+// cancelApi(key) pra abortar a request em voo (cliente para de esperar,
+// mas servidor pode ter processado — não tente "rollback" desse jeito).
+async function apiPostCancellable(key, path, body, opts){
+  const ac = _apiGetCtrl(key);
+  const merged = Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {});
+  try {
+    return await apiPost(path, body, merged);
+  } finally {
+    // Só remove se ainda é o ctrl atual (outra request pode ter assumido).
+    if (ac && _apiCtrls.get(key) === ac) _apiCtrls.delete(key);
+  }
+}
+window.apiPostCancellable = apiPostCancellable;
 
 // gateProClient: gate de feature PRO no client. Retorna true se pode prosseguir.
 // Se não for PRO, mostra toast + abre modal. Uso: if (!gateProClient('IA Vision')) return;
@@ -1546,5 +1608,40 @@ function debounce(fn, ms = 250){
   };
 }
 window.debounce = debounce;
+
+// ═══════ OFFLINE STATE INDICATOR ═══════
+// Banner persistente no topo quando navigator.onLine === false. Quando volta
+// online, remove o banner + dispara toast. NÃO-bloqueante: o usuário ainda
+// pode tentar interagir (cache do SW pode servir o que dá; cliques que
+// dependem de rede vão falhar e cair nos toasts de erro normais).
+// Pareado com o AbortController dos endpoints IA: se o user volta online
+// e re-tenta, a request anterior (se ainda viva) é cancelada antes da nova.
+(function setupOfflineIndicator(){
+  function showOfflineBanner(){
+    if (document.getElementById('_offline-banner')) return;
+    const div = document.createElement('div');
+    div.id = '_offline-banner';
+    div.setAttribute('role', 'alert');
+    div.setAttribute('aria-live', 'polite');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#e76f51;color:#fff;text-align:center;padding:8px 14px;font-size:13px;font-weight:600;font-family:\'DM Sans\',sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.15);';
+    div.textContent = '📶 Sem conexão — algumas funcionalidades podem não funcionar';
+    if (document.body) document.body.appendChild(div);
+    else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(div), { once: true });
+  }
+  function hideOfflineBanner(){
+    const el = document.getElementById('_offline-banner');
+    if (el) el.remove();
+    if (typeof toast === 'function') toast('🟢 Conexão restaurada');
+  }
+  window.addEventListener('offline', showOfflineBanner);
+  window.addEventListener('online', hideOfflineBanner);
+  // Estado inicial: navegador pode já estar offline na hora do boot.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // Defere pro DOM estar pronto pra inserir o banner.
+    if (document.body) showOfflineBanner();
+    else document.addEventListener('DOMContentLoaded', showOfflineBanner, { once: true });
+  }
+})();
+// ═══════ /OFFLINE INDICATOR ═══════
 
 window.addEventListener('DOMContentLoaded', () => { initAuth(); });
