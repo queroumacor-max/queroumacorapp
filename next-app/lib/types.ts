@@ -134,19 +134,39 @@ export interface Order {
   updated_at?: string | null;
 }
 
-// Quote = orçamento. `status` segue o vocabulário em PT-BR usado pelo
-// vanilla: rascunho → enviado → aceito|recusado|concluido.
+// Quote = orçamento. `status` segue o ciclo atual do banco
+// (supabase_init.sql linha 1097+):
+//   pending → rascunho → enviado → aprovado → em_execucao → concluido
+//   (+ recusado).
+// Mantemos `aceito` no union pra absorver rótulos legados gravados antes da
+// migration; UI mapeia desconhecidos pro grupo "Rascunho" como fallback.
 export type QuoteStatus =
+  | 'pending'
   | 'rascunho'
   | 'enviado'
-  | 'aceito'
+  | 'aprovado'
+  | 'em_execucao'
+  | 'concluido'
   | 'recusado'
-  | 'concluido';
+  | 'aceito';
+
+export interface QuoteSnapshot {
+  frozen_at: string;
+  service_type: string | null;
+  title: string | null;
+  area_m2: number | null;
+  address: string | null;
+  description: string | null;
+  price: number;
+  proposed_date: string | null;
+  quote_data: unknown;
+}
 
 export interface Quote {
   id: string;
   painter_id: string;
   client_id?: string | null;
+  client_name?: string | null;
   status?: QuoteStatus | string;
   title?: string | null;
   service_type?: string | null;
@@ -155,7 +175,18 @@ export interface Quote {
   description?: string | null;
   price?: number | null;
   proposed_date?: string | null;
+  sent_at?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  approval_method?: 'manual' | 'app' | string | null;
+  approval_note?: string | null;
+  completed_at?: string | null;
+  scope_snapshot?: QuoteSnapshot | null;
+  quote_data?: unknown;
+  images?: string[] | null;
   created_at?: string;
+  // Joined: profiles!client_id(name) — convenience for card display.
+  client?: { name?: string | null } | null;
 }
 
 // Job = obra agendada no calendário do pintor (tabela `jobs`). Schema em
