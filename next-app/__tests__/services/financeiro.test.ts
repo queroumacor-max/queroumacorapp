@@ -430,8 +430,9 @@ describe('analyzeWithAI', () => {
   });
 
   it('fetch joga (rede off) → NetworkError', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('connection refused'))
-      as unknown as typeof fetch;
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('connection refused')) as unknown as typeof fetch;
     await expect(analyzeWithAI(samplePayload)).rejects.toBeInstanceOf(
       NetworkError
     );

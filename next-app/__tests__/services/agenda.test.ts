@@ -244,9 +244,9 @@ describe('fetchJobsByMonth', () => {
   });
 
   it('erro Supabase → joga NetworkError com message', async () => {
-    const { client } = makeFakeClient([
-      { data: null, error: { message: 'rls bloqueou' } },
-    ]);
+    // Duas assertions consomem 2 items do queue (uma resposta cada call).
+    const errItem = { data: null, error: { message: 'rls bloqueou' } };
+    const { client } = makeFakeClient([errItem, errItem]);
     __setSupabaseForTests(
       client as Parameters<typeof __setSupabaseForTests>[0]
     );
