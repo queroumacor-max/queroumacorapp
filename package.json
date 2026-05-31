@@ -14,7 +14,7 @@
     "lint:conventions": "node scripts/check-conventions.js"
   },
   "devDependencies": {
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.7",
     "@babel/standalone": "^7.24.0",
     "@playwright/test": "^1.48.0"
   }
