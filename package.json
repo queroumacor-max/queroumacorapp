@@ -11,7 +11,7 @@
     "test:e2e:install": "playwright install chromium",
     "build:portal": "node scripts/build-portal.js",
     "check:deps": "node scripts/check-deps.js",
-    "check:conventions": "node scripts/check-conventions.js"
+    "lint:conventions": "node scripts/check-conventions.js"
   },
   "devDependencies": {
     "vitest": "^1.6.0",

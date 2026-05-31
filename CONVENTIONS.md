@@ -77,3 +77,26 @@
 - Bump cache esquecido após editar arquivo versionado.
 - Sentry/SaaS externo sem aprovação explícita (preferir interno: tabela errors).
 - Touch em app.js sem necessidade durante Fase 4 etapa 1 (cópia pura).
+
+## Enforcement
+Algumas convenções acima são verificadas mecanicamente por um script
+leve em Node (sem ESLint / sem deps novas):
+
+```bash
+npm run lint:conventions          # summary, sempre exit 0
+node scripts/check-conventions.js --strict  # exit 1 se houver FAIL
+node scripts/check-conventions.js --json    # output JSON pra CI
+```
+
+Cobertura (item #18 do audit arquitetural):
+- IIFE pattern em `modules/*.js` (`(function(){ ... })();`).
+- `'use strict';` dentro de cada IIFE.
+- Exatamente 1 `window.Modules.<name> = { ... }` por módulo.
+- `?v=` em toda `<script src="/...">` local do `index.html`.
+- `console.log` proibido em `modules/*` e `app.js` (warn/error/info ok).
+- `// TODO` / `// FIXME` exige `#issue` ou `(YYYY-MM-DD)` na mesma linha.
+- Cada `window.Modules.X` deve aparecer em `shims.js` (warn-only).
+
+Roda automaticamente no CI via `.github/workflows/conventions.yml` em
+todo push e PR (warn-only por enquanto; trocar pra `--strict` quando o
+backlog estiver zerado).
