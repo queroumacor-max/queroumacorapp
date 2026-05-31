@@ -114,6 +114,7 @@
       if(on && s.getAttribute('data-rendered') === '0'){
         const grid = s.querySelector('.mkt-products');
         if(grid){
+          // eslint-disable-next-line no-use-before-define -- callback runtime; _mktGrouped declarado abaixo
           const items = key === 'todos' ? mktProducts : (_mktGrouped[key] || []);
           if(key === 'todos' && items.length > 80){
             _mktMountInfinite(grid, items, 80);

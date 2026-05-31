@@ -54,7 +54,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/styles.css?v=20260527x">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260531e" as="script">
+<link rel="preload" href="/head.js?v=20260531f" as="script">
 <link rel="preload" href="/config.js?v=20260531f" as="script">
 <link rel="preload" href="/utils.js?v=20260531f" as="script">
 <link rel="preload" href="/events.js?v=20260531b" as="script">
@@ -86,8 +86,8 @@
 <link rel="preload" href="/modules/archive.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/auth-pw.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/content-mod.js?v=20260531h" as="script">
-<link rel="preload" href="/modules/map.js?v=20260531h" as="script">
-<link rel="preload" href="/modules/mkt.js?v=20260531i" as="script">
+<link rel="preload" href="/modules/map.js?v=20260531i" as="script">
+<link rel="preload" href="/modules/mkt.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/feed.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/feed-publish.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/stories.js?v=20260531i" as="script">
@@ -106,7 +106,7 @@
 <link rel="preload" href="/modules/admin-mod.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/notif.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/orcamento-pdf.js?v=20260531j" as="script">
-<link rel="preload" href="/modules/profile-mock.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/profile-mock.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/nav.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/screen-hooks.js?v=20260531k" as="script">
 <link rel="preload" href="/app.js?v=20260531d" as="script">
@@ -132,7 +132,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260531e" defer></script>
+<script src="/head.js?v=20260531f" defer></script>
 <!-- Badge "STAGING": aparece em qualquer host que NÃO seja queroumacor.com.br
      (preview deploys *.pages.dev e dev local). Cloudflare Pages já adiciona
      X-Robots-Tag: noindex nos *.pages.dev por default, então buscadores não
@@ -197,9 +197,9 @@
 <script src="/modules/archive.js?v=20260531h" defer></script>
 <script src="/modules/auth-pw.js?v=20260531h" defer></script>
 <script src="/modules/content-mod.js?v=20260531h" defer></script>
-<script src="/modules/map.js?v=20260531h" defer></script>
+<script src="/modules/map.js?v=20260531i" defer></script>
 <!-- Fase 4 wave 4: features pesadas (chat e profile-edit ficam pra próxima wave). -->
-<script src="/modules/mkt.js?v=20260531i" defer></script>
+<script src="/modules/mkt.js?v=20260531j" defer></script>
 <script src="/modules/feed.js?v=20260531m" defer></script>
 <script src="/modules/feed-publish.js?v=20260531i" defer></script>
 <script src="/modules/stories.js?v=20260531i" defer></script>
@@ -219,7 +219,7 @@
 <script src="/modules/admin-mod.js?v=20260531j" defer></script>
 <script src="/modules/notif.js?v=20260531k" defer></script>
 <script src="/modules/orcamento-pdf.js?v=20260531j" defer></script>
-<script src="/modules/profile-mock.js?v=20260531j" defer></script>
+<script src="/modules/profile-mock.js?v=20260531k" defer></script>
 <!-- Fase 4 wave 6 (FINAL): nav (showScreen original) + screen-hooks
      (wrap de dispatchers). install() do screen-hooks NÃO é auto-executado
      porque app.js ainda tem o wrap rodando; quando migrar, chamar
@@ -2693,7 +2693,7 @@
      boot-code (linha 107: _bootstrapFromUrl()) encontrem window.X já
      wirado. Function declarations remanescentes em app.js sobrepõem por
      hoisting; funções deletadas usam o shim. -->
-<script src="/shims.js?v=20260531c" defer></script>
+<script src="/shims.js?v=20260531d" defer></script>
 <script src="/app.js?v=20260531k" defer></script>
 
 <script>

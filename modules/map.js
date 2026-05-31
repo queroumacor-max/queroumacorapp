@@ -152,6 +152,7 @@
         }
       });
 
+      // eslint-disable-next-line no-use-before-define -- _exploreType declarado abaixo, função executa via callback runtime
       renderPainterList((profiles||[]).filter(p=>_matchType(p,_exploreType)));
     } catch(e) {
       console.error('loadMapPainters error:', e && e.message || e);

@@ -269,6 +269,10 @@ window.avatarOf = avatarOf;
 function _appDialog(opts){
   return new Promise(resolve => {
     let resolved = false;
+    // `done` é closure que captura `ov`/`onKey` por referência; eles são
+    // inicializados antes de `done()` ser invocado. ESLint no-use-before-define
+    // não enxerga isso porque a checagem é estática — disable na linha.
+    // eslint-disable-next-line no-use-before-define
     const done = (val) => { if(resolved) return; resolved = true; try { document.body.removeChild(ov); } catch(_){} document.removeEventListener('keydown', onKey); resolve(val); };
     const ov = document.createElement('div');
     ov.setAttribute('role', 'dialog');

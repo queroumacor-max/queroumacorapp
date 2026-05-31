@@ -46,7 +46,8 @@
     // Portfolio BA
     document.getElementById('ba-p-a').src=p.baA;
     document.getElementById('ba-p-b').src=p.baB;
-    baStates['ba-p']=false;
+    // baStates é leftover de mock antigo nunca declarado — guard pra não crashar.
+    if(typeof baStates !== 'undefined') baStates['ba-p']=false;  // eslint-disable-line no-undef
     document.getElementById('ba-p-a').style.opacity='1';
     document.getElementById('ba-p-b').style.opacity='0';
 
