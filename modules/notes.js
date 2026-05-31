@@ -31,13 +31,19 @@
     const list = document.getElementById('notes-list');
     if(!list) return;
     if(!sb || !currentUser){ list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Faça login para usar as anotações.</div>'; return; }
-    list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px;">Carregando...</div>';
+    // Skeleton enquanto carrega — feedback visual mais próximo do layout final
+    // que o "Carregando..." textual anterior.
+    list.innerHTML = skeletonRows(3, { height: '64px' });
     try {
       const { data, error } = await sb.from('notes').select('*').eq('user_id', currentUser.id).order('created_at',{ascending:false});
       if(error) throw error;
       const notes = data || [];
       if(!notes.length){
-        list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Nenhuma anotação ainda. Escreva acima e toque em Salvar.</div>';
+        list.innerHTML = emptyState({
+          icon: '📝',
+          title: 'Sem anotações',
+          message: 'Crie sua primeira anotação. Lembretes, medidas e recados de obra ficam salvos no seu perfil.'
+        });
         return;
       }
       const _notesHdr = '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 10px;">Anotações salvas ('+notes.length+')</div>';
@@ -63,22 +69,30 @@
       }).join('');
     } catch(e){
       console.warn('loadNotes:', e && e.message || e);
-      list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Erro ao carregar anotações.</div>';
+      list.innerHTML = errorState('Erro ao carregar anotações.', () => loadNotes());
     }
   }
 
+  // Guard de double-submit: o botão "Salvar anotação" pode receber double-click
+  // rápido — sem isso, a nota duplicava no DB. Marca o botão via dataset._loading
+  // (compatível com setButtonLoading do Utils) e restaura no finally.
   async function salvarNota(){
+    const btn = document.querySelector('button[onclick="salvarNota()"]');
+    if(btn && btn.dataset._loading) return;
     const ctx = requireSession();
     if(!ctx) return;
     const sb = ctx.sb;
     const ta = document.getElementById('note-new');
     const body = ta ? ta.value.trim() : '';
     if(!body){ toast('Escreva algo na anotação'); return; }
-    const { error } = await sb.from('notes').insert({ user_id: currentUser.id, body });
-    if(handleSbError(error, 'Erro ao salvar')) return;
-    if(ta) ta.value = '';
-    toast('Anotação salva ✅');
-    loadNotes();
+    const restoreBtn = btn ? setButtonLoading(btn, 'Salvando...') : (()=>{});
+    try {
+      const { error } = await sb.from('notes').insert({ user_id: currentUser.id, body });
+      if(handleSbError(error, 'Erro ao salvar')) return;
+      if(ta) ta.value = '';
+      toast('Anotação salva ✅');
+      loadNotes();
+    } finally { restoreBtn(); }
   }
 
   async function deletarNota(id){

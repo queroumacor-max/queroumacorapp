@@ -10,50 +10,72 @@
 
   async function loadFinanceiro(){
     const sb = getSupabase(); if(!sb||!currentUser) return;
-    await syncQuotesToJobs();
-    // SELECT enxuto: só os campos do dashboard financeiro.
-    const { data: jobs } = await sb.from('jobs').select('id, service_type, client_name, revenue, material_cost, created_at').eq('painter_id', currentUser.id).eq('status','concluido').order('created_at',{ascending:false});
-    let receita=0, custos=0;
-    (jobs||[]).forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
-    const lucro = receita - custos;
-    document.getElementById('fin-receita').textContent='R$ '+receita.toLocaleString('pt-BR');
-    document.getElementById('fin-custos').textContent='R$ '+custos.toLocaleString('pt-BR');
-    document.getElementById('fin-lucro').textContent='R$ '+lucro.toLocaleString('pt-BR');
-
-    // Gráfico resumo (barras)
-    const chartEl = document.getElementById('fin-chart');
-    if(chartEl){
-      const max = Math.max(receita, custos, Math.abs(lucro), 1);
-      const bar = (label,val,color)=>{
-        const pct = Math.max(2, Math.round(Math.abs(val)/max*100));
-        return '<div style="margin-bottom:8px;">'
-          + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;"><span>'+label+'</span><span style="font-weight:700;color:var(--ink);">R$ '+val.toLocaleString('pt-BR')+'</span></div>'
-          + '<div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:6px;"></div></div></div>';
-      };
-      chartEl.innerHTML = '<div style="background:var(--white);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);">'
-        + '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Resumo</div>'
-        + bar('Receita', receita, '#2ec4b6')
-        + bar('Gasto', custos, '#e63946')
-        + bar('Lucro', lucro, 'var(--p1)')
-        + '<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+(jobs?jobs.length:0)+' lançamento(s)</div>'
-        + '</div>';
-    }
-
     const listEl = document.getElementById('fin-jobs-list');
-    if(jobs && jobs.length>0){
+    // Skeleton enquanto carrega (5 entradas de ~60px). Header/cards numéricos
+    // (receita/custos/lucro) ficam com o valor anterior — flicker pequeno se
+    // já estavam preenchidos é tradeoff aceito vs poluir com "R$ —" textual.
+    if(listEl){
       listEl.style.textAlign='left'; listEl.style.padding='0';
-      listEl.innerHTML = jobs.map(j=>{
-        const lc = (+j.revenue||0)-(+j.material_cost||0);
-        return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);">'
-          + '<div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--ink);">'+escapeHtml(j.service_type||'Projeto')+'</div>'
-          + '<div style="font-size:11px;color:var(--muted);">'+escapeHtml(j.client_name||'-')+' · Receb. R$ '+(+j.revenue||0).toLocaleString('pt-BR')+' · Gasto R$ '+(+j.material_cost||0).toLocaleString('pt-BR')+'</div></div>'
-          + '<div style="font-weight:800;font-size:13px;color:'+(lc>=0?'#2ec4b6':'#e63946')+';white-space:nowrap;">R$ '+lc.toLocaleString('pt-BR')+'</div>'
-          + '<button onclick="deleteFinEntry(\''+j.id+'\')" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;">×</button>'
+      listEl.innerHTML = skeletonRows(5, { height: '60px' });
+    }
+    try {
+      await syncQuotesToJobs();
+      // SELECT enxuto: só os campos do dashboard financeiro.
+      const { data: jobs, error } = await sb.from('jobs').select('id, service_type, client_name, revenue, material_cost, created_at').eq('painter_id', currentUser.id).eq('status','concluido').order('created_at',{ascending:false});
+      if(error) throw error;
+      let receita=0, custos=0;
+      (jobs||[]).forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
+      const lucro = receita - custos;
+      document.getElementById('fin-receita').textContent='R$ '+receita.toLocaleString('pt-BR');
+      document.getElementById('fin-custos').textContent='R$ '+custos.toLocaleString('pt-BR');
+      document.getElementById('fin-lucro').textContent='R$ '+lucro.toLocaleString('pt-BR');
+
+      // Gráfico resumo (barras)
+      const chartEl = document.getElementById('fin-chart');
+      if(chartEl){
+        const max = Math.max(receita, custos, Math.abs(lucro), 1);
+        const bar = (label,val,color)=>{
+          const pct = Math.max(2, Math.round(Math.abs(val)/max*100));
+          return '<div style="margin-bottom:8px;">'
+            + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;"><span>'+label+'</span><span style="font-weight:700;color:var(--ink);">R$ '+val.toLocaleString('pt-BR')+'</span></div>'
+            + '<div style="background:var(--border);border-radius:6px;height:10px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:6px;"></div></div></div>';
+        };
+        chartEl.innerHTML = '<div style="background:var(--white);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);">'
+          + '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Resumo</div>'
+          + bar('Receita', receita, '#2ec4b6')
+          + bar('Gasto', custos, '#e63946')
+          + bar('Lucro', lucro, 'var(--p1)')
+          + '<div style="font-size:11px;color:var(--muted);margin-top:6px;">'+(jobs?jobs.length:0)+' lançamento(s)</div>'
           + '</div>';
-      }).join('');
-    } else {
-      listEl.style.textAlign='center'; listEl.style.padding='12px';
-      listEl.innerHTML = 'Nenhum lançamento';
+      }
+
+      if(!listEl) return;
+      if(jobs && jobs.length>0){
+        listEl.style.textAlign='left'; listEl.style.padding='0';
+        listEl.innerHTML = jobs.map(j=>{
+          const lc = (+j.revenue||0)-(+j.material_cost||0);
+          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);">'
+            + '<div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--ink);">'+escapeHtml(j.service_type||'Projeto')+'</div>'
+            + '<div style="font-size:11px;color:var(--muted);">'+escapeHtml(j.client_name||'-')+' · Receb. R$ '+(+j.revenue||0).toLocaleString('pt-BR')+' · Gasto R$ '+(+j.material_cost||0).toLocaleString('pt-BR')+'</div></div>'
+            + '<div style="font-weight:800;font-size:13px;color:'+(lc>=0?'#2ec4b6':'#e63946')+';white-space:nowrap;">R$ '+lc.toLocaleString('pt-BR')+'</div>'
+            + '<button onclick="deleteFinEntry(\''+j.id+'\')" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;">×</button>'
+            + '</div>';
+        }).join('');
+      } else {
+        listEl.innerHTML = emptyState({
+          icon: '💰',
+          title: 'Sem entradas',
+          message: 'Registre receitas e despesas pra acompanhar seu lucro. Projetos concluídos no Pipeline também entram aqui automaticamente.'
+        });
+      }
+    } catch(e){
+      console.error('loadFinanceiro:', e && e.message || e);
+      if(listEl){
+        listEl.innerHTML = errorState(
+          'Não foi possível carregar o financeiro. Tente de novo.',
+          () => loadFinanceiro()
+        );
+      }
     }
   }
 

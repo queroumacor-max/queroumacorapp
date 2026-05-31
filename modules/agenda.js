@@ -17,14 +17,27 @@
 
   async function loadAgenda(){
     const sb = getSupabase(); if(!sb||!currentUser) return;
-    await syncQuotesToJobs();
-    // SELECT enxuto: só os campos que a agenda renderiza/usa.
-    const { data } = await sb.from('jobs').select('id, status, scheduled_date, scheduled_time, client_name, service_type, address, created_at').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
-    _agJobs = data || [];
-    const now = new Date();
-    if(!_agCur) _agCur = new Date(now.getFullYear(), now.getMonth(), 1);
-    if(!_agSel) _agSel = _agYmd(now);
-    renderAgendaCal();
+    // Skeleton no day-list enquanto carrega (3 rows de ~50px pra simular dia).
+    // Calendário tem layout fixo, então não recebe skeleton — só o dia abaixo.
+    const dayEl = document.getElementById('agenda-day-list');
+    if(dayEl) dayEl.innerHTML = skeletonRows(3, { height: '50px' });
+    try {
+      await syncQuotesToJobs();
+      // SELECT enxuto: só os campos que a agenda renderiza/usa.
+      const { data, error } = await sb.from('jobs').select('id, status, scheduled_date, scheduled_time, client_name, service_type, address, created_at').eq('painter_id', currentUser.id).order('scheduled_date',{ascending:true}).limit(500);
+      if(error) throw error;
+      _agJobs = data || [];
+      const now = new Date();
+      if(!_agCur) _agCur = new Date(now.getFullYear(), now.getMonth(), 1);
+      if(!_agSel) _agSel = _agYmd(now);
+      renderAgendaCal();
+    } catch(e){
+      console.error('loadAgenda:', e && e.message || e);
+      if(dayEl) dayEl.innerHTML = errorState(
+        'Não foi possível carregar a agenda. Tente de novo.',
+        () => loadAgenda()
+      );
+    }
   }
 
   function agMonth(delta){
@@ -74,7 +87,11 @@
     const [yy,mm,dd] = _agSel.split('-');
     const label = `${dd}/${mm}/${yy}`;
     if(items.length===0){
-      el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label}</div><div style="text-align:center;color:var(--muted);padding:16px;font-size:13px;">Nenhum projeto neste dia</div>`;
+      el.innerHTML = `<div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0;">${label}</div>` + emptyState({
+        icon: '📅',
+        title: 'Sem projetos agendados',
+        message: 'Nenhum projeto neste dia. Crie um projeto pelo Pipeline e ele aparece no calendário.'
+      });
       return;
     }
     const optimizeBtn = items.length>=2

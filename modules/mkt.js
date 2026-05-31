@@ -239,12 +239,14 @@
 
   async function submitCartOrder(){
     if(cartItems.length === 0){ toast('Carrinho vazio!'); return; }
+    const btn = document.getElementById('cart-submit-btn');
+    // Double-submit guard: action cria pedido + cobra cliente, NUNCA pode rodar 2x.
+    if(btn && btn.dataset._loading) return;
     const ctx = requireSession('Faça login primeiro');
     if(!ctx) return;
     const sb = ctx.sb;
-    const btn = document.getElementById('cart-submit-btn');
-    const originalLabel = btn.textContent;
-    btn.textContent = 'Criando pedido...'; btn.disabled = true;
+    const restore = setButtonLoading(btn, 'Criando pedido...');
+    let redirecting = false;
     try {
       const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * (item.qty || 1), 0);
       const { data: inserted, error } = await sb.from('orders').insert({
@@ -258,7 +260,7 @@
       const orderId = inserted && inserted.id;
       if(!orderId) throw new Error('Pedido criado sem ID');
 
-      btn.textContent = 'Gerando pagamento...';
+      if(btn) btn.textContent = 'Gerando pagamento...';
       const { data:{ session } } = await sb.auth.getSession();
       if(!session){ throw new Error('Sessão expirada — faça login'); }
       const { ok, status, data } = await apiPost('/api/mp-checkout-loja', { orderId });
@@ -273,10 +275,13 @@
 
       cartItems = []; saveCart(); updateCartBadge();
       toast('Redirecionando para o Mercado Pago...');
+      // Botão FICA travado até o redirect efetivar — pular o restore no finally.
+      redirecting = true;
       window.location.href = data.init_point;
     } catch(e){
       showError('cart-checkout', e, 'Não foi possível finalizar a compra. Tente novamente.');
-      btn.textContent = originalLabel; btn.disabled = false;
+    } finally {
+      if(!redirecting) restore();
     }
   }
 
@@ -670,8 +675,17 @@
   }
 
   function buyShirt() {
-    const unit = shirtQty >= 5 ? 39.90 * 0.85 : 39.90;
-    addToCart('shirt-personalizada', shirtQty, 'Camiseta Personalizada', unit);
+    // Double-click guard: addToCart() abre modal do carrinho com setTimeout 300ms;
+    // sem guard, dois taps rápidos somam quantidade dupla. Trava o botão por 1s.
+    const btn = document.getElementById('buy-shirt-btn');
+    if(btn && btn.dataset._loading) return;
+    const restore = setButtonLoading(btn, 'Adicionando...');
+    try {
+      const unit = shirtQty >= 5 ? 39.90 * 0.85 : 39.90;
+      addToCart('shirt-personalizada', shirtQty, 'Camiseta Personalizada', unit);
+    } finally {
+      setTimeout(restore, 1000);
+    }
   }
 
   window.Modules = window.Modules || {};

@@ -92,9 +92,14 @@
     const ctx = requireSession('Faça login primeiro');
     if(!ctx) return;
     const sb = ctx.sb;
+    // Botão único na tela "Avaliar" — pego via querySelector.
+    const btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
+                document.querySelector('.avaliar-submit');
+    if(btn && btn.dataset._loading) return; // double-submit guard
     const criteria = [];
     document.querySelectorAll('.criteria-chip.sel').forEach(c => criteria.push(c.textContent.trim()));
     const comment = document.getElementById('avalia-ta')?.value.trim() || '';
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Enviando...') : () => {};
     try {
       // Usa a RPC submit_review (SECURITY DEFINER) — valida no servidor:
       // quote pertence ao caller, rating 1-5, sem duplicata
@@ -115,7 +120,7 @@
     } catch(e){
       console.error('submitAvaliacao error:', e && e.message || e);
       toast('Erro ao enviar avaliação: ' + (e.message || e));
-    }
+    } finally { restore(); }
   }
 
   window.Modules = window.Modules || {};

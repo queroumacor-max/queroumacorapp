@@ -25,7 +25,9 @@
      'escapeHtml','escapeJsArg','getTimeAgo','stripEmail','cleanHandle',
      'getMediaType','_compressImageFile','isVideoUrl','_extractVideoFrame',
      '_normTxt','_hashStr','_starStr','_agYmd',
-     'crmNormName','crmMonthsSince'].forEach(k=>{
+     'crmNormName','crmMonthsSince',
+     // UX helpers (item #19/#20/#21/#22 do audit React)
+     'setButtonLoading','emptyState','errorState','skeletonRows'].forEach(k=>{
       if(typeof U[k] !== 'undefined') window[k] = U[k];
     });
   } else {

@@ -34,7 +34,9 @@
       return;
     }
 
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Sincronizando seus clientes...</div>';
+    // Skeleton enquanto sincroniza (4 cards de ~90px). Substitui o
+    // "Sincronizando..." textual antigo — feedback visual mais próximo do final.
+    container.innerHTML = skeletonRows(4, { height: '90px' });
 
     try {
       // Intervalo de follow-up do perfil.
@@ -111,7 +113,10 @@
       renderCrm();
     } catch(e){
       console.error('loadCrm:', e && e.message || e);
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar o CRM.</div>';
+      container.innerHTML = errorState(
+        'Não foi possível carregar o CRM. Tente de novo.',
+        () => loadCrm()
+      );
     }
   }
 
@@ -130,11 +135,11 @@
       + '</div></div>';
 
     if(clients.length === 0){
-      html += '<div style="text-align:center;padding:40px 24px;color:var(--muted);">'
-        + '<div style="font-size:40px;margin-bottom:10px;">🔁</div>'
-        + '<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum cliente ainda</div>'
-        + '<div style="font-size:13px;line-height:1.5;">Conforme você fecha orçamentos e cadastra trabalhos na agenda, seus clientes aparecem aqui automaticamente.</div>'
-        + '</div>';
+      html += emptyState({
+        icon: '👥',
+        title: 'Nenhum cliente no follow-up',
+        message: 'Clientes com serviço concluído há mais de ' + _crmIntervalMonths + ' meses aparecem aqui pra você reativar. Conforme fecha orçamentos e cadastra trabalhos na agenda, eles entram automaticamente.'
+      });
       container.innerHTML = html;
       return;
     }
