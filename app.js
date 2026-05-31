@@ -7392,12 +7392,8 @@ async function loadPosts(feedIds, append, skipFirstPaint){
     if(!sb) return;
     if(!feedIds) feedIds = await getFollowingIds();
     const offset = append ? _feedOffset : 0;
-    // Build query - if user has following list, filter by it; otherwise show all recent posts
-    let query = sb.from('posts').select(POST_COLS).neq('media_type', 'story');
-    // Only show approved posts (or posts without status for backwards compat)
-    query = query.or('status.eq.approved,status.is.null');
-    if(feedIds.length > 0) query = query.in('user_id', feedIds);
-    query = query.order('created_at', { ascending: false }).range(offset, offset + FEED_PAGE - 1);
+    // Fase 3: feed via DB.posts.getFeedPosts (mesma query, encapsulada).
+    const query = DB.posts.getFeedPosts({ feedIds, offset, limit: FEED_PAGE });
     let posts = [], error = null;
     try {
       const res = await (typeof withTimeout === 'function' ? withTimeout(query, 12000, 'posts') : query);
@@ -7897,14 +7893,8 @@ async function loadStories(feedIds){
     // Load stories from last 24h (like IG) from followed users + own
     const since = new Date(Date.now() - 24*60*60*1000).toISOString();
     if(!feedIds) feedIds = await getFollowingIds();
-    // Build query - if user has following list, filter by it; otherwise show all recent stories
-    let storyQuery = sb.from('posts').select(POST_COLS).eq('media_type', 'story');
-    // Só stories aprovados (ou sem status, compat) — não vaza conteúdo pendente
-    storyQuery = storyQuery.or('status.eq.approved,status.is.null');
-    // Story sem media_url não tem o que mostrar — filtra no servidor.
-    storyQuery = storyQuery.not('media_url', 'is', null);
-    if(feedIds.length > 0) storyQuery = storyQuery.in('user_id', feedIds);
-    storyQuery = storyQuery.gte('created_at', since).order('created_at', { ascending: true }).limit(100);
+    // Fase 3: stories via DB.posts.getStories (filtra approved + media_url não-nula).
+    const storyQuery = DB.posts.getStories({ feedIds, sinceISO: since, limit: 100 });
     let stories = [], error = null;
     try {
       const res = await (typeof withTimeout === 'function' ? withTimeout(storyQuery, 8000, 'stories') : storyQuery);

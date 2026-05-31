@@ -160,6 +160,41 @@
   // ─── posts ─────────────────────────────────────────────────────────────
   // Retorna {data, error} cru — o caller (loadPosts/loadStories) já tem
   // tratamento de erro/timeout próprio; embrulhar aqui esconderia info.
+
+  // Conta posts não-stories de um usuário (usado em stats do perfil próprio
+  // e no openUserProfile de outro). Default: exclui stories pra bater com
+  // o card de "posts" do perfil estilo IG. opts.includeStories pra incluir.
+  async function countByUser(userId, opts){
+    const sb = _sb()
+    if(!sb || !userId) return 0
+    try {
+      let q = sb.from('posts').select('*', { count:'exact', head:true }).eq('user_id', userId)
+      if(!opts || !opts.includeStories) q = q.neq('media_type', 'story')
+      const r = await q
+      return r.count || 0
+    } catch(e){ console.warn('DB.posts.countByUser:', e && e.message); return 0 }
+  }
+
+  // Lista posts de UM usuário (portfolio). Retorna a query pra o caller
+  // awaitar e ler {data, error}. opts:
+  //   limit         — default 60
+  //   cols          — default POST_COLS
+  //   onlyApproved  — adiciona filtro de status (default false; portfolio
+  //                   próprio mostra pending, perfil alheio só approved)
+  //   includeStories — default false
+  function getByUser(userId, opts){
+    opts = opts || {}
+    const sb = _sb()
+    if(!sb) return Promise.resolve({ data:[], error:{ message:'no-client' } })
+    const cols = opts.cols || POST_COLS
+    const limit = opts.limit || 60
+    let q = sb.from('posts').select(cols).eq('user_id', userId)
+    if(!opts.includeStories) q = q.neq('media_type', 'story')
+    if(opts.onlyApproved) q = q.or('status.eq.approved,status.is.null')
+    q = q.order('created_at', { ascending:false }).limit(limit)
+    return q
+  }
+
   function getFeedPosts(opts){
     opts = opts || {}
     const sb = _sb()
@@ -195,6 +230,6 @@
   window.DB = {
     profiles: { getById, getMany, PUBLIC_COLS },
     follows: { countFollowers, countFollowing, listFollowingIds, listFollowerIds, isFollowing, follow, unfollow },
-    posts: { getFeedPosts, getStories, COLS: POST_COLS }
+    posts: { countByUser, getByUser, getFeedPosts, getStories, COLS: POST_COLS }
   }
 })()

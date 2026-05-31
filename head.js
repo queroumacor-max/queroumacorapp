@@ -730,14 +730,14 @@ async function loadMyProfileStats(){
   if(!sb || !currentUser) return;
   try {
     // 3 contagens em paralelo (antes eram sequenciais — 450ms vs 150ms).
-    // Follows passam por DB.follows.* (Fase 1 da refatoração arquitetural).
-    const [postsRes, followersCount, followingCount] = await Promise.all([
-      sb.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id).neq('media_type', 'story'),
+    // Posts/follows passam por DB.* (Fases 1, 2 e 3) — retornam number direto.
+    const [postsCount, followersCount, followingCount] = await Promise.all([
+      DB.posts.countByUser(currentUser.id),
       DB.follows.countFollowers(currentUser.id),
       DB.follows.countFollowing(currentUser.id)
     ]);
     const postsEl = document.getElementById('myprofile-posts-count');
-    if(postsEl) postsEl.textContent = postsRes.count || 0;
+    if(postsEl) postsEl.textContent = postsCount || 0;
     const followersEl = document.getElementById('myprofile-followers-count');
     if(followersEl) followersEl.textContent = followersCount || 0;
     const followingEl = document.getElementById('myprofile-following-count');
@@ -752,9 +752,7 @@ async function loadMyPortfolio(){
   const sb = getSupabase();
   if(!sb || !currentUser){ box.innerHTML = ''; return; }
   try {
-    const { data: posts, error } = await sb.from('posts').select(POST_COLS)
-      .eq('user_id', currentUser.id).neq('media_type','story')
-      .order('created_at',{ascending:false}).limit(60);
+    const { data: posts, error } = await DB.posts.getByUser(currentUser.id, { limit: 60 });
     if(error) throw error;
     if(!posts || posts.length === 0){
       box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">Você ainda não publicou trabalhos.<br>Toque em <b>+ Adicionar</b> para postar fotos e vídeos.</div>';
@@ -1193,17 +1191,16 @@ async function openUserProfile(userId, preview){
     // getById retornam o objeto/number direto, sem o wrapper {data, error}.
     const queries = [
       DB.profiles.getById(userId, PROF_COLS),
-      sb.from('posts').select('*',{count:'exact',head:true}).eq('user_id',userId).neq('media_type','story'),
+      DB.posts.countByUser(userId),
       DB.follows.countFollowers(userId),
       DB.follows.countFollowing(userId)
     ];
     if(currentUser) queries.push(DB.follows.isFollowing(currentUser.id, userId));
-    const [prof, postRes, followersCount, followingCount, followingFlag] = await Promise.all(queries);
+    const [prof, postCount, followersCount, followingCount, followingFlag] = await Promise.all(queries);
     if(!prof){ toast('Perfil não encontrado'); return; }
     if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;
     }
-    const postCount = postRes.count || 0;
     const isFollowing = !!followingFlag;
 
     const screen = document.getElementById('screen-profile');
@@ -1270,10 +1267,7 @@ async function renderRealProfileTabs(userId, name){
   const emptyState = (icon, msg) => `<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 20px;"><div style="font-size:36px;margin-bottom:10px;">${icon}</div><div style="font-size:14px;">${msg}</div></div>`;
 
   try {
-    const { data: posts } = await sb.from('posts').select(POST_COLS)
-      .eq('user_id', userId).neq('media_type','story')
-      .or('status.eq.approved,status.is.null')
-      .order('created_at',{ascending:false}).limit(60);
+    const { data: posts } = await DB.posts.getByUser(userId, { limit: 60, onlyApproved: true });
     const all = posts || [];
     const imgs = all.filter(p => p.media_type !== 'video');
     const vids = all.filter(p => p.media_type === 'video');
