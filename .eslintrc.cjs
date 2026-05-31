@@ -155,9 +155,11 @@ const SHIMMED_GLOBALS = [
 // que módulos que os referenciam não disparem no-undef).
 const HEAD_HELPERS = [
   'getSupabase','reportError','showError','safeAwait','cfImg','avatarUrl',
-  'avatarOf','appConfirm','requireSession','handleSbError','gateProClient',
-  'dateBR','withTimeout','autoDetectRole','getMyProfile','apiPost',
-  'updateMyStoryAvatar','doRegisterSupabase',
+  'avatarOf','avatarImgTag','appConfirm','appAlert','appPrompt','requireSession',
+  'handleSbError','gateProClient','dateBR','withTimeout','autoDetectRole',
+  'getMyProfile','apiPost','updateMyStoryAvatar','doRegisterSupabase',
+  'safeUrl','openUserProfile','loadMyProfileData','startChatWith',
+  'getSearchEmpty','invalidateMyProfile','_authRateCheck','getAccessToken',
 ];
 
 // Estado top-level declarado em app.js (var X) que outros módulos leem/escrevem.
@@ -168,12 +170,14 @@ const APP_STATE = [
   '_searchNewChatToken','_pipelineSub','_notifSub','_globalMsgSub',
   'validatedInviteCode','cartItems','shirtQty','mktProducts','STORY_DURATION',
   'calicolorsUserId','CALICOLORS_EMAIL','leafletMap','_roleSpecs',
+  '_lastOrcData','chatStoreAdded','cartCount','logoState','_aiLogoCount',
+  'POST_COLS','SUPABASE_URL',
 ];
 
-// Namespaces de módulos / SDK terceiros.
+// Namespaces de módulos / SDK terceiros (Leaflet UMD expõe `L`).
 const NAMESPACES = [
   'Modules','DB','Utils','Policies','Validators','Schemas','Errors',
-  'Logger','Config','Events','Sentry',
+  'Logger','Config','Events','Sentry','L',
 ];
 
 const ALL_WRITABLE = [...APP_STATE];

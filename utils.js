@@ -71,16 +71,19 @@
     }
   }
 
+  /** @param {unknown} str @returns {string} */
   function escapeHtml(str){
     return String(str == null ? '' : str).replace(/[&<>"']/g, ch => ({
       '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
     }[ch]));
   }
   // Escapa um valor para uso DENTRO de uma string JS em atributo onclick="..."
+  /** @param {unknown} str @returns {string} */
   function escapeJsArg(str){
     return String(str == null ? '' : str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/[<>]/g, '');
   }
 
+  /** @param {string | null | undefined} dateStr @returns {string} */
   function getTimeAgo(dateStr){
     if(!dateStr) return '';
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -94,15 +97,22 @@
     return dateBR(dateStr);
   }
 
+  /** @param {string | null | undefined} s @returns {string} */
   function stripEmail(s){
     if(!s) return s;
     return String(s).replace(/([A-Za-z0-9._%+\-]+)@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, '@$1');
   }
+  /**
+   * @param {{ tag?: string, name?: string } | null | undefined} p
+   * @param {string} [fb]
+   * @returns {string}
+   */
   function cleanHandle(p, fb){
     if(p && p.tag) return '@' + p.tag;
     return stripEmail((p && p.name) || fb || 'Usuário');
   }
 
+  /** @param {File | null | undefined} file @returns {'video' | 'image'} */
   function getMediaType(file){
     if(!file) return 'image';
     if(file.type && file.type.startsWith('video/')) return 'video';
@@ -143,6 +153,7 @@
     });
   }
 
+  /** @param {string | null | undefined} u @returns {boolean} */
   function isVideoUrl(u){
     return /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|#|$)/i.test(u || '');
   }
@@ -204,11 +215,13 @@
   function _agYmd(d){ return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
 
   // Normaliza nome de cliente para dedup (lowercase + trim + colapsa espaços).
+  /** @param {unknown} s @returns {string} */
   function crmNormName(s){
     return String(s||'').toLowerCase().trim().replace(/\s+/g,' ');
   }
 
   // Meses inteiros entre uma data e hoje.
+  /** @param {string | null | undefined} dateStr @returns {number | null} */
   function crmMonthsSince(dateStr){
     if(!dateStr) return null;
     const d = new Date(dateStr);

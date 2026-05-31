@@ -113,9 +113,12 @@ Notas sobre o que **não** existe nesta tabela:
 - `policies.js`: 109 linhas, zero referência a `document`, `getSupabase`,
   `fetch`, `localStorage`. Só recebe `user`/`resource` e retorna `boolean`.
   Testável em `tests/policies.test.js` sem mocks.
-- `validators.js`: 205 linhas, zero `document`/`fetch`. Padrão de retorno
-  uniforme `{ ok, error?, value? }`. Algoritmos completos de CPF/CNPJ
-  (DVs ponderados) sem deps externas. Testado em `tests/validators.test.js`.
+- `schemas/`: 4 arquivos (`_core.js`, `primitives.js`, `documents.js`,
+  `social.js`), zero `document`/`fetch`. Cada schema expõe `.parse(value)`
+  → `{ ok:true, value } | { ok:false, error:{ code, message } }`, com
+  `.optional()` e `.refine(fn, msg)` chainable via `_core.wrap`. Algoritmos
+  completos de CPF/CNPJ (DVs ponderados) sem deps externas. Testado em
+  `tests/schemas.test.js`.
 - `errors.js`: hierarquia `AppError` + `ValidationError`,
   `AuthorizationError`, `NotFoundError`, etc. Cada subclasse fixa o par
   `(code, status)` pra padronizar resposta HTTP sem o caller decidir.
@@ -187,7 +190,7 @@ Nenhum projeto real cumpre a Clean Arch 100%. Onde sangra aqui:
 
 | Tipo de mudança | Onde colocar |
 |---|---|
-| Regra pura (RBAC, validação, formatação) | Função nova em `policies.js`, `validators.js`, ou `utils.js`. Sem deps. Testável direto. |
+| Regra pura (RBAC, validação, formatação) | Função nova em `policies.js`, `schemas/` (ex.: `primitives.js`), ou `utils.js`. Sem deps. Testável direto. |
 | Acesso a tabela nova do Supabase (leitura repetida em ≥2 lugares) | Método em `db.js` com `try/catch` que devolve valor seguro (`[]`, `null`, `0`). Atualizar `tests/db.test.js`. |
 | Acesso pontual a tabela (1 call site) | `sb.from('X').select(...)` direto no módulo — promovê-lo a `db.js` só quando duplicar. |
 | Feature inteira nova no client | Novo arquivo `modules/X.js` no padrão IIFE: `(function(){ 'use strict'; ... window.Modules.X = { fn1, fn2 }; })();` + bump em `shims.js` se algum `fn` precisa virar `window.fn`. |
@@ -203,7 +206,7 @@ Nenhum projeto real cumpre a Clean Arch 100%. Onde sangra aqui:
 Quando (se) este projeto migrar pra TypeScript + Next.js (ou similar), o
 custo é dramaticamente menor do que parece, porque a separação já existe:
 
-- **`policies.js`, `validators.js`, `errors.js`** migram quase 1:1 pra
+- **`policies.js`, `schemas/`, `errors.js`** migram quase 1:1 pra
   `.ts` puros. São funções sem deps; só adicionar tipos. Viram pacote
   `@app/domain` se quiser.
 - **`db.js`** migra pra `lib/db.ts` ou se torna interface `IDB` com
