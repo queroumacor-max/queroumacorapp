@@ -7,6 +7,7 @@
 
 import { getSupabase } from './supabase';
 import { logger } from './logger';
+import { errMsg } from './utils';
 import type { Profile, Post, MutationResult } from './types';
 
 // Mesmo default usado em fetchPublicProfiles (modules/feed.js). Mantém-se em
@@ -47,10 +48,10 @@ async function getById(id: string, cols?: string): Promise<Profile | null> {
       return null;
     }
     // Cast: o select aceita string dinâmica (`cols`), então o type checker
-    // não sabe quais colunas vêm. Fallback é o domain type Profile (permissive).
-    return (r.data as Profile | null) ?? null;
+    // devolve GenericStringError. Pragmático — runtime sempre tem id.
+    return (r.data as unknown as Profile | null) ?? null;
   } catch (e) {
-    logger.warn('DB.profiles.getById exc', (e as Error)?.message ?? String(e));
+    logger.warn('DB.profiles.getById exc', errMsg(e));
     return null;
   }
 }
@@ -65,6 +66,9 @@ async function getMany(ids: string[], cols?: string): Promise<Profile[]> {
   if (!sb) return [];
   try {
     const r = await sb.from('profiles_public').select(useCols).in('id', ids);
+    // Cast via unknown: select(string-runtime) faz o postgrest devolver
+    // GenericStringError[] (type-checker não introspecciona o cols var).
+    // Pragmático: domain type Profile é permissive, runtime sempre tem id.
     if (!r.error && r.data && r.data.length > 0) return r.data as unknown as Profile[];
     if (r.error) {
       logger.warn('profiles_public falhou, fallback p/ profiles', r.error.message);
@@ -74,9 +78,9 @@ async function getMany(ids: string[], cols?: string): Promise<Profile[]> {
       logger.warn('profiles fallback err', fb.error.message);
       return [];
     }
-    return (fb.data as unknown as Profile[]) || [];
+    return (fb.data as unknown as Profile[] | null) ?? [];
   } catch (e) {
-    logger.warn('DB.profiles.getMany exc', (e as Error)?.message ?? String(e));
+    logger.warn('DB.profiles.getMany exc', errMsg(e));
     return [];
   }
 }
@@ -93,7 +97,7 @@ async function countFollowers(userId: string): Promise<number> {
       .eq('following_id', userId);
     return r.count || 0;
   } catch (e) {
-    logger.warn('DB.follows.countFollowers', (e as Error)?.message ?? String(e));
+    logger.warn('DB.follows.countFollowers', errMsg(e));
     return 0;
   }
 }
@@ -108,7 +112,7 @@ async function countFollowing(userId: string): Promise<number> {
       .eq('follower_id', userId);
     return r.count || 0;
   } catch (e) {
-    logger.warn('DB.follows.countFollowing', (e as Error)?.message ?? String(e));
+    logger.warn('DB.follows.countFollowing', errMsg(e));
     return 0;
   }
 }
@@ -131,7 +135,7 @@ async function listFollowingIds(userId: string): Promise<string[]> {
       .map((f) => f.following_id)
       .filter((id): id is string => id !== null);
   } catch (e) {
-    logger.warn('DB.follows.listFollowingIds exc', (e as Error)?.message ?? String(e));
+    logger.warn('DB.follows.listFollowingIds exc', errMsg(e));
     return [];
   }
 }
@@ -153,7 +157,7 @@ async function listFollowerIds(userId: string): Promise<string[]> {
       .map((f) => f.follower_id)
       .filter((id): id is string => id !== null);
   } catch (e) {
-    logger.warn('DB.follows.listFollowerIds exc', (e as Error)?.message ?? String(e));
+    logger.warn('DB.follows.listFollowerIds exc', errMsg(e));
     return [];
   }
 }
@@ -174,7 +178,7 @@ async function isFollowing(followerId: string, followingId: string): Promise<boo
     }
     return !!(r.data && r.data.length > 0);
   } catch (e) {
-    logger.warn('DB.follows.isFollowing exc', (e as Error)?.message ?? String(e));
+    logger.warn('DB.follows.isFollowing exc', errMsg(e));
     return false;
   }
 }
@@ -202,7 +206,7 @@ async function follow(followerId: string, followingId: string): Promise<Mutation
     const message = error?.message || 'Follow não persistiu';
     return { ok: false, code, message };
   } catch (e) {
-    return { ok: false, code: 'exception', message: (e as Error)?.message ?? String(e) };
+    return { ok: false, code: 'exception', message: errMsg(e) };
   }
 }
 
@@ -219,7 +223,7 @@ async function unfollow(followerId: string, followingId: string): Promise<Mutati
     if (error) return { ok: false, code: error.code || 'delete-error', message: error.message || '' };
     return { ok: true };
   } catch (e) {
-    return { ok: false, code: 'exception', message: (e as Error)?.message ?? String(e) };
+    return { ok: false, code: 'exception', message: errMsg(e) };
   }
 }
 
@@ -246,7 +250,7 @@ async function countByUser(userId: string, opts?: CountByUserOpts): Promise<numb
     const r = await q;
     return r.count || 0;
   } catch (e) {
-    logger.warn('DB.posts.countByUser', (e as Error)?.message ?? String(e));
+    logger.warn('DB.posts.countByUser', errMsg(e));
     return 0;
   }
 }
@@ -271,7 +275,7 @@ async function getByUser(userId: string, opts: GetByUserOpts = {}): Promise<Quer
   if (opts.onlyApproved) q = q.or('status.eq.approved,status.is.null');
   q = q.order('created_at', { ascending: false }).limit(limit);
   const r = await q;
-  return { data: (r.data as unknown as Post[]) || [], error: r.error };
+  return { data: (r.data as unknown as Post[] | null) ?? [], error: r.error };
 }
 
 interface GetFeedPostsOpts {
@@ -294,7 +298,7 @@ async function getFeedPosts(opts: GetFeedPostsOpts = {}): Promise<QueryResult<Po
   if (feedIds.length > 0) q = q.in('user_id', feedIds);
   q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   const r = await q;
-  return { data: (r.data as unknown as Post[]) || [], error: r.error };
+  return { data: (r.data as unknown as Post[] | null) ?? [], error: r.error };
 }
 
 interface GetStoriesOpts {
@@ -317,7 +321,7 @@ async function getStories(opts: GetStoriesOpts = {}): Promise<QueryResult<Post>>
   if (feedIds.length > 0) q = q.in('user_id', feedIds);
   q = q.gte('created_at', sinceISO).order('created_at', { ascending: true }).limit(limit);
   const r = await q;
-  return { data: (r.data as unknown as Post[]) || [], error: r.error };
+  return { data: (r.data as unknown as Post[] | null) ?? [], error: r.error };
 }
 
 // Fachada agregada — equivalente ao window.DB vanilla. Os call sites podem

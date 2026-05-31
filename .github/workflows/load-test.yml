@@ -1,0 +1,30 @@
+name: Load Test (manual)
+
+# Manual-only — load test custa egress e pode disparar rate-limit de
+# Supabase/Cloudflare. Não roda automaticamente. Aponta pra preview por
+# default (LOAD_TEST_URL secret se quiser sobrescrever).
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL alvo (override do secret LOAD_TEST_URL)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 load test
+        run: k6 run scripts/load-test.js
+        env:
+          BASE_URL: ${{ inputs.base_url || secrets.LOAD_TEST_URL || 'https://app2.queroumacor.com.br' }}

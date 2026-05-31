@@ -150,14 +150,14 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
   const allLikesP = sb.from('likes').select('post_id').in('post_id', postIds);
   const myLikesP = userId
     ? sb.from('likes').select('post_id').eq('user_id', userId).in('post_id', postIds)
-    : Promise.resolve({ data: [] as Array<{ post_id: string }>, error: null });
+    : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null });
   const savedP = userId
     ? sb
         .from('saved_posts')
         .select('post_id')
         .eq('user_id', userId)
         .in('post_id', postIds)
-    : Promise.resolve({ data: [] as Array<{ post_id: string }>, error: null });
+    : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null });
 
   const [profiles, commentsRes, allLikesRes, myLikesRes, savedRes] = await Promise.all([
     profilesP,
@@ -170,10 +170,24 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
   // Erro em sub-fetches é degradação graciosa: vanilla também ignora (segue
   // sem essa fatia em vez de quebrar o feed). Logamos via NetworkError só se
   // a fetch principal estourou — aqui ficam silenciosos.
-  const commentsArr = (commentsRes.data ?? []) as FeedComment[];
-  const allLikesArr = (allLikesRes.data ?? []) as Array<{ post_id: string }>;
-  const myLikesArr = (myLikesRes.data ?? []) as Array<{ post_id: string }>;
-  const savedArr = (savedRes.data ?? []) as Array<{ post_id: string }>;
+  // Casts mínimos só onde o DB row tem nullable que o domain trata como
+  // garantido (FK ON DELETE CASCADE, mas Supabase tipa nullable).
+  const commentsArr = (commentsRes.data ?? []).map((c) => ({
+    id: c.id,
+    post_id: c.post_id ?? '',
+    user_id: c.user_id ?? '',
+    text: c.text,
+    created_at: c.created_at ?? '',
+  })) as FeedComment[];
+  const allLikesArr = (allLikesRes.data ?? []).filter(
+    (l): l is { post_id: string } => typeof l.post_id === 'string',
+  );
+  const myLikesArr = (myLikesRes.data ?? []).filter(
+    (l): l is { post_id: string } => typeof l.post_id === 'string',
+  );
+  const savedArr = (savedRes.data ?? []).filter(
+    (l): l is { post_id: string } => typeof l.post_id === 'string',
+  );
 
   // Resolve perfis de autores de comentários que ainda não foram carregados
   // (autor de comment != autor de post). Mesma lógica do vanilla
@@ -206,7 +220,10 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPost[
 
   // Enriquece + (opcional) filtra por role do autor.
   const enriched: FeedPost[] = posts.map((p) => {
-    const profile = profMap.get(p.user_id) ?? ({ id: p.user_id } as Profile);
+    // Profile pode não estar no map (perfil sumiu / fetch falhou). Fallback
+    // mínimo só com id; satisfies pra garantir que o objeto literal cobre o
+    // shape exigido sem cast forçado.
+    const profile: Profile = profMap.get(p.user_id) ?? { id: p.user_id };
     return {
       ...p,
       profile,

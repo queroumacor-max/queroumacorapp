@@ -1,0 +1,64 @@
+name: Security Scan
+
+# npm audit roda em PR e na cron semanal. ZAP só na cron (scan completo
+# é pesado, ~5-10min). Falha em HIGH/CRITICAL; LOW/MODERATE só avisam.
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 8 * * 1' # segunda-feira 08:00 UTC (05:00 BRT)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Audit do projeto vanilla (raiz). --omit=dev pra não estourar com
+      # vulns de devDeps que nunca vão pro browser. --audit-level=high
+      # ignora LOW/MODERATE — fail só em HIGH/CRITICAL.
+      - name: npm audit (vanilla)
+        run: npm audit --audit-level=high --omit=dev
+
+      # Audit do next-app (deps de runtime: next/react/supabase/sentry).
+      - name: npm audit (next-app)
+        working-directory: next-app
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm audit --audit-level=high --omit=dev
+          else
+            echo "next-app sem lockfile; instalando antes do audit"
+            npm install --package-lock-only
+            npm audit --audit-level=high --omit=dev
+          fi
+
+  zap-baseline:
+    # Scan passivo (não dispara payloads). Roda só na cron pra não atrasar
+    # PR. allow_issue_writing:false → não polui Issues do repo a cada run.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: 'https://queroumacor.com.br'
+          rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false
+          cmd_options: '-a'

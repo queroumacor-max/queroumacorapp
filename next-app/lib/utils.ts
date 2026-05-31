@@ -6,6 +6,25 @@
 // do vanilla: aceita number, devolve string formatada (a versão DOM-bound
 // pode ser construída por cima dela em hooks).
 
+/**
+ * Extrai mensagem segura de um valor de catch (que em TS é `unknown`).
+ * Substitui o padrão repetido `(e as Error)?.message ?? String(e)` que
+ * aparece em todo lugar — type guard correto sem cast.
+ */
+export function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object' && 'message' in e) {
+    const m = (e as { message: unknown }).message;
+    if (typeof m === 'string') return m;
+  }
+  try {
+    return String(e);
+  } catch {
+    return 'unknown error';
+  }
+}
+
 // Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
 // "1500.50" no input e devolve Number normalizado.
 export function parseBRL(val: unknown): number {

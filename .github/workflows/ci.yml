@@ -31,6 +31,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fail-fast em vulnerabilidades HIGH/CRITICAL de prod deps. Roda
+      # cedo pra não desperdiçar tempo de lint/test se já temos CVE
+      # bloqueante. --omit=dev ignora devDeps (não vão pro browser).
+      # Audit completo (vanilla + next-app + cron semanal + ZAP) está em
+      # .github/workflows/security.yml.
+      - name: npm audit (fail-fast)
+        run: npm audit --audit-level=high --omit=dev
+
       # ESLint — pega no-undef (var/func não declarada), TDZ refs
       # (no-use-before-define), redeclares, e implicit globals. Errors
       # bloqueiam o merge; warnings (no-console, no-unused-vars) só
