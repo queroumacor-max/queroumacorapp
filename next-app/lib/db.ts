@@ -123,7 +123,11 @@ async function listFollowingIds(userId: string): Promise<string[]> {
       logger.warn('DB.follows.listFollowingIds', error.message);
       return [];
     }
-    return (data || []).map((f: { following_id: string }) => f.following_id);
+    // FK pode ser null no schema (ON DELETE CASCADE); filtramos pra string[]
+    // estrito antes de devolver — caller assume non-null id.
+    return (data || [])
+      .map((f) => f.following_id)
+      .filter((id): id is string => id !== null);
   } catch (e) {
     logger.warn('DB.follows.listFollowingIds exc', (e as Error)?.message ?? String(e));
     return [];
@@ -143,7 +147,9 @@ async function listFollowerIds(userId: string): Promise<string[]> {
       logger.warn('DB.follows.listFollowerIds', error.message);
       return [];
     }
-    return (data || []).map((f: { follower_id: string }) => f.follower_id);
+    return (data || [])
+      .map((f) => f.follower_id)
+      .filter((id): id is string => id !== null);
   } catch (e) {
     logger.warn('DB.follows.listFollowerIds exc', (e as Error)?.message ?? String(e));
     return [];

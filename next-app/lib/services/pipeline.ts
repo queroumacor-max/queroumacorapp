@@ -20,6 +20,7 @@ import {
   AuthorizationError,
 } from '@/lib/errors';
 import type { Quote, QuoteSnapshot, Job } from '@/lib/types';
+import type { Json } from '@/lib/database.types';
 
 // QUOTE_STATUS — const tipada que define vocabulário + label/cor por status.
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
@@ -137,7 +138,9 @@ export async function saveQuote(
     p_title: input.title || input.service_type || 'Orçamento',
     p_area_m2: input.area_m2 ?? null,
     p_price: input.price,
-    p_quote_data: input.quote_data ?? null,
+    // p_quote_data: Json | undefined no schema (não aceita null direto);
+    // tratamos null como undefined (omitir = default '{}' do RPC).
+    p_quote_data: (input.quote_data ?? undefined) as Json | undefined,
   });
   if (error) {
     throw new NetworkError(error.message, error);
@@ -204,7 +207,9 @@ export async function approveQuote(
       approved_by: painterId,
       approval_method: 'manual',
       approval_note: note || null,
-      scope_snapshot: buildSnapshot(quote),
+      // QuoteSnapshot é interface tipada; jsonb column aceita `Json` literal.
+      // Cast via unknown — mesma razão do `cart` em mkt.ts.
+      scope_snapshot: buildSnapshot(quote) as unknown as Json,
     })
     .eq('id', id)
     .eq('painter_id', painterId);
@@ -251,7 +256,9 @@ export async function setQuoteStage(
     throw new ValidationError('Estágio inválido.');
   }
   const sb = getSupabase();
-  const patch: Record<string, unknown> = { status };
+  // Patch tipado em vez de Record<string, unknown> — o typed client rejeita
+  // o índice livre em favor do shape exato de quotes.Update.
+  const patch: { status: string; completed_at?: string } = { status };
   if (status === 'concluido') {
     patch.completed_at = new Date().toISOString();
   }

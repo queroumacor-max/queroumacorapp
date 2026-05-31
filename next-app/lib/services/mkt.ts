@@ -18,6 +18,7 @@
 // Tipos INLINE (spec: NÃO tocar em lib/types.ts).
 
 import { getSupabase } from '@/lib/supabase';
+import type { Json } from '@/lib/database.types';
 import {
   NetworkError,
   ValidationError,
@@ -369,9 +370,12 @@ export async function fetchCart(userId: string): Promise<CartItem[]> {
 export async function saveCart(userId: string, items: CartItem[]): Promise<void> {
   if (!userId) throw new ValidationError('Faça login.');
   const sb = getSupabase();
+  // jsonb column: CartItem[] não tem index-signature `[string]: Json`, então
+  // precisa de cast `unknown` (mesmo padrão que `supabase gen types` força em
+  // qualquer payload tipado). Runtime serialização é JSON.stringify normal.
   const { error } = await sb
     .from('profiles')
-    .update({ cart: items })
+    .update({ cart: items as unknown as Json })
     .eq('id', userId);
   if (error) {
     throw new NetworkError(error.message, error);
@@ -408,7 +412,7 @@ export async function submitOrder(
     .from('orders')
     .insert({
       user_id: userId,
-      items,
+      items: items as unknown as Json, // jsonb column — mesmo padrão de saveCart
       total,
       status: 'pending',
       created_at: new Date().toISOString(),

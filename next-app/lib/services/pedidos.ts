@@ -46,5 +46,9 @@ export async function fetchPedidos(userId: string): Promise<Order[]> {
   if (error) {
     throw new NetworkError(error.message, error);
   }
-  return (data ?? []) as Order[];
+  // cast via unknown — DB devolve `items: Json` (jsonb genérico), e o
+  // domain type Order tipa `items: OrderItem[]`. Em runtime é a mesma
+  // string JSON; o cast só silencia o type system. Zod/validation
+  // poderia parsear estrito, mas Order é loose-shape no app.
+  return (data ?? []) as unknown as Order[];
 }

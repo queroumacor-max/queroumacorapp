@@ -84,16 +84,17 @@ export async function updateProfile(
 
   // Cópia + normalizações idempotentes (sem mutar o input). Mesmo set de
   // transformações que o vanilla aplica em saveEditProfile linhas 306-309.
-  const cleaned: Record<string, unknown> = { ...patch };
+  // Tipagem agora estrita: shape de ProfilePatch já corresponde ao subset
+  // gravável de profiles.Update (sem `updated_at` — coluna não existe no
+  // schema; o vanilla setava como no-op silencioso, o typed client agora
+  // rejeita).
+  const cleaned: ProfilePatch = { ...patch };
   if (typeof cleaned.tag === 'string') {
     cleaned.tag = cleaned.tag.trim().replace(/^@+/, '').toLowerCase();
   }
   if (typeof cleaned.state === 'string') {
     cleaned.state = cleaned.state.trim().toUpperCase();
   }
-  // updated_at no formato ISO — o vanilla seta isso explicitamente; aqui
-  // mantemos pra consistência com triggers/feeds que ordenam por updated_at.
-  cleaned.updated_at = new Date().toISOString();
 
   const sb = getSupabase();
   const { error } = await sb.from('profiles').update(cleaned).eq('id', userId);
