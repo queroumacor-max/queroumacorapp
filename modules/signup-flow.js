@@ -84,11 +84,18 @@
   }
 
   async function doSignup(){
-    // Dedupe-submit: desabilita o botão "Criar conta" enquanto a request roda
+    // Botão "Criar minha conta" — pego via event.currentTarget (onclick inline)
+    // ou via querySelector como fallback. Step 3 tem 2 versões do botão
+    // (pintor/cliente) — pega o visível por meio do container ativo.
     const _btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
                  (typeof event !== 'undefined' && event && event.submitter) ||
                  document.querySelector('#signup-step3 button.auth-btn:not(.secondary)');
-    if(_btn) _btn.disabled = true;
+    // Double-submit guard: ignora cliques repetidos enquanto a request roda.
+    if(_btn && _btn.dataset._loading) return;
+    const restore = (typeof setButtonLoading === 'function')
+      ? setButtonLoading(_btn, 'Criando conta...')
+      : (() => { if(_btn) _btn.disabled = false; });
+    if(typeof setButtonLoading !== 'function' && _btn) _btn.disabled = true;
     try {
       const name = document.getElementById('s-name').value.trim();
       const tag = document.getElementById('s-tag').value.trim();
@@ -111,7 +118,7 @@
 
       await doRegisterSupabase(name, email, pw, role, tag);
     } finally {
-      if(_btn) _btn.disabled = false;
+      restore();
     }
   }
 

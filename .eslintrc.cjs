@@ -32,6 +32,8 @@ const SHIMMED_GLOBALS = [
   'escapeHtml','escapeJsArg','getTimeAgo','stripEmail','cleanHandle',
   'getMediaType','_compressImageFile','isVideoUrl','_extractVideoFrame',
   '_normTxt','_hashStr','_starStr','_agYmd','crmNormName','crmMonthsSince',
+  // UX helpers (utils.js): setButtonLoading, emptyState, errorState, skeletonRows
+  'setButtonLoading','emptyState','errorState','skeletonRows',
   // info
   'SUPPORT','openInfoPage','infoBack','supportWhatsApp','supportEmail',
   'requestAccountDeletion','baixarMeusDados',

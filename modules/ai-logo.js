@@ -102,6 +102,12 @@
   }
 
   async function gerarLogoIA(){
+    const btn = document.getElementById('ai-logo-btn');
+    // CRÍTICO: 1ª geração é grátis mas 2ª+ é PAGA (R$1,99). Double-click
+    // chamaria /api/generate-logo 2x e _aiLogoBumpCount 2x — usuário paga
+    // 2 vezes (ou queima a grátis + paga). Guard ANTES de tudo.
+    if(btn && btn.dataset._loading) return;
+
     const input = document.getElementById('ai-logo-name');
     const styleInput = document.getElementById('ai-logo-style');
     const name = (input.value || '').trim();
@@ -119,58 +125,61 @@
       toast(_aiLogoFmtBRL(AI_LOGO_REGEN_PRICE_BRL) + ' debitado · gerando...');
     }
 
-    const btn = document.getElementById('ai-logo-btn');
-    btn.disabled = true;
-    btn.textContent = 'Gerando com Seu Zé...';
+    const restore = (typeof setButtonLoading === 'function')
+      ? setButtonLoading(btn, 'Gerando com Seu Zé...')
+      : (() => { if(btn){ btn.disabled = false; } });
 
-    let urls = null;
-    let aiError = null;
     try {
-      const { ok, data, error } = await apiPost('/api/generate-logo', { name, style });
-      if (ok && data && Array.isArray(data.urls) && data.urls.length) {
-        urls = data.urls;
-      } else {
-        aiError = (data && data.error) || error;
+      let urls = null;
+      let aiError = null;
+      try {
+        const { ok, data, error } = await apiPost('/api/generate-logo', { name, style });
+        if (ok && data && Array.isArray(data.urls) && data.urls.length) {
+          urls = data.urls;
+        } else {
+          aiError = (data && data.error) || error;
+        }
+      } catch(e) {
+        aiError = String(e?.message || e);
       }
-    } catch(e) {
-      aiError = String(e?.message || e);
-    }
 
-    const grid = document.getElementById('ai-logo-grid');
-    if (urls) {
-      grid.innerHTML = urls.map((u,i) =>
-        '<div class="shirt-ai-logo-card'+(i===0?' selected':'')+'" data-idx="'+i+'" data-url="'+escapeHtml(u)+'" onclick="selectAiLogo(this)">'
-        + '<img src="'+escapeHtml(u)+'" alt="logo" loading="lazy" style="width:100%;height:80px;object-fit:contain;background:#fff;border-radius:6px;display:block;margin-bottom:4px;">'
-        + '<div class="shirt-ai-logo-name">'+escapeHtml(name)+'</div>'
-        + '</div>'
-      ).join('');
-      _aiLogoUrls = urls;
-      toast('3 logos gerados pelo Seu Zé ✨');
-    } else {
-      console.warn('AI logo fallback:', aiError && aiError.message || aiError);
-      const seed = _hashStr(name.toLowerCase());
-      const opts = [
-        { pi: seed % _aiLogoPalettes.length, ii: seed % _aiLogoIcons.length },
-        { pi: (seed + 2) % _aiLogoPalettes.length, ii: (seed + 1) % _aiLogoIcons.length },
-        { pi: (seed + 4) % _aiLogoPalettes.length, ii: (seed + 3) % _aiLogoIcons.length }
-      ];
-      grid.innerHTML = opts.map((o,i) =>
-        '<div class="shirt-ai-logo-card'+(i===0?' selected':'')+'" data-idx="'+i+'" onclick="selectAiLogo(this)">'
-        + _renderAiLogoSvg(name, o.pi, o.ii)
-        + '<div class="shirt-ai-logo-name">'+escapeHtml(name)+'</div>'
-        + '</div>'
-      ).join('');
-      _aiLogoUrls = null;
-      toast('Logos prontos (modo offline)');
-    }
+      const grid = document.getElementById('ai-logo-grid');
+      if (urls) {
+        grid.innerHTML = urls.map((u,i) =>
+          '<div class="shirt-ai-logo-card'+(i===0?' selected':'')+'" data-idx="'+i+'" data-url="'+escapeHtml(u)+'" onclick="selectAiLogo(this)">'
+          + '<img src="'+escapeHtml(u)+'" alt="logo" loading="lazy" style="width:100%;height:80px;object-fit:contain;background:#fff;border-radius:6px;display:block;margin-bottom:4px;">'
+          + '<div class="shirt-ai-logo-name">'+escapeHtml(name)+'</div>'
+          + '</div>'
+        ).join('');
+        _aiLogoUrls = urls;
+        toast('3 logos gerados pelo Seu Zé ✨');
+      } else {
+        console.warn('AI logo fallback:', aiError && aiError.message || aiError);
+        const seed = _hashStr(name.toLowerCase());
+        const opts = [
+          { pi: seed % _aiLogoPalettes.length, ii: seed % _aiLogoIcons.length },
+          { pi: (seed + 2) % _aiLogoPalettes.length, ii: (seed + 1) % _aiLogoIcons.length },
+          { pi: (seed + 4) % _aiLogoPalettes.length, ii: (seed + 3) % _aiLogoIcons.length }
+        ];
+        grid.innerHTML = opts.map((o,i) =>
+          '<div class="shirt-ai-logo-card'+(i===0?' selected':'')+'" data-idx="'+i+'" onclick="selectAiLogo(this)">'
+          + _renderAiLogoSvg(name, o.pi, o.ii)
+          + '<div class="shirt-ai-logo-name">'+escapeHtml(name)+'</div>'
+          + '</div>'
+        ).join('');
+        _aiLogoUrls = null;
+        toast('Logos prontos (modo offline)');
+      }
 
-    document.getElementById('ai-logo-result').classList.add('show');
-    _aiLogoSelected = 0;
-    _aiLogoLastName = name;
-    _applyLogoToShirt();
-    _aiLogoBumpCount();
-    btn.disabled = false;
-    _aiLogoUpdateBtn();
+      document.getElementById('ai-logo-result').classList.add('show');
+      _aiLogoSelected = 0;
+      _aiLogoLastName = name;
+      _applyLogoToShirt();
+      _aiLogoBumpCount();
+    } finally {
+      restore();
+      _aiLogoUpdateBtn();
+    }
   }
 
   function _aiLogoCurrentSrc(){

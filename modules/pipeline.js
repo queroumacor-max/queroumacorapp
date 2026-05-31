@@ -89,9 +89,11 @@
     const container = document.getElementById('pipeline-list');
     if(!container) return;
     if(!sb || !currentUser){ container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Faça login para ver seus orçamentos.</div>'; return; }
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Carregando...</div>';
-    await syncQuotesToJobs();
+    // Skeleton enquanto carrega (4 cards de ~90px). Substitui o "Carregando..."
+    // textual antigo — feedback visual mais próximo do layout final.
+    container.innerHTML = skeletonRows(4, { height: '90px' });
     try {
+      await syncQuotesToJobs();
       const { data: quotes, error } = await sb.from('quotes')
         .select('*, client:profiles!client_id(name)')
         .eq('painter_id', currentUser.id)
@@ -101,7 +103,10 @@
       renderPipeline();
     } catch(e){
       console.error('loadPipeline:', e && e.message || e);
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar o pipeline.</div>';
+      container.innerHTML = errorState(
+        'Não foi possível carregar o pipeline. Tente de novo.',
+        () => loadPipeline()
+      );
     }
   }
 
@@ -110,11 +115,13 @@
     if(!container) return;
     const quotes = _pipelineCache || [];
     if(quotes.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:50px 24px;color:var(--muted);">'
-        + '<div style="font-size:40px;margin-bottom:10px;">📋</div>'
-        + '<div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Nenhum orçamento ainda</div>'
-        + '<div style="font-size:13px;line-height:1.5;">Monte um orçamento na Calculadora e toque em "Salvar no Pipeline". Pedidos de clientes do app também aparecem aqui.</div>'
-        + '</div>';
+      container.innerHTML = emptyState({
+        icon: '📋',
+        title: 'Nenhum orçamento ainda',
+        message: 'Quando um cliente pedir orçamento, ele aparece aqui. Você também pode salvar orçamentos da Calculadora no Pipeline.',
+        actionLabel: 'Ver feed',
+        actionOnclick: "showScreen('feed')"
+      });
       return;
     }
     const groups = [

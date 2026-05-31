@@ -258,7 +258,16 @@
   function renderConvList(container, convMap, myId){
     const convList = Object.entries(convMap).sort((a,b) => new Date(b[1].updatedAt||0) - new Date(a[1].updatedAt||0));
     if(convList.length === 0){
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem conversas</div><div style="font-size:13px;">Suas mensagens aparecerão aqui</div></div>';
+      // Empty state padronizado (Utils.emptyState via shim). CTA leva o usuário
+      // novo pra tela de explorar pintores — caminho mais comum de iniciar
+      // uma conversa quando ainda não há nenhuma na lista.
+      container.innerHTML = emptyState({
+        icon: '💬',
+        title: 'Sem conversas ainda',
+        message: 'Suas conversas com clientes e pintores aparecem aqui. Inicie uma conversa clicando em "+" acima ou buscando profissionais.',
+        actionLabel: 'Buscar pintores',
+        actionOnclick: "showScreen('explore')"
+      });
       return;
     }
     container.innerHTML = convList.map(([convId, c]) => {
@@ -612,11 +621,18 @@
   }
 
   // ══ SIMPLE CHAT (pintor↔cliente) ══
+  // Guard de double-submit: o botão de envio (.chat-send) pode receber double-click
+  // rápido — sem isso, a mensagem duplicava no DB. Usa dataset._loading
+  // (compatível com setButtonLoading do Utils) como flag in-flight.
   async function sendChatMsg(){
     const inp=document.getElementById('chat-input-field');
     if(!inp)return;
     const msg=inp.value.trim();
     if(!msg)return;
+    const sendBtn = document.querySelector('.chat-send');
+    if(sendBtn && sendBtn.dataset._loading) return;
+    const restoreBtn = sendBtn ? setButtonLoading(sendBtn, '') : (()=>{});
+    try {
     const mod = await moderateContentAsync(msg, null);
     if (!mod.approved) {
       inp.value = msg;  // devolve o texto
@@ -666,6 +682,7 @@
         div.onclick = () => { div.remove(); inp.value = msg; sendChatMsg(); };
       }
     }
+    } finally { restoreBtn(); }
   }
 
   // ══ RENDERIZAÇÃO DE MENSAGENS ══
@@ -769,8 +786,15 @@
     const input = document.getElementById('chat-input');
     const txt = input.value.trim();
     if(!txt) return;
+    // Guard de double-submit: form com Enter + click no botão "Enviar" disparava
+    // 2x → mensagem duplicada. dataset._loading na .chat-send é nossa flag
+    // in-flight (compatível com setButtonLoading do Utils).
+    const sendBtn = document.querySelector('.chat-send');
+    if(sendBtn && sendBtn.dataset._loading) return;
+    const restoreBtn = sendBtn ? setButtonLoading(sendBtn, '') : (()=>{});
     input.value='';
 
+    try {
     const now = new Date();
     const time = now.getHours()+':'+(now.getMinutes()<10?'0':'')+now.getMinutes();
 
@@ -804,6 +828,7 @@
       const existing = loadConvsLocal()[currentChat] || {};
       saveConvLocal(currentChat, { ...existing, lastMsg: txt, lastMsgFrom: 'me', lastMsgTime: new Date().toISOString() });
     }
+    } finally { restoreBtn(); }
   }
 
   function appendMsg(m){

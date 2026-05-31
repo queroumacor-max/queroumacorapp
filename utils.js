@@ -232,12 +232,80 @@
     return Math.max(0, m);
   }
 
+  // ── UX helpers (item #19/#20/#21/#22 do audit React) ─────────────────────
+
+  // Desabilita botão + troca label durante async. Retorna função pra restaurar.
+  // Uso:
+  //   const restore = setButtonLoading(btn, 'Enviando...');
+  //   try { await foo(); } finally { restore(); }
+  function setButtonLoading(btn, label){
+    if(!btn) return () => {};
+    const origText = btn.textContent;
+    const wasDisabled = btn.disabled;
+    btn.disabled = true;
+    if(label) btn.textContent = label;
+    btn.dataset._loading = '1';
+    return () => {
+      btn.disabled = wasDisabled;
+      btn.textContent = origText;
+      delete btn.dataset._loading;
+    };
+  }
+
+  // Empty state padrão. Retorna HTML string pra injetar em container vazio.
+  // Uso: el.innerHTML = emptyState({title:'Sem leads', message:'...', actionLabel:'Ver feed', actionOnclick:"showScreen('feed')"});
+  function emptyState(opts){
+    opts = opts || {};
+    const icon = escapeHtml(opts.icon || '📭');
+    const title = escapeHtml(opts.title || 'Nada por aqui');
+    const message = escapeHtml(opts.message || '');
+    const action = opts.actionLabel
+      ? `<button type="button" onclick="${opts.actionOnclick || ''}" style="margin-top:14px;padding:10px 18px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">${escapeHtml(opts.actionLabel)}</button>`
+      : '';
+    return `<div class="empty-state" style="text-align:center;padding:40px 20px;color:var(--muted);">
+      <div style="font-size:48px;margin-bottom:12px;opacity:.7;">${icon}</div>
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px;">${title}</div>
+      <div style="font-size:13px;line-height:1.5;max-width:300px;margin:0 auto;">${message}</div>
+      ${action}
+    </div>`;
+  }
+
+  // Error state com botão "Tentar de novo". retryFn é registrado em
+  // window.__retryHandlers via id único (evita escapar funções no onclick).
+  function errorState(message, retryFn){
+    const id = '_retry_' + Math.random().toString(36).slice(2,9);
+    window.__retryHandlers = window.__retryHandlers || {};
+    if(typeof retryFn === 'function') window.__retryHandlers[id] = retryFn;
+    const button = retryFn
+      ? `<button type="button" onclick="(function(){var f=window.__retryHandlers&&window.__retryHandlers['${id}'];if(f){delete window.__retryHandlers['${id}'];f();}})();" style="margin-top:14px;padding:10px 18px;background:var(--p1);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Tentar de novo</button>`
+      : '';
+    return `<div class="error-state" style="text-align:center;padding:40px 20px;color:var(--muted);">
+      <div style="font-size:48px;margin-bottom:12px;opacity:.7;">⚠️</div>
+      <div style="font-size:14px;color:var(--ink);margin-bottom:6px;line-height:1.5;max-width:320px;margin-left:auto;margin-right:auto;">${escapeHtml(message)}</div>
+      ${button}
+    </div>`;
+  }
+
+  // Skeleton loading row — repete N vezes, retorna HTML string.
+  // Usa CSS class .skel definida em styles.css com shimmer animation.
+  function skeletonRows(count, opts){
+    opts = opts || {};
+    const height = opts.height || '64px';
+    const margin = opts.margin || '8px';
+    let html = '';
+    for(let i = 0; i < (count || 3); i++){
+      html += `<div class="skel" style="height:${height};margin-bottom:${margin};border-radius:10px;"></div>`;
+    }
+    return html;
+  }
+
   window.Utils = {
     parseBRL, fmtBRL, toast,
     showModal, closeModals, hideModal,
     escapeHtml, escapeJsArg, getTimeAgo, stripEmail, cleanHandle,
     getMediaType, _compressImageFile, isVideoUrl, _extractVideoFrame,
     _normTxt, _hashStr, _starStr, _agYmd,
-    crmNormName, crmMonthsSince
+    crmNormName, crmMonthsSince,
+    setButtonLoading, emptyState, errorState, skeletonRows
   };
 })();

@@ -1012,16 +1012,23 @@ async function doLoginSupabase(email, password) {
   }
 }
 function doLogin(){
-  // Dedupe-submit: desabilita o botão Entrar enquanto a request roda
+  // Botão "Entrar" — via event.currentTarget (form submit) ou querySelector
+  // como fallback. O form usa <button type="submit"> dentro do #screen-login.
   const _btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
                (typeof event !== 'undefined' && event && event.submitter) ||
+               document.querySelector('#screen-login button[type="submit"]') ||
                document.querySelector('#screen-login button.auth-btn:not(.secondary)');
+  // Double-submit guard: ignora cliques repetidos enquanto autentica.
+  if(_btn && _btn.dataset._loading) return;
   const email=document.getElementById('login-email').value.trim();
   const pw=document.getElementById('login-pw').value;
   if(!email||!pw){toast('⚠️ Preencha email e senha');return;}
-  if(_btn) _btn.disabled = true;
+  const restore = (typeof setButtonLoading === 'function')
+    ? setButtonLoading(_btn, 'Entrando...')
+    : (() => { if(_btn) _btn.disabled = false; });
+  if(typeof setButtonLoading !== 'function' && _btn) _btn.disabled = true;
   Promise.resolve(doLoginSupabase(email,pw))
-    .finally(() => { if(_btn) _btn.disabled = false; });
+    .finally(() => { restore(); });
 }
 
 async function doRegisterSupabase(name, email, password, type, tag) {

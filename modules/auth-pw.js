@@ -11,13 +11,18 @@
     if(!email || !/^\S+@\S+\.\S+$/.test(email)){ toast('Digite seu email no campo acima primeiro'); return; }
     const sb = getSupabase();
     if(!sb){ toast('Aguarde, carregando...'); return; }
+    // Botão "Esqueceu a senha?" — pego via event.currentTarget (onclick inline).
+    const btn = (typeof event !== 'undefined' && event && event.currentTarget) || null;
+    if(btn && btn.dataset._loading) return; // double-submit guard
     // Rate limit advisory: bloqueia mais de 5 resets/min do mesmo IP.
     if(typeof _authRateCheck === 'function' && !(await _authRateCheck('reset'))) return;
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Enviando...') : () => {};
     try {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/update-password' });
       if(handleSbError(error)) return;
       toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
     } catch(e){ console.warn('sendPasswordReset:', e && e.message || e); toast('Erro ao enviar email'); }
+    finally { restore(); }
   }
 
   async function doSetNewPassword(){
@@ -27,6 +32,10 @@
     if(newPw !== confirmPw){ toast('As senhas não coincidem'); return; }
     const sb = getSupabase();
     if(!sb){ toast('Aguarde...'); return; }
+    // Botão "Salvar nova senha" — type=submit dentro do form do modal reset-pw.
+    const btn = document.querySelector('#reset-pw-modal button[type=submit]');
+    if(btn && btn.dataset._loading) return; // double-submit guard
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Salvando...') : () => {};
     try {
       const { error } = await sb.auth.updateUser({ password: newPw });
       if(handleSbError(error)) return;
@@ -36,6 +45,7 @@
       toast('Senha alterada! Faça login com a nova senha.');
       showScreen('login');
     } catch(e){ console.warn('doSetNewPassword:', e && e.message || e); toast('Erro ao salvar senha'); }
+    finally { restore(); }
   }
 
   // ══ UPDATE-PASSWORD SCREEN ══

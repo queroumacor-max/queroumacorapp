@@ -72,18 +72,26 @@
     } catch(e){ console.warn('maybeAutoReply:', e && e.message || e); }
   }
 
+  // Guard de double-submit: 3 upserts em série — double-click no "Salvar"
+  // gerava 6 chamadas (mesmo sendo upsert, é desperdício de rede e o usuário
+  // via 2 toasts). dataset._loading + setButtonLoading pra feedback visual.
   async function salvarAutoRespostas(){
     const sb = getSupabase(); if(!sb||!currentUser) return;
-    const configs = [
-      { trigger_type:'new_quote', message_template: document.getElementById('ar-quote-msg').value, is_active: document.getElementById('ar-quote-on').checked, delay_minutes:0 },
-      { trigger_type:'follow_up', message_template: document.getElementById('ar-followup-msg').value, is_active: document.getElementById('ar-followup-on').checked, delay_minutes:4320 },
-      { trigger_type:'new_message', message_template: document.getElementById('ar-msg-msg').value, is_active: document.getElementById('ar-msg-on').checked, delay_minutes:0 }
-    ];
-    for(const c of configs){
-      await sb.from('auto_responses').upsert({ user_id: currentUser.id, ...c }, { onConflict:'user_id,trigger_type' });
-    }
-    _autoReplyCfg = null; // recarrega config no proximo gatilho
-    toast('Respostas automáticas salvas!'); closeModals();
+    const btn = document.querySelector('button[onclick="salvarAutoRespostas()"]');
+    if(btn && btn.dataset._loading) return;
+    const restoreBtn = btn ? setButtonLoading(btn, 'Salvando...') : (()=>{});
+    try {
+      const configs = [
+        { trigger_type:'new_quote', message_template: document.getElementById('ar-quote-msg').value, is_active: document.getElementById('ar-quote-on').checked, delay_minutes:0 },
+        { trigger_type:'follow_up', message_template: document.getElementById('ar-followup-msg').value, is_active: document.getElementById('ar-followup-on').checked, delay_minutes:4320 },
+        { trigger_type:'new_message', message_template: document.getElementById('ar-msg-msg').value, is_active: document.getElementById('ar-msg-on').checked, delay_minutes:0 }
+      ];
+      for(const c of configs){
+        await sb.from('auto_responses').upsert({ user_id: currentUser.id, ...c }, { onConflict:'user_id,trigger_type' });
+      }
+      _autoReplyCfg = null; // recarrega config no proximo gatilho
+      toast('Respostas automáticas salvas!'); closeModals();
+    } finally { restoreBtn(); }
   }
 
   window.Modules = window.Modules || {};

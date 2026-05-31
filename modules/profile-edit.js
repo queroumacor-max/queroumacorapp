@@ -182,11 +182,18 @@
     if(!sb || !currentUser) return;
     const sel = [...document.querySelectorAll('#specs-modal-grid .spec-chip.sel')].map(c => c.textContent.trim());
     if(sel.length === 0){ toast('Selecione pelo menos uma especialidade'); return; }
-    const { error } = await sb.from('profiles').update({ specialties: sel.join(', ') }).eq('id', currentUser.id);
-    if(handleSbError(error)) return;
-    if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
-    toast('Especialidades salvas ✅');
-    closeModals();
+    // Double-submit guard + loading visual no botão "Salvar" do modal.
+    const btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
+                document.querySelector('#edit-specs-modal button[onclick*="saveEspecialidades"]');
+    if(btn && btn.dataset._loading) return;
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Salvando...') : () => {};
+    try {
+      const { error } = await sb.from('profiles').update({ specialties: sel.join(', ') }).eq('id', currentUser.id);
+      if(handleSbError(error)) return;
+      if(typeof invalidateMyProfile === 'function') invalidateMyProfile();
+      toast('Especialidades salvas ✅');
+      closeModals();
+    } finally { restore(); }
   }
 
   // ══ RAIO DE ATENDIMENTO — modal dedicado ══
@@ -212,6 +219,11 @@
     const value = sel ? sel.value : '';
     // service_radius é integer; 'estado' (sem limite) é gravado como null
     const valInt = (value === '' || value === 'estado') ? null : (parseInt(value, 10) || null);
+    // Double-submit guard + loading visual no botão "Salvar" do modal.
+    const btn = (typeof event !== 'undefined' && event && event.currentTarget) ||
+                document.querySelector('#edit-radius-modal button[onclick*="saveRaio"]');
+    if(btn && btn.dataset._loading) return;
+    const restore = (typeof setButtonLoading === 'function') ? setButtonLoading(btn, 'Salvando...') : () => {};
     try {
       const { error } = await sb.from('profiles').update({ service_radius: valInt }).eq('id', currentUser.id);
       if(handleSbError(error)) return;
@@ -219,6 +231,7 @@
       toast('Raio salvo ✅');
       closeModals();
     } catch(e){ showError('save-radius', e, 'Não foi possível salvar o raio. Tente novamente.'); }
+    finally { restore(); }
   }
 
   function _epSpecRole(role){
@@ -282,7 +295,10 @@
       toast('Selecione pelo menos uma especialidade.'); return;
     }
     const btn = document.getElementById('ep-save-btn');
+    // Double-submit guard: ignora reentrada se já está salvando.
+    if(btn && btn.dataset._loading) return;
     btn.textContent = 'Salvando...'; btn.disabled = true;
+    if(btn) btn.dataset._loading = '1';
     const radiusEl = document.getElementById('ep-radius');
     const radiusToSave = (radiusEl && radiusEl.value) ? (parseInt(radiusEl.value,10) || null) : null;
     try {
@@ -478,6 +494,7 @@
       toast('Erro ao salvar: ' + (e.message || 'tente novamente'));
     }
     btn.textContent = 'Salvar'; btn.disabled = false;
+    if(btn) delete btn.dataset._loading;
   }
 
   function sharePost(postId){

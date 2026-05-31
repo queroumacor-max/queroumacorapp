@@ -34,6 +34,8 @@
     if(!sb || !currentUser || !container) return;
     // Mark as read: clear badge
     updateNotifBadge(false);
+    // Skeleton enquanto carrega (5 rows de ~56px — altura de .notif-card).
+    container.innerHTML = skeletonRows(5, { height: '56px' });
     try {
       const myId = currentUser.id;
       // Join server-side via PostgREST nested filter (posts!inner) em vez de
@@ -75,7 +77,11 @@
       } catch(e){ /* tabela notifications pode não existir ainda */ }
       notifs.sort((a,b) => new Date(b.time) - new Date(a.time));
       if(notifs.length === 0){
-        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;">Sem notificações</div><div style="font-size:13px;">Suas notificações aparecerão aqui</div></div>';
+        container.innerHTML = emptyState({
+          icon: '🔔',
+          title: 'Sem notificações',
+          message: 'Você está em dia. Curtidas, comentários e mensagens aparecem aqui.'
+        });
         return;
       }
       container.innerHTML = notifs.map(n => {
@@ -102,7 +108,10 @@
       }).join('');
     } catch(e){
       console.error('loadNotifications error:', e && e.message || e);
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Erro ao carregar notificações</div>';
+      container.innerHTML = errorState(
+        'Não foi possível carregar as notificações. Tente de novo.',
+        () => loadNotifications()
+      );
     }
   }
 

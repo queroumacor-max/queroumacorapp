@@ -98,7 +98,13 @@
     box.querySelector('input').addEventListener('keydown', function(e){ if(e.key==='Enter') submitComment(box.querySelector('button')); });
   }
 
+  // Guard de double-submit: o botão "Enviar" do comentário pode receber
+  // double-click rápido OU dois Enter consecutivos (o keydown listener no
+  // input chama submitComment direto, contornando o disabled visual). Usa
+  // dataset._loading (compatível com setButtonLoading do Utils) como
+  // flag in-flight e devolve o estado no finally.
   async function submitComment(btn){
+    if(btn && btn.dataset._loading) return;
     const box = btn.closest('.comment-input-box');
     const input = box.querySelector('input');
     const text = input.value.trim();
@@ -107,19 +113,18 @@
     const postId = postEl ? postEl.dataset.postId : null;
     if(!postId || !currentUser) return;
     input.value = '';
-    btn.disabled = true;
+    const restoreBtn = setButtonLoading(btn, 'Enviando...');
     const sb = getSupabase();
-    if(!sb) return;
+    if(!sb){ restoreBtn(); return; }
     try {
       const mod = await moderateContentAsync(text, null);
       if (!mod.approved) {
         input.value = text;  // devolve o texto
-        btn.disabled = false;
         toast(mod.severity === 'hard' ? 'Comentário bloqueado pela moderação' : 'Comentário enviado para revisão');
         return;
       }
       const { data: comment, error } = await sb.from('comments').insert({ post_id: postId, user_id: currentUser.id, text: text }).select('id').single();
-      if(error){ toast('Erro ao comentar'); btn.disabled = false; return; }
+      if(error){ toast('Erro ao comentar'); return; }
       // Show comment in UI
       let commentsArea = postEl.querySelector('.comments-area');
       if(!commentsArea){
@@ -136,7 +141,7 @@
         + '<span onclick="deleteComment(this,\''+escapeJsArg(comment.id)+'\')" style="cursor:pointer;color:var(--muted);font-size:16px;padding:2px 4px;" title="Apagar">&times;</span>';
       commentsArea.appendChild(commentDiv);
     } catch(e){ toast('Erro ao comentar'); console.warn('comment error:', e && e.message || e); }
-    btn.disabled = false;
+    finally { restoreBtn(); }
   }
 
   async function deleteComment(el, commentId){
@@ -238,11 +243,19 @@
     showModal('report-reason-modal');
   }
 
+  // Guard de double-submit: o modal "Denunciar" tem 4-5 botões de motivo e
+  // double-click rápido em um deles (ou click em dois motivos antes do modal
+  // fechar) gerava 2 reports no DB. Flag de módulo + checagem antes do
+  // insert. closeModals() roda imediatamente pra esconder o modal, mas o
+  // _reportSubmitting fica true até o insert resolver.
+  let _reportSubmitting = false;
   async function submitReport(reason){
-    closeModals();
-    if(!currentUser || !_reportPostId){ toast('Não foi possível enviar a denúncia'); return; }
+    if(_reportSubmitting) return;
+    if(!currentUser || !_reportPostId){ closeModals(); toast('Não foi possível enviar a denúncia'); return; }
     const sb = getSupabase();
-    if(!sb){ toast('Não foi possível enviar a denúncia'); return; }
+    if(!sb){ closeModals(); toast('Não foi possível enviar a denúncia'); return; }
+    _reportSubmitting = true;
+    closeModals();
     try {
       const { error } = await sb.from('reports').insert({
         reporter_id: currentUser.id,
@@ -258,6 +271,7 @@
     } finally {
       _reportPostId = null;
       _reportUserId = null;
+      _reportSubmitting = false;
     }
   }
 

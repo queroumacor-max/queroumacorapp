@@ -239,12 +239,14 @@
 
   async function submitCartOrder(){
     if(cartItems.length === 0){ toast('Carrinho vazio!'); return; }
+    const btn = document.getElementById('cart-submit-btn');
+    // Double-submit guard: action cria pedido + cobra cliente, NUNCA pode rodar 2x.
+    if(btn && btn.dataset._loading) return;
     const ctx = requireSession('Faça login primeiro');
     if(!ctx) return;
     const sb = ctx.sb;
-    const btn = document.getElementById('cart-submit-btn');
-    const originalLabel = btn.textContent;
-    btn.textContent = 'Criando pedido...'; btn.disabled = true;
+    const restore = setButtonLoading(btn, 'Criando pedido...');
+    let redirecting = false;
     try {
       const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * (item.qty || 1), 0);
       const { data: inserted, error } = await sb.from('orders').insert({
@@ -258,7 +260,7 @@
       const orderId = inserted && inserted.id;
       if(!orderId) throw new Error('Pedido criado sem ID');
 
-      btn.textContent = 'Gerando pagamento...';
+      if(btn) btn.textContent = 'Gerando pagamento...';
       const { data:{ session } } = await sb.auth.getSession();
       if(!session){ throw new Error('Sessão expirada — faça login'); }
       const { ok, status, data } = await apiPost('/api/mp-checkout-loja', { orderId });
@@ -273,10 +275,13 @@
 
       cartItems = []; saveCart(); updateCartBadge();
       toast('Redirecionando para o Mercado Pago...');
+      // Botão FICA travado até o redirect efetivar — pular o restore no finally.
+      redirecting = true;
       window.location.href = data.init_point;
     } catch(e){
       showError('cart-checkout', e, 'Não foi possível finalizar a compra. Tente novamente.');
-      btn.textContent = originalLabel; btn.disabled = false;
+    } finally {
+      if(!redirecting) restore();
     }
   }
 
@@ -469,9 +474,21 @@
     if(title) title.textContent = res.length > 60
       ? (res.length + ' resultados (mostrando 60 — refine a busca)')
       : (res.length + ' resultado(s)');
-    if(grid) grid.innerHTML = res.length
-      ? res.slice(0,60).map(renderProductRow).join('')
-      : '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
+    if(grid){
+      if(res.length){
+        grid.innerHTML = res.slice(0,60).map(renderProductRow).join('');
+      } else if(typeof emptyState === 'function'){
+        grid.innerHTML = emptyState({
+          icon: '🔎',
+          title: 'Nenhum produto encontrado',
+          message: 'Tente buscar outra palavra ou volte pra todos os produtos.',
+          actionLabel: 'Limpar busca',
+          actionOnclick: "var i=document.getElementById('mkt-search');if(i){i.value='';i.dispatchEvent(new Event('input'));}"
+        });
+      } else {
+        grid.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Nenhum produto encontrado</div>';
+      }
+    }
     if(searchSec) searchSec.style.display = 'block';
   }
   const mktSearch = (typeof window !== 'undefined' && window.debounce ? window.debounce(_mktSearchImpl, 200) : _mktSearchImpl);
@@ -590,15 +607,28 @@
 
   async function loadMktProducts(_attempt){
     _attempt = _attempt || 0;
-    const setSec = (msg) => { const el = document.getElementById('mkt-sections'); if(el) el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
+    const el = () => document.getElementById('mkt-sections');
+    const setSec = (msg) => { const e = el(); if(e) e.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--muted);font-size:13px;">'+msg+'</div>'; };
     if(mktProducts.length && (Date.now() - _mktLoadedAt) < _MKT_TTL){
       renderMktUI();
       return;
     }
+    // Skeleton loading (só na primeira carga, não no retry que mostra erro acima)
+    if(_attempt === 0){
+      const e = el();
+      if(e && typeof skeletonRows === 'function'){
+        e.innerHTML = '<div style="grid-column:1/-1;">' + skeletonRows(6, { height: '70px' }) + '</div>';
+      }
+    }
     const sb = getSupabase();
     if(!sb){
       if(_attempt < 20){ setTimeout(() => loadMktProducts(_attempt + 1), 500); return; }
-      setSec('Não foi possível conectar. <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      const e = el();
+      if(e && typeof errorState === 'function'){
+        e.innerHTML = '<div style="grid-column:1/-1;">' + errorState('Não foi possível conectar.', () => loadMktProducts(0)) + '</div>';
+      } else {
+        setSec('Não foi possível conectar. <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      }
       return;
     }
     try {
@@ -619,7 +649,12 @@
       renderMktUI();
     } catch(e){
       console.error('loadMktProducts error:', e && e.message || e);
-      setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      const target = el();
+      if(target && typeof errorState === 'function'){
+        target.innerHTML = '<div style="grid-column:1/-1;">' + errorState('Erro ao carregar produtos: ' + String(e && e.message || e), () => loadMktProducts(0)) + '</div>';
+      } else {
+        setSec('Erro ao carregar produtos: ' + escapeHtml(String(e && e.message || e)) + ' <a href="#" onclick="loadMktProducts(0);return false" style="color:var(--p1);font-weight:700;">Tentar de novo</a>');
+      }
     }
   }
 
@@ -670,8 +705,17 @@
   }
 
   function buyShirt() {
-    const unit = shirtQty >= 5 ? 39.90 * 0.85 : 39.90;
-    addToCart('shirt-personalizada', shirtQty, 'Camiseta Personalizada', unit);
+    // Double-click guard: addToCart() abre modal do carrinho com setTimeout 300ms;
+    // sem guard, dois taps rápidos somam quantidade dupla. Trava o botão por 1s.
+    const btn = document.getElementById('buy-shirt-btn');
+    if(btn && btn.dataset._loading) return;
+    const restore = setButtonLoading(btn, 'Adicionando...');
+    try {
+      const unit = shirtQty >= 5 ? 39.90 * 0.85 : 39.90;
+      addToCart('shirt-personalizada', shirtQty, 'Camiseta Personalizada', unit);
+    } finally {
+      setTimeout(restore, 1000);
+    }
   }
 
   window.Modules = window.Modules || {};
