@@ -1,5 +1,14 @@
 # Plano de Modularização do `app.js`
 
+> **STATUS — FASE 4 ETAPA 2 COMPLETA (2026-05-31).**
+> A migração foi executada: 44 módulos extraídos em `modules/`, shim em
+> `shims.js` republica `Modules.X.fn` como `window.fn` pra HTML inline
+> handlers, e 338 funções duplicadas foram deletadas do `app.js`. O arquivo
+> caiu de **9176 → 1299 linhas (-86%)**. 85 testes unitários passam.
+>
+> Este documento permanece como **registro histórico** da auditoria que
+> guiou a migração. Para o estado atual ver `ARCHITECTURE.md`.
+
 > Auditoria estática de `/home/user/queroumacorapp/app.js` (vanilla JS, sem
 > ES modules). Plano de organização por feature mantendo o contrato atual
 > (funções globais via `<script defer>`).
