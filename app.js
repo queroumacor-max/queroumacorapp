@@ -1,5 +1,5 @@
 // ══ SCREENS ══
-const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','avaliar','mkt','camisetas','info','pipeline','crm'];
+const screens=['login','signup','feed','explore','search','profile','orcamento','myprofile','calc','notif','chat','chatconv','pedidos','avaliar','mkt','camisetas','info','pipeline','crm','update-password'];
 
 // Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
 // "1500.50" no input e devolve Number; o blur formata pra "1.500,00".
@@ -42,7 +42,8 @@ const SCREEN_TO_PATH = {
   'camisetas': '/camisetas',
   'profile': '/profissional',
   'login': '/login',
-  'signup': '/signup'
+  'signup': '/signup',
+  'update-password': '/update-password'
 };
 const PATH_TO_SCREEN = Object.fromEntries(Object.entries(SCREEN_TO_PATH).map(([k, v]) => [v, k]));
 
@@ -77,6 +78,7 @@ function showScreen(n, _fromPop){
   if(n==='info') openInfoPage('menu');
   if(n==='pipeline') loadPipeline();
   if(n==='crm') loadCrm();
+  if(n==='update-password') _initUpdatePasswordScreen();
   _navSyncHistory(n, _fromPop);
 }
 
@@ -156,7 +158,7 @@ function _bootstrapFromUrl(){
   if(!screen || screen === 'feed') return;
   if(typeof showScreen !== 'function') return;
   // Telas públicas (não precisam de auth) podem ser mostradas direto.
-  const publicScreens = ['login','signup','info','explore','mkt','search'];
+  const publicScreens = ['login','signup','info','explore','mkt','search','update-password'];
   if(publicScreens.includes(screen)){
     showScreen(screen, true);
     return;
@@ -7560,7 +7562,7 @@ async function sendPasswordReset(){
   const sb = getSupabase();
   if(!sb){ toast('Aguarde, carregando...'); return; }
   try {
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/update-password' });
     if(handleSbError(error)) return;
     toast('Email de recuperação enviado! Verifique sua caixa de entrada.');
   } catch(e){ console.warn('sendPasswordReset:', e && e.message || e); toast('Erro ao enviar email'); }
@@ -7579,9 +7581,31 @@ async function doSetNewPassword(){
     document.getElementById('reset-pw-new').value = '';
     document.getElementById('reset-pw-confirm').value = '';
     closeModals();
-    toast('Senha alterada com sucesso!');
-    showScreen('feed');
+    toast('Senha alterada! Faça login com a nova senha.');
+    showScreen('login');
   } catch(e){ console.warn('doSetNewPassword:', e && e.message || e); toast('Erro ao salvar senha'); }
+}
+
+// ══ UPDATE-PASSWORD SCREEN ══
+// Acionado quando o usuário chega via link de recuperação do email
+// (/update-password#access_token=...&type=recovery). O SDK do Supabase já
+// processa o hash e cria a sessão de recovery; aqui só confirmamos que ela
+// existe e abrimos o modal pro usuário digitar a nova senha.
+async function _initUpdatePasswordScreen(){
+  try {
+    const sb = getSupabase();
+    if(!sb){ setTimeout(_initUpdatePasswordScreen, 300); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session){
+      toast('Link expirado ou inválido. Solicite um novo.');
+      setTimeout(() => showScreen('login'), 2500);
+      return;
+    }
+    showModal('reset-pw-modal');
+  } catch(e){
+    console.warn('_initUpdatePasswordScreen:', e && e.message || e);
+    showScreen('login');
+  }
 }
 
 async function togglePostLike(btn){
