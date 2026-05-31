@@ -1,3 +1,4 @@
+// @ts-check
 // utils.js — funções utilitárias puras (sem DOM/rede pesado) extraídas
 // do app.js. Fase 4 da modularização (etapa 1: COPIA pra criar a camada;
 // próximo PR migra call sites e remove duplicatas do app.js).
@@ -7,6 +8,7 @@
 
   // Helpers de formatação de R$ (pt-BR): aceita "500", "500,00", "1.500,00",
   // "1500.50" no input e devolve Number; o blur formata pra "1.500,00".
+  /** @param {unknown} val @returns {number} */
   function parseBRL(val){
     const raw = String(val == null ? '' : val).trim();
     if(!raw) return 0;
@@ -14,6 +16,7 @@
     const n = Number(raw.replace(/\./g, '').replace(',', '.'));
     return Number.isFinite(n) ? n : 0;
   }
+  /** @param {HTMLInputElement | null | undefined} el @returns {void} */
   function fmtBRL(el){
     if(!el) return;
     const raw = String(el.value || '').trim();
@@ -25,7 +28,9 @@
 
   // adiciona esses atributos no HTML — não setar aqui por toast() pra evitar
   // recriar o live region a cada chamada (quebra anúncio).
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
   let tt;
+  /** @param {string} msg @returns {void} */
   function toast(msg){
     const el=document.getElementById('toast-el');
     if(!el) return;
@@ -37,6 +42,7 @@
   }
 
   // ══ MODALS ══
+  /** @param {string} id @returns {void} */
   function showModal(id){
     // A11y: salva foco anterior pra restaurar depois e move foco pro 1º focável do modal
     window._lastFocus = document.activeElement;
@@ -49,6 +55,7 @@
     }, 50);
   }
 
+  /** @returns {void} */
   function closeModals(){
     document.querySelectorAll('.overlay').forEach(m=>m.classList.remove('open'));
     // A11y: restaura foco no elemento que abriu o modal
@@ -56,6 +63,7 @@
       try { window._lastFocus.focus(); } catch(_){}
     }
   }
+  /** @param {string} id @returns {void} */
   function hideModal(id){
     document.getElementById(id)?.classList.remove('open');
     if(window._lastFocus && typeof window._lastFocus.focus === 'function'){

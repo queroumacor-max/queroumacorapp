@@ -1,3 +1,4 @@
+// @ts-check
 // config.js — agrupa constantes de configuração em window.Config.
 // Igual db.js: vive em paralelo a app.js/head.js, sem deps; as call sites
 // continuam usando as constantes top-level originais. Migração gradual.

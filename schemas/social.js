@@ -1,8 +1,10 @@
+// @ts-check
 // schemas/social.js — Zod-shaped schemas for social/text inputs:
 // tag (handle/@username), url, dateBR. Backward-compat com validateHandle/URL/DateBR.
 // .optional() e .refine(fn,msg) chainable via wrap() compartilhado em _core.js.
 (function(){
   'use strict';
+  /** @type {{ ok: any, err: any, wrap: any }} */
   const { ok, err, wrap } = window.Schemas._core;
 
   // tag === handle. a-z 0-9 _, 3..24 chars. Normaliza pra lowercase.

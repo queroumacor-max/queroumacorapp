@@ -541,6 +541,38 @@ function _deferIdle(fn){
   }
 }
 
+// ══ EVENTS WIRING — feed.refreshed (log de métrica) ══
+// Subscriber pro evento emitido em modules/feed.js loadFeed() quando o load
+// completou sem erro. Útil pra debug + analytics futuro. Usa window.Logger
+// se existir, senão cai pra console.info (mesma severidade). NÃO fazer
+// chamada DB / IO pesado aqui — handler tem que ser barato.
+// IMPORTANTE: events.js carrega DEPOIS de head.js no index.html (linha 165
+// vs 135), então window.Events ainda não existe quando o IIFE roda. Defere
+// o wiring pro DOMContentLoaded — nesse ponto events.js já registrou o bus.
+(function _wireFeedRefreshedLog(){
+  function attach(){
+    if(!window.Events) return; // events.js não carregou — degrada silencioso
+    window.Events.on('feed.refreshed', function(p){
+      try {
+        var msg = '[feed.refreshed] count=' + (p && p.count) + ' durationMs=' + (p && p.durationMs);
+        if(window.Logger && typeof window.Logger.info === 'function'){
+          window.Logger.info(msg);
+        } else {
+          console.info(msg);
+        }
+      } catch(_){}
+    });
+  }
+  if(window.Events){ attach(); }
+  else if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', attach, { once: true });
+  } else {
+    // DOM já está pronto mas events.js pode ainda não ter sido executado;
+    // microtask deixa o IIFE do events.js rodar antes.
+    setTimeout(attach, 0);
+  }
+})();
+
 async function initAuth(_retry) {
   let sb = getSupabase();
   // Tolerância a CDN lento/fallback: aguarda até 6s polling 200ms se supabase-js

@@ -1,8 +1,10 @@
+// @ts-check
 // schemas/primitives.js — Zod-shaped schemas for primitive inputs.
 // parse(value) → { ok:true, value } | { ok:false, error:{ code, message } }. PT-BR. IIFE → window.Schemas.
 // Cada schema expõe .optional() e .refine(fn,msg) chainable (vanilla, sem Zod).
 (function(){
   'use strict';
+  /** @type {{ ok: any, err: any, wrap: any }} */
   const { ok, err, wrap } = window.Schemas._core;
 
   const email = wrap({ parse(v){

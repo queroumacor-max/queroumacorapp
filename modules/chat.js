@@ -980,6 +980,26 @@
     if(document.visibilityState === 'hidden'){ _flushConvs(); _flushMsgs(); }
   });
 
+  // ══ EVENTS WIRING — auth.logged_out ══
+  // Quando o usuário sai (head.js doLogoutSupabase emite), flusha cache
+  // pendente + zera estado in-memory + fecha a subscription realtime de
+  // mensagens. Cleanup direto no head.js (linhas ~656) permanece como
+  // fallback durante rollout — eventos são aditivos.
+  if(window.Events){
+    window.Events.on('auth.logged_out', function(){
+      try { _flushConvs(); _flushMsgs(); } catch(_){}
+      _convsCache = null;
+      _convsCacheUid = null;
+      _msgsCache.clear();
+      _msgsDirty.clear();
+      if(_globalMsgSub){
+        try { _globalMsgSub.unsubscribe(); } catch(_){}
+        _globalMsgSub = null;
+      }
+      _processedMsgIds.clear();
+    });
+  }
+
   window.Modules = window.Modules || {};
   window.Modules.chat = {
     // Tabs / filtro

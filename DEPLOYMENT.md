@@ -137,6 +137,12 @@ Configurar em **Production** e (se diferente) em **Preview**.
 Apos mudar uma env var, o Cloudflare Pages exige um novo deploy para
 propagar (pode ser um deploy vazio via "Retry deployment" no painel).
 
+**Bindings** (separados de env vars; Settings -> Functions):
+
+| Binding | Tipo         | Uso                                          |
+| ------- | ------------ | -------------------------------------------- |
+| `KV`    | KV namespace | Cache edge p/ `/api/cidades` (ver [KV.md](./KV.md)) |
+
 ---
 
 ## 7. Cache strategy (`_headers`)

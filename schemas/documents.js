@@ -1,8 +1,10 @@
+// @ts-check
 // schemas/documents.js — Zod-shaped schemas for BR fiscal documents (CPF, CNPJ).
 // Algoritmos completos de DV. parse(value) → { ok, value? (dígitos limpos), error? }.
 // .optional() e .refine(fn,msg) chainable via wrap() compartilhado em _core.js.
 (function(){
   'use strict';
+  /** @type {{ ok: any, err: any, wrap: any }} */
   const { ok, err, wrap } = window.Schemas._core;
 
   const cpf = wrap({ parse(v){

@@ -50,7 +50,7 @@ adapters trocáveis) são atingidos mesmo assim — verificável (ver §4).
 
 | Camada Clean Arch | Arquivos no projeto | Responsabilidade |
 |---|---|---|
-| **Domain** | `policies.js`, `validators.js`, `errors.js`, partes puras de `utils.js` (`parseBRL`, `escapeHtml`, `getTimeAgo`) | Regras de negócio puras. **Sem DOM, sem rede, sem Supabase**. Testáveis sem mocks. |
+| **Domain** | `policies.js`, `schemas/` (`_core.js`, `primitives.js`, `documents.js`, `social.js`), `errors.js`, partes puras de `utils.js` (`parseBRL`, `escapeHtml`, `getTimeAgo`) | Regras de negócio puras. **Sem DOM, sem rede, sem Supabase**. Testáveis sem mocks. |
 | **Application (Use Cases)** | Funções de feature em `modules/*.js` (`loadFeed`, `sendChatMsg`, `salvarOrcamento`, `syncQuotesToJobs`, `submitReport`) e `functions/api/*.js` (endpoints como casos de uso server-side) | Orquestra Domain + Infrastructure. "O que o sistema faz." |
 | **Infrastructure** | `db.js` (facade Supabase), `head.js` (auth, fetch, `getSupabase`, `apiPost`), `logger.js`, `config.js`, `functions/api/_security.js` (auth + rate-limit), `functions/api/_ai.js` (OpenAI ↔ Gemini), service worker `sw.js` | Adapters externos. Esconde detalhes de Supabase, fetch, console, env. |
 | **UI / Presentation** | `index.html`, `styles.css`, partes de `modules/*.js` que tocam DOM (`renderConvList`, `appendMsg`, `setFeedFilter`), `app.js` boot (state vars residuais, `showScreen`), `shims.js` (republica handlers como bare globals) | Apresentação. Renderiza estado, captura input, dispara use cases. |
@@ -89,7 +89,7 @@ Notas sobre o que **não** existe nesta tabela:
         ┌──────────────────────┐   ┌──────────────────────┐
         │ Domain (PURO)        │   │ Infrastructure       │
         │ policies.js          │   │ db.js  head.js       │
-        │ validators.js        │   │ logger.js  config.js │
+        │ schemas/             │   │ logger.js  config.js │
         │ errors.js            │   │ _security.js  _ai.js │
         │ utils.js (parte)     │   │                      │
         └──────────────────────┘   └──────────────────────┘

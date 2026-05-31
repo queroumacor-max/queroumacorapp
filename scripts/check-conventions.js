@@ -178,7 +178,6 @@ export function checkTodos(moduleFiles, sink = record, extraTargets = null){
     path.join(ROOT, 'head.js'),
     path.join(ROOT, 'utils.js'),
     path.join(ROOT, 'db.js'),
-    path.join(ROOT, 'validators.js'),
     path.join(ROOT, 'shims.js'),
     path.join(ROOT, 'errors.js'),
     path.join(ROOT, 'logger.js'),

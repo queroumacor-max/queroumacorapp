@@ -1,3 +1,4 @@
+// @ts-check
 // logger.js — wrapper fino sobre console.* pra padronizar logs no app.
 // Quando usar cada nível:
 //   debug → ruído de desenvolvimento (só aparece em preview/staging/local).
@@ -54,21 +55,25 @@
     try { reportError(payload); } catch(e){ /* silencia: log não pode quebrar app */ }
   }
 
+  /** @param {string} msg @param {any} [ctx] @returns {void} */
   function debug(msg, ctx){
     if(!_shouldLog('debug')) return;
     console.debug('[debug]', _truncate(msg, 500), _normCtx(ctx));
   }
 
+  /** @param {string} msg @param {any} [ctx] @returns {void} */
   function info(msg, ctx){
     if(!_shouldLog('info')) return;
     console.info('[info]', _truncate(msg, 500), _normCtx(ctx));
   }
 
+  /** @param {string} msg @param {any} [ctx] @returns {void} */
   function warn(msg, ctx){
     if(!_shouldLog('warn')) return;
     console.warn('[warn]', _truncate(msg, 500), _normCtx(ctx));
   }
 
+  /** @param {string} msg @param {any} [errOrCtx] @returns {void} */
   function error(msg, errOrCtx){
     if(_shouldLog('error')){
       console.error('[error]', _truncate(msg, 500), errOrCtx);
@@ -82,6 +87,7 @@
 
   // exception() é a variante pra Error objects: extrai message+stack pra
   // que o dashboard /admin/errors agrupe por stack trace, não por string.
+  /** @param {unknown} err @param {any} [ctx] @returns {void} */
   function exception(err, ctx){
     const m = (err && err.message) ? err.message : String(err || 'unknown');
     const s = (err && err.stack) ? err.stack : '';
@@ -96,6 +102,7 @@
     });
   }
 
+  /** @param {string} lvl @returns {void} */
   function setLevel(lvl){
     if(LEVELS.indexOf(lvl) < 0) return;
     window.Logger.level = lvl;
