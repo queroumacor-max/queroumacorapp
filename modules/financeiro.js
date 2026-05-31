@@ -26,9 +26,11 @@
       let receita=0, custos=0;
       (jobs||[]).forEach(j=>{ receita+=(+j.revenue||0); custos+=(+j.material_cost||0); });
       const lucro = receita - custos;
-      document.getElementById('fin-receita').textContent='R$ '+receita.toLocaleString('pt-BR');
-      document.getElementById('fin-custos').textContent='R$ '+custos.toLocaleString('pt-BR');
-      document.getElementById('fin-lucro').textContent='R$ '+lucro.toLocaleString('pt-BR');
+      // R23: cards podem não existir se loadFinanceiro for chamado fora da tela
+      const _setTxt = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+      _setTxt('fin-receita', 'R$ '+receita.toLocaleString('pt-BR'));
+      _setTxt('fin-custos',  'R$ '+custos.toLocaleString('pt-BR'));
+      _setTxt('fin-lucro',   'R$ '+lucro.toLocaleString('pt-BR'));
 
       // Gráfico resumo (barras)
       const chartEl = document.getElementById('fin-chart');
@@ -81,10 +83,12 @@
 
   async function salvarFinEntry(){
     const sb = getSupabase(); if(!sb||!currentUser){ toast('Faça login'); return; }
-    const nome = (document.getElementById('fin-nome').value||'').trim();
-    const cliente = (document.getElementById('fin-cliente').value||'').trim();
-    const recebido = parseBRL(document.getElementById('fin-recebido').value);
-    const gasto = parseBRL(document.getElementById('fin-gasto').value);
+    // R23: getElementById pode retornar null se o form não foi montado
+    const _val = (id) => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
+    const nome = _val('fin-nome').trim();
+    const cliente = _val('fin-cliente').trim();
+    const recebido = parseBRL(_val('fin-recebido'));
+    const gasto = parseBRL(_val('fin-gasto'));
     if(!nome && !cliente){ toast('Informe o nome do projeto ou cliente'); return; }
     if(recebido<=0 && gasto<=0){ toast('Informe um valor recebido ou gasto'); return; }
     const today = new Date(); const ymd = new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -99,10 +103,9 @@
       notes: 'Lançamento financeiro'
     });
     if(handleSbError(error)) return;
-    document.getElementById('fin-nome').value='';
-    document.getElementById('fin-cliente').value='';
-    document.getElementById('fin-recebido').value='';
-    document.getElementById('fin-gasto').value='';
+    ['fin-nome','fin-cliente','fin-recebido','fin-gasto'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
     toast('Lançamento adicionado!');
     loadFinanceiro();
   }

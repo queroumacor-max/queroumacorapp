@@ -92,25 +92,29 @@
 
       // Render circles
       const row = document.getElementById('stories-row');
+      // R23: stories-row e seu addStory podem não existir em telas sem feed
+      if(!row || !row.children || !row.children[0]) return;
       const addStoryEl = row.children[0];
       // Update add-story ring: colorido se tem stories, cinza se nao
       const addStoryRing = addStoryEl.querySelector('.story-ring');
-      if(myStoryGroup){
-        addStoryRing.classList.remove('seen');
-        addStoryRing.style.background = 'conic-gradient(var(--p1),var(--p4),var(--p5),var(--p3),var(--p1))';
-        // Make add-story also open own stories on tap (+ button still opens post modal)
-        addStoryEl.setAttribute('onclick', 'openStoryViewer(0)');
-      } else {
-        addStoryRing.style.background = 'rgba(255,255,255,.15)';
-        addStoryEl.setAttribute('onclick', "showModal('post-modal')");
+      if(addStoryRing){
+        if(myStoryGroup){
+          addStoryRing.classList.remove('seen');
+          addStoryRing.style.background = 'conic-gradient(var(--p1),var(--p4),var(--p5),var(--p3),var(--p1))';
+          addStoryEl.setAttribute('onclick', 'openStoryViewer(0)');
+        } else {
+          addStoryRing.style.background = 'rgba(255,255,255,.15)';
+          addStoryEl.setAttribute('onclick', "showModal('post-modal')");
+        }
       }
       // Fingerprint do estado renderizado: se nada mudou desde a última
       // chamada, pula o innerHTML (evita pisca/scroll-jump da story strip
       // quando o usuário volta pra tela do feed sem nenhuma story nova).
       // Inclui avatar_url pra detectar troca de foto do seguido.
-      const fp = (myStoryGroup ? 'm:'+myStoryGroup.stories.length+':'+(myStoryGroup.profile.avatar_url||'')+'|' : 'a|')
+      // R23: g.profile pode ser {} se o perfil do seguido não existe.
+      const fp = (myStoryGroup ? 'm:'+myStoryGroup.stories.length+':'+((myStoryGroup.profile&&myStoryGroup.profile.avatar_url)||'')+'|' : 'a|')
         + storyGroups.slice(myStoryGroup ? 1 : 0).map(g =>
-            g.user_id + ':' + g.stories.length + ':' + (g.profile.avatar_url||'') + ':' + (isStoryGroupSeen(g.user_id) ? 1 : 0)
+            g.user_id + ':' + g.stories.length + ':' + ((g.profile&&g.profile.avatar_url)||'') + ':' + (isStoryGroupSeen(g.user_id) ? 1 : 0)
           ).join(',')
         + '||' + followedIds.filter(id => !(stories||[]).some(s => s.user_id === id)).map(uid => {
             const ap = allFollowedProfiles[uid] || {};
@@ -191,12 +195,15 @@
     currentStoryGroup = groupIndex;
     currentStoryIndex = 0;
     const viewer = document.getElementById('story-viewer');
+    // R23: viewer pode não existir se ainda não foi montado / fluxo direto via push
+    if(!viewer) return;
     viewer.style.display = 'flex';
     renderCurrentStory();
   }
 
   function closeStoryViewer(){
-    document.getElementById('story-viewer').style.display = 'none';
+    const viewer = document.getElementById('story-viewer');
+    if(viewer) viewer.style.display = 'none';
     const vidEl = document.getElementById('story-viewer-video');
     if(vidEl){ vidEl.pause(); vidEl.removeAttribute('src'); }
     _stopStoryAnim();
@@ -206,13 +213,18 @@
   function renderCurrentStory(){
     const g = storyGroups[currentStoryGroup];
     if(!g) { closeStoryViewer(); return; }
-    const s = g.stories[currentStoryIndex];
+    // R24: g.stories pode ter sido esvaziado entre frames (delete em paralelo)
+    const stories = Array.isArray(g.stories) ? g.stories : [];
+    const s = stories[currentStoryIndex];
     if(!s) { closeStoryViewer(); return; }
-    const p = g.profile;
+    // R23: g.profile pode ser undefined em conta sem row em profiles
+    const p = g.profile || {};
 
     // Update media (image or video)
     const imgEl = document.getElementById('story-viewer-img');
     const vidEl = document.getElementById('story-viewer-video');
+    // R23: se o DOM do viewer não existir, aborta gracefully
+    if(!imgEl || !vidEl) { closeStoryViewer(); return; }
     const storyIsVideo = isVideoUrl(s.media_url) || s.media_type === 'video';
     const errEl = document.getElementById('story-viewer-err');
     if(errEl) errEl.style.display = 'none';
@@ -252,10 +264,14 @@
     }
     // Update header
     const svAvatar = document.getElementById('story-viewer-avatar');
-    svAvatar.onerror = function(){ svAvatar.onerror = null; svAvatar.src = avatarUrl(p.name||'U'); };
-    svAvatar.src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
-    document.getElementById('story-viewer-name').textContent = p.name || 'User';
-    document.getElementById('story-viewer-time').textContent = getTimeAgo(s.created_at);
+    if(svAvatar){
+      svAvatar.onerror = function(){ svAvatar.onerror = null; svAvatar.src = avatarUrl(p.name||'U'); };
+      svAvatar.src = avatarOf({ avatar_url: p.avatar_url, name: p.name||'U' });
+    }
+    const svName = document.getElementById('story-viewer-name');
+    if(svName) svName.textContent = p.name || 'User';
+    const svTime = document.getElementById('story-viewer-time');
+    if(svTime) svTime.textContent = getTimeAgo(s.created_at);
 
     // Show delete button only for own stories
     const delBtn = document.getElementById('story-delete-btn');
@@ -263,8 +279,9 @@
 
     // Progress bars
     const barContainer = document.getElementById('story-progress-bar');
+    if(!barContainer) return;
     barContainer.innerHTML = '';
-    g.stories.forEach((_, i) => {
+    stories.forEach((_, i) => {
       const bar = document.createElement('div');
       bar.style.cssText = 'flex:1;height:2.5px;border-radius:2px;background:rgba(255,255,255,.35);overflow:hidden;';
       const fill = document.createElement('div');

@@ -1,0 +1,181 @@
+// Página Info — porta `modules/info.js` + tela `#screen-info` do vanilla
+// (`index.html` linhas 1109-1288). Mudanças vs vanilla:
+//  - vanilla mantém todas as 6 sub-páginas (menu, ajuda, contato, privacidade,
+//    termos, conta, sobre) num único DOM trocando display:none/block;
+//    aqui usamos cards no menu + links pra sub-rotas (`/info/ajuda`, etc).
+//    PoC só renderiza o menu — sub-páginas viram TODO até serem portadas;
+//  - `requestAccountDeletion()` (RPC do Supabase) e `baixarMeusDados()`
+//    (download de /api/me-export) precisam de auth/session — viram client
+//    components em `/info/conta` quando portados;
+//  - links externos (WhatsApp/email) ficam aqui como hrefs puros, exatamente
+//    como `supportWhatsApp()` / `supportEmail()` fazem via window.open/location.
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Informações | QueroUmaCor',
+  description:
+    'Central de ajuda, contato, política de privacidade e termos de uso do QueroUmaCor.',
+};
+
+// Espelha SUPPORT do `modules/info.js`. Em algum momento isso vira
+// `lib/config.ts` (compartilhado com outras features que usam o contato).
+const SUPPORT = {
+  email: 'loja@calicolors.com.br',
+  whatsapp: '5511959765031', // DDI+DDD+número, formato wa.me
+  whatsappDisplay: '(11) 95976-5031',
+};
+
+const waHelpHref =
+  `https://wa.me/${SUPPORT.whatsapp}?text=` +
+  encodeURIComponent('Olá! Preciso de ajuda com o app QueroUmaCor.');
+
+const mailtoHref =
+  `mailto:${SUPPORT.email}` +
+  `?subject=${encodeURIComponent('Suporte QueroUmaCor')}` +
+  `&body=${encodeURIComponent('Descreva sua dúvida ou problema:\n\n')}`;
+
+const waDeleteHref =
+  `https://wa.me/${SUPPORT.whatsapp}?text=` +
+  encodeURIComponent(
+    'Olá! Quero solicitar a exclusão da minha conta no QueroUmaCor (LGPD).',
+  );
+
+interface InfoItem {
+  icon: string;
+  title: string;
+  body: string;
+  actions: { label: string; href: string; variant?: 'primary' | 'secondary' }[];
+  danger?: boolean;
+}
+
+const ITEMS: InfoItem[] = [
+  {
+    icon: '🆘',
+    title: 'Central de Ajuda',
+    body: 'Dúvidas frequentes sobre o app: cadastro, orçamentos, portfólio e mais.',
+    actions: [{ label: 'Ver perguntas', href: '/info/ajuda' }],
+  },
+  {
+    icon: '💬',
+    title: 'Fale Conosco',
+    body: `Atendimento de segunda a sexta, das 9h às 18h. WhatsApp ${SUPPORT.whatsappDisplay} ou ${SUPPORT.email}.`,
+    actions: [
+      { label: 'WhatsApp', href: waHelpHref, variant: 'primary' },
+      { label: 'Email', href: mailtoHref, variant: 'secondary' },
+    ],
+  },
+  {
+    icon: '🔒',
+    title: 'Política de Privacidade (LGPD)',
+    body: 'Como coletamos, usamos e protegemos seus dados pessoais.',
+    actions: [{ label: 'Ler', href: '/info/privacidade' }],
+  },
+  {
+    icon: '📄',
+    title: 'Termos de Uso',
+    body: 'Regras de uso da plataforma e responsabilidades das partes.',
+    actions: [{ label: 'Ler', href: '/info/termos' }],
+  },
+  {
+    icon: 'ℹ️',
+    title: 'Sobre o QueroUmaCor',
+    body: 'Conectamos clientes aos melhores profissionais de pintura — pintores, grafiteiros, muralistas, pintores automotivos e funileiros.',
+    actions: [{ label: 'Saiba mais', href: '/info/sobre' }],
+  },
+  {
+    icon: '🗑️',
+    title: 'Excluir minha conta',
+    body: 'Solicite a remoção dos seus dados. Processamos em até 15 dias úteis (LGPD).',
+    actions: [
+      { label: 'Solicitar exclusão', href: waDeleteHref, variant: 'primary' },
+    ],
+    danger: true,
+  },
+];
+
+export default function InfoPage() {
+  return (
+    <main className="min-h-screen bg-[color:var(--color-bg)] pb-24">
+      <header className="bg-white border-b border-[color:var(--color-border)] px-4 py-4 flex items-center gap-3">
+        <Link
+          href="/"
+          aria-label="Voltar"
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[color:var(--color-bg)] text-[color:var(--color-ink)] text-xl"
+        >
+          ‹
+        </Link>
+        <h1
+          className="text-lg font-bold"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          Mais informações e suporte
+        </h1>
+      </header>
+
+      <div className="max-w-2xl mx-auto p-4 space-y-3">
+        {ITEMS.map((item) => (
+          <InfoCard key={item.title} item={item} />
+        ))}
+
+        <p className="text-center text-xs text-[color:var(--color-muted)] pt-4">
+          QueroUmaCor • Versão 1.0
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function InfoCard({ item }: { item: InfoItem }) {
+  return (
+    <article className="bg-white rounded-2xl p-5 shadow-sm">
+      <div className="flex items-start gap-3 mb-3">
+        <span className="text-2xl" aria-hidden="true">
+          {item.icon}
+        </span>
+        <div className="flex-1">
+          <h2
+            className={
+              'font-bold text-base mb-1 ' +
+              (item.danger ? 'text-[color:var(--color-danger)]' : '')
+            }
+          >
+            {item.title}
+          </h2>
+          <p className="text-sm text-[color:var(--color-muted)] leading-relaxed">
+            {item.body}
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {item.actions.map((a) => {
+          const external = a.href.startsWith('http') || a.href.startsWith('mailto:');
+          const variant = a.variant ?? 'primary';
+          const cls =
+            variant === 'primary'
+              ? 'bg-[color:var(--color-p1)] text-white'
+              : 'bg-[color:var(--color-bg)] text-[color:var(--color-ink)] border border-[color:var(--color-border)]';
+          return external ? (
+            <a
+              key={a.label}
+              href={a.href}
+              target={a.href.startsWith('mailto:') ? undefined : '_blank'}
+              rel={a.href.startsWith('mailto:') ? undefined : 'noopener noreferrer'}
+              className={`${cls} px-4 py-2 rounded-xl text-sm font-bold hover:opacity-90 transition-opacity`}
+            >
+              {a.label}
+            </a>
+          ) : (
+            <Link
+              key={a.label}
+              href={a.href}
+              className={`${cls} px-4 py-2 rounded-xl text-sm font-bold hover:opacity-90 transition-opacity`}
+            >
+              {a.label}
+            </Link>
+          );
+        })}
+      </div>
+    </article>
+  );
+}

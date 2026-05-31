@@ -1,0 +1,9 @@
+name = "queroumacor-next"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# KV binding pra cidades cache (reaproveita do vanilla — mesma namespace)
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"  # mesmo `queroumacorapp-cidades`

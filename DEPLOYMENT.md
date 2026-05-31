@@ -324,6 +324,33 @@ outro HTML (raro), bumpar manualmente la tambem.
 
 ---
 
+## 13. Coexistencia com `next-app/` (Path C — Next.js)
+
+A pasta `next-app/` hospeda o subapp Next.js+TS+React que vai substituir
+o vanilla ao final da migracao Path C. Durante a transicao, ele roda em
+**deploy paralelo isolado**:
+
+| Aspecto       | Vanilla (`/`)                          | Next (`next-app/`)                       |
+| ------------- | -------------------------------------- | ---------------------------------------- |
+| CF Pages proj | `queroumacorapp` (existente)           | `queroumacor-next` (novo, manual)        |
+| Dominio       | `queroumacor.com.br`                   | `app2.queroumacor.com.br` (ate cutover)  |
+| Build         | static + Pages Functions               | `next build` + `@cloudflare/next-on-pages` |
+| KV            | binding `KV` → `queroumacorapp-cidades` | binding `KV` → mesmo namespace          |
+| Supabase      | mesmo projeto                          | mesmo projeto                            |
+| Sentry        | `queroumacor-app` (loader HTML)        | `queroumacor-app` (@sentry/nextjs)       |
+
+**Importante**: o Pages project vanilla NAO eh tocado pela existencia
+do next-app — `queroumacor.com.br` continua servindo o vanilla ate o
+cutover (Phase 9). Pra rollback do Next: Cloudflare Dashboard → Pages
+→ `queroumacor-next` → Deployments → Rollback (totalmente isolado do
+vanilla).
+
+Pipeline de deploy, env vars, KV binding e instrucoes de setup manual
+do projeto Cloudflare Pages do Next: ver
+[`next-app/DEPLOY.md`](./next-app/DEPLOY.md).
+
+---
+
 ## Checklist rapido pra um deploy
 
 1. Branch de trabalho (nao `main`).

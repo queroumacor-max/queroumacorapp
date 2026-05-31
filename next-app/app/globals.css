@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Design tokens espelham o vanilla (/styles.css). Mantém o visual durante
+   migração — usuário não percebe transição entre features old/new. */
+@theme {
+  --color-ink: #1a1a2e;
+  --color-muted: #6b7280;
+  --color-bg: #f7f3ee;
+  --color-white: #ffffff;
+  --color-border: #e5e1d8;
+  --color-p1: #ff6b35;
+  --color-p2: #f4a300;
+  --color-p3: #2ec4b6;
+  --color-p4: #8338ec;
+  --color-success: #16a34a;
+  --color-danger: #e63946;
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
