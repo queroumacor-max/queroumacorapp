@@ -28,7 +28,6 @@ import {
   fetchComments,
   fetchSaved,
   hasLiked,
-  hasSaved,
   reportPost as reportPostSvc,
   toggleLike as toggleLikeSvc,
   toggleSave as toggleSaveSvc,
