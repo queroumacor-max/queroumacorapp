@@ -1,0 +1,31 @@
+# Dependabot v2 — atualizacoes automaticas de dependencias.
+# O GitHub abre PRs semanais (segundas) com bumps de versao quando ha
+# update disponivel. Gratis, sem SaaS externo. Para pausar: comente
+# o bloco "updates" ou delete este arquivo. Para mexer em 1 PR especifico,
+# fechar o PR no GitHub que o Dependabot respeita.
+version: 2
+updates:
+  # npm — package.json na raiz
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+  # GitHub Actions — workflows em .github/workflows/
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
