@@ -33,6 +33,7 @@ export interface Profile {
   phone?: string | null;
   city?: string | null;
   state?: string | null;
+  address?: string | null;
   bio?: string | null;
   specialties?: string | null;
   profession?: string | null;
@@ -44,6 +45,7 @@ export interface Profile {
   business_logo_url?: string | null;
   business_name?: string | null;
   pro_expires_at?: string | null;
+  service_radius?: number | null;
   created_at?: string | null;
 }
 
@@ -156,11 +158,42 @@ export interface Quote {
   created_at?: string;
 }
 
+// Job = obra agendada no calendário do pintor (tabela `jobs`). Schema em
+// supabase_init.sql linha 613+: painter_id, client_name, service_type,
+// address, scheduled_date (date), scheduled_time (text livre tipo "14:30"),
+// status (default 'agendado'), revenue, material_cost, notes.
+// `status` é string aberto no banco, mas o app usa o union abaixo como
+// vocabulário canônico — UI mapeia outros valores pra "agendado".
+export type JobStatus = 'agendado' | 'em_andamento' | 'concluido' | 'cancelado';
+
 export interface Job {
   id: string;
-  user_id: string;
-  status: string;
-  created_at: string;
+  painter_id: string;
+  quote_id?: string | null;
+  client_name?: string | null;
+  service_type?: string | null;
+  address?: string | null;
+  scheduled_date?: string | null; // YYYY-MM-DD
+  scheduled_time?: string | null; // texto livre, p. ex. "14:30"
+  status: JobStatus | string;
+  notes?: string | null;
+  revenue?: number | null;
+  material_cost?: number | null;
+  created_at?: string | null;
+}
+
+// Input pra createJob — subset gravável pelo usuário (sem id/created_at/
+// status default 'agendado'). painter_id vem do contexto do auth, não
+// do form, pra evitar que UI grave em nome de outro pintor.
+export interface JobInput {
+  client_name: string;
+  service_type?: string | null;
+  address?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  notes?: string | null;
+  revenue?: number | null;
+  material_cost?: number | null;
 }
 
 // Notification — alinhado com o schema real em supabase_init.sql (linha
