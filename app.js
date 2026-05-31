@@ -8983,15 +8983,51 @@ async function generateInviteCode(view){
 async function shareInviteCode(view){
   const code = generatedInviteCode[view];
   if(!code){ toast('Gere um código primeiro'); return; }
-  const text = 'Oi! Use meu código ' + code + ' para se cadastrar no QueroUmaCor - o app para pintores e clientes!';
+  // Link que abre o app e pré-valida o código no signup (handler abaixo
+  // lê ?invite= do URL e dispara validateInvite()).
+  const link = (typeof window !== 'undefined' && window.location ? window.location.origin : 'https://queroumacor.com.br') + '/?invite=' + encodeURIComponent(code);
+  const text = 'Oi! Use meu código ' + code + ' para se cadastrar no QueroUmaCor — o app pra pintores e clientes:\n' + link;
   if(navigator.share){
-    navigator.share({ title: 'Convite QueroUmaCor', text: text }).catch(()=>{});
+    // text + url: WhatsApp/Telegram renderizam o link clicável.
+    try { await navigator.share({ title: 'Convite QueroUmaCor', text: text, url: link }); }
+    catch(_){ /* usuário cancelou — silencioso */ }
   } else if(navigator.clipboard){
-    navigator.clipboard.writeText(code).then(()=>toast('Código copiado!')).catch(()=>toast('Código: '+code));
+    navigator.clipboard.writeText(text).then(()=>toast('Convite copiado!')).catch(()=>toast(text));
   } else {
-    await appPrompt('Copie o código:', { initial: code });
+    await appPrompt('Copie o convite:', { initial: text });
   }
 }
+
+// Quando alguém abre o link compartilhado (?invite=QUC-XXXXX), pré-preenche
+// o campo de convite no signup e tenta validar automaticamente. Sem isso, o
+// link era só texto — o destinatário ainda tinha que digitar o código à mão.
+function _consumeInviteFromUrl(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = (params.get('invite') || '').trim().toUpperCase();
+    if(!code) return;
+    const setAndValidate = (attempt) => {
+      attempt = attempt || 0;
+      const input = document.getElementById('s-invite-code');
+      if(!input){
+        if(attempt < 20) setTimeout(() => setAndValidate(attempt+1), 250);
+        return;
+      }
+      input.value = code;
+      const sbReady = (typeof getSupabase === 'function') && getSupabase();
+      if(sbReady && typeof validateInvite === 'function'){
+        try { validateInvite(); } catch(e){ console.warn('auto-validate invite:', e && e.message); }
+        // Limpa o ?invite= da URL pra não revalidar em reload.
+        try { history.replaceState({}, '', window.location.pathname + window.location.hash); } catch(_){}
+      } else if(attempt < 20){
+        setTimeout(() => setAndValidate(attempt+1), 250);
+      }
+    };
+    setAndValidate();
+  } catch(e){ console.warn('consumeInviteFromUrl:', e && e.message); }
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _consumeInviteFromUrl);
+else _consumeInviteFromUrl();
 
 // Feed is loaded by initAuth after auth check completes
 
