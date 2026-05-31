@@ -187,6 +187,7 @@ export type Database = {
           art_type: string | null;
           image_url: string | null;
           created_at: string;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -200,6 +201,7 @@ export type Database = {
           art_type?: string | null;
           image_url?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -213,6 +215,7 @@ export type Database = {
           art_type?: string | null;
           image_url?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
@@ -270,6 +273,7 @@ export type Database = {
           user_id: string | null;
           text: string;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -277,6 +281,7 @@ export type Database = {
           user_id?: string | null;
           text: string;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -284,6 +289,7 @@ export type Database = {
           user_id?: string | null;
           text?: string;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
@@ -319,6 +325,7 @@ export type Database = {
           content: string | null;
           type: string | null;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -328,6 +335,7 @@ export type Database = {
           content?: string | null;
           type?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -337,6 +345,7 @@ export type Database = {
           content?: string | null;
           type?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
@@ -424,6 +433,7 @@ export type Database = {
           quote_data: Json | null;
           images: Json | null;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -456,6 +466,7 @@ export type Database = {
           // grava. Mesma situação de post_id/code/followup_interval_months.
           approval_note?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -915,6 +926,7 @@ export type Database = {
           title: string | null;
           items: Json | null;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -923,6 +935,7 @@ export type Database = {
           title?: string | null;
           items?: Json | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -931,6 +944,7 @@ export type Database = {
           title?: string | null;
           items?: Json | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
@@ -941,18 +955,21 @@ export type Database = {
           user_id: string | null;
           body: string | null;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
           user_id?: string | null;
           body?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
           user_id?: string | null;
           body?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };

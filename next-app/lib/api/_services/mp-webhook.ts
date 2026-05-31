@@ -155,6 +155,7 @@ export async function processMpWebhook(args: {
       supaUrl,
       serviceKey,
       sHeaders,
+      reqHeaders: headers,
     });
   }
 
@@ -162,7 +163,9 @@ export async function processMpWebhook(args: {
   return await processPreapprovalEvent({
     eventId,
     supaUrl,
+    serviceKey,
     sHeaders,
+    reqHeaders: headers,
   });
 }
 
@@ -173,8 +176,9 @@ async function processPaymentEvent(opts: {
   supaUrl: string;
   serviceKey: string;
   sHeaders: Record<string, string>;
+  reqHeaders: Headers;
 }): Promise<WebhookResult> {
-  const { eventId, supaUrl, serviceKey, sHeaders } = opts;
+  const { eventId, supaUrl, serviceKey, sHeaders, reqHeaders } = opts;
 
   let pay: MpPaymentResponse;
   try {
@@ -267,6 +271,23 @@ async function processPaymentEvent(opts: {
     return ok(`supabase update ${upR.status}: ${t.slice(0, 150)}`);
   }
 
+  // Audit-log: pagamento concluído (paid/amount_mismatch/refunded/cancelled).
+  // Actor null porque webhook é server-to-server; target_table=orders.
+  // fail-open: helper já não throws.
+  await logAuditEvent({
+    actorId: null,
+    action: `mp.order.${patch.status}`,
+    targetTable: 'orders',
+    targetId: orderId,
+    changes: {
+      mp_status: status,
+      tx_id: String(eventId),
+      paid_amount: patch.paid_amount,
+      payment_method: paymentMethod,
+    },
+    request: { headers: reqHeaders },
+  });
+
   // Hardening#11 — registra invoice pra conciliação. Idempotente por
   // external_id via RPC upsert_invoice. Falha aqui NÃO reverte o pagamento
   // (order já está paid no banco) — apenas loga pra investigação.
@@ -332,9 +353,11 @@ function mapInvoiceTypeFromOrderStatus(orderStatus: string): import('./_billing-
 async function processPreapprovalEvent(opts: {
   eventId: string;
   supaUrl: string;
+  serviceKey: string;
   sHeaders: Record<string, string>;
+  reqHeaders: Headers;
 }): Promise<WebhookResult> {
-  const { eventId, supaUrl, sHeaders } = opts;
+  const { eventId, supaUrl, serviceKey, sHeaders, reqHeaders } = opts;
 
   let pre: MpPreapprovalResponse;
   try {
@@ -407,6 +430,24 @@ async function processPreapprovalEvent(opts: {
   } catch {
     return ok('erro ao atualizar supabase');
   }
+
+  // Audit-log: mudança de subscription PRO (activate/cancel/pause).
+  // actor_id é o usuário cuja subscription mudou — webhook é server-to-server
+  // mas a ação afeta este usuário diretamente.
+  await logAuditEvent({
+    actorId: userId,
+    action: `mp.subscription.${status}`,
+    targetTable: 'profiles',
+    targetId: userId,
+    changes: {
+      mp_preapproval_id: eventId,
+      mp_status: status,
+      is_pro_new: patch.is_pro,
+      pro_amount: proAmount,
+      pro_currency: proCurrency,
+    },
+    request: { headers: reqHeaders },
+  });
 
   // Hardening#11 — registra invoice de subscription. Idempotente por
   // external_id (mp preapproval id). O trigger handle_invoice_paid propaga

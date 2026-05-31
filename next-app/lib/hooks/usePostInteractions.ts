@@ -29,11 +29,15 @@ import {
   fetchSaved,
   hasLiked,
   reportPost as reportPostSvc,
+  softDeleteComment as softDeleteCommentSvc,
   toggleLike as toggleLikeSvc,
   toggleSave as toggleSaveSvc,
+  undoDeleteComment as undoDeleteCommentSvc,
+  undoDeletePost as undoDeletePostSvc,
   type PostComment,
   type ReportReason,
   type SavedPostRow,
+  type SoftDeleteResult,
 } from '@/lib/services/postInteractions';
 
 // ─── useLike ───────────────────────────────────────────────────────────────
@@ -302,36 +306,115 @@ export function useReportPost(): UseReportPostResult {
   };
 }
 
-// ─── useDeletePost ─────────────────────────────────────────────────────────
+// ─── useDeletePost (soft delete + undo) ────────────────────────────────────
 
 export interface UseDeletePostResult {
-  remove: (postId: string) => Promise<void>;
+  /** Soft-deleta o post. Retorna {undoToken} pra o caller passar pro undo. */
+  remove: (postId: string) => Promise<SoftDeleteResult>;
+  /** Restaura post soft-deletado. */
+  undo: (postId: string) => Promise<void>;
   isDeleting: boolean;
+  isUndoing: boolean;
   error: Error | null;
 }
 
 /**
- * Hook do "deletar post". Invalida feed/posts no onSuccess — quem tiver um
- * feed renderizado precisa refetchar pra remover a card.
+ * Hook do "deletar post" (soft delete). Substitui o hard delete anterior:
+ * marca `deleted_at = now()` no banco, retorna `undoToken` pro caller
+ * mostrar a UndoSnackbar e — se o usuário clicar "Desfazer" — invoca
+ * `undo(postId)` que limpa o `deleted_at`.
+ *
+ * Invalida `posts`/`feed` no onSuccess de remove e undo — listas em
+ * cache precisam refetchar pra sumir/voltar a card.
  */
 export function useDeletePost(): UseDeletePostResult {
   const { user } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id ?? '';
 
-  const mut = useMutation<void, Error, string>({
+  const removeMut = useMutation<SoftDeleteResult, Error, string>({
     mutationFn: (postId: string) => deletePostSvc(userId, postId),
     onSuccess: () => {
-      // Invalida qualquer cache de feed/posts. Caller pode customizar a
-      // queryKey usada — invalidamos as duas mais óbvias do projeto.
+      qc.invalidateQueries({ queryKey: ['posts'] });
+      qc.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
+
+  const undoMut = useMutation<void, Error, string>({
+    mutationFn: (postId: string) => undoDeletePostSvc(userId, postId),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['posts'] });
       qc.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 
   return {
-    remove: mut.mutateAsync,
-    isDeleting: mut.isPending,
-    error: mut.error ?? null,
+    remove: removeMut.mutateAsync,
+    undo: undoMut.mutateAsync,
+    isDeleting: removeMut.isPending,
+    isUndoing: undoMut.isPending,
+    error: removeMut.error ?? undoMut.error ?? null,
+  };
+}
+
+// ─── useDeleteComment (soft delete + undo) ─────────────────────────────────
+
+export interface UseDeleteCommentResult {
+  remove: (commentId: string, postId: string) => Promise<SoftDeleteResult>;
+  undo: (commentId: string, postId: string) => Promise<void>;
+  /** Variante hard delete (mantida pra callers que ainda querem irreversível). */
+  removeHard: (commentId: string) => Promise<void>;
+  isDeleting: boolean;
+  isUndoing: boolean;
+  error: Error | null;
+}
+
+/**
+ * Hook do "deletar comment" (soft delete + undo). O hard delete original
+ * fica exposto como `removeHard` pra que callers que não querem o fluxo
+ * de undo (ex.: deletar comment alheio pelo admin do post) ainda possam
+ * usar.
+ *
+ * Toda mutation invalida ['post-comments', postId] — quem tem a lista
+ * renderizada vê o comment sumir / voltar.
+ */
+export function useDeleteComment(): UseDeleteCommentResult {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const userId = user?.id ?? '';
+
+  const removeMut = useMutation<
+    SoftDeleteResult,
+    Error,
+    { commentId: string; postId: string }
+  >({
+    mutationFn: ({ commentId }) => softDeleteCommentSvc(commentId, userId),
+    onSuccess: (_data, { postId }) => {
+      qc.invalidateQueries({ queryKey: ['post-comments', postId] });
+    },
+  });
+
+  const undoMut = useMutation<
+    void,
+    Error,
+    { commentId: string; postId: string }
+  >({
+    mutationFn: ({ commentId }) => undoDeleteCommentSvc(commentId, userId),
+    onSuccess: (_data, { postId }) => {
+      qc.invalidateQueries({ queryKey: ['post-comments', postId] });
+    },
+  });
+
+  const hardMut = useMutation<void, Error, string>({
+    mutationFn: (commentId: string) => deleteCommentSvc(commentId, userId),
+  });
+
+  return {
+    remove: (commentId, postId) => removeMut.mutateAsync({ commentId, postId }),
+    undo: (commentId, postId) => undoMut.mutateAsync({ commentId, postId }),
+    removeHard: hardMut.mutateAsync,
+    isDeleting: removeMut.isPending,
+    isUndoing: undoMut.isPending,
+    error: removeMut.error ?? undoMut.error ?? null,
   };
 }

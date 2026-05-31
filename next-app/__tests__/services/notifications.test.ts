@@ -35,6 +35,8 @@ interface ChainSpies {
   order: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
+  lt: ReturnType<typeof vi.fn>;
+  abortSignal: ReturnType<typeof vi.fn>;
 }
 
 interface FakeOpts {
@@ -50,6 +52,8 @@ function makeFakeClient(opts: FakeOpts = {}): { client: unknown; spies: ChainSpi
     order: vi.fn(),
     limit: vi.fn(),
     update: vi.fn(),
+    lt: vi.fn(),
+    abortSignal: vi.fn(),
   };
 
   const chain = {
@@ -75,6 +79,14 @@ function makeFakeClient(opts: FakeOpts = {}): { client: unknown; spies: ChainSpi
     },
     update: (patch: Record<string, unknown>) => {
       spies.update(patch);
+      return chain;
+    },
+    lt: (col: string, val: unknown) => {
+      spies.lt(col, val);
+      return chain;
+    },
+    abortSignal: (signal: AbortSignal) => {
+      spies.abortSignal(signal);
       return chain;
     },
     // PostgrestBuilder vira await-able no final via `then`.
@@ -202,5 +214,66 @@ describe('markAllAsRead', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     await expect(markAllAsRead('u1')).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+// ─── fetchNotifications: cursor pagination + AbortSignal (overload) ───────
+
+describe('fetchNotifications cursor pagination', () => {
+  it('com options → retorna NotificationsPage com nextCursor=último created_at', async () => {
+    const rows = [
+      { id: 'n1', user_id: 'u1', type: 'like', read: false, created_at: '2026-05-31T10:00:00Z' },
+      { id: 'n2', user_id: 'u1', type: 'comment', read: true, created_at: '2026-05-30T10:00:00Z' },
+    ];
+    const { client } = makeFakeClient({ data: rows });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchNotifications('u1', { limit: 50 });
+    expect(out.items).toEqual(rows);
+    // nextCursor = created_at do último (mais antigo) item da página.
+    expect(out.nextCursor).toBe('2026-05-30T10:00:00Z');
+    // hasMore: 2 < 50 → false (página parcial).
+    expect(out.hasMore).toBe(false);
+  });
+
+  it('hasMore=true quando items.length === limit', async () => {
+    const rows = [
+      { id: 'n1', user_id: 'u1', type: 'like', read: false, created_at: '2026-05-31T10:00:00Z' },
+      { id: 'n2', user_id: 'u1', type: 'comment', read: true, created_at: '2026-05-30T10:00:00Z' },
+    ];
+    const { client } = makeFakeClient({ data: rows });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    // limit=2 e rows=2 → cheio → hasMore=true (heurística).
+    const out = await fetchNotifications('u1', { limit: 2 });
+    expect(out.hasMore).toBe(true);
+  });
+
+  it('cursor passado propaga pra .lt("created_at", cursor)', async () => {
+    const { client, spies } = makeFakeClient({ data: [] });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await fetchNotifications('u1', { cursor: '2026-05-30T10:00:00Z' });
+    expect(spies.lt).toHaveBeenCalledWith('created_at', '2026-05-30T10:00:00Z');
+  });
+
+  it('sem cursor → não chama .lt (primeira página)', async () => {
+    const { client, spies } = makeFakeClient({ data: [] });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await fetchNotifications('u1', { limit: 10 });
+    expect(spies.lt).not.toHaveBeenCalled();
+  });
+
+  it('signal passado propaga pra .abortSignal()', async () => {
+    const controller = new AbortController();
+    const { client, spies } = makeFakeClient({ data: [] });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await fetchNotifications('u1', { signal: controller.signal });
+    expect(spies.abortSignal).toHaveBeenCalledWith(controller.signal);
+  });
+
+  it('userId vazio + options → resolve NotificationsPage vazia', async () => {
+    const { client, spies } = makeFakeClient({ data: [{ id: 'n1' }] });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchNotifications('', { limit: 10 });
+    expect(out).toEqual({ items: [], nextCursor: null, hasMore: false });
+    expect(spies.from).not.toHaveBeenCalled();
   });
 });

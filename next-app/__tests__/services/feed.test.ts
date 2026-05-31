@@ -275,9 +275,9 @@ describe('fetchFeed', () => {
     const out = await fetchFeed({ userId: null });
     // saved_posts não deve ter sido tocado (só logado consulta).
     expect(spies.fromCalls).not.toContain('saved_posts');
-    expect(out).toHaveLength(1);
-    expect(out[0]?.liked).toBe(false);
-    expect(out[0]?.saved).toBe(false);
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]?.liked).toBe(false);
+    expect(out.items[0]?.saved).toBe(false);
   });
 
   it('roleFilter aplica filtro post-fetch (autores com role diferente saem)', async () => {
@@ -299,9 +299,9 @@ describe('fetchFeed', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'u1', roleFilter: 'pintor' });
-    expect(out).toHaveLength(1);
-    expect(out[0]?.id).toBe('p1');
-    expect(out[0]?.profile.role).toBe('pintor');
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]?.id).toBe('p1');
+    expect(out.items[0]?.profile.role).toBe('pintor');
   });
 
   it('offset/limit propagados pra range() na tabela posts', async () => {
@@ -342,9 +342,105 @@ describe('fetchFeed', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'me' });
-    expect(out).toHaveLength(1);
+    expect(out.items).toHaveLength(1);
     // Fallback graceful — profile vazio mas com id pra UI não estourar.
-    expect(out[0]?.profile.id).toBe('ghost');
-    expect(out[0]?.profile.name).toBeUndefined();
+    expect(out.items[0]?.profile.id).toBe('ghost');
+    expect(out.items[0]?.profile.name).toBeUndefined();
+  });
+
+  // ─── novos: cursor pagination + AbortSignal ─────────────────────────────
+
+  it('nextCursor = created_at do último post da página', async () => {
+    const posts = [
+      { id: 'p1', user_id: 'a', created_at: '2026-05-31T10:00:00Z' },
+      { id: 'p2', user_id: 'a', created_at: '2026-05-30T10:00:00Z' },
+      { id: 'p3', user_id: 'a', created_at: '2026-05-29T10:00:00Z' },
+    ];
+    const { client } = makeFakeClient({
+      posts: { data: posts },
+      profiles_public: { data: [{ id: 'a', name: 'A' }] },
+      likes: { data: [] },
+      saved_posts: { data: [] },
+      comments: { data: [] },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchFeed({ userId: 'u1', limit: 10 });
+    // O último post (em ordem desc retornada do DB) é p3 — seu created_at é o cursor.
+    expect(out.nextCursor).toBe('2026-05-29T10:00:00Z');
+  });
+
+  it('hasMore=true quando a página vem cheia (posts.length === limit)', async () => {
+    // 3 posts e limit 3 — cheio, então hasMore=true (provavelmente tem mais).
+    const posts = [
+      { id: 'p1', user_id: 'a', created_at: '2026-05-31T10:00:00Z' },
+      { id: 'p2', user_id: 'a', created_at: '2026-05-30T10:00:00Z' },
+      { id: 'p3', user_id: 'a', created_at: '2026-05-29T10:00:00Z' },
+    ];
+    const { client } = makeFakeClient({
+      posts: { data: posts },
+      profiles_public: { data: [{ id: 'a', name: 'A' }] },
+      likes: { data: [] },
+      saved_posts: { data: [] },
+      comments: { data: [] },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchFeed({ userId: 'u1', limit: 3 });
+    expect(out.hasMore).toBe(true);
+    expect(out.items).toHaveLength(3);
+  });
+
+  it('hasMore=false quando a página vem parcial (posts.length < limit)', async () => {
+    // 2 posts mas limit 10 → fim do feed, hasMore=false.
+    const posts = [
+      { id: 'p1', user_id: 'a', created_at: '2026-05-31T10:00:00Z' },
+      { id: 'p2', user_id: 'a', created_at: '2026-05-30T10:00:00Z' },
+    ];
+    const { client } = makeFakeClient({
+      posts: { data: posts },
+      profiles_public: { data: [{ id: 'a', name: 'A' }] },
+      likes: { data: [] },
+      saved_posts: { data: [] },
+      comments: { data: [] },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchFeed({ userId: 'u1', limit: 10 });
+    expect(out.hasMore).toBe(false);
+  });
+
+  it('cursor passado propaga pra .lt("created_at", cursor) na tabela posts', async () => {
+    const { client, spies } = makeFakeClient({
+      posts: { data: [] },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await fetchFeed({ userId: 'u1', cursor: '2026-05-29T10:00:00Z', limit: 30 });
+    // .lt('created_at', cursor) tem que ter sido chamado na tabela posts.
+    expect(spies.ltByTable.posts).toEqual([
+      { col: 'created_at', val: '2026-05-29T10:00:00Z' },
+    ]);
+    // E .range NÃO deve ter sido chamado (cursor ganha do offset).
+    expect(spies.rangeByTable.posts).toBeUndefined();
+  });
+
+  it('signal propagado pra .abortSignal() nas tabelas de wave A + wave B', async () => {
+    const controller = new AbortController();
+    const posts = [
+      { id: 'p1', user_id: 'a', created_at: '2026-05-31T10:00:00Z' },
+    ];
+    const { client, spies } = makeFakeClient({
+      posts: { data: posts },
+      profiles_public: { data: [{ id: 'a', name: 'A' }] },
+      likes: { data: [] },
+      saved_posts: { data: [] },
+      comments: { data: [] },
+    });
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await fetchFeed({ userId: 'u1', signal: controller.signal });
+    // posts (wave A via DB facade) deve ter recebido abortSignal.
+    expect(spies.abortSignalsByTable.posts).toBeDefined();
+    expect(spies.abortSignalsByTable.posts?.[0]).toBe(controller.signal);
+    // E wave B (comments, likes, saved_posts) também.
+    expect(spies.abortSignalsByTable.comments?.[0]).toBe(controller.signal);
+    expect(spies.abortSignalsByTable.likes?.[0]).toBe(controller.signal);
+    expect(spies.abortSignalsByTable.saved_posts?.[0]).toBe(controller.signal);
   });
 });

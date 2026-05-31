@@ -40,6 +40,8 @@ import {
   fetchConversations,
   fetchMessages,
   sendMessage,
+  softDeleteMessage as softDeleteMessageSvc,
+  undoDeleteMessage as undoDeleteMessageSvc,
   uploadAttachment,
   searchUsers,
   findOrCreateConversation,
@@ -52,6 +54,7 @@ import {
   type UserMini,
   type AttachmentUploadResult,
 } from '@/lib/services/chat';
+import type { SoftDeleteResult } from '@/lib/services/postInteractions';
 
 // ─── useConversations ───────────────────────────────────────────────────
 
@@ -385,4 +388,60 @@ export function useCalicolorsId(): { id: string | null; loading: boolean } {
     staleTime: Infinity,
   });
   return { id: q.data ?? null, loading: q.isLoading };
+}
+
+// ─── useDeleteMessage (soft delete + undo) ──────────────────────────────
+// Deleta mensagem do chat. Soft delete: marca deleted_at = now() pra que
+// o usuário possa desfazer pelos próximos 10s (UI mostra UndoSnackbar).
+// Após 30 dias, cleanup_soft_deleted() faz o hard delete final.
+
+export interface UseDeleteMessageResult {
+  remove: (vars: { messageId: string; convId: string }) => Promise<SoftDeleteResult>;
+  undo: (vars: { messageId: string; convId: string }) => Promise<void>;
+  isDeleting: boolean;
+  isUndoing: boolean;
+  error: Error | null;
+}
+
+/**
+ * Hook do "deletar mensagem". Soft delete + undo. Invalida o cache
+ * ['chat','messages',convId] e ['chat','conversations',userId] (last-msg
+ * preview na sidebar pode mudar).
+ */
+export function useDeleteMessage(): UseDeleteMessageResult {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const userId = user?.id ?? '';
+
+  const removeMut = useMutation<
+    SoftDeleteResult,
+    Error,
+    { messageId: string; convId: string }
+  >({
+    mutationFn: ({ messageId }) => softDeleteMessageSvc(messageId, userId),
+    onSuccess: (_data, { convId }) => {
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', convId] });
+      qc.invalidateQueries({ queryKey: ['chat', 'conversations', userId] });
+    },
+  });
+
+  const undoMut = useMutation<
+    void,
+    Error,
+    { messageId: string; convId: string }
+  >({
+    mutationFn: ({ messageId }) => undoDeleteMessageSvc(messageId, userId),
+    onSuccess: (_data, { convId }) => {
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', convId] });
+      qc.invalidateQueries({ queryKey: ['chat', 'conversations', userId] });
+    },
+  });
+
+  return {
+    remove: removeMut.mutateAsync,
+    undo: undoMut.mutateAsync,
+    isDeleting: removeMut.isPending,
+    isUndoing: undoMut.isPending,
+    error: removeMut.error ?? undoMut.error ?? null,
+  };
 }
