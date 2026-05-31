@@ -284,7 +284,9 @@ describe('generateArt', () => {
   });
 
   it('HTTP 502 com detail + model_tried → mensagem combinada', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    // mockImplementation pra gerar Response novo a cada call (Response.body
+    // só pode ser lido uma vez — reuso quebraria a segunda assertion).
+    const makeResp = () =>
       new Response(
         JSON.stringify({
           error: 'Falha ao gerar arte',
@@ -292,8 +294,10 @@ describe('generateArt', () => {
           model_tried: 'gpt-image-1+ref',
         }),
         { status: 502 },
-      ),
-    );
+      );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(makeResp()));
     fetchSpy = spy as unknown as { mockRestore: () => void };
 
     await expect(
