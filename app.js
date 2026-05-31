@@ -802,8 +802,9 @@ updateCartBadge();
 
 // renderProductRow → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
-// _mktSearchImpl → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
-const mktSearch = (window.debounce ? window.debounce(_mktSearchImpl, 200) : _mktSearchImpl);
+// _mktSearchImpl + mktSearch (debounced) → modules/mkt.js (Fase 4 etapa 2).
+// Não recriar aqui — _mktSearchImpl é IIFE-private no módulo e o shim já
+// expõe a versão debounced via window.mktSearch.
 
 // openProductDetail → modules/mkt.js (Fase 4 etapa 2). Shim em /shims.js.
 
@@ -1220,8 +1221,9 @@ var _exploreType = 'all';
 
 // renderPainterList → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
-// _filterExplorePaintersImpl → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
-const filterExplorePainters = (window.debounce ? window.debounce(_filterExplorePaintersImpl, 250) : _filterExplorePaintersImpl);
+// _filterExplorePaintersImpl + filterExplorePainters (debounced) → modules/map.js
+// (Fase 4 etapa 2). Não recriar aqui — _filterExplorePaintersImpl é IIFE-private
+// no módulo e o shim já expõe a versão debounced via window.filterExplorePainters.
 
 // loadLocalPaintersOnMap → modules/map.js (Fase 4 etapa 2). Shim em /shims.js.
 
