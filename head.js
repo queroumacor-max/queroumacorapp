@@ -877,10 +877,7 @@ async function shareProfile(){
   let prof = {};
   try {
     if(sb){
-      const { data } = await sb.from('profiles')
-        .select('name, role, user_type, city, state, specialties')
-        .eq('id', currentUser.id).single();
-      prof = data || {};
+      prof = await DB.profiles.getById(currentUser.id, 'name, role, user_type, city, state, specialties') || {};
     }
   } catch(e){ console.warn('shareProfile profile fetch:', e && e.message || e); }
   const name = prof.name || document.getElementById('myprofile-name')?.textContent || 'Profissional';
@@ -1093,7 +1090,7 @@ async function loadPeopleSuggestions(){
     if(myId) followingIds = await DB.follows.listFollowingIds(myId);
     let myCity = '';
     if(myId){
-      const { data: mp } = await sb.from('profiles').select('city').eq('id', myId).maybeSingle();
+      const mp = await DB.profiles.getById(myId, 'city');
       myCity = ((mp && mp.city) || '').toLowerCase();
     }
     people = people.filter(p => p.id !== myId && !followingIds.includes(p.id));
@@ -1192,17 +1189,16 @@ async function openUserProfile(userId, preview){
     // SELECT enxuto em vez de '*' (perfis têm cart/archived_conversations
     // JSON enormes que não usamos aqui).
     const PROF_COLS = 'id, name, tag, avatar_url, bio, city, state, role, user_type, is_pro, rating_avg, review_count';
-    // Follows passam por DB.follows.* (Fase 1). countFollowers/countFollowing
-    // retornam number direto; isFollowing retorna boolean direto.
+    // Follows + profile via DB.* (Fases 1 e 2): countFollowers/Following e
+    // getById retornam o objeto/number direto, sem o wrapper {data, error}.
     const queries = [
-      sb.from('profiles').select(PROF_COLS).eq('id', userId).single(),
+      DB.profiles.getById(userId, PROF_COLS),
       sb.from('posts').select('*',{count:'exact',head:true}).eq('user_id',userId).neq('media_type','story'),
       DB.follows.countFollowers(userId),
       DB.follows.countFollowing(userId)
     ];
     if(currentUser) queries.push(DB.follows.isFollowing(currentUser.id, userId));
-    const [profRes, postRes, followersCount, followingCount, followingFlag] = await Promise.all(queries);
-    const prof = profRes.data;
+    const [prof, postRes, followersCount, followingCount, followingFlag] = await Promise.all(queries);
     if(!prof){ toast('Perfil não encontrado'); return; }
     if(currentUser && userId === currentUser.id && !preview){
       showScreen('myprofile'); return;

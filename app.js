@@ -1154,7 +1154,7 @@ async function loadCrm(){
 
   try {
     // Intervalo de follow-up do perfil.
-    const { data: prof } = await sb.from('profiles').select('followup_interval_months').eq('id', currentUser.id).single();
+    const prof = await DB.profiles.getById(currentUser.id, 'followup_interval_months');
     _crmIntervalMonths = (prof && prof.followup_interval_months) ? prof.followup_interval_months : 12;
 
     // b. Sync — a lista se monta sozinha a partir de jobs + quotes.
@@ -1353,7 +1353,7 @@ async function crmDraft(id){
     let painterName = '';
     try {
       const sb = getSupabase();
-      const { data: prof } = await sb.from('profiles').select('name').eq('id', currentUser.id).single();
+      const prof = await DB.profiles.getById(currentUser.id, 'name');
       painterName = (prof && prof.name) || '';
     } catch(e){ console.warn('[crm-draft-painter-name]', e && e.message); }
     const { ok, data } = await apiPost('/api/crm-draft', {
@@ -3320,7 +3320,7 @@ async function loadChatList(){
       const otherIds = [...new Set(Object.values(convGroups).map(c => c.otherId).filter(Boolean))];
       let profileMap = {};
       if(otherIds.length > 0){
-        const { data: profs } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag, email').in('id', otherIds);
+        const profs = await DB.profiles.getMany(otherIds, 'id, name, avatar_url, role, user_type, tag, email');
         if(profs) profs.forEach(p => { profileMap[p.id] = p; });
       }
 
@@ -3844,7 +3844,7 @@ async function openEditProfile(){
   _epLogoClear = false;
   _epShowLogo(null);
   try {
-    const { data: prof } = await sb.from('profiles').select('name, tag, email, city, state, phone, specialties, avatar_url, role, user_type, business_logo_url').eq('id', currentUser.id).single();
+    const prof = await DB.profiles.getById(currentUser.id, 'name, tag, email, city, state, phone, specialties, avatar_url, role, user_type, business_logo_url');
     if(prof){
       document.getElementById('ep-name').value = prof.name || '';
       document.getElementById('ep-tag').value = prof.tag || '';
@@ -3881,7 +3881,7 @@ async function openEditProfile(){
   if(r){
     r.value = '';
     try {
-      const { data: pr } = await sb.from('profiles').select('service_radius').eq('id', currentUser.id).single();
+      const pr = await DB.profiles.getById(currentUser.id, 'service_radius');
       if(pr && pr.service_radius != null) r.value = pr.service_radius;
     } catch(e){ console.warn('load service_radius:', e && e.message || e); }
   }
@@ -3974,7 +3974,7 @@ async function openEditRaio(){
   if(sel){
     sel.value = '';
     try {
-      const { data: pr } = await sb.from('profiles').select('service_radius').eq('id', currentUser.id).single();
+      const pr = await DB.profiles.getById(currentUser.id, 'service_radius');
       if(pr && pr.service_radius != null) sel.value = pr.service_radius;
     } catch(e){ console.warn('[load-service-radius]', e && e.message); }
   }
@@ -4186,7 +4186,7 @@ async function saveEditProfile(){
     }
 
     // Try update first, then insert if profile doesn't exist
-    const { data: existing } = await sb.from('profiles').select('id').eq('id', currentUser.id).single();
+    const existing = await DB.profiles.getById(currentUser.id, 'id');
     if(existing){
       const { error } = await sb.from('profiles').update(updates).eq('id', currentUser.id);
       if(error){
@@ -4335,7 +4335,7 @@ async function handleRealtimeMsg(payload){
       try {
         const sb = getSupabase();
         if(sb){
-          const { data: prof } = await sb.from('profiles').select('id, name, avatar_url, role, user_type, tag, email').eq('id', m.sender_id).single();
+          const prof = await DB.profiles.getById(m.sender_id, 'id, name, avatar_url, role, user_type, tag, email');
           if(prof){
             saveConvLocal(m.conversation_id, {
               name: prof.name || '',
@@ -6851,7 +6851,7 @@ async function loadBusinessLogo(){
   const sb = getSupabase();
   if (sb && currentUser) {
     try {
-      const { data: prof } = await sb.from('profiles').select('business_logo_url, business_name').eq('id', currentUser.id).single();
+      const prof = await DB.profiles.getById(currentUser.id, 'business_logo_url, business_name');
       if (prof?.business_logo_url) url = prof.business_logo_url;
     } catch(e){}
   }
@@ -7444,7 +7444,7 @@ async function loadPosts(feedIds, append, skipFirstPaint){
         })
       : pr;
     // Dispara tudo já (paralelo). Só os perfis entram no caminho crítico.
-    const pProfiles = _wt(fetchPublicProfiles(sb, userIds, 'id, name, tag, avatar_url, role, user_type'), 'profiles');
+    const pProfiles = _wt(DB.profiles.getMany(userIds, 'id, name, tag, avatar_url, role, user_type'), 'profiles');
     const pComments = _wt(sb.from('comments').select('id, post_id, user_id, text, created_at').in('post_id', postIds).order('created_at', { ascending: true }).limit(postIds.length * 5), 'comments');
     const pMyLikes  = currentUser ? _wt(sb.from('likes').select('post_id').eq('user_id', currentUser.id).in('post_id', postIds), 'my-likes') : null;
     const pAllLikes = currentUser ? _wt(sb.from('likes').select('post_id').in('post_id', postIds), 'all-likes') : null;
@@ -7499,7 +7499,7 @@ async function loadPosts(feedIds, append, skipFirstPaint){
     const commentUserIds = [...new Set(commentsArr.map(c => c.user_id).filter(id => !profMap[id]))];
     if(commentUserIds.length > 0){
       try {
-        const cProfs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'), 5000, 'comment-profiles') : fetchPublicProfiles(sb, commentUserIds, 'id, name, tag, avatar_url'));
+        const cProfs = await (typeof withTimeout === 'function' ? withTimeout(DB.profiles.getMany(commentUserIds, 'id, name, tag, avatar_url'), 5000, 'comment-profiles') : DB.profiles.getMany(commentUserIds, 'id, name, tag, avatar_url'));
         (cProfs || []).forEach(pr => { profMap[pr.id] = pr; });
       } catch(e){ console.warn('comment-profiles timeout:', e && e.message); /* segue sem nomes resolvidos */ }
     }
@@ -7927,7 +7927,7 @@ async function loadStories(feedIds){
     let allFollowedProfiles = {};
     if(allNeededIds.length > 0){
       try {
-        const profs = await (typeof withTimeout === 'function' ? withTimeout(fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url'), 6000, 'story-profiles') : fetchPublicProfiles(sb, allNeededIds, 'id, name, tag, avatar_url'));
+        const profs = await (typeof withTimeout === 'function' ? withTimeout(DB.profiles.getMany(allNeededIds, 'id, name, tag, avatar_url'), 6000, 'story-profiles') : DB.profiles.getMany(allNeededIds, 'id, name, tag, avatar_url'));
         (profs || []).forEach(pr => { allFollowedProfiles[pr.id] = pr; });
       } catch(e){
         if(typeof reportError === 'function') reportError({ type:'feed-step-timeout', ctx: 'story-profiles', msg: e && e.message });
@@ -8763,7 +8763,7 @@ async function loadArchivedConvs(){
   const sb = getSupabase();
   if(!sb || !currentUser) return;
   try {
-    const { data } = await sb.from('profiles').select('archived_conversations').eq('id', currentUser.id).single();
+    const data = await DB.profiles.getById(currentUser.id, 'archived_conversations');
     if(data && Array.isArray(data.archived_conversations)){
       archivedConvs = data.archived_conversations;
       applyArchivedState();
@@ -9069,8 +9069,8 @@ async function abrirMaquininha(){
       // Pre-preenche o contato com o telefone do perfil, se o input estiver vazio
       const input = document.getElementById('maquininha-contato');
       if(input && !input.value){
-        sb.from('profiles').select('phone').eq('id', currentUser.id).single()
-          .then(({ data }) => { if(data && data.phone && !input.value){ input.value = data.phone; } }, ()=>{});
+        DB.profiles.getById(currentUser.id, 'phone')
+          .then(d => { if(d && d.phone && !input.value){ input.value = d.phone; } }, ()=>{});
       }
     }
   } catch(e){ console.error('abrirMaquininha error:', e && e.message || e); }
