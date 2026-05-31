@@ -1,5 +1,13 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Sentry** **JÁ ESTÁ CONECTADO ao GitHub do projeto** (integração de
+  releases/commits/issues entre Sentry ↔ GitHub). Convive com a tabela
+  caseira `errors` + dashboard `/admin/errors`; ainda não há decisão se o
+  Sentry vira a fonte primária ou só complemento. Se o usuário quiser ligar
+  o DSN do Sentry no frontend (sendo carregado pelo browser) ou no
+  `/api/log-error` (forwarding server-side), perguntar a variável de env
+  exata (`SENTRY_DSN` provavelmente) e os hosts permitidos no CSP
+  (`https://*.sentry.io` em `connect-src`).
 - O SQL de correção do cadastro ("Database error saving new user" — gatilho
   `handle_new_user` + colunas de `profiles`) **JÁ FOI EXECUTADO no Supabase**.
   Não perguntar de novo nem pedir para rodar.
