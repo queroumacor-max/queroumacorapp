@@ -701,17 +701,18 @@ describe('searchUsers', () => {
       profiles_public: [
         {
           data: [
-            { id: '1', name: 'PintorA', tag: 'p1', role: 'pintor' },
-            { id: '2', name: 'GrafiteiroB', tag: 'g1', role: 'grafiteiro' },
-            { id: '3', name: 'AutoC', tag: 'a1', role: 'automotivo' },
-            { id: '4', name: 'ClienteD', tag: 'c1', role: 'cliente' },
+            { id: '1', name: 'PintorAle', tag: 'p_xy', role: 'pintor' },
+            { id: '2', name: 'GrafiteiroAle', tag: 'g_xy', role: 'grafiteiro' },
+            { id: '3', name: 'AutoAle', tag: 'a_xy', role: 'automotivo' },
+            { id: '4', name: 'ClienteAle', tag: 'c_xy', role: 'cliente' },
           ],
         },
       ],
     });
     __setSupabaseForTests(ctl.client as Parameters<typeof __setSupabaseForTests>[0]);
-    const out = await searchUsers('1');
-    // Match por tag (todas têm "1" em algum lugar). Garantimos a flag certa.
+    // "ale" matches todos os names (PintorAle etc.) e tem 3 chars (passa o
+    // min de 2).
+    const out = await searchUsers('ale');
     const byId = new Map(out.map((u) => [u.id, u]));
     expect(byId.get('1')?.isProfessional).toBe(true);
     expect(byId.get('2')?.isProfessional).toBe(true);
