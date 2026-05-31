@@ -370,6 +370,112 @@ export async function gateProAI(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// AI usage gating (Pagamentos#18, #19).
+// ─────────────────────────────────────────────────────────────────────────
+
+import {
+  getAiUsageThisMonthViaRest,
+  getPlanLimitViaRest,
+  isProActiveViaRest,
+  recordAiUsageViaRest,
+} from './_services/_billing-helpers';
+
+/**
+ * Checa limite mensal de IA. Retorna NextResponse 429 com Retry-After se
+ * passou; senão retorna `{ allowed, used, limit, plan }` pro caller decidir.
+ *
+ * É chamado APÓS `gateProAI` (que já garantiu auth + PRO + rate limit por
+ * minuto). Este gate é por mês, escala mais alta — só barra se o usuário
+ * realmente abusou no plano dele.
+ *
+ * Resolução do plano:
+ *   1. isAdmin → 'admin' (limite 99999)
+ *   2. is_pro_active (RPC com grace) → 'pro' (limite 500)
+ *   3. fallback → 'free' (limite 30)
+ *
+ * Fail-open: se DB não responde, libera (preferimos perder telemetria a
+ * travar usuário PRO legítimo).
+ */
+export async function gateAiUsage(opts: {
+  userId: string | undefined;
+  email?: string | null;
+  feature: string;
+}): Promise<NextResponse | { allowed: true; plan: 'free' | 'pro' | 'admin'; used: number; limit: number }> {
+  const { userId, email, feature } = opts;
+  if (!userId) {
+    // Sem userId, gateProAI já deveria ter barrado; aqui é defesa em prof.
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+  const serviceKey = getServiceKey();
+  if (!serviceKey) {
+    // Sem service key, não dá pra checar — fail-open.
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return { allowed: true, plan: 'free', used: 0, limit: 30 };
+  }
+
+  // Resolve plano.
+  let plan: 'free' | 'pro' | 'admin' = 'free';
+  if (email && isAdminEmail(email)) {
+    plan = 'admin';
+  } else {
+    const isPro = await isProActiveViaRest({ supaUrl, serviceKey, userId });
+    if (isPro) plan = 'pro';
+  }
+
+  const [limit, used] = await Promise.all([
+    getPlanLimitViaRest({ supaUrl, serviceKey, plan }),
+    getAiUsageThisMonthViaRest({ supaUrl, serviceKey, userId }),
+  ]);
+
+  if (used >= limit) {
+    return NextResponse.json(
+      {
+        error: `Limite mensal de IA atingido (${used}/${limit}). ${plan === 'free' ? 'Vire PRO pra mais.' : 'Aguarde o próximo mês.'}`,
+        used,
+        limit,
+        plan,
+        feature,
+      },
+      { status: 429 }
+    );
+  }
+  return { allowed: true, plan, used, limit };
+}
+
+/**
+ * Registra 1 uso de feature de IA. Chamado APÓS sucesso da chamada upstream.
+ * Falha silenciosa.
+ */
+export async function recordAiUsage(opts: {
+  userId: string | undefined;
+  feature: string;
+  costUnits?: number;
+}): Promise<void> {
+  const { userId, feature, costUnits = 1 } = opts;
+  if (!userId) return;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) return;
+  let supaUrl: string;
+  try {
+    supaUrl = getSupabaseUrl();
+  } catch {
+    return;
+  }
+  await recordAiUsageViaRest({
+    supaUrl,
+    serviceKey,
+    userId,
+    feature,
+    costUnits,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Max payload guards (Backend#26).
 // ─────────────────────────────────────────────────────────────────────────
 

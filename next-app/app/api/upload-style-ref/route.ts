@@ -27,6 +27,7 @@ const MAX_MULTIPART_BYTES = 4 * 1024 * 1024;
 const MAX_JSON_BYTES = 6 * 1024 * 1024;
 import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
 import { uploadStyleRef } from '@/lib/api/_services/upload-style-ref';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -69,9 +70,23 @@ export async function POST(request: NextRequest) {
       photoDataUrl = typeof body?.photoDataUrl === 'string' ? body.photoDataUrl : '';
     }
 
-    const { email } = await verifyAdminToken(token);
+    const { callerId, email } = await verifyAdminToken(token);
     ensureAdminEmail(email);
-    return jsonResponse(await uploadStyleRef({ styleKey, photoDataUrl, file }));
+    const result = await uploadStyleRef({ styleKey, photoDataUrl, file });
+    // Audit-log: upload de style-ref muda bucket público; rastreamos quem subiu o quê.
+    await logAuditEvent({
+      actorId: callerId || null,
+      action: 'admin.style_ref.upload',
+      targetTable: 'storage.objects',
+      targetId: styleKey,
+      changes: {
+        admin_email: email,
+        contentType: contentType.includes('multipart/form-data') ? 'multipart' : 'json',
+        fileSize: file?.size ?? null,
+      },
+      request,
+    });
+    return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('upload-style-ref crash:', e instanceof Error ? e.message : e);

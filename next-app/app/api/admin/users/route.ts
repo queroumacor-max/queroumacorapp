@@ -21,6 +21,7 @@ import {
   listUsers,
   patchProfile,
 } from '@/lib/api/_services/admin-users';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -83,7 +84,18 @@ export async function POST(request: NextRequest) {
       roleKey: body?.roleKey,
     });
     await ensureCallerHasPortalAccess({ callerId });
-    return jsonResponse(await patchProfile({ userId, patch }));
+    const result = await patchProfile({ userId, patch });
+    // Audit-log: ação admin em profile alvo. `changes` carrega o patch
+    // (sem segredos — buildPatch só constrói campos de RBAC/PRO/role).
+    await logAuditEvent({
+      actorId: callerId || null,
+      action: `admin.user.${action}`,
+      targetTable: 'profiles',
+      targetId: userId,
+      changes: { patch, admin_email: email },
+      request,
+    });
+    return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('admin-users crash:', e instanceof Error ? e.message : e);

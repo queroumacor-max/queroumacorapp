@@ -11,6 +11,7 @@ import {
   serviceErrorResponse,
 } from '@/lib/api/security';
 import { exportUserData } from '@/lib/api/_services/me-export';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -27,6 +28,16 @@ export async function POST(request: NextRequest) {
     const rl = await checkRateLimit({ userId: user.id, endpoint: 'me-export', limit: 3 });
     if (!rl.allowed) return rateLimitResponse(rl);
     const data = await exportUserData({ userId: user.id, email: user.email });
+    // Audit-log LGPD: portabilidade de dados é direito do titular (Art. 18 V).
+    // Registramos quem exportou + quando pra rastreio de compliance.
+    await logAuditEvent({
+      actorId: user.id,
+      action: 'lgpd.me_export',
+      targetTable: 'profiles',
+      targetId: user.id,
+      changes: { email_prefix: user.email.split('@')[0]?.slice(0, 4) ?? null },
+      request,
+    });
     return new NextResponse(JSON.stringify(data, null, 2), {
       status: 200,
       headers: {

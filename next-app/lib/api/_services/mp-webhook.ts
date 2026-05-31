@@ -32,6 +32,7 @@
 
 import { getServiceKey, getSupabaseUrl } from '../security';
 import { recordInvoiceViaRest } from './_billing-helpers';
+import { logAuditEvent } from '../audit';
 
 const MP_TIMEOUT_MS = 15000;
 const SUPA_TIMEOUT_MS = 10000;

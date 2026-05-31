@@ -994,7 +994,7 @@ paths:
                 text: { type: string, maxLength: 4000 }
                 imageUrl:
                   type: string
-                  description: data: URL or Supabase Storage URL.
+                  description: "data: URL or Supabase Storage URL."
       responses:
         '200':
           description: Moderation verdict.

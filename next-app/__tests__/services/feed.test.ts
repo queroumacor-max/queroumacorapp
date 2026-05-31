@@ -5,10 +5,10 @@
 // paralelo, então ordem de await não é determinística. Roteamento por tabela
 // garante asserções estáveis.
 //
-// Cobertura (12 testes):
+// Cobertura:
 //   1. fetchPublicProfiles: ids vazio → [] sem rede;
 //   2. fetchPublicProfiles: happy path (delega pra DB.profiles.getMany);
-//   3. fetchFeed: posts vazio → [] (não dispara wave B);
+//   3. fetchFeed: posts vazio → FeedPage vazia (não dispara wave B);
 //   4. fetchFeed: error no fetch principal → NetworkError;
 //   5. fetchFeed: happy path enriquece com profile + liked + saved + likeCount;
 //   6. fetchFeed: likeCount agrega corretamente várias linhas;
@@ -17,7 +17,12 @@
 //   9. fetchFeed: roleFilter aplica filtro post-fetch;
 //  10. fetchFeed: offset/limit propagados pra DB.posts.getFeedPosts;
 //  11. fetchFeed: followingOnly=true usa lista de follows + próprio user;
-//  12. fetchFeed: post sem perfil resolvido recebe fallback graceful.
+//  12. fetchFeed: post sem perfil resolvido recebe fallback graceful;
+//  13. fetchFeed: nextCursor = created_at do último post;
+//  14. fetchFeed: hasMore=true quando página vem cheia;
+//  15. fetchFeed: hasMore=false quando página vem parcial;
+//  16. fetchFeed: cursor passado propaga pra .lt('created_at', cursor) no posts;
+//  17. fetchFeed: signal propagado pra .abortSignal() no posts (via DB facade).
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
@@ -44,6 +49,8 @@ interface Spies {
   insByTable: Record<string, Array<{ col: string; vals: unknown[] }>>;
   eqsByTable: Record<string, Array<{ col: string; val: unknown }>>;
   rangeByTable: Record<string, Array<{ from: number; to: number }>>;
+  ltByTable: Record<string, Array<{ col: string; val: unknown }>>;
+  abortSignalsByTable: Record<string, AbortSignal[]>;
 }
 
 function makeFakeClient(byTable: Record<string, TableResp>): {
@@ -56,6 +63,8 @@ function makeFakeClient(byTable: Record<string, TableResp>): {
     insByTable: {},
     eqsByTable: {},
     rangeByTable: {},
+    ltByTable: {},
+    abortSignalsByTable: {},
   };
 
   function makeChain(table: string) {
@@ -80,6 +89,14 @@ function makeFakeClient(byTable: Record<string, TableResp>): {
     chain.limit = (_n: number) => chain;
     chain.range = (from: number, to: number) => {
       (spies.rangeByTable[table] ??= []).push({ from, to });
+      return chain;
+    };
+    chain.lt = (col: string, val: unknown) => {
+      (spies.ltByTable[table] ??= []).push({ col, val });
+      return chain;
+    };
+    chain.abortSignal = (signal: AbortSignal) => {
+      (spies.abortSignalsByTable[table] ??= []).push(signal);
       return chain;
     };
     // await na chain — devolve { data, error } da tabela. Se não setado,
@@ -135,13 +152,15 @@ describe('fetchPublicProfiles', () => {
 // ─── fetchFeed ────────────────────────────────────────────────────────────
 
 describe('fetchFeed', () => {
-  it('posts vazio → [] e não dispara wave B (comments/likes/saved)', async () => {
+  it('posts vazio → FeedPage vazia e não dispara wave B (comments/likes/saved)', async () => {
     const { client, spies } = makeFakeClient({
       posts: { data: [] },
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'u1' });
-    expect(out).toEqual([]);
+    expect(out.items).toEqual([]);
+    expect(out.nextCursor).toBeNull();
+    expect(out.hasMore).toBe(false);
     // Não deve ter tocado em likes/saved/comments porque saiu cedo.
     expect(spies.fromCalls).not.toContain('likes');
     expect(spies.fromCalls).not.toContain('saved_posts');
@@ -174,8 +193,8 @@ describe('fetchFeed', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'a' });
-    expect(out).toHaveLength(1);
-    const post = out[0]!;
+    expect(out.items).toHaveLength(1);
+    const post = out.items[0]!;
     expect(post.id).toBe('p1');
     expect(post.profile.name).toBe('Alice');
     // myLikes e allLikes consultam a MESMA tabela `likes` — o router devolve
@@ -209,7 +228,7 @@ describe('fetchFeed', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'someone-else' });
-    const map = new Map(out.map((p) => [p.id, p.likeCount]));
+    const map = new Map(out.items.map((p) => [p.id, p.likeCount]));
     expect(map.get('p1')).toBe(3);
     expect(map.get('p2')).toBe(1);
   });
@@ -233,8 +252,8 @@ describe('fetchFeed', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchFeed({ userId: 'u1' });
-    const p1 = out.find((p) => p.id === 'p1');
-    const p2 = out.find((p) => p.id === 'p2');
+    const p1 = out.items.find((p) => p.id === 'p1');
+    const p2 = out.items.find((p) => p.id === 'p2');
     expect(p1?.comments).toHaveLength(2);
     expect(p1?.comments.map((c) => c.id)).toEqual(['c1', 'c2']);
     expect(p2?.comments).toHaveLength(1);

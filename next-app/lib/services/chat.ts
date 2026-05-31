@@ -54,6 +54,8 @@ export {
   fetchMessages,
   sendMessage,
   markConversationAs3Way,
+  softDeleteMessage,
+  undoDeleteMessage,
 } from './chat-messages';
 
 export { uploadAttachment } from './chat-attachments';

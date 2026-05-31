@@ -4,6 +4,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   gateProAI,
+  gateAiUsage,
+  recordAiUsage,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -26,10 +28,24 @@ export async function POST(request: NextRequest) {
   }
   const g = await gateProAI(request, body, { endpoint: 'chat-ai', limit: 20 });
   if (g instanceof NextResponse) return g;
+
+  // Hardening#18/#19: limite mensal de IA por plano. APÓS gateProAI
+  // (auth+rate por minuto) e ANTES de chamar upstream.
+  const aiGate = await gateAiUsage({
+    userId: g.userId,
+    email: g.user?.email,
+    feature: 'chat_ai',
+  });
+  if (aiGate instanceof NextResponse) return aiGate;
+
   try {
-    return NextResponse.json(
-      await chatWithSeuZe({ message: body?.message, history: body?.history })
-    );
+    const result = await chatWithSeuZe({
+      message: body?.message,
+      history: body?.history,
+    });
+    // Conta o uso só após sucesso da chamada upstream.
+    await recordAiUsage({ userId: g.userId, feature: 'chat_ai' });
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     console.warn('chat-ai crash:', e instanceof Error ? e.message : e);
