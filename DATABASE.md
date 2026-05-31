@@ -332,27 +332,23 @@ Omite `created_by`. Colunas: `id`, `title`, `message`, `active`,
 | Função | Propósito |
 |---|---|
 | `is_portal_admin()` | Boolean stable SECURITY DEFINER — evita recursão 42P17 em policies de `profiles`. |
-| `handle_new_user()` | Trigger AFTER INSERT em `auth.users` — cria profile mínimo, allowlist de `user_type`, jamais propaga erro. |
-| `protect_profile_columns()` | Trigger BEFORE INSERT OR UPDATE em `profiles` — bloqueia escalada de `is_pro`/`portal_access`/`role=admin`. |
-| `get_conversations()` | RPC SECURITY DEFINER — agrega últimas mensagens por conversa, com flag `is3way`. |
-| `create_quote_from_post(...)` | RPC — força `client_id = auth.uid()`, valida que painter ≠ self. |
-| `create_painter_draft(...)` | RPC — cria quote em status `rascunho` com `painter_id = auth.uid()`. |
+| `handle_new_user()` | Trigger em `auth.users` — cria profile mínimo, allowlist de `user_type`, nunca propaga erro. |
+| `protect_profile_columns()` | Trigger BEFORE INSERT/UPDATE — bloqueia escalada de `is_pro`/`portal_access`/`role=admin`. |
+| `get_conversations()` | RPC — agrega últimas mensagens por conversa com flag `is3way`. |
+| `create_quote_from_post(...)` | RPC — força `client_id = auth.uid()`, valida painter ≠ self. |
+| `create_painter_draft(...)` | RPC — cria quote em `rascunho` com `painter_id = auth.uid()`. |
 | `submit_review(...)` | RPC — valida quote ownership + rating 1-5 + anti-duplicata. |
-| `redeem_pro_with_points(...)` | RPC — débito atômico de 100 pts e ativação de PRO por 30 dias. `p_cost` é IGNORADO (hardcode 100). Usa `pg_advisory_xact_lock`. |
-| `notify_user(...)` | RPC — exige relação prévia (quote/conversa) ou admin pra inserir notification. |
-| `award_quote_request_points()` | Trigger AFTER INSERT em `quotes` — +5 pts pro client. |
-| `award_quote_completed_points()` | Trigger AFTER UPDATE em `quotes` — +15 pts pro painter ao concluir, só se veio de status aprovado. |
-| `award_order_paid_points()` | Trigger AFTER UPDATE em `orders` — `FLOOR(LEAST(total, paid_amount)/10)`, cap 100. |
-| `check_rate_limit(...)` | RPC `service_role` — bump `rate_limits` e retorna `{allowed, count, retry_after_seconds}`. |
-| `cleanup_rate_limits()` | Cleanup — apaga windows > 1h. |
-| `cleanup_old_notifications()` | Apaga notifications > 90 dias. |
-| `cleanup_old_audit_events()` | LGPD: retenção 1 ano. |
-| `cleanup_old_messages()` | LGPD: retenção 2 anos. |
-| `cleanup_old_quotes()` | Apaga quotes concluídos > 3 anos. |
-| `audit_profile_changes()` / `audit_order_changes()` / `audit_points_insert()` | Triggers de auditoria → `audit_events`. |
+| `redeem_pro_with_points(...)` | RPC — débito atômico de 100 pts + 30d PRO. `p_cost` é IGNORADO (hardcode). `pg_advisory_xact_lock`. |
+| `notify_user(...)` | RPC — exige relação prévia (quote/conversa) ou admin. |
+| `award_quote_request_points()` | Trigger AFTER INSERT em `quotes` → +5 pts client. |
+| `award_quote_completed_points()` | Trigger AFTER UPDATE em `quotes` → +15 pts painter ao concluir (só vindo de aprovado). |
+| `award_order_paid_points()` | Trigger AFTER UPDATE em `orders` → `FLOOR(LEAST(total, paid_amount)/10)`, cap 100. |
+| `check_rate_limit(...)` | RPC `service_role` — bump `rate_limits`, retorna `{allowed, count, retry_after_seconds}`. |
+| `cleanup_rate_limits/old_notifications/old_audit_events/old_messages/old_quotes()` | Cleanups (1h / 90d / 1y / 2y / 3y). |
+| `audit_profile_changes/order_changes/points_insert()` | Triggers de auditoria → `audit_events`. |
 | `audit_log_manual(...)` | RPC pra admin gravar evento manual. |
 | `request_account_deletion(p_reason)` | RPC LGPD — upsert em `account_deletion_requests` + audit. |
-| `award_referral_points()` / `recalc_painter_rating()` / `sync_profile_tag_username()` | Definidos fora do `supabase_init.sql`, já aplicados no banco (ver CLAUDE.md). |
+| `award_referral_points()` / `recalc_painter_rating()` / `sync_profile_tag_username()` | Fora do init.sql, já aplicados (ver CLAUDE.md). |
 
 Cleanup jobs aguardam `pg_cron` (sugestão comentada no SQL):
 ```sql
@@ -379,28 +375,25 @@ só imagem) — o estado real do banco prevalece.
 
 ## 7. Padrões e convenções
 
-- **Repository pattern via `db.js`** — todo acesso a banco do client
-  passa por `window.DB.profiles / follows / posts`. Migrar features
-  novas pra esse pattern em vez de chamar `supabase.from(...)` solto.
-  Permite trocar implementação sem refatorar callers.
-- **Defense in depth** — RLS no banco é a fonte da verdade; o client
-  ainda filtra (`WHERE auth.uid()`) por dois motivos: (a) reduz row
-  scan, (b) catch de regressão se uma policy for derrubada.
-- **`profiles_public` é a view padrão pra leituras de terceiros.** O
-  client deve evitar `select *` em `profiles` exceto quando for o
-  próprio user ou admin. Email, telefone, lat/lng, dados de pagamento
-  ficam fora.
+- **Repository pattern via `db.js`** — client acessa banco por
+  `window.DB.profiles / follows / posts`. Migrar features novas em vez
+  de chamar `supabase.from(...)` solto.
+- **Defense in depth** — RLS é fonte da verdade; client ainda filtra
+  (`WHERE auth.uid()`) pra reduzir row scan e detectar regressão de
+  policy.
+- **`profiles_public` é a view padrão pra leituras de terceiros.**
+  Evitar `select *` em `profiles` exceto pro próprio user ou admin —
+  email, telefone, lat/lng e dados de pagamento ficam fora.
 - **RPCs `SECURITY DEFINER`** são o único caminho pra escrever em
-  `quotes`, `reviews`, `notifications`, `points` (exceto triggers). Isso
-  consolida invariantes (ownership, rating range, anti-duplicata, cap de
-  pts) num só lugar.
-- **`auth.role() = 'service_role'` é o bypass de hardening** — webhooks
-  da loja, `/api/log-error`, upload de style-refs e cleanups rodam com
-  service key e ignoram triggers de proteção.
-- **`NOTIFY pgrst, 'reload schema'`** depois de qualquer mudança que
-  afete o catálogo exposto pelo PostgREST (cache da API).
-- **Idempotência:** todo SQL é `IF NOT EXISTS` / `DROP ... IF EXISTS` +
-  `CREATE OR REPLACE` — rerrodar `supabase_init.sql` inteiro é seguro.
+  `quotes`, `reviews`, `notifications`, `points` (fora triggers).
+  Consolidam invariantes (ownership, rating range, anti-duplicata, cap).
+- **`auth.role() = 'service_role'` é o bypass** — webhooks da loja,
+  `/api/log-error`, upload de style-refs e cleanups ignoram triggers de
+  proteção.
+- **`NOTIFY pgrst, 'reload schema'`** após mudança que afete o catálogo
+  PostgREST.
+- **Idempotência:** todo SQL é `IF NOT EXISTS`/`DROP ... IF EXISTS` +
+  `CREATE OR REPLACE` — rerodar `supabase_init.sql` é seguro.
 
 ---
 
@@ -418,33 +411,31 @@ errada. Quando criar SQL novo:
 
 ### Waves já aplicadas
 
-- **Initial (pré-Wave):** schema base — `profiles`, `posts`, `follows`,
-  `likes`, `comments`, `messages`, `orders`, `quotes`, `jobs`, `reviews`,
+- **Initial:** schema base — `profiles`, `posts`, `follows`, `likes`,
+  `comments`, `messages`, `orders`, `quotes`, `jobs`, `reviews`,
   `products`, `points`, `referrals`, `notifications`, `notes`,
   `checklists`, `qualifications`, `courses`, `auto_responses`,
-  `follow_ups`, `commissions`, `announcements`, `saved_posts`. Triggers
+  `follow_ups`, `commissions`, `announcements`, `saved_posts`; triggers
   básicos (`handle_new_user`, RPCs de quote/review/PRO redeem).
 - **B1-B4 (security hardening):** `protect_profile_columns`,
   `audit_events`, `rate_limits`, `check_rate_limit`, scheme allowlist em
-  `avatar_url`/`image_url`, storage folder-prefix policies, `tx_id`
-  UNIQUE, `points.amount` CHECK.
+  `avatar_url`/`image_url`, storage folder-prefix, `tx_id` UNIQUE,
+  `points.amount` CHECK.
 - **LGPD wave final:** `account_deletion_requests` +
-  `request_account_deletion()`, `profiles.consent_at`/`consent_version`,
-  `profiles.birth_date`, cleanup functions, fechou SELECT público em
+  `request_account_deletion()`, `consent_at`/`consent_version`,
+  `birth_date`, cleanup functions, SELECT público fechado em
   `quotes`/`orders`.
-- **Wave 3 (hardening pós-auditoria 26/05):** `protect_profile_columns`
-  BEFORE INSERT OR UPDATE; UNIQUE `points(source, reference_id)`; SELECTs
-  de `follows`/`likes`/`comments`/`qualifications`/`courses` restritos a
-  `authenticated`; view `announcements_public`; deny-all em
-  `rate_limits`; SELECT público restaurado em `reviews`;
-  `announcements.created_by` com `ON DELETE SET NULL`.
-- **Wave 4 (tabelas faltantes):** `reports` e `feature_interest` —
-  fechou 2 bugs do app que escreviam em tabela inexistente.
-- **Aplicado fora do init.sql** (referenciado em CLAUDE.md):
-  `products.image_url`, `profiles.service_radius`,
-  `profiles.archived_conversations`, `profiles.cart`,
-  `profiles.ai_logo_gen_count`, `profiles.seen_stories`,
-  `profiles.review_count`, INSERT policy em `referrals`,
-  `award_referral_points`, `recalc_painter_rating`,
+- **Wave 3 (26/05):** `protect_profile_columns` BEFORE INSERT OR UPDATE;
+  UNIQUE `points(source, reference_id)`; SELECT restrito a
+  `authenticated` em `follows`/`likes`/`comments`/`qualifications`/
+  `courses`; view `announcements_public`; deny-all em `rate_limits`;
+  SELECT público restaurado em `reviews`; `announcements.created_by` com
+  `ON DELETE SET NULL`.
+- **Wave 4:** `reports` e `feature_interest` (fechou 2 bugs do app que
+  escreviam em tabela inexistente).
+- **Aplicado fora do init.sql** (ver CLAUDE.md): `products.image_url`,
+  `profiles.service_radius`/`archived_conversations`/`cart`/
+  `ai_logo_gen_count`/`seen_stories`/`review_count`, INSERT policy em
+  `referrals`, `award_referral_points`, `recalc_painter_rating`,
   `sync_profile_tag_username`, bucket `style-refs`, expansão do bucket
   `posts` pra vídeo (50 MB).

@@ -176,6 +176,34 @@ export function jsonResponse(obj, status = 200){
   });
 }
 
+// ServiceError — erro tipado pra business logic em `_services/*`.
+// Controllers fazem `if (e instanceof ServiceError) return jsonResponse({error: e.message, ...e.extra}, e.status)`
+// e logam tudo que não cair nesse instanceof. `extra` é opcional pra anexar
+// payload extra (ex.: `reasons`, `model_tried`, `status` de pendência).
+export class ServiceError extends Error {
+  /**
+   * @param {string} message
+   * @param {number} [status]
+   * @param {Record<string, unknown>} [extra]
+   */
+  constructor(message, status = 500, extra = {}){
+    super(message);
+    this.name = 'ServiceError';
+    this.status = status;
+    this.extra = extra;
+  }
+}
+
+// Converte ServiceError em Response JSON padronizada. Mantém a forma
+// `{ error: "<msg>", ...extra }` que todos os endpoints já usam.
+/**
+ * @param {ServiceError} err
+ * @returns {Response}
+ */
+export function serviceErrorResponse(err){
+  return jsonResponse({ error: err.message, ...(err.extra || {}) }, err.status || 500);
+}
+
 // Rate limit por (user, endpoint, minuto). Devolve { allowed, count,
 // limit, retry_after_seconds }. Fail-open se algo der errado — não
 // quer bloquear usuário legítimo por problema de infra.

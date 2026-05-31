@@ -57,11 +57,17 @@
 <link rel="preload" href="/head.js?v=20260531d" as="script">
 <link rel="preload" href="/config.js?v=20260531f" as="script">
 <link rel="preload" href="/utils.js?v=20260531f" as="script">
+<link rel="preload" href="/events.js?v=20260531a" as="script">
 <link rel="preload" href="/errors.js?v=20260531e" as="script">
 <link rel="preload" href="/logger.js?v=20260531e" as="script">
 <link rel="preload" href="/policies.js?v=20260531e" as="script">
 <link rel="preload" href="/db.js?v=20260531b" as="script">
-<link rel="preload" href="/validators.js?v=20260527y" as="script">
+<link rel="preload" href="/schemas/_core.js?v=20260531a" as="script">
+<link rel="preload" href="/schemas/primitives.js?v=20260531a" as="script">
+<link rel="preload" href="/schemas/documents.js?v=20260531a" as="script">
+<link rel="preload" href="/schemas/social.js?v=20260531a" as="script">
+<link rel="preload" href="/schemas/index.js?v=20260531a" as="script">
+<link rel="preload" href="/validators.js?v=20260531a" as="script">
 <link rel="preload" href="/modules/info.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/calc.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/checklist.js?v=20260531g" as="script">
@@ -154,11 +160,23 @@
      getSupabase (lazy). validators.js é puro. -->
 <script src="/config.js?v=20260531f" defer></script>
 <script src="/utils.js?v=20260531f" defer></script>
+<!-- events.js — pub/sub bus in-memory (window.Events). Carrega DEPOIS de utils.js
+     e ANTES de qualquer módulo de modules/, pra que handlers já estejam wireados
+     no boot. Detalhes em EVENTS.md. -->
+<script src="/events.js?v=20260531a" defer></script>
 <script src="/errors.js?v=20260531e" defer></script>
 <script src="/logger.js?v=20260531e" defer></script>
 <script src="/policies.js?v=20260531e" defer></script>
 <script src="/db.js?v=20260531b" defer></script>
-<script src="/validators.js?v=20260527y" defer></script>
+<!-- schemas/ — fonte canônica das regras de validação (shape estilo Zod).
+     Carregam ANTES de validators.js pra que o adapter viaSchema() ache
+     window.Schemas e delegue (call sites antigos seguem chamando Validators). -->
+<script src="/schemas/_core.js?v=20260531a" defer></script>
+<script src="/schemas/primitives.js?v=20260531a" defer></script>
+<script src="/schemas/documents.js?v=20260531a" defer></script>
+<script src="/schemas/social.js?v=20260531a" defer></script>
+<script src="/schemas/index.js?v=20260531a" defer></script>
+<script src="/validators.js?v=20260531a" defer></script>
 <!-- Fase 4 etapa 2: módulos extraídos do app.js (folhas pequenas). Cada um
      expõe window.Modules.<feature>. Cópias do app.js — call sites em app.js
      ainda usam os originais; migração gradual em PRs futuros. -->
