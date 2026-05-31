@@ -1,5 +1,10 @@
 # Fallback SPA — qualquer rota não-existente cai em /index.html (status 200)
 # Permite que /explore, /loja, /perfil etc. funcionem como URLs reais.
 /portal/*  /portal/index.html  200
+# Versionamento de API: /api/v1/* é alias pra /api/* (a versão atual).
+# Quando vier uma quebra de contrato, novos endpoints vivem em /api/v2/X.js
+# e o /api/v1 continua apontando pros antigos até desativação. Detalhes
+# em API.md (seção "Versionamento").
+/api/v1/*  /api/:splat         200
 /api/*     /api/:splat         200
 /*         /index.html         200

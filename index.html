@@ -55,6 +55,8 @@
 <link rel="stylesheet" href="/styles.css?v=20260527x">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
 <link rel="preload" href="/head.js?v=20260531d" as="script">
+<link rel="preload" href="/config.js?v=20260531f" as="script">
+<link rel="preload" href="/utils.js?v=20260531f" as="script">
 <link rel="preload" href="/errors.js?v=20260531e" as="script">
 <link rel="preload" href="/logger.js?v=20260531e" as="script">
 <link rel="preload" href="/policies.js?v=20260531e" as="script">
@@ -93,6 +95,8 @@
      (que passará a usar essas libs nas próximas fases). errors/logger/
      policies não dependem de Supabase — funções puras. db.js depende de
      getSupabase (lazy). validators.js é puro. -->
+<script src="/config.js?v=20260531f" defer></script>
+<script src="/utils.js?v=20260531f" defer></script>
 <script src="/errors.js?v=20260531e" defer></script>
 <script src="/logger.js?v=20260531e" defer></script>
 <script src="/policies.js?v=20260531e" defer></script>
