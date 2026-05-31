@@ -283,9 +283,11 @@ export async function getPlanLimit(
  */
 export async function canUseAi(
   userId: string,
-  feature: AiFeature,
+  _feature: AiFeature,
   opts: { isAdmin?: boolean; client?: AnyClient | null } = {}
 ): Promise<CanUseAiResult> {
+  // `_feature` reservado pra extensão futura (per-feature limits dentro
+  // de `plan_limits.features`). Hoje só somamos uso total do mês.
   const { isAdmin = false, client } = opts;
   if (!userId) {
     // Anônimo: bloqueado por design (rotas de IA exigem auth antes).

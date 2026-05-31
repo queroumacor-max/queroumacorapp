@@ -185,4 +185,49 @@
   `next-app/lib/services/search.ts`, hook `useSearch` com debounce 300ms,
   página `/search` com input + grupos (Pintores/Posts/Produtos). Trocar
   para "JÁ EXECUTADO" após o usuário rodar no SQL Editor.
+- **SQL Wave 7 (2026-05-31) — PENDENTE de execução no Supabase.**
+  Hardening pagamentos/subscription (Pagamentos#11, #17, #18, #19):
+  (1) tabela `invoices` (rastreio de cobrança/refund pra conciliação MP, RLS
+  user-owned read; write só via service_role); (2) coluna
+  `profiles.pro_grace_until` + função `is_pro_active(uuid)` que considera
+  grace period de 3 dias (canSeeProFeature client + gateAiUsage server-side
+  usam); (3) tabela `ai_usage` (audit de uso de IA por feature, RLS
+  user-owned read; write só via service_role) + RPC
+  `ai_usage_this_month(uuid, text?)`; (4) tabela `plan_limits` (free=30,
+  pro=500, admin=99999 calls/mês, public read); (5) trigger
+  `handle_invoice_paid` (transição `invoices.status → 'paid'` em
+  type=subscription propaga `is_pro=true + pro_expires_at +30d` no profile);
+  (6) RPC `upsert_invoice(...)` (idempotente por `external_id`, usado pelo
+  mp-webhook). Migration única em
+  `/migrations/2026-05-31-payments-hardening.sql`. Service novo em
+  `next-app/lib/services/billing.ts`; helpers REST edge-friendly em
+  `next-app/lib/api/_services/_billing-helpers.ts`; security wrapper
+  `gateAiUsage` + `recordAiUsage` em `next-app/lib/api/security.ts`. Todas
+  as 14 rotas de IA (`chat-ai`, `caption`, `transcribe`, `tts`,
+  `generate-logo`, `area-from-photo`, `pricing-suggest`, `fin-analysis`,
+  `crm-draft`, `agenda-order`, `resolve-color`, `moderate`,
+  `moderate-video`, `ig-art`) agora chamam `gateAiUsage` antes da IA e
+  `recordAiUsage` depois do sucesso. `policies.ts canSeeProFeature` foi
+  estendida pra considerar `pro_grace_until`. 21 testes novos em
+  `__tests__/services/billing.test.ts` + 5 testes novos em
+  `__tests__/policies.test.ts`. Trocar para "JÁ EXECUTADO" após o usuário
+  rodar no SQL Editor.
+- **SQL Wave 8 (2026-05-31) — soft delete + undo — PENDENTE de execução no
+  Supabase.** Mira UX#5 (undo de delete) + Banco#13 (soft delete em vez de
+  hard). Adiciona coluna `deleted_at timestamptz` em `posts`, `notes`,
+  `messages`, `comments`, `quotes`, `checklists`. Atualiza policies de
+  SELECT pra esconder rows soft-deleted; admin (`is_portal_admin()`) e
+  owner ainda enxergam pra desfazer/auditoria. Indexes parciais
+  `idx_<tbl>_active` (`WHERE deleted_at IS NULL`) otimizam queries normais.
+  Função `cleanup_soft_deleted()` (SECURITY DEFINER, GRANT só pra
+  `service_role`) faz hard delete em rows soft-deleted > 30 dias — chamar
+  por cron (pg_cron) ou manualmente. Frontend só em `next-app/`: services
+  `postInteractions.deletePost/undoDeletePost/softDeleteComment/undoDeleteComment`,
+  `notes.softDeleteNote/undoDeleteNote`, `chat-messages.softDeleteMessage/undoDeleteMessage`,
+  todos retornam `{ undoToken }`. Hooks `useDeletePost`, `useDeleteComment`,
+  `useDeleteMessage`, `useNotes` expõem `remove + undo`. UI: componente
+  `<UndoSnackbar message onUndo>` (countdown 10s) + hook genérico
+  `useUndoable<TArgs>` empacotando ciclo. Migration única em
+  `/migrations/2026-05-31-soft-delete.sql`. Trocar para "JÁ EXECUTADO"
+  após o usuário rodar no SQL Editor.
 
