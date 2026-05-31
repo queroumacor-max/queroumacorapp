@@ -53,17 +53,19 @@ export function canDeletePost(
 }
 
 // Pintor edita seu próprio orçamento ENQUANTO ele está "vivo" — depois
-// que o cliente aceitou/recusou/concluiu, o orçamento vira histórico
+// que o cliente aprovou/recusou/iniciou/concluiu, o orçamento vira histórico
 // imutável (auditoria e contagem de status no painel do cliente).
+// "Vivo" = status ∈ { pending, rascunho, enviado }. Mantém 'aceito' (rótulo
+// legado) na lista de finais pra compat com linhas antigas.
 export function canEditQuote(
   user: MaybeUser,
   quote: { painter_id?: string; status?: string | null } | null | undefined
 ): boolean {
   if (!user || !user.id || !quote) return false;
   if (user.id !== quote.painter_id) return false;
-  const finais = ['aceito', 'recusado', 'concluido'];
-  if (finais.indexOf(quote.status || '') !== -1) return false;
-  return true;
+  const alive = ['pending', 'rascunho', 'enviado'];
+  const status = quote.status || 'rascunho';
+  return alive.indexOf(status) !== -1;
 }
 
 // Só o pintor avaliado pode responder à própria review. Admin NÃO

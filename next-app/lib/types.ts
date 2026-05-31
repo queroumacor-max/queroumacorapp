@@ -33,6 +33,7 @@ export interface Profile {
   phone?: string | null;
   city?: string | null;
   state?: string | null;
+  address?: string | null;
   bio?: string | null;
   specialties?: string | null;
   profession?: string | null;
@@ -44,6 +45,7 @@ export interface Profile {
   business_logo_url?: string | null;
   business_name?: string | null;
   pro_expires_at?: string | null;
+  service_radius?: number | null;
   created_at?: string | null;
 }
 
@@ -132,19 +134,39 @@ export interface Order {
   updated_at?: string | null;
 }
 
-// Quote = orçamento. `status` segue o vocabulário em PT-BR usado pelo
-// vanilla: rascunho → enviado → aceito|recusado|concluido.
+// Quote = orçamento. `status` segue o ciclo atual do banco
+// (supabase_init.sql linha 1097+):
+//   pending → rascunho → enviado → aprovado → em_execucao → concluido
+//   (+ recusado).
+// Mantemos `aceito` no union pra absorver rótulos legados gravados antes da
+// migration; UI mapeia desconhecidos pro grupo "Rascunho" como fallback.
 export type QuoteStatus =
+  | 'pending'
   | 'rascunho'
   | 'enviado'
-  | 'aceito'
+  | 'aprovado'
+  | 'em_execucao'
+  | 'concluido'
   | 'recusado'
-  | 'concluido';
+  | 'aceito';
+
+export interface QuoteSnapshot {
+  frozen_at: string;
+  service_type: string | null;
+  title: string | null;
+  area_m2: number | null;
+  address: string | null;
+  description: string | null;
+  price: number;
+  proposed_date: string | null;
+  quote_data: unknown;
+}
 
 export interface Quote {
   id: string;
   painter_id: string;
   client_id?: string | null;
+  client_name?: string | null;
   status?: QuoteStatus | string;
   title?: string | null;
   service_type?: string | null;
@@ -153,14 +175,56 @@ export interface Quote {
   description?: string | null;
   price?: number | null;
   proposed_date?: string | null;
+  sent_at?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  approval_method?: 'manual' | 'app' | string | null;
+  approval_note?: string | null;
+  completed_at?: string | null;
+  scope_snapshot?: QuoteSnapshot | null;
+  quote_data?: unknown;
+  images?: string[] | null;
   created_at?: string;
+  // Joined: profiles!client_id(name) — convenience for card display.
+  client?: { name?: string | null } | null;
 }
+
+// Job = obra agendada no calendário do pintor (tabela `jobs`). Schema em
+// supabase_init.sql linha 613+: painter_id, client_name, service_type,
+// address, scheduled_date (date), scheduled_time (text livre tipo "14:30"),
+// status (default 'agendado'), revenue, material_cost, notes.
+// `status` é string aberto no banco, mas o app usa o union abaixo como
+// vocabulário canônico — UI mapeia outros valores pra "agendado".
+export type JobStatus = 'agendado' | 'em_andamento' | 'concluido' | 'cancelado';
 
 export interface Job {
   id: string;
-  user_id: string;
-  status: string;
-  created_at: string;
+  painter_id: string;
+  quote_id?: string | null;
+  client_name?: string | null;
+  service_type?: string | null;
+  address?: string | null;
+  scheduled_date?: string | null; // YYYY-MM-DD
+  scheduled_time?: string | null; // texto livre, p. ex. "14:30"
+  status: JobStatus | string;
+  notes?: string | null;
+  revenue?: number | null;
+  material_cost?: number | null;
+  created_at?: string | null;
+}
+
+// Input pra createJob — subset gravável pelo usuário (sem id/created_at/
+// status default 'agendado'). painter_id vem do contexto do auth, não
+// do form, pra evitar que UI grave em nome de outro pintor.
+export interface JobInput {
+  client_name: string;
+  service_type?: string | null;
+  address?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  notes?: string | null;
+  revenue?: number | null;
+  material_cost?: number | null;
 }
 
 // Notification — alinhado com o schema real em supabase_init.sql (linha
