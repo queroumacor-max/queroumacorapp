@@ -54,10 +54,10 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/styles.css?v=20260527x">
 <link rel="preload" href="/supabase.js?v=2.45.0" as="script" integrity="sha384-dGnL7r9uccC9TdSdE05clTJ6esxMU42XBQ1/BWLzKQOBi7qR1aCMRIi0LzUmexIg" crossorigin="anonymous">
-<link rel="preload" href="/head.js?v=20260531d" as="script">
+<link rel="preload" href="/head.js?v=20260531e" as="script">
 <link rel="preload" href="/config.js?v=20260531f" as="script">
 <link rel="preload" href="/utils.js?v=20260531f" as="script">
-<link rel="preload" href="/events.js?v=20260531a" as="script">
+<link rel="preload" href="/events.js?v=20260531b" as="script">
 <link rel="preload" href="/errors.js?v=20260531e" as="script">
 <link rel="preload" href="/logger.js?v=20260531e" as="script">
 <link rel="preload" href="/policies.js?v=20260531e" as="script">
@@ -77,12 +77,12 @@
 <link rel="preload" href="/modules/invite.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/maquininha.js?v=20260531g" as="script">
 <link rel="preload" href="/modules/signup-tag.js?v=20260531g" as="script">
-<link rel="preload" href="/modules/agenda.js?v=20260531h" as="script">
-<link rel="preload" href="/modules/financeiro.js?v=20260531h" as="script">
+<link rel="preload" href="/modules/agenda.js?v=20260531i" as="script">
+<link rel="preload" href="/modules/financeiro.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/audio-stt.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/avaliacao.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/quals-courses.js?v=20260531h" as="script">
-<link rel="preload" href="/modules/pro.js?v=20260531h" as="script">
+<link rel="preload" href="/modules/pro.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/archive.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/auth-pw.js?v=20260531h" as="script">
 <link rel="preload" href="/modules/content-mod.js?v=20260531h" as="script">
@@ -95,16 +95,16 @@
 <link rel="preload" href="/modules/ai-art.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/ai-chat.js?v=20260531i" as="script">
 <link rel="preload" href="/modules/ai-logo.js?v=20260531i" as="script">
-<link rel="preload" href="/modules/pipeline.js?v=20260531i" as="script">
-<link rel="preload" href="/modules/crm.js?v=20260531i" as="script">
-<link rel="preload" href="/modules/chat.js?v=20260531m" as="script">
+<link rel="preload" href="/modules/pipeline.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/crm.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/chat.js?v=20260531n" as="script">
 <link rel="preload" href="/modules/profile-edit.js?v=20260531j" as="script">
-<link rel="preload" href="/modules/feed-interactions.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/feed-interactions.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/pedidos.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/leads.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/signup-flow.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/admin-mod.js?v=20260531j" as="script">
-<link rel="preload" href="/modules/notif.js?v=20260531j" as="script">
+<link rel="preload" href="/modules/notif.js?v=20260531k" as="script">
 <link rel="preload" href="/modules/orcamento-pdf.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/profile-mock.js?v=20260531j" as="script">
 <link rel="preload" href="/modules/nav.js?v=20260531k" as="script">
@@ -132,7 +132,7 @@
      no fallback (request desperdiçado). Religar SÓ após habilitar Image
      Resizing + permitir a origem do Supabase no Cloudflare. -->
 <script>window.CF_IMG_ENABLED=false</script>
-<script src="/head.js?v=20260531d" defer></script>
+<script src="/head.js?v=20260531e" defer></script>
 <!-- Badge "STAGING": aparece em qualquer host que NÃO seja queroumacor.com.br
      (preview deploys *.pages.dev e dev local). Cloudflare Pages já adiciona
      X-Robots-Tag: noindex nos *.pages.dev por default, então buscadores não
@@ -161,7 +161,7 @@
 <!-- events.js — pub/sub bus in-memory (window.Events). Carrega DEPOIS de utils.js
      e ANTES de qualquer módulo de modules/, pra que handlers já estejam wireados
      no boot. Detalhes em EVENTS.md. -->
-<script src="/events.js?v=20260531a" defer></script>
+<script src="/events.js?v=20260531b" defer></script>
 <script src="/errors.js?v=20260531e" defer></script>
 <script src="/logger.js?v=20260531e" defer></script>
 <script src="/policies.js?v=20260531e" defer></script>
@@ -188,12 +188,12 @@
 <script src="/modules/maquininha.js?v=20260531g" defer></script>
 <script src="/modules/signup-tag.js?v=20260531g" defer></script>
 <!-- Fase 4 etapa 3: médias autocontidas + pro + map + archive + auth-pw + content-mod. -->
-<script src="/modules/agenda.js?v=20260531h" defer></script>
-<script src="/modules/financeiro.js?v=20260531h" defer></script>
+<script src="/modules/agenda.js?v=20260531i" defer></script>
+<script src="/modules/financeiro.js?v=20260531i" defer></script>
 <script src="/modules/audio-stt.js?v=20260531h" defer></script>
 <script src="/modules/avaliacao.js?v=20260531h" defer></script>
 <script src="/modules/quals-courses.js?v=20260531h" defer></script>
-<script src="/modules/pro.js?v=20260531h" defer></script>
+<script src="/modules/pro.js?v=20260531i" defer></script>
 <script src="/modules/archive.js?v=20260531h" defer></script>
 <script src="/modules/auth-pw.js?v=20260531h" defer></script>
 <script src="/modules/content-mod.js?v=20260531h" defer></script>
@@ -207,17 +207,17 @@
 <script src="/modules/ai-art.js?v=20260531i" defer></script>
 <script src="/modules/ai-chat.js?v=20260531i" defer></script>
 <script src="/modules/ai-logo.js?v=20260531i" defer></script>
-<script src="/modules/pipeline.js?v=20260531i" defer></script>
-<script src="/modules/crm.js?v=20260531i" defer></script>
+<script src="/modules/pipeline.js?v=20260531j" defer></script>
+<script src="/modules/crm.js?v=20260531j" defer></script>
 <!-- Fase 4 wave 5: chat + profile-edit + remaining features. -->
-<script src="/modules/chat.js?v=20260531m" defer></script>
+<script src="/modules/chat.js?v=20260531n" defer></script>
 <script src="/modules/profile-edit.js?v=20260531j" defer></script>
-<script src="/modules/feed-interactions.js?v=20260531j" defer></script>
+<script src="/modules/feed-interactions.js?v=20260531k" defer></script>
 <script src="/modules/pedidos.js?v=20260531j" defer></script>
 <script src="/modules/leads.js?v=20260531j" defer></script>
 <script src="/modules/signup-flow.js?v=20260531j" defer></script>
 <script src="/modules/admin-mod.js?v=20260531j" defer></script>
-<script src="/modules/notif.js?v=20260531j" defer></script>
+<script src="/modules/notif.js?v=20260531k" defer></script>
 <script src="/modules/orcamento-pdf.js?v=20260531j" defer></script>
 <script src="/modules/profile-mock.js?v=20260531j" defer></script>
 <!-- Fase 4 wave 6 (FINAL): nav (showScreen original) + screen-hooks
