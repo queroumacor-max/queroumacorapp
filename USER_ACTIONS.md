@@ -17,26 +17,12 @@ Sem isso o app Next.js só existe no repo, sem deploy.
   - Root directory: `/` (não next-app)
   - Compatibility flag: `nodejs_compat`
 
-- [ ] **KV namespace binding** no novo project
-  - Settings → Functions → KV namespace bindings → Add
+- [x] **KV namespace binding** no novo project ✅ FEITO
   - Variable: `KV`
-  - Namespace: `queroumacorapp-cidades` (mesmo do vanilla — reaproveita)
+  - Namespace: `queroumacorapp-cidades` (reaproveitado do vanilla)
 
-- [ ] **Environment variables** (Production + Preview)
-  - Copiar de `next-app/.env.example`
-  - Valores reais necessários:
-    - `NEXT_PUBLIC_SUPABASE_URL=https://uwqebaqweehiljsqkifm.supabase.co`
-    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (mesmo do vanilla)
-    - `SUPABASE_URL` (idem)
-    - `SUPABASE_ANON_KEY` (idem)
-    - `SUPABASE_SERVICE_ROLE_KEY` (backend only — pegar do CF Pages atual)
-    - `NEXT_PUBLIC_SENTRY_DSN=https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249`
-    - `SENTRY_AUTH_TOKEN` — gerar em sentry.io → Settings → Auth Tokens (scopes: project:read, project:releases, org:read)
-    - `MP_ACCESS_TOKEN` (mesmo do vanilla)
-    - `MP_WEBHOOK_SECRET` (mesmo do vanilla)
-    - `OPENAI_API_KEY` (mesmo do vanilla)
-    - `GEMINI_API_KEY` (mesmo do vanilla)
-    - `ADMIN_EMAILS=jackson.guerra@gmail.com,...` (mesmo do vanilla)
+- [x] **Environment variables** (Production + Preview) ✅ FEITO
+  - Supabase URL/keys, Sentry DSN/AUTH_TOKEN, MP, OpenAI, Gemini, ADMIN_EMAILS
 
 - [ ] **CNAME preview**: `app2.queroumacor.com.br` → `queroumacor-next.pages.dev`
   - No painel da GoDaddy / DNS provider
