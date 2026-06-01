@@ -3,7 +3,12 @@ compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
-# KV binding pra cidades cache (reaproveita do vanilla — mesma namespace)
-[[kv_namespaces]]
-binding = "KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"  # mesmo `queroumacorapp-cidades`
+# KV binding pra cache de cidades IBGE foi configurado no PAINEL CF Pages
+# (Settings → Functions → KV namespace bindings → Add: variable=KV,
+# namespace=queroumacorapp-cidades). NÃO declarar aqui pra evitar conflito
+# de placeholder ID (Error 8000022: Invalid KV namespace ID).
+#
+# OBS: app/api/cidades/route.ts HOJE NÃO LÊ `env.KV` — usa Next.js native
+# cache (`fetch + next: { revalidate }` + Cache-Control no response).
+# Quando migrarmos pra `getRequestContext().env.KV.get/put`, o binding
+# do painel CF Pages já estará disponível em runtime.
