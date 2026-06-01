@@ -155,3 +155,12 @@ NEXT-APP (app2.queroumacor.com.br quando você criar) — DEV
 ---
 
 **Última atualização**: 2026-05-31 (sessão de migração completa Path C)
+
+## Atualização 2026-05-31 (continuação)
+
+- [x] **5 SQL waves rodadas no Supabase SQL Editor** ✅ FEITO
+  - Wave 5: consent_log + audit_log + invite_codes + cleanup_orphan_media
+  - Wave 6: full-text search (tsvector + GIN + search_all)
+  - Wave 7: payments hardening (invoices + grace + ai_usage + plan_limits + triggers)
+  - Wave 8: soft delete (6 tabelas com deleted_at + cleanup_soft_deleted)
+  - feature_flags + rollout RPC
