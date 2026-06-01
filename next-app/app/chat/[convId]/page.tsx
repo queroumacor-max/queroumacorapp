@@ -5,6 +5,10 @@
 import type { Metadata } from 'next';
 import { ChatConversation } from './ChatConversation';
 
+// Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
+// edge runtime (Node runtime não está disponível em CF Pages Functions).
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: 'Conversa | QueroUmaCor',
 };
