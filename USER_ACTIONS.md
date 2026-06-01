@@ -28,7 +28,7 @@ Sem isso o app Next.js só existe no repo, sem deploy.
 
 - [x] **Compatibility flag `nodejs_compat`** ✅ FEITO
 
-- [ ] **MP_ACCESS_TOKEN + MP_WEBHOOK_SECRET** — pendente (combinado pra depois)
+- [⏸] **MP_ACCESS_TOKEN + MP_WEBHOOK_SECRET** — ON HOLD por opção (decisão consciente: ativar quando quiser testar checkout/webhook em prod). Sem isso, `/api/checkout`, `/api/mp-checkout-loja` e `/api/mp-webhook` ficam inativos em `app2.queroumacor.com.br`. Vanilla em `queroumacor.com.br` continua usando os tokens originais sem alteração.
 
 - [ ] **Substituir `REPLACE_WITH_KV_NAMESPACE_ID`** em `next-app/wrangler.toml`
   - Só necessário se for usar deploy via `wrangler` CLI. UI do Pages não precisa.
