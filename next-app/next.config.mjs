@@ -9,6 +9,20 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // ESLint durante o build: DESLIGADO pra evitar quebrar deploy por causa
+  // de dependência transitiva corrupta (es-abstract/2024 missing) no
+  // eslint-plugin-react. Lint roda separadamente via `npm run lint`
+  // localmente + workflow CI (`.github/workflows/conventions.yml`).
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  // TypeScript: NÃO ignorar — tsc --noEmit roda separadamente em CI
+  // mas o build do Next também check, e queremos pegar regressão tipada.
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+
   // Versionamento de API: `/api/v1/*` é alias pra `/api/*` (versão atual).
   // Espelha o `_redirects` do projeto vanilla (Backend#21) — mantém
   // backward-compat para clientes que já apontam pra v1. Quando vier
