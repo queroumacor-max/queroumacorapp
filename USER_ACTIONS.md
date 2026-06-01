@@ -9,7 +9,7 @@ Sem isso o app Next.js só existe no repo, sem deploy.
 
 ### Setup inicial (uma vez, ~30min)
 
-- [ ] **CF Pages → criar novo project** `queroumacor-next`
+- [x] **CF Pages → criar novo project** `queroumacor-next` ✅ FEITO
   - Repo: `queroumacor-max/queroumacorapp`
   - Production branch: `main`
   - Build command: `cd next-app && npm install && npm run build:cf`
