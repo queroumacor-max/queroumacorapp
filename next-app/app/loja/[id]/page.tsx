@@ -7,17 +7,20 @@
 // Não usamos `generateMetadata` dinâmico aqui pra evitar fetch dobrado
 // (RSC fetch + client fetch). Quando o catálogo virar relativamente
 // estático, dá pra adicionar metadata server-side com fetch separado.
+//
+// Next.js 15: `params` é Promise — precisa `await` dentro de Server Component.
 
 import { ProductDetail } from './ProductDetail';
 
-export default function ProductPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function ProductPage({ params }: PageProps) {
+  const { id } = await params;
   return (
     <main className="min-h-screen p-4 max-w-3xl mx-auto">
-      <ProductDetail id={params.id} />
+      <ProductDetail id={id} />
     </main>
   );
 }
