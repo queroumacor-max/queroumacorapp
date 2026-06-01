@@ -12,6 +12,10 @@
 
 import { ProductDetail } from './ProductDetail';
 
+// Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
+// edge runtime (Node runtime não está disponível em CF Pages Functions).
+export const runtime = 'edge';
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
