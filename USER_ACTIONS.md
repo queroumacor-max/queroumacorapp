@@ -24,9 +24,11 @@ Sem isso o app Next.js só existe no repo, sem deploy.
 - [x] **Environment variables** (Production + Preview) ✅ FEITO
   - Supabase URL/keys, Sentry DSN/AUTH_TOKEN, MP, OpenAI, Gemini, ADMIN_EMAILS
 
-- [ ] **CNAME preview**: `app2.queroumacor.com.br` → `queroumacor-next.pages.dev`
-  - No painel da GoDaddy / DNS provider
-  - Adicionar Custom Domain no CF Pages project `queroumacor-next`
+- [x] **CNAME preview**: `app2.queroumacor.com.br` → `queroumacor-next.pages.dev` ✅ FEITO (em propagação DNS)
+
+- [x] **Compatibility flag `nodejs_compat`** ✅ FEITO
+
+- [ ] **MP_ACCESS_TOKEN + MP_WEBHOOK_SECRET** — pendente (combinado pra depois)
 
 - [ ] **Substituir `REPLACE_WITH_KV_NAMESPACE_ID`** em `next-app/wrangler.toml`
   - Só necessário se for usar deploy via `wrangler` CLI. UI do Pages não precisa.
