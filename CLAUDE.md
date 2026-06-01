@@ -121,7 +121,7 @@
   (2) `app.js abrirMaquininha/entrarListaMaquininha` que perdiam silenciosamente
   os cliques de interesse (tabela `feature_interest` inexistente). Não pedir
   para rodar de novo.
-- **SQL Wave 5 (2026-05-31) — PENDENTE de execução no Supabase.** Tabelas
+- **SQL Wave 5 (2026-05-31) — JÁ EXECUTADO no Supabase.** Tabelas
   `consent_log` (LGPD trilha de consentimento por tipo/versão, RLS user-owned),
   `audit_log` (auditoria de ações administrativas — admin reads via
   `is_portal_admin()`; convive com `audit_events` granular trigger-driven),
@@ -174,7 +174,7 @@
   pega valor de qualquer coluna que esteja preenchida. View NÃO tem mais
   as colunas `palette` nem `country` (não existem no banco real, foram
   removidas em algum momento). Não pedir pra rodar de novo.
-- **SQL Wave 6 (2026-05-31) — PENDENTE de execução no Supabase.** Full-text
+- **SQL Wave 6 (2026-05-31) — JÁ EXECUTADO no Supabase.** Full-text
   search (Banco#9): colunas geradas `search_vector tsvector` em `posts`
   (caption), `products` (name + description com pesos A/B) e `profiles`
   (name + bio + tag com pesos A/B/A), todas com índice GIN. Função RPC
@@ -185,7 +185,7 @@
   `next-app/lib/services/search.ts`, hook `useSearch` com debounce 300ms,
   página `/search` com input + grupos (Pintores/Posts/Produtos). Trocar
   para "JÁ EXECUTADO" após o usuário rodar no SQL Editor.
-- **SQL Wave 7 (2026-05-31) — PENDENTE de execução no Supabase.**
+- **SQL Wave 7 (2026-05-31) — JÁ EXECUTADO no Supabase.**
   Hardening pagamentos/subscription (Pagamentos#11, #17, #18, #19):
   (1) tabela `invoices` (rastreio de cobrança/refund pra conciliação MP, RLS
   user-owned read; write só via service_role); (2) coluna
@@ -212,7 +212,7 @@
   `__tests__/services/billing.test.ts` + 5 testes novos em
   `__tests__/policies.test.ts`. Trocar para "JÁ EXECUTADO" após o usuário
   rodar no SQL Editor.
-- **SQL Wave 8 (2026-05-31) — soft delete + undo — PENDENTE de execução no
+- **SQL Wave 8 (2026-05-31) — soft delete + undo — JÁ EXECUTADO no
   Supabase.** Mira UX#5 (undo de delete) + Banco#13 (soft delete em vez de
   hard). Adiciona coluna `deleted_at timestamptz` em `posts`, `notes`,
   `messages`, `comments`, `quotes`, `checklists`. Atualiza policies de
