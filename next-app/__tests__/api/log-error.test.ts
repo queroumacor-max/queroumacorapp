@@ -76,7 +76,7 @@ describe('POST /api/log-error', () => {
 
   it('sanitizePayload strips invalid user_id and truncates long fields', async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const { sanitizeErrorPayload } = await import('@/app/api/log-error/route');
+    const { sanitizeErrorPayload } = await import('@/lib/api/log-error-helpers');
     const safe = sanitizeErrorPayload({
       msg: 'x'.repeat(1000),
       user_id: 'not-a-uuid',
