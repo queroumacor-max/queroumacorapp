@@ -107,9 +107,12 @@ UPDATE public.invite_codes
 SET expires_at = created_at + interval '30 days'
 WHERE expires_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_invite_codes_active
-  ON public.invite_codes(code)
-  WHERE expires_at > now();
+-- Index por expires_at (sem now() no predicate — PostgreSQL exige IMMUTABLE
+-- em index predicates, e now() é STABLE). A query "WHERE expires_at > now()"
+-- ainda usa esse index pra range scan / ordenação em expires_at.
+CREATE INDEX IF NOT EXISTS idx_invite_codes_expires
+  ON public.invite_codes(expires_at)
+  WHERE expires_at IS NOT NULL;
 
 ALTER TABLE public.invite_codes ENABLE ROW LEVEL SECURITY;
 
