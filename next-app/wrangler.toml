@@ -3,6 +3,27 @@ compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
+# ─── Public env vars (NEXT_PUBLIC_*) ──────────────────────────────────────
+# Estas precisam ESTAR DISPONÍVEIS NO BUILD pra Next.js inlinar no client
+# bundle. CF Pages dashboard só permite gerenciar SECRETS (encrypted vars)
+# — e secrets ficam disponíveis SÓ em runtime, não em build.
+#
+# Solução: declarar vars públicas (não-sensíveis) aqui em [vars]. Estas
+# 3 são públicas POR DESIGN:
+#   - SUPABASE_URL: endpoint público do banco
+#   - SUPABASE_ANON_KEY: JWT anon role — segurança via RLS no banco, não
+#     via secrecy. Já estava hardcoded em head.js:2, _security.js:14
+#     (FALLBACK_ANON_KEY) e portal/index.html:28 no vanilla.
+#   - SENTRY_DSN: DSN público é seguro expor (Sentry foi design pra isso).
+#
+# Service role key, OpenAI/Gemini/MP secrets continuam APENAS como Secret
+# no painel CF Pages (só runtime, nunca no client bundle).
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://uwqebaqweehiljsqkifm.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8"
+NEXT_PUBLIC_SENTRY_DSN = "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249"
+
+# ─── KV binding ───────────────────────────────────────────────────────────
 # KV binding pra cache de cidades IBGE foi configurado no PAINEL CF Pages
 # (Settings → Functions → KV namespace bindings → Add: variable=KV,
 # namespace=queroumacorapp-cidades). NÃO declarar aqui pra evitar conflito
