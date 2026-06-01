@@ -20,16 +20,34 @@ let _client: TypedSupabaseClient | null = null;
 
 /**
  * Retorna o singleton do Supabase client. Cria na primeira chamada.
- * Estoura se as env vars `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`
- * não estiverem setadas — preferimos falhar cedo a devolver null silencioso.
+ *
+ * Resolve env vars com fallback chain:
+ *   1. process.env.NEXT_PUBLIC_* (inlined no build pelo Next.js)
+ *   2. process.env.* sem prefixo (server runtime — RSC/Edge)
+ *   3. URL hardcoded (Supabase URL é PÚBLICO — já está em lib/config.ts
+ *      e estava em head.js do vanilla)
+ *
+ * Anon key NÃO tem fallback hardcoded — se faltar, estoura com mensagem
+ * direcionada pro fix (vars precisam ser Plain text no painel CF Pages,
+ * não Secret, pra ficar disponível durante o build do Next.js).
  */
 export function getSupabase(): TypedSupabaseClient {
   if (_client) return _client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    'https://uwqebaqweehiljsqkifm.supabase.co';
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    '';
   if (!url || !key) {
     throw new Error(
-      'Supabase env vars missing: NEXT_PUBLIC_SUPABASE_URL e/ou NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      'Supabase anon key ausente: configure NEXT_PUBLIC_SUPABASE_ANON_KEY ' +
+      '(ou SUPABASE_ANON_KEY) no painel CF Pages → Settings → Environment Variables. ' +
+      'IMPORTANTE: marcar como "Plain text" (não Secret) pra ficar disponível ' +
+      'durante o build do Next.js — NEXT_PUBLIC_* só são inlined no bundle ' +
+      'se estiverem em process.env DURANTE o build.'
     );
   }
   _client = createClient<Database>(url, key, {
