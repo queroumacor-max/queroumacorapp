@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/Avatar';
 import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
-import { useLike, useSavedPosts } from '@/lib/hooks/usePostInteractions';
+import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
 import { getTimeAgo } from '@/lib/utils';
 import { PostMedia } from './PostMedia';
 import type { FeedPost } from '@/lib/services/feed';
@@ -58,6 +58,13 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   const { isSaved, toggle: toggleSave } = useSavedPosts();
   const saved = isSaved(post.id);
   const [showComment, setShowComment] = useState(false);
+  // Comments via hook — assina o cache ['post-comments', id] que a
+  // CommentForm invalida após insert. `post.comments` (do feed) é só
+  // o initialData pra evitar flash de "carregando" no primeiro paint;
+  // hook substitui assim que tem dados frescos.
+  const { comments: freshComments } = useComments(post.id);
+  const visibleComments =
+    freshComments && freshComments.length > 0 ? freshComments : post.comments;
 
   const isOwn = !!user && user.id === post.user_id;
 
@@ -242,9 +249,9 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
         </div>
       ) : null}
 
-      {post.comments.length > 0 ? (
+      {visibleComments.length > 0 ? (
         <ul style={{ padding: '4px 14px 2px' }}>
-          {post.comments.map((c) => (
+          {visibleComments.map((c) => (
             <li
               key={c.id}
               style={{
