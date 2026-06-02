@@ -4,6 +4,11 @@
 
 import { useState } from 'react';
 import { useNotes } from '@/lib/hooks/useNotes';
+import { useAudioRecording } from '@/lib/hooks/useAudioRecording';
+import { transcribeAudio } from '@/lib/services/audioStt';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { showToast } from '@/lib/toast';
 
 function formatDate(iso: string): string {
   try {
@@ -22,6 +27,45 @@ export function NotesView() {
   const { notes, loading, save, remove, undoRemove, isSaving } = useNotes();
   const [draft, setDraft] = useState('');
   const [lastDeleted, setLastDeleted] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
+
+  // Gravação de áudio → transcrição (vanilla notes.js iniciarGravacaoNota).
+  // Pro user → gravar → /api/transcribe → texto vai no draft (append).
+  const rec = useAudioRecording({
+    onStop: async (blob) => {
+      if (!blob) return;
+      setTranscribing(true);
+      showToast('Transcrevendo áudio…', 'info');
+      try {
+        const text = await transcribeAudio(blob);
+        const trimmed = (text || '').trim();
+        if (trimmed) {
+          setDraft((prev) => (prev ? prev + ' ' + trimmed : trimmed));
+          showToast('Transcrição pronta!', 'success');
+        } else {
+          showToast('Não consegui transcrever esse áudio', 'error');
+        }
+      } catch (e) {
+        showToast((e as Error).message || 'Erro ao transcrever', 'error');
+      } finally {
+        setTranscribing(false);
+      }
+    },
+  });
+
+  function handleMicClick() {
+    if (!isPro) {
+      showToast('Recurso PRO — assine para liberar', 'info');
+      return;
+    }
+    if (rec.recording) {
+      rec.stop();
+    } else {
+      rec.start();
+    }
+  }
 
   async function handleSave() {
     const body = draft.trim();
@@ -97,6 +141,48 @@ export function NotesView() {
           fontFamily: 'var(--font-body)',
         }}
       />
+
+      {/* 🎤 Gravar áudio e transcrever (vanilla notes.js iniciarGravacaoNota).
+          PRO gate. Toggle: grava ao clicar, para no próximo click → manda
+          o blob pra /api/transcribe, texto vai no draft. */}
+      <button
+        type="button"
+        onClick={handleMicClick}
+        disabled={transcribing}
+        className="w-full font-bold flex items-center justify-center gap-2"
+        style={{
+          padding: 11,
+          borderRadius: 10,
+          fontSize: 13,
+          marginBottom: 8,
+          border: rec.recording
+            ? '1.5px solid var(--color-danger)'
+            : '1.5px solid var(--color-border)',
+          background: rec.recording ? 'rgba(230,57,70,.08)' : 'var(--color-cream)',
+          color: rec.recording ? 'var(--color-danger)' : 'var(--color-ink)',
+          cursor: transcribing ? 'wait' : 'pointer',
+        }}
+      >
+        {transcribing
+          ? 'Transcrevendo…'
+          : rec.recording
+            ? `🔴 Gravando · ${rec.elapsedSec}s · Parar`
+            : '🎤 Gravar áudio e transcrever'}
+        {!isPro ? (
+          <span
+            className="text-white font-extrabold"
+            style={{
+              background: 'linear-gradient(135deg, var(--color-p5), var(--color-p1))',
+              fontSize: 9,
+              padding: '2px 7px',
+              borderRadius: 10,
+              letterSpacing: '.05em',
+            }}
+          >
+            PRO
+          </span>
+        ) : null}
+      </button>
 
       <button
         type="button"
