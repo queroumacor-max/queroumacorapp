@@ -29,14 +29,29 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
 
   // Derivação automática se o caller não passou proStatus.
   // is_admin/portal_access podem não estar no SELECT (Profile type
-  // marca opcional) — só is_pro é garantido. Cast defensivo:
+  // marca opcional) — só is_pro é garantido pela view profiles_public.
   const p = profile as
-    | (typeof profile & { is_admin?: boolean | null; portal_access?: boolean | null })
+    | (typeof profile & {
+        is_admin?: boolean | null;
+        portal_access?: boolean | null;
+        pro_expires_at?: string | null;
+        pro_grace_until?: string | null;
+      })
     | null;
+
+  // PRO ativo: is_pro=true OU pro_expires_at futuro OU pro_grace_until futuro.
+  // Cobre o caso em que o trigger do banco ainda não atualizou is_pro mas
+  // o user já comprou (expires_at preenchido) ou está em grace period.
+  const now = Date.now();
+  const isProActive =
+    !!p?.is_pro ||
+    (p?.pro_expires_at ? new Date(p.pro_expires_at).getTime() > now : false) ||
+    (p?.pro_grace_until ? new Date(p.pro_grace_until).getTime() > now : false);
+
   const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' =
     p?.is_admin || p?.portal_access
       ? 'ADMIN'
-      : p?.is_pro
+      : isProActive
         ? 'PRO'
         : 'GRÁTIS';
   const badge = proStatus ?? computed;
