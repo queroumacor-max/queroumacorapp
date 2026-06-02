@@ -197,25 +197,59 @@ export async function saveQuote(
  * Marca o orçamento como `enviado` e grava `sent_at` + `price`. Espelha
  * `enviarQuoteConfirmar` do vanilla (linha 245), sem a parte de modal/UI.
  *
+ * Opcionais: `warranty` (texto livre, ex.: "90 dias retoques") e
+ * `proposedDate` (ISO yyyy-mm-dd). Pintor deve responder estes ao cliente —
+ * antes só price ia, e o cliente ficava sem prazo/garantia formalizados.
+ *
  * RLS exige painter_id == auth.uid(); o filtro `.eq('painter_id', painterId)`
  * é defensa adicional contra UI passar o id errado.
  */
 export async function sendQuote(
   id: string,
   price: number,
-  painterId: string
+  painterId: string,
+  opts?: { warranty?: string | null; proposedDate?: string | null }
 ): Promise<void> {
   if (!id) throw new ValidationError('Orçamento inválido.');
   if (!painterId) throw new AuthorizationError('Faça login pra enviar.');
   if (!price || price <= 0) throw new ValidationError('Informe um valor válido.');
   const sb = getSupabase();
+
+  // Patch base: status + sent_at + price. Adicionais (warranty, proposed_date)
+  // só entram quando vieram não-vazios. `warranty` vive em quote_data.jsonb
+  // pra não exigir DDL nova; proposed_date é coluna nativa.
+  const patch: {
+    status: string;
+    sent_at: string;
+    price: number;
+    proposed_date?: string | null;
+    quote_data?: Json;
+  } = {
+    status: 'enviado',
+    sent_at: new Date().toISOString(),
+    price,
+  };
+  if (opts?.proposedDate) {
+    patch.proposed_date = opts.proposedDate;
+  }
+  if (opts?.warranty != null && opts.warranty !== '') {
+    // Lê quote_data atual pra mesclar warranty sem perder o que já tinha
+    // (escopo IA, observações, etc gravados pelo QuoteWizard).
+    const { data: cur } = await sb
+      .from('quotes')
+      .select('quote_data')
+      .eq('id', id)
+      .single();
+    const base =
+      (cur?.quote_data && typeof cur.quote_data === 'object'
+        ? (cur.quote_data as Record<string, unknown>)
+        : {});
+    patch.quote_data = { ...base, warranty: opts.warranty } as unknown as Json;
+  }
+
   const { error } = await sb
     .from('quotes')
-    .update({
-      status: 'enviado',
-      sent_at: new Date().toISOString(),
-      price,
-    })
+    .update(patch)
     .eq('id', id)
     .eq('painter_id', painterId);
   if (error) {

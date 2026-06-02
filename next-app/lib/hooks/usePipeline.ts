@@ -50,7 +50,7 @@ export interface UsePipelineResult {
   save: (input: SaveQuoteInput) => void;
   isSaving: boolean;
   saveError: Error | null;
-  send: (args: { id: string; price: number }) => void;
+  send: (args: { id: string; price: number; warranty?: string | null; proposedDate?: string | null }) => void;
   isSending: boolean;
   sendError: Error | null;
   approve: (args: { id: string; quote: Quote; note?: string | null }) => void;
@@ -122,9 +122,10 @@ export function usePipeline(): UsePipelineResult {
   const sendMutation = useMutation<
     void,
     Error,
-    { id: string; price: number }
+    { id: string; price: number; warranty?: string | null; proposedDate?: string | null }
   >({
-    mutationFn: ({ id, price }) => sendQuote(id, price, userId!),
+    mutationFn: ({ id, price, warranty, proposedDate }) =>
+      sendQuote(id, price, userId!, { warranty, proposedDate }),
     onSuccess: onMutationSuccess,
   });
 

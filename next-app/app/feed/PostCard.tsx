@@ -161,15 +161,40 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   async function handleDelete() {
     setOptsOpen(false);
     if (!window.confirm('Apagar este post? Você pode desfazer em 30 dias.')) return;
+    if (!user) return;
+
+    // Otimista: remove o post de todas as páginas do feed IMEDIATAMENTE
+    // (independente do refetch). Sem isso, o user via o post sumir só após
+    // ~1s de roundtrip da invalidate — UX percebido como "delete quebrado".
+    // Em caso de erro, refetch traz de volta.
+    type FeedPageShape = { posts: Array<{ id: string }> };
+    type InfData = { pages: FeedPageShape[]; pageParams: unknown[] };
+    qc.setQueriesData<InfData>({ queryKey: ['feed'] }, (data) => {
+      if (!data?.pages) return data;
+      return {
+        ...data,
+        pages: data.pages.map((p) => ({
+          ...p,
+          posts: p.posts.filter((x) => x.id !== post.id),
+        })),
+      };
+    });
+    qc.setQueriesData<{ id: string }[]>(
+      { queryKey: ['profile-posts', user.id] },
+      (data) => (data ? data.filter((p) => p.id !== post.id) : data),
+    );
+
     try {
       const { deletePost } = await import('@/lib/services/postInteractions');
-      if (!user) return;
       await deletePost(user.id, post.id);
-      // Invalida feed pra remover o post da timeline imediatamente.
+      // Confirma com refetch (RLS pode rejeitar e queremos sincronizar).
       qc.invalidateQueries({ queryKey: ['feed'] });
       qc.invalidateQueries({ queryKey: ['profile-posts', user.id] });
       showToast('Post apagado', 'success');
     } catch (e) {
+      // Rollback: refetch traz o post de volta se o delete falhou.
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['profile-posts', user.id] });
       showToast((e as Error).message || 'Erro ao apagar', 'error');
     }
   }
