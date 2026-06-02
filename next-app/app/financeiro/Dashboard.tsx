@@ -27,6 +27,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useFinanceiro } from '@/lib/hooks/useFinanceiro';
 import { fmtBRL, escapeHtml } from '@/lib/utils';
 import { EntryForm } from './EntryForm';
+import { LaunchCostSheet } from './LaunchCostSheet';
 import { AnalysisCard } from './AnalysisCard';
 import type { Job } from '@/lib/types';
 
@@ -140,10 +141,12 @@ function EntryRow({
   entry,
   onDelete,
   isRemoving,
+  onLaunchCost,
 }: {
   entry: Job;
   onDelete: (id: string) => void;
   isRemoving: boolean;
+  onLaunchCost: () => void;
 }) {
   const receita = Number(entry.revenue) || 0;
   const custo = Number(entry.material_cost) || 0;
@@ -167,6 +170,15 @@ function EntryRow({
       <div className={`font-extrabold text-sm whitespace-nowrap ${lcColor}`}>
         {brl(lc)}
       </div>
+      <button
+        type="button"
+        onClick={onLaunchCost}
+        aria-label="Lançar custo neste projeto"
+        title="Lançar custo"
+        className="text-[color:var(--color-p1)] hover:opacity-80 text-base px-2 py-1 font-bold"
+      >
+        +
+      </button>
       <button
         type="button"
         onClick={() => onDelete(entry.id)}
@@ -227,6 +239,8 @@ export function Dashboard() {
     remove,
     isRemoving,
     removeError,
+    addCost,
+    isAddingCost,
     analyze,
     isAnalyzing,
     analysis,
@@ -234,6 +248,10 @@ export function Dashboard() {
     resetAnalysis,
   } = useFinanceiro();
   const [formOpen, setFormOpen] = useState(false);
+  const [costEntryId, setCostEntryId] = useState<string | null>(null);
+  const costEntry = costEntryId
+    ? entries.find((e) => e.id === costEntryId)
+    : null;
 
   if (authLoading) {
     return <Skeleton />;
@@ -336,6 +354,7 @@ export function Dashboard() {
               entry={e}
               onDelete={remove}
               isRemoving={isRemoving}
+              onLaunchCost={() => setCostEntryId(e.id)}
             />
           ))}
         </ul>
@@ -360,6 +379,18 @@ export function Dashboard() {
           error={createError}
         />
       ) : null}
+
+      <LaunchCostSheet
+        open={!!costEntry}
+        entry={costEntry ?? null}
+        onClose={() => setCostEntryId(null)}
+        onConfirm={(delta) => {
+          if (!costEntry) return;
+          addCost({ entryId: costEntry.id, delta });
+          setCostEntryId(null);
+        }}
+        isSubmitting={isAddingCost}
+      />
     </div>
   );
 }

@@ -220,6 +220,47 @@ export async function deleteEntry(
 }
 
 /**
+ * Incrementa o custo de material num projeto/lançamento existente. Caso de
+ * uso: pintor tem um projeto "Pintura interna" (criado a partir do orçamento
+ * via syncToJobs) e quer adicionar despesa de tinta/material a ele em vez
+ * de criar um lançamento separado.
+ *
+ * delta pode ser positivo (custo novo) ou negativo (correção). Faz select
+ * + update — Supabase JS não tem atomic increment client-side. Em ambiente
+ * com escrita concorrente isso seria race-condition, mas pintor não está
+ * lançando custo em 2 abas ao mesmo tempo na prática.
+ *
+ * Threw ValidationError se ids ausentes. NetworkError em falha de I/O.
+ */
+export async function incrementCost(
+  entryId: string,
+  painterId: string,
+  delta: number,
+): Promise<void> {
+  if (!entryId) throw new ValidationError('Lançamento inválido', { field: 'entryId' });
+  if (!painterId) throw new ValidationError('Pintor inválido', { field: 'painterId' });
+  if (!Number.isFinite(delta) || delta === 0) {
+    throw new ValidationError('Valor inválido', { field: 'delta' });
+  }
+  const sb = getSupabase();
+  const { data, error: selErr } = await sb
+    .from('jobs')
+    .select('material_cost')
+    .eq('id', entryId)
+    .eq('painter_id', painterId)
+    .single();
+  if (selErr) throw new NetworkError(selErr.message, selErr);
+  const current = Number(data?.material_cost) || 0;
+  const next = Math.max(0, current + delta);
+  const { error } = await sb
+    .from('jobs')
+    .update({ material_cost: next })
+    .eq('id', entryId)
+    .eq('painter_id', painterId);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+/**
  * Agrega receita/custos/lucro de um conjunto de lançamentos. Helper puro
  * (sem rede) reutilizado pelo hook pra calcular cards KPI e pra montar
  * payload da análise IA.
