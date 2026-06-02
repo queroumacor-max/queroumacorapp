@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/Avatar';
 import { DB } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
-import { followingQueryKey } from '@/lib/hooks/useFollowing';
+import { useFollowing, followingQueryKey } from '@/lib/hooks/useFollowing';
 import type { Profile } from '@/lib/types';
 
 interface PortfolioPost {
@@ -43,14 +43,27 @@ const PROFILE_COLS =
 export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  // useFollowing é a source of truth — qualquer follow/unfollow em
+  // outro lugar (search, stories carousel) invalida essa cache e
+  // o botão aqui atualiza automático sem precisar de refetch local.
+  const { ids: followingIds, invalidate: invalidateFollowing } = useFollowing();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileNotFound, setProfileNotFound] = useState(false);
   const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
   const [portfolio, setPortfolio] = useState<PortfolioPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isFollowing, setIsFollowing] = useState(false);
+  // Override otimista local. Quando null, deriva do followingIds; quando
+  // toggle dispara, seta pra true/false imediato (sem esperar refetch);
+  // sucesso da mutation reseta pra null pra o cache assumir de volta.
+  const [optimisticFollow, setOptimisticFollow] = useState<boolean | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
+
+  // Estado real do botão: optimistic > cache.
+  const isFollowing =
+    optimisticFollow !== null
+      ? optimisticFollow
+      : !!profile && followingIds.includes(profile.id);
 
   // 1) Resolve idOrTag → profile row.
   useEffect(() => {
@@ -91,6 +104,10 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   }, [idOrTag]);
 
   // 2) Quando temos profile, carrega stats + portfolio em paralelo.
+  //    isFollowing NÃO é fetchado aqui — vem do useFollowing cache que é
+  //    invalidado por qualquer follow/unfollow no app inteiro (search,
+  //    perfil/[id], feed). Antes esse componente bypassava o cache com
+  //    DB.follows.isFollowing direto e ficava dessincado da /search.
   useEffect(() => {
     if (!profile?.id) return;
     let cancel = false;
@@ -107,13 +124,11 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(30),
-      user ? DB.follows.isFollowing(user.id, profile.id) : Promise.resolve(false),
     ])
-      .then(([posts, followers, following, portfolioRes, follows]) => {
+      .then(([posts, followers, following, portfolioRes]) => {
         if (cancel) return;
         setStats({ posts, followers, following });
         setPortfolio((portfolioRes.data as PortfolioPost[] | null) ?? []);
-        setIsFollowing(!!follows);
       })
       .catch(() => {
         /* silent */
@@ -125,7 +140,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
     return () => {
       cancel = true;
     };
-  }, [profile?.id, user]);
+  }, [profile?.id]);
 
   const isOwn = !!user && !!profile && user.id === profile.id;
 
@@ -133,17 +148,26 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
     if (!user || !profile || isOwn || followBusy) return;
     setFollowBusy(true);
     const prev = isFollowing;
-    setIsFollowing(!prev); // optimistic
+    // Optimistic override: dispara o estado novo já. Reset pra null
+    // depois da invalidate — cache passa a ser a única fonte de verdade.
+    setOptimisticFollow(!prev);
     setStats((s) => ({ ...s, followers: s.followers + (prev ? -1 : 1) }));
     const r = prev
       ? await DB.follows.unfollow(user.id, profile.id)
       : await DB.follows.follow(user.id, profile.id);
     if (!r.ok) {
-      // rollback
-      setIsFollowing(prev);
+      // Rollback: limpa override pra cache dominar de novo.
+      setOptimisticFollow(null);
       setStats((s) => ({ ...s, followers: s.followers + (prev ? 1 : -1) }));
+    } else {
+      // Sucesso: invalida cache → quando refetch volta, optimistic vira
+      // null e o derive isFollowing usa o cache fresco.
+      qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
+      invalidateFollowing();
+      // Aguarda 1 frame pra cache atualizar antes de limpar o override
+      // (evita flicker visível: optimistic → null → re-render → cache).
+      setTimeout(() => setOptimisticFollow(null), 200);
     }
-    qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
     setFollowBusy(false);
   }
 
@@ -262,6 +286,8 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
               type="button"
               onClick={toggleFollow}
               disabled={followBusy || !user}
+              aria-pressed={isFollowing}
+              aria-label={isFollowing ? `Deixar de seguir ${name}` : `Seguir ${name}`}
               className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"
               style={{
                 background: isFollowing

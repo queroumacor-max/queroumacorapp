@@ -17,8 +17,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { useFollowing, followingQueryKey } from '@/lib/hooks/useFollowing';
-import { useQueryClient } from '@tanstack/react-query';
+import { useFollowing } from '@/lib/hooks/useFollowing';
 import { DB } from '@/lib/db';
 import { useSearch } from '@/lib/hooks/useSearch';
 import { fetchSuggestedProfiles } from '@/lib/services/suggestedProfiles';
@@ -188,7 +187,6 @@ function SuggestionCard({
 function SuggestionsList() {
   const { user } = useAuth();
   const { ids: followingIds, invalidate: invalidateFollowing } = useFollowing();
-  const qc = useQueryClient();
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +230,8 @@ function SuggestionsList() {
       });
       return;
     }
-    qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
+    // invalidateFollowing() já chama qc.invalidateQueries internamente —
+    // antes tinha as duas chamadas (redundante).
     invalidateFollowing();
   }
 
@@ -248,7 +247,8 @@ function SuggestionsList() {
       setLocalFollowing((s) => new Set(s).add(profileId));
       return;
     }
-    qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
+    // invalidateFollowing() já chama qc.invalidateQueries internamente —
+    // antes tinha as duas chamadas (redundante).
     invalidateFollowing();
   }
 
