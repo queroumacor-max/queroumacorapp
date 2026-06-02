@@ -17,6 +17,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useLeads } from '@/lib/hooks/useLeads';
 import { LeadCard } from '@/components/LeadCard';
@@ -55,7 +56,14 @@ function SkeletonGrid() {
 
 export function LeadsList() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const { leads, loading, error, comprar, isComprarando, comprarError } = useLeads();
+
+  function handleOrcamento(userId: string) {
+    // Mesmo deep-link que o botão "Orçar" do PostCard usa — abre /chat
+    // com NewChatModal pré-disparado pelo param ?nova=1.
+    router.push(`/chat?nova=1&to=${encodeURIComponent(userId)}&orcamento=1`);
+  }
 
   if (authLoading) {
     return <SkeletonGrid />;
@@ -129,6 +137,9 @@ export function LeadsList() {
             lead={lead}
             onComprar={() => comprar(lead.id)}
             isComprarando={isComprarando}
+            onOrcamento={
+              lead.user_id ? () => handleOrcamento(lead.user_id) : undefined
+            }
           />
         ))}
       </div>
