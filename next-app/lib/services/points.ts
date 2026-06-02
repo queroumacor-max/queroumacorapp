@@ -38,7 +38,7 @@ export function computeBalance(entries: PointEntry[]): number {
   );
 }
 
-export async function redeemProWithPoints(cost = 100): Promise<string> {
+export async function redeemProWithPoints(cost = 1000): Promise<string> {
   const sb = getSupabase();
   const { data, error } = await sb.rpc('redeem_pro_with_points', { p_cost: cost });
   if (error) throw new NetworkError(error.message, error);

@@ -37,7 +37,7 @@ const FILTER_BUTTONS: readonly FilterButton[] = [
   { value: '', label: 'Todos' },
   { value: 'pintor', label: '🖌️ Pintura' },
   { value: 'grafiteiro', label: '🎨 Grafite' },
-  { value: 'automotivo', label: '🚗 Automotivo' },
+  { value: 'automotivo', label: '🚗 Funileiro / Automotivo' },
 ];
 
 function PostSkeleton() {

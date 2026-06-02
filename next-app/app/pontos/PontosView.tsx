@@ -28,15 +28,16 @@ export function PontosView() {
 
   const points = query.data ?? [];
   const balance = useMemo(() => computeBalance(points), [points]);
-  const canRedeem = balance >= 100;
+  const REDEEM_COST = 1000;
+  const canRedeem = balance >= REDEEM_COST;
 
   async function handleRedeem() {
     if (!canRedeem || redeeming) return;
-    if (!window.confirm('Trocar 100 pts por 1 mês PRO extra?')) return;
+    if (!window.confirm(`Trocar ${REDEEM_COST} pts por 1 mês PRO extra?`)) return;
     setRedeeming(true);
     setFeedback(null);
     try {
-      await redeemProWithPoints(100);
+      await redeemProWithPoints(REDEEM_COST);
       setFeedback('1 mês PRO liberado! 🎉');
       qc.invalidateQueries({ queryKey: ['points', userId] });
       qc.invalidateQueries({ queryKey: ['profile', userId] });
@@ -82,7 +83,7 @@ export function PontosView() {
           {query.isLoading ? '…' : `${balance} pts`}
         </div>
         <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
-          100 pts = 1 mês PRO extra ⚡
+          1000 pts = 1 mês PRO extra ⚡
         </div>
       </div>
 
@@ -103,8 +104,8 @@ export function PontosView() {
         }}
       >
         {canRedeem
-          ? '⚡ Trocar 100 pts por 1 mês PRO'
-          : `⚡ Faltam ${Math.max(0, 100 - balance)} pts pra liberar 1 mês PRO`}
+          ? `⚡ Trocar ${REDEEM_COST} pts por 1 mês PRO`
+          : `⚡ Faltam ${Math.max(0, REDEEM_COST - balance)} pts pra liberar 1 mês PRO`}
       </button>
 
       {feedback ? (
@@ -131,10 +132,8 @@ export function PontosView() {
       </div>
       {(
         [
-          ['🛒 Compra na loja', '+1 pt'],
-          ['⭐ Avaliar pintor', '+10 pts'],
-          ['🤝 Indicar pintor', '+50 pts'],
-          ['👥 Convidar amigo', '+20 pts'],
+          ['🛒 Compra na loja', '+1 pt a cada R$ 10'],
+          ['👥 Convidar amigo', '+1 pt'],
         ] as const
       ).map(([label, value]) => (
         <div

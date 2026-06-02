@@ -61,6 +61,9 @@ const QualsSection = lazy(() =>
 const CoursesSection = lazy(() =>
   import('@/app/perfil/formacao/CoursesSection').then((m) => ({ default: m.CoursesSection })),
 );
+const ArteVendaView = lazy(() =>
+  import('@/app/arte-venda/ArteVendaView').then((m) => ({ default: m.ArteVendaView })),
+);
 
 type SheetKey =
   | 'pedidos'
@@ -78,7 +81,8 @@ type SheetKey =
   | 'arte-ig'
   | 'camisetas'
   | 'formacao'
-  | 'cursos';
+  | 'cursos'
+  | 'arte-venda';
 
 interface SheetConfig {
   label: string;
@@ -102,6 +106,7 @@ const SHEETS: Record<SheetKey, SheetConfig> = {
   camisetas: { label: 'Camisetas', Component: ShirtCustomizer as ComponentType },
   formacao: { label: 'Formação', Component: QualsSection as ComponentType },
   cursos: { label: 'Cursos', Component: CoursesSection as ComponentType },
+  'arte-venda': { label: 'Arte pra venda', Component: ArteVendaView as ComponentType },
 };
 
 interface Tile {
@@ -132,6 +137,19 @@ const TILES: readonly Tile[] = [
   { sheet: 'cursos', emoji: '📚', title: 'Cursos', subtitle: 'Workshops e treinos' },
 ];
 
+// Tiles condicionais ao role do user — só renderizam quando o role bate.
+// Mapeia: chave = nome do tile no SHEETS, value = lista de roles que veem.
+const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string; subtitle: string; roles: string[]; gradient?: 'pro' | 'art' }> = [
+  {
+    sheet: 'arte-venda',
+    emoji: '🖼️',
+    title: 'Arte pra venda',
+    subtitle: 'Catálogo de obras',
+    roles: ['grafiteiro'],
+    gradient: 'art',
+  },
+];
+
 // Tiles admin-only: vanilla esconde via `display:none` no HTML e
 // applyAdminUI() flipa quando is_portal_admin() retorna true (vide
 // index.html linha 920+). Aqui condicionamos via render do isAdmin
@@ -153,11 +171,22 @@ export function BusinessGrid() {
   const Active = activeConfig?.Component ?? null;
   const policyUser = usePolicyUser();
   const showAdmin = isAdmin(policyUser);
+  const userRole = (policyUser?.role || '').toLowerCase();
+  const visibleRoleTiles = ROLE_TILES.filter((t) =>
+    t.roles.some((r) => r === userRole),
+  );
 
   return (
     <>
       <div className="grid grid-cols-3 gap-2.5">
         {TILES.map((t) => (
+          <BusinessCard
+            key={t.sheet}
+            tile={t}
+            onOpen={() => setOpenSheet(t.sheet)}
+          />
+        ))}
+        {visibleRoleTiles.map((t) => (
           <BusinessCard
             key={t.sheet}
             tile={t}

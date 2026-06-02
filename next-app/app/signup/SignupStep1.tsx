@@ -22,8 +22,8 @@ interface RoleOption {
 
 const ROLES: RoleOption[] = [
   { value: 'pintor', icon: '🖌️', label: 'Pintor', description: 'Pintura residencial e comercial' },
-  { value: 'grafiteiro', icon: '🎨', label: 'Grafiteiro / Muralista', description: 'Arte urbana, murais e painéis' },
-  { value: 'automotivo', icon: '🚗', label: 'Pintor Automotivo', description: 'Funilaria, automotivo, envelopamento' },
+  { value: 'grafiteiro', icon: '🎨', label: 'Grafiteiro / Muralista', description: 'Arte urbana, murais, painéis e arte pra venda' },
+  { value: 'automotivo', icon: '🚗', label: 'Funileiro / Estética Automotiva', description: 'Funilaria, pintura, envelopamento, polimento' },
   { value: 'cliente', icon: '🏠', label: 'Cliente', description: 'Encontrar profissionais e pedir orçamentos' },
 ];
 

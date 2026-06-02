@@ -22,6 +22,7 @@ import { useAuth } from '@/components/AuthProvider';
 import {
   listNotes,
   saveNote as saveNoteSvc,
+  updateNote as updateNoteSvc,
   softDeleteNote as softDeleteNoteSvc,
   undoDeleteNote as undoDeleteNoteSvc,
   type Note,
@@ -33,9 +34,11 @@ export interface UseNotesResult {
   loading: boolean;
   error: Error | null;
   save: (body: string) => Promise<Note>;
+  update: (args: { noteId: string; body: string }) => Promise<void>;
   remove: (noteId: string) => Promise<SoftDeleteResult>;
   undoRemove: (noteId: string) => Promise<void>;
   isSaving: boolean;
+  isUpdating: boolean;
   isDeleting: boolean;
   isUndoing: boolean;
 }
@@ -60,6 +63,13 @@ export function useNotes(): UseNotesResult {
     },
   });
 
+  const updateMut = useMutation<void, Error, { noteId: string; body: string }>({
+    mutationFn: ({ noteId, body }) => updateNoteSvc(noteId, userId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key });
+    },
+  });
+
   const removeMut = useMutation<SoftDeleteResult, Error, string>({
     mutationFn: (noteId: string) => softDeleteNoteSvc(noteId, userId),
     onSuccess: () => {
@@ -79,9 +89,11 @@ export function useNotes(): UseNotesResult {
     loading: query.isLoading,
     error: query.error ?? null,
     save: saveMut.mutateAsync,
+    update: updateMut.mutateAsync,
     remove: removeMut.mutateAsync,
     undoRemove: undoMut.mutateAsync,
     isSaving: saveMut.isPending,
+    isUpdating: updateMut.isPending,
     isDeleting: removeMut.isPending,
     isUndoing: undoMut.isPending,
   };

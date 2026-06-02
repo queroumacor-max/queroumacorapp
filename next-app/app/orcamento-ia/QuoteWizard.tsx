@@ -19,8 +19,11 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { saveQuote } from '@/lib/services/pipeline';
+import { showToast } from '@/lib/toast';
 import {
   suggestScope,
   suggestPrice,
@@ -28,6 +31,9 @@ import {
 } from '@/lib/services/aiChat';
 
 interface FormState {
+  // Cliente
+  clientName: string;
+  clientPhone: string;
   // Espaço
   serviceType: string;
   areaM2: string;
@@ -46,6 +52,8 @@ interface FormState {
   includeMaterial: boolean;
   includeLabor: boolean;
   warranty: string; // ex.: 90 dias retoques
+  // Preço
+  price: string;
   // IA
   description: string;
   scope: string;
@@ -99,8 +107,11 @@ const PREP_OPTIONS = [
 
 export function QuoteWizard() {
   const { user, loading: authLoading } = useAuth();
+  const { profile } = useProfile();
   const policyUser = usePolicyUser();
   const [form, setForm] = useState<FormState>({
+    clientName: '',
+    clientPhone: '',
     serviceType: SERVICE_OPTIONS[0],
     areaM2: '',
     ceilingHeight: '2.8',
@@ -116,10 +127,14 @@ export function QuoteWizard() {
     includeMaterial: true,
     includeLabor: true,
     warranty: '90 dias para retoques',
+    price: '',
     description: '',
     scope: '',
   });
   const [priceResult, setPriceResult] = useState<SuggestPriceResult | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
 
   // Monta a descrição rica que vai pra IA — concatena todos os campos
   // preenchidos. Quanto mais info, mais preciso o escopo/preço.
@@ -221,8 +236,139 @@ export function QuoteWizard() {
     scopeMutation.mutate(richDescription);
   }
 
+  // Valor numérico atual — manual sobrescreve IA. priceResult.price serve de
+  // pré-preencho quando o user clica "Sugerir preço".
+  const effectivePrice = useMemo(() => {
+    const manual = parseFloat(form.price.replace(',', '.'));
+    if (Number.isFinite(manual) && manual > 0) return manual;
+    return priceResult?.price ?? 0;
+  }, [form.price, priceResult]);
+
+  // Profile do pintor pro cabeçalho do PDF/preview.
+  type ProfileLite = {
+    name?: string | null; tag?: string | null;
+    phone?: string | null; city?: string | null; state?: string | null;
+    business_logo_url?: string | null; avatar_url?: string | null;
+  };
+  const p = (profile ?? {}) as ProfileLite;
+  const painter = {
+    name: p.name || (p.tag ? '@' + p.tag : 'Pintor'),
+    phone: p.phone || '',
+    city: p.city || '',
+    state: p.state || '',
+    logo: p.business_logo_url || p.avatar_url || '',
+  };
+
+  async function handleSave(): Promise<string | null> {
+    if (saving) return savedQuoteId;
+    if (effectivePrice <= 0) {
+      showToast('Informe um valor pro orçamento', 'error');
+      return null;
+    }
+    setSaving(true);
+    try {
+      const { quoteId } = await saveQuote({
+        client_name: form.clientName || 'Cliente',
+        service_type: form.serviceType,
+        title: form.serviceType,
+        area_m2: parseFloat(form.areaM2) || null,
+        price: effectivePrice,
+        quote_data: {
+          ...form,
+          painter,
+          scope: form.scope,
+          rich: richDescription,
+          price_suggestion: priceResult,
+        },
+      });
+      setSavedQuoteId(quoteId);
+      showToast('Orçamento salvo no pipeline ✅', 'success');
+      return quoteId;
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao gravar', 'error');
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Texto plano do orçamento — usado pra WhatsApp/email.
+  function buildPlainText(): string {
+    const lines = [
+      `*Orçamento — ${painter.name}*`,
+      painter.phone ? `📞 ${painter.phone}` : null,
+      painter.city ? `📍 ${painter.city}${painter.state ? '/' + painter.state : ''}` : null,
+      '',
+      form.clientName ? `Cliente: ${form.clientName}` : null,
+      form.clientPhone ? `Telefone: ${form.clientPhone}` : null,
+      '',
+      `Serviço: ${form.serviceType}`,
+      form.areaM2 ? `Área: ${form.areaM2} m²` : null,
+      form.rooms ? `Cômodos: ${form.rooms}` : null,
+      `Tinta: ${form.paintType}${form.colorWant ? ' · ' + form.colorWant : ''}`,
+      `Demãos: ${form.coats}`,
+      form.prep.length > 0 ? `Preparação: ${form.prep.join(', ')}` : null,
+      form.durationDays ? `Prazo: ${form.durationDays} dias` : null,
+      `Inclui material: ${form.includeMaterial ? 'sim' : 'não'} · Inclui mão de obra: ${form.includeLabor ? 'sim' : 'não'}`,
+      form.warranty ? `Garantia: ${form.warranty}` : null,
+      '',
+      form.scope ? '*Escopo:*\n' + form.scope : null,
+      '',
+      effectivePrice > 0 ? `💰 *Valor: R$ ${effectivePrice.toLocaleString('pt-BR')}*` : null,
+    ].filter(Boolean);
+    return lines.join('\n');
+  }
+
+  function handleSendWhatsApp() {
+    const text = encodeURIComponent(buildPlainText());
+    const phoneDigits = (form.clientPhone || '').replace(/\D/g, '');
+    const url = phoneDigits
+      ? `https://wa.me/55${phoneDigits}?text=${text}`
+      : `https://wa.me/?text=${text}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleSendEmail() {
+    const subj = encodeURIComponent(`Orçamento — ${form.serviceType}`);
+    const body = encodeURIComponent(buildPlainText());
+    window.location.href = `mailto:?subject=${subj}&body=${body}`;
+  }
+
+  // PDF: usa window.print() escopado por @media print. O preview já tem
+  // .quote-pdf-content que vira a página A4 quando o user clica "Imprimir
+  // / Salvar PDF". Sem jspdf — economiza ~150kb no bundle.
+  function handlePrintPdf() {
+    setPreviewOpen(true);
+    // Espera um tick pra preview montar antes de abrir o diálogo de print.
+    setTimeout(() => {
+      window.print();
+    }, 400);
+  }
+
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 quote-wizard-root">
+      {/* ── 0. CLIENTE ── */}
+      <Card title="👤 Cliente">
+        <Row label="Nome do cliente">
+          <input
+            type="text"
+            value={form.clientName}
+            onChange={(e) => update('clientName', e.target.value)}
+            placeholder="ex: Maria Silva"
+            className={inputCls}
+          />
+        </Row>
+        <Row label="Telefone / WhatsApp">
+          <input
+            type="tel"
+            value={form.clientPhone}
+            onChange={(e) => update('clientPhone', e.target.value)}
+            placeholder="(11) 99999-9999"
+            className={inputCls}
+          />
+        </Row>
+      </Card>
+
       {/* ── 1. ESPAÇO ── */}
       <Card title="🏠 Espaço">
         <Row label="Tipo de serviço">
@@ -521,9 +667,372 @@ export function QuoteWizard() {
               {priceResult.justification}
             </p>
           ) : null}
+          <button
+            type="button"
+            onClick={() => update('price', String(priceResult.price))}
+            className="text-xs font-bold text-[color:var(--color-p1)] mt-2"
+          >
+            Usar este valor →
+          </button>
         </article>
       ) : null}
+
+      {/* ── 6. VALOR FINAL ── */}
+      <Card title="💰 Valor final">
+        <Row label="Valor do orçamento (R$)">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={form.price}
+            onChange={(e) => update('price', e.target.value)}
+            placeholder="ex: 2500"
+            className={inputCls}
+          />
+        </Row>
+      </Card>
+
+      {/* ── 7. AÇÕES ── */}
+      <div
+        className="grid grid-cols-2 gap-2"
+        style={{ marginTop: 6 }}
+      >
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="font-bold"
+          style={{
+            padding: 12,
+            background: '#fff',
+            color: 'var(--color-ink)',
+            borderRadius: 12,
+            fontSize: 13,
+            border: '1.5px solid var(--color-border)',
+            cursor: 'pointer',
+          }}
+        >
+          👁️ Visualizar
+        </button>
+        <button
+          type="button"
+          onClick={handlePrintPdf}
+          className="font-bold"
+          style={{
+            padding: 12,
+            background: '#fff',
+            color: 'var(--color-ink)',
+            borderRadius: 12,
+            fontSize: 13,
+            border: '1.5px solid var(--color-border)',
+            cursor: 'pointer',
+          }}
+        >
+          🖨️ PDF
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="font-bold text-white"
+          style={{
+            padding: 12,
+            background: 'var(--color-ink)',
+            borderRadius: 12,
+            fontSize: 13,
+            border: 'none',
+            cursor: saving ? 'wait' : 'pointer',
+            opacity: saving ? 0.7 : 1,
+          }}
+        >
+          {saving ? 'Gravando…' : '💾 Gravar'}
+        </button>
+        <div className="relative">
+          <details className="w-full">
+            <summary
+              className="font-bold text-white text-center list-none"
+              style={{
+                padding: 12,
+                background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+                borderRadius: 12,
+                fontSize: 13,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              📤 Enviar
+            </summary>
+            <div
+              className="absolute right-0 z-10 bg-white"
+              style={{
+                top: 'calc(100% + 6px)',
+                width: 180,
+                borderRadius: 12,
+                border: '1px solid var(--color-border)',
+                boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleSendWhatsApp}
+                className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
+                style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                💬 WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={handleSendEmail}
+                className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
+                style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                ✉️ E-mail
+              </button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      {savedQuoteId ? (
+        <p className="text-center text-xs text-[color:var(--color-muted)]">
+          Salvo no pipeline. Ver em{' '}
+          <Link href="/orcamentos" className="font-bold text-[color:var(--color-p1)]">
+            Orçamentos
+          </Link>
+          .
+        </p>
+      ) : null}
+
+      {previewOpen ? (
+        <QuotePreviewModal
+          onClose={() => setPreviewOpen(false)}
+          painter={painter}
+          form={form}
+          price={effectivePrice}
+        />
+      ) : null}
     </section>
+  );
+}
+
+// ─── Preview modal (full screen — também usado pelo print → PDF) ────────────
+
+interface PreviewProps {
+  onClose: () => void;
+  painter: { name: string; phone: string; city: string; state: string; logo: string };
+  form: FormState;
+  price: number;
+}
+
+function QuotePreviewModal({ onClose, painter, form, price }: PreviewProps) {
+  const today = new Date().toLocaleDateString('pt-BR');
+  return (
+    <>
+      {/* Print styles: esconde tudo exceto .quote-pdf-content quando imprime */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .quote-pdf-content, .quote-pdf-content * { visibility: visible !important; }
+          .quote-pdf-content {
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 24px !important;
+            background: #fff !important;
+            color: #000 !important;
+          }
+          .quote-pdf-noprint { display: none !important; }
+        }
+      `}</style>
+
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center quote-pdf-noprint"
+        style={{ background: 'rgba(0,0,0,.55)', padding: 12 }}
+        onClick={onClose}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white"
+          style={{
+            width: '100%',
+            maxWidth: 480,
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            borderRadius: 16,
+          }}
+        >
+          <header
+            className="flex items-center justify-between"
+            style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}
+          >
+            <h2 className="font-bold text-sm">Preview do orçamento</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
+            >
+              ✕
+            </button>
+          </header>
+
+          <article className="quote-pdf-content" style={{ padding: 20 }}>
+            {/* Cabeçalho com logo do pintor */}
+            <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '2px solid #222' }}>
+              {painter.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={painter.logo}
+                  alt="Logo"
+                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }}
+                />
+              ) : null}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#222' }}>{painter.name}</div>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                  {painter.phone ? `📞 ${painter.phone}` : ''}
+                  {painter.city ? `  📍 ${painter.city}${painter.state ? '/' + painter.state : ''}` : ''}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: 10, color: '#666' }}>
+                <div>ORÇAMENTO</div>
+                <div style={{ marginTop: 2 }}>{today}</div>
+              </div>
+            </header>
+
+            {/* Cliente */}
+            {(form.clientName || form.clientPhone) && (
+              <section style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>
+                  Cliente
+                </h3>
+                <p style={{ fontSize: 13, color: '#222' }}>
+                  {form.clientName ? <strong>{form.clientName}</strong> : null}
+                  {form.clientPhone ? <span> · {form.clientPhone}</span> : null}
+                </p>
+              </section>
+            )}
+
+            {/* Detalhes */}
+            <section style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
+                Detalhes do serviço
+              </h3>
+              <table style={{ width: '100%', fontSize: 12, color: '#222', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <Cell k="Serviço" v={form.serviceType} />
+                  {form.areaM2 ? <Cell k="Área" v={`${form.areaM2} m²`} /> : null}
+                  {form.rooms ? <Cell k="Cômodos" v={form.rooms} /> : null}
+                  <Cell k="Pé direito" v={`${form.ceilingHeight} m`} />
+                  <Cell k="Superfície" v={form.surfaceState} />
+                  <Cell k="Acesso" v={form.access} />
+                  <Cell k="Tinta" v={form.paintType + (form.colorWant ? ' · ' + form.colorWant : '')} />
+                  <Cell k="Demãos" v={form.coats} />
+                  {form.prep.length > 0 ? <Cell k="Preparação" v={form.prep.join(', ')} /> : null}
+                  {form.city ? <Cell k="Cidade" v={form.city} /> : null}
+                  {form.durationDays ? <Cell k="Prazo" v={`${form.durationDays} dias úteis`} /> : null}
+                  <Cell k="Inclui material" v={form.includeMaterial ? 'sim' : 'não'} />
+                  <Cell k="Inclui mão de obra" v={form.includeLabor ? 'sim' : 'não'} />
+                  {form.warranty ? <Cell k="Garantia" v={form.warranty} /> : null}
+                </tbody>
+              </table>
+            </section>
+
+            {/* Escopo */}
+            {form.scope ? (
+              <section style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>
+                  Escopo técnico
+                </h3>
+                <p style={{ fontSize: 12, color: '#222', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  {form.scope}
+                </p>
+              </section>
+            ) : null}
+
+            {/* Observações */}
+            {form.description ? (
+              <section style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>
+                  Observações
+                </h3>
+                <p style={{ fontSize: 12, color: '#222', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  {form.description}
+                </p>
+              </section>
+            ) : null}
+
+            {/* Valor total */}
+            <section
+              style={{
+                marginTop: 18,
+                padding: 16,
+                background: '#FFF4ED',
+                borderRadius: 10,
+                border: '2px solid #FF6B35',
+                textAlign: 'right',
+              }}
+            >
+              <div style={{ fontSize: 10, color: '#999', fontWeight: 700, letterSpacing: '.5px', textTransform: 'uppercase' }}>
+                Valor total
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#FF6B35' }}>
+                R$ {price > 0 ? price.toLocaleString('pt-BR') : '—'}
+              </div>
+            </section>
+
+            <p style={{ marginTop: 18, fontSize: 9, color: '#999', textAlign: 'center' }}>
+              Orçamento gerado por QueroUmaCor · {today}
+            </p>
+          </article>
+
+          <footer
+            className="quote-pdf-noprint flex gap-2"
+            style={{ padding: 12, borderTop: '1px solid var(--color-border)' }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 font-bold text-sm"
+              style={{
+                padding: 10,
+                background: '#fff',
+                color: 'var(--color-ink)',
+                borderRadius: 10,
+                border: '1.5px solid var(--color-border)',
+                cursor: 'pointer',
+              }}
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex-1 font-bold text-white text-sm"
+              style={{
+                padding: 10,
+                background: 'var(--color-ink)',
+                borderRadius: 10,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              🖨️ Imprimir / Salvar PDF
+            </button>
+          </footer>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Cell({ k, v }: { k: string; v: string }) {
+  return (
+    <tr>
+      <td style={{ padding: '4px 8px 4px 0', color: '#666', verticalAlign: 'top', width: '40%' }}>{k}</td>
+      <td style={{ padding: '4px 0', color: '#222', fontWeight: 600 }}>{v}</td>
+    </tr>
   );
 }
 

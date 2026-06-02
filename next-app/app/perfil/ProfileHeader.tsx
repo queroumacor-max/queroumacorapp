@@ -216,7 +216,11 @@ export function ProfileHeader() {
                 showToast('Configure o perfil antes de compartilhar', 'info');
                 return;
               }
-              const url = `${window.location.origin}/perfil/${slug}`;
+              // ?ref=<userId> é capturado em SignupFlow → vira invited_by
+              // no profile + linha em referrals (rastreio no portal). user.id
+              // sempre presente aqui pq o botão só renderiza em /perfil próprio.
+              const refQ = user?.id ? `?ref=${encodeURIComponent(user.id)}` : '';
+              const url = `${window.location.origin}/perfil/${slug}${refQ}`;
               if (typeof navigator !== 'undefined' && navigator.share) {
                 try {
                   await navigator.share({ title: name, url });

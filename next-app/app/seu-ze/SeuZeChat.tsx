@@ -42,6 +42,8 @@ export function SeuZeChat() {
     voiceError,
     speak,
     speakingId,
+    autoSpeak,
+    setAutoSpeak,
   } = useSeuZe();
 
   const [input, setInput] = useState('');
@@ -134,15 +136,27 @@ export function SeuZeChat() {
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
           Chat com o Seu Zé
         </h2>
-        {messages.length > 0 ? (
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={reset}
-            className="text-xs text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)] transition-colors"
+            onClick={() => setAutoSpeak(!autoSpeak)}
+            aria-pressed={autoSpeak}
+            aria-label={autoSpeak ? 'Desativar fala automática' : 'Ativar fala automática'}
+            title={autoSpeak ? 'Fala automática ligada' : 'Fala automática desligada'}
+            className="text-base hover:scale-110 transition-transform"
           >
-            Limpar
+            {autoSpeak ? '🔊' : '🔇'}
           </button>
-        ) : null}
+          {messages.length > 0 ? (
+            <button
+              type="button"
+              onClick={reset}
+              className="text-xs text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)] transition-colors"
+            >
+              Limpar
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <div

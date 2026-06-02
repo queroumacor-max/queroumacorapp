@@ -94,6 +94,32 @@ export async function saveNote(
   };
 }
 
+// ─── UPDATE ─────────────────────────────────────────────────────────────────
+
+/**
+ * Atualiza o body de uma anotação existente. RLS em notes garante
+ * `auth.uid() = user_id`, mas mantemos o filtro `.eq('user_id', userId)` como
+ * defesa em profundidade (mesma razão de softDeleteNote).
+ */
+export async function updateNote(
+  noteId: string,
+  userId: string,
+  body: string,
+): Promise<void> {
+  if (!noteId) throw new ValidationError('noteId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+  const trimmed = (body || '').trim();
+  if (!trimmed) throw new ValidationError('Anotação vazia');
+
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('notes')
+    .update({ body: trimmed })
+    .eq('id', noteId)
+    .eq('user_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+}
+
 // ─── SOFT DELETE + UNDO ────────────────────────────────────────────────────
 
 /**

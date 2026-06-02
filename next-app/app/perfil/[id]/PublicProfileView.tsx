@@ -336,9 +336,12 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
             type="button"
             onClick={() => {
               if (typeof navigator !== 'undefined' && navigator.share && profile?.tag) {
+                // ?ref=<userId> usa o id do PERFIL VISTO (o dono dessa página)
+                // como referrer — quem clicar e se cadastrar fica indicado por ele.
+                const refQ = profile?.id ? `?ref=${encodeURIComponent(profile.id)}` : '';
                 void navigator.share({
                   title: name,
-                  url: `${window.location.origin}/perfil/${profile.tag}`,
+                  url: `${window.location.origin}/perfil/${profile.tag}${refQ}`,
                 });
               }
             }}
