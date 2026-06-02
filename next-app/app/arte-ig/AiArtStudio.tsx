@@ -55,8 +55,10 @@ export function AiArtStudio() {
   const ai = useAiArt();
 
   const isPro = canSeeProFeature(policyUser);
-  // Gate combinado: PRO OU tem créditos. Se nenhum, paywall.
-  const canUse = isPro || !ai.isAtLimit;
+  // PRO agora também tem limite (2/dia). canUse é true só quando ainda tem
+  // créditos do dia, independente do tier. Pra estourar o limite, comprar
+  // pacote (não wired ainda; CTA aponta pra /pro até habilitar checkout).
+  const canUse = !ai.isAtLimit;
 
   const onSelectStyle = useCallback((s: ArtStyle, two: boolean) => {
     setStyle(s);
@@ -167,15 +169,21 @@ export function AiArtStudio() {
         </div>
         <h2 className="font-semibold mb-2">Limite diário atingido</h2>
         <p className="text-sm text-[color:var(--color-muted)] mb-4">
-          Você usou seus 5 créditos grátis de hoje. Volta amanhã, ou faça
-          upgrade pro Pintor PRO pra gerar arte ilimitada.
+          {isPro
+            ? 'Você usou as 2 artes incluídas de hoje. Volta amanhã ou compre um pacote pra continuar.'
+            : 'Você usou seus 5 créditos grátis de hoje. Volta amanhã, assine PRO ou compre um pacote.'}
         </p>
-        <Link
-          href="/perfil"
-          className="inline-block px-5 py-2 bg-gradient-to-br from-[#8338ec] to-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Conhecer PRO
-        </Link>
+        <div className="flex flex-col gap-2 items-center">
+          <Link
+            href="/pro"
+            className="inline-block px-5 py-2 bg-gradient-to-br from-[#8338ec] to-[color:var(--color-p1)] text-white rounded-xl font-semibold"
+          >
+            {isPro ? '🎁 Comprar pacote (R$1/imagem)' : 'Conhecer PRO'}
+          </Link>
+          <span className="text-xs text-[color:var(--color-muted)]">
+            Pacote mínimo R$ 10 (10 imagens)
+          </span>
+        </div>
       </div>
     );
   }
@@ -186,15 +194,19 @@ export function AiArtStudio() {
       <div className="flex items-center justify-between mb-4 px-3 py-2 rounded-xl bg-white border border-[color:var(--color-border)]">
         <div className="flex items-center gap-2 text-sm">
           <span aria-hidden="true">⚡</span>
-          <span className="text-[color:var(--color-muted)]">Créditos:</span>
-          {isPro ? (
-            <span className="text-xs font-bold text-[color:var(--color-p1)]">
-              PRO · ilimitado
-            </span>
-          ) : (
-            creditsBadge
-          )}
+          <span className="text-[color:var(--color-muted)]">
+            {isPro ? 'PRO · hoje:' : 'Créditos:'}
+          </span>
+          {creditsBadge}
         </div>
+        {ai.creditsLeft <= 1 ? (
+          <Link
+            href="/pro"
+            className="text-xs font-bold text-[color:var(--color-p1)]"
+          >
+            +Pacote
+          </Link>
+        ) : null}
       </div>
 
       {!ai.result ? (

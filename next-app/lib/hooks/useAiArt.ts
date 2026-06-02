@@ -26,11 +26,14 @@ import {
   getDailyCreditsUsed,
   maxCredits,
   DAILY_CREDITS_LIMIT,
+  PRO_DAILY_LIMIT,
   type GenerateArtInput,
   type GenerateArtResult,
   type PostArtInput,
   type PostArtResult,
 } from '@/lib/services/aiArt';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 
 export interface UseAiArtResult {
   // Mutation: gerar arte
@@ -55,7 +58,12 @@ export interface UseAiArtResult {
 
 export function useAiArt(): UseAiArtResult {
   const { user } = useAuth();
+  const policyUser = usePolicyUser();
   const userId = user?.id || '';
+  const isPro = canSeeProFeature(policyUser);
+  // Limite efetivo: PRO 2/dia (incluído na assinatura). Free 5/dia (legado —
+  // pacote pago futuro vai zerar isso). User pediu PRO=2 explicitamente.
+  const effectiveLimit = isPro ? PRO_DAILY_LIMIT : DAILY_CREDITS_LIMIT;
 
   // tick força re-leitura do localStorage sem virar Context. Bump em sucesso
   // de generate (que incrementa o contador) e em 429 (que zera o restante).
@@ -97,7 +105,7 @@ export function useAiArt(): UseAiArtResult {
   // tick é dependência implícita do read acima — referência abaixo evita
   // o lint sumir com `tick` e quebrar a invalidação de leitura.
   void tick;
-  const creditsLeft = Math.max(0, DAILY_CREDITS_LIMIT - creditsUsed);
+  const creditsLeft = Math.max(0, effectiveLimit - creditsUsed);
 
   const resetResult = useCallback(() => {
     generateMutation.reset();
@@ -118,7 +126,7 @@ export function useAiArt(): UseAiArtResult {
 
     creditsUsed,
     creditsLeft,
-    creditsLimit: DAILY_CREDITS_LIMIT,
+    creditsLimit: effectiveLimit,
     isAtLimit: creditsLeft === 0,
   };
 }

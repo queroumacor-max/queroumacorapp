@@ -58,8 +58,12 @@ export interface GenerateArtResult {
   model?: string;
 }
 
-// Limite diário (espelha gateProAI({ limit: 5 }) em functions/api/ig-art.js).
+// Limites diários:
+// - Free: 5 (espelha gateProAI({ limit: 5 }) em functions/api/ig-art.js)
+// - PRO: 2 por dia (incluído na assinatura). Pra gerar mais, comprar pacote
+//   avulso (R$1/imagem, mín R$10) — pacote ainda não está wired.
 export const DAILY_CREDITS_LIMIT = 5;
+export const PRO_DAILY_LIMIT = 2;
 
 // Quais estilos o backend reconhece. `criativo` é alias do `portrait` do
 // backend (mesma composição cinemática) — mapeado abaixo no payload.
