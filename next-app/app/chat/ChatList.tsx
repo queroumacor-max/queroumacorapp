@@ -12,6 +12,7 @@ import { useChatRealtime } from '@/lib/hooks/useChatRealtime';
 import { useArchivedConvs } from '@/lib/hooks/useArchivedConvs';
 import { ConversationItem } from './ConversationItem';
 import { NewChatModal } from './NewChatModal';
+import { AutoRespostaSheet } from './AutoRespostaSheet';
 import type { ConversationMeta } from '@/lib/services/chat';
 
 type Tab = 'all' | 'trio' | 'store' | 'orcamento';
@@ -61,6 +62,7 @@ export function ChatList() {
   const { archivedSet } = useArchivedConvs();
   const [tab, setTab] = useState<Tab>('all');
   const [modalOpen, setModalOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
   // Realtime global — 1 subscription pra TODAS as conversas. Hook é idempotente.
@@ -151,6 +153,15 @@ export function ChatList() {
             );
           })}
         </div>
+        <button
+          type="button"
+          onClick={() => setAutoOpen(true)}
+          className="flex-shrink-0 px-3 h-9 rounded-full bg-white border border-[color:var(--color-border)] text-xs font-bold text-[color:var(--color-ink)]"
+          aria-label="Respostas automáticas"
+          title="Auto-resposta"
+        >
+          ⚡ Auto
+        </button>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
@@ -276,6 +287,7 @@ export function ChatList() {
         onClose={closeAndCleanUrl}
         excludeIds={excludeIds}
       />
+      <AutoRespostaSheet open={autoOpen} onClose={() => setAutoOpen(false)} />
     </div>
   );
 }
