@@ -137,39 +137,54 @@ export function ProductsList() {
           </Link>
         </div>
 
-        {/* Tabs */}
-        <div
-          className="flex gap-2 overflow-x-auto"
-          role="tablist"
-          aria-label="Filtrar por categoria"
-          style={{ paddingBottom: 14 }}
-        >
-          {tabs.map((tab) => {
-            const active = tab.value === category;
-            return (
-              <button
+        {/* Dropdown de categoria (substitui as tabs horizontais scrolláveis).
+            Vanilla usa tabs mas em telas estreitas isso vira scroll horizontal
+            que estoura o layout. Select nativo é mais compacto e acessível. */}
+        <div className="relative" style={{ paddingBottom: 14 }}>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as ProductCategoryFilter)}
+            aria-label="Filtrar por categoria"
+            className="w-full text-white outline-none appearance-none"
+            style={{
+              padding: '12px 40px 12px 16px',
+              borderRadius: 26,
+              border: '1.5px solid rgba(255,255,255,.14)',
+              background: 'rgba(255,255,255,.07)',
+              fontSize: 14,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {tabs.map((tab) => (
+              <option
                 key={tab.value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setCategory(tab.value)}
-                className="font-bold whitespace-nowrap"
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 20,
-                  fontSize: 12,
-                  background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.08)',
-                  color: active ? '#fff' : 'rgba(255,255,255,.7)',
-                  border: active
-                    ? '1.5px solid var(--color-p1)'
-                    : '1.5px solid rgba(255,255,255,.14)',
-                  cursor: 'pointer',
-                }}
+                value={tab.value}
+                style={{ color: 'var(--color-ink)' }}
               >
                 {tab.label} ({tab.count})
-              </button>
-            );
-          })}
+              </option>
+            ))}
+          </select>
+          {/* Chevron decorativo (select nativo não estiliza o arrow padrão). */}
+          <span
+            aria-hidden="true"
+            className="absolute pointer-events-none"
+            style={{ right: 14, top: 12 }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="var(--color-p1)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </span>
         </div>
 
         {/* Busca — input estilo vanilla (dark com ícone laranja absoluto) */}

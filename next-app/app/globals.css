@@ -30,3 +30,21 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
 }
+
+/* Esconde barras de rolagem em todo o app — vanilla usa
+   `.scroll::-webkit-scrollbar{display:none}` no #scroll-area. Aqui
+   aplicamos no body + main + qualquer container marcado .hide-scrollbar
+   (carrosséis horizontais, dropdowns). Scroll continua funcional via
+   gesto/wheel. */
+html, body, main, .hide-scrollbar {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE/Legacy Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+main::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;               /* Chromium/WebKit */
+  width: 0;
+  height: 0;
+}
