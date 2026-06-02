@@ -16,12 +16,11 @@
 
 'use client';
 
-import type { User } from '@supabase/supabase-js';
-import { canSeeProFeature, type PolicyUser } from '@/lib/policies';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import type { AIAnalysisResult } from '@/lib/services/financeiro';
 
 interface AnalysisCardProps {
-  user: User | null;
   onAnalyze: () => void;
   isAnalyzing: boolean;
   analysis: AIAnalysisResult | null;
@@ -30,27 +29,7 @@ interface AnalysisCardProps {
   hasEntries: boolean;
 }
 
-// User do Supabase carrega is_pro/is_admin no `user_metadata` em alguns
-// fluxos. Pra alimentar canSeeProFeature (que espera PolicyUser shape),
-// extraímos os flags relevantes. Defensivo: se `user_metadata` é qualquer
-// coisa que não objeto, tratamos como vazio.
-function userToPolicy(user: User | null): PolicyUser | null {
-  if (!user) return null;
-  const meta =
-    user.user_metadata && typeof user.user_metadata === 'object'
-      ? (user.user_metadata as Record<string, unknown>)
-      : {};
-  return {
-    id: user.id,
-    is_pro: meta.is_pro === true ? true : meta.is_pro === false ? false : null,
-    is_admin:
-      meta.is_admin === true ? true : meta.is_admin === false ? false : null,
-    role: typeof meta.role === 'string' ? meta.role : null,
-  };
-}
-
 export function AnalysisCard({
-  user,
   onAnalyze,
   isAnalyzing,
   analysis,
@@ -58,7 +37,8 @@ export function AnalysisCard({
   onReset,
   hasEntries,
 }: AnalysisCardProps) {
-  const isPro = canSeeProFeature(userToPolicy(user));
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
 
   return (
     <div className="bg-white rounded-xl border border-[color:var(--color-border)] p-4">

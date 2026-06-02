@@ -342,7 +342,6 @@ export function Dashboard() {
       )}
 
       <AnalysisCard
-        user={user}
         onAnalyze={analyze}
         isAnalyzing={isAnalyzing}
         analysis={analysis}

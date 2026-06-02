@@ -68,10 +68,14 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
     >
       <Link
         href={user ? '/feed' : '/'}
-        className="text-white font-extrabold tracking-tight truncate"
+        className="text-white font-extrabold tracking-tight whitespace-nowrap"
         style={{
           fontFamily: 'var(--font-display)',
-          fontSize: 'clamp(15px, 5vw, 21px)',
+          // Tamanho dinâmico — encolhe quando o badge é mais largo (ADMIN).
+          // Min 13px garante legibilidade em telas pequenas; max 21px é o
+          // teto desktop. 4.2vw escala suave entre os dois.
+          fontSize: 'clamp(13px, 4.2vw, 21px)',
+          letterSpacing: '-0.5px',
         }}
         aria-label="Ir para o início"
       >

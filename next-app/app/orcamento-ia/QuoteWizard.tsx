@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import {
   suggestScope,
   suggestPrice,
@@ -43,6 +44,7 @@ const SERVICE_OPTIONS = [
 
 export function QuoteWizard() {
   const { user, loading: authLoading } = useAuth();
+  const policyUser = usePolicyUser();
   const [form, setForm] = useState<FormState>({
     serviceType: SERVICE_OPTIONS[0],
     areaM2: '',
@@ -92,12 +94,6 @@ export function QuoteWizard() {
     );
   }
 
-  const policyUser = {
-    id: user.id,
-    is_pro: (user.user_metadata?.is_pro as boolean | undefined) ?? false,
-    is_admin: (user.user_metadata?.is_admin as boolean | undefined) ?? false,
-    role: (user.user_metadata?.role as string | undefined) ?? null,
-  };
   if (!canSeeProFeature(policyUser)) {
     return (
       <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
