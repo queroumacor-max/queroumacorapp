@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { signUp } from '@/lib/services/signup';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import type { UserRole } from '@/lib/types';
+import { readPendingReferrer, clearPendingReferrer } from '@/components/ReferralCapture';
 import { SignupStep1, type Step1Data } from './SignupStep1';
 import { SignupStep2, type Step2Data } from './SignupStep2';
 import { SignupStep3, type Step3Data } from './SignupStep3';
@@ -71,6 +72,10 @@ export function SignupFlow() {
         setServerError('Volte e preencha os passos anteriores.');
         return;
       }
+      // ReferralCapture armazenou ?ref=<userId> em localStorage quando o
+      // link compartilhado pousou em qualquer rota. signUp passa pro service
+      // que insere em `referrals` + seta profiles.invited_by.
+      const referrerId = readPendingReferrer();
       const { userId } = await signUp({
         userType: draft.userType,
         name: draft.name,
@@ -82,6 +87,7 @@ export function SignupFlow() {
         birthDate: draft.birthDate || null,
         city: draft.city || null,
         state: draft.state || null,
+        referrerId: referrerId || undefined,
         // Avatar é uploaded depois (precisa do userId da conta criada
         // pra usar o path do storage policy `<userId>/<ts>.<ext>`).
       });
@@ -100,7 +106,10 @@ export function SignupFlow() {
           /* silent — user pode subir depois via /perfil/editar */
         }
       }
-      router.push('/');
+      // Limpa o referrer salvo + redireciona pro perfil de quem indicou
+      // (vanilla head.js linha 1188 openUserProfile). Sem referrer → /.
+      clearPendingReferrer();
+      router.push(referrerId ? `/perfil/${referrerId}` : '/');
       router.refresh();
     } catch (e) {
       if (e instanceof ConflictError) {

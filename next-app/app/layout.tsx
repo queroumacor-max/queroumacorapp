@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { Syne, DM_Sans } from 'next/font/google';
+import { Suspense } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
 import { QueryProvider } from '@/components/QueryProvider';
 import { ToastViewport } from '@/components/ToastViewport';
 import { StagingBanner } from '@/components/StagingBanner';
+import { ReferralCapture } from '@/components/ReferralCapture';
 import './globals.css';
 
 // Self-host de Syne (display/marca) + DM Sans (body) via next/font/google.
@@ -54,6 +56,11 @@ export default function RootLayout({
         <AuthProvider>
           <QueryProvider>
             <StagingBanner />
+            {/* Suspense exigido por useSearchParams() em ReferralCapture
+                quando renderiza em rotas dinâmicas. */}
+            <Suspense fallback={null}>
+              <ReferralCapture />
+            </Suspense>
             {children}
             <ToastViewport />
           </QueryProvider>

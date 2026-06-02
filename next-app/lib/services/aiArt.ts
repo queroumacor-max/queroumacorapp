@@ -278,10 +278,7 @@ export async function fetchTemplates(style: ArtStyle): Promise<string | null> {
   if (!backendKey) return null;
 
   const baseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-  if (!baseUrl) {
-    // Sem env, vai direto pro fallback estático.
-    return `/style-refs/${backendKey}.jpg`;
-  }
+  if (!baseUrl) return null; // UI cai pra StyleMock SVG.
 
   for (const ext of ['jpg', 'png', 'webp'] as const) {
     const url = `${baseUrl}/storage/v1/object/public/style-refs/${backendKey}.${ext}?v=${Date.now()}`;
@@ -296,7 +293,10 @@ export async function fetchTemplates(style: ArtStyle): Promise<string | null> {
     }
   }
 
-  return `/style-refs/${backendKey}.jpg`;
+  // Nada respondeu image/*. Devolve null em vez de path estático que 404a —
+  // setar backgroundImage com URL quebrada fazia o card piscar do SVG pra
+  // "broken image" branco. Com null, StyleMock continua renderizando.
+  return null;
 }
 
 /**

@@ -37,6 +37,10 @@ export interface SignupData {
   /** Avatar pré-uploadado (URL pública) — caller pode subir antes via
    *  uploadAvatar e passar a URL aqui pro UPDATE final. */
   avatarUrl?: string | null;
+  /** Referrer (?ref=<userId> capturado pelo ReferralCapture). Cria linha em
+   *  `referrals` (status=completed, bonus_points=1) + seta profiles.invited_by.
+   *  Quando vazio/igual ao próprio user, ignorado. */
+  referrerId?: string;
 }
 
 export interface SignupResult {
@@ -154,23 +158,48 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
   }
 
   // UPDATE pós-trigger: campos que não foram populados pela trigger
-  // handle_new_user (birth_date, city, state, avatar_url). Best-effort —
-  // falhar não invalida a conta criada (caller pode editar pelo /perfil/editar).
+  // handle_new_user (birth_date, city, state, avatar_url, invited_by).
+  // Best-effort — falhar não invalida a conta criada.
   const extras: {
     birth_date?: string | null;
     city?: string | null;
     state?: string | null;
     avatar_url?: string | null;
+    invited_by?: string | null;
   } = {};
   if (input.birthDate) extras.birth_date = input.birthDate;
   if (input.city) extras.city = input.city;
   if (input.state) extras.state = input.state.toUpperCase();
   if (input.avatarUrl) extras.avatar_url = input.avatarUrl;
+  if (input.referrerId && input.referrerId !== data.user.id) {
+    extras.invited_by = input.referrerId;
+  }
   if (Object.keys(extras).length > 0) {
     try {
       await sb.from('profiles').update(extras).eq('id', data.user.id);
     } catch {
       /* silent — conta já existe, user edita depois */
+    }
+  }
+
+  // Registra a indicação em `referrals` — trigger no banco credita 1 pt no
+  // referrer (vanilla head.js linha 1174, bonus_points=20 era pre-Wave 5;
+  // o spec novo é 1 pt). Best-effort: falhar não bloqueia o cadastro.
+  if (input.referrerId && input.referrerId !== data.user.id) {
+    try {
+      const sbAny = sb as unknown as {
+        from: (t: string) => {
+          insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>;
+        };
+      };
+      await sbAny.from('referrals').insert({
+        referrer_id: input.referrerId,
+        referred_id: data.user.id,
+        status: 'completed',
+        bonus_points: 1,
+      });
+    } catch {
+      /* silent — perfil já tem invited_by, admin pode reconciliar manualmente */
     }
   }
 

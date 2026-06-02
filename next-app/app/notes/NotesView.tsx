@@ -24,12 +24,35 @@ function formatDate(iso: string): string {
 }
 
 export function NotesView() {
-  const { notes, loading, save, remove, undoRemove, isSaving } = useNotes();
+  const { notes, loading, save, update, remove, undoRemove, isSaving, isUpdating } = useNotes();
   const [draft, setDraft] = useState('');
   const [lastDeleted, setLastDeleted] = useState<string | null>(null);
   const [transcribing, setTranscribing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
   const policyUser = usePolicyUser();
   const isPro = canSeeProFeature(policyUser);
+
+  function startEdit(id: string, body: string) {
+    setEditingId(id);
+    setEditBody(body);
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setEditBody('');
+  }
+  async function saveEdit() {
+    if (!editingId) return;
+    const body = editBody.trim();
+    if (!body) return;
+    try {
+      await update({ noteId: editingId, body });
+      setEditingId(null);
+      setEditBody('');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao atualizar', 'error');
+    }
+  }
 
   // Gravação de áudio → transcrição (vanilla notes.js iniciarGravacaoNota).
   // Pro user → gravar → /api/transcribe → texto vai no draft (append).
@@ -262,50 +285,124 @@ export function NotesView() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {notes.map((n) => (
-            <div
-              key={n.id}
-              className="bg-white"
-              style={{
-                borderRadius: 12,
-                padding: 14,
-                boxShadow: '0 1px 4px rgba(0,0,0,.04)',
-              }}
-            >
+          {notes.map((n) => {
+            const isEditing = editingId === n.id;
+            return (
               <div
+                key={n.id}
+                className="bg-white"
                 style={{
-                  fontSize: 14,
-                  color: 'var(--color-ink)',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.5,
-                  marginBottom: 8,
+                  borderRadius: 12,
+                  padding: 14,
+                  boxShadow: '0 1px 4px rgba(0,0,0,.04)',
                 }}
               >
-                {n.body}
+                {isEditing ? (
+                  <>
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      rows={3}
+                      className="w-full bg-white"
+                      style={{
+                        padding: 10,
+                        borderRadius: 10,
+                        border: '1.5px solid var(--color-border)',
+                        fontSize: 14,
+                        resize: 'vertical',
+                        marginBottom: 8,
+                        outline: 'none',
+                        fontFamily: 'var(--font-body)',
+                      }}
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="font-bold"
+                        style={{
+                          color: 'var(--color-muted)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          padding: '4px 8px',
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        disabled={isUpdating || !editBody.trim()}
+                        className="font-bold text-white"
+                        style={{
+                          background: 'var(--color-ink)',
+                          border: 'none',
+                          borderRadius: 8,
+                          cursor: isUpdating || !editBody.trim() ? 'not-allowed' : 'pointer',
+                          fontSize: 12,
+                          padding: '6px 12px',
+                          opacity: isUpdating || !editBody.trim() ? 0.5 : 1,
+                        }}
+                      >
+                        {isUpdating ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: 'var(--color-ink)',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.5,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {n.body}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>
+                        {formatDate(n.created_at)}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(n.id, n.body)}
+                          className="font-bold"
+                          style={{
+                            color: 'var(--color-p1)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(n.id)}
+                          className="font-bold"
+                          style={{
+                            color: 'var(--color-danger)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                          }}
+                        >
+                          Apagar
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="flex items-center justify-between">
-                <span
-                  style={{ fontSize: 11, color: 'var(--color-muted)' }}
-                >
-                  {formatDate(n.created_at)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(n.id)}
-                  className="font-bold"
-                  style={{
-                    color: 'var(--color-danger)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
-                >
-                  Apagar
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

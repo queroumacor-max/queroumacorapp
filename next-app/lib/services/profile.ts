@@ -115,8 +115,28 @@ export async function updateProfile(
   }
 
   const sb = getSupabase();
-  const { error } = await sb.from('profiles').update(cleaned).eq('id', userId);
-  if (error) {
+  // Retry-com-coluna-removida: se Postgrest reportar "Could not find the 'X'
+  // column of 'profiles' in the schema cache", removemos X do patch e
+  // tentamos de novo. Isso evita travar todo o UPDATE quando uma coluna
+  // ainda não foi adicionada via migration (ex.: address, business_logo_url).
+  // Tentativas máximas = nº de chaves do patch — eventualmente o set vazia
+  // ou tudo passa.
+  let attempt: ProfilePatch = { ...cleaned };
+  for (let i = 0; i < Object.keys(cleaned).length + 1; i++) {
+    if (Object.keys(attempt).length === 0) return; // nada sobrou pra atualizar
+    const { error } = await sb.from('profiles').update(attempt).eq('id', userId);
+    if (!error) return;
+    const msg = (error as { message?: string }).message || '';
+    // Postgrest 4.x reporta "Could not find the 'X' column" quando a coluna
+    // não existe no schema cache (DDL pendente). Extraímos X e droppamos.
+    const m = /Could not find the '([^']+)' column/i.exec(msg);
+    if (m && m[1] && m[1] in attempt) {
+      const k = m[1] as keyof ProfilePatch;
+      const next = { ...attempt };
+      delete next[k];
+      attempt = next;
+      continue;
+    }
     throw new NetworkError(error.message, error);
   }
 }
