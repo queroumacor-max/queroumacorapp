@@ -35,9 +35,12 @@ export interface LeadCardProps {
   lead: Lead;
   onComprar: () => void;
   isComprarando: boolean;
+  /** Click no botão "Pedir orçamento" — abre chat com o user dono do lead.
+   *  Vanilla equivale a `abrirOrcamentoChat(user_id, name)`. */
+  onOrcamento?: () => void;
 }
 
-export function LeadCard({ lead, onComprar, isComprarando }: LeadCardProps) {
+export function LeadCard({ lead, onComprar, isComprarando, onOrcamento }: LeadCardProps) {
   const isVideo = lead.media_type === 'video';
   const caption = lead.caption ? truncate(lead.caption) : 'Sem descrição';
 
@@ -82,19 +85,31 @@ export function LeadCard({ lead, onComprar, isComprarando }: LeadCardProps) {
         <p className="text-sm text-[color:var(--color-ink)] mb-3 min-h-[2.5rem]">
           {caption}
         </p>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="text-base font-bold text-[color:var(--color-ink)]">
             {formatPrice(lead.price)}
           </span>
-          <button
-            type="button"
-            onClick={onComprar}
-            disabled={isComprarando}
-            className="px-4 py-2 bg-[color:var(--color-ink)] text-white rounded-xl text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-            aria-label="Comprar contato deste lead"
-          >
-            {isComprarando ? 'Comprando…' : 'Comprar contato'}
-          </button>
+          <div className="flex gap-2">
+            {onOrcamento ? (
+              <button
+                type="button"
+                onClick={onOrcamento}
+                className="px-3 py-2 bg-[color:var(--color-p1)] text-white rounded-xl text-xs font-semibold hover:opacity-90 transition-opacity"
+                aria-label="Pedir orçamento deste lead"
+              >
+                Pedir orçamento
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onComprar}
+              disabled={isComprarando}
+              className="px-3 py-2 bg-[color:var(--color-ink)] text-white rounded-xl text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+              aria-label="Comprar contato deste lead"
+            >
+              {isComprarando ? 'Comprando…' : 'Comprar'}
+            </button>
+          </div>
         </div>
       </div>
     </article>

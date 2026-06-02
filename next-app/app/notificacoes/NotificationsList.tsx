@@ -14,6 +14,7 @@
 
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useNotifications } from '@/lib/hooks/useNotifications';
@@ -139,6 +140,19 @@ export function NotificationsList() {
   const { user, loading: authLoading } = useAuth();
   const { notifications, loading, error, unreadCount, markRead, markAll, isMarking } =
     useNotifications();
+
+  // Auto-marca todas como lidas ao abrir a tela (paridade vanilla
+  // modules/notif.js linha 36 `updateNotifBadge(false)`). Só roda
+  // uma vez por mount + quando tem coisa pra marcar.
+  const autoMarkedRef = useRef(false);
+  useEffect(() => {
+    if (autoMarkedRef.current) return;
+    if (!user || loading) return;
+    if (unreadCount > 0) {
+      autoMarkedRef.current = true;
+      markAll();
+    }
+  }, [user, loading, unreadCount, markAll]);
 
   // Sem sessão: prompt pro login. O AuthProvider expõe `loading` enquanto a
   // sessão tá sendo restaurada do storage — durante essa janela mostramos
