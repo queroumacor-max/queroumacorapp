@@ -42,6 +42,7 @@ export interface ProfilePatch {
   specialties?: string | null;
   avatar_url?: string | null;
   service_radius?: number | null;
+  business_logo_url?: string | null;
 }
 
 /**

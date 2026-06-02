@@ -36,7 +36,9 @@ import {
   getCidadesByUF,
   uploadAvatar,
 } from '@/lib/services/profile';
+import { fetchLogo, uploadLogo, saveLogo } from '@/lib/services/aiLogo';
 import { phoneSchema, requiredField } from '@/lib/schemas';
+import { showToast } from '@/lib/toast';
 
 // Schema dos campos editáveis. Tag e email NÃO entram aqui — são
 // readonly/immutable na UI.
@@ -76,6 +78,12 @@ export function EditProfileForm() {
   // Nada é gravado no banco até o submit; até lá só fica em state.
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // Logo do negócio: lê do banco via fetchLogo (sincronizado com camisetas
+  // — mesma URL `profiles.business_logo_url` que ShirtCustomizer/AiArt usam).
+  // Upload faz commit imediato (não espera o submit do form principal) pra
+  // ficar consistente com o fluxo de geração de logo IA.
+  const [savedLogoUrl, setSavedLogoUrl] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState(0);
@@ -151,6 +159,69 @@ export function EditProfileForm() {
       cancelled = true;
     };
   }, [watchState]);
+
+  // Carrega logo atual do banco no mount + quando user muda. Bate na mesma
+  // coluna `profiles.business_logo_url` que ShirtCustomizer lê. Se não
+  // tiver, fica null e a UI mostra placeholder.
+  useEffect(() => {
+    if (!user) return;
+    let cancel = false;
+    fetchLogo(user.id)
+      .then((url) => {
+        if (!cancel) setSavedLogoUrl(url);
+      })
+      .catch(() => {
+        /* silent */
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [user]);
+
+  // Upload do logo: PUT no bucket + UPDATE profiles.business_logo_url.
+  // Commit imediato (não espera submit) — comportamento idêntico ao
+  // ShirtCustomizer pra manter sync entre as 2 telas.
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Selecione uma imagem (PNG, JPG, WebP, SVG)', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Imagem grande demais (máx 5MB)', 'error');
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const url = await uploadLogo(user.id, file);
+      await saveLogo(user.id, url);
+      setSavedLogoUrl(url);
+      showToast('Logo do negócio salvo!', 'success');
+    } catch (err) {
+      showToast((err as Error).message || 'Erro ao enviar logo', 'error');
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function handleLogoRemove() {
+    if (!user || logoBusy) return;
+    if (!window.confirm('Remover o logo do negócio?')) return;
+    setLogoBusy(true);
+    try {
+      // saveLogo exige string não-vazia; pra limpar, updateProfile direto.
+      const { updateProfile } = await import('@/lib/services/profile');
+      await updateProfile(user.id, { business_logo_url: null });
+      setSavedLogoUrl(null);
+      showToast('Logo removido', 'success');
+    } catch (err) {
+      showToast((err as Error).message || 'Erro ao remover logo', 'error');
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   // Cleanup do objectURL quando trocar o arquivo ou desmontar — sem isso
   // o blob fica no heap até o GC, e em uploads sucessivos vaza.
@@ -293,6 +364,116 @@ export function EditProfileForm() {
           <p className="text-xs text-[color:var(--color-muted)] mt-1">
             JPG/PNG/WebP — máx 5MB
           </p>
+        </div>
+      </div>
+
+      {/* Logo do negócio — espelha profiles.business_logo_url, mesma fonte
+          que /camisetas e arte-ig leem. Upload imediato (não espera submit
+          do form) pra ficar consistente com o fluxo de geração de logo IA. */}
+      <div
+        className="bg-white"
+        style={{
+          borderRadius: 14,
+          padding: 14,
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        <div
+          className="font-bold"
+          style={{ fontSize: 13, color: 'var(--color-ink)', marginBottom: 4 }}
+        >
+          🎨 Logo do negócio
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--color-muted)',
+            marginBottom: 10,
+          }}
+        >
+          O mesmo logo aparece nas camisetas e nas artes pro Instagram.
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 10,
+              background: savedLogoUrl ? '#fff' : 'var(--color-cream)',
+              border: '1.5px dashed var(--color-border)',
+              overflow: 'hidden',
+              padding: 4,
+            }}
+          >
+            {savedLogoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={savedLogoUrl}
+                alt="Logo do negócio"
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span style={{ fontSize: 22 }} aria-hidden="true">🖼️</span>
+            )}
+          </div>
+          <div className="flex-1 flex flex-col gap-2">
+            <label
+              htmlFor="business-logo-input"
+              className="text-center font-bold text-sm cursor-pointer"
+              style={{
+                padding: '8px 14px',
+                background: 'var(--color-ink)',
+                color: '#fff',
+                borderRadius: 10,
+                opacity: logoBusy ? 0.6 : 1,
+                pointerEvents: logoBusy ? 'none' : 'auto',
+              }}
+            >
+              {logoBusy ? 'Enviando…' : savedLogoUrl ? 'Trocar logo' : 'Enviar logo'}
+            </label>
+            <input
+              id="business-logo-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={handleLogoFile}
+              disabled={logoBusy}
+            />
+            {savedLogoUrl ? (
+              <button
+                type="button"
+                onClick={handleLogoRemove}
+                disabled={logoBusy}
+                className="text-center font-semibold text-xs"
+                style={{
+                  padding: '6px 10px',
+                  background: 'transparent',
+                  color: 'var(--color-danger)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                Remover
+              </button>
+            ) : (
+              <Link
+                href="/perfil"
+                className="text-center font-semibold text-xs"
+                style={{
+                  padding: '6px 10px',
+                  background: 'transparent',
+                  color: 'var(--color-p1)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  textDecoration: 'none',
+                }}
+              >
+                Ou gerar com IA (tile Camisetas)
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
