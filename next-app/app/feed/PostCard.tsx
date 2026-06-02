@@ -26,6 +26,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
 import { showToast } from '@/lib/toast';
 import { BottomSheet } from '@/components/BottomSheet';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSupabase } from '@/lib/supabase';
 import { getTimeAgo } from '@/lib/utils';
 import { PostMedia } from './PostMedia';
 import type { FeedPost } from '@/lib/services/feed';
@@ -52,6 +54,7 @@ function displayName(profile: FeedPost['profile']): string {
 export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const name = displayName(post.profile);
   const handle = post.profile.tag ? '@' + post.profile.tag : '';
   const timeAgo = getTimeAgo(post.created_at);
@@ -110,9 +113,48 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
     setOptsOpen(false);
   }
 
-  function handleReport() {
-    showToast('Denúncia enviada — vamos analisar', 'info');
+  // Denunciar: abre sub-modal com 4 motivos (vanilla #report-reason-modal).
+  // submitReport faz INSERT real em `reports` table (Wave 4 SQL ja' criou
+  // a tabela com RLS). Antes era só showToast fake — nada chegava no
+  // banco e admin não tinha como ver denúncias.
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  function handleOpenReport() {
     setOptsOpen(false);
+    setReportOpen(true);
+  }
+
+  async function submitReport(reason: string) {
+    if (reportSubmitting) return;
+    if (!user) {
+      showToast('Faça login para denunciar', 'info');
+      return;
+    }
+    setReportSubmitting(true);
+    setReportOpen(false);
+    try {
+      const sb = getSupabase();
+      // Cast: reports table não está nos types gerados; vanilla insere
+      // diretamente com os mesmos 4 campos.
+      const sbAny = sb as unknown as {
+        from: (t: string) => {
+          insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>;
+        };
+      };
+      const r = await sbAny.from('reports').insert({
+        reporter_id: user.id,
+        post_id: post.id,
+        target_user_id: post.user_id,
+        reason,
+      });
+      if (r.error) throw new Error('Erro ao enviar denúncia');
+      showToast('Denúncia enviada — nossa equipe vai analisar', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao enviar denúncia', 'error');
+    } finally {
+      setReportSubmitting(false);
+    }
   }
 
   async function handleDelete() {
@@ -122,6 +164,9 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
       const { deletePost } = await import('@/lib/services/postInteractions');
       if (!user) return;
       await deletePost(user.id, post.id);
+      // Invalida feed pra remover o post da timeline imediatamente.
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['profile-posts', user.id] });
       showToast('Post apagado', 'success');
     } catch (e) {
       showToast((e as Error).message || 'Erro ao apagar', 'error');
@@ -343,8 +388,58 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
           {isOwn ? (
             <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
           ) : (
-            <PostOptRow icon="⚠️" label="Denunciar" onClick={handleReport} danger />
+            <PostOptRow icon="⚠️" label="Denunciar" onClick={handleOpenReport} danger />
           )}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        ariaLabel="Denunciar post"
+      >
+        <h3
+          className="font-extrabold text-center"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            marginBottom: 16,
+            color: 'var(--color-ink)',
+          }}
+        >
+          Denunciar post
+        </h3>
+        <p
+          className="text-center"
+          style={{
+            fontSize: 13,
+            color: 'var(--color-muted)',
+            marginBottom: 14,
+          }}
+        >
+          Por que você quer denunciar este post?
+        </p>
+        <div className="flex flex-col gap-1">
+          {['Conteúdo impróprio', 'Spam', 'Informação falsa', 'Outro'].map((reason) => (
+            <button
+              key={reason}
+              type="button"
+              onClick={() => submitReport(reason)}
+              disabled={reportSubmitting}
+              className="text-left font-semibold"
+              style={{
+                padding: '14px 12px',
+                borderRadius: 12,
+                background: 'transparent',
+                border: 'none',
+                cursor: reportSubmitting ? 'wait' : 'pointer',
+                fontSize: 15,
+                color: 'var(--color-ink)',
+              }}
+            >
+              {reason}
+            </button>
+          ))}
         </div>
       </BottomSheet>
     </article>
