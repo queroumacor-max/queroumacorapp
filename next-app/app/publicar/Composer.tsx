@@ -85,7 +85,16 @@ function validateFiles(
   return { ok: true, files: imagesOnly };
 }
 
-export function Composer() {
+export interface ComposerProps {
+  /** Quando true, Composer é usado dentro de um modal/sheet — não faz
+   *  router.push após publish (caller fecha o sheet). */
+  embedded?: boolean;
+  /** Callback após publish bem-sucedido — caller pode fechar modal,
+   *  refetch feed, etc. */
+  onPublishSuccess?: () => void;
+}
+
+export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const publish = usePublishPost();
@@ -217,16 +226,19 @@ export function Composer() {
       artType: forSale ? artType : null,
     })
       .then(() => {
-        // Limpa estado e leva pro feed. router.push é no-op se a rota /feed
-        // ainda não existe — graceful (Next mostra 404 só na navegação).
+        // Limpa estado. Em embedded (modal), só chama onPublishSuccess pra
+        // o caller fechar o sheet; em standalone, navega pro feed.
         setFiles([]);
         setCaption('');
         setForSale(false);
         setPriceText('');
-        // Apaga rascunho persistido — não faz sentido restaurar após publish.
         autosave.clear();
         setDraftSavedAt(0);
-        router.push('/feed');
+        if (embedded) {
+          onPublishSuccess?.();
+        } else {
+          router.push('/feed');
+        }
       })
       .catch(() => {
         // Erro já fica em publish.error — pintamos no banner abaixo.
@@ -241,6 +253,8 @@ export function Composer() {
     artType,
     router,
     autosave,
+    embedded,
+    onPublishSuccess,
   ]);
 
   if (authLoading) {
