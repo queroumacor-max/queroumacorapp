@@ -1,15 +1,13 @@
 // Página /perfil — equivalente à #screen-myprofile do vanilla.
-// Header dark com avatar + nome + stats, banner PRO, grid "Meu Negócio"
-// com 9 cards (Pedidos/Orçamentos/Pipeline/Pontos/Portfolio/Calculadora/
-// Agenda/CRM/Checklist) + Seu Zé + Financeiro/Anotações + Camisetas.
-//
-// Cards usam o mesmo padrão visual do vanilla: fundo branco, radius 16,
-// ícone emoji 28px + título 12px bold + subtítulo 10px muted.
+// Estrutura espelha o vanilla: header dark, banner PRO, grid Meu Negócio
+// (com Formação/Cursos incluídos), Configurações (com "Ver perfil público"
+// como último item), Mais Informações, e botão Sair isolado.
 
 import type { Metadata } from 'next';
 import { AppShell } from '@/components/AppShell';
 import { ProfileHeader } from './ProfileHeader';
 import { BusinessGrid } from './BusinessGrid';
+import { ProfileFooter } from './ProfileFooter';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -22,8 +20,8 @@ export default function PerfilPage() {
     <AppShell>
       <ProfileHeader />
 
-      {/* Banner PRO — só pra quem não é PRO. ProfileHeader checa e esconde. */}
-
+      {/* Meu Negócio — grid 3-col com 16 cards (inclui Formação/Cursos
+          no fim, espelhando o vanilla pós-merge `tiles no grid`). */}
       <div className="px-3.5 pt-4 pb-2">
         <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
           Meu Negócio
@@ -31,7 +29,8 @@ export default function PerfilPage() {
         <BusinessGrid />
       </div>
 
-      {/* Configurações */}
+      {/* Configurações — card branco com rows. "Ver meu perfil público"
+          é o último item dentro do card (não em seção separada). */}
       <div className="px-3.5 pt-4 pb-2">
         <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
           Configurações
@@ -40,87 +39,66 @@ export default function PerfilPage() {
           <ConfigRow href="/perfil/editar" emoji="✏️" label="Editar Perfil" />
           <ConfigRow href="/perfil/editar?tab=specs" emoji="🎨" label="Especialidades" />
           <ConfigRow href="/perfil/editar?tab=raio" emoji="📍" label="Raio de Atendimento" />
-          <ConfigRow href="/notificacoes" emoji="🔔" label="Notificações" last />
+          <ConfigRow href="/notificacoes" emoji="🔔" label="Notificações" />
+          <ConfigRow href="/perfil/publico" emoji="👁️" label="Ver meu perfil público" last />
         </div>
       </div>
 
-      {/* Perfil público — 2 tiles */}
+      {/* Mais informações e suporte */}
       <div className="px-3.5 pt-4 pb-2">
         <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
-          Perfil Público
+          Mais Informações e Suporte
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          <Tile href="/perfil/formacao" emoji="🎓" title="Formação" subtitle="Qualificações" />
-          <Tile href="/perfil/formacao?tab=courses" emoji="📚" title="Cursos" subtitle="Workshops e treinos" />
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+          <Link
+            href="/info"
+            className="flex items-center gap-3 px-4 py-3.5"
+          >
+            <span className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">
+              ℹ️
+            </span>
+            <span className="flex-1">
+              <span className="block text-sm font-bold text-[color:var(--color-ink)]">
+                Ajuda, privacidade e sobre
+              </span>
+              <span className="block text-xs text-[color:var(--color-muted)] mt-0.5">
+                Central de ajuda, termos, privacidade e contato
+              </span>
+            </span>
+            <span className="text-[color:var(--color-muted)]">›</span>
+          </Link>
         </div>
       </div>
 
-      <div className="px-3.5 pt-6 pb-6">
-        <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
-          Conta
-        </div>
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-          <ConfigRow href="/info" emoji="ℹ️" label="Sobre / Fale Conosco" />
-          <ConfigRow href="/logout" emoji="🚪" label="Sair" last danger />
-        </div>
-      </div>
+      {/* Sair — botão isolado, full width, estilo vanilla */}
+      <ProfileFooter />
     </AppShell>
   );
 }
 
-// ─── helper components (server-rendered, leves) ─────────────────────────────
+// ─── helper components ─────────────────────────────────────────────────────
 
 interface ConfigRowProps {
   href: string;
   emoji: string;
   label: string;
   last?: boolean;
-  danger?: boolean;
 }
 
-function ConfigRow({ href, emoji, label, last, danger }: ConfigRowProps) {
+function ConfigRow({ href, emoji, label, last }: ConfigRowProps) {
   return (
     <Link
       href={href}
       className={
-        'flex items-center gap-3 px-4 py-3.5 cursor-pointer ' +
+        'flex items-center gap-3 px-4 py-3.5 ' +
         (last ? '' : 'border-b border-[color:var(--color-border)]')
       }
     >
       <span className="text-lg">{emoji}</span>
-      <span
-        className={
-          'flex-1 text-sm font-semibold ' +
-          (danger ? 'text-[color:var(--color-danger)]' : 'text-[color:var(--color-ink)]')
-        }
-      >
+      <span className="flex-1 text-sm font-semibold text-[color:var(--color-ink)]">
         {label}
       </span>
       <span className="text-[color:var(--color-muted)]">›</span>
-    </Link>
-  );
-}
-
-interface TileProps {
-  href: string;
-  emoji: string;
-  title: string;
-  subtitle: string;
-}
-
-function Tile({ href, emoji, title, subtitle }: TileProps) {
-  return (
-    <Link
-      href={href}
-      className="bg-white rounded-2xl p-5 text-center shadow-sm flex flex-col items-center justify-center min-h-[110px]"
-    >
-      <span className="text-3xl mb-2">{emoji}</span>
-      <span className="text-[13px] font-bold text-[color:var(--color-ink)] leading-tight">
-        {title}
-      </span>
-      <span className="text-[10px] text-[color:var(--color-muted)] mt-0.5">
-        {subtitle}
-      </span>
     </Link>
   );
 }

@@ -15,12 +15,16 @@ interface Tile {
   gradient?: 'pro' | 'art';
 }
 
+// Ordem espelha o vanilla (index.html #screen-myprofile "Meu Negócio" grid)
+// — pedidos, orçamento/pipeline, pontos/portfolio, calc/agenda/crm,
+// checklist/financeiro/anotações, Seu Zé+Arte IG (gradient PRO), camisetas,
+// formação, cursos. Logo IA fica acessível via /ai-logo direto (sem tile).
 const TILES: readonly Tile[] = [
   { href: '/pedidos', emoji: '📋', title: 'Meus Pedidos', subtitle: 'Orçamentos' },
   { href: '/orcamento-ia', emoji: '📄', title: 'Orçamento', subtitle: 'Crie e envie' },
   { href: '/orcamentos', emoji: '🗂️', title: 'Orçamentos', subtitle: 'Pipeline e aprovação' },
-  { href: '/leads', emoji: '🎯', title: 'Leads', subtitle: 'Oportunidades' },
-  { href: '/publicar', emoji: '📸', title: 'Portfolio', subtitle: 'Postar trabalhos' },
+  { href: '/pontos', emoji: '🎁', title: 'Meus Pontos', subtitle: 'Pra ganhar PRO' },
+  { href: '/publicar', emoji: '📸', title: 'Meu Portfolio', subtitle: 'Postar trabalhos' },
   { href: '/calculadora', emoji: '🧮', title: 'Calculadora', subtitle: 'Tinta e material' },
   { href: '/agenda', emoji: '📅', title: 'Agenda', subtitle: 'Meus projetos' },
   { href: '/crm', emoji: '🔁', title: 'Reativar clientes', subtitle: 'Follow-up · PRO' },
@@ -30,7 +34,8 @@ const TILES: readonly Tile[] = [
   { href: '/seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
   { href: '/arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { href: '/camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
-  { href: '/ai-logo', emoji: '🖼️', title: 'Logo IA', subtitle: 'Sua marca' },
+  { href: '/perfil/formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
+  { href: '/perfil/formacao?tab=courses', emoji: '📚', title: 'Cursos', subtitle: 'Workshops e treinos' },
 ];
 
 export function BusinessGrid() {
