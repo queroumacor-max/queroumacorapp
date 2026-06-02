@@ -45,7 +45,10 @@ export function useProducts(): UseProductsResult {
 
   const query = useQuery<Product[], Error>({
     queryKey: ['products'],
-    queryFn: ({ signal }) => fetchProducts({ limit: 1000, signal }),
+    // Sem limit explícito — fetchProducts pagina via range em batches de
+    // 1000 até pegar todos os ~4000+ produtos do catálogo (PostgREST cap
+    // de 1000 por request, então um único .limit(5000) não basta).
+    queryFn: ({ signal }) => fetchProducts({ signal }),
     staleTime: MKT_TTL,
   });
 
