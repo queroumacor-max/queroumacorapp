@@ -9,6 +9,7 @@
 
 import { TopNav } from './TopNav';
 import { BottomNav } from './BottomNav';
+import { RealtimeBindings } from './RealtimeBindings';
 import type { ReactNode } from 'react';
 
 interface AppShellProps {
@@ -29,6 +30,7 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="flex flex-col w-full max-w-[430px] mx-auto h-screen bg-[color:var(--color-bg)] relative overflow-hidden" style={{ minHeight: '100dvh' }}>
+      <RealtimeBindings />
       {!hideTopNav && <TopNav proStatus={proStatus} />}
       <main
         className="flex-1 overflow-y-auto overflow-x-hidden"

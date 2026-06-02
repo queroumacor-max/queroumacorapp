@@ -37,7 +37,13 @@ export function useProfile(): UseProfileResult {
     queryKey: ['profile', user?.id],
     queryFn: () => getProfile(user!.id),
     enabled: !!user,
-    staleTime: 60_000,
+    // staleTime curto (10s) — useProfileRealtime invalida o cache em qualquer
+    // UPDATE em profiles, então sempre temos dado fresco quando relevante.
+    // Os 10s só evitam re-fetch em re-renders próximos (mesma sessão).
+    staleTime: 10_000,
+    // Refetch sempre que a aba volta a ter foco (default true, explícito
+    // pra deixar claro).
+    refetchOnWindowFocus: true,
   });
 
   const updateMutation = useMutation<void, Error, ProfilePatch>({
