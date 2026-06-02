@@ -32,7 +32,7 @@ import {
   type PostArtInput,
   type PostArtResult,
 } from '@/lib/services/aiArt';
-import { canSeeProFeature } from '@/lib/policies';
+import { canSeeProFeature, isAdmin } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 
 export interface UseAiArtResult {
@@ -61,9 +61,16 @@ export function useAiArt(): UseAiArtResult {
   const policyUser = usePolicyUser();
   const userId = user?.id || '';
   const isPro = canSeeProFeature(policyUser);
-  // Limite efetivo: PRO 2/dia (incluído na assinatura). Free 5/dia (legado —
-  // pacote pago futuro vai zerar isso). User pediu PRO=2 explicitamente.
-  const effectiveLimit = isPro ? PRO_DAILY_LIMIT : DAILY_CREDITS_LIMIT;
+  const admin = isAdmin(policyUser);
+  // Limite efetivo:
+  //  - admin: ilimitado (Number.MAX_SAFE_INTEGER pra UI não mostrar "X/2 hoje")
+  //  - PRO: 2/dia (incluído na assinatura)
+  //  - Free: 5/dia (legado — pacote pago futuro vai zerar isso)
+  const effectiveLimit = admin
+    ? Number.MAX_SAFE_INTEGER
+    : isPro
+      ? PRO_DAILY_LIMIT
+      : DAILY_CREDITS_LIMIT;
 
   // tick força re-leitura do localStorage sem virar Context. Bump em sucesso
   // de generate (que incrementa o contador) e em 429 (que zera o restante).

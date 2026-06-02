@@ -67,6 +67,12 @@ const schema = z.object({
     .max(200, 'Endereço com no máximo 200 caracteres')
     .optional()
     .or(z.literal('')),
+  business_name: z
+    .string()
+    .trim()
+    .max(80, 'Nome do negócio com no máximo 80 caracteres')
+    .optional()
+    .or(z.literal('')),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -106,14 +112,18 @@ export function EditProfileForm() {
       city: '',
       state: '',
       address: '',
+      business_name: '',
     },
   });
 
   // Quando o profile chega do servidor, popula o form. reset() em vez de
   // setValue por campo porque RHF marca dirty apenas em mudanças após o
-  // reset — assim o usuário só vê "tem mudanças não salvas" se realmente mexer.
+  // reset. Pulamos quando o user tem alterações não salvas (isDirty=true)
+  // pra não sobrescrever o que ele está digitando — caso clássico: profile
+  // refetch do servidor durante uma edição.
   useEffect(() => {
     if (!profile) return;
+    if (isDirty) return;
     reset({
       name: profile.name ?? '',
       bio: profile.bio ?? '',
@@ -121,8 +131,10 @@ export function EditProfileForm() {
       city: profile.city ?? '',
       state: (profile.state ?? '').toUpperCase(),
       address: profile.address ?? '',
+      business_name:
+        ((profile as { business_name?: string | null }).business_name ?? '') as string,
     });
-  }, [profile, reset]);
+  }, [profile, reset, isDirty]);
 
   // Autosave (UX#6): persiste rascunho a cada 5s em localStorage e
   // restaura no mount. Não cobre avatar (File) nem campos readonly.
@@ -285,8 +297,11 @@ export function EditProfileForm() {
         city: data.city,
         state: data.state,
         address: data.address ? data.address : null,
+        // business_name: vazio explicitamente vira null (limpa dirty data
+        // legado tipo nome de logo de camisa antigo). Trim já feito pelo schema.
+        business_name: data.business_name ? data.business_name : null,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-      });
+      } as Parameters<typeof update>[0] & { business_name?: string | null });
 
       setSubmitSuccess(true);
       setAvatarFile(null); // limpa preview pós-save
@@ -599,6 +614,24 @@ export function EditProfileForm() {
           className={inputClass}
           aria-invalid={errors.address ? 'true' : 'false'}
         />
+      </Field>
+
+      <Field
+        id="business_name"
+        label="Nome do negócio (opcional)"
+        error={errors.business_name?.message}
+      >
+        <input
+          id="business_name"
+          type="text"
+          placeholder="Ex: JR Design Build (deixe em branco se não tiver)"
+          {...register('business_name')}
+          className={inputClass}
+          aria-invalid={errors.business_name ? 'true' : 'false'}
+        />
+        <p className="text-[11px] text-[color:var(--color-muted)] mt-1">
+          Aparece em PDFs e geração de IA. Apague pra usar seu nome pessoal.
+        </p>
       </Field>
 
       {submitError && (

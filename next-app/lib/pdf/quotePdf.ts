@@ -85,9 +85,12 @@ export async function generateQuotePdfBlob(
   const warranty = ((quote.quote_data as { warranty?: string } | null)?.warranty) || '';
   const qd = quote.quote_data;
 
+  // Prioridade: name primeiro, business_name como fallback. Antes priorizávamos
+  // business_name (legado vanilla salvava label do logo da camisa lá), o que
+  // poluía os PDFs com nomes de teste antigos.
   const painterName =
-    painter?.business_name ||
     painter?.name ||
+    painter?.business_name ||
     (painter?.tag ? '@' + painter.tag : 'Pintor');
   const painterTag = painter?.tag ? '@' + painter.tag : '';
   const painterPhone = painter?.phone || '';
