@@ -41,6 +41,13 @@ export function ProfileHeader() {
   const { profile } = useProfile();
 
   const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
+  // Fallback do avatar via profiles_public (mesma fonte que o feed usa pra
+  // mostrar Jackson Matos no header do post). Se `useProfile().avatar_url`
+  // vier null mas a view tiver a URL, usa ela. Resolve o caso em que a
+  // tabela `profiles` direto retorna avatar_url null por algum motivo
+  // (RLS, cache stale, ou row antiga sem o campo populado mas o sync
+  // trigger só popula em UPDATE).
+  const [publicAvatar, setPublicAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -49,13 +56,16 @@ export function ProfileHeader() {
       DB.posts.countByUser(user.id),
       DB.follows.countFollowers(user.id),
       DB.follows.countFollowing(user.id),
+      DB.profiles.getMany([user.id], 'id, avatar_url'),
     ])
-      .then(([posts, followers, following]) => {
+      .then(([posts, followers, following, pubProfs]) => {
         if (cancel) return;
         setStats({ posts, followers, following });
+        const pub = pubProfs?.[0];
+        if (pub?.avatar_url) setPublicAvatar(pub.avatar_url);
       })
       .catch(() => {
-        /* silent — vanilla também não levanta erro */
+        /* silent */
       });
     return () => {
       cancel = true;
@@ -70,14 +80,18 @@ export function ProfileHeader() {
   const name = normalizeName(rawName) || 'Seu Nome';
   const hasName = !!(profile?.name || metaName);
 
-  // Fallback chain pro avatar: profile.avatar_url → user_metadata.avatar_url
-  // (signup com OAuth Google/Facebook) → user_metadata.picture (Google).
-  // Sem isso, perfis OAuth-only mostram só inicial mesmo tendo foto via provider.
+  // Fallback chain pro avatar:
+  //   1. profile.avatar_url (tabela profiles direto via useProfile)
+  //   2. publicAvatar (profiles_public via DB.profiles.getMany — view safe
+  //      que o feed também usa pra renderizar avatares)
+  //   3. user_metadata.avatar_url (signup OAuth Google/Facebook)
+  //   4. user_metadata.picture (Google)
   const metaAvatar =
     (meta['avatar_url'] as string | undefined) ||
     (meta['picture'] as string | undefined) ||
     null;
-  const effectiveAvatar = profile?.avatar_url || metaAvatar || null;
+  const effectiveAvatar =
+    profile?.avatar_url || publicAvatar || metaAvatar || null;
 
   const subtitle = hasName
     ? profile?.tag

@@ -30,6 +30,10 @@ interface DraftSignup {
   tag?: string;
   email?: string;
   phone?: string;
+  birthDate?: string;
+  city?: string;
+  state?: string;
+  avatarFile?: File | null;
 }
 
 export function SignupFlow() {
@@ -51,6 +55,10 @@ export function SignupFlow() {
       tag: data.tag,
       email: data.email,
       phone: data.phone,
+      birthDate: data.birthDate,
+      city: data.city,
+      state: data.state,
+      avatarFile: data.avatarFile ?? null,
     }));
     setStep(3);
   }
@@ -60,12 +68,10 @@ export function SignupFlow() {
     setSubmitting(true);
     try {
       if (!draft.userType || !draft.name || !draft.tag || !draft.email || !draft.phone) {
-        // Defensivo: usuário não pode chegar no step 3 sem isso, mas guard
-        // pra TS narrowing + mensagem amigável se algo der errado.
         setServerError('Volte e preencha os passos anteriores.');
         return;
       }
-      await signUp({
+      const { userId } = await signUp({
         userType: draft.userType,
         name: draft.name,
         tag: draft.tag,
@@ -73,7 +79,27 @@ export function SignupFlow() {
         phone: draft.phone,
         password: data.password,
         inviteCode: data.inviteCode || undefined,
+        birthDate: draft.birthDate || null,
+        city: draft.city || null,
+        state: draft.state || null,
+        // Avatar é uploaded depois (precisa do userId da conta criada
+        // pra usar o path do storage policy `<userId>/<ts>.<ext>`).
       });
+      // Upload do avatar pós-signup. Best-effort — falhar não invalida
+      // a conta. uploadAvatar atualiza profiles.avatar_url via UPDATE
+      // direto (não dá pra concatenar com o UPDATE de signup.ts pq
+      // o ID só existe após auth.signUp resolver).
+      if (draft.avatarFile && userId) {
+        try {
+          const { uploadAvatar: doUpload } = await import('@/lib/services/profile');
+          const url = await doUpload(userId, draft.avatarFile);
+          // updateProfile separado pra setar avatar_url no row do user.
+          const { updateProfile } = await import('@/lib/services/profile');
+          await updateProfile(userId, { avatar_url: url });
+        } catch {
+          /* silent — user pode subir depois via /perfil/editar */
+        }
+      }
       router.push('/');
       router.refresh();
     } catch (e) {
