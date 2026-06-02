@@ -1,10 +1,10 @@
 // Página /feed — Server Component shell envolto pelo AppShell (TopNav +
-// BottomNav). FeedView carrega posts via TanStack; StoriesCarousel fica
-// acima do feed espelhando o vanilla (stories-row em screen-home).
+// BottomNav). FeedView orquestra Stories + filtros + posts, com
+// Stories+filtros num único container sticky no topo do main rolável
+// (só os posts rolam).
 
 import type { Metadata } from 'next';
 import { FeedView } from './FeedView';
-import { FeedStories } from './FeedStories';
 import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
@@ -16,7 +16,6 @@ export const metadata: Metadata = {
 export default function FeedPage() {
   return (
     <AppShell>
-      <FeedStories />
       <FeedView />
     </AppShell>
   );

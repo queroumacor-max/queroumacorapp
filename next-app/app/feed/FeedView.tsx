@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useFeed } from '@/lib/hooks/useFeed';
 import { PostCard } from './PostCard';
+import { FeedStories } from './FeedStories';
 
 type RoleFilter = '' | 'pintor' | 'grafiteiro' | 'automotivo';
 
@@ -108,26 +109,37 @@ export function FeedView() {
 
   return (
     <div>
-      <div className="flex gap-2 px-3 py-3 overflow-x-auto sticky top-0 bg-white z-10 border-b border-[color:var(--color-border)]">
-        {FILTER_BUTTONS.map((f) => {
-          const active = roleFilter === f.value;
-          return (
-            <button
-              key={f.value || 'all'}
-              type="button"
-              onClick={() => setRoleFilter(f.value)}
-              className={
-                'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
-                (active
-                  ? 'bg-[color:var(--color-ink)] text-white border-[color:var(--color-ink)]'
-                  : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
-              }
-              aria-pressed={active}
-            >
-              {f.label}
-            </button>
-          );
-        })}
+      {/* Stories + filtros num único container sticky topo: a TopNav já
+          está sticky em AppShell, e este bloco fica logo abaixo. Resultado:
+          só os posts rolam, todo o resto do "cabeçalho do feed" fica
+          congelado (paridade UX com IG / vanilla queroumacor). */}
+      <div className="sticky top-0 z-20">
+        <FeedStories />
+        <div
+          className="flex gap-2 px-3 py-3 overflow-x-auto bg-white border-b border-[color:var(--color-border)] hide-scrollbar"
+          role="tablist"
+          aria-label="Filtrar por categoria"
+        >
+          {FILTER_BUTTONS.map((f) => {
+            const active = roleFilter === f.value;
+            return (
+              <button
+                key={f.value || 'all'}
+                type="button"
+                onClick={() => setRoleFilter(f.value)}
+                className={
+                  'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
+                  (active
+                    ? 'bg-[color:var(--color-ink)] text-white border-[color:var(--color-ink)]'
+                    : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
+                }
+                aria-pressed={active}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {loading ? (

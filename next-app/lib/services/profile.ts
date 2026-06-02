@@ -26,10 +26,12 @@ import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Profile, UserRole } from '@/lib/types';
 
 // Colunas que o form de edição lê/escreve. Mesmo subset do
-// modules/profile-edit.js linha 71 (openEditProfile.select), mais bio e
-// address que o spec deste port pede.
+// modules/profile-edit.js linha 71 (openEditProfile.select), mais bio,
+// address e PRO flags (is_pro/pro_expires_at/pro_grace_until) — sem
+// estas o ProfileHeader não esconde o banner "Ative PRO" e o TopNav
+// mostra "GRÁTIS" mesmo pra user PRO.
 const PROFILE_COLS =
-  'id, name, tag, username, email, city, state, address, phone, bio, specialties, avatar_url, role, user_type, service_radius';
+  'id, name, tag, username, email, city, state, address, phone, bio, specialties, avatar_url, role, user_type, service_radius, is_pro, pro_expires_at, pro_grace_until';
 
 // Patch parcial — apenas as colunas que o usuário pode editar pelo form. `tag`
 // é immutable pós-criação na UI (input disabled), mas mantemos no shape pra o
