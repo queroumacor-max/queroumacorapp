@@ -303,6 +303,10 @@ async function getFeedPosts(opts: GetFeedPostsOpts = {}): Promise<QueryResult<Po
   let q = sb.from('posts').select(cols).neq('media_type', 'story');
   // status nulo = posts antigos pré-moderação; mantemos compat aceitando ambos.
   q = q.or('status.eq.approved,status.is.null');
+  // Esconde posts soft-deleted (deletePost grava deleted_at). Sem este filtro
+  // o post apagado continuava no feed mesmo após invalidate, dando impressão
+  // de delete quebrado.
+  q = q.is('deleted_at', null);
   if (feedIds.length > 0) q = q.in('user_id', feedIds);
   if (opts.cursor) {
     // Keyset: pega rows mais antigas que o cursor; order desc + limit dá a
@@ -341,6 +345,7 @@ async function getStories(opts: GetStoriesOpts = {}): Promise<QueryResult<Post>>
   const limit = opts.limit || 100;
   let q = sb.from('posts').select(cols).eq('media_type', 'story');
   q = q.or('status.eq.approved,status.is.null').not('media_url', 'is', null);
+  q = q.is('deleted_at', null);
   if (feedIds.length > 0) q = q.in('user_id', feedIds);
   q = q.gte('created_at', sinceISO).order('created_at', { ascending: true }).limit(limit);
   const r = await q;

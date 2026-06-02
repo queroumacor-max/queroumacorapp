@@ -213,7 +213,20 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
       alert('Informe um valor válido.');
       return;
     }
-    send({ id: quote.id, price });
+    // Prazo + garantia: cliente espera ver esses campos formalizados.
+    // Aceitar string vazia = "a combinar"; o serviço só grava quando vier.
+    const proposedDate = window.prompt(
+      'Prazo de conclusão (AAAA-MM-DD) — deixe em branco se a combinar:',
+      quote.proposed_date || '',
+    );
+    const existingWarranty = ((quote.quote_data as { warranty?: string } | null)?.warranty) || '90 dias para retoques';
+    const warranty = window.prompt('Garantia oferecida:', existingWarranty);
+    send({
+      id: quote.id,
+      price,
+      proposedDate: proposedDate?.trim() || null,
+      warranty: warranty?.trim() || null,
+    });
   };
 
   const handleApprove = () => {

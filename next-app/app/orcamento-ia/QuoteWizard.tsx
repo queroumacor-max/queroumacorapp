@@ -334,6 +334,26 @@ export function QuoteWizard() {
     window.location.href = `mailto:?subject=${subj}&body=${body}`;
   }
 
+  // Enviar pelo chat interno do QueroUmaCor. Se o orçamento já foi gravado
+  // (savedQuoteId), referenciamos o id na mensagem; se não, salva primeiro.
+  // Sem clientPhone resolvível em userId aqui — UI redireciona pra /chat
+  // com o texto pre-populado, user escolhe a conversa.
+  async function handleSendChat() {
+    // Garante que tem o quote salvo (pra que o cliente possa abrir o link).
+    let qid = savedQuoteId;
+    if (!qid) {
+      qid = await handleSave();
+      if (!qid) return; // erro já mostrou toast
+    }
+    const text = buildPlainText() + (qid ? `\n\nOrçamento #${qid.slice(0, 8)}` : '');
+    try {
+      sessionStorage.setItem('chat:prefill', text);
+    } catch {
+      /* ignore */
+    }
+    window.location.href = '/chat';
+  }
+
   // PDF: usa window.print() escopado por @media print. O preview já tem
   // .quote-pdf-content que vira a página A4 quando o user clica "Imprimir
   // / Salvar PDF". Sem jspdf — economiza ~150kb no bundle.
@@ -343,6 +363,31 @@ export function QuoteWizard() {
     setTimeout(() => {
       window.print();
     }, 400);
+  }
+
+  // Compartilhar via Web Share API nativa do device (WhatsApp, Telegram,
+  // Mensagens, etc). Fallback: copia texto pro clipboard.
+  async function handleShareNative() {
+    const text = buildPlainText();
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Orçamento — ${form.serviceType}`,
+          text,
+        });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Orçamento copiado!', 'success');
+      } catch {
+        showToast('Erro ao copiar', 'error');
+      }
+    }
   }
 
   return (
@@ -773,6 +818,14 @@ export function QuoteWizard() {
             >
               <button
                 type="button"
+                onClick={handleSendChat}
+                className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
+                style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                💭 Chat do app
+              </button>
+              <button
+                type="button"
                 onClick={handleSendWhatsApp}
                 className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
@@ -786,6 +839,14 @@ export function QuoteWizard() {
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
               >
                 ✉️ E-mail
+              </button>
+              <button
+                type="button"
+                onClick={handleShareNative}
+                className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
+                style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                📲 Compartilhar
               </button>
             </div>
           </details>

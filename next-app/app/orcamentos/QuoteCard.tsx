@@ -134,6 +134,20 @@ export function QuoteCard({
         </span>
       </div>
 
+      {/* Prazo + garantia: formaliza compromisso do pintor pro cliente.
+          Aparecem assim que o pintor envia (sendQuote com opts). Cinza
+          discreto pra não competir com preço/status. */}
+      {(quote.proposed_date || (quote.quote_data as { warranty?: string } | null)?.warranty) ? (
+        <div className="text-[11px] text-[color:var(--color-muted)] flex gap-3 flex-wrap">
+          {quote.proposed_date ? (
+            <span>📅 Prazo: {formatDate(quote.proposed_date)}</span>
+          ) : null}
+          {(quote.quote_data as { warranty?: string } | null)?.warranty ? (
+            <span>🛡️ {(quote.quote_data as { warranty?: string }).warranty}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Linha de escopo congelado, quando aplicável */}
       {frozen ? (
         <div className="text-[11px] text-[color:var(--color-muted)]">

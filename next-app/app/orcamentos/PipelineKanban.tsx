@@ -143,7 +143,25 @@ export function PipelineKanban() {
       alert('Informe um valor válido.');
       return;
     }
-    send({ id, price });
+    // Prazo de conclusão (data ISO ou texto livre) + garantia. Ambos opcionais
+    // mas o cliente espera ver — então pedimos sempre antes de enviar.
+    const proposedDate = window.prompt(
+      'Prazo de conclusão (AAAA-MM-DD) — deixe em branco se a combinar:',
+      current?.proposed_date || '',
+    );
+    const warrantyDefault =
+      ((current?.quote_data as { warranty?: string } | null)?.warranty) ||
+      '90 dias para retoques';
+    const warranty = window.prompt(
+      'Garantia oferecida:',
+      warrantyDefault,
+    );
+    send({
+      id,
+      price,
+      proposedDate: proposedDate?.trim() || null,
+      warranty: warranty?.trim() || null,
+    });
     setSuggestion(null);
   };
 
