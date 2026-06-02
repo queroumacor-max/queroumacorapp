@@ -10,7 +10,6 @@
 
 'use client';
 
-import Link from 'next/link';
 import { productBg, resolveColorHex, type Product } from '@/lib/services/mkt';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
@@ -33,11 +32,15 @@ function categoryEmoji(cat: string | null | undefined): string {
 
 export interface ProductCardProps {
   product: Product;
+  /** Click no botão "+ Carrinho". No fluxo novo, abre o detail sheet
+   *  pra o user escolher quantidade (era um quick-add antes). */
   onAdd?: (product: Product) => void;
+  /** Click no row inteiro (imagem/nome/preço). Abre o detail sheet. */
+  onOpen?: (product: Product) => void;
   isAdding?: boolean;
 }
 
-export function ProductCard({ product, onAdd, isAdding }: ProductCardProps) {
+export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardProps) {
   const bg = productBg(product);
   const emoji = categoryEmoji(product.category);
   const hasColor = !!(product.color_gradient || resolveColorHex(product));
@@ -56,9 +59,10 @@ export function ProductCard({ product, onAdd, isAdding }: ProductCardProps) {
       }
       data-product-id={product.id}
     >
-      <Link
-        href={`/loja/${product.id}`}
-        className="flex items-center gap-3 flex-1 min-w-0"
+      <button
+        type="button"
+        onClick={() => onOpen?.(product)}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer"
         aria-label={`Ver detalhes de ${product.name}`}
       >
         <div
@@ -97,7 +101,7 @@ export function ProductCard({ product, onAdd, isAdding }: ProductCardProps) {
             {price}
           </div>
         </div>
-      </Link>
+      </button>
       {onAdd ? (
         <button
           type="button"
