@@ -12,6 +12,7 @@
 
 import type { Metadata } from 'next';
 import { AiArtStudio } from './AiArtStudio';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Arte pra Instagram | QueroUmaCor',
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function ArteIgPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -33,6 +34,6 @@ export default function ArteIgPage() {
         por dia.
       </p>
       <AiArtStudio />
-    </main>
+    </div></AppShell>
   );
 }

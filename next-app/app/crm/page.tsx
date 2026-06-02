@@ -13,6 +13,7 @@
 
 import type { Metadata } from 'next';
 import { CrmList } from './CrmList';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Reativar Clientes | QueroUmaCor',
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function CrmPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -33,6 +34,6 @@ export default function CrmPage() {
         Clientes que sumiram há um tempo aparecem aqui. O Seu Zé escreve, você revisa e envia.
       </p>
       <CrmList />
-    </main>
+    </div></AppShell>
   );
 }

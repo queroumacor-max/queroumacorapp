@@ -12,6 +12,7 @@
 
 import type { Metadata } from 'next';
 import { LogoStudio } from './LogoStudio';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Gerador de Logo IA | QueroUmaCor',
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function AiLogoPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -32,6 +33,6 @@ export default function AiLogoPage() {
         Nome + estilo → 4 variants em segundos. 1ª geração grátis; reroll por R$ 1,99.
       </p>
       <LogoStudio />
-    </main>
+    </div></AppShell>
   );
 }

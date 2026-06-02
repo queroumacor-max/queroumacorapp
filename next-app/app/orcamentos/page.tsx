@@ -9,6 +9,7 @@
 
 import type { Metadata } from 'next';
 import { PipelineKanban } from './PipelineKanban';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Meus Orçamentos | QueroUmaCor',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function OrcamentosPage() {
   return (
-    <main className="min-h-screen p-4 max-w-6xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-6xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -30,6 +31,6 @@ export default function OrcamentosPage() {
         rascunho até a conclusão.
       </p>
       <PipelineKanban />
-    </main>
+    </div></AppShell>
   );
 }

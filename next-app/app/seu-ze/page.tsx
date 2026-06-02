@@ -11,6 +11,7 @@
 
 import type { Metadata } from 'next';
 import { SeuZeChat } from './SeuZeChat';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Seu Zé | QueroUmaCor',
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function SeuZePage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto pb-24">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto pb-24">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -32,6 +33,6 @@ export default function SeuZePage() {
         material — texto ou voz.
       </p>
       <SeuZeChat />
-    </main>
+    </div></AppShell>
   );
 }

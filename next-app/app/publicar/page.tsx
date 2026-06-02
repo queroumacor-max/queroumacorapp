@@ -7,6 +7,7 @@
 
 import type { Metadata } from 'next';
 import { Composer } from './Composer';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Publicar | QueroUmaCor',
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function PublicarPage() {
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-2xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -27,6 +28,6 @@ export default function PublicarPage() {
         Mostre seu trabalho — foto ou vídeo + legenda.
       </p>
       <Composer />
-    </main>
+    </div></AppShell>
   );
 }

@@ -10,6 +10,7 @@
 
 import type { Metadata } from 'next';
 import { NotificationsList } from './NotificationsList';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Notificações | QueroUmaCor',
@@ -18,11 +19,11 @@ export const metadata: Metadata = {
 
 export default function NotificacoesPage() {
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-2xl mx-auto">
       <h1 className="text-3xl font-bold mb-6" style={{ fontFamily: 'var(--font-display)' }}>
         Notificações
       </h1>
       <NotificationsList />
-    </main>
+    </div></AppShell>
   );
 }

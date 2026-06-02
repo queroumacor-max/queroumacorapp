@@ -9,6 +9,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ProductsList } from './ProductsList';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Loja Cali Colors | QueroUmaCor',
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function LojaPage() {
   return (
-    <main className="min-h-screen p-4 max-w-5xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-5xl mx-auto">
       <header className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1
@@ -39,6 +40,6 @@ export default function LojaPage() {
         </Link>
       </header>
       <ProductsList />
-    </main>
+    </div></AppShell>
   );
 }
