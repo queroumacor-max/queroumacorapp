@@ -4,7 +4,8 @@
 //  - validação client-side feita pelo Zod (emailSchema/passwordSchema) em vez
 //    de regex inline + alert/toast manual;
 //  - submit usa o `signIn()` do AuthProvider (que encapsula supabase-js);
-//  - sucesso redireciona pra `/` via `router.push` (em vez de showScreen);
+//  - sucesso redireciona pra `/feed` (vanilla: `showScreen('feed')` em
+//    head.js:1008 após doLoginSupabase);
 //  - reset de senha vive em rota separada (`/reset-password`) — ver TODO.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -48,7 +49,9 @@ export function LoginForm() {
       setServerError(friendly);
       return;
     }
-    router.push('/');
+    // Após login bem-sucedido: feed (app principal). Vanilla fazia
+    // `showScreen('feed')` em head.js:1008 logo após doLoginSupabase.
+    router.push('/feed');
     router.refresh();
   }
 
