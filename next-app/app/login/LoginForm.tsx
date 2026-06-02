@@ -164,12 +164,12 @@ export function LoginForm() {
         {isSubmitting ? 'Entrando…' : 'Entrar'}
       </button>
 
+      {/* Vanilla aplica `color:inherit` inline no botão "Cadastre-se grátis",
+          o que neutraliza o `var(--p1)` do CSS `.auth-footer-link` — fica
+          cinza igual o texto ao redor. Replicamos esse comportamento. */}
       <p className="text-center text-sm text-[color:var(--color-muted)] pt-2">
         Não tem conta?{' '}
-        <Link
-          href="/signup"
-          className="text-[color:var(--color-p1)] font-semibold hover:underline"
-        >
+        <Link href="/signup" className="font-bold hover:underline" style={{ color: 'inherit' }}>
           Cadastre-se grátis
         </Link>
       </p>
