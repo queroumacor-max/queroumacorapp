@@ -99,7 +99,10 @@ export async function fetchStoriesGroupedByUser(
     throw new NetworkError(storiesErr.message, storiesErr);
   }
   const rows = (storiesData ?? []) as StoryRow[];
-  if (rows.length === 0) return [];
+  // IMPORTANTE: não fazer early-return quando rows=[]. Mesmo sem story na
+  // janela de 24h, queremos renderizar bolinhas dos seguidos (com anel cinza)
+  // pro user ter quick-link pros perfis. Vanilla faz a mesma coisa
+  // (modules/stories.js linha 154+).
 
   // Profiles: fetch pra TODOS os followingIds + viewer (não só quem tem story).
   // Vanilla também faz isso (modules/stories.js linha 60) — renderiza follow
