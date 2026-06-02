@@ -342,22 +342,23 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
 
   async function handleShareNative() {
     if (!quote) return;
-    const text = buildQuoteText(quote);
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({ title: 'Orçamento', text });
-        return;
-      } catch (e) {
-        if ((e as Error).name === 'AbortError') return;
+    // Compartilhar = enviar o PDF de fato via share sheet do device.
+    // Web Share API com files funciona em Chrome Android, Safari iOS 15+,
+    // Edge desktop. Fallback: download da arquivo + cópia do texto.
+    try {
+      const { shareOrDownloadQuotePdf } = await import('@/lib/pdf/quotePdf');
+      const result = await shareOrDownloadQuotePdf(quote, painterProfile);
+      if (result === 'downloaded') {
+        await dialog.alert(
+          'PDF baixado. Anexe no WhatsApp/email pra enviar ao cliente.',
+          { title: 'Download concluído' },
+        );
       }
-    }
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(text);
-        await dialog.alert('Orçamento copiado!');
-      } catch {
-        /* ignore */
-      }
+    } catch (e) {
+      await dialog.alert(
+        'Falha ao gerar PDF: ' + ((e as Error).message || ''),
+        { title: 'Erro' },
+      );
     }
   }
 
@@ -559,19 +560,33 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           Independente do status — pintor pode mandar o PDF do orçamento aprovado
           pra o cliente abrir, reenviar via WhatsApp, etc. */}
       <section className="flex flex-wrap gap-2 mb-2 quote-pdf-noprint">
+        {/* Compartilhar PDF — botão principal (gradient). Web Share API com
+            file abre o share sheet do device → user escolhe WhatsApp / E-mail
+            / Drive / etc, com o PDF anexado. Fallback: download. */}
+        <button
+          type="button"
+          onClick={handleShareNative}
+          className="px-4 py-2 text-white rounded-xl font-bold text-sm"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+            border: 'none',
+          }}
+        >
+          📲 Compartilhar PDF
+        </button>
         <button
           type="button"
           onClick={handlePrintPdf}
           className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
         >
-          🖨️ PDF
+          🖨️ Visualizar
         </button>
         <button
           type="button"
           onClick={handleShareWhatsApp}
           className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
         >
-          💬 WhatsApp
+          💬 WhatsApp (texto)
         </button>
         <button
           type="button"
@@ -586,13 +601,6 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
         >
           💭 Chat
-        </button>
-        <button
-          type="button"
-          onClick={handleShareNative}
-          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
-        >
-          📲 Compartilhar
         </button>
       </section>
 
