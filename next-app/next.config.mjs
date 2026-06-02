@@ -57,6 +57,9 @@ const nextConfig = {
   async rewrites() {
     return [
       { source: '/api/v1/:path*', destination: '/api/:path*' },
+      // /portal (sem slash final) → index.html do admin estático em public/portal.
+      // Sem isso o Next tenta resolver como App Router page e dá 404.
+      { source: '/portal', destination: '/portal/index.html' },
     ];
   },
 
