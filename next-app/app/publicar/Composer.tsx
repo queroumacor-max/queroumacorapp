@@ -99,10 +99,16 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
   const { user, loading: authLoading } = useAuth();
   const publish = usePublishPost();
 
+  // ?forSale=1 vem de deep-links tipo "Arte pra venda → Publicar nova arte".
+  // Pré-marca o toggle pra evitar 1 click — autosave assume depois.
+  const initialForSale = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('forSale') === '1'
+    : false;
+
   const [postType, setPostType] = useState<CreatePostMediaType>('image');
   const [files, setFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState('');
-  const [forSale, setForSale] = useState(false);
+  const [forSale, setForSale] = useState(initialForSale);
   const [priceText, setPriceText] = useState('');
   const [artType, setArtType] = useState<string>(ART_TYPES[0].value);
 
