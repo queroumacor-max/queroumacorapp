@@ -169,25 +169,23 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
     if (!ok) return;
     if (!user) return;
 
-    // Otimista: remove o post de todas as páginas do feed IMEDIATAMENTE
-    // (independente do refetch). Sem isso, o user via o post sumir só após
-    // ~1s de roundtrip da invalidate — UX percebido como "delete quebrado".
-    // Em caso de erro, refetch traz de volta.
-    type FeedPageShape = { posts: Array<{ id: string }> };
-    type InfData = { pages: FeedPageShape[]; pageParams: unknown[] };
+    // Otimista: remove o post de todas as páginas do feed IMEDIATAMENTE.
+    // Guard defensivo pra evitar map em pages/posts undefined.
+    type FeedPageShape = { posts?: Array<{ id: string }> };
+    type InfData = { pages?: FeedPageShape[]; pageParams?: unknown[] };
     qc.setQueriesData<InfData>({ queryKey: ['feed'] }, (data) => {
-      if (!data?.pages) return data;
+      if (!data || !Array.isArray(data.pages)) return data;
       return {
         ...data,
-        pages: data.pages.map((p) => ({
-          ...p,
-          posts: p.posts.filter((x) => x.id !== post.id),
-        })),
+        pages: data.pages.map((p) => {
+          if (!p || !Array.isArray(p.posts)) return p;
+          return { ...p, posts: p.posts.filter((x) => x.id !== post.id) };
+        }),
       };
     });
     qc.setQueriesData<{ id: string }[]>(
       { queryKey: ['profile-posts', user.id] },
-      (data) => (data ? data.filter((p) => p.id !== post.id) : data),
+      (data) => (Array.isArray(data) ? data.filter((p) => p.id !== post.id) : data),
     );
 
     try {
@@ -218,20 +216,25 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
       await updatePostCaption(post.id, user.id, editText);
 
       // Otimista: atualiza o cache do feed pra mostrar caption nova na hora.
-      type FeedPageShape = { posts: Array<{ id: string; caption: string | null }> };
-      type InfData = { pages: FeedPageShape[]; pageParams: unknown[] };
+      // Guard defensivo — setQueriesData pode matchear queries com shape
+      // ligeiramente diferente (ex.: query antiga sem .posts em alguma page).
+      type FeedPageShape = { posts?: Array<{ id: string; caption: string | null }> };
+      type InfData = { pages?: FeedPageShape[]; pageParams?: unknown[] };
       qc.setQueriesData<InfData>({ queryKey: ['feed'] }, (data) => {
-        if (!data?.pages) return data;
+        if (!data || !Array.isArray(data.pages)) return data;
         return {
           ...data,
-          pages: data.pages.map((p) => ({
-            ...p,
-            posts: p.posts.map((x) =>
-              x.id === post.id
-                ? { ...x, caption: editText.trim() || null }
-                : x,
-            ),
-          })),
+          pages: data.pages.map((p) => {
+            if (!p || !Array.isArray(p.posts)) return p;
+            return {
+              ...p,
+              posts: p.posts.map((x) =>
+                x.id === post.id
+                  ? { ...x, caption: editText.trim() || null }
+                  : x,
+              ),
+            };
+          }),
         };
       });
       showToast('Texto atualizado', 'success');
