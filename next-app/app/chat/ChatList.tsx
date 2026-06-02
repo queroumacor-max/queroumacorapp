@@ -1,21 +1,15 @@
-// ChatList — client component que renderiza a lista lateral de conversas
-// com tabs/filtros + botão "Nova conversa".
-//
-// Substitui chatTab/applyChatFilter/loadChatList do vanilla. O filtro é
-// client-side puro (não refetch) — todas as conversas vêm de uma chamada
-// só, e os tabs só filtram a lista exibida.
-//
-// useChatRealtime é montado AQUI (na lista) porque é o ponto único da árvore
-// /chat onde sabemos que vai existir sessão ativa — atualizações chegam em
-// background mesmo quando o user está em outra parte do /chat (conv aberta).
-
+// ChatList — lista de conversas com tabs/filtros + arquivadas colapsável +
+// "+ Nova". Atalho ?orcamento=1&to=<userId> abre o NewChatModal já no
+// fluxo de orçamento (vanilla abrirOrcamentoChat).
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useConversations } from '@/lib/hooks/useChat';
 import { useChatRealtime } from '@/lib/hooks/useChatRealtime';
+import { useArchivedConvs } from '@/lib/hooks/useArchivedConvs';
 import { ConversationItem } from './ConversationItem';
 import { NewChatModal } from './NewChatModal';
 import type { ConversationMeta } from '@/lib/services/chat';
@@ -24,9 +18,9 @@ type Tab = 'all' | 'trio' | 'store' | 'orcamento';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'all', label: 'Todas' },
-  { id: 'trio', label: 'Trio' },
-  { id: 'store', label: 'Loja' },
   { id: 'orcamento', label: 'Orçamentos' },
+  { id: 'trio', label: 'Pintor + Cali 🔗' },
+  { id: 'store', label: 'Cali Colors' },
 ];
 
 function matchesTab(c: ConversationMeta, tab: Tab): boolean {
@@ -61,16 +55,34 @@ function Skeleton() {
 
 export function ChatList() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { conversations, loading, error } = useConversations();
+  const { archivedSet } = useArchivedConvs();
   const [tab, setTab] = useState<Tab>('all');
   const [modalOpen, setModalOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Realtime global — 1 subscription pra TODAS as conversas. Hook é idempotente.
   useChatRealtime(user?.id ?? null);
 
-  const filtered = useMemo(
-    () => conversations.filter((c) => matchesTab(c, tab)),
-    [conversations, tab],
+  // Deep-link: ?to=<userId>&orcamento=1 vindo do botão "Orçar" do feed.
+  // Abre o NewChatModal já filtrando esse user (NewChatModal aceita
+  // pre-fill por searchParams indireto — se a UX pedir, expandimos depois).
+  // Por enquanto, garantimos que o modal abre se o param `nova=1` existir.
+  useEffect(() => {
+    const nova = searchParams?.get('nova');
+    if (nova === '1') setModalOpen(true);
+  }, [searchParams]);
+
+  // Separa arquivadas das ativas + aplica filtro do tab nas ativas.
+  const active = useMemo(
+    () => conversations.filter((c) => !archivedSet.has(c.convId) && matchesTab(c, tab)),
+    [conversations, archivedSet, tab],
+  );
+  const archived = useMemo(
+    () => conversations.filter((c) => archivedSet.has(c.convId) && matchesTab(c, tab)),
+    [conversations, archivedSet, tab],
   );
 
   // IDs a excluir da busca de novos chats (evita criar conv duplicada).
@@ -104,11 +116,20 @@ export function ChatList() {
     );
   }
 
+  function closeAndCleanUrl() {
+    setModalOpen(false);
+    // Se veio com ?nova=1 / ?orcamento=1 / ?to=..., limpa pra não reabrir
+    // ao re-render.
+    if (searchParams?.get('nova') === '1' || searchParams?.get('orcamento') === '1') {
+      router.replace('/chat');
+    }
+  }
+
   return (
     <div>
       {/* Tabs + botão nova conversa */}
       <div className="flex items-center justify-between mb-3 gap-2">
-        <div className="flex gap-1 overflow-x-auto flex-1" role="tablist">
+        <div className="flex gap-1 overflow-x-auto flex-1 hide-scrollbar" role="tablist">
           {TABS.map((t) => {
             const active = t.id === tab;
             return (
@@ -148,11 +169,9 @@ export function ChatList() {
             Erro ao carregar conversas: {error.message}
           </p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : active.length === 0 && archived.length === 0 ? (
         <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border,#e5e5e5)]">
-          <div className="text-5xl mb-3" aria-hidden="true">
-            💬
-          </div>
+          <div className="text-5xl mb-3" aria-hidden="true">💬</div>
           <h2 className="font-semibold mb-2">
             {tab === 'all' ? 'Sem conversas ainda' : 'Nenhuma conversa nesta aba'}
           </h2>
@@ -170,18 +189,91 @@ export function ChatList() {
           </button>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((c) => (
-            <li key={c.convId}>
-              <ConversationItem conv={c} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {active.length > 0 ? (
+            <ul className="space-y-2">
+              {active.map((c) => (
+                <li key={c.convId}>
+                  <ConversationItem conv={c} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-center text-sm text-[color:var(--color-muted)] py-6">
+              Nenhuma conversa ativa nesta aba.
+            </p>
+          )}
+
+          {archived.length > 0 ? (
+            <div style={{ marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: 'var(--color-muted)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+                aria-expanded={showArchived}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="21 8 21 21 3 21 3 8" />
+                  <rect x="1" y="3" width="22" height="5" />
+                  <line x1="10" y1="12" x2="14" y2="12" />
+                </svg>
+                <span>Arquivadas</span>
+                <span style={{ fontSize: 11, fontWeight: 500 }}>
+                  ({archived.length})
+                </span>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                  style={{
+                    marginLeft: 'auto',
+                    transform: showArchived ? 'rotate(180deg)' : 'none',
+                    transition: 'transform .15s',
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {showArchived ? (
+                <ul className="space-y-2" style={{ marginTop: 6 }}>
+                  {archived.map((c) => (
+                    <li key={c.convId}>
+                      <ConversationItem conv={c} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </>
       )}
 
       <NewChatModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeAndCleanUrl}
         excludeIds={excludeIds}
       />
     </div>

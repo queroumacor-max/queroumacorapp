@@ -174,7 +174,9 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   }
 
   function handleOrcar() {
-    router.push(`/chat?to=${encodeURIComponent(post.user_id)}&orcamento=1`);
+    // Abre /chat com flag pra disparar o modal de nova conversa já com
+    // o user do post pré-selecionado (vanilla abrirOrcamentoChat).
+    router.push(`/chat?nova=1&to=${encodeURIComponent(post.user_id)}&orcamento=1`);
   }
 
   return (
