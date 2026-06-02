@@ -48,6 +48,26 @@ export function useProfile(): UseProfileResult {
 
   const updateMutation = useMutation<void, Error, ProfilePatch>({
     mutationFn: (patch: ProfilePatch) => updateProfile(user!.id, patch),
+    // Otimista: aplica o patch no cache ANTES do round-trip terminar.
+    // Sem isso, refresh imediato após save pegava dado antigo do localStorage
+    // (a invalidateQueries só refetcha depois — se o user dá F5 no meio,
+    // perde os valores recém-salvos visualmente).
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: ['profile', user?.id] });
+      const previous = qc.getQueryData<Profile | null>(['profile', user?.id]);
+      qc.setQueryData<Profile | null>(['profile', user?.id], (old) => {
+        if (!old) return old;
+        return { ...old, ...patch } as Profile;
+      });
+      return { previous };
+    },
+    onError: (_err, _patch, ctx) => {
+      // Rollback se o UPDATE no banco falhar.
+      const c = ctx as { previous?: Profile | null } | undefined;
+      if (c?.previous !== undefined) {
+        qc.setQueryData(['profile', user?.id], c.previous);
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', user?.id] });
     },

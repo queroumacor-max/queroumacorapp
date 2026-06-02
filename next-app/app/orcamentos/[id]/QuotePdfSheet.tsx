@@ -52,9 +52,12 @@ export function QuotePdfSheet({ open, onClose, quote, painter }: QuotePdfSheetPr
   const surfaceState = qd && typeof qd['surfaceState'] === 'string' ? (qd['surfaceState'] as string) : '';
   const access = qd && typeof qd['access'] === 'string' ? (qd['access'] as string) : '';
 
+  // Prioridade: name (pessoal) > business_name (dirty data legado pode estar
+  // em business_name de quando o user testou logo de camisa). Antes invertido,
+  // poluía o PDF com nome de marca/teste antigo.
   const painterName =
-    painter?.business_name ||
     painter?.name ||
+    painter?.business_name ||
     (painter?.tag ? '@' + painter.tag : 'Pintor');
   const painterLogo = painter?.business_logo_url || painter?.avatar_url || '';
   const painterTag = painter?.tag ? '@' + painter.tag : '';

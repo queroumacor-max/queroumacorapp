@@ -43,6 +43,7 @@ export interface ProfilePatch {
   avatar_url?: string | null;
   service_radius?: number | null;
   business_logo_url?: string | null;
+  business_name?: string | null;
 }
 
 /**

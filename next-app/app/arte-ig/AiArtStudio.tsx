@@ -23,7 +23,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useAiArt } from '@/lib/hooks/useAiArt';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { canSeeProFeature } from '@/lib/policies';
+import { canSeeProFeature, isAdmin } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { showToast } from '@/lib/toast';
 import { generateCaption } from '@/lib/services/posts';
@@ -81,10 +81,9 @@ export function AiArtStudio() {
   }, [photo1]);
 
   const isPro = canSeeProFeature(policyUser);
-  // PRO agora também tem limite (2/dia). canUse é true só quando ainda tem
-  // créditos do dia, independente do tier. Pra estourar o limite, comprar
-  // pacote (não wired ainda; CTA aponta pra /pro até habilitar checkout).
-  const canUse = !ai.isAtLimit;
+  const isAdminUser = isAdmin(policyUser);
+  // Admin: ilimitado. PRO: 2/dia. Free: 5/dia. canUse=true até estourar.
+  const canUse = isAdminUser || !ai.isAtLimit;
 
   const onSelectStyle = useCallback((s: ArtStyle, two: boolean) => {
     setStyle(s);
@@ -122,7 +121,10 @@ export function AiArtStudio() {
       aspect,
       photo1: photo1 || '',
       photo2: photo2 || undefined,
-      bizName: profile?.business_name || profile?.name || '',
+      // Prioridade: name primeiro, business_name como fallback. business_name
+      // pode conter dirty data legado de testes de logo da camisa (vanilla
+      // ai-logo.js gravava label lá). Sem isso, IA personaliza com nome errado.
+      bizName: profile?.name || profile?.business_name || '',
       hint: hint.trim(),
     });
   }, [ai, style, aspect, photo1, photo2, hint, profile]);
@@ -147,6 +149,17 @@ export function AiArtStudio() {
   }, [ai.postResult?.ok]);
 
   const creditsBadge = useMemo(() => {
+    if (isAdminUser) {
+      return (
+        <span
+          className="text-xs font-bold"
+          style={{ color: '#0a8a4f' }}
+          aria-label="Admin — geração ilimitada"
+        >
+          ADMIN · ilimitado
+        </span>
+      );
+    }
     const left = ai.creditsLeft;
     const color =
       left >= 3 ? '#0a8a4f' : left >= 1 ? '#c97a00' : '#c0392b';
@@ -159,7 +172,7 @@ export function AiArtStudio() {
         {left}/{ai.creditsLimit} hoje
       </span>
     );
-  }, [ai.creditsLeft, ai.creditsLimit]);
+  }, [ai.creditsLeft, ai.creditsLimit, isAdminUser]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -221,11 +234,11 @@ export function AiArtStudio() {
         <div className="flex items-center gap-2 text-sm">
           <span aria-hidden="true">⚡</span>
           <span className="text-[color:var(--color-muted)]">
-            {isPro ? 'PRO · hoje:' : 'Créditos:'}
+            {isAdminUser ? 'Admin:' : isPro ? 'PRO · hoje:' : 'Créditos:'}
           </span>
           {creditsBadge}
         </div>
-        {ai.creditsLeft <= 1 ? (
+        {!isAdminUser && ai.creditsLeft <= 1 ? (
           <Link
             href="/pro"
             className="text-xs font-bold text-[color:var(--color-p1)]"
