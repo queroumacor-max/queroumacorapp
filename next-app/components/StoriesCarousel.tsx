@@ -16,9 +16,12 @@ import { StoryViewer } from './StoryViewer';
 
 export interface StoriesCarouselProps {
   followingIds: string[];
+  /** Callback quando o usuário clica em "Seu story" SEM ter story próprio.
+   *  Caller normalmente abre um modal/sheet de criação. */
+  onCreateStory?: () => void;
 }
 
-export function StoriesCarousel({ followingIds }: StoriesCarouselProps) {
+export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarouselProps) {
   const { groups, loading } = useStories(followingIds);
   const { user } = useAuth();
   const [viewerOpenAt, setViewerOpenAt] = useState<number | null>(null);
@@ -45,9 +48,13 @@ export function StoriesCarousel({ followingIds }: StoriesCarouselProps) {
         {/* "Seu story" — sempre o primeiro, replica vanilla. */}
         <SelfStoryAvatar
           hasOwnStory={hasOwnStory}
-          onClick={() =>
-            hasOwnStory ? setViewerOpenAt(ownStoryIdx) : null /* TODO: abrir publisher */
-          }
+          onClick={() => {
+            if (hasOwnStory) {
+              setViewerOpenAt(ownStoryIdx);
+            } else if (onCreateStory) {
+              onCreateStory();
+            }
+          }}
         />
 
         {/* Skeleton se carregando e ainda sem dados. */}

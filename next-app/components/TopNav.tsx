@@ -2,23 +2,39 @@
 // ~227 + styles.css `.top-nav`). Fundo ink, logo Quero[Uma]Cor com
 // "Uma" laranja, badge PRO/GRÁTIS à direita + ícone chat com badge dot.
 //
-// Replica visual EXATO do app antigo (smoke test do usuário: "fundo
-// escuro com logo em branco+laranja, badge PRO verde, ícone msg
-// no canto superior direito").
+// O badge agora é derivado do profile do user (via useProfile):
+//   - profile.is_admin || profile.portal_access → "ADMIN"
+//   - profile.is_pro                              → "PRO"
+//   - caso contrário                              → "GRÁTIS"
+// Antes era prop default 'GRÁTIS' que ninguém sobrescrevia — sempre
+// aparecia GRÁTIS mesmo pra user PRO no banco.
 'use client';
 
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 
 interface TopNavProps {
-  /** Badge de status do plano. Default "GRÁTIS". Vira "PRO" se usuário ativo. */
+  /** Override do badge — usado em telas onde a regra de derivação não
+   *  bate (ex.: preview de admin como se fosse usuário comum). Sem
+   *  passar, o badge é computado do profile. */
   proStatus?: 'GRÁTIS' | 'PRO' | 'ADMIN';
   /** Se true, mostra dot vermelho no ícone de chat. */
   hasUnreadChat?: boolean;
 }
 
-export function TopNav({ proStatus = 'GRÁTIS', hasUnreadChat = false }: TopNavProps) {
+export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
   const { user } = useAuth();
+  const { profile } = useProfile();
+
+  // Derivação automática se o caller não passou proStatus.
+  const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' =
+    profile?.is_admin || profile?.portal_access
+      ? 'ADMIN'
+      : profile?.is_pro
+        ? 'PRO'
+        : 'GRÁTIS';
+  const badge = proStatus ?? computed;
 
   return (
     <header
@@ -49,7 +65,7 @@ export function TopNav({ proStatus = 'GRÁTIS', hasUnreadChat = false }: TopNavP
           style={{ fontFamily: 'var(--font-display)' }}
           aria-label="Ver plano PRO"
         >
-          {proStatus}
+          {badge}
         </button>
 
         <Link
