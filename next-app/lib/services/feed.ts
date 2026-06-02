@@ -39,6 +39,13 @@ export interface FeedComment {
   user_id: string;
   text: string;
   created_at: string;
+  // Autor — vem do JOIN com profiles. Optional pra cobrir comments antigos
+  // ou perfis deletados. PostCard cai pra "Usuário" quando ausente.
+  author?: {
+    name?: string | null;
+    tag?: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 // Post enriquecido — espelha o shape que o vanilla passava pro buildFeedPostHTML:
@@ -178,10 +185,15 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   };
 
   const profilesP = fetchPublicProfiles(userIds);
+  // JOIN com profiles via FK user_id pra trazer name/tag/avatar — sem isso o
+  // feed sempre mostrava "Usuário" porque o feed query não enrichava o autor
+  // do comment (Wave B só carrega 5 colunas raw).
   const commentsP = withSignal(
     sb
       .from('comments')
-      .select('id, post_id, user_id, text, created_at')
+      .select(
+        'id, post_id, user_id, text, created_at, author:profiles!user_id(name, tag, avatar_url)',
+      )
       .in('post_id', postIds)
       .order('created_at', { ascending: true }),
   );
@@ -216,13 +228,29 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   // a fetch principal estourou — aqui ficam silenciosos.
   // Casts mínimos só onde o DB row tem nullable que o domain trata como
   // garantido (FK ON DELETE CASCADE, mas Supabase tipa nullable).
-  const commentsArr = (commentsRes.data ?? []).map((c) => ({
-    id: c.id,
-    post_id: c.post_id ?? '',
-    user_id: c.user_id ?? '',
-    text: c.text,
-    created_at: c.created_at ?? '',
-  })) as FeedComment[];
+  // author vem como objeto ou array (depende da inferência do supabase-js
+  // pra embedded resource). Normaliza pra `{name, tag, avatar_url} | null`.
+  type RawAuthor =
+    | { name?: string | null; tag?: string | null; avatar_url?: string | null }
+    | Array<{ name?: string | null; tag?: string | null; avatar_url?: string | null }>
+    | null
+    | undefined;
+  const pickAuthor = (raw: RawAuthor) => {
+    if (!raw) return null;
+    if (Array.isArray(raw)) return raw[0] ?? null;
+    return raw;
+  };
+  const commentsArr = (commentsRes.data ?? []).map((c) => {
+    const row = c as typeof c & { author?: RawAuthor };
+    return {
+      id: c.id,
+      post_id: c.post_id ?? '',
+      user_id: c.user_id ?? '',
+      text: c.text,
+      created_at: c.created_at ?? '',
+      author: pickAuthor(row.author),
+    };
+  }) as FeedComment[];
   const allLikesArr = (allLikesRes.data ?? []).filter(
     (l): l is { post_id: string } => typeof l.post_id === 'string',
   );
