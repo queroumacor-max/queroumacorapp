@@ -67,7 +67,7 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   // CommentForm invalida após insert. `post.comments` (do feed) é só
   // o initialData pra evitar flash de "carregando" no primeiro paint;
   // hook substitui assim que tem dados frescos.
-  const { comments: freshComments } = useComments(post.id);
+  const { comments: freshComments, remove: removeComment, isRemoving: isRemovingComment } = useComments(post.id);
   const visibleComments =
     freshComments && freshComments.length > 0 ? freshComments : post.comments;
 
@@ -354,18 +354,62 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
 
       {visibleComments.length > 0 ? (
         <ul style={{ padding: '4px 14px 2px' }}>
-          {visibleComments.map((c) => (
-            <li
-              key={c.id}
-              style={{
-                fontSize: 13,
-                color: 'var(--color-ink)',
-                marginBottom: 4,
-              }}
-            >
-              <b style={{ fontWeight: 600 }}>Usuário</b> {c.text}
-            </li>
-          ))}
+          {visibleComments.map((c) => {
+            const cAny = c as typeof c & {
+              author?: { name?: string | null; tag?: string | null } | null;
+              user_id?: string;
+            };
+            const author = cAny.author;
+            const authorTag = author?.tag ? '@' + author.tag : null;
+            const authorName = author?.name || authorTag || 'Usuário';
+            const canDeleteComment =
+              !!user && (user.id === cAny.user_id || user.id === post.user_id);
+            return (
+              <li
+                key={c.id}
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-ink)',
+                  marginBottom: 4,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                }}
+              >
+                <span style={{ flex: 1 }}>
+                  <b style={{ fontWeight: 600 }}>{authorName}</b> {c.text}
+                </span>
+                {canDeleteComment ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!window.confirm('Apagar comentário?')) return;
+                      try {
+                        await removeComment(c.id);
+                      } catch (e) {
+                        showToast((e as Error).message || 'Erro ao apagar', 'error');
+                      }
+                    }}
+                    disabled={isRemovingComment}
+                    aria-label="Apagar comentário"
+                    title="Apagar"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-muted)',
+                      cursor: 'pointer',
+                      fontSize: 16,
+                      lineHeight: 1,
+                      padding: '0 4px',
+                      opacity: isRemovingComment ? 0.5 : 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 

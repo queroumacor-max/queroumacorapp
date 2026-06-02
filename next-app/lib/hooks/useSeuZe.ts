@@ -22,7 +22,7 @@
 
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   sendChatMessage,
@@ -65,6 +65,20 @@ export interface UseSeuZeResult {
   // ID da msg sendo "tocada" (UI pode mostrar spinner / botão "parar").
   speakingId: string | null;
   stopSpeaking: () => void;
+  // Auto-fala a resposta do Seu Zé assim que chega (persiste em localStorage).
+  autoSpeak: boolean;
+  setAutoSpeak: (v: boolean) => void;
+}
+
+const AUTO_SPEAK_KEY = 'seuze:autoSpeak';
+function readAutoSpeak(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const v = window.localStorage.getItem(AUTO_SPEAK_KEY);
+    return v === null ? true : v === '1';
+  } catch {
+    return true;
+  }
 }
 
 // Gerador de id estável e curto pra cada msg. Date.now+rand basta — não
@@ -78,11 +92,23 @@ export function useSeuZe(): UseSeuZeResult {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [autoSpeak, setAutoSpeakState] = useState<boolean>(() => readAutoSpeak());
+
+  const setAutoSpeak = useCallback((v: boolean) => {
+    setAutoSpeakState(v);
+    try {
+      window.localStorage.setItem(AUTO_SPEAK_KEY, v ? '1' : '0');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Audio HTMLElement vive em ref — não dispara re-render quando troca de URL.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // URL atual sendo tocada (pra revoke quando trocar).
   const audioUrlRef = useRef<string | null>(null);
+  // IDs já auto-falados pra não repetir quando o array re-monta.
+  const autoSpokenRef = useRef<Set<string>>(new Set());
 
   // Stop completo de qualquer reprodução em andamento. Idempotente.
   const stopSpeaking = useCallback(() => {
@@ -227,6 +253,17 @@ export function useSeuZe(): UseSeuZeResult {
     [messages, speakingId, stopSpeaking]
   );
 
+  // Auto-fala a última mensagem do assistant quando chega. Trigger só uma
+  // vez por id (autoSpokenRef). Respeita o toggle autoSpeak (default ON).
+  useEffect(() => {
+    if (!autoSpeak) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'assistant') return;
+    if (autoSpokenRef.current.has(last.id)) return;
+    autoSpokenRef.current.add(last.id);
+    void speak(last.id);
+  }, [messages, autoSpeak, speak]);
+
   return {
     messages,
     isSending: sendMutation.isPending,
@@ -244,6 +281,8 @@ export function useSeuZe(): UseSeuZeResult {
     speak,
     speakingId,
     stopSpeaking,
+    autoSpeak,
+    setAutoSpeak,
   };
 }
 

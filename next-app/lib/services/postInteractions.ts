@@ -36,6 +36,13 @@ export interface PostComment {
   user_id: string;
   text: string;
   created_at: string;
+  // Autor — vem do JOIN com profiles em fetchComments. Pode faltar quando o
+  // INSERT ainda não passou pela query com join (otimista). UI cai pra "Usuário".
+  author?: {
+    name?: string | null;
+    tag?: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 export interface SavedPostRow {
@@ -209,13 +216,27 @@ export async function deleteComment(
 export async function fetchComments(postId: string): Promise<PostComment[]> {
   if (!postId) return [];
   const sb = getSupabase();
+  // JOIN com profiles via FK user_id pra trazer name/tag/avatar de uma vez —
+  // evita N+1 lookups no client. Fallback embedded resource pra `profiles_public`
+  // se a FK direta a `profiles` não resolver (PostgREST cai pra view nesse caso).
   const { data, error } = await sb
     .from('comments')
-    .select('id, post_id, user_id, text, created_at')
+    .select(
+      'id, post_id, user_id, text, created_at, author:profiles!user_id(name, tag, avatar_url)',
+    )
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
-  if (error) throw new NetworkError(error.message, error);
-  return (data ?? []) as PostComment[];
+  if (error) {
+    // Fallback sem join — UI usa "Usuário" como antes.
+    const fb = await sb
+      .from('comments')
+      .select('id, post_id, user_id, text, created_at')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (fb.error) throw new NetworkError(fb.error.message, fb.error);
+    return (fb.data ?? []) as PostComment[];
+  }
+  return (data ?? []) as unknown as PostComment[];
 }
 
 // ─── SAVED POSTS ───────────────────────────────────────────────────────────
