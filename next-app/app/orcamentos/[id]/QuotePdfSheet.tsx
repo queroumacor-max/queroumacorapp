@@ -125,118 +125,149 @@ export function QuotePdfSheet({ open, onClose, quote, painter }: QuotePdfSheetPr
             </button>
           </header>
 
-          {/* Conteúdo do PDF */}
+          {/* Conteúdo do PDF — padding mobile-friendly. @media print aumenta
+              pra 24mm via @page no <style> acima. */}
           <article
             className="quote-pdf-content"
             style={{
-              padding: 28,
+              padding: 18,
               background: '#fff',
               color: '#1a1a2e',
               fontFamily: 'DM Sans, system-ui, sans-serif',
               lineHeight: 1.5,
+              overflow: 'hidden',
             }}
           >
-            {/* CABEÇALHO — logo + dados do profissional */}
+            {/* CABEÇALHO — 2 linhas: top com logo+nome+badge ORÇAMENTO,
+                bottom com dados de contato (sem overflow em telas pequenas) */}
             <header
               style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 16,
-                paddingBottom: 16,
+                paddingBottom: 14,
                 borderBottom: '3px solid #FF6B35',
                 marginBottom: 18,
               }}
             >
-              {painterLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={painterLogo}
-                  alt="Logo"
-                  style={{
-                    width: 72,
-                    height: 72,
-                    objectFit: 'cover',
-                    borderRadius: 10,
-                    border: '1px solid #eee',
-                    background: '#fafafa',
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 10,
-                    background:
-                      'linear-gradient(135deg, #FF6B35, #8338ec)',
-                    color: '#fff',
-                    fontSize: 28,
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {painterName.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: '#1a1a2e',
-                    fontFamily: 'Syne, DM Sans, sans-serif',
-                    lineHeight: 1.15,
-                  }}
-                >
-                  {painterName}
-                </div>
-                {painterTag ? (
-                  <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                    {painterTag}
-                  </div>
-                ) : null}
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: '#444',
-                    marginTop: 8,
-                    display: 'flex',
-                    gap: 12,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {painterPhone ? <span>📞 {painterPhone}</span> : null}
-                  {painterEmail ? <span>✉ {painterEmail}</span> : null}
-                  {painterCity ? <span>📍 {painterCity}</span> : null}
-                </div>
-              </div>
               <div
                 style={{
-                  textAlign: 'right',
-                  fontSize: 10,
-                  color: '#666',
-                  flexShrink: 0,
-                  paddingLeft: 12,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                  marginBottom: 10,
                 }}
               >
+                {painterLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={painterLogo}
+                    alt="Logo"
+                    style={{
+                      width: 56,
+                      height: 56,
+                      objectFit: 'cover',
+                      borderRadius: 10,
+                      border: '1px solid #eee',
+                      background: '#fafafa',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 10,
+                      background:
+                        'linear-gradient(135deg, #FF6B35, #8338ec)',
+                      color: '#fff',
+                      fontSize: 22,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {painterName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 800,
+                      color: '#1a1a2e',
+                      fontFamily: 'Syne, DM Sans, sans-serif',
+                      lineHeight: 1.15,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {painterName}
+                  </div>
+                  {painterTag ? (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#888',
+                        marginTop: 2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {painterTag}
+                    </div>
+                  ) : null}
+                </div>
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: '#FF6B35',
-                    letterSpacing: '.08em',
+                    textAlign: 'right',
+                    fontSize: 9,
+                    color: '#666',
+                    flexShrink: 0,
                   }}
                 >
-                  ORÇAMENTO
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: '#FF6B35',
+                      letterSpacing: '.08em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ORÇAMENTO
+                  </div>
+                  <div style={{ marginTop: 3, whiteSpace: 'nowrap' }}>
+                    {today}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 1,
+                      fontFamily: 'monospace',
+                      opacity: 0.6,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    #{(quote.id || '').slice(0, 8)}
+                  </div>
                 </div>
-                <div style={{ marginTop: 4 }}>{today}</div>
-                <div style={{ marginTop: 2, fontFamily: 'monospace', opacity: 0.7 }}>
-                  #{(quote.id || '').slice(0, 8)}
-                </div>
+              </div>
+              {/* Linha de contato — wrap natural se faltar espaço */}
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: '#555',
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  rowGap: 4,
+                }}
+              >
+                {painterPhone ? <span>📞 {painterPhone}</span> : null}
+                {painterEmail ? <span>✉ {painterEmail}</span> : null}
+                {painterCity ? <span>📍 {painterCity}</span> : null}
               </div>
             </header>
 
@@ -352,11 +383,12 @@ export function QuotePdfSheet({ open, onClose, quote, painter }: QuotePdfSheetPr
               </section>
             ) : null}
 
-            {/* BLOCO 4 — VALOR TOTAL (destaque) */}
+            {/* BLOCO 4 — VALOR TOTAL (destaque) — layout flex-wrap pra não
+                overflow em telas estreitas com valores grandes */}
             <section
               style={{
-                marginTop: 24,
-                padding: 20,
+                marginTop: 20,
+                padding: 16,
                 background:
                   'linear-gradient(135deg, rgba(255,107,53,.08) 0%, rgba(131,56,236,.08) 100%)',
                 borderRadius: 12,
@@ -364,9 +396,12 @@ export function QuotePdfSheet({ open, onClose, quote, painter }: QuotePdfSheetPr
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+                rowGap: 6,
               }}
             >
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div
                   style={{
                     fontSize: 10,
@@ -384,11 +419,13 @@ export function QuotePdfSheet({ open, onClose, quote, painter }: QuotePdfSheetPr
               </div>
               <div
                 style={{
-                  fontSize: 32,
+                  fontSize: 'clamp(20px, 6.5vw, 28px)',
                   fontWeight: 800,
                   color: '#FF6B35',
                   fontFamily: 'Syne, DM Sans, sans-serif',
                   lineHeight: 1,
+                  whiteSpace: 'nowrap',
+                  marginLeft: 'auto',
                 }}
               >
                 {price > 0 ? BRL.format(price) : '—'}

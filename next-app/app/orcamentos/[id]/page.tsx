@@ -19,8 +19,9 @@ export const runtime = 'edge';
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { useProfile } from '@/lib/hooks/useProfile';
+import { useDialog } from '@/components/Dialog';
 import { usePipeline } from '@/lib/hooks/usePipeline';
+import { getSupabase } from '@/lib/supabase';
 import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   QUOTE_STATUS,
@@ -65,6 +66,7 @@ interface PageProps {
 export default function OrcamentoDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const { user, loading: authLoading } = useAuth();
+  const dialog = useDialog();
   const {
     quotes,
     send,
@@ -86,7 +88,21 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   const [localQuote, setLocalQuote] = useState<Quote | null>(null);
   const [fetching, setFetching] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
-  const { profile: painterProfile } = useProfile();
+  // Painter profile = dono do orçamento (quote.painter_id), NÃO o user logado.
+  // Antes usei useProfile() do current user, mas se admin abrir orçamento de
+  // outro pintor, o cabeçalho do PDF mostrava o nome do admin. Fix puxa pelo
+  // painter_id da quote.
+  const [painterProfile, setPainterProfile] = useState<{
+    name?: string | null;
+    tag?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    city?: string | null;
+    state?: string | null;
+    business_logo_url?: string | null;
+    business_name?: string | null;
+    avatar_url?: string | null;
+  } | null>(null);
 
   // Rascunho de notas privadas por orçamento — não bate no banco, só
   // localStorage. Persistido com TTL 7d pelo useAutosave. Útil pra o
@@ -121,6 +137,43 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
       .catch(() => setLocalQuote(null))
       .finally(() => setFetching(false));
   }, [authLoading, user, quotes, id]);
+
+  // Fetch dos dados do pintor (dono da quote) pelo painter_id. Roda quando
+  // a quote chega no estado e ainda não temos o profile carregado. Usa
+  // profiles_public (campos seguros — name/tag/avatar/city/state) + chama
+  // profiles direto pra phone/email/business_logo_url (RLS permite read
+  // próprio; admin lê tudo).
+  useEffect(() => {
+    if (!quote?.painter_id) return;
+    let cancel = false;
+    const sb = getSupabase();
+    (async () => {
+      try {
+        const { data } = await sb
+          .from('profiles')
+          .select('id, name, tag, phone, email, city, state, business_logo_url, business_name, avatar_url')
+          .eq('id', quote.painter_id!)
+          .maybeSingle();
+        if (cancel) return;
+        if (data) {
+          setPainterProfile(data as typeof painterProfile);
+        } else {
+          // Fallback: profiles_public se select privado bloquear.
+          const { data: pub } = await sb
+            .from('profiles_public')
+            .select('id, name, tag, avatar_url, city, state')
+            .eq('id', quote.painter_id!)
+            .maybeSingle();
+          if (cancel) return;
+          if (pub) setPainterProfile(pub as typeof painterProfile);
+        }
+      } catch {
+        // sem profile no PDF, fallback cabeçalho genérico
+      }
+    })();
+    return () => { cancel = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote?.painter_id]);
 
   const mutationError = sendError || approveError || rejectError || advanceError;
   const isBusy = isSending || isApproving || isRejecting || isAdvancing;
@@ -206,30 +259,38 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
 
   // ─── action handlers ──────────────────────────────────────────────
 
-  const handleSend = () => {
-    const raw = window.prompt(
+  const handleSend = async () => {
+    const raw = await dialog.prompt(
       'Valor do orçamento (R$):',
-      Number(quote.price) > 0 ? String(quote.price) : ''
+      Number(quote.price) > 0 ? String(quote.price) : '',
+      { title: 'Enviar orçamento', okLabel: 'Próximo' },
     );
     if (raw == null) return;
     const price = Number(String(raw).replace(/\./g, '').replace(',', '.'));
     if (!Number.isFinite(price) || price <= 0) {
-      alert('Informe um valor válido.');
+      await dialog.alert('Informe um valor válido.');
       return;
     }
-    // Prazo + garantia: cliente espera ver esses campos formalizados.
-    // Aceitar string vazia = "a combinar"; o serviço só grava quando vier.
-    const proposedDate = window.prompt(
+    const proposedDate = await dialog.prompt(
       'Prazo de conclusão (AAAA-MM-DD) — deixe em branco se a combinar:',
       quote.proposed_date || '',
+      { title: 'Prazo', okLabel: 'Próximo' },
     );
-    const existingWarranty = ((quote.quote_data as { warranty?: string } | null)?.warranty) || '90 dias para retoques';
-    const warranty = window.prompt('Garantia oferecida:', existingWarranty);
+    if (proposedDate == null) return;
+    const existingWarranty =
+      ((quote.quote_data as { warranty?: string } | null)?.warranty) ||
+      '90 dias para retoques';
+    const warranty = await dialog.prompt(
+      'Garantia oferecida:',
+      existingWarranty,
+      { title: 'Garantia', okLabel: 'Enviar' },
+    );
+    if (warranty == null) return;
     send({
       id: quote.id,
       price,
-      proposedDate: proposedDate?.trim() || null,
-      warranty: warranty?.trim() || null,
+      proposedDate: proposedDate.trim() || null,
+      warranty: warranty.trim() || null,
     });
   };
 
@@ -293,7 +354,7 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(text);
-        alert('Orçamento copiado!');
+        await dialog.alert('Orçamento copiado!');
       } catch {
         /* ignore */
       }
@@ -310,20 +371,27 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
     window.location.href = '/chat';
   }
 
-  const handleApprove = () => {
-    if (
-      !window.confirm(
-        'Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados.'
-      )
-    )
-      return;
-    const note = window.prompt('Observação da aprovação (opcional):', '');
+  const handleApprove = async () => {
+    const ok = await dialog.confirm(
+      'Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados.',
+      { title: 'Aprovar', okLabel: 'Aprovar' },
+    );
+    if (!ok) return;
+    const note = await dialog.prompt('Observação da aprovação (opcional):', '', {
+      title: 'Observação',
+      okLabel: 'Confirmar',
+    });
     if (note === null) return;
     approve({ id: quote.id, quote, note });
   };
 
-  const handleReject = () => {
-    if (!window.confirm('Marcar este orçamento como recusado?')) return;
+  const handleReject = async () => {
+    const ok = await dialog.confirm('Marcar este orçamento como recusado?', {
+      title: 'Recusar',
+      okLabel: 'Recusar',
+      danger: true,
+    });
+    if (!ok) return;
     reject(quote.id);
   };
 
@@ -331,8 +399,12 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
     advance({ id: quote.id, status: 'em_execucao' });
   };
 
-  const handleComplete = () => {
-    if (!window.confirm('Concluir este orçamento?')) return;
+  const handleComplete = async () => {
+    const ok = await dialog.confirm('Concluir este orçamento?', {
+      title: 'Concluir',
+      okLabel: 'Concluir',
+    });
+    if (!ok) return;
     advance({ id: quote.id, status: 'concluido' });
   };
 

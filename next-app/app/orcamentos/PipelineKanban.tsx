@@ -12,15 +12,15 @@
 //   - default → grid horizontal de lanes
 //
 // Cada ação dispara o método correspondente do usePipeline; mutationErrors
-// surgem como banner vermelho no topo. Confirmações UX (recusar / aprovar)
-// usam window.confirm pra evitar dependência de modal customizado nessa
-// primeira versão do port — pode ser refactorado pra <Dialog> depois.
+// surgem como banner vermelho no topo. Confirmações UX usam useDialog()
+// in-app (sem prompt/confirm/alert nativos do browser).
 
 'use client';
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import { usePipeline } from '@/lib/hooks/usePipeline';
 import { PIPELINE_LANES, type PipelineStatus } from '@/lib/services/pipeline';
 import type { Quote } from '@/lib/types';
@@ -78,6 +78,7 @@ function resolveStatus(raw: string | null | undefined): PipelineStatus {
 
 export function PipelineKanban() {
   const { user, loading: authLoading } = useAuth();
+  const dialog = useDialog();
   const {
     quotes,
     loading,
@@ -123,9 +124,8 @@ export function PipelineKanban() {
     });
   }, [quotes]);
 
-  // Ações: usam window.prompt/confirm pra capturar input mínimo. Modal
-  // customizado pode vir depois sem mexer no service.
-  const handleSend = (id: string, presetPrice?: number) => {
+  // Ações usam dialog in-app (substitui window.prompt/confirm nativos).
+  const handleSend = async (id: string, presetPrice?: number) => {
     const current = quotes.find((q) => q.id === id);
     const defaultStr =
       presetPrice && presetPrice > 0
@@ -133,34 +133,35 @@ export function PipelineKanban() {
         : current && Number(current.price) > 0
           ? String(current.price)
           : '';
-    const raw = window.prompt(
-      'Valor do orçamento (R$):',
-      defaultStr
-    );
+    const raw = await dialog.prompt('Valor do orçamento (R$):', defaultStr, {
+      title: 'Enviar orçamento',
+      okLabel: 'Próximo',
+    });
     if (raw == null) return;
     const price = Number(String(raw).replace(/\./g, '').replace(',', '.'));
     if (!Number.isFinite(price) || price <= 0) {
-      alert('Informe um valor válido.');
+      await dialog.alert('Informe um valor válido.');
       return;
     }
-    // Prazo de conclusão (data ISO ou texto livre) + garantia. Ambos opcionais
-    // mas o cliente espera ver — então pedimos sempre antes de enviar.
-    const proposedDate = window.prompt(
+    const proposedDate = await dialog.prompt(
       'Prazo de conclusão (AAAA-MM-DD) — deixe em branco se a combinar:',
       current?.proposed_date || '',
+      { title: 'Prazo', okLabel: 'Próximo' },
     );
+    if (proposedDate == null) return;
     const warrantyDefault =
       ((current?.quote_data as { warranty?: string } | null)?.warranty) ||
       '90 dias para retoques';
-    const warranty = window.prompt(
-      'Garantia oferecida:',
-      warrantyDefault,
-    );
+    const warranty = await dialog.prompt('Garantia oferecida:', warrantyDefault, {
+      title: 'Garantia',
+      okLabel: 'Enviar',
+    });
+    if (warranty == null) return;
     send({
       id,
       price,
-      proposedDate: proposedDate?.trim() || null,
-      warranty: warranty?.trim() || null,
+      proposedDate: proposedDate.trim() || null,
+      warranty: warranty.trim() || null,
     });
     setSuggestion(null);
   };
@@ -180,25 +181,29 @@ export function PipelineKanban() {
     }
   };
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
     const q = quotes.find((x) => x.id === id);
     if (!q) return;
-    if (
-      !window.confirm(
-        'Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados como referência acordada.'
-      )
-    )
-      return;
-    const note = window.prompt(
-      'Observação da aprovação (opcional):',
-      ''
+    const ok = await dialog.confirm(
+      'Marcar este orçamento como aceito pelo cliente?\n\nO escopo e o valor ficam congelados como referência acordada.',
+      { title: 'Aprovar orçamento', okLabel: 'Aprovar' },
     );
+    if (!ok) return;
+    const note = await dialog.prompt('Observação da aprovação (opcional):', '', {
+      title: 'Observação',
+      okLabel: 'Confirmar',
+    });
     if (note === null) return;
     approve({ id, quote: q, note });
   };
 
-  const handleReject = (id: string) => {
-    if (!window.confirm('Marcar este orçamento como recusado?')) return;
+  const handleReject = async (id: string) => {
+    const ok = await dialog.confirm('Marcar este orçamento como recusado?', {
+      title: 'Recusar',
+      okLabel: 'Recusar',
+      danger: true,
+    });
+    if (!ok) return;
     reject(id);
   };
 

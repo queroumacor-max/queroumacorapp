@@ -22,6 +22,7 @@ import { useRef, useState, type FormEvent, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import {
   useAiLogo,
   AI_LOGO_REGEN_PRICE_BRL,
@@ -40,6 +41,7 @@ function fmtBRL(v: number): string {
 
 export function LogoStudio() {
   const { user, loading: authLoading } = useAuth();
+  const dialog = useDialog();
   const {
     savedLogo,
     variants,
@@ -80,10 +82,11 @@ export function LogoStudio() {
     // Gate visual da 2ª+ geração (paga). Backend já valida tudo, mas evita
     // o usuário ser surpreendido pelo charge.
     if (!isFirstFree) {
-      const ok = window.confirm(
+      const ok = await dialog.confirm(
         `Gerar mais 4 opções de logo custa ${fmtBRL(AI_LOGO_REGEN_PRICE_BRL)}.\n\n` +
           'Esse valor cobre o custo do Seu Zé + processamento.\n\n' +
           'Deseja prosseguir?',
+        { title: 'Gerar mais logos', okLabel: 'Prosseguir' },
       );
       if (!ok) return;
     }

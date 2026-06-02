@@ -6,6 +6,7 @@ import { QueryProvider } from '@/components/QueryProvider';
 import { ToastViewport } from '@/components/ToastViewport';
 import { StagingBanner } from '@/components/StagingBanner';
 import { ReferralCapture } from '@/components/ReferralCapture';
+import { DialogProvider } from '@/components/Dialog';
 import './globals.css';
 
 // Self-host de Syne (display/marca) + DM Sans (body) via next/font/google.
@@ -55,14 +56,16 @@ export default function RootLayout({
             queryKey/enabled sem ordem de inicialização ambígua. */}
         <AuthProvider>
           <QueryProvider>
-            <StagingBanner />
-            {/* Suspense exigido por useSearchParams() em ReferralCapture
-                quando renderiza em rotas dinâmicas. */}
-            <Suspense fallback={null}>
-              <ReferralCapture />
-            </Suspense>
-            {children}
-            <ToastViewport />
+            <DialogProvider>
+              <StagingBanner />
+              {/* Suspense exigido por useSearchParams() em ReferralCapture
+                  quando renderiza em rotas dinâmicas. */}
+              <Suspense fallback={null}>
+                <ReferralCapture />
+              </Suspense>
+              {children}
+              <ToastViewport />
+            </DialogProvider>
           </QueryProvider>
         </AuthProvider>
       </body>

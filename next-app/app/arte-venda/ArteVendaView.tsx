@@ -16,6 +16,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import { getSupabase } from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
 
@@ -46,6 +47,7 @@ async function fetchMyArtListings(userId: string): Promise<ArtListing[]> {
 export function ArteVendaView() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const dialog = useDialog();
   const userId = user?.id ?? '';
 
   const query = useQuery<ArtListing[], Error>({
@@ -62,7 +64,12 @@ export function ArteVendaView() {
 
   async function handleDelete(postId: string) {
     if (!user) return;
-    if (!window.confirm('Tirar essa arte da venda?')) return;
+    const ok = await dialog.confirm('Tirar essa arte da venda?', {
+      title: 'Remover arte',
+      okLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const { deletePost } = await import('@/lib/services/postInteractions');
       await deletePost(user.id, postId);

@@ -30,6 +30,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
@@ -73,6 +74,7 @@ type FormData = z.infer<typeof schema>;
 export function EditProfileForm() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading, error, update, isUpdating } = useProfile();
+  const dialog = useDialog();
 
   // Avatar local: arquivo selecionado + preview URL via createObjectURL.
   // Nada é gravado no banco até o submit; até lá só fica em state.
@@ -208,7 +210,12 @@ export function EditProfileForm() {
 
   async function handleLogoRemove() {
     if (!user || logoBusy) return;
-    if (!window.confirm('Remover o logo do negócio?')) return;
+    const ok = await dialog.confirm('Remover o logo do negócio?', {
+      title: 'Remover logo',
+      okLabel: 'Remover',
+      danger: true,
+    });
+    if (!ok) return;
     setLogoBusy(true);
     try {
       // saveLogo exige string não-vazia; pra limpar, updateProfile direto.
