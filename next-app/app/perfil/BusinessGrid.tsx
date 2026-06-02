@@ -7,6 +7,8 @@
 import { useState, lazy, Suspense } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { BottomSheet } from '@/components/BottomSheet';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { isAdmin } from '@/lib/policies';
 
 // Lazy-load das views pra não inchar o JS inicial do /perfil. Cada modal
 // só baixa o chunk quando o user abre. Mesma técnica que vanilla aplicava
@@ -130,10 +132,27 @@ const TILES: readonly Tile[] = [
   { sheet: 'cursos', emoji: '📚', title: 'Cursos', subtitle: 'Workshops e treinos' },
 ];
 
+// Tiles admin-only: vanilla esconde via `display:none` no HTML e
+// applyAdminUI() flipa quando is_portal_admin() retorna true (vide
+// index.html linha 920+). Aqui condicionamos via render do isAdmin
+// (que aceita portal_access=true). Abrem o /portal (admin React UMD).
+interface AdminTile {
+  href: string;
+  emoji: string;
+  title: string;
+  subtitle: string;
+}
+const ADMIN_TILES: readonly AdminTile[] = [
+  { href: '/portal/#moderation', emoji: '🛡️', title: 'Moderação', subtitle: 'Fila de revisão' },
+  { href: '/portal/#errors', emoji: '🐛', title: 'Erros', subtitle: 'Log do client' },
+];
+
 export function BusinessGrid() {
   const [openSheet, setOpenSheet] = useState<SheetKey | null>(null);
   const activeConfig = openSheet ? SHEETS[openSheet] : null;
   const Active = activeConfig?.Component ?? null;
+  const policyUser = usePolicyUser();
+  const showAdmin = isAdmin(policyUser);
 
   return (
     <>
@@ -145,6 +164,11 @@ export function BusinessGrid() {
             onOpen={() => setOpenSheet(t.sheet)}
           />
         ))}
+        {showAdmin
+          ? ADMIN_TILES.map((t) => (
+              <AdminCard key={t.href} tile={t} />
+            ))
+          : null}
       </div>
 
       <BottomSheet
@@ -229,5 +253,41 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
         {tile.subtitle}
       </div>
     </button>
+  );
+}
+
+// AdminCard — tile escuro (ink) usado pra Moderação/Erros. Vanilla
+// renderiza com fundo var(--ink) e texto branco pra destacar do
+// resto do grid. Click abre /portal/#<hash> em outra aba (admin UMD).
+function AdminCard({ tile }: { tile: AdminTile }) {
+  return (
+    <a
+      href={tile.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rounded-2xl p-4 text-center shadow-sm flex flex-col items-center justify-center relative cursor-pointer"
+      style={{
+        background: 'var(--color-ink)',
+        boxShadow: '0 2px 10px rgba(0,0,0,.1)',
+        minHeight: 92,
+        textDecoration: 'none',
+      }}
+    >
+      <div className="text-[28px] leading-none mb-1.5" style={{ color: '#fff' }}>
+        {tile.emoji}
+      </div>
+      <div
+        className="text-xs font-bold leading-tight"
+        style={{ color: '#fff' }}
+      >
+        {tile.title}
+      </div>
+      <div
+        className="text-[10px] mt-0.5 leading-tight"
+        style={{ color: 'rgba(255,255,255,.8)' }}
+      >
+        {tile.subtitle}
+      </div>
+    </a>
   );
 }
