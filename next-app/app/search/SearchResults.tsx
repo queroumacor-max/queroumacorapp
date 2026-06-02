@@ -1,32 +1,31 @@
-// SearchResults — client component que orquestra a busca full-text.
+// SearchResults — client component que orquestra a busca + sugestões.
 //
-// Espelha o output esperado do RPC search_all: 3 grupos (Pintores, Posts,
-// Produtos) ordenados pelo `score` do ts_rank. O hook useSearch já faz o
-// debounce (300ms) + cache TanStack; aqui o componente só:
-//  - controla o input (estado local, sem URL syncing por enquanto);
-//  - agrupa results por result_type pra exibição em seções;
-//  - mostra empty/loading/error states amigáveis.
+// Quando o input está vazio: mostra "SUGESTÕES PARA VOCÊ" (lista de
+// perfis pra seguir) — espelha o `loadPeopleSuggestions()` do vanilla
+// (head.js linha 1230+). Usa `fetchSuggestedProfiles` (filtra próprio
+// user + quem já segue) e exibe avatar + nome + tag + botão Seguir.
 //
-// Link de cada resultado:
-//  - profile → /perfil/<id> (rota já existe; se ainda não tiver dynamic
-//    route, o link cai num 404 controlado pelo Next, sem quebrar o app);
-//  - post → /feed (sem rota individual por post hoje; volta pro feed);
-//  - product → /loja/<id> (rota /loja/[id] já existe).
+// Com input ≥ 2 letras: chama o RPC `search_all` (3 grupos: Pintores,
+// Posts, Produtos) ordenado por ts_rank, igual ao vanilla searchPeople
+// só que mais rico (vanilla só buscava profiles).
 //
-// Decisão: usamos `dangerouslySetInnerHTML` no snippet porque `ts_headline`
-// envolve os hits em `<b>...</b>` por default. Antes de renderizar, sanitizamos
-// removendo qualquer tag que NÃO seja <b>/</b> — protege contra um futuro
-// caption malicioso que tenha HTML cru no banco.
+// Header dark sticky com input + ícone de lupa absoluto, igual o
+// `.mkt-search` do vanilla (styles.css linha 691+).
 
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/components/AuthProvider';
+import { useFollowing, followingQueryKey } from '@/lib/hooks/useFollowing';
+import { useQueryClient } from '@tanstack/react-query';
+import { DB } from '@/lib/db';
 import { useSearch } from '@/lib/hooks/useSearch';
+import { fetchSuggestedProfiles } from '@/lib/services/suggestedProfiles';
+import { Avatar } from '@/components/Avatar';
 import type { SearchResult, SearchResultType } from '@/lib/services/search';
+import type { Profile } from '@/lib/types';
 
-// Whitelist mínima — só <b> (e </b>) é permitido. Qualquer outra tag vira
-// texto plano. Robusto pra ts_headline + defensivo contra HTML injection.
 const SNIPPET_TAG_RX = /<\/?([a-z][a-z0-9]*)[^>]*>/gi;
 function sanitizeSnippet(raw: string): string {
   if (!raw) return '';
@@ -99,12 +98,202 @@ function SkeletonRow() {
   );
 }
 
+// ─── SUGGESTIONS ──────────────────────────────────────────────────────────
+
+function SuggestionCard({
+  profile,
+  isFollowing,
+  onFollow,
+  onUnfollow,
+}: {
+  profile: Profile;
+  isFollowing: boolean;
+  onFollow: () => void;
+  onUnfollow: () => void;
+}) {
+  const name = profile.name || (profile.tag ? '@' + profile.tag : 'Usuário');
+  const city = profile.city ? profile.city : '';
+  const isPintor = profile.role === 'pintor' || profile.role === 'grafiteiro' || profile.role === 'automotivo';
+
+  return (
+    <div
+      className="flex items-center gap-3 bg-white"
+      style={{
+        padding: '12px 16px',
+        borderRadius: 14,
+        boxShadow: '0 1px 4px rgba(0,0,0,.04)',
+      }}
+    >
+      <Link href={`/perfil/${profile.id}`} className="flex-shrink-0">
+        <Avatar profile={profile} size={48} />
+      </Link>
+      <Link href={`/perfil/${profile.id}`} className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-bold truncate"
+            style={{ fontSize: 14, color: 'var(--color-ink)' }}
+          >
+            {name}
+          </span>
+          {isPintor ? (
+            <span
+              className="font-extrabold"
+              style={{
+                background: 'var(--color-ink)',
+                color: 'var(--color-p1)',
+                fontSize: 9,
+                padding: '2px 6px',
+                borderRadius: 4,
+                letterSpacing: '.05em',
+              }}
+            >
+              {profile.role === 'pintor' ? 'PINTOR' : profile.role === 'grafiteiro' ? 'GRAFITEIRO' : 'AUTO'}
+            </span>
+          ) : null}
+        </div>
+        {profile.tag ? (
+          <div
+            className="truncate"
+            style={{ fontSize: 12, color: 'var(--color-muted)' }}
+          >
+            @{profile.tag}
+            {city ? ' · ' + city : ''}
+          </div>
+        ) : city ? (
+          <div className="truncate" style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+            {city}
+          </div>
+        ) : null}
+      </Link>
+      <button
+        type="button"
+        onClick={isFollowing ? onUnfollow : onFollow}
+        className="font-bold flex-shrink-0"
+        style={{
+          padding: '7px 16px',
+          borderRadius: 10,
+          fontSize: 12,
+          background: isFollowing ? 'transparent' : 'var(--color-ink)',
+          color: isFollowing ? 'var(--color-ink)' : '#fff',
+          border: isFollowing ? '1.5px solid var(--color-border)' : 'none',
+          cursor: 'pointer',
+        }}
+      >
+        {isFollowing ? 'Seguindo' : 'Seguir'}
+      </button>
+    </div>
+  );
+}
+
+function SuggestionsList() {
+  const { user } = useAuth();
+  const { ids: followingIds, invalidate: invalidateFollowing } = useFollowing();
+  const qc = useQueryClient();
+  const [profiles, setProfiles] = useState<Profile[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // Optimistic state local — evita esperar refetch da network depois do toggle.
+  const [localFollowing, setLocalFollowing] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancel = false;
+    setLoading(true);
+    setError(null);
+    fetchSuggestedProfiles(user?.id ?? null, 18)
+      .then((rows) => {
+        if (cancel) return;
+        setProfiles(rows);
+      })
+      .catch((e) => {
+        if (cancel) return;
+        setError(e?.message || 'Erro ao carregar sugestões');
+      })
+      .finally(() => {
+        if (!cancel) setLoading(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    setLocalFollowing(new Set(followingIds));
+  }, [followingIds]);
+
+  async function handleFollow(profileId: string) {
+    if (!user) return;
+    setLocalFollowing((s) => new Set(s).add(profileId));
+    const r = await DB.follows.follow(user.id, profileId);
+    if (!r.ok) {
+      setLocalFollowing((s) => {
+        const n = new Set(s);
+        n.delete(profileId);
+        return n;
+      });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
+    invalidateFollowing();
+  }
+
+  async function handleUnfollow(profileId: string) {
+    if (!user) return;
+    setLocalFollowing((s) => {
+      const n = new Set(s);
+      n.delete(profileId);
+      return n;
+    });
+    const r = await DB.follows.unfollow(user.id, profileId);
+    if (!r.ok) {
+      setLocalFollowing((s) => new Set(s).add(profileId));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: followingQueryKey(user.id) });
+    invalidateFollowing();
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-2" aria-label="Carregando sugestões">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  if (error || !profiles || profiles.length === 0) {
+    return (
+      <div className="text-center py-8 px-4 rounded-xl bg-white/50">
+        <div className="text-3xl mb-2" aria-hidden="true">👥</div>
+        <p className="text-sm text-[color:var(--color-muted)]">
+          {error || 'Sem sugestões agora — tente buscar pelo nome.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {profiles.map((p) => (
+        <SuggestionCard
+          key={p.id}
+          profile={p}
+          isFollowing={localFollowing.has(p.id)}
+          onFollow={() => handleFollow(p.id)}
+          onUnfollow={() => handleUnfollow(p.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────
+
 export function SearchResults() {
   const [query, setQuery] = useState('');
   const { results, loading, error, debouncedQuery } = useSearch(query);
 
-  // Agrupa results por type. Mantém a ordem original (já vem por score DESC
-  // do banco) — só separa pra renderizar em seções.
   const grouped = useMemo(() => {
     const out: Record<SearchResultType, SearchResult[]> = {
       profile: [],
@@ -119,91 +308,130 @@ export function SearchResults() {
 
   const hasAnyResult = results.length > 0;
   const tooShort = query.trim().length > 0 && query.trim().length < 2;
+  const showSuggestions = !query.trim();
 
   return (
-    <div>
-      <label className="block mb-4">
-        <span className="sr-only">Buscar</span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar pintores, posts, produtos..."
-          autoFocus
-          className="w-full px-4 py-3 rounded-xl border border-[color:var(--color-border)] bg-white text-base focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
-          aria-label="Buscar"
-        />
-      </label>
+    <>
+      {/* Header dark sticky com input + ícone lupa */}
+      <header
+        className="sticky top-0 z-20"
+        style={{
+          background: 'var(--color-ink)',
+          padding: '14px 16px',
+        }}
+      >
+        <label className="relative block" role="search">
+          <span className="sr-only">Buscar</span>
+          <span
+            aria-hidden="true"
+            className="absolute pointer-events-none"
+            style={{ left: 14, top: '50%', transform: 'translateY(-50%)' }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="var(--color-p1)"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.5" y2="16.5" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar pintores, posts, produtos..."
+            autoFocus
+            className="w-full text-white outline-none"
+            aria-label="Buscar"
+            style={{
+              padding: '12px 16px 12px 42px',
+              borderRadius: 26,
+              border: '1.5px solid rgba(255,255,255,.14)',
+              background: 'rgba(255,255,255,.07)',
+              fontSize: 14,
+            }}
+          />
+        </label>
+      </header>
 
-      {tooShort ? (
-        <p className="text-sm text-[color:var(--color-muted)] py-8 text-center">
-          Digite pelo menos 2 letras pra começar.
-        </p>
-      ) : null}
+      <div className="px-3 pt-3 pb-4">
+        {/* Sugestões — só quando input vazio */}
+        {showSuggestions ? (
+          <section aria-label="Sugestões para você">
+            <h2
+              className="font-bold uppercase mb-3"
+              style={{
+                fontSize: 12,
+                color: 'var(--color-muted)',
+                letterSpacing: '.05em',
+                paddingLeft: 4,
+              }}
+            >
+              Sugestões para você
+            </h2>
+            <SuggestionsList />
+          </section>
+        ) : null}
 
-      {loading ? (
-        <div className="space-y-2" aria-label="Buscando">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonRow key={i} />
-          ))}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <div className="text-4xl mb-3" aria-hidden="true">
-            ⚠️
-          </div>
-          <p className="text-sm text-[color:var(--color-muted)]">
-            Não foi possível buscar agora. Tente de novo.
+        {tooShort ? (
+          <p className="text-sm text-[color:var(--color-muted)] py-8 text-center">
+            Digite pelo menos 2 letras pra começar.
           </p>
-        </div>
-      ) : null}
+        ) : null}
 
-      {!loading && !error && debouncedQuery.length >= 2 && !hasAnyResult ? (
-        <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <div className="text-5xl mb-3" aria-hidden="true">
-            🔎
+        {loading ? (
+          <div className="space-y-2" aria-label="Buscando">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonRow key={i} />
+            ))}
           </div>
-          <h2 className="font-semibold mb-2">Nada encontrado</h2>
-          <p className="text-sm text-[color:var(--color-muted)]">
-            Não achamos nada pra <span className="font-mono">{debouncedQuery}</span>.
-            Tente outras palavras ou veja o feed completo.
-          </p>
-        </div>
-      ) : null}
+        ) : null}
 
-      {!loading && !error && hasAnyResult ? (
-        <div className="space-y-6">
-          {(['profile', 'post', 'product'] as SearchResultType[]).map((type) =>
-            grouped[type].length > 0 ? (
-              <section key={type} aria-label={TYPE_LABEL[type]}>
-                <h2 className="text-sm font-semibold mb-2 text-[color:var(--color-muted)]">
-                  {TYPE_LABEL[type]} ({grouped[type].length})
-                </h2>
-                <ul className="space-y-2">
-                  {grouped[type].map((r) => (
-                    <li key={`${r.result_type}-${r.id}`}>
-                      <ResultCard r={r} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null,
-          )}
-        </div>
-      ) : null}
-
-      {!query.trim() ? (
-        <div className="text-center py-12 px-4 rounded-xl bg-white/40 border border-[color:var(--color-border)] mt-4">
-          <div className="text-5xl mb-3" aria-hidden="true">
-            🔎
+        {error ? (
+          <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+            <div className="text-4xl mb-3" aria-hidden="true">⚠️</div>
+            <p className="text-sm text-[color:var(--color-muted)]">
+              Não foi possível buscar agora. Tente de novo.
+            </p>
           </div>
-          <p className="text-sm text-[color:var(--color-muted)]">
-            Comece digitando uma palavra-chave acima.
-          </p>
-        </div>
-      ) : null}
-    </div>
+        ) : null}
+
+        {!loading && !error && debouncedQuery.length >= 2 && !hasAnyResult ? (
+          <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+            <div className="text-5xl mb-3" aria-hidden="true">🔎</div>
+            <h2 className="font-semibold mb-2">Nada encontrado</h2>
+            <p className="text-sm text-[color:var(--color-muted)]">
+              Não achamos nada pra <span className="font-mono">{debouncedQuery}</span>.
+            </p>
+          </div>
+        ) : null}
+
+        {!loading && !error && hasAnyResult ? (
+          <div className="space-y-6">
+            {(['profile', 'post', 'product'] as SearchResultType[]).map((type) =>
+              grouped[type].length > 0 ? (
+                <section key={type} aria-label={TYPE_LABEL[type]}>
+                  <h2 className="text-sm font-semibold mb-2 text-[color:var(--color-muted)]">
+                    {TYPE_LABEL[type]} ({grouped[type].length})
+                  </h2>
+                  <ul className="space-y-2">
+                    {grouped[type].map((r) => (
+                      <li key={`${r.result_type}-${r.id}`}>
+                        <ResultCard r={r} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null,
+            )}
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }
