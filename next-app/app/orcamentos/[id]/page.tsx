@@ -19,6 +19,7 @@ export const runtime = 'edge';
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 import { usePipeline } from '@/lib/hooks/usePipeline';
 import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
@@ -27,6 +28,7 @@ import {
   type PipelineStatus,
 } from '@/lib/services/pipeline';
 import type { Quote } from '@/lib/types';
+import { QuotePdfSheet } from './QuotePdfSheet';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -83,6 +85,8 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // direto via link sem passar pelo kanban primeiro).
   const [localQuote, setLocalQuote] = useState<Quote | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const { profile: painterProfile } = useProfile();
 
   // Rascunho de notas privadas por orçamento — não bate no banco, só
   // localStorage. Persistido com TTL 7d pelo useAutosave. Útil pra o
@@ -254,9 +258,10 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   }
 
   function handlePrintPdf() {
-    // Reutiliza @media print do navegador. A página inteira já tem layout
-    // legível; print preview vira PDF pelo "Salvar como PDF" do diálogo.
-    window.print();
+    // Abre o preview formatado (QuotePdfSheet) com cabeçalho do pintor, dados
+    // do cliente, tabela de detalhes, escopo, valor destacado. Botão dentro
+    // dispara window.print() pra salvar como PDF.
+    setPdfOpen(true);
   }
 
   function handleShareWhatsApp() {
@@ -605,6 +610,23 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           </p>
         )}
       </section>
+
+      <QuotePdfSheet
+        open={pdfOpen}
+        onClose={() => setPdfOpen(false)}
+        quote={quote}
+        painter={painterProfile as unknown as {
+          name?: string | null;
+          tag?: string | null;
+          phone?: string | null;
+          city?: string | null;
+          state?: string | null;
+          email?: string | null;
+          business_logo_url?: string | null;
+          business_name?: string | null;
+          avatar_url?: string | null;
+        } | null}
+      />
     </main>
   );
 }
