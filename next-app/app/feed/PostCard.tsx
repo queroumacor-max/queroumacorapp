@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/Avatar';
 import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
 import { showToast } from '@/lib/toast';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -53,6 +54,7 @@ function displayName(profile: FeedPost['profile']): string {
 }
 
 export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
+  const dialog = useDialog();
   const router = useRouter();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -160,7 +162,11 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
 
   async function handleDelete() {
     setOptsOpen(false);
-    if (!window.confirm('Apagar este post? Você pode desfazer em 30 dias.')) return;
+    const ok = await dialog.confirm(
+      'Apagar este post? Você pode desfazer em 30 dias.',
+      { title: 'Apagar post', okLabel: 'Apagar', danger: true },
+    );
+    if (!ok) return;
     if (!user) return;
 
     // Otimista: remove o post de todas as páginas do feed IMEDIATAMENTE
@@ -412,7 +418,12 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!window.confirm('Apagar comentário?')) return;
+                      const ok = await dialog.confirm('Apagar comentário?', {
+                        title: 'Apagar comentário',
+                        okLabel: 'Apagar',
+                        danger: true,
+                      });
+                      if (!ok) return;
                       try {
                         await removeComment(c.id);
                       } catch (e) {

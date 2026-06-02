@@ -12,6 +12,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import {
   computeBalance,
   listPoints,
@@ -55,6 +56,7 @@ const OPTIONS: readonly RedeemOption[] = [
 export function PontosView() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const dialog = useDialog();
   const [redeeming, setRedeeming] = useState<RedeemKind | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -102,10 +104,14 @@ export function PontosView() {
     );
   }
 
-  function handleRedeem(kind: RedeemKind) {
+  async function handleRedeem(kind: RedeemKind) {
     if (!canRedeem || redeeming) return;
     const opt = OPTIONS.find((o) => o.kind === kind)!;
-    if (!window.confirm(`Trocar ${REDEEM_COST} pts por ${opt.title}?`)) return;
+    const ok = await dialog.confirm(
+      `Trocar ${REDEEM_COST} pts por ${opt.title}?`,
+      { title: 'Resgatar pontos', okLabel: 'Trocar' },
+    );
+    if (!ok) return;
     if (kind === 'pro') {
       void redeemPro();
     } else {

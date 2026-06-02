@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
+import { useDialog } from '@/components/Dialog';
 import { Avatar } from '@/components/Avatar';
 import { DB } from '@/lib/db';
 import { showToast } from '@/lib/toast';
@@ -38,6 +39,7 @@ interface Stats {
 
 export function ProfileHeader() {
   const { signOut, user } = useAuth();
+  const dialog = useDialog();
   const { profile } = useProfile();
 
   const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
@@ -116,7 +118,12 @@ export function ProfileHeader() {
     : 0;
 
   async function handleLogout() {
-    if (!window.confirm('Deseja sair da conta?')) return;
+    const ok = await dialog.confirm('Deseja sair da conta?', {
+      title: 'Sair',
+      okLabel: 'Sair',
+      danger: true,
+    });
+    if (!ok) return;
     await signOut();
     window.location.href = '/login';
   }

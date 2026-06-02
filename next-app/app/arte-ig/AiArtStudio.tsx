@@ -25,6 +25,8 @@ import { useAiArt } from '@/lib/hooks/useAiArt';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { showToast } from '@/lib/toast';
+import { generateCaption } from '@/lib/services/posts';
 import type { ArtAspect, ArtStyle } from '@/lib/services/aiArt';
 import { StyleSelector } from './StyleSelector';
 import { AspectSelector } from './AspectSelector';
@@ -48,11 +50,35 @@ export function AiArtStudio() {
   const [needsTwo, setNeedsTwo] = useState(false);
   const [aspect, setAspect] = useState<ArtAspect>('square');
   const [hint, setHint] = useState('');
+  const [genCaptionLoading, setGenCaptionLoading] = useState(false);
   const [photo1, setPhoto1] = useState<string | null>(null);
   const [photo2, setPhoto2] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const ai = useAiArt();
+
+  // Gera legenda + hashtags a partir da foto carregada (photo1). Usa
+  // /api/caption (gpt-4o-mini Vision) — mesmo endpoint do Composer.
+  // O texto resultante vira a "dica pra IA" + também é reutilizado depois
+  // como legenda inicial no ResultActions (após gerar a arte).
+  const handleGenerateCaption = useCallback(async () => {
+    if (!photo1) {
+      showToast('Selecione uma foto primeiro', 'info');
+      return;
+    }
+    setGenCaptionLoading(true);
+    try {
+      const { caption, hashtags } = await generateCaption([photo1]);
+      const tagLine = (hashtags || []).join(' ');
+      const combined = [caption, tagLine].filter(Boolean).join('\n\n');
+      setHint(combined.slice(0, 300));
+      showToast('Legenda gerada!', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao gerar legenda', 'error');
+    } finally {
+      setGenCaptionLoading(false);
+    }
+  }, [photo1]);
 
   const isPro = canSeeProFeature(policyUser);
   // PRO agora também tem limite (2/dia). canUse é true só quando ainda tem
@@ -246,19 +272,42 @@ export function AiArtStudio() {
 
           <AspectSelector value={aspect} onChange={setAspect} />
 
-          {/* Hint opcional */}
+          {/* Legenda + hashtags — pode ser escrito à mão OU gerado pela IA
+              a partir da foto (vision). Vai pro prompt da geração da arte E
+              vira a legenda inicial do post. */}
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-2">
-              4. Dica pra IA (opcional)
-            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-muted)]">
+                4. Legenda + hashtags
+              </h3>
+              <button
+                type="button"
+                onClick={handleGenerateCaption}
+                disabled={genCaptionLoading || !photo1}
+                className="text-xs font-bold text-[color:var(--color-p1)] disabled:opacity-50"
+                style={{ background: 'none', border: 'none', cursor: photo1 ? 'pointer' : 'not-allowed' }}
+              >
+                {genCaptionLoading ? '✨ Gerando…' : '✨ Gerar com IA'}
+              </button>
+            </div>
             <textarea
               value={hint}
               onChange={(e) => setHint(e.target.value.slice(0, 300))}
-              rows={2}
-              placeholder="Ex: quero passar confiança e profissionalismo"
+              rows={4}
+              placeholder={
+                photo1
+                  ? 'Clique em "Gerar com IA" pra criar a legenda baseada na foto, ou escreva à mão (#hashtags no final)'
+                  : 'Suba a foto primeiro pra gerar a legenda automática'
+              }
               className="w-full p-2 border border-[color:var(--color-border)] rounded-lg text-sm"
               maxLength={300}
             />
+            <p
+              className="text-[10px] text-[color:var(--color-muted)] mt-1"
+              style={{ lineHeight: 1.4 }}
+            >
+              IA lê a sua foto e gera legenda + hashtags prontas pro Instagram.
+            </p>
           </div>
 
           {/* Erro da geração */}

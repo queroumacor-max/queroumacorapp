@@ -4,12 +4,19 @@
 'use client';
 
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 
 export function ProfileFooter() {
   const { signOut } = useAuth();
+  const dialog = useDialog();
 
   async function handleLogout() {
-    if (!window.confirm('Deseja sair da conta?')) return;
+    const ok = await dialog.confirm('Deseja sair da conta?', {
+      title: 'Sair',
+      okLabel: 'Sair',
+      danger: true,
+    });
+    if (!ok) return;
     await signOut();
     window.location.href = '/login';
   }
