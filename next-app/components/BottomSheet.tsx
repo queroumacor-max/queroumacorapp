@@ -1,7 +1,7 @@
-// BottomSheet — modal estilo "janela que sobe" do vanilla (`.overlay` +
-// `.sheet` em styles.css). Click no backdrop ou tecla Esc fecha. Body
-// scroll lock enquanto aberto. Trap simples: o conteúdo do sheet faz
-// stopPropagation no click pra backdrop só pegar click fora.
+// BottomSheet — modal "janela que sobe" estilo vanilla (`.overlay` +
+// `.sheet`). Click no backdrop ou tecla Esc fecha. X pequeno no
+// canto superior direito do sheet. Body scroll lock enquanto aberto.
+// Conteúdo scrolla sem barra visível (.hide-scrollbar global).
 'use client';
 
 import { useEffect } from 'react';
@@ -10,14 +10,11 @@ import type { ReactNode } from 'react';
 export interface BottomSheetProps {
   open: boolean;
   onClose: () => void;
-  /** Conteúdo. Use cabeçalho + corpo scrollável dentro. */
   children: ReactNode;
-  /** aria-label do dialog. */
   ariaLabel?: string;
 }
 
 export function BottomSheet({ open, onClose, children, ariaLabel }: BottomSheetProps) {
-  // Body scroll lock + Esc close.
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
@@ -48,62 +45,67 @@ export function BottomSheet({ open, onClose, children, ariaLabel }: BottomSheetP
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full mx-auto bg-white overflow-y-auto"
+        className="relative w-full mx-auto bg-white hide-scrollbar"
         style={{
           maxWidth: 430,
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           borderRadius: '20px 20px 0 0',
-          padding: '14px 18px 28px',
-          paddingBottom: 'calc(28px + env(safe-area-inset-bottom))',
           boxShadow: '0 -8px 30px rgba(0,0,0,.3)',
           animation: 'bsSlideUp 220ms cubic-bezier(.32,.72,0,1)',
+          overflowY: 'auto',
+          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {/* Handle bar + close (X) — vanilla mostra essa barrinha no topo */}
-        <div className="flex items-center justify-between mb-2">
-          <div
-            aria-hidden="true"
-            className="mx-auto rounded-full"
+        {/* Handle bar fino + X pequeno no canto superior direito.
+            Vanilla mostra só a barrinha; aqui adicionamos o X discreto
+            pra acessibilidade (Esc + click backdrop também fecham). */}
+        <div
+          aria-hidden="true"
+          className="sticky top-0 z-10 flex items-center justify-center"
+          style={{
+            background: '#fff',
+            padding: '10px 14px 6px',
+          }}
+        >
+          <span
+            className="rounded-full"
             style={{
               width: 40,
               height: 4,
-              background: 'rgba(0,0,0,.2)',
-              marginLeft: 'auto',
-              marginRight: 'auto',
+              background: 'rgba(0,0,0,.18)',
             }}
           />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="absolute"
-            style={{
-              top: 12,
-              right: 16,
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'rgba(0,0,0,.06)',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--color-ink)" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="6" y1="18" x2="18" y2="6" />
-            </svg>
-          </button>
         </div>
-        {children}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute z-20"
+          style={{
+            top: 10,
+            right: 12,
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,.07)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--color-ink)" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="6" y1="18" x2="18" y2="6" />
+          </svg>
+        </button>
+
+        <div style={{ padding: '4px 18px 24px' }}>{children}</div>
       </div>
       <style>{`
-        @keyframes bsFade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes bsFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes bsSlideUp {
           from { transform: translateY(100%); }
           to { transform: translateY(0); }
