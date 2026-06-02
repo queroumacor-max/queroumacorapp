@@ -1,0 +1,153 @@
+// Página /info/privacidade — Política de Privacidade LGPD. Conteúdo
+// idêntico ao vanilla index.html linha 1177-1213.
+import type { Metadata } from 'next';
+import { InfoSubPage, LegalH, LegalP, LegalUpd } from '../InfoSubPage';
+
+export const metadata: Metadata = {
+  title: 'Política de Privacidade | QueroUmaCor',
+  description:
+    'Como coletamos, usamos e protegemos seus dados pessoais conforme a LGPD.',
+};
+
+export default function PrivacidadePage() {
+  return (
+    <InfoSubPage title="Política de Privacidade">
+      <LegalUpd>Última atualização: 22 de maio de 2026</LegalUpd>
+      <LegalP>
+        Esta Política de Privacidade explica como o QueroUmaCor coleta, usa,
+        compartilha e protege os seus dados pessoais, em conformidade com a Lei
+        Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).
+      </LegalP>
+
+      <LegalH>1. Quem é o controlador</LegalH>
+      <LegalP>
+        O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor).
+        Para questões sobre privacidade ou exercer seus direitos LGPD, contate
+        nosso Encarregado de Proteção de Dados (DPO) pelo e-mail{' '}
+        <b>loja@calicolors.com.br</b> ou pelos canais em &quot;Fale Conosco&quot;.
+      </LegalP>
+
+      <LegalH>2. Dados que coletamos</LegalH>
+      <LegalP>
+        <b>Dados de cadastro:</b> nome, e-mail, telefone, tipo de usuário (cliente
+        ou profissional) e foto de perfil.
+        <br />
+        <b>Dados do perfil profissional:</b> especialidades, raio de atendimento,
+        formação, cursos e fotos do portfólio.
+        <br />
+        <b>Dados de uso:</b> orçamentos solicitados, mensagens trocadas no chat e
+        avaliações.
+        <br />
+        <b>Localização aproximada:</b> usada para mostrar profissionais e serviços
+        perto de você.
+        <br />
+        <b>Dados técnicos:</b> informações do dispositivo e de acesso, para
+        segurança e funcionamento do app.
+      </LegalP>
+
+      <LegalH>3. Como usamos os seus dados</LegalH>
+      <LegalP>
+        Utilizamos os dados para criar e manter a sua conta; conectar clientes e
+        profissionais; exibir perfis, portfólios e resultados de busca;
+        viabilizar orçamentos e o chat; melhorar o aplicativo; garantir a
+        segurança e prevenir fraudes; e cumprir obrigações legais.
+      </LegalP>
+
+      <LegalH>4. Base legal do tratamento</LegalH>
+      <LegalP>
+        Tratamos seus dados com base na execução do contrato (uso do app), no
+        seu consentimento, no legítimo interesse de oferecer e aprimorar o
+        serviço e no cumprimento de obrigações legais.
+      </LegalP>
+
+      <LegalH>5. Compartilhamento de dados</LegalH>
+      <LegalP>
+        Seu perfil público (nome, foto, especialidades e portfólio) é visível
+        para outros usuários do app. Compartilhamos dados com os seguintes
+        operadores que viabilizam o serviço:
+      </LegalP>
+      <ul
+        style={{
+          fontSize: 13.5,
+          lineHeight: 1.7,
+          color: 'var(--color-ink)',
+          margin: '6px 0 10px',
+          paddingLeft: 20,
+        }}
+      >
+        <li>
+          <b>Supabase Inc.</b> (EUA) — hospedagem do banco de dados, autenticação
+          e storage
+        </li>
+        <li>
+          <b>Cloudflare, Inc.</b> (EUA) — CDN, infraestrutura de borda e
+          proteção contra abuso
+        </li>
+        <li>
+          <b>OpenAI, Inc.</b> (EUA) — geração de texto e sugestões via IA
+          (recurso &apos;Seu Zé&apos;)
+        </li>
+        <li>
+          <b>Google LLC</b> (EUA) — geração de texto e sugestões via IA (Gemini,
+          fallback do &apos;Seu Zé&apos;)
+        </li>
+      </ul>
+      <LegalP>
+        A transferência internacional desses dados ocorre com base no Art. 33 da
+        LGPD (cumprimento de obrigação legal e proteção do crédito) e nas
+        garantias contratuais com cada operador. Também compartilhamos dados com
+        autoridades quando exigido por lei. <b>Não vendemos os seus dados pessoais.</b>
+      </LegalP>
+
+      <LegalH>6. Inteligência artificial</LegalH>
+      <LegalP>
+        Alguns recursos usam o Seu Zé (nossa IA), como a sugestão de cores e o
+        assistente do chat. Os dados enviados a esses recursos são utilizados
+        apenas para gerar a resposta solicitada.
+      </LegalP>
+
+      <LegalH>7. Armazenamento e segurança</LegalH>
+      <LegalP>
+        Seus dados são armazenados em servidores seguros e adotamos medidas
+        técnicas e organizacionais para protegê-los. Nenhum sistema, porém, é
+        totalmente imune a riscos.
+      </LegalP>
+
+      <LegalH>8. Retenção dos dados</LegalH>
+      <LegalP>
+        Mantemos os seus dados enquanto a sua conta estiver ativa. Após a
+        exclusão da conta, os dados são apagados ou anonimizados, exceto quando
+        a guarda for exigida por lei.
+      </LegalP>
+
+      <LegalH>9. Seus direitos</LegalH>
+      <LegalP>
+        Você pode, a qualquer momento, solicitar a confirmação e o acesso aos
+        seus dados, a correção de informações, a anonimização ou eliminação, a
+        portabilidade, informações sobre compartilhamento e a revogação do
+        consentimento. Para exercer esses direitos, fale conosco.
+      </LegalP>
+
+      <LegalH>10. Localização</LegalH>
+      <LegalP>
+        A localização aproximada é usada somente para mostrar profissionais e
+        serviços por perto. Você pode desativá-la nas configurações do seu
+        dispositivo.
+      </LegalP>
+
+      <LegalH>11. Menores de idade</LegalH>
+      <LegalP>
+        O QueroUmaCor é destinado preferencialmente a maiores de 18 anos.
+        Coletamos a data de nascimento no cadastro para personalização do
+        perfil. O uso por menores deve contar com a autorização e o
+        acompanhamento dos responsáveis, nos termos do Art. 14 da LGPD.
+      </LegalP>
+
+      <LegalH>12. Alterações desta política</LegalH>
+      <LegalP>
+        Podemos atualizar esta política periodicamente. Mudanças relevantes
+        serão informadas no aplicativo.
+      </LegalP>
+    </InfoSubPage>
+  );
+}
