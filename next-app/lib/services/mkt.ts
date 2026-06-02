@@ -291,21 +291,38 @@ const PRODUCT_COLS =
  * Esconde produtos com `_isMktHidden` (bases tinturométricas).
  */
 export async function fetchProducts(filter: ProductFilter = {}): Promise<Product[]> {
-  const limit = filter.limit ?? 1000;
   const sb = getSupabase();
-  const q = sb
-    .from('products')
-    .select(PRODUCT_COLS)
-    .order('name')
-    .limit(limit);
-  const qFinal = filter.signal
-    ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(filter.signal)
-    : q;
-  const { data, error } = await qFinal;
-  if (error) {
-    throw new NetworkError(error.message, error);
+  // PostgREST limita por default a 1000 rows por request, mesmo passando
+  // `.limit(5000)` — config do server. Pra trazer todos os ~4000+ produtos
+  // do catálogo, paginamos via `.range(start, end)` em batches de 1000 até
+  // a página vir vazia. Caller pode limitar via filter.limit (raro).
+  const PAGE = 1000;
+  const cap = filter.limit; // se passado, para no cap
+  const all: Product[] = [];
+  let from = 0;
+  // Loop com guarda — máx 10 páginas (~10k itens) pra não rodar infinito.
+  for (let page = 0; page < 10; page += 1) {
+    const to = from + PAGE - 1;
+    const q = sb
+      .from('products')
+      .select(PRODUCT_COLS)
+      .order('name')
+      .range(from, to);
+    const qFinal = filter.signal
+      ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(filter.signal)
+      : q;
+    const { data, error } = await qFinal;
+    if (error) {
+      throw new NetworkError(error.message, error);
+    }
+    const batch = (data ?? []) as Product[];
+    all.push(...batch);
+    if (batch.length < PAGE) break; // última página
+    if (cap && all.length >= cap) break;
+    from += PAGE;
   }
-  let rows = ((data ?? []) as Product[]).filter((p) => !isMktHidden(p));
+  let rows = all.filter((p) => !isMktHidden(p));
+  if (cap) rows = rows.slice(0, cap);
 
   if (filter.category) {
     rows = rows.filter((p) => mktClassify(p) === filter.category);

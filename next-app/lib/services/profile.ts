@@ -25,16 +25,8 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Profile, UserRole } from '@/lib/types';
 
-// Colunas que o form de edição lê/escreve. Mesmo subset do
-// modules/profile-edit.js linha 71 (openEditProfile.select) + is_pro.
-// NÃO incluímos pro_expires_at / pro_grace_until / is_admin aqui —
-// essas colunas podem não existir em todos os ambientes (SQL Wave 7
-// pode não ter rodado) e UMA coluna ausente faz o SELECT inteiro
-// falhar, jogando o profile pra null em toda a UI (avatar "J", banner
-// PRO sempre visível, /perfil/editar com erros em todos os blocos).
-// is_pro é seguro: existe desde o schema inicial.
-const PROFILE_COLS =
-  'id, name, tag, username, email, city, state, address, phone, bio, specialties, avatar_url, role, user_type, service_radius, is_pro';
+// (getProfile usa SELECT * defensivamente — não dependemos de uma lista
+// explícita de colunas, então uma migration pendente não quebra a UI.)
 
 // Patch parcial — apenas as colunas que o usuário pode editar pelo form. `tag`
 // é immutable pós-criação na UI (input disabled), mas mantemos no shape pra o
@@ -62,13 +54,34 @@ export interface ProfilePatch {
 export async function getProfile(userId: string): Promise<Profile | null> {
   if (!userId) return null;
   const sb = getSupabase();
+  // DEFENSIVO: usar SELECT * em vez de uma lista explícita. Se uma única
+  // coluna não existir no banco (ex.: migration pendente), o select inteiro
+  // falha e profile vira null em toda a UI. SELECT * sempre funciona,
+  // independente das colunas que existem. Type Profile já é permissivo.
+  // Tentativa 1: profiles table direto (RLS auth.uid()=id permite self-read).
   const { data, error } = await sb
     .from('profiles')
-    .select(PROFILE_COLS)
+    .select('*')
     .eq('id', userId)
     .maybeSingle();
   if (error) {
-    throw new NetworkError(error.message, error);
+    // Log explícito pra debug (Sentry captura). Antes era silencioso e a
+    // UI mostrava "Não foi possível carregar" sem pista nenhuma.
+    if (typeof console !== 'undefined') {
+      console.warn('[getProfile] erro no select profiles:', error.message);
+    }
+    // Fallback: tenta profiles_public (view safe). Se chegar aqui, perdeu
+    // alguns campos editáveis (email, address, phone) mas pelo menos UI
+    // não fica vazia.
+    const fb = await sb
+      .from('profiles_public')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (fb.error) {
+      throw new NetworkError(error.message, error);
+    }
+    return (fb.data ?? null) as Profile | null;
   }
   return (data ?? null) as Profile | null;
 }
