@@ -62,13 +62,21 @@ export function StoriesCarousel({ followingIds }: StoriesCarouselProps) {
           </>
         )}
 
-        {/* Stories de seguidos — pula o próprio (já tá como "Seu story"). */}
+        {/* Stories de seguidos — pula o próprio (já tá como "Seu story").
+            Grupos sem story (followingId que não publicou) viram bolinha
+            cinza com link pro perfil em vez de abrir o viewer. */}
         {items.map((g, idx) =>
           g.user_id === user?.id ? null : (
             <StoryAvatar
               key={g.user_id}
               group={g}
-              onClick={() => setViewerOpenAt(idx)}
+              onClick={() => {
+                if (g.stories.length === 0) {
+                  window.location.href = `/perfil/${g.user_id}`;
+                } else {
+                  setViewerOpenAt(idx);
+                }
+              }}
             />
           )
         )}
@@ -155,12 +163,15 @@ function StoryAvatar({ group, onClick }: StoryAvatarProps) {
     group.stories[0]?.media_url ||
     `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(p.name || 'U')}`;
 
-  const ringStyle = group.seen
-    ? { background: 'rgba(255,255,255,0.2)' }
-    : {
+  // Anel: gradient colorido quando o grupo tem story não-visto; cinza quando
+  // já visto OU quando o seguido não publicou nenhum story (`stories.length === 0`).
+  const hasUnseenStory = !group.seen && group.stories.length > 0;
+  const ringStyle = hasUnseenStory
+    ? {
         background:
           'conic-gradient(var(--color-p1), var(--color-p2), var(--color-p3), var(--color-p4), var(--color-p1))',
-      };
+      }
+    : { background: 'rgba(255,255,255,0.2)' };
 
   return (
     <button
