@@ -101,13 +101,16 @@ export async function fetchStoriesGroupedByUser(
   const rows = (storiesData ?? []) as StoryRow[];
   if (rows.length === 0) return [];
 
-  // Profiles: só pra users que têm stories (não inclui follows sem stories —
-  // a UI já cuida desse caso renderizando o círculo "perfil sem story").
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  // Profiles: fetch pra TODOS os followingIds + viewer (não só quem tem story).
+  // Vanilla também faz isso (modules/stories.js linha 60) — renderiza follow
+  // sem story como bolinha cinza no carrossel pra o usuário ter um quick-link
+  // pro perfil. Sem isso, a fila de stories fica vazia/só com "Seu story" e
+  // dá impressão de que ninguém é seguido.
+  const allKnownIds = Array.from(new Set([...rows.map((r) => r.user_id), ...feedIds]));
   const { data: profilesData, error: profilesErr } = await sb
     .from('profiles')
     .select(PROFILE_COLS)
-    .in('id', userIds);
+    .in('id', allKnownIds);
   if (profilesErr) {
     throw new NetworkError(profilesErr.message, profilesErr);
   }
@@ -170,7 +173,32 @@ export async function fetchStoriesGroupedByUser(
   unseen.sort(byRecency);
   seen.sort(byRecency);
 
-  return [...own, ...unseen, ...seen];
+  // Followed sem story — vira bolinha cinza "seen" com avatar do perfil,
+  // só pro user ter quick-link. Não adiciona o próprio viewer aqui (já
+  // tratado pelo carrossel via SelfStoryAvatar).
+  const noStory: StoryGroup[] = [];
+  for (const id of followingIds) {
+    if (id === viewerId) continue;
+    if (grouped.has(id)) continue;
+    const prof =
+      profileById.get(id) ?? { id, name: null, tag: null, avatar_url: null };
+    noStory.push({
+      user_id: id,
+      profile: prof,
+      stories: [],
+      seen: true,
+      isOwn: false,
+    });
+  }
+  // Ordena os "sem story" alfabeticamente pelo nome/tag pra ficar estável
+  // entre fetches (sem timestamp pra comparar).
+  noStory.sort((a, b) => {
+    const an = (a.profile.tag || a.profile.name || a.user_id).toLowerCase();
+    const bn = (b.profile.tag || b.profile.name || b.user_id).toLowerCase();
+    return an.localeCompare(bn);
+  });
+
+  return [...own, ...unseen, ...seen, ...noStory];
 }
 
 /**

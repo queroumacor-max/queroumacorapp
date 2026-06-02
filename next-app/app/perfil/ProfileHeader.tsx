@@ -1,26 +1,80 @@
 // ProfileHeader — bloco escuro com avatar + nome + stats no topo de /perfil.
-// Replica o estilo do vanilla (index.html #screen-myprofile) o mais
-// próximo possível: ring colorido no avatar, stats vertical (número em
-// cima + label embaixo), 3 botões (Editar / Compartilhar / Sair), banner
-// PRO escuro/vermelho.
+// Replica o estilo do vanilla (index.html #screen-myprofile + head.js
+// loadMyProfileData) o mais próximo possível:
+//   - ring colorido no avatar (gradient conic);
+//   - fallback chain pro nome: profile.name → user_metadata.name →
+//     email username → 'Seu Nome' (vanilla head.js linha 789);
+//   - normaliza nome (underscores → espaços, capitaliza palavras);
+//   - stats reais (posts/seguidores/seguindo) via DB.posts/DB.follows
+//     em paralelo (vanilla loadMyProfileStats linha 845);
+//   - 3 botões (Editar / Compartilhar / Sair);
+//   - banner PRO escuro/vermelho.
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
+import { Avatar } from '@/components/Avatar';
+import { DB } from '@/lib/db';
+
+// Normaliza nome no estilo do vanilla (head.js linha 790-791):
+// remove "@..." se vier email-like, troca underscore por espaço,
+// capitaliza inícios de palavras.
+function normalizeName(raw: string): string {
+  if (!raw) return '';
+  let n = raw;
+  if (n.includes('@')) n = n.split('@')[0] || n;
+  n = n.replace(/_/g, ' ');
+  return n.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+interface Stats {
+  posts: number;
+  followers: number;
+  following: number;
+}
 
 export function ProfileHeader() {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { profile } = useProfile();
 
-  const hasName = !!profile?.name;
-  const name = profile?.name || 'Seu Nome';
+  const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
+
+  useEffect(() => {
+    if (!user) return;
+    let cancel = false;
+    Promise.all([
+      DB.posts.countByUser(user.id),
+      DB.follows.countFollowers(user.id),
+      DB.follows.countFollowing(user.id),
+    ])
+      .then(([posts, followers, following]) => {
+        if (cancel) return;
+        setStats({ posts, followers, following });
+      })
+      .catch(() => {
+        /* silent — vanilla também não levanta erro */
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [user]);
+
+  // Fallback chain pra nome (vanilla head.js linha 789).
+  const metaName = (user?.user_metadata as Record<string, unknown> | undefined)?.['name'] as
+    | string
+    | undefined;
+  const emailUsername = user?.email?.split('@')[0];
+  const rawName = profile?.name || metaName || emailUsername || '';
+  const name = normalizeName(rawName) || 'Seu Nome';
+  const hasName = !!(profile?.name || metaName);
+
   const subtitle = hasName
     ? profile?.tag
       ? '@' + profile.tag
       : ''
     : 'Configure seu perfil';
-  const avatarUrl = profile?.avatar_url || '';
   const isPro = !!profile?.is_pro;
 
   async function handleLogout() {
@@ -31,7 +85,7 @@ export function ProfileHeader() {
 
   return (
     <>
-      {/* Bloco header dark — replica visual vanilla */}
+      {/* Bloco header dark */}
       <div
         className="px-4 pt-5 pb-5"
         style={{
@@ -39,42 +93,39 @@ export function ProfileHeader() {
           color: '#fff',
         }}
       >
-        {/* Linha 1: avatar + stats (3 colunas: posts/seguidores/seguindo) */}
         <div className="flex items-center gap-4">
           <div
             className="w-20 h-20 rounded-full p-[3px] flex items-center justify-center flex-shrink-0"
             style={{
               background:
-                'conic-gradient(var(--color-p1), var(--color-p2), var(--color-p3), var(--color-p4), var(--color-p1))',
+                'conic-gradient(var(--color-p1), var(--color-p4), var(--color-p5), var(--color-p3), var(--color-p1))',
             }}
           >
-            <div className="w-full h-full rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-              {avatarUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={avatarUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" />
-                </svg>
-              )}
+            <div
+              className="w-full h-full rounded-full overflow-hidden flex items-center justify-center"
+              style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
+            >
+              <Avatar
+                profile={
+                  profile ?? {
+                    id: user?.id ?? '',
+                    name,
+                    tag: null,
+                    avatar_url: null,
+                  }
+                }
+                size={70}
+              />
             </div>
           </div>
 
-          {/* Stats — vertical: número em cima, label embaixo (match vanilla) */}
           <div className="flex-1 flex items-center justify-around">
-            <StatBlock value={0} label="posts" />
-            <StatBlock value={0} label="seguidores" />
-            <StatBlock value={0} label="seguindo" />
+            <StatBlock value={stats.posts} label="posts" />
+            <StatBlock value={stats.followers} label="seguidores" />
+            <StatBlock value={stats.following} label="seguindo" />
           </div>
         </div>
 
-        {/* Linha 2: nome + subtítulo */}
         <div className="mt-3">
           <div
             className="font-extrabold text-xl"
@@ -87,7 +138,6 @@ export function ProfileHeader() {
           )}
         </div>
 
-        {/* Linha 3: 3 botões (Editar / Compartilhar / Sair) */}
         <div className="mt-3.5 flex gap-2">
           <Link
             href="/perfil/editar"
@@ -135,7 +185,6 @@ export function ProfileHeader() {
         </div>
       </div>
 
-      {/* Banner PRO — só pra quem não é PRO. Dark/vermelho como vanilla. */}
       {!isPro && (
         <div className="px-3.5 pt-3">
           <Link
