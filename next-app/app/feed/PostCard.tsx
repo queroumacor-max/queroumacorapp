@@ -26,6 +26,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
 import { showToast } from '@/lib/toast';
 import { BottomSheet } from '@/components/BottomSheet';
+import { OrcamentoSheet } from '@/components/OrcamentoSheet';
 import { useQueryClient } from '@tanstack/react-query';
 import { getSupabase } from '@/lib/supabase';
 import { getTimeAgo } from '@/lib/utils';
@@ -173,10 +174,13 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
     }
   }
 
+  const [orcOpen, setOrcOpen] = useState(false);
   function handleOrcar() {
-    // Abre /chat com flag pra disparar o modal de nova conversa já com
-    // o user do post pré-selecionado (vanilla abrirOrcamentoChat).
-    router.push(`/chat?nova=1&to=${encodeURIComponent(post.user_id)}&orcamento=1`);
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setOrcOpen(true);
   }
 
   return (
@@ -506,6 +510,14 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
           ))}
         </div>
       </BottomSheet>
+
+      <OrcamentoSheet
+        open={orcOpen}
+        onClose={() => setOrcOpen(false)}
+        painterId={post.user_id}
+        painterName={name}
+        postId={post.id}
+      />
     </article>
   );
 }
