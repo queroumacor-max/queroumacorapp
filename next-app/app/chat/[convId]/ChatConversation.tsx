@@ -20,6 +20,7 @@ import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 import {
   useMessages,
   useSendMessage,
@@ -35,6 +36,8 @@ import {
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 import { is3WayConvId, type Message } from '@/lib/services/chat';
+import { getSupabase } from '@/lib/supabase';
+import { showToast } from '@/lib/toast';
 
 export interface ChatConversationProps {
   convId: string;
@@ -42,8 +45,16 @@ export interface ChatConversationProps {
 
 export function ChatConversation({ convId }: ChatConversationProps) {
   const { user, loading: authLoading } = useAuth();
+  const { profile } = useProfile();
   const qc = useQueryClient();
   const is3way = is3WayConvId(convId);
+  const [addingStore, setAddingStore] = useState(false);
+
+  // Detecta se eu sou pintor (profissional) — só pintor pode adicionar
+  // a loja Cali Colors no chat com o cliente (vanilla #invite-store-bar).
+  const role = profile?.role || profile?.user_type;
+  const isPainter =
+    role === 'pintor' || role === 'grafiteiro' || role === 'automotivo';
 
   // Realtime: idempotente — se ChatList já montou, isso é no-op até unmount.
   // Cobre o caso de deeplink direto na conv.
@@ -148,6 +159,53 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     sendHook.send({ text: '', attachment: uploaded });
   }
 
+  // Add-store: replica `addStoreToChat()` vanilla (modules/chat.js linha 927).
+  // Insere marker __STORE_ADDED__ (type=system) + welcome (type=store) na
+  // conv. O realtime detecta o system marker e atualiza is3way na sidebar.
+  async function handleAddStore() {
+    if (!user || !otherId || is3way || addingStore) return;
+    setAddingStore(true);
+    try {
+      const sb = getSupabase();
+      const storeText =
+        'Olá! 👋 Fui convidado para ajudar nesta conversa. Como posso auxiliar com tintas e materiais?';
+      // 1) marker system (faz a conv virar 3-way no agrupador da sidebar)
+      await sb.from('messages').insert({
+        sender_id: user.id,
+        receiver_id: otherId,
+        conversation_id: convId,
+        content: '__STORE_ADDED__',
+        type: 'system',
+      });
+      // 2) welcome message do Cali Colors (type=store pra pintar bolha laranja)
+      await sb.from('messages').insert({
+        sender_id: user.id,
+        receiver_id: otherId,
+        conversation_id: convId,
+        content: storeText,
+        type: 'store',
+      });
+      // Invalida tudo pra UI virar 3-way + welcome aparecer
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', convId] });
+      qc.invalidateQueries({ queryKey: ['chat', 'conversations', user.id] });
+      showToast('Cali Colors foi adicionada ao chat! 🎨', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao adicionar Cali Colors', 'error');
+    } finally {
+      setAddingStore(false);
+    }
+  }
+
+  // Banner aparece quando: viewer é pintor + conv não é 3-way + outro lado
+  // existe (não é a própria loja). Vanilla também checa que não é convId
+  // pra/da própria loja — convMeta.isStore cobre isso.
+  const showAddStoreBanner =
+    isPainter &&
+    !is3way &&
+    !!convMeta &&
+    !convMeta.isStore &&
+    !!otherId;
+
   if (authLoading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-sm text-[color:var(--color-muted,#666)]">
@@ -192,21 +250,75 @@ export function ChatConversation({ convId }: ChatConversationProps) {
         >
           &larr;
         </Link>
-        <span
-          className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0"
-          aria-hidden="true"
-        >
-          {convMeta?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={convMeta.avatarUrl}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            (convMeta?.name ?? '?').charAt(0).toUpperCase()
-          )}
-        </span>
+        {is3way ? (
+          // Avatares empilhados pro chat 3-way (pintor + Cali Colors).
+          // Vanilla chat.js linha 947+: CC (loja) à esquerda, outro user à
+          // direita, com overlap de ~10px.
+          <div
+            className="relative flex-shrink-0"
+            style={{ width: 52, height: 40 }}
+            aria-hidden="true"
+          >
+            <span
+              className="absolute flex items-center justify-center"
+              style={{
+                left: 0,
+                top: 0,
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: 'var(--color-ink)',
+                border: '2px solid #fff',
+                zIndex: 2,
+                color: 'var(--color-p1)',
+                fontFamily: 'var(--font-display)',
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              CC
+            </span>
+            <span
+              className="absolute overflow-hidden bg-[color:var(--color-border)] flex items-center justify-center text-xs font-bold"
+              style={{
+                left: 20,
+                top: 0,
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                border: '2px solid #fff',
+                zIndex: 1,
+              }}
+            >
+              {convMeta?.avatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={convMeta.avatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                (convMeta?.name ?? '?').charAt(0).toUpperCase()
+              )}
+            </span>
+          </div>
+        ) : (
+          <span
+            className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0"
+            aria-hidden="true"
+          >
+            {convMeta?.avatarUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={convMeta.avatarUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              (convMeta?.name ?? '?').charAt(0).toUpperCase()
+            )}
+          </span>
+        )}
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{headerName}</div>
           <div className="text-xs text-[color:var(--color-muted,#666)] truncate">
@@ -218,6 +330,45 @@ export function ChatConversation({ convId }: ChatConversationProps) {
           </div>
         </div>
       </header>
+
+      {/* Banner pra adicionar Cali Colors (3-way) — só pra pintor em
+          conversa 1:1 que ainda não tem a loja. Vanilla #invite-store-bar. */}
+      {showAddStoreBanner ? (
+        <div
+          className="flex items-center gap-3 px-4 py-2.5 border-b"
+          style={{
+            background: 'linear-gradient(90deg, rgba(255,107,53,.08), rgba(131,56,236,.08))',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 20 }}>🔗</span>
+          <div className="flex-1 min-w-0">
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-ink)' }}>
+              Adicione a Cali Colors ao chat
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>
+              Loja oficial ajuda com tintas e materiais
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddStore}
+            disabled={addingStore}
+            className="text-white font-bold"
+            style={{
+              padding: '7px 12px',
+              borderRadius: 999,
+              background: 'var(--color-p1)',
+              fontSize: 11,
+              border: 'none',
+              cursor: addingStore ? 'wait' : 'pointer',
+              opacity: addingStore ? 0.6 : 1,
+            }}
+          >
+            {addingStore ? '...' : '+ Adicionar'}
+          </button>
+        </div>
+      ) : null}
 
       {/* Lista de mensagens */}
       {loading ? (
