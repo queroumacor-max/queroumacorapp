@@ -166,10 +166,28 @@ export function ProfileHeader() {
 
         <div className="mt-3">
           <div
-            className="font-extrabold text-xl"
+            className="font-extrabold text-xl flex items-center gap-1.5"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             {name}
+            {isPro ? (
+              <span
+                aria-label="Perfil verificado"
+                title="Perfil verificado"
+                className="inline-flex items-center justify-center"
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#1d9bf0',
+                  flexShrink: 0,
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+            ) : null}
           </div>
           {subtitle && (
             <div className="text-sm text-white/70">{subtitle}</div>

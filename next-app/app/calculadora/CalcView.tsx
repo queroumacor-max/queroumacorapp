@@ -5,7 +5,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { showToast } from '@/lib/toast';
 
 const SURFACE_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: 'Parede nova / massa corrida' },
@@ -18,6 +21,63 @@ export function CalcView() {
   const [area, setArea] = useState('');
   const [fator, setFator] = useState(1);
   const [demaos, setDemaos] = useState(2);
+  const [estimating, setEstimating] = useState(false);
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Estimar metragem por foto (vanilla modules/calc.js estimarAreaPorFoto).
+  // Gate PRO + envia FormData pra /api/area-from-photo. Resposta: area_m2 +
+  // justification. Popula o input automaticamente.
+  async function handleEstimar() {
+    if (!isPro) {
+      showToast('Recurso PRO — assine para liberar', 'info');
+      return;
+    }
+    fileRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      showToast('Foto acima de 8MB — tente uma menor', 'error');
+      return;
+    }
+    setEstimating(true);
+    showToast('Analisando foto…', 'info');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch('/api/area-from-photo', { method: 'POST', body: fd });
+      const data = (await res.json()) as {
+        area_m2?: number;
+        justification?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        showToast(data.error || 'Erro ao analisar foto', 'error');
+        return;
+      }
+      const m2 = Number(data.area_m2);
+      if (!isFinite(m2) || m2 <= 0) {
+        showToast('Não foi possível estimar essa foto', 'error');
+        return;
+      }
+      const rounded = Math.round(m2 * 10) / 10;
+      setArea(String(rounded));
+      showToast(
+        `Estimativa: ${rounded} m²` +
+          (data.justification ? ` · ${data.justification}` : ''),
+        'success',
+      );
+    } catch (err) {
+      showToast((err as Error).message || 'Erro ao analisar foto', 'error');
+    } finally {
+      setEstimating(false);
+    }
+  }
 
   const result = useMemo(() => {
     const a = parseFloat(area);
@@ -78,6 +138,49 @@ export function CalcView() {
               background: 'rgba(255,255,255,.07)',
               fontSize: 16,
             }}
+          />
+
+          {/* 📷 Estimar metragem por foto (PRO) — vanilla calc.js linha 34.
+              Botão gradient roxo→laranja, abre input de foto, manda pro
+              /api/area-from-photo, popula a área automaticamente. */}
+          <button
+            type="button"
+            onClick={handleEstimar}
+            disabled={estimating}
+            className="text-white font-bold flex items-center justify-center gap-2"
+            style={{
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: 'none',
+              fontSize: 14,
+              background: 'linear-gradient(135deg, #8338ec, var(--color-p1))',
+              boxShadow: '0 4px 12px rgba(131,56,236,.3)',
+              cursor: estimating ? 'wait' : 'pointer',
+              opacity: estimating ? 0.7 : 1,
+            }}
+          >
+            {estimating ? 'Analisando…' : '📷 Estimar metragem por foto'}
+            {!isPro ? (
+              <span
+                className="text-white font-extrabold"
+                style={{
+                  background: 'rgba(255,255,255,.25)',
+                  fontSize: 9,
+                  padding: '2px 7px',
+                  borderRadius: 10,
+                  letterSpacing: '.05em',
+                }}
+              >
+                PRO
+              </span>
+            ) : null}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
           />
 
           <select
