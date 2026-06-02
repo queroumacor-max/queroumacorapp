@@ -99,6 +99,21 @@ export function ProfileHeader() {
       : ''
     : 'Configure seu perfil';
   const isPro = !!profile?.is_pro;
+  // Grace period: 3 dias após falha de pagamento. Backend usa
+  // pro_grace_until — se NULL/passado, plano caducou. Se futuro, ainda
+  // tem PRO mas com aviso (vanilla mostra banner amarelo).
+  const graceUntil = (profile as { pro_grace_until?: string | null } | null)
+    ?.pro_grace_until;
+  const inGrace =
+    isPro && graceUntil ? new Date(graceUntil).getTime() > Date.now() : false;
+  const graceDays = inGrace && graceUntil
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(graceUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        ),
+      )
+    : 0;
 
   async function handleLogout() {
     if (!window.confirm('Deseja sair da conta?')) return;
@@ -227,6 +242,42 @@ export function ProfileHeader() {
           </button>
         </div>
       </div>
+
+      {/* Banner de grace period: user PRO com pagamento falho, ainda
+          dentro dos 3 dias de tolerância (pro_grace_until > now()). */}
+      {inGrace ? (
+        <div className="px-3.5 pt-3">
+          <Link
+            href="/pro"
+            className="block rounded-2xl p-4 shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              color: '#fff',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+                style={{ background: 'rgba(255,255,255,.2)' }}
+              >
+                ⚠️
+              </div>
+              <div className="flex-1">
+                <div
+                  className="font-extrabold text-sm"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  Renove seu PRO em {graceDays} {graceDays === 1 ? 'dia' : 'dias'}
+                </div>
+                <div className="text-xs text-white/85 mt-0.5">
+                  Pagamento não confirmado — atualize antes que as features sejam bloqueadas
+                </div>
+              </div>
+              <div className="text-xl text-white/80">›</div>
+            </div>
+          </Link>
+        </div>
+      ) : null}
 
       {!isPro && (
         <div className="px-3.5 pt-3">

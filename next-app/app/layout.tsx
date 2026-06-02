@@ -3,6 +3,7 @@ import { Syne, DM_Sans } from 'next/font/google';
 import { AuthProvider } from '@/components/AuthProvider';
 import { QueryProvider } from '@/components/QueryProvider';
 import { ToastViewport } from '@/components/ToastViewport';
+import { StagingBanner } from '@/components/StagingBanner';
 import './globals.css';
 
 // Self-host de Syne (display/marca) + DM Sans (body) via next/font/google.
@@ -52,6 +53,7 @@ export default function RootLayout({
             queryKey/enabled sem ordem de inicialização ambígua. */}
         <AuthProvider>
           <QueryProvider>
+            <StagingBanner />
             {children}
             <ToastViewport />
           </QueryProvider>
