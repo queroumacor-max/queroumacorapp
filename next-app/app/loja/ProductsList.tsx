@@ -12,7 +12,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   MKT_MENU_LABEL,
   MKT_MENUS,
@@ -50,7 +50,20 @@ export function ProductsList() {
     search,
     setSearch,
   } = useProducts();
-  const { add, isMutating, items: cartItems } = useCart();
+  const { add, items: cartItems } = useCart();
+  // Track *qual* produto está sendo adicionado pra que só o botão clicado
+  // mostre "...", não todos. (Bug anterior: isMutating do useCart é global
+  // — qualquer mutation pendente travava o grid inteiro.)
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  function handleAdd(prod: { id: string }) {
+    if (addingId) return; // double-click guard
+    setAddingId(prod.id);
+    add({ product: prod as Parameters<typeof add>[0]['product'], qty: 1 });
+    // Optimistic — useCart já faz optimistic update via TanStack onMutate.
+    // Damos uma janela de 400ms só pra o feedback visual ficar perceptível.
+    setTimeout(() => setAddingId(null), 400);
+  }
 
   const cartCount = cartItems.reduce((acc, it) => acc + (it.qty || 0), 0);
 
@@ -270,8 +283,8 @@ export function ProductsList() {
               <li key={p.id}>
                 <ProductCard
                   product={p}
-                  onAdd={(prod) => add({ product: prod, qty: 1 })}
-                  isAdding={isMutating}
+                  onAdd={(prod) => handleAdd(prod)}
+                  isAdding={addingId === p.id}
                 />
               </li>
             ))}

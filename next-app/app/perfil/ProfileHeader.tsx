@@ -62,13 +62,21 @@ export function ProfileHeader() {
   }, [user]);
 
   // Fallback chain pra nome (vanilla head.js linha 789).
-  const metaName = (user?.user_metadata as Record<string, unknown> | undefined)?.['name'] as
-    | string
-    | undefined;
+  const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? {};
+  const metaName = meta['name'] as string | undefined;
   const emailUsername = user?.email?.split('@')[0];
   const rawName = profile?.name || metaName || emailUsername || '';
   const name = normalizeName(rawName) || 'Seu Nome';
   const hasName = !!(profile?.name || metaName);
+
+  // Fallback chain pro avatar: profile.avatar_url → user_metadata.avatar_url
+  // (signup com OAuth Google/Facebook) → user_metadata.picture (Google).
+  // Sem isso, perfis OAuth-only mostram só inicial mesmo tendo foto via provider.
+  const metaAvatar =
+    (meta['avatar_url'] as string | undefined) ||
+    (meta['picture'] as string | undefined) ||
+    null;
+  const effectiveAvatar = profile?.avatar_url || metaAvatar || null;
 
   const subtitle = hasName
     ? profile?.tag
@@ -106,14 +114,14 @@ export function ProfileHeader() {
               style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
             >
               <Avatar
-                profile={
-                  profile ?? {
-                    id: user?.id ?? '',
-                    name,
-                    tag: null,
-                    avatar_url: null,
-                  }
-                }
+                profile={{
+                  id: profile?.id ?? user?.id ?? '',
+                  name: profile?.name ?? name,
+                  tag: profile?.tag ?? null,
+                  // Usa effectiveAvatar (já contempla user_metadata se profile
+                  // não tiver avatar_url no banco).
+                  avatar_url: effectiveAvatar,
+                }}
                 size={70}
               />
             </div>
