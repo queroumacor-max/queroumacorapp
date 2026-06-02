@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Syne, DM_Sans } from 'next/font/google';
 import { AuthProvider } from '@/components/AuthProvider';
-import { OnboardingModal } from '@/components/OnboardingModal';
 import { QueryProvider } from '@/components/QueryProvider';
 import { ToastViewport } from '@/components/ToastViewport';
 import './globals.css';
@@ -54,10 +53,6 @@ export default function RootLayout({
         <AuthProvider>
           <QueryProvider>
             {children}
-            {/* Tutorial inicial — render condicional via useOnboarding;
-                aparece 1x por navegador (flag `onboarding_seen_v1` em
-                localStorage) pra todos os usuários, autenticados ou não. */}
-            <OnboardingModal />
             <ToastViewport />
           </QueryProvider>
         </AuthProvider>
