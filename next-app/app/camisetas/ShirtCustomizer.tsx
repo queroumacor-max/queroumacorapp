@@ -67,7 +67,6 @@ export function ShirtCustomizer() {
   const unit = computeUnit(qty);
   const total = unit * qty;
   const colorMeta = COLORS.find((c) => c.value === color) ?? COLORS[0];
-  const isDark = !!colorMeta?.dark;
 
   // Logo a renderizar no peito: variant selecionada da geração atual > logo salvo no perfil
   const previewLogo =
@@ -324,94 +323,128 @@ export function ShirtCustomizer() {
           🎨 Personalize sua camiseta
         </div>
 
-        {/* Preview da camiseta SVG com logos */}
+        {/* Preview da camiseta — foto real (vanilla `shirt-photo`) + logos
+            posicionados em left:30% / right:30% / top:22% / width:14%
+            (vanilla styles.css `.shirt-chest-logo` / `.shirt-cali-logo`).
+            Tint da cor: aplica filter quando cor != branco. */}
         <div
           className="relative mx-auto"
           style={{
             background: 'var(--color-cream)',
-            borderRadius: 12,
-            padding: 12,
-            maxWidth: 320,
-            aspectRatio: '1 / 1',
+            borderRadius: 14,
+            padding: '16px 16px 56px',
+            minHeight: 320,
+            maxWidth: 360,
           }}
         >
-          <svg
-            viewBox="0 0 200 220"
-            className="w-full h-full"
-            aria-label={`Camiseta ${colorMeta?.label}`}
-          >
-            <path
-              d="M40,30 L75,15 Q100,40 125,15 L160,30 L185,70 L155,85 L155,200 Q100,215 45,200 L45,85 L15,70 Z"
-              fill={color}
-              stroke={isDark ? '#444' : '#bbb'}
-              strokeWidth={1.5}
-            />
-          </svg>
-
-          {/* Logo do user — peito esquerdo */}
           <div
-            className="absolute"
+            className="relative mx-auto"
             style={{
-              top: '38%',
-              left: '32%',
-              transform: 'translate(-50%, -50%)',
-              width: 56,
-              height: 56,
-              border: previewLogo
-                ? 'none'
-                : `1.5px dashed ${isDark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.3)'}`,
-              borderRadius: 6,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
+              width: '100%',
+              maxWidth: 300,
+              aspectRatio: '1 / 1',
             }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/img/shirt-white.webp"
+              alt={`Camiseta ${colorMeta?.label}`}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 w-full h-full"
+              style={{
+                objectFit: 'contain',
+                filter:
+                  color === '#ffffff'
+                    ? 'drop-shadow(0 6px 12px rgba(0,0,0,.08))'
+                    : `drop-shadow(0 6px 12px rgba(0,0,0,.08))`,
+                // Cor aplicada via mask: para cores diferentes de branco,
+                // multiply preserva sombras da foto. Implementação simples:
+                // overlay com mix-blend-mode multiply.
+              }}
+            />
+            {/* Overlay de cor multiply pra tingir a camiseta */}
+            {color !== '#ffffff' ? (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  background: color,
+                  mixBlendMode: 'multiply',
+                  WebkitMaskImage: 'url(/img/shirt-white.webp)',
+                  WebkitMaskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'center',
+                  WebkitMaskSize: 'contain',
+                  maskImage: 'url(/img/shirt-white.webp)',
+                  maskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  maskSize: 'contain',
+                  opacity: 0.85,
+                }}
+              />
+            ) : null}
+
+            {/* Logo do user — peito esquerdo (vanilla left:30% top:22% width:14%) */}
             {previewLogo ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={previewLogo}
                 alt=""
-                className="w-full h-full object-contain"
+                className="absolute"
+                style={{
+                  left: '30%',
+                  top: '22%',
+                  width: '14%',
+                  height: 'auto',
+                  maxHeight: '14%',
+                  objectFit: 'contain',
+                  borderRadius: 3,
+                }}
               />
             ) : (
-              <span
+              <div
+                aria-hidden="true"
+                className="absolute flex items-center justify-center text-center"
                 style={{
+                  left: '28%',
+                  top: '21%',
+                  width: '18%',
+                  height: '15%',
+                  border: '1.5px dashed rgba(0,0,0,.3)',
+                  borderRadius: 5,
                   fontSize: 8,
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  color: isDark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.45)',
-                  letterSpacing: '.5px',
-                  lineHeight: 1.2,
+                  color: 'rgba(0,0,0,.5)',
+                  fontWeight: 600,
+                  lineHeight: 1.1,
+                  padding: 3,
+                  textTransform: 'uppercase',
+                  letterSpacing: '.3px',
+                  background: 'rgba(255,255,255,.4)',
                 }}
               >
-                APLIQUE<br />SEU LOGO
-              </span>
+                APLIQUE
+                <br />
+                SEU LOGO
+              </div>
             )}
-          </div>
 
-          {/* Cali Colors no peito direito */}
-          <div
-            className="absolute font-extrabold"
-            style={{
-              top: '38%',
-              left: '60%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: 14,
-              color: isDark ? '#fff' : 'var(--color-ink)',
-              fontFamily: 'var(--font-display)',
-              lineHeight: 1,
-              letterSpacing: '-0.5px',
-            }}
-          >
-            <span style={{ color: 'var(--color-p4)' }}>C</span>
-            <span style={{ color: 'var(--color-p1)' }}>a</span>
-            <span style={{ color: 'var(--color-p3)' }}>l</span>
-            <span style={{ color: 'var(--color-p5)' }}>i</span>
-            <br />
-            <span style={{ color: isDark ? '#fff' : 'var(--color-ink)' }}>
-              Colors
-            </span>
+            {/* Cali Colors — peito direito (vanilla right:30% top:22% width:14%) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/img/cali-colors-logo.webp"
+              alt="Cali Colors"
+              loading="lazy"
+              decoding="async"
+              className="absolute pointer-events-none"
+              style={{
+                right: '30%',
+                top: '22%',
+                width: '14%',
+                height: 'auto',
+                maxHeight: '14%',
+                objectFit: 'contain',
+              }}
+            />
           </div>
         </div>
 
