@@ -17,8 +17,12 @@
   --color-p5: #8338ec;   /* violet */
   --color-success: #16a34a;
   --color-danger: #e63946;
-  --font-display: 'Syne', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+  /* var(--font-syne) e var(--font-dm-sans) vêm do next/font/google em
+     app/layout.tsx (self-host inlinado no bundle, sem CSS request externo).
+     Mantemos os nomes 'Syne'/'DM Sans' no fallback chain só por defensividade
+     (build de dev sem next/font cai pra system-ui). */
+  --font-display: var(--font-syne), 'Syne', system-ui, sans-serif;
+  --font-body: var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
 }
 
 body {

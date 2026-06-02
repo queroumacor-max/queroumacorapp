@@ -1,8 +1,28 @@
 import type { Metadata } from 'next';
+import { Syne, DM_Sans } from 'next/font/google';
 import { AuthProvider } from '@/components/AuthProvider';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { QueryProvider } from '@/components/QueryProvider';
 import './globals.css';
+
+// Self-host de Syne (display/marca) + DM Sans (body) via next/font/google.
+// Vanilla usa as mesmas duas fontes — Syne auto-hospedada via @font-face
+// em styles.css e DM Sans do Google. Next/font inliniza tudo no bundle,
+// sem network call externo, e expõe CSS var pra usar nos `var(--font-*)`
+// declarados em globals.css.
+const syne = Syne({
+  subsets: ['latin'],
+  weight: ['700', '800'],
+  variable: '--font-syne',
+  display: 'swap',
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'QueroUmaCor',
@@ -22,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={`${syne.variable} ${dmSans.variable}`}>
       <body>
         {/* AuthProvider envolve toda a árvore — substitui o `currentUser` global
             do vanilla por React Context. useAuth() é o consumer de qualquer
