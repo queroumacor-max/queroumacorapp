@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCrm } from '@/lib/hooks/useCrm';
 import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { CrmCard } from './CrmCard';
 
 function SkeletonCard() {
@@ -121,6 +122,7 @@ function IntervalConfig({
 
 export function CrmList() {
   const { user, loading: authLoading } = useAuth();
+  const policyUser = usePolicyUser();
   const {
     clients,
     allClients,
@@ -161,15 +163,7 @@ export function CrmList() {
     );
   }
 
-  // Gate PRO via lib/policies. Lê `user_metadata.is_pro` que o supabase-js
-  // carrega no User. Quando o profile completo for portado, o gate aceita
-  // a row do `profiles` direto.
-  const policyUser = {
-    id: user.id,
-    is_pro: (user.user_metadata?.is_pro as boolean | undefined) ?? false,
-    is_admin: (user.user_metadata?.is_admin as boolean | undefined) ?? false,
-    role: (user.user_metadata?.role as string | undefined) ?? null,
-  };
+  // Gate PRO via usePolicyUser (combina profile do banco com JWT metadata).
   if (!canSeeProFeature(policyUser)) {
     return (
       <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">

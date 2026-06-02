@@ -21,11 +21,13 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useSeuZe } from '@/lib/hooks/useSeuZe';
 import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { ChatMessage, TypingIndicator } from './ChatMessage';
 import { VoiceRecorder } from './VoiceRecorder';
 
 export function SeuZeChat() {
   const { user, loading: authLoading } = useAuth();
+  const policyUser = usePolicyUser();
   const {
     messages,
     isSending,
@@ -81,14 +83,9 @@ export function SeuZeChat() {
     );
   }
 
-  // Gate PRO. Mesmo padrão de CrmList — lê metadata do JWT enquanto a row de
-  // profiles não vem por hook próprio.
-  const policyUser = {
-    id: user.id,
-    is_pro: (user.user_metadata?.is_pro as boolean | undefined) ?? false,
-    is_admin: (user.user_metadata?.is_admin as boolean | undefined) ?? false,
-    role: (user.user_metadata?.role as string | undefined) ?? null,
-  };
+  // Gate PRO: usePolicyUser combina profile (banco — fonte verdade) +
+  // JWT metadata (fallback). Antes era só JWT, que raramente tem
+  // is_pro/portal_access populados.
   if (!canSeeProFeature(policyUser)) {
     return (
       <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">

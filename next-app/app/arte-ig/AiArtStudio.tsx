@@ -20,11 +20,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { User } from '@supabase/supabase-js';
 import { useAuth } from '@/components/AuthProvider';
 import { useAiArt } from '@/lib/hooks/useAiArt';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { canSeeProFeature, type PolicyUser } from '@/lib/policies';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import type { ArtAspect, ArtStyle } from '@/lib/services/aiArt';
 import { StyleSelector } from './StyleSelector';
 import { AspectSelector } from './AspectSelector';
@@ -35,26 +35,12 @@ import { ResultActions } from './ResultActions';
 // imediato sem queimar request.
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB
 
-// User do Supabase guarda is_pro/is_admin no `user_metadata`. Adaptador
-// pra PolicyUser igual ao AnalysisCard do financeiro.
-function userToPolicy(user: User | null): PolicyUser | null {
-  if (!user) return null;
-  const meta =
-    user.user_metadata && typeof user.user_metadata === 'object'
-      ? (user.user_metadata as Record<string, unknown>)
-      : {};
-  return {
-    id: user.id,
-    is_pro: meta.is_pro === true ? true : meta.is_pro === false ? false : null,
-    is_admin:
-      meta.is_admin === true ? true : meta.is_admin === false ? false : null,
-    role: typeof meta.role === 'string' ? meta.role : null,
-  };
-}
-
 export function AiArtStudio() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
+  // usePolicyUser combina profile (banco) com JWT metadata — fonte
+  // verdade do is_pro/portal_access/etc. Antes era só JWT (vazio).
+  const policyUser = usePolicyUser();
 
   // Form state. Default style=profissional, aspect=square — bate com o
   // vanilla _aiArtReset().
@@ -68,7 +54,7 @@ export function AiArtStudio() {
 
   const ai = useAiArt();
 
-  const isPro = canSeeProFeature(userToPolicy(user));
+  const isPro = canSeeProFeature(policyUser);
   // Gate combinado: PRO OU tem créditos. Se nenhum, paywall.
   const canUse = isPro || !ai.isAtLimit;
 

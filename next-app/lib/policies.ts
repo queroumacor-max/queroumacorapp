@@ -27,11 +27,19 @@ export interface PolicyUser {
 // `user` vindo do AuthProvider que pode trazer só `id + email + tag`.
 type MaybeUser = PolicyUser | Profile | null | undefined;
 
-// Admin = is_admin true OU role 'admin'. Aceitamos os dois sinais porque
-// o banco grava em colunas diferentes dependendo do path de promoção.
+// Admin = is_admin true OU role 'admin' OU portal_access true.
+// Os 3 sinais existem porque o banco grava em colunas diferentes:
+//  - is_admin: flag setada manualmente em profiles
+//  - role='admin': vindo do user_type/role da row
+//  - portal_access: vindo do gating do portal admin Cali Colors
+// Vanilla gateProClient considera qualquer um desses como PRO total.
 export function isAdmin(user: MaybeUser): boolean {
   if (!user) return false;
-  return user.is_admin === true || user.role === 'admin';
+  return (
+    user.is_admin === true ||
+    user.role === 'admin' ||
+    (user as { portal_access?: boolean | null }).portal_access === true
+  );
 }
 
 // Edita próprio perfil; admin edita qualquer um (moderação/correção).
