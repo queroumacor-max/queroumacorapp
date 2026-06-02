@@ -206,6 +206,42 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   }
 
   const [orcOpen, setOrcOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editText, setEditText] = useState(post.caption ?? '');
+  const [editSaving, setEditSaving] = useState(false);
+
+  async function handleSaveCaption() {
+    if (!user || editSaving) return;
+    setEditSaving(true);
+    try {
+      const { updatePostCaption } = await import('@/lib/services/postInteractions');
+      await updatePostCaption(post.id, user.id, editText);
+
+      // Otimista: atualiza o cache do feed pra mostrar caption nova na hora.
+      type FeedPageShape = { posts: Array<{ id: string; caption: string | null }> };
+      type InfData = { pages: FeedPageShape[]; pageParams: unknown[] };
+      qc.setQueriesData<InfData>({ queryKey: ['feed'] }, (data) => {
+        if (!data?.pages) return data;
+        return {
+          ...data,
+          pages: data.pages.map((p) => ({
+            ...p,
+            posts: p.posts.map((x) =>
+              x.id === post.id
+                ? { ...x, caption: editText.trim() || null }
+                : x,
+            ),
+          })),
+        };
+      });
+      showToast('Texto atualizado', 'success');
+      setEditOpen(false);
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao salvar', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  }
   function handleOrcar() {
     if (!user) {
       router.push('/login');
@@ -490,7 +526,18 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
             onClick={() => { toggleSave(post.id); setOptsOpen(false); }}
           />
           {isOwn ? (
-            <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
+            <>
+              <PostOptRow
+                icon="✏️"
+                label="Editar texto"
+                onClick={() => {
+                  setOptsOpen(false);
+                  setEditText(post.caption ?? '');
+                  setEditOpen(true);
+                }}
+              />
+              <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
+            </>
           ) : (
             <PostOptRow icon="⚠️" label="Denunciar" onClick={handleOpenReport} danger />
           )}
@@ -554,6 +601,87 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
         painterName={name}
         postId={post.id}
       />
+
+      <BottomSheet
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        ariaLabel="Editar texto do post"
+      >
+        <h3
+          className="font-extrabold text-center"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            marginBottom: 6,
+            color: 'var(--color-ink)',
+          }}
+        >
+          Editar texto
+        </h3>
+        <p
+          className="text-center"
+          style={{
+            fontSize: 12,
+            color: 'var(--color-muted)',
+            marginBottom: 14,
+          }}
+        >
+          Mude a legenda. A foto/vídeo continua a mesma.
+        </p>
+        <textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value.slice(0, 2200))}
+          rows={5}
+          placeholder="Legenda do post"
+          className="w-full bg-white"
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            border: '1.5px solid var(--color-border)',
+            fontSize: 14,
+            resize: 'vertical',
+            outline: 'none',
+            marginBottom: 12,
+            fontFamily: 'var(--font-body)',
+          }}
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setEditOpen(false)}
+            disabled={editSaving}
+            className="flex-1 font-bold"
+            style={{
+              padding: 11,
+              background: '#fff',
+              color: 'var(--color-ink)',
+              borderRadius: 10,
+              border: '1.5px solid var(--color-border)',
+              cursor: editSaving ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveCaption}
+            disabled={editSaving}
+            className="flex-1 text-white font-bold"
+            style={{
+              padding: 11,
+              background: 'var(--color-ink)',
+              borderRadius: 10,
+              border: 'none',
+              cursor: editSaving ? 'wait' : 'pointer',
+              opacity: editSaving ? 0.7 : 1,
+              fontSize: 13,
+            }}
+          >
+            {editSaving ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </BottomSheet>
     </article>
   );
 }

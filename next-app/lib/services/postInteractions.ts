@@ -211,6 +211,28 @@ export async function deleteComment(
 }
 
 /**
+ * Atualiza o texto (caption) de um post existente. RLS garante que só
+ * o dono (`auth.uid() = user_id`) consegue updatear. O filtro `.eq('user_id', userId)`
+ * é defesa em profundidade.
+ */
+export async function updatePostCaption(
+  postId: string,
+  userId: string,
+  caption: string,
+): Promise<void> {
+  if (!postId) throw new ValidationError('postId obrigatório');
+  if (!userId) throw new ValidationError('userId obrigatório');
+  const trimmed = (caption ?? '').trim();
+  const sb = getSupabase();
+  const { error } = await sb
+    .from('posts')
+    .update({ caption: trimmed || null })
+    .eq('id', postId)
+    .eq('user_id', userId);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+/**
  * Lista comentários de um post, mais antigos primeiro (estilo IG/FB).
  */
 export async function fetchComments(postId: string): Promise<PostComment[]> {

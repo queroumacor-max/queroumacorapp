@@ -18,13 +18,14 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useAiArt } from '@/lib/hooks/useAiArt';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { canSeeProFeature, isAdmin } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { useArtHistory } from '@/lib/hooks/useArtHistory';
 import { showToast } from '@/lib/toast';
 import { generateCaption } from '@/lib/services/posts';
 import type { ArtAspect, ArtStyle } from '@/lib/services/aiArt';
@@ -43,6 +44,7 @@ export function AiArtStudio() {
   // usePolicyUser combina profile (banco) com JWT metadata — fonte
   // verdade do is_pro/portal_access/etc. Antes era só JWT (vazio).
   const policyUser = usePolicyUser();
+  const history = useArtHistory();
 
   // Form state. Default style=profissional, aspect=square — bate com o
   // vanilla _aiArtReset().
@@ -147,6 +149,27 @@ export function AiArtStudio() {
     // ai.resetResult é stable dentro do hook; postResult dispara só no sucesso.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ai.postResult?.ok]);
+
+  // Salva no histórico assim que uma arte é gerada com sucesso. Evita perda
+  // se user navega/fecha antes de postar, e permite repostar artes anteriores.
+  const savedResultIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ai.result || !ai.result.imageDataUrl) return;
+    // Idempotente: cada result vira 1 history item. Identificamos via
+    // ai.result.imageDataUrl (mesmo blob = mesma arte; novo generate cria
+    // outro data URL).
+    if (savedResultIdRef.current === ai.result.imageDataUrl) return;
+    savedResultIdRef.current = ai.result.imageDataUrl;
+    history.add({
+      imageDataUrl: ai.result.imageDataUrl,
+      caption: ai.result.caption ?? '',
+      style,
+      aspect,
+      bizName: profile?.name || profile?.business_name || '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.result?.imageDataUrl]);
+
 
   const creditsBadge = useMemo(() => {
     if (isAdminUser) {
@@ -327,9 +350,24 @@ export function AiArtStudio() {
           {ai.generateError ? (
             <div
               role="alert"
-              className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800"
+              className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800 flex items-center justify-between gap-2"
             >
-              {ai.generateError.message || 'Erro ao gerar arte.'}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                {/HTTP 502|502|temporariamente|indisponível/i.test(
+                  ai.generateError.message || '',
+                )
+                  ? 'IA temporariamente indisponível. Tente de novo em alguns segundos.'
+                  : ai.generateError.message || 'Erro ao gerar arte.'}
+              </span>
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={ai.isGenerating || !photo1}
+                className="text-xs font-bold text-red-800 underline whitespace-nowrap"
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Tentar de novo
+              </button>
             </div>
           ) : null}
 
@@ -342,6 +380,89 @@ export function AiArtStudio() {
           >
             {ai.isGenerating ? '✨ Seu Zé tá pintando...' : '✨ Gerar arte com Seu Zé'}
           </button>
+
+          {/* Histórico de artes geradas — salvas em localStorage pra não
+              perder se user sai antes do resultado aparecer ou quiser
+              repostar/baixar depois. */}
+          {history.items.length > 0 ? (
+            <div style={{ marginTop: 20 }}>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-2 flex items-center justify-between">
+                <span>📁 Histórico ({history.items.length})</span>
+                {history.items.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => history.clear()}
+                    className="text-[10px] normal-case font-bold"
+                    style={{
+                      color: 'var(--color-muted)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Limpar
+                  </button>
+                ) : null}
+              </h3>
+              <div className="grid grid-cols-3 gap-2">
+                {history.items.map((it) => (
+                  <div
+                    key={it.id}
+                    className="relative bg-white"
+                    style={{
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={it.imageDataUrl}
+                      alt="Arte anterior"
+                      style={{
+                        width: '100%',
+                        aspectRatio: '1 / 1',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                    <div className="flex" style={{ borderTop: '1px solid var(--color-border)' }}>
+                      <a
+                        href={it.imageDataUrl}
+                        download={`arte-${it.id}.png`}
+                        className="flex-1 text-center font-bold text-[10px] py-1.5"
+                        style={{
+                          color: 'var(--color-ink)',
+                          textDecoration: 'none',
+                          background: 'rgba(0,0,0,.02)',
+                        }}
+                      >
+                        ⬇️
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => history.remove(it.id)}
+                        className="flex-1 text-center font-bold text-[10px] py-1.5"
+                        style={{
+                          color: 'var(--color-danger)',
+                          background: 'rgba(230,57,70,.05)',
+                          border: 'none',
+                          borderLeft: '1px solid var(--color-border)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-[color:var(--color-muted)] mt-2">
+                Suas últimas {history.items.length} artes ficam salvas neste celular.
+                Baixe pra não perder.
+              </p>
+            </div>
+          ) : null}
         </section>
       ) : (
         <ResultActions
