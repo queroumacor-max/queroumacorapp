@@ -24,7 +24,24 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { parseBRL } from '@/lib/utils';
+import { showToast } from '@/lib/toast';
+import { canSeeProFeature } from '@/lib/policies';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import type { FinEntryInput } from '@/lib/services/financeiro';
+
+interface ReceiptItem {
+  description: string;
+  qty: number;
+  unit_price: number;
+  total: number;
+}
+interface ReceiptResult {
+  merchant: string;
+  date: string;
+  items: ReceiptItem[];
+  total: number;
+  notes: string;
+}
 
 export type EntryType = 'receita' | 'custo' | 'misto';
 
@@ -47,6 +64,8 @@ export function EntryForm({
   isSubmitting,
   error,
 }: EntryFormProps) {
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
   const [tipo, setTipo] = useState<EntryType>('receita');
   const [nome, setNome] = useState('');
   const [cliente, setCliente] = useState('');
@@ -57,6 +76,44 @@ export function EntryForm({
   // (prop) carrega o erro de rede/servidor.
   const [localErr, setLocalErr] = useState<string | null>(null);
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrResult, setOcrResult] = useState<ReceiptResult | null>(null);
+
+  // OCR de recibo: PRO escaneia foto → API gpt-4o-mini vision → preenche
+  // nome/categoria/gasto baseado nos items. User confirma antes de salvar.
+  async function handleReceiptUpload(file: File) {
+    setLocalErr(null);
+    setOcrLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch('/api/receipt-ocr', { method: 'POST', body: fd });
+      const text = await res.text();
+      let data: ReceiptResult & { error?: string };
+      try { data = JSON.parse(text); }
+      catch { throw new Error('Resposta inválida do servidor'); }
+      if (!res.ok) throw new Error(data.error || 'Erro ao ler recibo');
+      if (!data.items || data.items.length === 0) {
+        throw new Error('Não consegui ler itens nessa foto. Tente outra.');
+      }
+      setOcrResult(data);
+      // Auto-preenche os campos do form com o resultado.
+      setTipo('custo');
+      setCategoria('Material');
+      setNome(
+        data.merchant
+          ? `Compra em ${data.merchant}`
+          : 'Compra de material',
+      );
+      setGasto(String(data.total.toFixed(2)).replace('.', ','));
+      showToast(`${data.items.length} item(ns) lido(s) do recibo`, 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao ler recibo', 'error');
+    } finally {
+      setOcrLoading(false);
+    }
+  }
 
   // Foca o primeiro campo ao montar — UX de modal: usuário não precisa
   // clicar pra começar a digitar. Cleanup do ESC no return do useEffect.
@@ -145,6 +202,89 @@ export function EntryForm({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          {/* OCR de recibo (PRO): foto vira lançamento automaticamente */}
+          <div>
+            <input
+              ref={receiptInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleReceiptUpload(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!isPro) {
+                  showToast('OCR de recibo é PRO — assine pra liberar', 'info');
+                  return;
+                }
+                receiptInputRef.current?.click();
+              }}
+              disabled={ocrLoading}
+              className="w-full font-bold flex items-center justify-center gap-2"
+              style={{
+                padding: 11,
+                borderRadius: 10,
+                fontSize: 13,
+                border: '1.5px dashed var(--color-p1)',
+                background: 'linear-gradient(135deg, rgba(255,107,53,.06), rgba(131,56,236,.06))',
+                color: 'var(--color-ink)',
+                cursor: ocrLoading ? 'wait' : 'pointer',
+              }}
+            >
+              {ocrLoading ? '🔍 Lendo recibo…' : '📷 Foto do recibo (IA preenche)'}
+              {!isPro ? (
+                <span
+                  className="text-white font-extrabold"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--color-p5), var(--color-p1))',
+                    fontSize: 9,
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    letterSpacing: '.05em',
+                  }}
+                >
+                  PRO
+                </span>
+              ) : null}
+            </button>
+            {ocrResult && ocrResult.items.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  background: '#f7f7f7',
+                  borderRadius: 10,
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                  📋 Itens lidos ({ocrResult.items.length})
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  {ocrResult.items.slice(0, 6).map((it, idx) => (
+                    <li key={idx} style={{ marginBottom: 2 }}>
+                      {it.description} · R$ {it.total.toFixed(2).replace('.', ',')}
+                    </li>
+                  ))}
+                  {ocrResult.items.length > 6 ? (
+                    <li style={{ opacity: 0.6 }}>
+                      + {ocrResult.items.length - 6} mais
+                    </li>
+                  ) : null}
+                </ul>
+                <div style={{ marginTop: 6, fontWeight: 700, color: 'var(--color-p1)' }}>
+                  Total: R$ {ocrResult.total.toFixed(2).replace('.', ',')}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           {/* Tipo (radio-like buttons) */}
           <div>
             <label className="block text-xs font-semibold text-[color:var(--color-muted)] mb-2 uppercase tracking-wider">

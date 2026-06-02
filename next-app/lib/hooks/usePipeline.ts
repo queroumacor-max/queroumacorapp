@@ -35,6 +35,7 @@ import {
   rejectQuote,
   setQuoteStage,
   suggestPrice,
+  syncToJobs,
   type SaveQuoteInput,
   type SuggestPriceInput,
   type SuggestPriceResult,
@@ -112,6 +113,17 @@ export function usePipeline(): UsePipelineResult {
   // Centralizar evita esquecer em alguma mutation nova.
   const onMutationSuccess = () => {
     qc.invalidateQueries({ queryKey: ['pipeline', userId] });
+    // Quote em status terminal (aprovado/em_execucao/concluido) precisa
+    // virar job pra alimentar /financeiro e /agenda. syncToJobs é idempotente
+    // — só cria/atualiza o que falta. Fire-and-forget pra não bloquear UI.
+    if (userId) {
+      void syncToJobs(userId).then((res) => {
+        if (res.created > 0 || res.updated > 0) {
+          qc.invalidateQueries({ queryKey: ['financeiro', userId] });
+          qc.invalidateQueries({ queryKey: ['jobs', userId] });
+        }
+      });
+    }
   };
 
   const saveMutation = useMutation<{ quoteId: string }, Error, SaveQuoteInput>({

@@ -16,7 +16,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   useQuery,
   useMutation,
@@ -34,6 +34,7 @@ import {
   type MonthSummary,
   type AIAnalysisResult,
 } from '@/lib/services/financeiro';
+import { syncToJobs } from '@/lib/services/pipeline';
 import type { Job } from '@/lib/types';
 
 const THIS_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -71,6 +72,25 @@ export interface UseFinanceiroResult {
 export function useFinanceiro(monthsBack = 6): UseFinanceiroResult {
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  // Auto-sync: orçamentos aprovado/em_execucao/concluido viram jobs (que
+  // alimentam o financeiro). Antes esse sync existia mas nunca era chamado,
+  // então um quote concluído nunca aparecia em /financeiro. Roda 1x por sessão
+  // por user; depois invalida pra puxar entries frescos.
+  const syncedRef = useRef<string>('');
+  useEffect(() => {
+    if (!user?.id || syncedRef.current === user.id) return;
+    syncedRef.current = user.id;
+    void syncToJobs(user.id)
+      .then((res) => {
+        if (res.created > 0 || res.updated > 0) {
+          qc.invalidateQueries({ queryKey: ['financeiro', user.id] });
+        }
+      })
+      .catch(() => {
+        // best-effort — se falhar, financeiro só não auto-importa, sem quebrar.
+      });
+  }, [user?.id, qc]);
 
   // queryKey carrega user.id pra isolar caches entre sessões e monthsBack
   // pra que mudar a janela force refetch (vs servir cache antigo). `enabled`
