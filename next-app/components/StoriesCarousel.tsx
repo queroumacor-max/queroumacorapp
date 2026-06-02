@@ -48,13 +48,14 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
         {/* "Seu story" — sempre o primeiro, replica vanilla. */}
         <SelfStoryAvatar
           hasOwnStory={hasOwnStory}
-          onClick={() => {
-            if (hasOwnStory) {
-              setViewerOpenAt(ownStoryIdx);
-            } else if (onCreateStory) {
-              onCreateStory();
-            }
+          ownStoryAvatar={
+            hasOwnStory ? items[ownStoryIdx]?.profile.avatar_url ?? null : null
+          }
+          onView={() => {
+            if (hasOwnStory) setViewerOpenAt(ownStoryIdx);
+            else if (onCreateStory) onCreateStory();
           }}
+          onCreate={() => onCreateStory?.()}
         />
 
         {/* Skeleton se carregando e ainda sem dados. */}
@@ -103,53 +104,88 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
 
 interface SelfStoryAvatarProps {
   hasOwnStory: boolean;
-  onClick: () => void;
+  /** Avatar URL do próprio user — exibido no círculo se já tem story. */
+  ownStoryAvatar: string | null;
+  /** Click no AVATAR: abre viewer (se tem story) ou publisher (se não tem). */
+  onView: () => void;
+  /** Click no badge "+": sempre abre publisher pra criar nova publicação. */
+  onCreate: () => void;
 }
 
-function SelfStoryAvatar({ hasOwnStory, onClick }: SelfStoryAvatarProps) {
+function SelfStoryAvatar({
+  hasOwnStory,
+  ownStoryAvatar,
+  onView,
+  onCreate,
+}: SelfStoryAvatarProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-1 flex-shrink-0 focus:outline-none rounded-lg p-1"
-      aria-label={hasOwnStory ? 'Abrir seu story' : 'Criar story'}
+    <div
+      className="flex flex-col items-center gap-1 flex-shrink-0 p-1 relative"
       role="listitem"
     >
-      <div
-        className="relative w-16 h-16 rounded-full p-[2px] flex items-center justify-center"
+      <button
+        type="button"
+        onClick={onView}
+        aria-label={hasOwnStory ? 'Ver seu story' : 'Criar story'}
+        className="relative w-16 h-16 rounded-full p-[2px] flex items-center justify-center focus:outline-none"
         style={{
           background: hasOwnStory
             ? 'conic-gradient(var(--color-p1), var(--color-p2), var(--color-p3), var(--color-p1))'
             : 'rgba(255,255,255,.2)',
+          border: 'none',
+          cursor: 'pointer',
         }}
       >
         <div
           className="w-full h-full rounded-full flex items-center justify-center overflow-hidden"
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" />
-          </svg>
-        </div>
-        {/* badge "+" no canto inferior direito (estilo IG) */}
-        {!hasOwnStory && (
-          <span
-            aria-hidden="true"
-            className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[color:var(--color-p1)] flex items-center justify-center"
-            style={{ border: '2px solid var(--color-ink)' }}
-          >
-            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
+          {ownStoryAvatar ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={ownStoryAvatar}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2" />
             </svg>
-          </span>
-        )}
-      </div>
+          )}
+        </div>
+      </button>
+      {/* Botão "+" SEMPRE visível (laranja, canto inferior direito).
+          Click dispara onCreate (abre publisher). Antes só aparecia
+          quando não havia story próprio — depois de postar o + sumia
+          e não dava pra criar mais. */}
+      <button
+        type="button"
+        onClick={onCreate}
+        aria-label="Nova publicação"
+        className="absolute flex items-center justify-center"
+        style={{
+          right: 0,
+          bottom: 22,
+          width: 22,
+          height: 22,
+          borderRadius: '50%',
+          background: 'var(--color-p1)',
+          border: '2px solid var(--color-ink)',
+          padding: 0,
+          cursor: 'pointer',
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
       <span className="text-[11px] text-white/85 max-w-[64px] truncate">
         Seu story
       </span>
-    </button>
+    </div>
   );
 }
 

@@ -26,12 +26,15 @@ import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Profile, UserRole } from '@/lib/types';
 
 // Colunas que o form de edição lê/escreve. Mesmo subset do
-// modules/profile-edit.js linha 71 (openEditProfile.select), mais bio,
-// address e PRO flags (is_pro/pro_expires_at/pro_grace_until) — sem
-// estas o ProfileHeader não esconde o banner "Ative PRO" e o TopNav
-// mostra "GRÁTIS" mesmo pra user PRO.
+// modules/profile-edit.js linha 71 (openEditProfile.select) + is_pro.
+// NÃO incluímos pro_expires_at / pro_grace_until / is_admin aqui —
+// essas colunas podem não existir em todos os ambientes (SQL Wave 7
+// pode não ter rodado) e UMA coluna ausente faz o SELECT inteiro
+// falhar, jogando o profile pra null em toda a UI (avatar "J", banner
+// PRO sempre visível, /perfil/editar com erros em todos os blocos).
+// is_pro é seguro: existe desde o schema inicial.
 const PROFILE_COLS =
-  'id, name, tag, username, email, city, state, address, phone, bio, specialties, avatar_url, role, user_type, service_radius, is_pro, pro_expires_at, pro_grace_until';
+  'id, name, tag, username, email, city, state, address, phone, bio, specialties, avatar_url, role, user_type, service_radius, is_pro';
 
 // Patch parcial — apenas as colunas que o usuário pode editar pelo form. `tag`
 // é immutable pós-criação na UI (input disabled), mas mantemos no shape pra o
