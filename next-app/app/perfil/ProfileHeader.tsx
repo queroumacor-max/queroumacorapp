@@ -17,6 +17,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { Avatar } from '@/components/Avatar';
 import { DB } from '@/lib/db';
+import { showToast } from '@/lib/toast';
 
 // Normaliza nome no estilo do vanilla (head.js linha 790-791):
 // remove "@..." se vier email-like, troca underscore por espaço,
@@ -159,12 +160,32 @@ export function ProfileHeader() {
           </Link>
           <button
             type="button"
-            onClick={() => {
-              if (navigator.share && profile?.tag) {
-                void navigator.share({
-                  title: name,
-                  url: `${window.location.origin}/profissional/${profile.tag}`,
-                });
+            onClick={async () => {
+              // URL pública: /perfil/<id>. Aceita tag também, mas id sempre
+              // resolve. Antes ia pra /profissional/<tag> que não existe
+              // (rota não foi portada — quebrava todos os shares).
+              const slug = user?.id || profile?.tag;
+              if (!slug) {
+                showToast('Configure o perfil antes de compartilhar', 'info');
+                return;
+              }
+              const url = `${window.location.origin}/perfil/${slug}`;
+              if (typeof navigator !== 'undefined' && navigator.share) {
+                try {
+                  await navigator.share({ title: name, url });
+                  return;
+                } catch (e) {
+                  if ((e as Error).name === 'AbortError') return;
+                  // continua pro clipboard fallback
+                }
+              }
+              if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                try {
+                  await navigator.clipboard.writeText(url);
+                  showToast('Link copiado!', 'success');
+                } catch {
+                  showToast('Erro ao copiar', 'error');
+                }
               }
             }}
             className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"
