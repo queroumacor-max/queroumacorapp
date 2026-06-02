@@ -1,22 +1,21 @@
-// ShirtCustomizer — client component que customiza camiseta (cor + tamanho
-// + quantidade + preview com logo do pintor sobreposto via CSS).
+// ShirtCustomizer — replica o `#screen-camisetas` do vanilla (index.html
+// linha 1539+):
+//  1. Hero "🎽 Sua Marca Profissional"
+//  2. Gerar Logo com Seu Zé (card gradient purple): inputs nome+estilo +
+//     botão "Gerar Logo" + upload "Já tenho meu logo"
+//  3. Personalize sua camiseta: preview com logo overlay + Cali Colors logo +
+//     cor + tamanho + quantidade + total + "Pedir Agora"
 //
-// Substitui o `screen-camisetas` do vanilla (modules/mkt.js: setShirtColor,
-// setSizeBtn, changeQty, buyShirt). Decisões de port:
-//   - Logo overlay via CSS transform (mais simples que canvas, conforme spec);
-//   - Logo URL vem do profile.business_logo_url (perfil do usuário logado)
-//     via supabase.from('profiles').select('business_logo_url').single();
-//   - Buy → useCart.add com produto sintético "shirt-personalizada"
-//     incluindo customization (cor/tamanho). Logo URL NÃO entra no nome
-//     porque o backend não tem como persistir overlay; vai como notinha
-//     pro fulfillment via order.items[].customization.
-
+// Logo gerado/uploadado pode ser SALVO no perfil (profile.business_logo_url)
+// e reusado automaticamente pelo preview. Usa o hook `useAiLogo` que cobre
+// generate + save + upload + cache global do logo salvo.
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useCart } from '@/lib/hooks/useCart';
-import { getSupabase } from '@/lib/supabase';
+import { useAiLogo } from '@/lib/hooks/useAiLogo';
+import { showToast } from '@/lib/toast';
 import type { ShirtCustomization } from '@/lib/services/mkt';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
@@ -29,10 +28,8 @@ const COLORS: ReadonlyArray<{ value: string; label: string; dark?: boolean }> = 
   { value: '#1a1a2e', label: 'Marinho', dark: true },
   { value: '#000000', label: 'Preto', dark: true },
   { value: '#e63946', label: 'Vermelho' },
-  { value: '#8338ec', label: 'Roxo', dark: true },
   { value: '#ffbe0b', label: 'Amarelo' },
   { value: '#3a86ff', label: 'Azul' },
-  { value: '#06d6a0', label: 'Verde água' },
 ];
 
 const SIZES: ReadonlyArray<ShirtCustomization['size']> = ['P', 'M', 'G', 'GG', 'XGG'];
@@ -48,47 +45,78 @@ function computeUnit(qty: number): number {
 export function ShirtCustomizer() {
   const { user } = useAuth();
   const { add, isMutating } = useCart();
+  const {
+    savedLogo,
+    variants,
+    selectedIndex,
+    generate,
+    isGenerating,
+    select,
+    save,
+    isSaving,
+    upload,
+    isUploading,
+  } = useAiLogo();
+
   const [color, setColor] = useState<string>('#ffffff');
   const [size, setSize] = useState<ShirtCustomization['size']>('M');
   const [qty, setQty] = useState(1);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
-
-  // Puxa o business_logo_url do perfil logado. Se ausente, mostra placeholder.
-  useEffect(() => {
-    if (!user) {
-      setLogoUrl(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const sb = getSupabase();
-        const { data } = await sb
-          .from('profiles')
-          .select('business_logo_url')
-          .eq('id', user.id)
-          .single();
-        if (!cancelled) {
-          const url = (data as { business_logo_url?: string | null } | null)?.business_logo_url;
-          setLogoUrl(url ?? null);
-        }
-      } catch {
-        // Falha silenciosa — preview funciona sem logo.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  const [logoText, setLogoText] = useState('');
+  const [logoStyle, setLogoStyle] = useState('');
 
   const unit = computeUnit(qty);
   const total = unit * qty;
   const colorMeta = COLORS.find((c) => c.value === color) ?? COLORS[0];
   const isDark = !!colorMeta?.dark;
 
+  // Logo a renderizar no peito: variant selecionada da geração atual > logo salvo no perfil
+  const previewLogo =
+    selectedIndex !== null && variants[selectedIndex]
+      ? variants[selectedIndex]
+      : savedLogo;
+
+  async function handleGenerate() {
+    if (!logoText.trim()) {
+      showToast('Digite o texto do logo primeiro', 'info');
+      return;
+    }
+    try {
+      await generate({ name: logoText.trim(), style: logoStyle.trim() || undefined });
+      showToast('Logos gerados!', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao gerar logo', 'error');
+    }
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await upload(file);
+      await save(url);
+      showToast('Logo enviado e salvo no perfil!', 'success');
+    } catch (err) {
+      showToast((err as Error).message || 'Erro ao enviar logo', 'error');
+    } finally {
+      e.target.value = '';
+    }
+  }
+
+  async function handleSaveSelected() {
+    if (selectedIndex === null) return;
+    try {
+      await save();
+      showToast('Logo salvo no seu perfil', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao salvar logo', 'error');
+    }
+  }
+
   function handleBuy() {
-    if (!user) return;
+    if (!user) {
+      showToast('Faça login pra comprar', 'info');
+      return;
+    }
     add({
       product: {
         id: `shirt-${color}-${size}`,
@@ -100,20 +128,217 @@ export function ShirtCustomizer() {
       },
       qty,
     });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+    showToast('Camiseta adicionada ao carrinho', 'success');
   }
 
   return (
-    <div className="space-y-6">
-      {/* Preview da camiseta + logo overlay */}
-      <div className="rounded-2xl bg-[color:var(--color-bg)] p-8 flex items-center justify-center">
-        <div className="relative w-64 h-72">
-          {/* SVG simples de camiseta — fill segue a cor escolhida. */}
+    <div className="space-y-4">
+      {/* Hero — "Sua Marca Profissional" */}
+      <div
+        className="bg-white"
+        style={{ borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,.05)' }}
+      >
+        <div
+          className="font-extrabold"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 22,
+            marginBottom: 6,
+            color: 'var(--color-ink)',
+          }}
+        >
+          🎽 Sua Marca Profissional
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--color-muted)', lineHeight: 1.5 }}>
+          Camisetas personalizadas com a sua marca e a da Cali Colors. Chegue com
+          identidade nos clientes.
+        </div>
+      </div>
+
+      {/* Gerador de Logo IA — card gradient purple */}
+      <div
+        className="text-white"
+        style={{
+          background: 'linear-gradient(135deg, #5b3eb5, #8338ec)',
+          borderRadius: 16,
+          padding: 16,
+        }}
+      >
+        <div
+          className="font-extrabold"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            marginBottom: 6,
+          }}
+        >
+          ✨ Gerar Logo com Seu Zé
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12 }}>
+          Diga o texto e o estilo do logo, o Seu Zé gera 3 opções profissionais.
+        </div>
+
+        <input
+          type="text"
+          value={logoText}
+          onChange={(e) => setLogoText(e.target.value)}
+          placeholder="Texto do logo · ex: Silva Pinturas"
+          maxLength={80}
+          className="w-full text-[color:var(--color-ink)] outline-none"
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: 'rgba(255,255,255,.95)',
+            fontSize: 14,
+            border: 'none',
+            marginBottom: 8,
+          }}
+        />
+        <input
+          type="text"
+          value={logoStyle}
+          onChange={(e) => setLogoStyle(e.target.value)}
+          placeholder="Estilo · ex: graffiti de rua, pintura, funilaria, vintage"
+          maxLength={80}
+          className="w-full text-[color:var(--color-ink)] outline-none"
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: 'rgba(255,255,255,.95)',
+            fontSize: 14,
+            border: 'none',
+            marginBottom: 10,
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={isGenerating}
+          className="w-full font-extrabold"
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: '#fff',
+            color: '#8338ec',
+            fontSize: 14,
+            border: 'none',
+            cursor: isGenerating ? 'wait' : 'pointer',
+            opacity: isGenerating ? 0.7 : 1,
+          }}
+        >
+          {isGenerating ? 'Gerando…' : 'Gerar Logo'}
+        </button>
+
+        <label
+          className="block w-full text-center font-bold"
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: 'rgba(255,255,255,.15)',
+            border: '1px solid rgba(255,255,255,.3)',
+            fontSize: 13,
+            marginTop: 8,
+            cursor: 'pointer',
+          }}
+        >
+          📤 Já tenho meu logo · {isUploading ? 'Enviando…' : 'Enviar'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={handleUpload}
+            disabled={isUploading}
+          />
+        </label>
+
+        {/* Variants gerados */}
+        {variants.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div className="grid grid-cols-3 gap-2">
+              {variants.map((url, idx) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => select(idx)}
+                  className="overflow-hidden"
+                  style={{
+                    aspectRatio: '1 / 1',
+                    borderRadius: 10,
+                    background: '#fff',
+                    border:
+                      selectedIndex === idx
+                        ? '3px solid #fff'
+                        : '3px solid transparent',
+                    padding: 4,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Logo opção ${idx + 1}`}
+                    className="w-full h-full object-contain"
+                  />
+                </button>
+              ))}
+            </div>
+            {selectedIndex !== null ? (
+              <button
+                type="button"
+                onClick={handleSaveSelected}
+                disabled={isSaving}
+                className="w-full font-bold"
+                style={{
+                  marginTop: 10,
+                  padding: 11,
+                  borderRadius: 12,
+                  background: 'var(--color-p1)',
+                  color: '#fff',
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: isSaving ? 'wait' : 'pointer',
+                }}
+              >
+                {isSaving ? 'Salvando…' : 'Usar este logo na camiseta'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Personalize sua camiseta */}
+      <div
+        className="bg-white"
+        style={{ borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(0,0,0,.05)' }}
+      >
+        <div
+          className="font-extrabold"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            marginBottom: 12,
+            color: 'var(--color-ink)',
+          }}
+        >
+          🎨 Personalize sua camiseta
+        </div>
+
+        {/* Preview da camiseta SVG com logos */}
+        <div
+          className="relative mx-auto"
+          style={{
+            background: 'var(--color-cream)',
+            borderRadius: 12,
+            padding: 12,
+            maxWidth: 320,
+            aspectRatio: '1 / 1',
+          }}
+        >
           <svg
             viewBox="0 0 200 220"
-            className="w-full h-full drop-shadow"
-            aria-label={`Camiseta cor ${colorMeta?.label}`}
+            className="w-full h-full"
+            aria-label={`Camiseta ${colorMeta?.label}`}
           >
             <path
               d="M40,30 L75,15 Q100,40 125,15 L160,30 L185,70 L155,85 L155,200 Q100,215 45,200 L45,85 L15,70 Z"
@@ -122,50 +347,114 @@ export function ShirtCustomizer() {
               strokeWidth={1.5}
             />
           </svg>
-          {/* Overlay do logo no peito — CSS transform mantém centralização. */}
+
+          {/* Logo do user — peito esquerdo */}
           <div
             className="absolute"
             style={{
               top: '38%',
-              left: '50%',
+              left: '32%',
               transform: 'translate(-50%, -50%)',
-              width: '70px',
-              height: '70px',
-              border: `2px dashed ${isDark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.25)'}`,
+              width: 56,
+              height: 56,
+              border: previewLogo
+                ? 'none'
+                : `1.5px dashed ${isDark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.3)'}`,
               borderRadius: 6,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
-              background: logoUrl ? 'transparent' : 'transparent',
             }}
-            aria-hidden="true"
           >
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
+            {previewLogo ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
-                src={logoUrl}
+                src={previewLogo}
                 alt=""
                 className="w-full h-full object-contain"
               />
             ) : (
               <span
                 style={{
-                  fontSize: 10,
-                  color: isDark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.45)',
+                  fontSize: 8,
+                  fontWeight: 700,
                   textAlign: 'center',
+                  color: isDark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.45)',
+                  letterSpacing: '.5px',
+                  lineHeight: 1.2,
                 }}
               >
-                seu logo aqui
+                APLIQUE<br />SEU LOGO
               </span>
             )}
           </div>
+
+          {/* Cali Colors no peito direito */}
+          <div
+            className="absolute font-extrabold"
+            style={{
+              top: '38%',
+              left: '60%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: 14,
+              color: isDark ? '#fff' : 'var(--color-ink)',
+              fontFamily: 'var(--font-display)',
+              lineHeight: 1,
+              letterSpacing: '-0.5px',
+            }}
+          >
+            <span style={{ color: 'var(--color-p4)' }}>C</span>
+            <span style={{ color: 'var(--color-p1)' }}>a</span>
+            <span style={{ color: 'var(--color-p3)' }}>l</span>
+            <span style={{ color: 'var(--color-p5)' }}>i</span>
+            <br />
+            <span style={{ color: isDark ? '#fff' : 'var(--color-ink)' }}>
+              Colors
+            </span>
+          </div>
+        </div>
+
+        {/* Tags */}
+        <div className="flex items-center justify-center gap-2" style={{ marginTop: 10 }}>
+          <span
+            className="text-white font-bold"
+            style={{
+              background: 'var(--color-ink)',
+              padding: '5px 12px',
+              borderRadius: 999,
+              fontSize: 11,
+            }}
+          >
+            seu_perfil
+          </span>
+          <span
+            className="text-white font-bold"
+            style={{
+              background: 'var(--color-p1)',
+              padding: '5px 12px',
+              borderRadius: 999,
+              fontSize: 11,
+            }}
+          >
+            × Cali Colors
+          </span>
         </div>
       </div>
 
-      {/* Cores */}
+      {/* Cor */}
       <div>
-        <h2 className="text-sm font-semibold mb-2">Cor</h2>
+        <div
+          className="font-bold uppercase"
+          style={{
+            fontSize: 11,
+            color: 'var(--color-muted)',
+            letterSpacing: '.05em',
+            marginBottom: 8,
+          }}
+        >
+          Cor da camiseta
+        </div>
         <div className="flex flex-wrap gap-2">
           {COLORS.map((c) => {
             const active = c.value === color;
@@ -176,22 +465,38 @@ export function ShirtCustomizer() {
                 onClick={() => setColor(c.value)}
                 aria-label={c.label}
                 aria-pressed={active}
-                className={
-                  'w-10 h-10 rounded-full border-2 transition-transform ' +
-                  (active
-                    ? 'border-[color:var(--color-ink)] scale-110'
-                    : 'border-[color:var(--color-border)]')
-                }
-                style={{ background: c.value }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  border: active
+                    ? '2.5px solid var(--color-ink)'
+                    : '1.5px solid var(--color-border)',
+                  background: c.value,
+                  cursor: 'pointer',
+                  padding: 0,
+                  transform: active ? 'scale(1.05)' : 'none',
+                  transition: 'transform .15s',
+                }}
               />
             );
           })}
         </div>
       </div>
 
-      {/* Tamanhos */}
+      {/* Tamanho */}
       <div>
-        <h2 className="text-sm font-semibold mb-2">Tamanho</h2>
+        <div
+          className="font-bold uppercase"
+          style={{
+            fontSize: 11,
+            color: 'var(--color-muted)',
+            letterSpacing: '.05em',
+            marginBottom: 8,
+          }}
+        >
+          Tamanho
+        </div>
         <div className="flex gap-2">
           {SIZES.map((s) => {
             const active = s === size;
@@ -201,12 +506,16 @@ export function ShirtCustomizer() {
                 type="button"
                 onClick={() => setSize(s)}
                 aria-pressed={active}
-                className={
-                  'px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ' +
-                  (active
-                    ? 'bg-[color:var(--color-ink)] text-white border-[color:var(--color-ink)]'
-                    : 'bg-white border-[color:var(--color-border)] text-[color:var(--color-ink)]')
-                }
+                className="flex-1 font-bold"
+                style={{
+                  padding: '10px 4px',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  background: active ? 'var(--color-ink)' : '#fff',
+                  color: active ? '#fff' : 'var(--color-ink)',
+                  border: '1.5px solid ' + (active ? 'var(--color-ink)' : 'var(--color-border)'),
+                  cursor: 'pointer',
+                }}
               >
                 {s}
               </button>
@@ -217,65 +526,100 @@ export function ShirtCustomizer() {
 
       {/* Quantidade */}
       <div>
-        <h2 className="text-sm font-semibold mb-2">Quantidade</h2>
+        <div
+          className="font-bold uppercase"
+          style={{
+            fontSize: 11,
+            color: 'var(--color-muted)',
+            letterSpacing: '.05em',
+            marginBottom: 8,
+          }}
+        >
+          Quantidade
+        </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="w-9 h-9 rounded-full bg-white border border-[color:var(--color-border)] text-base font-bold"
-            aria-label="Diminuir quantidade"
+            className="font-bold"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: 'var(--color-cream)',
+              border: '1.5px solid var(--color-border)',
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+            aria-label="Diminuir"
           >
             −
           </button>
-          <span
-            className="text-2xl font-bold min-w-[3rem] text-center"
-            id="shirt-qty"
-          >
+          <span style={{ fontSize: 18, fontWeight: 700, minWidth: 30, textAlign: 'center' }}>
             {qty}
           </span>
           <button
             type="button"
             onClick={() => setQty((q) => q + 1)}
-            className="w-9 h-9 rounded-full bg-white border border-[color:var(--color-border)] text-base font-bold"
-            aria-label="Aumentar quantidade"
+            className="font-bold"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: 'var(--color-cream)',
+              border: '1.5px solid var(--color-border)',
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+            aria-label="Aumentar"
           >
             +
           </button>
-          <span className="ml-2 text-xs text-[color:var(--color-muted)]">
-            {qty >= BULK_THRESHOLD
-              ? `${(BULK_DISCOUNT * 100 - 100) | 0}% off aplicado`
-              : `Compre ${BULK_THRESHOLD - qty} a mais e ganhe 15% off`}
+          <span style={{ fontSize: 12, color: 'var(--color-muted)', flex: 1 }}>
+            Mín. 1 · desconto acima de 5
           </span>
         </div>
       </div>
 
-      {/* Total + CTA */}
-      <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-[color:var(--color-border)]">
+      {/* Total + Pedir Agora */}
+      <div
+        className="flex items-center justify-between bg-white"
+        style={{
+          borderRadius: 14,
+          padding: 14,
+          boxShadow: '0 2px 8px rgba(0,0,0,.05)',
+          marginTop: 4,
+        }}
+      >
         <div>
-          <div className="text-xs text-[color:var(--color-muted)]">Total</div>
+          <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>Total estimado</div>
           <div
-            className="text-2xl font-bold"
-            style={{ color: 'var(--color-p1)', fontFamily: 'var(--font-display)' }}
+            style={{
+              fontSize: 26,
+              fontWeight: 800,
+              fontFamily: 'var(--font-display)',
+              color: 'var(--color-ink)',
+            }}
           >
             {BRL.format(total)}
-          </div>
-          <div className="text-[10px] text-[color:var(--color-muted)]">
-            Unitário: {BRL.format(unit)}
           </div>
         </div>
         <button
           type="button"
           onClick={handleBuy}
-          disabled={!user || isMutating}
-          className="px-5 py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+          disabled={isMutating}
+          className="text-white font-bold flex items-center gap-2"
+          style={{
+            background: 'var(--color-p1)',
+            padding: '13px 18px',
+            borderRadius: 12,
+            fontSize: 14,
+            border: 'none',
+            cursor: isMutating ? 'wait' : 'pointer',
+            opacity: isMutating ? 0.7 : 1,
+          }}
         >
-          {!user
-            ? 'Entre pra comprar'
-            : isMutating
-              ? 'Adicionando…'
-              : added
-                ? 'Adicionado!'
-                : '+ Adicionar ao carrinho'}
+          🛒 Pedir Agora
         </button>
       </div>
     </div>
