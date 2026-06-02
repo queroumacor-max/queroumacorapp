@@ -27,6 +27,16 @@ export interface SignupData {
   phone: string;
   userType: UserType;
   inviteCode?: string;
+  /** Campos opcionais que vão pra profiles via UPDATE depois do signup
+   *  (a trigger handle_new_user só popula a partir de user_metadata, e
+   *  esses campos não fazem parte do JWT — UPDATE pós-trigger é mais
+   *  flexível pra evoluir sem mexer no banco). */
+  birthDate?: string | null;
+  city?: string | null;
+  state?: string | null;
+  /** Avatar pré-uploadado (URL pública) — caller pode subir antes via
+   *  uploadAvatar e passar a URL aqui pro UPDATE final. */
+  avatarUrl?: string | null;
 }
 
 export interface SignupResult {
@@ -140,6 +150,27 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
         // Best-effort: a conta já foi criada; falhar no consume não deve
         // bloquear o usuário. Logging vai pelo logger no caller se quiser.
       }
+    }
+  }
+
+  // UPDATE pós-trigger: campos que não foram populados pela trigger
+  // handle_new_user (birth_date, city, state, avatar_url). Best-effort —
+  // falhar não invalida a conta criada (caller pode editar pelo /perfil/editar).
+  const extras: {
+    birth_date?: string | null;
+    city?: string | null;
+    state?: string | null;
+    avatar_url?: string | null;
+  } = {};
+  if (input.birthDate) extras.birth_date = input.birthDate;
+  if (input.city) extras.city = input.city;
+  if (input.state) extras.state = input.state.toUpperCase();
+  if (input.avatarUrl) extras.avatar_url = input.avatarUrl;
+  if (Object.keys(extras).length > 0) {
+    try {
+      await sb.from('profiles').update(extras).eq('id', data.user.id);
+    } catch {
+      /* silent — conta já existe, user edita depois */
     }
   }
 
