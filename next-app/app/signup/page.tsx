@@ -1,6 +1,8 @@
-// Server Component shell — só renderiza o frame e delega o multi-step
-// pro SignupFlow client component. Mesmo padrão do /login.
+// Página /signup — espelha o `#screen-signup` do vanilla (index.html linha
+// 315+). Usa o mesmo AuthScreen do /login pra ter o pattern hero dark +
+// cream card. O multi-step real fica no SignupFlow client component.
 import type { Metadata } from 'next';
+import { AuthScreen } from '@/components/AuthScreen';
 import { SignupFlow } from './SignupFlow';
 
 export const metadata: Metadata = {
@@ -10,21 +12,8 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-[color:var(--color-bg)]">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        <div className="text-center mb-6">
-          <div
-            className="text-3xl font-extrabold"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Quero<span className="text-[color:var(--color-p1)]">Uma</span>Cor
-          </div>
-          <p className="text-xs text-[color:var(--color-muted)] mt-1">
-            A plataforma dos pintores profissionais
-          </p>
-        </div>
-        <SignupFlow />
-      </div>
-    </main>
+    <AuthScreen tagline="Cadastro apenas por convite.">
+      <SignupFlow />
+    </AuthScreen>
   );
 }
