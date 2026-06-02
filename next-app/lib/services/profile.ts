@@ -65,27 +65,10 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     .eq('id', userId)
     .maybeSingle();
 
-  // DEBUG TEMPORÁRIO: log do que veio pra diagnosticar o caso PRO/ADMIN
-  // que não atualiza. Remover quando bug estiver resolvido.
-  if (typeof console !== 'undefined' && typeof window !== 'undefined') {
-    if (error) {
-      console.warn('[getProfile] erro:', error.code, error.message, error.details);
-    } else if (!data) {
-      console.warn('[getProfile] sem row pra userId=', userId);
-    } else {
-      const d = data as Record<string, unknown>;
-      console.info(
-        '[getProfile] OK — is_pro=' + String(d.is_pro) +
-        ' portal_access=' + String(d.portal_access) +
-        ' is_admin=' + String(d.is_admin) +
-        ' pro_expires_at=' + String(d.pro_expires_at) +
-        ' pro_grace_until=' + String(d.pro_grace_until) +
-        ' fields_count=' + Object.keys(d).length,
-      );
-    }
-  }
-
   if (error) {
+    if (typeof console !== 'undefined') {
+      console.warn('[getProfile] erro no select profiles:', error.message);
+    }
     // Fallback: tenta profiles_public (view safe). Se chegar aqui, perdeu
     // alguns campos editáveis (email, address, phone) E portal_access (a
     // view não expõe esse campo). Vai aparecer GRÁTIS mesmo pra admin.

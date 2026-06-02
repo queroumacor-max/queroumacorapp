@@ -18,7 +18,10 @@ interface AppShellProps {
   hideTopNav?: boolean;
   /** Esconde BottomNav (ex.: tela de chat conversation). */
   hideBottomNav?: boolean;
-  /** Status do plano pra TopNav. */
+  /** Override do badge PRO/GRÁTIS/ADMIN. Quando omitido, TopNav deriva
+   *  do profile via useProfile() (default — comportamento desejado em
+   *  99% dos casos). Antes tinha default 'GRÁTIS' que sobrescrevia a
+   *  derivação e o badge ficava travado em GRÁTIS pra todo mundo. */
   proStatus?: 'GRÁTIS' | 'PRO' | 'ADMIN';
 }
 
@@ -26,7 +29,7 @@ export function AppShell({
   children,
   hideTopNav = false,
   hideBottomNav = false,
-  proStatus = 'GRÁTIS',
+  proStatus,
 }: AppShellProps) {
   return (
     <div className="flex flex-col w-full max-w-[430px] mx-auto h-screen bg-[color:var(--color-bg)] relative overflow-hidden" style={{ minHeight: '100dvh' }}>
