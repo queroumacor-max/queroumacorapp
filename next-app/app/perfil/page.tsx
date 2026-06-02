@@ -8,7 +8,6 @@ import { AppShell } from '@/components/AppShell';
 import { ProfileHeader } from './ProfileHeader';
 import { BusinessGrid } from './BusinessGrid';
 import { ProfileFooter } from './ProfileFooter';
-import { PintorRequestsSection } from './PintorRequestsSection';
 import { InviteSection } from './InviteSection';
 import { PortfolioSection } from './PortfolioSection';
 import Link from 'next/link';
@@ -31,9 +30,6 @@ export default function PerfilPage() {
         </div>
         <BusinessGrid />
       </div>
-
-      {/* Pedidos de Orçamento (empty state pra pintor sem pedidos) */}
-      <PintorRequestsSection />
 
       {/* Convidar Amigos — gera código QUC-XXXXX + share */}
       <div className="px-3.5 pt-4 pb-2">
