@@ -229,6 +229,82 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
     });
   };
 
+  // ─── share/pdf/chat handlers ─────────────────────────────────────────
+  // Texto plano formatado pra WhatsApp/email/clipboard/chat. Espelha o
+  // buildPlainText do QuoteWizard pra consistência visual cross-feature.
+  // Recebe quote como parâmetro pra evitar narrowing TS — o caller chama
+  // só depois do early-return de quote==null abaixo.
+  function buildQuoteText(q: NonNullable<typeof quote>): string {
+    const warr = ((q.quote_data as { warranty?: string } | null)?.warranty) || '';
+    const price = Number(q.price) || 0;
+    const lines = [
+      `*Orçamento — ${q.service_type || q.title || 'Pintura'}*`,
+      '',
+      q.client_name ? `Cliente: ${q.client_name}` : null,
+      q.address ? `Endereço: ${q.address}` : null,
+      q.area_m2 ? `Área: ${q.area_m2} m²` : null,
+      q.proposed_date ? `Prazo: ${q.proposed_date}` : null,
+      warr ? `Garantia: ${warr}` : null,
+      '',
+      q.description ? `Escopo:\n${q.description}` : null,
+      '',
+      price > 0 ? `💰 *Valor: R$ ${price.toLocaleString('pt-BR')}*` : null,
+    ].filter(Boolean);
+    return lines.join('\n');
+  }
+
+  function handlePrintPdf() {
+    // Reutiliza @media print do navegador. A página inteira já tem layout
+    // legível; print preview vira PDF pelo "Salvar como PDF" do diálogo.
+    window.print();
+  }
+
+  function handleShareWhatsApp() {
+    if (!quote) return;
+    const text = encodeURIComponent(buildQuoteText(quote));
+    const digits = (quote.client_phone || '').replace(/\D/g, '');
+    const url = digits ? `https://wa.me/55${digits}?text=${text}` : `https://wa.me/?text=${text}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleShareEmail() {
+    if (!quote) return;
+    const subj = encodeURIComponent(`Orçamento — ${quote.service_type || 'Pintura'}`);
+    const body = encodeURIComponent(buildQuoteText(quote));
+    window.location.href = `mailto:?subject=${subj}&body=${body}`;
+  }
+
+  async function handleShareNative() {
+    if (!quote) return;
+    const text = buildQuoteText(quote);
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'Orçamento', text });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Orçamento copiado!');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function handleSendChat() {
+    if (!quote) return;
+    try {
+      sessionStorage.setItem('chat:prefill', buildQuoteText(quote));
+    } catch {
+      /* ignore */
+    }
+    window.location.href = '/chat';
+  }
+
   const handleApprove = () => {
     if (
       !window.confirm(
@@ -258,7 +334,15 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // ─── render ──────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
+    <main className="min-h-screen p-4 max-w-2xl mx-auto quote-detail-print">
+      {/* @media print: esconde header/nav/footer + botões pra impressão limpa */}
+      <style>{`
+        @media print {
+          .quote-pdf-noprint, .top-nav, .bot-nav, nav, header.top-nav { display: none !important; }
+          body { background: #fff !important; }
+          .quote-detail-print { padding: 0 !important; max-width: none !important; }
+        }
+      `}</style>
       <Link
         href="/orcamentos"
         className="text-sm text-[color:var(--color-muted)] hover:underline"
@@ -392,6 +476,47 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
             <p className="text-sm">{quote.approval_note}</p>
           </div>
         ) : null}
+      </section>
+
+      {/* Ações sempre disponíveis: PDF / WhatsApp / Email / Chat / Compartilhar.
+          Independente do status — pintor pode mandar o PDF do orçamento aprovado
+          pra o cliente abrir, reenviar via WhatsApp, etc. */}
+      <section className="flex flex-wrap gap-2 mb-2 quote-pdf-noprint">
+        <button
+          type="button"
+          onClick={handlePrintPdf}
+          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+        >
+          🖨️ PDF
+        </button>
+        <button
+          type="button"
+          onClick={handleShareWhatsApp}
+          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+        >
+          💬 WhatsApp
+        </button>
+        <button
+          type="button"
+          onClick={handleShareEmail}
+          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+        >
+          ✉️ E-mail
+        </button>
+        <button
+          type="button"
+          onClick={handleSendChat}
+          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+        >
+          💭 Chat
+        </button>
+        <button
+          type="button"
+          onClick={handleShareNative}
+          className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+        >
+          📲 Compartilhar
+        </button>
       </section>
 
       {/* Ações disponíveis por status */}

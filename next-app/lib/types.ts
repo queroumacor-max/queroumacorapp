@@ -209,6 +209,7 @@ export interface Quote {
   painter_id: string;
   client_id?: string | null;
   client_name?: string | null;
+  client_phone?: string | null;
   status?: QuoteStatus | (string & {});
   title?: string | null;
   service_type?: string | null;
