@@ -3,6 +3,7 @@ import { Syne, DM_Sans } from 'next/font/google';
 import { AuthProvider } from '@/components/AuthProvider';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { QueryProvider } from '@/components/QueryProvider';
+import { ToastViewport } from '@/components/ToastViewport';
 import './globals.css';
 
 // Self-host de Syne (display/marca) + DM Sans (body) via next/font/google.
@@ -57,6 +58,7 @@ export default function RootLayout({
                 aparece 1x por navegador (flag `onboarding_seen_v1` em
                 localStorage) pra todos os usuários, autenticados ou não. */}
             <OnboardingModal />
+            <ToastViewport />
           </QueryProvider>
         </AuthProvider>
       </body>

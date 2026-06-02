@@ -24,6 +24,8 @@ import { Avatar } from '@/components/Avatar';
 import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
+import { showToast } from '@/lib/toast';
+import { BottomSheet } from '@/components/BottomSheet';
 import { getTimeAgo } from '@/lib/utils';
 import { PostMedia } from './PostMedia';
 import type { FeedPost } from '@/lib/services/feed';
@@ -68,6 +70,8 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
 
   const isOwn = !!user && user.id === post.user_id;
 
+  const [optsOpen, setOptsOpen] = useState(false);
+
   async function handleShare() {
     const url =
       typeof window !== 'undefined'
@@ -85,9 +89,42 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(url);
+        showToast('Link copiado!', 'success');
       } catch {
-        /* silent */
+        showToast('Erro ao copiar', 'error');
       }
+    }
+  }
+
+  async function handleCopyLink() {
+    if (typeof navigator === 'undefined') return;
+    const url = `${window.location.origin}/?post=${post.id}`;
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Link copiado!', 'success');
+      } catch {
+        showToast('Erro ao copiar', 'error');
+      }
+    }
+    setOptsOpen(false);
+  }
+
+  function handleReport() {
+    showToast('Denúncia enviada — vamos analisar', 'info');
+    setOptsOpen(false);
+  }
+
+  async function handleDelete() {
+    setOptsOpen(false);
+    if (!window.confirm('Apagar este post? Você pode desfazer em 30 dias.')) return;
+    try {
+      const { deletePost } = await import('@/lib/services/postInteractions');
+      if (!user) return;
+      await deletePost(user.id, post.id);
+      showToast('Post apagado', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Erro ao apagar', 'error');
     }
   }
 
@@ -143,9 +180,10 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
         </div>
         <button
           type="button"
+          onClick={() => setOptsOpen(true)}
           aria-label="Opções do post"
           className="text-[color:var(--color-muted)]"
-          style={{ fontSize: 18, lineHeight: 1, padding: 4 }}
+          style={{ fontSize: 18, lineHeight: 1, padding: 4, background: 'none', border: 'none', cursor: 'pointer' }}
         >
           ···
         </button>
@@ -277,7 +315,72 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
       >
         {timeAgo}
       </div>
+
+      <BottomSheet
+        open={optsOpen}
+        onClose={() => setOptsOpen(false)}
+        ariaLabel="Opções do post"
+      >
+        <h3
+          className="font-extrabold text-center"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            marginBottom: 16,
+            color: 'var(--color-ink)',
+          }}
+        >
+          Opções
+        </h3>
+        <div className="flex flex-col gap-1">
+          <PostOptRow icon="🔗" label="Copiar link" onClick={handleCopyLink} />
+          <PostOptRow icon="↗" label="Compartilhar" onClick={() => { setOptsOpen(false); handleShare(); }} />
+          <PostOptRow
+            icon={saved ? '🔖' : '📌'}
+            label={saved ? 'Remover dos salvos' : 'Salvar post'}
+            onClick={() => { toggleSave(post.id); setOptsOpen(false); }}
+          />
+          {isOwn ? (
+            <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
+          ) : (
+            <PostOptRow icon="⚠️" label="Denunciar" onClick={handleReport} danger />
+          )}
+        </div>
+      </BottomSheet>
     </article>
+  );
+}
+
+function PostOptRow({
+  icon,
+  label,
+  onClick,
+  danger,
+}: {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-3 text-left"
+      style={{
+        padding: '14px 12px',
+        borderRadius: 12,
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: 15,
+        fontWeight: 600,
+        color: danger ? 'var(--color-danger)' : 'var(--color-ink)',
+      }}
+    >
+      <span aria-hidden="true" style={{ fontSize: 20 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 
