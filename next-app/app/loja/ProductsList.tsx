@@ -13,6 +13,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { ProductDetailSheet } from './ProductDetailSheet';
+import type { Product } from '@/lib/services/mkt';
 import {
   MKT_MENU_LABEL,
   MKT_MENUS,
@@ -51,18 +53,12 @@ export function ProductsList() {
     setSearch,
   } = useProducts();
   const { add, items: cartItems } = useCart();
-  // Track *qual* produto está sendo adicionado pra que só o botão clicado
-  // mostre "...", não todos. (Bug anterior: isMutating do useCart é global
-  // — qualquer mutation pendente travava o grid inteiro.)
-  const [addingId, setAddingId] = useState<string | null>(null);
+  // Produto aberto no detail-sheet. Quando o user clica num row, abre o
+  // sheet com qty picker em vez de adicionar 1 unidade direto.
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
 
-  function handleAdd(prod: { id: string }) {
-    if (addingId) return; // double-click guard
-    setAddingId(prod.id);
-    add({ product: prod as Parameters<typeof add>[0]['product'], qty: 1 });
-    // Optimistic — useCart já faz optimistic update via TanStack onMutate.
-    // Damos uma janela de 400ms só pra o feedback visual ficar perceptível.
-    setTimeout(() => setAddingId(null), 400);
+  function handleAddFromSheet(prod: Product, qty: number) {
+    add({ product: prod, qty });
   }
 
   const cartCount = cartItems.reduce((acc, it) => acc + (it.qty || 0), 0);
@@ -283,14 +279,22 @@ export function ProductsList() {
               <li key={p.id}>
                 <ProductCard
                   product={p}
-                  onAdd={(prod) => handleAdd(prod)}
-                  isAdding={addingId === p.id}
+                  // Click no row OU no "+ Carrinho" abre o detail sheet
+                  // pra escolher quantidade (vanilla openProductDetail).
+                  onAdd={(prod) => setDetailProduct(prod)}
+                  onOpen={(prod) => setDetailProduct(prod)}
                 />
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      <ProductDetailSheet
+        product={detailProduct}
+        onClose={() => setDetailProduct(null)}
+        onAdd={handleAddFromSheet}
+      />
     </>
   );
 }
