@@ -185,26 +185,18 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   };
 
   const profilesP = fetchPublicProfiles(userIds);
-  // JOIN com profiles via FK user_id pra trazer name/tag/avatar — sem isso o
-  // feed sempre mostrava "Usuário" porque o feed query não enrichava o autor
-  // do comment (Wave B só carrega 5 colunas raw). Fallback: se a FK não estiver
-  // registrada no PostgREST cache, faz o select sem JOIN e usa o profMap
-  // construído depois (já busca perfis de autores de comments via fetchPublicProfiles).
-  const commentsP = (async () => {
-    const baseSelect = 'id, post_id, user_id, text, created_at';
-    const withAuthor = `${baseSelect}, author:profiles!user_id(name, tag, avatar_url)`;
-    const q1 = withSignal(
-      sb.from('comments').select(withAuthor).in('post_id', postIds).order('created_at', { ascending: true }),
-    );
-    const r1 = await q1;
-    if (!r1.error) return r1;
-    // FK não no cache / esquema. Refaz sem JOIN — o enriquecimento via
-    // profMap mais embaixo cobre author (já fetcha perfis de comment authors).
-    const q2 = withSignal(
-      sb.from('comments').select(baseSelect).in('post_id', postIds).order('created_at', { ascending: true }),
-    );
-    return q2;
-  })();
+  // Comments SEM JOIN. A tentativa anterior `author:profiles!user_id(...)`
+  // falhava em prod (FK não no PostgREST cache → author vinha null), e mesmo
+  // o fallback dependia disso. Agora carregamos só os campos raw e enriquecemos
+  // 100% via profMap depois (que já busca commenters via commentUserIds —
+  // mesma lógica do vanilla, robusto e independente de FK).
+  const commentsP = withSignal(
+    sb
+      .from('comments')
+      .select('id, post_id, user_id, text, created_at')
+      .in('post_id', postIds)
+      .order('created_at', { ascending: true }),
+  );
   const allLikesP = withSignal(
     sb.from('likes').select('post_id').in('post_id', postIds),
   );
@@ -236,29 +228,14 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   // a fetch principal estourou — aqui ficam silenciosos.
   // Casts mínimos só onde o DB row tem nullable que o domain trata como
   // garantido (FK ON DELETE CASCADE, mas Supabase tipa nullable).
-  // author vem como objeto ou array (depende da inferência do supabase-js
-  // pra embedded resource). Normaliza pra `{name, tag, avatar_url} | null`.
-  type RawAuthor =
-    | { name?: string | null; tag?: string | null; avatar_url?: string | null }
-    | Array<{ name?: string | null; tag?: string | null; avatar_url?: string | null }>
-    | null
-    | undefined;
-  const pickAuthor = (raw: RawAuthor) => {
-    if (!raw) return null;
-    if (Array.isArray(raw)) return raw[0] ?? null;
-    return raw;
-  };
-  const commentsArr = (commentsRes.data ?? []).map((c) => {
-    const row = c as typeof c & { author?: RawAuthor };
-    return {
-      id: c.id,
-      post_id: c.post_id ?? '',
-      user_id: c.user_id ?? '',
-      text: c.text,
-      created_at: c.created_at ?? '',
-      author: pickAuthor(row.author),
-    };
-  }) as FeedComment[];
+  const commentsArr = (commentsRes.data ?? []).map((c) => ({
+    id: c.id,
+    post_id: c.post_id ?? '',
+    user_id: c.user_id ?? '',
+    text: c.text,
+    created_at: c.created_at ?? '',
+    author: null, // preenchido pelo backfill abaixo via profMap
+  })) as FeedComment[];
   const allLikesArr = (allLikesRes.data ?? []).filter(
     (l): l is { post_id: string } => typeof l.post_id === 'string',
   );

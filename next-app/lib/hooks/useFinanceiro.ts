@@ -28,6 +28,7 @@ import {
   fetchEntries,
   createEntry,
   deleteEntry,
+  incrementCost,
   getMonthSummary,
   analyzeWithAI,
   type FinEntryInput,
@@ -60,6 +61,12 @@ export interface UseFinanceiroResult {
   remove: (entryId: string) => void;
   isRemoving: boolean;
   removeError: Error | null;
+
+  /** Incrementa material_cost num projeto existente (ex.: lança custo
+   *  adicional num projeto que veio do orçamento). delta em R$. */
+  addCost: (args: { entryId: string; delta: number }) => void;
+  isAddingCost: boolean;
+  addCostError: Error | null;
 
   /** Dispara análise IA dos últimos 30d vs 30d anteriores (PRO). */
   analyze: () => void;
@@ -133,6 +140,17 @@ export function useFinanceiro(monthsBack = 6): UseFinanceiroResult {
     },
   });
 
+  const addCostMutation = useMutation<
+    void,
+    Error,
+    { entryId: string; delta: number }
+  >({
+    mutationFn: ({ entryId, delta }) => incrementCost(entryId, user!.id, delta),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['financeiro', user?.id] });
+    },
+  });
+
   // Análise IA: agrega ÚLTIMOS 30d e [30-60d atrás] em memória a partir do
   // que já carregamos. Se monthsBack >= 2, temos os dados necessários sem
   // bater no banco de novo. Mesma lógica do vanilla (modules/financeiro.js
@@ -178,6 +196,10 @@ export function useFinanceiro(monthsBack = 6): UseFinanceiroResult {
     remove: removeMutation.mutate,
     isRemoving: removeMutation.isPending,
     removeError: removeMutation.error ?? null,
+
+    addCost: addCostMutation.mutate,
+    isAddingCost: addCostMutation.isPending,
+    addCostError: addCostMutation.error ?? null,
 
     analyze: () => analyzeMutation.mutate(),
     isAnalyzing: analyzeMutation.isPending,

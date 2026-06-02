@@ -216,27 +216,42 @@ export async function deleteComment(
 export async function fetchComments(postId: string): Promise<PostComment[]> {
   if (!postId) return [];
   const sb = getSupabase();
-  // JOIN com profiles via FK user_id pra trazer name/tag/avatar de uma vez —
-  // evita N+1 lookups no client. Fallback embedded resource pra `profiles_public`
-  // se a FK direta a `profiles` não resolver (PostgREST cai pra view nesse caso).
+  // 2-step em vez de JOIN: PostgREST embedded resource via `profiles!user_id`
+  // estava silenciosamente devolvendo null em prod (FK não no cache do
+  // PostgREST). Fazemos select dos comments + select dos perfis dos autores
+  // separado — 2 round-trips mas resultado consistente.
   const { data, error } = await sb
     .from('comments')
-    .select(
-      'id, post_id, user_id, text, created_at, author:profiles!user_id(name, tag, avatar_url)',
-    )
+    .select('id, post_id, user_id, text, created_at')
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
-  if (error) {
-    // Fallback sem join — UI usa "Usuário" como antes.
-    const fb = await sb
-      .from('comments')
-      .select('id, post_id, user_id, text, created_at')
-      .eq('post_id', postId)
-      .order('created_at', { ascending: true });
-    if (fb.error) throw new NetworkError(fb.error.message, fb.error);
-    return (fb.data ?? []) as PostComment[];
+  if (error) throw new NetworkError(error.message, error);
+  const rows = (data ?? []) as Array<{
+    id: string;
+    post_id: string | null;
+    user_id: string | null;
+    text: string;
+    created_at: string | null;
+  }>;
+  const authorIds = [...new Set(rows.map((r) => r.user_id).filter((u): u is string => !!u))];
+  let authors: Record<string, { name?: string | null; tag?: string | null; avatar_url?: string | null }> = {};
+  if (authorIds.length > 0) {
+    const { data: profs } = await sb
+      .from('profiles_public')
+      .select('id, name, tag, avatar_url')
+      .in('id', authorIds);
+    for (const p of (profs ?? []) as Array<{ id: string | null; name: string | null; tag: string | null; avatar_url: string | null }>) {
+      if (p.id) authors[p.id] = { name: p.name, tag: p.tag, avatar_url: p.avatar_url };
+    }
   }
-  return (data ?? []) as unknown as PostComment[];
+  return rows.map((r) => ({
+    id: r.id,
+    post_id: r.post_id ?? '',
+    user_id: r.user_id ?? '',
+    text: r.text,
+    created_at: r.created_at ?? '',
+    author: r.user_id ? authors[r.user_id] ?? null : null,
+  })) as PostComment[];
 }
 
 // ─── SAVED POSTS ───────────────────────────────────────────────────────────

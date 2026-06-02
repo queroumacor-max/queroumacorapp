@@ -21,21 +21,37 @@
 
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  hydrateQueryCache,
+  installQueryPersistence,
+} from '@/lib/queryPersistence';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 30_000,
-            retry: 1,
-            refetchOnWindowFocus: false,
-          },
+  const [client] = useState(() => {
+    const c = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 30_000,
+          retry: 1,
+          refetchOnWindowFocus: false,
         },
-      })
-  );
+      },
+    });
+    // Hidrata SÍNCRONO no init do client — antes do primeiro render dos
+    // consumers. Isso é o que faz o refresh mostrar dados instantaneamente
+    // (em vez de skeleton zerado por 2-7s). useEffect rodaria DEPOIS do
+    // mount, perdendo o paint inicial.
+    hydrateQueryCache(c);
+    return c;
+  });
+
+  // Subscribe ao cache pra salvar em localStorage (throttle 1s). Cleanup
+  // remove o listener quando provider desmonta.
+  useEffect(() => {
+    return installQueryPersistence(client);
+  }, [client]);
+
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
