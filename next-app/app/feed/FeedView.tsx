@@ -30,11 +30,13 @@ interface FilterButton {
   label: string;
 }
 
+// Labels espelham EXATO o vanilla (index.html linha 605+): emoji prefix,
+// "Pintura"/"Grafite" (categoria) em vez de "Pintores"/"Grafiteiros" (pessoas).
 const FILTER_BUTTONS: readonly FilterButton[] = [
-  { value: '', label: 'Tudo' },
-  { value: 'pintor', label: 'Pintores' },
-  { value: 'grafiteiro', label: 'Grafiteiros' },
-  { value: 'automotivo', label: 'Automotivo' },
+  { value: '', label: 'Todos' },
+  { value: 'pintor', label: '🖌️ Pintura' },
+  { value: 'grafiteiro', label: '🎨 Grafite' },
+  { value: 'automotivo', label: '🚗 Automotivo' },
 ];
 
 function PostSkeleton() {
