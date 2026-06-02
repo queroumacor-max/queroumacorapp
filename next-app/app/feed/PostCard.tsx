@@ -18,8 +18,10 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/Avatar';
+import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
 import { useLike, useSavedPosts } from '@/lib/hooks/usePostInteractions';
 import { getTimeAgo } from '@/lib/utils';
@@ -55,6 +57,7 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
   const { liked, count: likeCount, toggle: toggleLike } = useLike(post.id);
   const { isSaved, toggle: toggleSave } = useSavedPosts();
   const saved = isSaved(post.id);
+  const [showComment, setShowComment] = useState(false);
 
   const isOwn = !!user && user.id === post.user_id;
 
@@ -181,7 +184,11 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
           <BrushIcon active={liked} />
         </ActionButton>
 
-        <ActionButton label="Comentar" ariaLabel="Comentar">
+        <ActionButton
+          label="Comentar"
+          ariaLabel="Comentar"
+          onClick={() => setShowComment((v) => !v)}
+        >
           <CommentIcon />
         </ActionButton>
 
@@ -206,6 +213,15 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
           </ActionButton>
         </div>
       </div>
+
+      {showComment ? (
+        <div style={{ padding: '4px 14px 8px' }}>
+          <CommentForm
+            postId={post.id}
+            onSuccess={() => setShowComment(false)}
+          />
+        </div>
+      ) : null}
 
       {likeCount > 0 ? (
         <div
