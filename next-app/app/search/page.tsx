@@ -6,6 +6,7 @@
 
 import type { Metadata } from 'next';
 import { SearchResults } from './SearchResults';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Buscar | QueroUmaCor',
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function SearchPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -26,6 +27,6 @@ export default function SearchPage() {
         Pintores, posts e produtos — tudo num lugar só.
       </p>
       <SearchResults />
-    </main>
+    </div></AppShell>
   );
 }

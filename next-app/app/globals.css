@@ -4,14 +4,16 @@
    migração — usuário não percebe transição entre features old/new. */
 @theme {
   --color-ink: #1a1a2e;
-  --color-muted: #6b7280;
+  --color-ink2: #16213e;
+  --color-cream: #f7f3ee;
+  --color-muted: #6b6457;
   --color-bg: #f7f3ee;
   --color-white: #ffffff;
-  --color-border: #e5e1d8;
-  --color-p1: #ff6b35;
-  --color-p2: #f4a300;
-  --color-p3: #2ec4b6;
-  --color-p4: #8338ec;
+  --color-border: #e8e2d9;
+  --color-p1: #ff6b35;   /* orange */
+  --color-p2: #f7c59f;   /* peach */
+  --color-p3: #2ec4b6;   /* teal */
+  --color-p4: #e63946;   /* red (alertas/badges) */
   --color-success: #16a34a;
   --color-danger: #e63946;
   --font-display: 'Syne', system-ui, sans-serif;

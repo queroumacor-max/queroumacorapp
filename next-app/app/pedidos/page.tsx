@@ -15,6 +15,7 @@
 
 import type { Metadata } from 'next';
 import { PedidosList } from './PedidosList';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Pedidos | QueroUmaCor',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function PedidosPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -34,6 +35,6 @@ export default function PedidosPage() {
         Compras da loja Cali Colors
       </p>
       <PedidosList />
-    </main>
+    </div></AppShell>
   );
 }

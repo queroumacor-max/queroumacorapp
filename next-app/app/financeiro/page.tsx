@@ -12,6 +12,7 @@
 
 import type { Metadata } from 'next';
 import { Dashboard } from './Dashboard';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Financeiro | QueroUmaCor',
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function FinanceiroPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -32,6 +33,6 @@ export default function FinanceiroPage() {
         Lucro, custos e análise dos últimos meses
       </p>
       <Dashboard />
-    </main>
+    </div></AppShell>
   );
 }

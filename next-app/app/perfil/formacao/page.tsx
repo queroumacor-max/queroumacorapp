@@ -14,6 +14,7 @@
 import type { Metadata } from 'next';
 import { QualsSection } from './QualsSection';
 import { CoursesSection } from './CoursesSection';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Formação & Cursos | QueroUmaCor',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function FormacaoPage() {
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-2xl mx-auto">
       <h1
         className="text-3xl font-bold mb-2"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -37,6 +38,6 @@ export default function FormacaoPage() {
         <QualsSection />
         <CoursesSection />
       </div>
-    </main>
+    </div></AppShell>
   );
 }

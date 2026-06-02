@@ -13,6 +13,7 @@ import type { Metadata } from 'next';
 import { EditProfileForm } from './EditProfileForm';
 import { EditEspecialidadesForm } from './EditEspecialidadesForm';
 import { EditRaioForm } from './EditRaioForm';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Editar perfil | QueroUmaCor',
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function EditarPerfilPage() {
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto space-y-6">
+    <AppShell><div className="min-h-screen p-4 max-w-2xl mx-auto space-y-6">
       <header>
         <h1
           className="text-3xl font-bold mb-2"
@@ -64,6 +65,6 @@ export default function EditarPerfilPage() {
         </h2>
         <EditRaioForm />
       </section>
-    </main>
+    </div></AppShell>
   );
 }

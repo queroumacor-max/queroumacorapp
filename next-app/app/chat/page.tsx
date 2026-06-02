@@ -5,6 +5,7 @@
 
 import type { Metadata } from 'next';
 import { ChatList } from './ChatList';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Chat | QueroUmaCor',
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function ChatPage() {
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
+    <AppShell><div className="min-h-screen p-4 max-w-2xl mx-auto">
       <h1
         className="text-3xl font-bold mb-4"
         style={{ fontFamily: 'var(--font-display)' }}
@@ -21,6 +22,6 @@ export default function ChatPage() {
         Chat
       </h1>
       <ChatList />
-    </main>
+    </div></AppShell>
   );
 }
