@@ -1,18 +1,19 @@
 // RealtimeBindings — monta as subscriptions globais que devem viver
-// enquanto o user está autenticado. Hoje cobre:
-//   - useProfileRealtime: profile UPDATE invalida cache (PRO destranca,
-//     avatar/bio refletem, etc).
+// enquanto o user está autenticado:
+//   - useProfileRealtime: profile UPDATE invalida cache (PRO destranca etc)
+//   - useGlobalRealtime: posts/comments/likes/follows/jobs/points/stories
+//     → invalidam queries relevantes pra sensação Instagram/TikTok instantânea
 //
-// Mount-once em AppShell (qualquer tela authenticated). Componente
-// retorna null — só efeito colateral. Usa useAuth pra pegar o user.id;
-// hook é no-op se userId for null.
+// Mount-once em AppShell (qualquer tela authenticated).
 'use client';
 
 import { useAuth } from '@/components/AuthProvider';
 import { useProfileRealtime } from '@/lib/hooks/useProfileRealtime';
+import { useGlobalRealtime } from '@/lib/hooks/useGlobalRealtime';
 
 export function RealtimeBindings() {
   const { user } = useAuth();
   useProfileRealtime(user?.id ?? null);
+  useGlobalRealtime(user?.id ?? null);
   return null;
 }

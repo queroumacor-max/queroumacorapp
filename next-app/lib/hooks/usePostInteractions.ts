@@ -162,9 +162,41 @@ export function useComments(postId: string): UseCommentsResult {
     staleTime: 30_000,
   });
 
-  const addMut = useMutation<PostComment, Error, string>({
+  const addMut = useMutation<
+    PostComment,
+    Error,
+    string,
+    { previous: PostComment[] | undefined; tempId: string }
+  >({
     mutationFn: (text: string) => addComment(userId, postId, text),
-    onSuccess: () => {
+    // Otimista: prepend de comment temporário pra UI atualizar na hora.
+    // Reconciliação no onSuccess troca o temp pelo row real do servidor.
+    onMutate: async (text: string) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<PostComment[]>(key);
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const temp: PostComment = {
+        id: tempId,
+        post_id: postId,
+        user_id: userId,
+        text,
+        created_at: new Date().toISOString(),
+        author: null,
+      };
+      qc.setQueryData<PostComment[]>(key, (old) => [...(old ?? []), temp]);
+      return { previous, tempId };
+    },
+    onError: (_err, _text, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(key, ctx.previous);
+    },
+    onSuccess: (real, _text, ctx) => {
+      // Troca temp pelo row real (mesma referência preservada se possível).
+      qc.setQueryData<PostComment[]>(key, (old) =>
+        (old ?? []).map((c) => (c.id === ctx?.tempId ? real : c)),
+      );
+    },
+    onSettled: () => {
+      // Garante consistência final com banco (autor pode chegar via JOIN só agora).
       qc.invalidateQueries({ queryKey: key });
     },
   });
