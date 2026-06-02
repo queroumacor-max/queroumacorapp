@@ -229,10 +229,41 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
         <div className="mt-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div
-              className="font-extrabold"
+              className="font-extrabold flex items-center gap-1.5"
               style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}
             >
               {name}
+              {/* Badge verificado (PRO benefit "✓ Badge verificado no perfil"
+                  do #pro-modal). Selo azul estilo IG/Twitter pra dar
+                  confiança visual em listas e busca. */}
+              {isPro ? (
+                <span
+                  aria-label="Perfil verificado"
+                  title="Perfil verificado"
+                  className="inline-flex items-center justify-center"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    background: '#1d9bf0',
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+              ) : null}
             </div>
             {isPro ? (
               <span

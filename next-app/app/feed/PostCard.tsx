@@ -211,10 +211,28 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <span
-            className="block truncate"
+            className="flex items-center gap-1 truncate"
             style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}
           >
-            {name}
+            <span className="truncate">{name}</span>
+            {/* Badge verificado: PRO benefit (#pro-modal "✓ Badge verificado") */}
+            {(post.profile as { is_pro?: boolean | null })?.is_pro ? (
+              <span
+                aria-label="Verificado"
+                title="Perfil verificado"
+                className="inline-flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: '#1d9bf0',
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+            ) : null}
           </span>
           {handle ? (
             <span
