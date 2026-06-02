@@ -8,6 +8,9 @@ import { AppShell } from '@/components/AppShell';
 import { ProfileHeader } from './ProfileHeader';
 import { BusinessGrid } from './BusinessGrid';
 import { ProfileFooter } from './ProfileFooter';
+import { PintorRequestsSection } from './PintorRequestsSection';
+import { InviteSection } from './InviteSection';
+import { PortfolioSection } from './PortfolioSection';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -27,6 +30,17 @@ export default function PerfilPage() {
           Meu Negócio
         </div>
         <BusinessGrid />
+      </div>
+
+      {/* Pedidos de Orçamento (empty state pra pintor sem pedidos) */}
+      <PintorRequestsSection />
+
+      {/* Convidar Amigos — gera código QUC-XXXXX + share */}
+      <div className="px-3.5 pt-4 pb-2">
+        <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
+          Convidar Amigos
+        </div>
+        <InviteSection />
       </div>
 
       {/* Configurações — card branco com rows. "Ver meu perfil público"
@@ -69,6 +83,9 @@ export default function PerfilPage() {
           </Link>
         </div>
       </div>
+
+      {/* Meu Portfólio — grid 3-col dos posts próprios */}
+      <PortfolioSection />
 
       {/* Sair — botão isolado, full width, estilo vanilla */}
       <ProfileFooter />
