@@ -28,10 +28,15 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
   const { profile } = useProfile();
 
   // Derivação automática se o caller não passou proStatus.
+  // is_admin/portal_access podem não estar no SELECT (Profile type
+  // marca opcional) — só is_pro é garantido. Cast defensivo:
+  const p = profile as
+    | (typeof profile & { is_admin?: boolean | null; portal_access?: boolean | null })
+    | null;
   const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' =
-    profile?.is_admin || profile?.portal_access
+    p?.is_admin || p?.portal_access
       ? 'ADMIN'
-      : profile?.is_pro
+      : p?.is_pro
         ? 'PRO'
         : 'GRÁTIS';
   const badge = proStatus ?? computed;
