@@ -7,6 +7,13 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'QueroUmaCor',
   description: 'A plataforma dos pintores profissionais',
+  // Ícones servidos como assets estáticos em /public — `app/icon.png` virou
+  // route dinâmica pro @cloudflare/next-on-pages e estourava build sem
+  // `export const runtime = 'edge'`. Manter em /public evita o problema.
+  icons: {
+    icon: '/icon-192.png',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
