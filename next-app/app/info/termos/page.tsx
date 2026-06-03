@@ -26,6 +26,10 @@ export default function TermosPage() {
         profissionais de pintura. O QueroUmaCor não presta serviços de pintura
         e não é parte nos contratos firmados entre os usuários.
       </LegalP>
+      <LegalP>
+        Operadora: <b>Cali Colors</b>, CNPJ <b>__.___.___/____-__</b>, com sede em{' '}
+        <b>[endereço completo]</b>. Contato: <b>loja@calicolors.com.br</b>.
+      </LegalP>
 
       <LegalH>3. Cadastro e conta</LegalH>
       <LegalP>

@@ -30,6 +30,17 @@
   Service-Worker-Allowed: /
   Cache-Control: public, max-age=0, must-revalidate
 
+# Digital Asset Links — verificação de domínio pra TWA Android (Play Store).
+# Content-Type EXATO é obrigatório pro Google reconhecer o app.
+/.well-known/assetlinks.json
+  Content-Type: application/json
+  Cache-Control: public, max-age=86400
+
+# Manifest do PWA — TWA precisa pra reconhecer o app
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=300
+
 # Assets versionados (com ?v=) podem ter cache longo
 /head.js
   Cache-Control: public, max-age=31536000, immutable
