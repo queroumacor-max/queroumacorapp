@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react';
 import { useStories } from '@/lib/hooks/useStories';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 import type { StoryGroup } from '@/lib/services/stories';
 import { StoryViewer } from './StoryViewer';
 
@@ -24,15 +25,23 @@ export interface StoriesCarouselProps {
 export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarouselProps) {
   const { groups, loading } = useStories(followingIds);
   const { user } = useAuth();
+  const { profile } = useProfile();
   const [viewerOpenAt, setViewerOpenAt] = useState<number | null>(null);
 
   const items = useMemo(() => groups, [groups]);
   // O usuário já tem story próprio publicado? Se sim, vira o 1º grupo;
-  // senão, mostramos o "Seu story" com o ícone "+" pra criar.
+  // senão, mostramos o "Seu story" com avatar do profile (em vez do ícone
+  // person padrão) — UX igual Instagram: foto do user sempre visível.
   const ownStoryIdx = user
     ? items.findIndex((g) => g.user_id === user.id)
     : -1;
   const hasOwnStory = ownStoryIdx >= 0;
+  // Avatar exibido no slot "Seu story":
+  // - Se tem story → avatar do story (sincronizado com o que aparece pros outros)
+  // - Senão → avatar do profile (foto que o user setou em /perfil/editar)
+  const selfAvatar = hasOwnStory
+    ? items[ownStoryIdx]?.profile.avatar_url ?? null
+    : (profile?.avatar_url as string | null) ?? null;
 
   return (
     <>
@@ -48,9 +57,7 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
         {/* "Seu story" — sempre o primeiro, replica vanilla. */}
         <SelfStoryAvatar
           hasOwnStory={hasOwnStory}
-          ownStoryAvatar={
-            hasOwnStory ? items[ownStoryIdx]?.profile.avatar_url ?? null : null
-          }
+          ownStoryAvatar={selfAvatar}
           onView={() => {
             if (hasOwnStory) setViewerOpenAt(ownStoryIdx);
             else if (onCreateStory) onCreateStory();

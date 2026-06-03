@@ -25,7 +25,7 @@ interface TopNavProps {
 
 export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
   const { user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, loading: profileLoading } = useProfile();
 
   // Derivação automática se o caller não passou proStatus.
   // is_admin/portal_access podem não estar no SELECT (Profile type
@@ -48,12 +48,18 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
     (p?.pro_expires_at ? new Date(p.pro_expires_at).getTime() > now : false) ||
     (p?.pro_grace_until ? new Date(p.pro_grace_until).getTime() > now : false);
 
-  const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' =
-    p?.is_admin || p?.portal_access
-      ? 'ADMIN'
-      : isProActive
-        ? 'PRO'
-        : 'GRÁTIS';
+  // Durante o loading (profile ainda não chegou do banco/cache), mostra
+  // '···' em vez de cair pra 'GRÁTIS' default — evita flash falso pra admin/PRO
+  // recém-logado. cache persistence resolve a maioria dos casos (hidratação
+  // síncrona), mas no primeiro login esse fallback é a rede mostrando trabalho.
+  const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' | '···' =
+    profileLoading && !profile
+      ? '···'
+      : p?.is_admin || p?.portal_access
+        ? 'ADMIN'
+        : isProActive
+          ? 'PRO'
+          : 'GRÁTIS';
   const badge = proStatus ?? computed;
 
   return (

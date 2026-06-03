@@ -37,10 +37,10 @@ export function useProfile(): UseProfileResult {
     queryKey: ['profile', user?.id],
     queryFn: () => getProfile(user!.id),
     enabled: !!user,
-    // staleTime curto (10s) — useProfileRealtime invalida o cache em qualquer
-    // UPDATE em profiles, então sempre temos dado fresco quando relevante.
-    // Os 10s só evitam re-fetch em re-renders próximos (mesma sessão).
-    staleTime: 10_000,
+    // staleTime 5min — useProfileRealtime invalida em qualquer UPDATE em
+    // profiles, então temos dado fresco quando muda de verdade. Antes era 10s,
+    // o que causava 30-50% de refetches desnecessários em navegação normal.
+    staleTime: 5 * 60_000,
     // Refetch sempre que a aba volta a ter foco (default true, explícito
     // pra deixar claro).
     refetchOnWindowFocus: true,

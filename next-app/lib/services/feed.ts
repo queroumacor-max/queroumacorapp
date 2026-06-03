@@ -190,12 +190,18 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   // o fallback dependia disso. Agora carregamos só os campos raw e enriquecemos
   // 100% via profMap depois (que já busca commenters via commentUserIds —
   // mesma lógica do vanilla, robusto e independente de FK).
+  // Cap defensivo de 200 comments por wave (típico: 10 posts × 5 comments
+  // visíveis no card = 50; 200 cobre posts populares sem catástrofe de payload).
+  // Posts com mais comments têm o resto carregado on-demand no /post/[id].
+  // Ordenamos DESC pra pegar os mais recentes; sort asc é feito client-side
+  // depois (createdAt no commentsArr.sort).
   const commentsP = withSignal(
     sb
       .from('comments')
       .select('id, post_id, user_id, text, created_at')
       .in('post_id', postIds)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: false })
+      .limit(200),
   );
   const allLikesP = withSignal(
     sb.from('likes').select('post_id').in('post_id', postIds),
@@ -283,12 +289,17 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
     }
   }
 
-  // Bucketiza comments por post — mantém a ordem original (created_at asc).
+  // Bucketiza comments por post. Query veio DESC (mais recentes primeiro)
+  // pra respeitar o cap global de 200 — re-sortamos ASC dentro de cada
+  // bucket pra UI mostrar do mais antigo pro mais novo (padrão IG/FB).
   const commentsByPost = new Map<string, FeedComment[]>();
   for (const c of commentsArr) {
     const list = commentsByPost.get(c.post_id);
     if (list) list.push(c);
     else commentsByPost.set(c.post_id, [c]);
+  }
+  for (const list of commentsByPost.values()) {
+    list.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   // Enriquece + (opcional) filtra por role do autor.

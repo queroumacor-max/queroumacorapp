@@ -18,7 +18,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useFeed } from '@/lib/hooks/useFeed';
 import { PostCard } from './PostCard';
@@ -65,6 +65,9 @@ export function FeedView() {
   // Default muted=true porque autoplay sem mute é bloqueado em quase todos
   // os browsers desktop/mobile. Mesma decisão do vanilla.
   const [videoMuted, setVideoMuted] = useState(true);
+  // useCallback estabiliza a referência — sem isso, todo PostCard re-renderiza
+  // a cada mudança de qualquer state no FeedView (re-render bomb em feeds longos).
+  const toggleMute = useCallback(() => setVideoMuted((m) => !m), []);
 
   const { posts, loading, error, hasMore, loadingMore, loadMore, refetch } = useFeed({
     roleFilter,
@@ -177,7 +180,7 @@ export function FeedView() {
               <PostCard
                 post={p}
                 muted={videoMuted}
-                onToggleMute={() => setVideoMuted((m) => !m)}
+                onToggleMute={toggleMute}
               />
             </li>
           ))}

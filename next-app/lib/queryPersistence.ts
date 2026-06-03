@@ -40,10 +40,16 @@ const PERSIST_PREFIXES = [
   'pedidos',
   'post-comments',
   'post-like',
+  'saved-posts',
   'follow-state',
   'following-ids',
   'followers',
   'art-listings',
+  'chat',
+  'conversations',
+  'checklists',
+  'business-logo',
+  'search-all',
 ];
 
 interface PersistedEntry {
