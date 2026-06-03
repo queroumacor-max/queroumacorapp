@@ -52,10 +52,20 @@ export default function SobrePage() {
             borderTop: '1px solid var(--color-border)',
             fontSize: 12,
             color: 'var(--color-muted)',
+            lineHeight: 1.6,
           }}
         >
           Feito no Brasil 🇧🇷
           <br />© 2026 QueroUmaCor. Todos os direitos reservados.
+          <br />
+          <br />
+          <b style={{ color: 'var(--color-ink)' }}>Cali Colors</b>
+          <br />
+          CNPJ: __.___.___/____-__
+          <br />
+          [endereço completo]
+          <br />
+          loja@calicolors.com.br
         </div>
         <div className="flex gap-2 mt-4">
           <Link

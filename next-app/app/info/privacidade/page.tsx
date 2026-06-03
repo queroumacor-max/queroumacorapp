@@ -21,7 +21,9 @@ export default function PrivacidadePage() {
 
       <LegalH>1. Quem é o controlador</LegalH>
       <LegalP>
-        O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor).
+        O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor),
+        inscrita no CNPJ <b>__.___.___/____-__</b>, com sede em{' '}
+        <b>[endereço completo da empresa]</b>.
         Para questões sobre privacidade ou exercer seus direitos LGPD, contate
         nosso Encarregado de Proteção de Dados (DPO) pelo e-mail{' '}
         <b>loja@calicolors.com.br</b> ou pelos canais em &quot;Fale Conosco&quot;.
@@ -91,6 +93,15 @@ export default function PrivacidadePage() {
           <b>Google LLC</b> (EUA) — geração de texto e sugestões via IA (Gemini,
           fallback do &apos;Seu Zé&apos;)
         </li>
+        <li>
+          <b>Functional Software Inc. (Sentry)</b> (EUA) — coleta de erros e
+          relatórios de falhas do aplicativo, sem dados pessoais identificáveis
+        </li>
+        <li>
+          <b>Mercado Pago</b> (Brasil) — processamento de pagamentos do plano
+          PRO e da loja. O QueroUmaCor não armazena dados de cartão; o
+          checkout é feito direto no ambiente seguro do Mercado Pago
+        </li>
       </ul>
       <LegalP>
         A transferência internacional desses dados ocorre com base no Art. 33 da
@@ -143,7 +154,17 @@ export default function PrivacidadePage() {
         acompanhamento dos responsáveis, nos termos do Art. 14 da LGPD.
       </LegalP>
 
-      <LegalH>12. Alterações desta política</LegalH>
+      <LegalH>12. Cookies e armazenamento local</LegalH>
+      <LegalP>
+        O aplicativo usa <b>localStorage</b> e <b>IndexedDB</b> do seu navegador
+        apenas para fins técnicos: manter você logado, salvar rascunhos de
+        formulários, cachear dados pra navegação mais rápida e lembrar
+        preferências (ex.: modo claro/escuro). Não usamos cookies de
+        rastreamento publicitário nem compartilhamos seu comportamento com
+        anunciantes.
+      </LegalP>
+
+      <LegalH>13. Alterações desta política</LegalH>
       <LegalP>
         Podemos atualizar esta política periodicamente. Mudanças relevantes
         serão informadas no aplicativo.
