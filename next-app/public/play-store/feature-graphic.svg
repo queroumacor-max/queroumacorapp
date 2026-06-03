@@ -1,0 +1,216 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <!--
+    Feature Graphic do Play Store — 1024x500 PNG é o que o Console aceita.
+    Esse SVG é a fonte; converter pra PNG via:
+      - Online: https://svgtopng.com (cole o conteúdo)
+      - CLI: rsvg-convert -w 1024 -h 500 feature-graphic.svg -o feature-graphic.png
+      - Inkscape: File → Export PNG @ 1024×500
+    Cores batem com a identidade Cali Colors: ink #1a1a2e + p1 #FF6B35 + p4 #8338ec.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0e0e1f"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FF6B35"/>
+      <stop offset="100%" stop-color="#FF8A5C"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8338ec"/>
+      <stop offset="100%" stop-color="#5b1eb8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B35" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#FF6B35" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fundo ink -->
+  <rect width="1024" height="500" fill="url(#bg)"/>
+
+  <!-- Glow laranja decorativo -->
+  <circle cx="820" cy="250" r="280" fill="url(#glow)"/>
+
+  <!-- Pincel/respingo decorativo (canto inferior esquerdo) -->
+  <g opacity="0.12">
+    <circle cx="50" cy="450" r="8" fill="#FF6B35"/>
+    <circle cx="90" cy="430" r="14" fill="#FF6B35"/>
+    <circle cx="140" cy="460" r="6" fill="#8338ec"/>
+    <circle cx="20" cy="410" r="10" fill="#2ec4b6"/>
+  </g>
+
+  <!-- Logo (texto): Quero[Uma]Cor — Syne extrabold -->
+  <text x="80" y="180"
+        font-family="'Syne', 'Inter', Arial, sans-serif"
+        font-weight="800"
+        font-size="84"
+        letter-spacing="-2"
+        fill="#ffffff">
+    Quero<tspan fill="#FF6B35">Uma</tspan>Cor
+  </text>
+
+  <!-- Tagline -->
+  <text x="80" y="240"
+        font-family="'DM Sans', 'Inter', Arial, sans-serif"
+        font-weight="600"
+        font-size="26"
+        fill="rgba(255,255,255,0.78)">
+    A plataforma dos pintores profissionais
+  </text>
+
+  <!-- Pills de features (linha 1) -->
+  <g transform="translate(80, 290)">
+    <rect width="180" height="44" rx="22" fill="url(#orange)"/>
+    <text x="90" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      ✨ Orçamentos com IA
+    </text>
+  </g>
+
+  <g transform="translate(280, 290)">
+    <rect width="160" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+    <text x="80" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      📅 Agenda + CRM
+    </text>
+  </g>
+
+  <g transform="translate(460, 290)">
+    <rect width="180" height="44" rx="22" fill="url(#purple)"/>
+    <text x="90" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      🎨 Arte pra Instagram
+    </text>
+  </g>
+
+  <!-- Pills (linha 2) -->
+  <g transform="translate(80, 348)">
+    <rect width="160" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+    <text x="80" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      📸 Portfólio
+    </text>
+  </g>
+
+  <g transform="translate(260, 348)">
+    <rect width="180" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+    <text x="90" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      💰 Financeiro + IA
+    </text>
+  </g>
+
+  <g transform="translate(460, 348)">
+    <rect width="140" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+    <text x="70" y="29"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="14"
+          fill="#ffffff"
+          text-anchor="middle">
+      🛒 Loja
+    </text>
+  </g>
+
+  <!-- Mockup de celular à direita (decorativo, com gradient laranja→roxo) -->
+  <g transform="translate(700, 80)">
+    <!-- Bezel do celular -->
+    <rect x="0" y="0" width="240" height="430" rx="36" fill="#0a0a18" stroke="#3a3a52" stroke-width="2"/>
+    <!-- Tela -->
+    <rect x="14" y="20" width="212" height="390" rx="22" fill="url(#bg)"/>
+    <!-- Notch -->
+    <rect x="100" y="22" width="40" height="6" rx="3" fill="#0a0a18"/>
+
+    <!-- Logo dentro do mockup -->
+    <text x="120" y="80"
+          font-family="'Syne', sans-serif"
+          font-weight="800"
+          font-size="20"
+          fill="#ffffff"
+          text-anchor="middle">
+      Quero<tspan fill="#FF6B35">Uma</tspan>Cor
+    </text>
+
+    <!-- Avatar circular (admin badge) -->
+    <circle cx="120" cy="130" r="28" fill="url(#purple)"/>
+    <text x="120" y="138"
+          font-family="'Syne', sans-serif"
+          font-weight="800"
+          font-size="22"
+          fill="#ffffff"
+          text-anchor="middle">J</text>
+
+    <!-- Stats row -->
+    <text x="120" y="180"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="11"
+          fill="#ffffff"
+          text-anchor="middle">12 posts · 240 seguidores</text>
+
+    <!-- Botões mock -->
+    <rect x="40" y="200" width="160" height="34" rx="17" fill="url(#orange)"/>
+    <text x="120" y="221"
+          font-family="'DM Sans', sans-serif"
+          font-weight="700"
+          font-size="12"
+          fill="#ffffff"
+          text-anchor="middle">+ Novo orçamento</text>
+
+    <!-- Grid de tiles -->
+    <g transform="translate(34, 254)">
+      <rect width="50" height="50" rx="10" fill="rgba(255,255,255,0.10)"/>
+      <text x="25" y="32"
+            font-size="20"
+            text-anchor="middle">📋</text>
+
+      <rect x="60" width="50" height="50" rx="10" fill="rgba(255,255,255,0.10)"/>
+      <text x="85" y="32"
+            font-size="20"
+            text-anchor="middle">📷</text>
+
+      <rect x="120" width="50" height="50" rx="10" fill="rgba(255,255,255,0.10)"/>
+      <text x="145" y="32"
+            font-size="20"
+            text-anchor="middle">🧮</text>
+    </g>
+
+    <g transform="translate(34, 314)">
+      <rect width="50" height="50" rx="10" fill="rgba(255,255,255,0.10)"/>
+      <text x="25" y="32"
+            font-size="20"
+            text-anchor="middle">💰</text>
+
+      <rect x="60" width="50" height="50" rx="10" fill="rgba(255,255,255,0.10)"/>
+      <text x="85" y="32"
+            font-size="20"
+            text-anchor="middle">🎨</text>
+
+      <rect x="120" width="50" height="50" rx="10" fill="url(#purple)"/>
+      <text x="145" y="32"
+            font-size="20"
+            text-anchor="middle">🤖</text>
+    </g>
+  </g>
+</svg>
