@@ -58,6 +58,7 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
         <SelfStoryAvatar
           hasOwnStory={hasOwnStory}
           ownStoryAvatar={selfAvatar}
+          ownTag={(profile as { tag?: string | null } | null)?.tag ?? null}
           onView={() => {
             if (hasOwnStory) setViewerOpenAt(ownStoryIdx);
             else if (onCreateStory) onCreateStory();
@@ -113,6 +114,8 @@ interface SelfStoryAvatarProps {
   hasOwnStory: boolean;
   /** Avatar URL do próprio user — exibido no círculo se já tem story. */
   ownStoryAvatar: string | null;
+  /** @tag do user pra mostrar embaixo (em vez de "Seu story" genérico). */
+  ownTag: string | null;
   /** Click no AVATAR: abre viewer (se tem story) ou publisher (se não tem). */
   onView: () => void;
   /** Click no badge "+": sempre abre publisher pra criar nova publicação. */
@@ -122,6 +125,7 @@ interface SelfStoryAvatarProps {
 function SelfStoryAvatar({
   hasOwnStory,
   ownStoryAvatar,
+  ownTag,
   onView,
   onCreate,
 }: SelfStoryAvatarProps) {
@@ -189,8 +193,11 @@ function SelfStoryAvatar({
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>
-      <span className="text-[11px] text-white/85 max-w-[64px] truncate">
-        Seu story
+      <span
+        className="text-[11px] text-white/85 max-w-[64px] truncate"
+        title={ownTag ? '@' + ownTag : 'Seu story'}
+      >
+        {ownTag ? '@' + ownTag : 'Seu story'}
       </span>
     </div>
   );
