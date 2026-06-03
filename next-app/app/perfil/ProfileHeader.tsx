@@ -12,7 +12,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useDialog } from '@/components/Dialog';
@@ -42,37 +42,40 @@ export function ProfileHeader() {
   const dialog = useDialog();
   const { profile } = useProfile();
 
-  const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
+  // Stats (posts/followers/following) via TanStack Query — assim ficam
+  // cacheadas + persistidas via queryPersistence (refresh = mostra anterior
+  // na hora). Antes usava useState + useEffect, refetchava a cada navegação
+  // pro perfil e dava 0/0/0 piscando enquanto Promise.all rodava.
+  const statsQuery = useQuery<Stats, Error>({
+    queryKey: ['profile-stats', user?.id],
+    queryFn: async () => {
+      const [posts, followers, following] = await Promise.all([
+        DB.posts.countByUser(user!.id),
+        DB.follows.countFollowers(user!.id),
+        DB.follows.countFollowing(user!.id),
+      ]);
+      return { posts, followers, following };
+    },
+    enabled: !!user?.id,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const stats: Stats = statsQuery.data ?? { posts: 0, followers: 0, following: 0 };
+
   // Fallback do avatar via profiles_public (mesma fonte que o feed usa pra
   // mostrar Jackson Matos no header do post). Se `useProfile().avatar_url`
-  // vier null mas a view tiver a URL, usa ela. Resolve o caso em que a
-  // tabela `profiles` direto retorna avatar_url null por algum motivo
-  // (RLS, cache stale, ou row antiga sem o campo populado mas o sync
-  // trigger só popula em UPDATE).
-  const [publicAvatar, setPublicAvatar] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancel = false;
-    Promise.all([
-      DB.posts.countByUser(user.id),
-      DB.follows.countFollowers(user.id),
-      DB.follows.countFollowing(user.id),
-      DB.profiles.getMany([user.id], 'id, avatar_url'),
-    ])
-      .then(([posts, followers, following, pubProfs]) => {
-        if (cancel) return;
-        setStats({ posts, followers, following });
-        const pub = pubProfs?.[0];
-        if (pub?.avatar_url) setPublicAvatar(pub.avatar_url);
-      })
-      .catch(() => {
-        /* silent */
-      });
-    return () => {
-      cancel = true;
-    };
-  }, [user]);
+  // vier null mas a view tiver a URL, usa ela.
+  const publicAvatarQuery = useQuery<string | null, Error>({
+    queryKey: ['public-avatar', user?.id],
+    queryFn: async () => {
+      const pubProfs = await DB.profiles.getMany([user!.id], 'id, avatar_url');
+      return pubProfs?.[0]?.avatar_url ?? null;
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  const publicAvatar = publicAvatarQuery.data ?? null;
 
   // Fallback chain pra nome (vanilla head.js linha 789).
   const meta = (user?.user_metadata as Record<string, unknown> | undefined) ?? {};

@@ -25,7 +25,11 @@ const THROTTLE_MS = 1000;
 // Add aqui quando uma query nova for "vale persistir entre refreshes".
 const PERSIST_PREFIXES = [
   'profile',
+  'profile-stats',
+  'profile-posts',
+  'public-avatar',
   'feed',
+  'stories',
   'notifications',
   'financeiro',
   'pipeline',
@@ -35,6 +39,10 @@ const PERSIST_PREFIXES = [
   'crm',
   'pedidos',
   'post-comments',
+  'post-like',
+  'follow-state',
+  'following-ids',
+  'followers',
   'art-listings',
 ];
 

@@ -73,9 +73,15 @@ export function useGlobalRealtime(userId: string | null): void {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'posts' },
-        () => {
+        (payload) => {
           debouncer.schedule('feed');
           debouncer.schedule('stories');
+          // Se o post é do user atual, invalida contagem de posts do perfil.
+          const authorId = (payload.new as { user_id?: string } | null)?.user_id;
+          if (authorId === userId) {
+            debouncer.schedule(`profile-stats|${userId}`);
+            debouncer.schedule(`profile-posts|${userId}`);
+          }
         },
       )
       .on(
@@ -124,7 +130,7 @@ export function useGlobalRealtime(userId: string | null): void {
           debouncer.schedule('feed');
         },
       )
-      // ── FOLLOWS: contadores e estado de follow
+      // ── FOLLOWS: contadores (profile-stats) e estado de follow
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'follows' },
@@ -134,10 +140,12 @@ export function useGlobalRealtime(userId: string | null): void {
             | null;
           if (row?.follower_id) {
             debouncer.schedule(`following-ids|${row.follower_id}`);
+            debouncer.schedule(`profile-stats|${row.follower_id}`);
           }
           if (row?.following_id) {
             debouncer.schedule(`followers|${row.following_id}`);
             debouncer.schedule(`profile|${row.following_id}`);
+            debouncer.schedule(`profile-stats|${row.following_id}`);
           }
         },
       )
@@ -150,10 +158,12 @@ export function useGlobalRealtime(userId: string | null): void {
             | null;
           if (row?.follower_id) {
             debouncer.schedule(`following-ids|${row.follower_id}`);
+            debouncer.schedule(`profile-stats|${row.follower_id}`);
           }
           if (row?.following_id) {
             debouncer.schedule(`followers|${row.following_id}`);
             debouncer.schedule(`profile|${row.following_id}`);
+            debouncer.schedule(`profile-stats|${row.following_id}`);
           }
         },
       )
