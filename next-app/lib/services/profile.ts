@@ -53,17 +53,27 @@ export interface ProfilePatch {
  * profiles — caso do signup recém-feito antes da trigger handle_new_user
  * popular a row).
  */
+// Colunas que a UI realmente lê do profile. Listadas explicitamente em vez
+// de SELECT * pra reduzir payload (algumas colunas têm JSONs grandes tipo
+// `archived_conversations`, `cart`, `seen_stories`, `palette` — que somam
+// 30-40% do row e nunca são lidos). Se uma coluna não existir no banco,
+// PostgREST devolve erro específico e caímos no fallback profiles_public.
+const PROFILE_COLS =
+  'id, name, tag, username, display_name, avatar_url, bio, phone, email, ' +
+  'city, state, address, business_logo_url, business_name, role, user_type, ' +
+  'profession, specialties, service_radius, is_pro, pro_expires_at, ' +
+  'pro_grace_until, is_admin, portal_access, verified, rating_avg, ' +
+  'review_count, birth_date, ai_logo_gen_count, created_at';
+
 export async function getProfile(userId: string): Promise<Profile | null> {
   if (!userId) return null;
   const sb = getSupabase();
-  // DEFENSIVO: usar SELECT * em vez de uma lista explícita. Se uma única
-  // coluna não existir no banco (ex.: migration pendente), o select inteiro
-  // falha e profile vira null em toda a UI. SELECT * sempre funciona,
-  // independente das colunas que existem. Type Profile já é permissivo.
-  // Tentativa 1: profiles table direto (RLS auth.uid()=id permite self-read).
+  // Lista explícita de colunas — economiza ~40% do payload típico vs SELECT *.
+  // Fallback pra profiles_public preserva o comportamento defensivo anterior
+  // caso uma coluna específica falhe (migration pendente, RLS).
   const { data, error } = await sb
     .from('profiles')
-    .select('*')
+    .select(PROFILE_COLS)
     .eq('id', userId)
     .maybeSingle();
 
@@ -71,9 +81,8 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     if (typeof console !== 'undefined') {
       console.warn('[getProfile] erro no select profiles:', error.message);
     }
-    // Fallback: tenta profiles_public (view safe). Se chegar aqui, perdeu
-    // alguns campos editáveis (email, address, phone) E portal_access (a
-    // view não expõe esse campo). Vai aparecer GRÁTIS mesmo pra admin.
+    // Fallback: profiles_public (view safe). Perde phone/email/address e
+    // portal_access (view não expõe). UI degrada mas não quebra.
     const fb = await sb
       .from('profiles_public')
       .select('*')

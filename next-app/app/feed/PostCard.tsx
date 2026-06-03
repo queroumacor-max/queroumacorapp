@@ -18,7 +18,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/Avatar';
 import { CommentForm } from '@/components/CommentForm';
@@ -53,7 +53,7 @@ function displayName(profile: FeedPost['profile']): string {
   return name;
 }
 
-export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
+function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const dialog = useDialog();
   const router = useRouter();
   const { user } = useAuth();
@@ -688,6 +688,11 @@ export function PostCard({ post, muted, onToggleMute }: PostCardProps) {
     </article>
   );
 }
+
+// memo evita re-render de todos os PostCards quando FeedView atualiza
+// (mudança de filter/scroll). Shallow compare em post (ref estável do server),
+// muted (bool), onToggleMute (estabilizado via useCallback).
+export const PostCard = memo(PostCardInner);
 
 function PostOptRow({
   icon,

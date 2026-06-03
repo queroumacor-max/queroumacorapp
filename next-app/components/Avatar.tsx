@@ -58,6 +58,7 @@ export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
         width={size}
         height={size}
         loading="lazy"
+        decoding="async"
         onError={() => setImgError(true)}
         className={`rounded-full object-cover ${className}`}
         style={{ width: dim, height: dim }}
