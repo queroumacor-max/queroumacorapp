@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.queroumacor",
+      "sha256_cert_fingerprints": [
+        "D5:0E:E0:09:24:6B:21:18:9A:A3:98:EB:45:96:6D:45:B5:65:85:66:39:9C:B5:C8:88:B6:84:DF:C5:F8:75:39"
+      ]
+    }
+  }
+]
