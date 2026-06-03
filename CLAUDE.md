@@ -69,6 +69,21 @@
   CRIADAS no Supabase** (com RLS e realtime). Anotações salvam/carregam
   e os avisos do `notify()` chegam no sininho. Não pedir para rodar de
   novo.
+- **Dados oficiais da Cali Colors (operadora/dona do QueroUmaCor)**:
+  - Razão social: **CALICOLORS TINTAS LTDA**
+  - CNPJ: **47.677.346/0001-92**
+  - Endereço: **Est. Presidente Juscelino Kubitschek de Oliveira, 1071**
+  - Bairro: **Jardim dos Pimentas**
+  - Cidade/UF: **Guarulhos/SP**
+  - CEP: **07.272-345**
+
+  Usar esses dados nos documentos legais (termos, privacidade, sobre),
+  metadados do Play Console / App Store, headers do CNPJ no PDF de
+  orçamento se o pintor for da Cali Colors, e onde mais precisar de
+  identificação formal do controlador LGPD. Já gravados em
+  `next-app/app/info/privacidade/page.tsx`, `.../termos/page.tsx`,
+  `.../sobre/page.tsx`.
+
 - **Contato da Cali Colors** (atendimento / suporte / "Fale Conosco" /
   solicitações de exclusão de conta LGPD): WhatsApp `(11) 95976-5031`
   (formato wa.me `5511959765031`), e-mail `loja@calicolors.com.br`. Já
