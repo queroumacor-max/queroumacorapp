@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "br.com.queroumacor.app",
+      "package_name": "br.com.queroumacor",
       "sha256_cert_fingerprints": [
-        "TODO_REPLACE_WITH_SHA256_FINGERPRINT_FROM_PLAY_CONSOLE"
+        "02:72:8E:CE:39:4B:C9:CF:6E:12:00:D3:0A:91:92:D3:E6:9C:5F:43:25:0E:3C:16:E2:82:83:D0:35:31:DE:8D"
       ]
     }
   }
