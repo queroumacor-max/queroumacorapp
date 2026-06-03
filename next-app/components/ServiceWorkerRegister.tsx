@@ -13,8 +13,12 @@ import { useEffect } from 'react';
 export function ServiceWorkerRegister() {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    if (process.env.NODE_ENV !== 'production') return undefined;
     if (!('serviceWorker' in navigator)) return undefined;
+    // Skip em localhost dev pra não competir com HMR do Next.js, mas registra
+    // em qualquer outro ambiente (Cloudflare Pages, preview, prod) — antes
+    // tinha gate NODE_ENV === 'production' que às vezes não bate no CF Pages.
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return undefined;
 
     // Registra em window.load pra não competir com hidratação inicial.
     const onLoad = () => {
