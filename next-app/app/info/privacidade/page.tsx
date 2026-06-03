@@ -21,11 +21,15 @@ export default function PrivacidadePage() {
 
       <LegalH>1. Quem é o controlador</LegalH>
       <LegalP>
-        O controlador dos dados é a <b>Cali Colors</b> (operadora do QueroUmaCor),
-        inscrita no CNPJ <b>__.___.___/____-__</b>, com sede em{' '}
-        <b>[endereço completo da empresa]</b>.
-        Para questões sobre privacidade ou exercer seus direitos LGPD, contate
-        nosso Encarregado de Proteção de Dados (DPO) pelo e-mail{' '}
+        O controlador dos dados é a <b>CALICOLORS TINTAS LTDA</b>
+        (operadora do QueroUmaCor), inscrita no CNPJ{' '}
+        <b>47.677.346/0001-92</b>, com sede na{' '}
+        <b>
+          Est. Presidente Juscelino Kubitschek de Oliveira, 1071 – Jardim
+          dos Pimentas, Guarulhos/SP – CEP 07.272-345
+        </b>
+        . Para questões sobre privacidade ou exercer seus direitos LGPD,
+        contate nosso Encarregado de Proteção de Dados (DPO) pelo e-mail{' '}
         <b>loja@calicolors.com.br</b> ou pelos canais em &quot;Fale Conosco&quot;.
       </LegalP>
 

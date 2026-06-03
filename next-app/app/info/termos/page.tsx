@@ -27,8 +27,11 @@ export default function TermosPage() {
         e não é parte nos contratos firmados entre os usuários.
       </LegalP>
       <LegalP>
-        Operadora: <b>Cali Colors</b>, CNPJ <b>__.___.___/____-__</b>, com sede em{' '}
-        <b>[endereço completo]</b>. Contato: <b>loja@calicolors.com.br</b>.
+        Operadora: <b>CALICOLORS TINTAS LTDA</b>, CNPJ <b>47.677.346/0001-92</b>,
+        com sede na <b>
+          Est. Presidente Juscelino Kubitschek de Oliveira, 1071 – Jardim
+          dos Pimentas, Guarulhos/SP – CEP 07.272-345
+        </b>. Contato: <b>loja@calicolors.com.br</b>.
       </LegalP>
 
       <LegalH>3. Cadastro e conta</LegalH>
