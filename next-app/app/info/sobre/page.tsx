@@ -59,11 +59,13 @@ export default function SobrePage() {
           <br />© 2026 QueroUmaCor. Todos os direitos reservados.
           <br />
           <br />
-          <b style={{ color: 'var(--color-ink)' }}>Cali Colors</b>
+          <b style={{ color: 'var(--color-ink)' }}>CALICOLORS TINTAS LTDA</b>
           <br />
-          CNPJ: __.___.___/____-__
+          CNPJ: 47.677.346/0001-92
           <br />
-          [endereço completo]
+          Est. Presidente Juscelino Kubitschek de Oliveira, 1071
+          <br />
+          Jardim dos Pimentas, Guarulhos/SP — CEP 07.272-345
           <br />
           loja@calicolors.com.br
         </div>
