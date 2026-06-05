@@ -18,11 +18,30 @@
 
 import Image from 'next/image';
 
+export interface AvatarConfig {
+  /** ReactNode customizado pro avatar (ex.: círculo lavanda da Valentina).
+   *  Quando definido, ignora src/alt. */
+  node?: React.ReactNode;
+  /** Caminho da imagem (usado se node não for passado). */
+  src?: string;
+  /** Texto alternativo da imagem. */
+  alt?: string;
+  /** Label da typing-indicator (a11y). Default: "Seu Zé está digitando". */
+  typingLabel?: string;
+}
+
+const DEFAULT_AVATAR: Required<Omit<AvatarConfig, 'node'>> = {
+  src: '/img/seu-ze.webp',
+  alt: 'Seu Zé',
+  typingLabel: 'Seu Zé está digitando',
+};
+
 export interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
   isSpeaking?: boolean;
   onSpeak?: () => void;
+  avatar?: AvatarConfig;
 }
 
 // Renderiza markdown ULTRA básico (só **bold**). NÃO usa dangerouslySetInnerHTML
@@ -45,11 +64,28 @@ function renderBoldSegments(text: string): React.ReactNode[] {
   return parts.length ? parts : [text];
 }
 
+function renderAvatar(avatar: AvatarConfig | undefined): React.ReactNode {
+  if (avatar?.node) return avatar.node;
+  const src = avatar?.src ?? DEFAULT_AVATAR.src;
+  const alt = avatar?.alt ?? DEFAULT_AVATAR.alt;
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={28}
+      height={28}
+      className="rounded-full bg-[#1a1a2e] flex-shrink-0 object-cover object-top"
+      unoptimized
+    />
+  );
+}
+
 export function ChatMessage({
   role,
   content,
   isSpeaking,
   onSpeak,
+  avatar,
 }: ChatMessageProps) {
   const isUser = role === 'user';
 
@@ -65,14 +101,7 @@ export function ChatMessage({
 
   return (
     <div className="flex gap-2 mb-3 items-start">
-      <Image
-        src="/img/seu-ze.webp"
-        alt="Seu Zé"
-        width={28}
-        height={28}
-        className="rounded-full bg-[#1a1a2e] flex-shrink-0 object-cover object-top"
-        unoptimized
-      />
+      {renderAvatar(avatar)}
       <div className="flex-1 min-w-0">
         <div className="max-w-[85%] rounded-2xl px-3.5 py-2.5 bg-[color:var(--color-bg)] text-[color:var(--color-ink)] text-sm leading-relaxed whitespace-pre-wrap break-words">
           {renderBoldSegments(content)}
@@ -93,17 +122,11 @@ export function ChatMessage({
 }
 
 // Typing indicator (3 dots animado). Usado enquanto o assistente processa.
-export function TypingIndicator() {
+export function TypingIndicator({ avatar }: { avatar?: AvatarConfig } = {}) {
+  const label = avatar?.typingLabel ?? DEFAULT_AVATAR.typingLabel;
   return (
-    <div className="flex gap-2 mb-3 items-start" aria-label="Seu Zé está digitando">
-      <Image
-        src="/img/seu-ze.webp"
-        alt="Seu Zé"
-        width={28}
-        height={28}
-        className="rounded-full bg-[#1a1a2e] flex-shrink-0 object-cover object-top"
-        unoptimized
-      />
+    <div className="flex gap-2 mb-3 items-start" aria-label={label}>
+      {renderAvatar(avatar)}
       <div className="rounded-2xl px-3.5 py-2.5 bg-[color:var(--color-bg)] text-[color:var(--color-muted)] text-sm">
         <span className="inline-block animate-pulse">•</span>
         <span className="inline-block animate-pulse" style={{ animationDelay: '0.15s' }}>

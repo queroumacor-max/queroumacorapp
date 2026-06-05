@@ -49,6 +49,9 @@ const FinanceiroDashboard = lazy(() =>
 const SeuZeChat = lazy(() =>
   import('@/app/seu-ze/SeuZeChat').then((m) => ({ default: m.SeuZeChat })),
 );
+const ValentinaChat = lazy(() =>
+  import('@/app/valentina/ValentinaChat').then((m) => ({ default: m.ValentinaChat })),
+);
 const AiArtStudio = lazy(() =>
   import('@/app/arte-ig/AiArtStudio').then((m) => ({ default: m.AiArtStudio })),
 );
@@ -78,6 +81,7 @@ type SheetKey =
   | 'financeiro'
   | 'notes'
   | 'seu-ze'
+  | 'valentina'
   | 'arte-ig'
   | 'camisetas'
   | 'formacao'
@@ -102,6 +106,7 @@ const SHEETS: Record<SheetKey, SheetConfig> = {
   financeiro: { label: 'Financeiro', Component: FinanceiroDashboard as ComponentType },
   notes: { label: 'Anotações', Component: NotesView as ComponentType },
   'seu-ze': { label: 'Seu Zé', Component: SeuZeChat as ComponentType },
+  valentina: { label: 'Valentina', Component: ValentinaChat as ComponentType },
   'arte-ig': { label: 'Arte pra IG', Component: AiArtStudio as ComponentType },
   camisetas: { label: 'Camisetas', Component: ShirtCustomizer as ComponentType },
   formacao: { label: 'Formação', Component: QualsSection as ComponentType },
@@ -115,7 +120,7 @@ interface Tile {
   icon?: ReactNode;
   title: string;
   subtitle: string;
-  gradient?: 'pro' | 'art';
+  gradient?: 'pro' | 'art' | 'designer';
 }
 
 const TILES: readonly Tile[] = [
@@ -131,6 +136,7 @@ const TILES: readonly Tile[] = [
   { sheet: 'financeiro', emoji: '💰', title: 'Financeiro', subtitle: 'Lucro e comissão' },
   { sheet: 'notes', emoji: '📝', title: 'Anotações', subtitle: 'Notas e lembretes' },
   { sheet: 'seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
+  { sheet: 'valentina', title: 'Valentina', subtitle: 'Designer de interiores', gradient: 'designer' },
   { sheet: 'arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { sheet: 'camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
   { sheet: 'formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
@@ -232,7 +238,9 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
     ? '#fff'
     : tile.gradient === 'pro'
       ? 'linear-gradient(135deg, #2ec4b6, #8338ec)'
-      : 'linear-gradient(135deg, #ff6b35, #8338ec)';
+      : tile.gradient === 'designer'
+        ? 'linear-gradient(135deg, #a78bfa, #7c3aed)'
+        : 'linear-gradient(135deg, #ff6b35, #8338ec)';
 
   const textColor = isGradient ? '#fff' : 'var(--color-ink)';
   const subColor = isGradient ? 'rgba(255,255,255,.85)' : 'var(--color-muted)';
@@ -271,6 +279,27 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
               display: 'block',
             }}
           />
+        ) : tile.gradient === 'designer' ? (
+          <div
+            aria-hidden="true"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,.2)',
+              border: '2px solid #fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 17,
+              color: '#fff',
+              margin: '0 auto',
+            }}
+          >
+            V
+          </div>
         ) : (
           tile.emoji || '✨'
         )}
