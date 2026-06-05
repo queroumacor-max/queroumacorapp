@@ -46,6 +46,7 @@ interface ChainSpies {
   eq: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
+  range: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
 }
@@ -53,6 +54,7 @@ interface ChainSpies {
 interface QueueItem {
   data?: unknown;
   error?: unknown;
+  count?: number | null;
 }
 
 function makeFakeClient(queue: QueueItem[] = []): {
@@ -67,6 +69,7 @@ function makeFakeClient(queue: QueueItem[] = []): {
     eq: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
+    range: vi.fn(),
     single: vi.fn(),
     maybeSingle: vi.fn(),
   };
@@ -83,8 +86,11 @@ function makeFakeClient(queue: QueueItem[] = []): {
       spies.from(t);
       return chain;
     },
-    select: (cols: string) => {
-      spies.select(cols);
+    select: (cols: string, opts?: { count?: 'exact' }) => {
+      // Só forward `opts` quando definido — preserva assinatura de chamadas
+      // legadas (cart, etc.) que chamam .select('cart') sem 2º arg.
+      if (opts === undefined) spies.select(cols);
+      else spies.select(cols, opts);
       return chain;
     },
     insert: (row: unknown) => {
@@ -107,6 +113,10 @@ function makeFakeClient(queue: QueueItem[] = []): {
       spies.limit(n);
       return chain;
     },
+    range: (from: number, to: number) => {
+      spies.range(from, to);
+      return chain;
+    },
     single: () => {
       spies.single();
       const r = nextResponse();
@@ -117,9 +127,15 @@ function makeFakeClient(queue: QueueItem[] = []): {
       const r = nextResponse();
       return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
     },
-    then: (resolve: (v: { data: unknown; error: unknown }) => void) => {
+    then: (resolve: (v: { data: unknown; error: unknown; count: number | null }) => void) => {
       const r = nextResponse();
-      resolve({ data: r.data ?? null, error: r.error ?? null });
+      resolve({
+        data: r.data ?? null,
+        error: r.error ?? null,
+        // Default count = length da data quando não passado explicitamente —
+        // simula PostgREST com `{ count: 'exact' }` em uma única página.
+        count: r.count ?? (Array.isArray(r.data) ? r.data.length : null),
+      });
     },
   };
 
@@ -288,7 +304,9 @@ describe('fetchProducts', () => {
     expect(out.map((p) => p.id)).toEqual(['p1', 'p3']);
     expect(spies.from).toHaveBeenCalledWith('products');
     expect(spies.order).toHaveBeenCalledWith('name', undefined);
-    expect(spies.limit).toHaveBeenCalledWith(1000);
+    // Pagination paralela: 1ª página com count exato via .range(0, 999).
+    expect(spies.range).toHaveBeenCalledWith(0, 999);
+    expect(spies.select).toHaveBeenCalledWith(expect.any(String), { count: 'exact' });
   });
 
   it('filter.category aplica mktClassify e devolve só matches', async () => {
