@@ -280,26 +280,25 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
             }}
           />
         ) : tile.gradient === 'designer' ? (
-          <div
-            aria-hidden="true"
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src="/img/valentina.webp"
+            alt="Valentina"
+            width={34}
+            height={34}
+            loading="lazy"
             style={{
               width: 34,
               height: 34,
               borderRadius: '50%',
-              background: 'rgba(255,255,255,.2)',
-              border: '2px solid #fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: 17,
-              color: '#fff',
+              objectFit: 'cover',
+              objectPosition: 'center top',
+              background: '#f3e8ff',
               margin: '0 auto',
+              display: 'block',
+              border: '1.5px solid rgba(255,255,255,.7)',
             }}
-          >
-            V
-          </div>
+          />
         ) : (
           tile.emoji || '✨'
         )}
