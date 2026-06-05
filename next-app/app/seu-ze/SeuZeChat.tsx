@@ -40,6 +40,7 @@ export function SeuZeChat() {
     stopVoice,
     voiceError,
     speak,
+    speakText,
     speakingId,
     autoSpeak,
     setAutoSpeak,
@@ -53,6 +54,27 @@ export function SeuZeChat() {
   } = useSeuZe();
 
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Saudação falada na primeira abertura do chat (thread vazia + autoSpeak ON).
+  // Roda 1x por mount usando ref — sem ref o effect dispararia toda vez que
+  // o usuário voltasse pra tela e a thread estivesse vazia (ex.: depois de
+  // limpar) o que seria irritante.
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (greetedRef.current) return;
+    if (!user) return;
+    if (messages.length > 0) return; // já tem conversa — nada a apresentar
+    if (!autoSpeak) return; // user desligou áudio — respeita
+    greetedRef.current = true;
+    // Delay 400ms pra dar tempo do user ver a tela montada (autoplay
+    // mais natural — som não estoura no exato instante do mount).
+    const t = setTimeout(() => {
+      void speakText(
+        'Opa, colega! Sou o Seu Zé. Aceita um café enquanto a gente fala de obra?',
+      );
+    }, 400);
+    return () => clearTimeout(t);
+  }, [user, messages.length, autoSpeak, speakText]);
 
   // Quando o user liga o modo conversa, abre o mic IMEDIATAMENTE pra começar
   // a primeira fala. Sem isso, ele clicava no toggle e ainda tinha que apertar
@@ -234,37 +256,31 @@ export function SeuZeChat() {
       >
         {messages.length === 0 && !isSending ? (
           <div
-            className="text-center py-6 px-4"
+            className="text-center py-5 px-4"
             style={{
-              background: 'linear-gradient(135deg, rgba(255,107,53,.06), rgba(131,56,236,.06))',
-              borderRadius: 16,
-              border: '1px solid var(--color-border)',
+              background: 'linear-gradient(135deg, rgba(255,107,53,.04), rgba(131,56,236,.04))',
+              borderRadius: 14,
+              border: '1px dashed var(--color-border)',
               margin: '8px 0',
             }}
           >
-            <div className="text-4xl mb-2" aria-hidden="true">☕</div>
             <p
-              className="font-extrabold mb-1"
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 17,
-                color: 'var(--color-ink)',
-              }}
+              className="text-sm"
+              style={{ color: 'var(--color-ink)', lineHeight: 1.55, marginBottom: 6, fontWeight: 600 }}
             >
-              Opa, colega! Sou o Seu Zé 🐻
+              💬 Pode escrever a sua dúvida abaixo
             </p>
             <p
               className="text-sm"
-              style={{ color: 'var(--color-ink)', lineHeight: 1.55, marginBottom: 8 }}
+              style={{ color: 'var(--color-ink)', lineHeight: 1.55, marginBottom: 8, fontWeight: 600 }}
             >
-              Aceita um café enquanto a gente fala de obra?
+              🎤 Ou toque no microfone pra falar por voz
             </p>
             <p
               className="text-xs"
               style={{ color: 'var(--color-muted)', lineHeight: 1.5 }}
             >
-              Tira dúvida de tinta, preço, técnica ou ferramenta — eu manjo.
-              Pode falar ou escrever.
+              Pra conversa contínua sem clicar, ative o <strong>🟢 Modo conversa</strong> no topo.
             </p>
           </div>
         ) : null}
