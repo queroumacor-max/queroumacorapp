@@ -79,7 +79,9 @@ export function useNotifications(): UseNotificationsResult {
       if (!lastPage || !lastPage.hasMore || !lastPage.nextCursor) return undefined;
       return lastPage.nextCursor;
     },
-    staleTime: 30_000,
+    // staleTime 5min — realtime channel notifications:<userId> invalida em
+    // qualquer INSERT (sininho). 30s causava refetch sem necessidade.
+    staleTime: 5 * 60_000,
   });
 
   // Realtime: revalida cache quando nova notif INSERT bate na publicação

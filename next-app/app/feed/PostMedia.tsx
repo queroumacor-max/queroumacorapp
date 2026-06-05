@@ -129,9 +129,15 @@ export function PostMedia({ url, mediaType, muted, onToggleMute }: PostMediaProp
       src={url}
       alt=""
       loading="lazy"
+      decoding="async"
       onError={() => setImgError(true)}
       className="w-full block object-cover"
-      style={{ aspectRatio: '1 / 1' }}
+      style={{
+        aspectRatio: '1 / 1',
+        // Placeholder com cor cream do brand enquanto image carrega — evita
+        // flash branco e dá sensação de "tá vindo" em vez de "broken".
+        background: 'linear-gradient(135deg, #f5e8da 0%, #e8d6c0 100%)',
+      }}
     />
   );
 }

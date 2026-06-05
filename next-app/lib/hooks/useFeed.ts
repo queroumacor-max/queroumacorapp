@@ -78,10 +78,10 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
       if (!lastPage || !lastPage.hasMore || !lastPage.nextCursor) return undefined;
       return lastPage.nextCursor;
     },
-    // staleTime: 30s — alinhado com o default do QueryProvider. Feed muda
-    // mais rápido que profile/notifications mas 30s evita refetch agressivo
-    // quando o usuário sai e volta rapidinho.
-    staleTime: 30_000,
+    // staleTime: 2min — useGlobalRealtime invalida ['feed'] em qualquer
+    // INSERT em posts/comments/likes, então cache pode ficar fresco mais
+    // tempo. 30s anterior causava refetch desnecessário a cada nav.
+    staleTime: 2 * 60_000,
   });
 
   const posts = query.data?.pages.flatMap((p) => p.items) ?? [];

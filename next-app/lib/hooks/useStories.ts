@@ -42,7 +42,9 @@ export function useStories(followingIds: string[]): UseStoriesResult {
     queryKey: ['stories', user?.id, [...followingIds].sort().join(',')],
     queryFn: () => fetchStoriesGroupedByUser(user!.id, followingIds),
     enabled: !!user,
-    staleTime: 30_000,
+    // staleTime 2min — useGlobalRealtime invalida em INSERT de posts (stories
+    // são posts media_type=story); novo story aparece via realtime.
+    staleTime: 2 * 60_000,
   });
 
   const markSeenMutation = useMutation<
