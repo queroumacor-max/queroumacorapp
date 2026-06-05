@@ -1,12 +1,19 @@
 'use client';
 // ValentinaFab — botão flutuante na /loja que leva pra /valentina.
 // Posicionado acima do BottomNav (60px + safe-area) pra não sobrepor.
-// Aparece em todas as páginas /loja (lista + detalhe + carrinho) onde
-// for renderizado.
+// Aparece só pra cliente (e admin) — pintor/grafite/auto não veem; eles
+// têm o Seu Zé como assistente. Mesma regra do tile do BusinessGrid.
 
 import Link from 'next/link';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { isAdmin } from '@/lib/policies';
 
 export function ValentinaFab() {
+  const policyUser = usePolicyUser();
+  const role = (policyUser?.role || '').toLowerCase();
+  const visible = isAdmin(policyUser) || role === 'cliente';
+  if (!visible) return null;
+
   return (
     <Link
       href="/valentina"
