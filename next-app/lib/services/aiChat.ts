@@ -159,14 +159,18 @@ export function trimHistory(history: ChatMessage[]): ChatMessage[] {
 export async function sendChatMessage(
   history: ChatMessage[],
   userMessage: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts?: { endpoint?: string },
 ): Promise<string> {
   const text = String(userMessage || '').trim();
   if (!text) throw new ValidationError('Mensagem vazia');
 
+  // Endpoint padrão = Seu Zé. Valentina passa '/api/valentina'.
+  const endpoint = opts?.endpoint || '/api/chat-ai';
+
   let res: Response | null = null;
   try {
-    res = await fetch('/api/chat-ai', {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text, history }),
@@ -313,17 +317,24 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
  */
 export async function textToSpeech(
   text: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts?: { endpoint?: string; voice?: string },
 ): Promise<string> {
   const t = String(text || '').trim();
   if (!t) throw new ValidationError('Texto vazio');
 
+  // Endpoint default = Seu Zé (PRO + onyx). Valentina passa
+  // '/api/valentina/tts' + voice 'nova'.
+  const endpoint = opts?.endpoint || '/api/tts';
+  const body: Record<string, unknown> = { text: t.slice(0, 1500) };
+  if (opts?.voice) body.voice = opts.voice;
+
   let res: Response;
   try {
-    res = await fetch('/api/tts', {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: t.slice(0, 1500) }),
+      body: JSON.stringify(body),
       signal,
     });
   } catch (e) {
