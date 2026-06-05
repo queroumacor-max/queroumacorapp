@@ -220,11 +220,13 @@ export function useVoiceRecorder(
       }, autoStopMs);
     }
 
-    // VAD: liga só se silenceMs > 0. Cria AudioContext + Analyser sobre o
-    // mesmo stream do MediaRecorder, mede RMS num loop RAF (~60fps), e para
-    // a gravação quando detecta silêncio sustentado DEPOIS que o user falou.
-    // Sem o "depois que falou", o stop dispararia no início (antes do user
-    // dizer alguma coisa) e nunca grava nada.
+    // VAD com calibração de ruído ambiente:
+    //   1. 500ms iniciais: amostra o RMS médio (ambiente) sem reagir
+    //   2. Threshold efetivo = max(silenceThreshold, ambiente * 2.5)
+    //      → adapta a ambientes barulhentos (rua, café, etc.)
+    //   3. "Falou" = RMS > threshold por >= 200ms (anti-pop/click)
+    //   4. "Parou" = RMS < threshold por >= silenceMs CONTÍNUO
+    // Resultado: detecção robusta sem trigger falso em respiração/eco/rua.
     if (silenceMs > 0 && typeof window !== 'undefined') {
       try {
         const AC: typeof AudioContext =
@@ -235,10 +237,24 @@ export function useVoiceRecorder(
           audioCtxRef.current = ctx;
           const source = ctx.createMediaStreamSource(stream);
           const analyser = ctx.createAnalyser();
-          analyser.fftSize = 1024;
+          // fftSize menor (512) = janela menor = reage mais rápido a mudanças.
+          analyser.fftSize = 512;
+          // smoothingTimeConstant 0 = sem suavização — reage imediato a silêncio.
+          analyser.smoothingTimeConstant = 0;
           source.connect(analyser);
           analyserRef.current = analyser;
           const buf = new Uint8Array(analyser.fftSize);
+
+          // Calibração: coleta amostras do ambiente nos primeiros 500ms.
+          const calibrationStart = Date.now();
+          const CALIBRATION_MS = 500;
+          let calibrationSamples = 0;
+          let calibrationSum = 0;
+          let ambientThreshold = silenceThreshold;
+          // Anti-flicker: precisa de N frames seguidos acima do threshold pra
+          // marcar "falou" (evita treinar com pop do mic / respiração).
+          let consecutiveLoudFrames = 0;
+          const FRAMES_TO_TRIGGER = 8; // ~133ms a 60fps
 
           const tick = () => {
             const cur = analyserRef.current;
@@ -248,7 +264,6 @@ export function useVoiceRecorder(
               return;
             }
             cur.getByteTimeDomainData(buf);
-            // RMS normalizado em [0, 1]. 128 é o centro (silêncio digital).
             let sum = 0;
             for (let i = 0; i < buf.length; i++) {
               const v = (buf[i] - 128) / 128;
@@ -256,15 +271,35 @@ export function useVoiceRecorder(
             }
             const rms = Math.sqrt(sum / buf.length);
             const now = Date.now();
-            if (rms > silenceThreshold) {
-              hasSpokenRef.current = true;
-              silenceSinceRef.current = now;
-            } else if (hasSpokenRef.current) {
-              if (silenceSinceRef.current === 0) silenceSinceRef.current = now;
-              if (now - silenceSinceRef.current >= silenceMs) {
-                // Silêncio sustentado pós-fala — para a gravação.
-                stop();
-                return;
+
+            // Fase de calibração — coleta ambient, não reage ainda.
+            if (now - calibrationStart < CALIBRATION_MS) {
+              calibrationSum += rms;
+              calibrationSamples += 1;
+              vadRafRef.current = requestAnimationFrame(tick);
+              return;
+            }
+            // Final da calibração: define threshold adaptativo.
+            if (calibrationSamples > 0 && ambientThreshold === silenceThreshold) {
+              const avgAmbient = calibrationSum / calibrationSamples;
+              ambientThreshold = Math.max(silenceThreshold, avgAmbient * 2.5);
+            }
+
+            const isLoud = rms > ambientThreshold;
+            if (isLoud) {
+              consecutiveLoudFrames += 1;
+              if (consecutiveLoudFrames >= FRAMES_TO_TRIGGER) {
+                hasSpokenRef.current = true;
+                silenceSinceRef.current = now;
+              }
+            } else {
+              consecutiveLoudFrames = 0;
+              if (hasSpokenRef.current) {
+                if (silenceSinceRef.current === 0) silenceSinceRef.current = now;
+                if (now - silenceSinceRef.current >= silenceMs) {
+                  stop();
+                  return;
+                }
               }
             }
             vadRafRef.current = requestAnimationFrame(tick);
@@ -272,8 +307,7 @@ export function useVoiceRecorder(
           vadRafRef.current = requestAnimationFrame(tick);
         }
       } catch {
-        // VAD opcional — se falhar (browser sem AudioContext, etc.),
-        // segue só com autoStopMs e stop manual.
+        // VAD opcional — se falhar, segue só com autoStopMs e stop manual.
       }
     }
   }, [autoStopMs, cleanup, stop, silenceMs, silenceThreshold]);

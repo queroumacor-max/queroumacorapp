@@ -24,7 +24,12 @@ export async function synthesizeSpeech(args: {
         model: 'tts-1',
         voice: 'onyx',
         input: clean,
-        response_format: 'mp3',
+        // opus = ~50% menor que mp3 com mesma qualidade percebida → download
+        // ~2x mais rápido, especialmente em 4G. browsers todos suportam.
+        response_format: 'opus',
+        // speed 1.1 = 10% mais rápido (ainda natural). Reduz tempo de
+        // playback proporcional — 10s vira ~9s.
+        speed: 1.1,
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

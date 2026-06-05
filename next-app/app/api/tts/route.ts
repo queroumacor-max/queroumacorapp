@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
     return new NextResponse(audio, {
       status: 200,
       headers: {
-        'content-type': 'audio/mpeg',
+        // opus em container ogg — todos os browsers modernos suportam.
+        // Menor que mp3 (download mais rápido em 4G).
+        'content-type': 'audio/ogg; codecs=opus',
         'cache-control': 'no-store',
       },
     });

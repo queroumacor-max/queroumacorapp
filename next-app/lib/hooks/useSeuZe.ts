@@ -238,9 +238,11 @@ export function useSeuZe(): UseSeuZeResult {
   const recorder = useVoiceRecorder({
     onComplete: handleVoiceBlob,
     onError: (msg) => setVoiceError(msg),
-    // Em modo conversa: VAD de 1500ms (silêncio sustentado pós-fala → para
-    // sozinho). Fora dele: 0 = manual (user precisa apertar pra parar).
-    silenceMs: conversationMode ? 1500 : 0,
+    // Em modo conversa: VAD de 900ms (silêncio sustentado pós-fala → para
+    // sozinho). VAD adaptativo no useVoiceRecorder calibra o threshold no
+    // primeiro 500ms baseado no ambiente — 900ms total é responsivo sem
+    // cortar quando o user pausa naturalmente entre palavras.
+    silenceMs: conversationMode ? 900 : 0,
   });
 
   // Ref do start do recorder pra uso em callbacks (evita re-criar speak/etc).
