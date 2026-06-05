@@ -79,7 +79,9 @@ export function usePipeline(): UsePipelineResult {
     queryKey: ['pipeline', userId],
     queryFn: () => fetchQuotes(userId!),
     enabled: !!userId,
-    staleTime: 30_000,
+    // staleTime 5min — Realtime channel filter painter_id invalida em
+    // qualquer mudança em quotes. Refetch a cada 30s era desperdício.
+    staleTime: 5 * 60_000,
   });
 
   // Realtime: filter por painter_id pra cada client só receber mudanças
