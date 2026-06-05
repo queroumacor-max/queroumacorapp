@@ -212,9 +212,15 @@ export async function addComment(
 
 /**
  * Deleta comentário. RLS no banco restringe a (a) dono do comment, (b) dono
- * do post (policy "Post owners can delete comments"). Não fazemos check
- * adicional aqui — o Supabase devolve erro se o user não tem permissão.
- * userId é exigido só pra forçar o caller a estar autenticado.
+ * do post (policy "Post owners can delete comments"), (c) admin via policy
+ * "Admins can delete any comment" (SQL Wave 9). userId é exigido só pra
+ * forçar o caller a estar autenticado.
+ *
+ * Pegadinha resolvida (jun/2026): antes era `.delete().eq('id', ...)` sem
+ * verificar quantas rows foram afetadas. Se RLS bloqueava (e.g., user não é
+ * dono nem do comment nem do post e SQL Wave 9 ainda não foi rodada),
+ * Supabase devolvia "sucesso com 0 rows" e a UI achava que apagou. Agora
+ * pedimos count='exact' e throw se nada foi apagado — caller vê toast.
  */
 export async function deleteComment(
   commentId: string,
@@ -223,8 +229,16 @@ export async function deleteComment(
   if (!commentId) throw new ValidationError('commentId obrigatório');
   if (!userId) throw new ValidationError('userId obrigatório');
   const sb = getSupabase();
-  const { error } = await sb.from('comments').delete().eq('id', commentId);
+  const { error, count } = await sb
+    .from('comments')
+    .delete({ count: 'exact' })
+    .eq('id', commentId);
   if (error) throw new NetworkError(error.message, error);
+  if (!count) {
+    throw new NetworkError(
+      'Sem permissão pra apagar este comentário (não é seu nem do seu post)',
+    );
+  }
 }
 
 /**

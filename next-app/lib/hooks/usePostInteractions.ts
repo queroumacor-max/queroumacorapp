@@ -201,9 +201,24 @@ export function useComments(postId: string): UseCommentsResult {
     },
   });
 
-  const removeMut = useMutation<void, Error, string>({
+  // Remove com otimismo: tira o comment da UI imediatamente; rollback se
+  // RLS bloquear (sem permissão) ou rede cair. Antes era invalidate-only,
+  // então quando o DELETE silenciosamente afetava 0 rows (RLS), o refetch
+  // devolvia o comment de volta sem feedback — UI parecia ignorar o clique.
+  const removeMut = useMutation<void, Error, string, { previous: PostComment[] | undefined }>({
     mutationFn: (commentId: string) => deleteCommentSvc(commentId, userId),
-    onSuccess: () => {
+    onMutate: async (commentId: string) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<PostComment[]>(key);
+      qc.setQueryData<PostComment[]>(key, (old) =>
+        (old ?? []).filter((c) => c.id !== commentId),
+      );
+      return { previous };
+    },
+    onError: (_err, _commentId, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(key, ctx.previous);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: key });
     },
   });
