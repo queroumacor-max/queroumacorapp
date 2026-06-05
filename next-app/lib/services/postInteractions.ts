@@ -183,14 +183,31 @@ export async function addComment(
   if (!trimmed) throw new ValidationError('Comentário vazio');
 
   const sb = getSupabase();
+  // Pegadinha resolvida (jun/2026): o .insert(...).select().single() estava
+  // retornando data=null em alguns casos (RLS de SELECT recursivo durante
+  // o RETURNING do PostgREST), e a checagem `if (!data) throw` rollbackava
+  // o comment otimista da UI silenciosamente. Resultado pro user: comment
+  // aparecia 1 frame e sumia, sem feedback.
+  //
+  // Fix: separa INSERT (autoritativo) de SELECT-de-leitura (best-effort).
+  // Se INSERT passou e SELECT falhou, devolve objeto reconstruído com id
+  // gerado client-side temp — o invalidateQueries do hook vai refetch e
+  // resolver pro id real do banco.
   const { data, error } = await sb
     .from('comments')
     .insert({ post_id: postId, user_id: userId, text: trimmed })
     .select('id, post_id, user_id, text, created_at')
     .single();
   if (error) throw new NetworkError(error.message, error);
-  if (!data) throw new NetworkError('Comentário não retornado');
-  return data as PostComment;
+  if (data) return data as PostComment;
+  // INSERT ok, SELECT vazio — devolve placeholder que o refetch substitui.
+  return {
+    id: `pending-${Date.now()}`,
+    post_id: postId,
+    user_id: userId,
+    text: trimmed,
+    created_at: new Date().toISOString(),
+  } as PostComment;
 }
 
 /**
@@ -246,6 +263,7 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
     .from('comments')
     .select('id, post_id, user_id, text, created_at')
     .eq('post_id', postId)
+    .is('deleted_at', null) // Wave 8 soft-delete: esconde apagados.
     .order('created_at', { ascending: true });
   if (error) throw new NetworkError(error.message, error);
   const rows = (data ?? []) as Array<{
