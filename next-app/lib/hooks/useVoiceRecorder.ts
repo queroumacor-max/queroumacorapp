@@ -29,6 +29,14 @@ export interface UseVoiceRecorderOptions {
   onError?: (msg: string) => void;
   // Auto-stop em N ms se o usuário esquecer (default 60_000 = 60s).
   autoStopMs?: number;
+  // Auto-stop por SILÊNCIO: para a gravação depois de N ms de silêncio
+  // contínuo, MAS só depois que o user falou alguma coisa primeiro.
+  // 0 ou undefined = desligado (modo manual: user precisa apertar pra parar).
+  // Recomendado: 1200-1800ms (conversa natural).
+  silenceMs?: number;
+  // Threshold RMS pra considerar "silêncio". 0-1, default 0.015 (~ ambiente
+  // calmo). Pra ambientes barulhentos pode subir pra 0.03-0.05.
+  silenceThreshold?: number;
 }
 
 export interface UseVoiceRecorderResult {
@@ -56,7 +64,13 @@ function detectSupport(): boolean {
 export function useVoiceRecorder(
   opts: UseVoiceRecorderOptions
 ): UseVoiceRecorderResult {
-  const { onComplete, onError, autoStopMs = DEFAULT_AUTOSTOP_MS } = opts;
+  const {
+    onComplete,
+    onError,
+    autoStopMs = DEFAULT_AUTOSTOP_MS,
+    silenceMs = 0,
+    silenceThreshold = 0.015,
+  } = opts;
 
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +82,14 @@ export function useVoiceRecorder(
   const chunksRef = useRef<Blob[]>([]);
   const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+  // VAD (Voice Activity Detection) — AudioContext + Analyser + RAF loop pra
+  // medir nível RMS continuamente e disparar stop após N ms de silêncio
+  // contínuo PÓS-fala. Refs porque não deve causar re-render.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const vadRafRef = useRef<number | null>(null);
+  const hasSpokenRef = useRef(false);
+  const silenceSinceRef = useRef<number>(0);
 
   // useRef em callbacks pra evitar re-criar start/stop a cada render do
   // componente pai (que recriaria `onComplete` em arrow inline). Os refs
@@ -85,6 +107,20 @@ export function useVoiceRecorder(
       clearTimeout(autoStopTimerRef.current);
       autoStopTimerRef.current = null;
     }
+    if (vadRafRef.current !== null) {
+      cancelAnimationFrame(vadRafRef.current);
+      vadRafRef.current = null;
+    }
+    if (analyserRef.current) {
+      try { analyserRef.current.disconnect(); } catch { /* ignore */ }
+      analyserRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try { void audioCtxRef.current.close(); } catch { /* ignore */ }
+      audioCtxRef.current = null;
+    }
+    hasSpokenRef.current = false;
+    silenceSinceRef.current = 0;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -183,7 +219,64 @@ export function useVoiceRecorder(
         }
       }, autoStopMs);
     }
-  }, [autoStopMs, cleanup, stop]);
+
+    // VAD: liga só se silenceMs > 0. Cria AudioContext + Analyser sobre o
+    // mesmo stream do MediaRecorder, mede RMS num loop RAF (~60fps), e para
+    // a gravação quando detecta silêncio sustentado DEPOIS que o user falou.
+    // Sem o "depois que falou", o stop dispararia no início (antes do user
+    // dizer alguma coisa) e nunca grava nada.
+    if (silenceMs > 0 && typeof window !== 'undefined') {
+      try {
+        const AC: typeof AudioContext =
+          window.AudioContext ||
+          (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!;
+        if (AC) {
+          const ctx = new AC();
+          audioCtxRef.current = ctx;
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          source.connect(analyser);
+          analyserRef.current = analyser;
+          const buf = new Uint8Array(analyser.fftSize);
+
+          const tick = () => {
+            const cur = analyserRef.current;
+            const rec = recorderRef.current;
+            if (!cur || !rec || rec.state !== 'recording') {
+              vadRafRef.current = null;
+              return;
+            }
+            cur.getByteTimeDomainData(buf);
+            // RMS normalizado em [0, 1]. 128 é o centro (silêncio digital).
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) {
+              const v = (buf[i] - 128) / 128;
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / buf.length);
+            const now = Date.now();
+            if (rms > silenceThreshold) {
+              hasSpokenRef.current = true;
+              silenceSinceRef.current = now;
+            } else if (hasSpokenRef.current) {
+              if (silenceSinceRef.current === 0) silenceSinceRef.current = now;
+              if (now - silenceSinceRef.current >= silenceMs) {
+                // Silêncio sustentado pós-fala — para a gravação.
+                stop();
+                return;
+              }
+            }
+            vadRafRef.current = requestAnimationFrame(tick);
+          };
+          vadRafRef.current = requestAnimationFrame(tick);
+        }
+      } catch {
+        // VAD opcional — se falhar (browser sem AudioContext, etc.),
+        // segue só com autoStopMs e stop manual.
+      }
+    }
+  }, [autoStopMs, cleanup, stop, silenceMs, silenceThreshold]);
 
   // Cleanup no unmount — garante que o mic não fica aceso depois que a tela some.
   useEffect(() => {

@@ -68,17 +68,31 @@ export interface UseSeuZeResult {
   // Auto-fala a resposta do Seu Zé assim que chega (persiste em localStorage).
   autoSpeak: boolean;
   setAutoSpeak: (v: boolean) => void;
+
+  // Modo conversa hands-free: ao ativar, abre o microfone com VAD; quando o
+  // user para de falar (1.5s de silêncio) auto-transcreve e envia. Quando a
+  // resposta termina de tocar, abre o mic de novo. Persistido em localStorage.
+  conversationMode: boolean;
+  setConversationMode: (v: boolean) => void;
 }
 
 const AUTO_SPEAK_KEY = 'seuze:autoSpeak';
-function readAutoSpeak(): boolean {
-  if (typeof window === 'undefined') return true;
+const CONVERSATION_MODE_KEY = 'seuze:conversationMode';
+function readBoolFlag(key: string, defaultVal: boolean): boolean {
+  if (typeof window === 'undefined') return defaultVal;
   try {
-    const v = window.localStorage.getItem(AUTO_SPEAK_KEY);
-    return v === null ? true : v === '1';
+    const v = window.localStorage.getItem(key);
+    return v === null ? defaultVal : v === '1';
   } catch {
-    return true;
+    return defaultVal;
   }
+}
+function writeBoolFlag(key: string, v: boolean): void {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.setItem(key, v ? '1' : '0'); } catch { /* ignore */ }
+}
+function readAutoSpeak(): boolean {
+  return readBoolFlag(AUTO_SPEAK_KEY, true);
 }
 
 // Gerador de id estável e curto pra cada msg. Date.now+rand basta — não
@@ -93,15 +107,30 @@ export function useSeuZe(): UseSeuZeResult {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeakState] = useState<boolean>(() => readAutoSpeak());
+  const [conversationMode, setConversationModeState] = useState<boolean>(
+    () => readBoolFlag(CONVERSATION_MODE_KEY, false),
+  );
 
   const setAutoSpeak = useCallback((v: boolean) => {
     setAutoSpeakState(v);
-    try {
-      window.localStorage.setItem(AUTO_SPEAK_KEY, v ? '1' : '0');
-    } catch {
-      // ignore
-    }
+    writeBoolFlag(AUTO_SPEAK_KEY, v);
   }, []);
+
+  // conversationMode liga: autoSpeak também (faz sentido — fluxo hands-free
+  // precisa da resposta em áudio pra fechar o loop).
+  const setConversationMode = useCallback((v: boolean) => {
+    setConversationModeState(v);
+    writeBoolFlag(CONVERSATION_MODE_KEY, v);
+    if (v && !autoSpeak) {
+      setAutoSpeakState(true);
+      writeBoolFlag(AUTO_SPEAK_KEY, true);
+    }
+  }, [autoSpeak]);
+
+  // Ref pro modo conversa — usado dentro de callbacks que não devem re-criar
+  // quando o flag muda (ex.: onended do audio TTS).
+  const conversationModeRef = useRef(conversationMode);
+  conversationModeRef.current = conversationMode;
 
   // Audio HTMLElement vive em ref — não dispara re-render quando troca de URL.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -209,7 +238,14 @@ export function useSeuZe(): UseSeuZeResult {
   const recorder = useVoiceRecorder({
     onComplete: handleVoiceBlob,
     onError: (msg) => setVoiceError(msg),
+    // Em modo conversa: VAD de 1500ms (silêncio sustentado pós-fala → para
+    // sozinho). Fora dele: 0 = manual (user precisa apertar pra parar).
+    silenceMs: conversationMode ? 1500 : 0,
   });
+
+  // Ref do start do recorder pra uso em callbacks (evita re-criar speak/etc).
+  const startVoiceRef = useRef(recorder.start);
+  startVoiceRef.current = recorder.start;
 
   // TTS opt-in: chamado pelo botão "🔊 Ouvir" de uma msg específica.
   // Se já está tocando essa msg, faz toggle (para). Se está tocando outra,
@@ -241,6 +277,16 @@ export function useSeuZe(): UseSeuZeResult {
             audioUrlRef.current = null;
           }
           setSpeakingId(null);
+          // Conversa hands-free: fim do TTS → abre o mic pra próxima fala
+          // automaticamente. Delay pequeno (250ms) pra não pegar eco do
+          // último frame do speaker.
+          if (conversationModeRef.current) {
+            setTimeout(() => {
+              void startVoiceRef.current().catch(() => {
+                // permissão negada/erro — sai do modo silenciosamente
+              });
+            }, 250);
+          }
         };
         audio.onerror = () => {
           stopSpeaking();
@@ -283,6 +329,8 @@ export function useSeuZe(): UseSeuZeResult {
     stopSpeaking,
     autoSpeak,
     setAutoSpeak,
+    conversationMode,
+    setConversationMode,
   };
 }
 
