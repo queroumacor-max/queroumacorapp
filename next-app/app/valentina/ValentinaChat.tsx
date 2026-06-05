@@ -18,32 +18,9 @@ import { useValentina } from '@/lib/hooks/useValentina';
 import { ChatMessage, TypingIndicator, type AvatarConfig } from '../seu-ze/ChatMessage';
 import { VoiceRecorder } from '../seu-ze/VoiceRecorder';
 
-// Avatar lavanda com "V" — sem asset novo. Usa cor brand secundária.
-const VALENTINA_AVATAR_NODE = (
-  <div
-    aria-label="Valentina"
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
-      color: '#fff',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'var(--font-display)',
-      fontWeight: 800,
-      fontSize: 13,
-      flexShrink: 0,
-      boxShadow: '0 1px 4px rgba(124,58,237,.3)',
-    }}
-  >
-    V
-  </div>
-);
-
 const VALENTINA_AVATAR: AvatarConfig = {
-  node: VALENTINA_AVATAR_NODE,
+  src: '/img/valentina.webp',
+  alt: 'Valentina',
   typingLabel: 'Valentina está digitando',
 };
 

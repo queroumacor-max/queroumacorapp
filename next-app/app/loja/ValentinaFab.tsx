@@ -25,21 +25,32 @@ export function ValentinaFab() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: 'var(--font-display)',
-        fontWeight: 800,
-        fontSize: 22,
-        color: '#fff',
         textDecoration: 'none',
-        border: '2px solid rgba(255,255,255,.6)',
+        border: '3px solid #fff',
+        overflow: 'visible',
       }}
     >
-      V
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/img/valentina.webp"
+        alt=""
+        width={50}
+        height={50}
+        loading="lazy"
+        style={{
+          width: 50,
+          height: 50,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          objectPosition: 'center top',
+        }}
+      />
       <span
         aria-hidden="true"
         style={{
           position: 'absolute',
-          top: -4,
-          right: -4,
+          top: -6,
+          right: -6,
           background: '#fff',
           color: '#7c3aed',
           fontSize: 10,
