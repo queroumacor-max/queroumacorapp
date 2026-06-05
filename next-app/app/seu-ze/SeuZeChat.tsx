@@ -33,7 +33,6 @@ export function SeuZeChat() {
     isSending,
     sendError,
     send,
-    reset,
     isRecording,
     isTranscribing,
     isVoiceSupported,
@@ -46,7 +45,14 @@ export function SeuZeChat() {
     setAutoSpeak,
     conversationMode,
     setConversationMode,
+    sessions,
+    activeSessionId,
+    newSession,
+    loadSession,
+    deleteSession,
   } = useSeuZe();
+
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Quando o user liga o modo conversa, abre o mic IMEDIATAMENTE pra começar
   // a primeira fala. Sem isso, ele clicava no toggle e ainda tinha que apertar
@@ -179,15 +185,45 @@ export function SeuZeChat() {
           >
             {autoSpeak ? '🔊' : '🔇'}
           </button>
-          {messages.length > 0 ? (
-            <button
-              type="button"
-              onClick={reset}
-              className="text-xs text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)] transition-colors"
-            >
-              Limpar
-            </button>
-          ) : null}
+          {/* Histórico de conversas — drawer com lista de sessões passadas */}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            aria-label="Ver conversas anteriores"
+            title="Conversas anteriores"
+            className="text-base hover:scale-110 transition-transform relative"
+          >
+            📜
+            {sessions.length > 0 ? (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -6,
+                  background: 'var(--color-p1)',
+                  color: '#fff',
+                  fontSize: 9,
+                  fontWeight: 800,
+                  borderRadius: 999,
+                  padding: '1px 5px',
+                  lineHeight: 1.2,
+                }}
+              >
+                {sessions.length}
+              </span>
+            ) : null}
+          </button>
+          {/* Nova conversa — arquiva a atual e começa do zero. Sempre visível. */}
+          <button
+            type="button"
+            onClick={newSession}
+            aria-label="Nova conversa"
+            title="Nova conversa"
+            className="text-base hover:scale-110 transition-transform"
+          >
+            ＋
+          </button>
         </div>
       </header>
 
@@ -329,6 +365,176 @@ export function SeuZeChat() {
           {isSending ? '…' : 'Enviar'}
         </button>
       </form>
+
+      {historyOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Conversas anteriores"
+          className="fixed inset-0 z-50 flex items-start justify-center"
+          style={{ background: 'rgba(0,0,0,.55)', padding: '40px 12px 12px' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setHistoryOpen(false); }}
+        >
+          <div
+            className="bg-white shadow-xl flex flex-col"
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              maxHeight: 'calc(100vh - 80px)',
+              borderRadius: 16,
+              overflow: 'hidden',
+            }}
+          >
+            <header
+              className="flex items-center justify-between"
+              style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}
+            >
+              <h3 className="font-bold text-sm">
+                Conversas anteriores ({sessions.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                aria-label="Fechar"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
+              >
+                ✕
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto">
+              {sessions.length === 0 ? (
+                <p
+                  className="text-center"
+                  style={{
+                    padding: 32,
+                    fontSize: 13,
+                    color: 'var(--color-muted)',
+                  }}
+                >
+                  Sem conversas anteriores ainda.
+                  <br />
+                  Comece falando com o Seu Zé!
+                </p>
+              ) : (
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                  {sessions.map((s) => {
+                    const isActive = s.id === activeSessionId;
+                    return (
+                      <li
+                        key={s.id}
+                        style={{
+                          borderBottom: '1px solid var(--color-border)',
+                          background: isActive ? 'rgba(255,107,53,.06)' : '#fff',
+                        }}
+                      >
+                        <div
+                          className="flex items-center gap-2"
+                          style={{ padding: '12px 16px' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              loadSession(s.id);
+                              setHistoryOpen(false);
+                            }}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              textAlign: 'left',
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <div
+                              className="font-bold truncate"
+                              style={{
+                                fontSize: 13,
+                                color: isActive ? 'var(--color-p1)' : 'var(--color-ink)',
+                              }}
+                            >
+                              {isActive ? '🟢 ' : ''}{s.title || 'Sem título'}
+                            </div>
+                            {s.preview ? (
+                              <div
+                                className="truncate"
+                                style={{
+                                  fontSize: 11,
+                                  color: 'var(--color-muted)',
+                                  marginTop: 2,
+                                }}
+                              >
+                                {s.preview}
+                              </div>
+                            ) : null}
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: 'var(--color-muted)',
+                                marginTop: 3,
+                              }}
+                            >
+                              {new Date(s.updatedAt).toLocaleString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                              {' · '}
+                              {s.messageCount} {s.messageCount === 1 ? 'msg' : 'msgs'}
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSession(s.id)}
+                            aria-label="Apagar conversa"
+                            title="Apagar"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--color-muted)',
+                              fontSize: 16,
+                              cursor: 'pointer',
+                              padding: '4px 8px',
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <footer
+              className="flex gap-2"
+              style={{ padding: 12, borderTop: '1px solid var(--color-border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  newSession();
+                  setHistoryOpen(false);
+                }}
+                className="flex-1 font-bold text-white text-sm"
+                style={{
+                  padding: 11,
+                  background: 'var(--color-ink)',
+                  borderRadius: 10,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ Nova conversa
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
