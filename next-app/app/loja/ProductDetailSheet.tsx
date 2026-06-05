@@ -12,11 +12,22 @@ import { useState } from 'react';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
 import {
+  mktClassify,
   productBg,
   resolveColorHex,
+  type MktCategory,
   type Product,
 } from '@/lib/services/mkt';
 import { WallARView } from './WallARView';
+
+// Categorias onde "Ver na parede" faz sentido — tinta/textura/epoxi/arte.
+// Resto (adaptador, pincel, rolo, eletrica) não tem o que pintar.
+const AR_PAINTABLE: ReadonlySet<MktCategory> = new Set([
+  'tintas',
+  'texturas',
+  'epoxi',
+  'arte_urbana',
+]);
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -62,6 +73,10 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const bg = productBg(product);
   const solidHex = resolveColorHex(product);
   const hasColor = !!(product.color_gradient || solidHex);
+  // AR só aparece pra produtos que (a) tem cor sólida resolvível E
+  // (b) caem numa categoria pintável. Sem isso o botão aparecia em
+  // adaptador de tomada, pincel etc. e tingia nada visível.
+  const arEligible = !!solidHex && AR_PAINTABLE.has(mktClassify(product));
   const price = Number(product.price || 0);
   const total = price * qty;
 
@@ -160,10 +175,11 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
         </div>
       ) : null}
 
-      {/* AR: "Ver na parede" — só renderiza pra produtos com cor sólida
-          resolvível (sem cor, não tem o que pintar). Gradient não conta
-          porque o AR pinta com 1 cor; pega só a sólida. */}
-      {solidHex ? (
+      {/* AR: "Ver na parede" — só pra produtos com cor sólida E categoria
+          pintável (tinta/textura/epoxi/arte). Filtra fora adaptador,
+          pincel, rolo etc. que tem color_hex meio aleatório e não faz
+          sentido pintar parede com. */}
+      {arEligible ? (
         <button
           type="button"
           onClick={() => setArOpen(true)}
@@ -303,7 +319,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       {/* Visualizador AR — render fora do bottom-sheet via portal-like
           (position:fixed) pra cobrir tela inteira. Só monta quando aberto
           pra não baixar MediaPipe em paginação normal. */}
-      {solidHex ? (
+      {arEligible && solidHex ? (
         <WallARView
           open={arOpen}
           color={solidHex}
