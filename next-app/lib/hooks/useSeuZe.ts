@@ -63,6 +63,9 @@ export interface UseSeuZeResult {
 
   // ── TTS opt-in ─────────────────────────────────────────────────────────
   speak: (messageId: string) => Promise<void>;
+  // Fala texto arbitrário (usado pra saudação inicial "Aceita um café?").
+  // NÃO adiciona como msg na thread — só toca o áudio.
+  speakText: (text: string) => Promise<void>;
   // ID da msg sendo "tocada" (UI pode mostrar spinner / botão "parar").
   speakingId: string | null;
   stopSpeaking: () => void;
@@ -548,6 +551,38 @@ export function useSeuZe(): UseSeuZeResult {
     [messages, speakingId, stopSpeaking]
   );
 
+  // speakText — fala texto arbitrário (saudação, anúncios) sem registrar
+  // como mensagem na thread. Reaproveita o pipeline TTS de speak() mas
+  // sem precisar de id de msg.
+  const speakText = useCallback(
+    async (text: string) => {
+      const clean = (text || '').trim();
+      if (!clean) return;
+      stopSpeaking();
+      // Marcador especial pra UI saber que tá tocando algo sem id de msg.
+      setSpeakingId('__intro__');
+      try {
+        const url = await textToSpeech(clean);
+        audioUrlRef.current = url;
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          if (audioUrlRef.current) {
+            try { URL.revokeObjectURL(audioUrlRef.current); } catch { /* ignore */ }
+            audioUrlRef.current = null;
+          }
+          setSpeakingId(null);
+        };
+        audio.onerror = () => { stopSpeaking(); };
+        await audio.play();
+      } catch {
+        // autoplay bloqueado / TTS falhou — fail silent (banner cobre).
+        stopSpeaking();
+      }
+    },
+    [stopSpeaking],
+  );
+
   // Auto-fala a última mensagem do assistant quando chega. Trigger só uma
   // vez por id (autoSpokenRef). Respeita o toggle autoSpeak (default ON).
   useEffect(() => {
@@ -574,6 +609,7 @@ export function useSeuZe(): UseSeuZeResult {
     isVoiceSupported: recorder.isSupported,
 
     speak,
+    speakText,
     speakingId,
     stopSpeaking,
     autoSpeak,
