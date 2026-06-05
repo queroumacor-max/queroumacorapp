@@ -145,14 +145,17 @@ const TILES: readonly Tile[] = [
   { sheet: 'checklist', emoji: '✅', title: 'Checklist', subtitle: 'Itens da obra' },
   { sheet: 'financeiro', emoji: '💰', title: 'Financeiro', subtitle: 'Lucro e comissão' },
   { sheet: 'notes', emoji: '📝', title: 'Anotações', subtitle: 'Notas e lembretes' },
-  { sheet: 'seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
-  { sheet: 'alice', title: 'Alice Codessi', subtitle: 'Designer de interiores', gradient: 'designer' },
-  { sheet: 'fe', title: 'Fê', subtitle: 'Cena grafite · PRO', gradient: 'graf' },
-  { sheet: 'senna', title: 'Senna', subtitle: 'Funilaria/auto · PRO', gradient: 'auto' },
   { sheet: 'arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { sheet: 'camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
   { sheet: 'formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
   { sheet: 'cursos', emoji: '📚', title: 'Cursos', subtitle: 'Workshops e treinos' },
+  // Personas IA por último — filtradas por role no render (visibleTiles).
+  // Admin vê os 4 enfileirados; cliente vê só Alice; cada profissional vê
+  // a sua. Mantê-las no fim agrupa o grid pra "tools normais primeiro".
+  { sheet: 'seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
+  { sheet: 'alice', title: 'Alice Codessi', subtitle: 'Designer de interiores', gradient: 'designer' },
+  { sheet: 'fe', title: 'Fê', subtitle: 'Cena grafite · PRO', gradient: 'graf' },
+  { sheet: 'senna', title: 'Senna', subtitle: 'Funilaria/auto · PRO', gradient: 'auto' },
 ];
 
 // Tiles condicionais ao role do user — só renderizam quando o role bate.
@@ -168,20 +171,10 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
   },
 ];
 
-// Tiles admin-only: vanilla esconde via `display:none` no HTML e
-// applyAdminUI() flipa quando is_portal_admin() retorna true (vide
-// index.html linha 920+). Aqui condicionamos via render do isAdmin
-// (que aceita portal_access=true). Abrem o /portal (admin React UMD).
-interface AdminTile {
-  href: string;
-  emoji: string;
-  title: string;
-  subtitle: string;
-}
-const ADMIN_TILES: readonly AdminTile[] = [
-  { href: '/portal/#moderation', emoji: '🛡️', title: 'Moderação', subtitle: 'Fila de revisão' },
-  { href: '/portal/#errors', emoji: '🐛', title: 'Erros', subtitle: 'Log do client' },
-];
+// Os tiles "Moderação" e "Erros" foram removidos daqui (jun/2026) — o
+// painel admin continua acessível via /portal/#moderation e /portal/
+// #errors direto na URL; só não aparecem mais como atalho no grid pra
+// não poluir a tela de perfil pra admins.
 
 export function BusinessGrid() {
   const [openSheet, setOpenSheet] = useState<SheetKey | null>(null);
@@ -227,11 +220,6 @@ export function BusinessGrid() {
             onOpen={() => setOpenSheet(t.sheet)}
           />
         ))}
-        {showAdmin
-          ? ADMIN_TILES.map((t) => (
-              <AdminCard key={t.href} tile={t} />
-            ))
-          : null}
       </div>
 
       <BottomSheet
@@ -382,41 +370,5 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
         {tile.subtitle}
       </div>
     </button>
-  );
-}
-
-// AdminCard — tile escuro (ink) usado pra Moderação/Erros. Vanilla
-// renderiza com fundo var(--ink) e texto branco pra destacar do
-// resto do grid. Click abre /portal/#<hash> em outra aba (admin UMD).
-function AdminCard({ tile }: { tile: AdminTile }) {
-  return (
-    <a
-      href={tile.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="rounded-2xl p-4 text-center shadow-sm flex flex-col items-center justify-center relative cursor-pointer"
-      style={{
-        background: 'var(--color-ink)',
-        boxShadow: '0 2px 10px rgba(0,0,0,.1)',
-        minHeight: 92,
-        textDecoration: 'none',
-      }}
-    >
-      <div className="text-[28px] leading-none mb-1.5" style={{ color: '#fff' }}>
-        {tile.emoji}
-      </div>
-      <div
-        className="text-xs font-bold leading-tight"
-        style={{ color: '#fff' }}
-      >
-        {tile.title}
-      </div>
-      <div
-        className="text-[10px] mt-0.5 leading-tight"
-        style={{ color: 'rgba(255,255,255,.8)' }}
-      >
-        {tile.subtitle}
-      </div>
-    </a>
   );
 }
