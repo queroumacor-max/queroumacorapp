@@ -68,11 +68,22 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const [showComment, setShowComment] = useState(false);
   // Comments via hook — assina o cache ['post-comments', id] que a
   // CommentForm invalida após insert. `post.comments` (do feed) é só
-  // o initialData pra evitar flash de "carregando" no primeiro paint;
-  // hook substitui assim que tem dados frescos.
-  const { comments: freshComments, remove: removeComment, isRemoving: isRemovingComment } = useComments(post.id);
-  const visibleComments =
-    freshComments && freshComments.length > 0 ? freshComments : post.comments;
+  // initialData pra evitar flash de "carregando" no 1º paint; o hook
+  // substitui assim que carrega.
+  //
+  // Pegadinha resolvida (jun/2026): o fallback antigo era
+  // `freshComments.length > 0 ? freshComments : post.comments` — tratava
+  // "lista carregada vazia" igual "ainda carregando" e voltava pra
+  // snapshot velha do feed. Resultado: comment novo (ou apagar comment)
+  // não refletia. Fix: usa `loading` pra decidir; depois de carregar,
+  // confia no resultado do hook (mesmo se vazio).
+  const {
+    comments: freshComments,
+    loading: commentsLoading,
+    remove: removeComment,
+    isRemoving: isRemovingComment,
+  } = useComments(post.id);
+  const visibleComments = commentsLoading ? post.comments : freshComments;
 
   const isOwn = !!user && user.id === post.user_id;
 
@@ -403,6 +414,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
           <CommentForm
             postId={post.id}
             onSuccess={() => setShowComment(false)}
+            onError={(msg) => showToast(msg || 'Erro ao comentar', 'error')}
           />
         </div>
       ) : null}
