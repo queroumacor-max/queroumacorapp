@@ -279,48 +279,76 @@ export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolea
 
 // ─── catálogo: fetch + filtro ─────────────────────────────────────────────
 
+// Colunas COMPLETAS — usadas só na página de detalhe (fetchProduct).
 const PRODUCT_COLS =
   'id, name, code, category, volume, price, color_hex, color_gradient, stock, badge, description, line, rendimento, demaos, secagem, active, image_url, created_at';
+
+// Colunas LEVES pra listagem — só o que ProductCard/filtro/classify usam.
+// Tira description (texto longo), badge, line, rendimento, demaos, secagem,
+// created_at, volume — payload cai ~50% pra ~4k produtos. Detalhe puxa o
+// resto sob demanda via fetchProduct(id).
+const PRODUCT_LIST_COLS =
+  'id, name, code, category, price, color_hex, color_gradient, stock, active, image_url';
 
 /**
  * Busca produtos do catálogo. Aceita filtro opcional por categoria/busca.
  * Filtro server-side só na categoria via classify, mas como mktClassify
  * roda em JS (regex sobre o nome), filtra client-side depois do fetch —
- * mesmo trade-off do vanilla. Limit default = 1000 (catálogo ~300 itens).
+ * mesmo trade-off do vanilla.
  *
  * Esconde produtos com `_isMktHidden` (bases tinturométricas).
+ *
+ * Estratégia de pagination: PostgREST cap de 1000 rows por request, e o
+ * catálogo tem ~4000+ produtos. Antes era sequencial (4-5 round-trips em
+ * série, ~3-8s no mobile). Agora pega a 1ª página + count exato em 1
+ * round-trip, depois dispara TODAS as páginas restantes EM PARALELO —
+ * tempo total ≈ max(página) em vez de soma.
  */
 export async function fetchProducts(filter: ProductFilter = {}): Promise<Product[]> {
   const sb = getSupabase();
-  // PostgREST limita por default a 1000 rows por request, mesmo passando
-  // `.limit(5000)` — config do server. Pra trazer todos os ~4000+ produtos
-  // do catálogo, paginamos via `.range(start, end)` em batches de 1000 até
-  // a página vir vazia. Caller pode limitar via filter.limit (raro).
   const PAGE = 1000;
-  const cap = filter.limit; // se passado, para no cap
-  const all: Product[] = [];
-  let from = 0;
-  // Loop com guarda — máx 10 páginas (~10k itens) pra não rodar infinito.
-  for (let page = 0; page < 10; page += 1) {
-    const to = from + PAGE - 1;
+  const cap = filter.limit;
+
+  function buildQuery(from: number, to: number, withCount: boolean) {
+    const opts = withCount ? { count: 'exact' as const } : undefined;
     const q = sb
       .from('products')
-      .select(PRODUCT_COLS)
+      .select(PRODUCT_LIST_COLS, opts)
       .order('name')
       .range(from, to);
-    const qFinal = filter.signal
+    return filter.signal
       ? (q as unknown as { abortSignal: (s: AbortSignal) => typeof q }).abortSignal(filter.signal)
       : q;
-    const { data, error } = await qFinal;
-    if (error) {
-      throw new NetworkError(error.message, error);
-    }
-    const batch = (data ?? []) as Product[];
-    all.push(...batch);
-    if (batch.length < PAGE) break; // última página
-    if (cap && all.length >= cap) break;
-    from += PAGE;
   }
+
+  // 1ª página + count em 1 round-trip. PostgREST devolve `count` quando
+  // passamos { count: 'exact' } no .select().
+  const firstResp = await buildQuery(0, PAGE - 1, true);
+  if (firstResp.error) {
+    throw new NetworkError(firstResp.error.message, firstResp.error);
+  }
+  const all: Product[] = ((firstResp.data ?? []) as Product[]).slice();
+  const total = firstResp.count ?? all.length;
+
+  // Páginas restantes — todas em paralelo.
+  if (total > PAGE) {
+    const totalPages = Math.min(Math.ceil(total / PAGE), 10); // cap defensivo
+    const pagePromises: Promise<Product[]>[] = [];
+    for (let page = 1; page < totalPages; page += 1) {
+      const from = page * PAGE;
+      const to = from + PAGE - 1;
+      pagePromises.push(
+        (async () => {
+          const resp = await buildQuery(from, to, false);
+          if (resp.error) throw new NetworkError(resp.error.message, resp.error);
+          return (resp.data ?? []) as Product[];
+        })(),
+      );
+    }
+    const batches = await Promise.all(pagePromises);
+    for (const batch of batches) all.push(...batch);
+  }
+
   let rows = all.filter((p) => !isMktHidden(p));
   if (cap) rows = rows.slice(0, cap);
 
