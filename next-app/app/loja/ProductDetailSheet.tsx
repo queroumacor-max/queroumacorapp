@@ -16,6 +16,7 @@ import {
   resolveColorHex,
   type Product,
 } from '@/lib/services/mkt';
+import { WallARView } from './WallARView';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -43,6 +44,7 @@ export interface ProductDetailSheetProps {
 
 export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailSheetProps) {
   const [qty, setQty] = useState(1);
+  const [arOpen, setArOpen] = useState(false);
 
   function handleAdd() {
     if (!product) return;
@@ -58,7 +60,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   }
 
   const bg = productBg(product);
-  const hasColor = !!(product.color_gradient || resolveColorHex(product));
+  const solidHex = resolveColorHex(product);
+  const hasColor = !!(product.color_gradient || solidHex);
   const price = Number(product.price || 0);
   const total = price * qty;
 
@@ -155,6 +158,46 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             <InfoCard label="Secagem" value={product.secagem} />
           ) : null}
         </div>
+      ) : null}
+
+      {/* AR: "Ver na parede" — só renderiza pra produtos com cor sólida
+          resolvível (sem cor, não tem o que pintar). Gradient não conta
+          porque o AR pinta com 1 cor; pega só a sólida. */}
+      {solidHex ? (
+        <button
+          type="button"
+          onClick={() => setArOpen(true)}
+          className="w-full font-bold"
+          style={{
+            padding: 12,
+            background: 'var(--color-cream)',
+            border: '2px solid var(--color-border)',
+            borderRadius: 12,
+            fontSize: 13,
+            color: 'var(--color-ink)',
+            cursor: 'pointer',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <span aria-hidden="true">👁</span>
+          <span>Ver na parede (AR)</span>
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-block',
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: solidHex,
+              border: '1.5px solid rgba(0,0,0,.15)',
+              marginLeft: 4,
+            }}
+          />
+        </button>
       ) : null}
 
       {/* Preço + qty picker */}
@@ -256,6 +299,18 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       >
         + Adicionar ao Carrinho · {BRL.format(total)}
       </button>
+
+      {/* Visualizador AR — render fora do bottom-sheet via portal-like
+          (position:fixed) pra cobrir tela inteira. Só monta quando aberto
+          pra não baixar MediaPipe em paginação normal. */}
+      {solidHex ? (
+        <WallARView
+          open={arOpen}
+          color={solidHex}
+          productName={product.name}
+          onClose={() => setArOpen(false)}
+        />
+      ) : null}
     </BottomSheet>
   );
 }
