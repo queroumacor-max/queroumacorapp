@@ -229,12 +229,17 @@ export async function deleteComment(
   if (!commentId) throw new ValidationError('commentId obrigatório');
   if (!userId) throw new ValidationError('userId obrigatório');
   const sb = getSupabase();
-  const { error, count } = await sb
+  // .select('id') depois do delete: PostgREST devolve o array das rows
+  // afetadas. Array vazio = nada deletado (RLS bloqueou ou id inexistente).
+  // Antes era count: 'exact' mas em alguns builds do supabase-js o count
+  // vinha undefined mesmo no sucesso, dando falso positivo de "sem permissão".
+  const { data, error } = await sb
     .from('comments')
-    .delete({ count: 'exact' })
-    .eq('id', commentId);
+    .delete()
+    .eq('id', commentId)
+    .select('id');
   if (error) throw new NetworkError(error.message, error);
-  if (!count) {
+  if (!data || data.length === 0) {
     throw new NetworkError(
       'Sem permissão pra apagar este comentário (não é seu nem do seu post)',
     );
