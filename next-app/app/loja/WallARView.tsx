@@ -60,7 +60,11 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const [mode, setMode] = useState<Mode>('ai');
+  // Default 'brush' (jun/2026): o modelo selfie_multiclass não distingue
+  // parede de chão/móveis quando não tem pessoa no frame — pintava tudo
+  // de uma cor só. Brush manual ficou superior na prática. IA continua
+  // disponível pelo toggle pra quem quiser experimentar.
+  const [mode, setMode] = useState<Mode>('brush');
   const [phase, setPhase] = useState<Phase>('init');
   const [status, setStatus] = useState<Status>('loading-camera');
   const [errorMsg, setErrorMsg] = useState<string>('');
