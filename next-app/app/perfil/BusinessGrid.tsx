@@ -49,8 +49,8 @@ const FinanceiroDashboard = lazy(() =>
 const SeuZeChat = lazy(() =>
   import('@/app/seu-ze/SeuZeChat').then((m) => ({ default: m.SeuZeChat })),
 );
-const ValentinaChat = lazy(() =>
-  import('@/app/valentina/ValentinaChat').then((m) => ({ default: m.ValentinaChat })),
+const AliceChat = lazy(() =>
+  import('@/app/alice/AliceChat').then((m) => ({ default: m.AliceChat })),
 );
 const AiArtStudio = lazy(() =>
   import('@/app/arte-ig/AiArtStudio').then((m) => ({ default: m.AiArtStudio })),
@@ -81,7 +81,7 @@ type SheetKey =
   | 'financeiro'
   | 'notes'
   | 'seu-ze'
-  | 'valentina'
+  | 'alice'
   | 'arte-ig'
   | 'camisetas'
   | 'formacao'
@@ -106,7 +106,7 @@ const SHEETS: Record<SheetKey, SheetConfig> = {
   financeiro: { label: 'Financeiro', Component: FinanceiroDashboard as ComponentType },
   notes: { label: 'Anotações', Component: NotesView as ComponentType },
   'seu-ze': { label: 'Seu Zé', Component: SeuZeChat as ComponentType },
-  valentina: { label: 'Valentina', Component: ValentinaChat as ComponentType },
+  alice: { label: 'Alice Codessi', Component: AliceChat as ComponentType },
   'arte-ig': { label: 'Arte pra IG', Component: AiArtStudio as ComponentType },
   camisetas: { label: 'Camisetas', Component: ShirtCustomizer as ComponentType },
   formacao: { label: 'Formação', Component: QualsSection as ComponentType },
@@ -136,7 +136,7 @@ const TILES: readonly Tile[] = [
   { sheet: 'financeiro', emoji: '💰', title: 'Financeiro', subtitle: 'Lucro e comissão' },
   { sheet: 'notes', emoji: '📝', title: 'Anotações', subtitle: 'Notas e lembretes' },
   { sheet: 'seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
-  { sheet: 'valentina', title: 'Valentina', subtitle: 'Designer de interiores', gradient: 'designer' },
+  { sheet: 'alice', title: 'Alice Codessi', subtitle: 'Designer de interiores', gradient: 'designer' },
   { sheet: 'arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { sheet: 'camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
   { sheet: 'formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
@@ -185,11 +185,11 @@ export function BusinessGrid() {
   // Personas IA são role-específicas:
   //  - Seu Zé → profissionais (pintor/grafite/auto). Cliente não vê (pra
   //    cliente o Seu Zé é PRO e fora de contexto — assistente de obra).
-  //  - Valentina → cliente. Profissionais não veem (já tem o Seu Zé).
+  //  - Alice → cliente. Profissionais não veem (já tem o Seu Zé).
   //  - Admin sempre vê os dois (pra testar).
   const visibleTiles = TILES.filter((t) => {
     if (t.sheet === 'seu-ze') return showAdmin || userRole !== 'cliente';
-    if (t.sheet === 'valentina') return showAdmin || userRole === 'cliente';
+    if (t.sheet === 'alice') return showAdmin || userRole === 'cliente';
     return true;
   });
 
@@ -293,8 +293,8 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
         ) : tile.gradient === 'designer' ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src="/img/valentina.webp"
-            alt="Valentina"
+            src="/img/alice.webp"
+            alt="Alice Codessi"
             width={34}
             height={34}
             loading="lazy"

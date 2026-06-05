@@ -5,7 +5,7 @@
 
 import type { Metadata } from 'next';
 import { ProductsList } from './ProductsList';
-import { ValentinaFab } from './ValentinaFab';
+import { AliceFab } from './AliceFab';
 import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ export default function LojaPage() {
   return (
     <AppShell>
       <ProductsList />
-      <ValentinaFab />
+      <AliceFab />
     </AppShell>
   );
 }

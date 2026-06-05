@@ -6,7 +6,7 @@ import { ServiceError } from '../security';
 const TIMEOUT_MS = 30000;
 
 // Vozes OpenAI TTS suportadas. 'onyx' = Seu Zé (masculino grave). 'nova' =
-// Valentina (feminino acolhedor). Allowlist evita caller passar string
+// Alice Codessi (feminino acolhedor). Allowlist evita caller passar string
 // arbitrária no body do request.
 export type TtsVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
 const ALLOWED_VOICES: ReadonlySet<TtsVoice> = new Set<TtsVoice>([

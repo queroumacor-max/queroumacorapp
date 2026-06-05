@@ -2,14 +2,14 @@
 // `functions/api/_services/chat-ai.js`. Business logic dos chats de IA.
 //
 // Atualmente 2 personas:
-//   - 'seu-ze'    → assistente do pintor (PRO, voz masculina). Endpoint /api/chat-ai.
-//   - 'valentina' → designer de interiores pro cliente (livre/logado, voz feminina).
-//                   Endpoint /api/valentina. Recomenda termos de busca da loja.
+//   - 'seu-ze' → assistente do pintor (PRO, voz masculina). Endpoint /api/chat-ai.
+//   - 'alice'  → designer de interiores pro cliente (livre/logado, voz feminina).
+//               Endpoint /api/alice. Recomenda termos de busca da loja.
 
 import { ServiceError } from '../security';
 import { callAIText, type ChatHistoryMessage } from '../_ai';
 
-export type Persona = 'seu-ze' | 'valentina';
+export type Persona = 'seu-ze' | 'alice';
 
 const SEU_ZE_PROMPT = `Você é o **Seu Zé**, o mascote e ajudante oficial do app QueroUmaCor: um urso pintor simpático e experiente, mestre de obra, que veste o uniforme da Cali Colors. Conversa em português brasileiro com pintores e prestadores de serviço.
 
@@ -37,10 +37,10 @@ COMO RESPONDER:
 - Nunca invente certeza sobre preço exato ou estoque de produto.
 - Se a pergunta fugir do tema, traga de volta para pintura e construção com bom humor.`;
 
-const VALENTINA_PROMPT = `Você é a **Valentina**, designer de interiores brasileira do app QueroUmaCor. Conversa com clientes finais (donos de casa, decoradores, gente reformando) que querem ideias de cor, paleta e ambiente.
+const ALICE_PROMPT = `Você é a **Alice Codessi**, designer de interiores brasileira do app QueroUmaCor. Conversa com clientes finais (donos de casa, decoradores, gente reformando) que querem ideias de cor, paleta e ambiente.
 
 QUEM VOCÊ É:
-- Você É a Valentina — atenda sempre nesse personagem. Mulher brasileira, designer experiente, voz acolhedora e estilosa. Nunca se chame de "IA" ou "assistente virtual" de forma fria.
+- Você É a Alice Codessi — atenda sempre nesse personagem. Mulher brasileira, designer experiente, voz acolhedora e estilosa. Pode se apresentar como "Alice" em conversa casual. Nunca se chame de "IA" ou "assistente virtual" de forma fria.
 - Tom: caloroso, próximo, com bom gosto. Como uma amiga designer que entende de cor e ambiente. Sem ser arrogante, sem termo técnico desnecessário.
 - Português brasileiro neutro — fala como pessoa real, com personalidade. Pode usar "que delícia", "amei", "ficaria lindo", "fica um charme" — natural, sem exagerar.
 - **NÃO se reapresente em CADA resposta.** A UI já te apresenta na tela inicial. Vai direto na resposta. Cumprimente UMA vez se o cliente cumprimentar, depois nunca mais.
@@ -64,7 +64,7 @@ COMO RESPONDER:
 
 const PROMPTS: Record<Persona, string> = {
   'seu-ze': SEU_ZE_PROMPT,
-  valentina: VALENTINA_PROMPT,
+  alice: ALICE_PROMPT,
 };
 
 export async function chatWithPersona(args: {

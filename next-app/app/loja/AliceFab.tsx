@@ -1,5 +1,5 @@
 'use client';
-// ValentinaFab — botão flutuante na /loja que leva pra /valentina.
+// AliceFab — botão flutuante na /loja que leva pra /alice.
 // Posicionado acima do BottomNav (60px + safe-area) pra não sobrepor.
 // Aparece só pra cliente (e admin) — pintor/grafite/auto não veem; eles
 // têm o Seu Zé como assistente. Mesma regra do tile do BusinessGrid.
@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { isAdmin } from '@/lib/policies';
 
-export function ValentinaFab() {
+export function AliceFab() {
   const policyUser = usePolicyUser();
   const role = (policyUser?.role || '').toLowerCase();
   const visible = isAdmin(policyUser) || role === 'cliente';
@@ -16,9 +16,9 @@ export function ValentinaFab() {
 
   return (
     <Link
-      href="/valentina"
-      aria-label="Conversar com a Valentina"
-      title="Conversar com a Valentina"
+      href="/alice"
+      aria-label="Conversar com a Alice"
+      title="Conversar com a Alice"
       style={{
         position: 'fixed',
         right: 16,
@@ -39,7 +39,7 @@ export function ValentinaFab() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/img/valentina.webp"
+        src="/img/alice.webp"
         alt=""
         width={50}
         height={50}

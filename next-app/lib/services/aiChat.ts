@@ -165,7 +165,7 @@ export async function sendChatMessage(
   const text = String(userMessage || '').trim();
   if (!text) throw new ValidationError('Mensagem vazia');
 
-  // Endpoint padrão = Seu Zé. Valentina passa '/api/valentina'.
+  // Endpoint padrão = Seu Zé. Alice passa '/api/alice'.
   const endpoint = opts?.endpoint || '/api/chat-ai';
 
   let res: Response | null = null;
@@ -323,8 +323,8 @@ export async function textToSpeech(
   const t = String(text || '').trim();
   if (!t) throw new ValidationError('Texto vazio');
 
-  // Endpoint default = Seu Zé (PRO + onyx). Valentina passa
-  // '/api/valentina/tts' + voice 'nova'.
+  // Endpoint default = Seu Zé (PRO + onyx). Alice passa
+  // '/api/alice/tts' + voice 'nova'.
   const endpoint = opts?.endpoint || '/api/tts';
   const body: Record<string, unknown> = { text: t.slice(0, 1500) };
   if (opts?.voice) body.voice = opts.voice;

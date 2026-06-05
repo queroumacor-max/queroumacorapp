@@ -1,4 +1,4 @@
-// app/api/valentina/route.ts — chat com a Valentina (designer de interiores).
+// app/api/alice/route.ts — chat com a Alice Codessi (designer de interiores).
 // Versão non-PRO do /api/chat-ai pra cliente final logado. Mesma infra de
 // rate-limit (20/min), mesma cota mensal de IA por plano (free=30/pro=500),
 // só sem o gate de PRO.
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
   // requirePro: false → só auth + rate-limit. Cliente final não tem PRO.
   const g = await gateProAI(request, body, {
-    endpoint: 'valentina',
+    endpoint: 'alice',
     limit: 20,
     requirePro: false,
   });
@@ -39,21 +39,21 @@ export async function POST(request: NextRequest) {
   const aiGate = await gateAiUsage({
     userId: g.userId,
     email: g.user?.email,
-    feature: 'valentina',
+    feature: 'alice',
   });
   if (aiGate instanceof NextResponse) return aiGate;
 
   try {
     const result = await chatWithPersona({
-      persona: 'valentina',
+      persona: 'alice',
       message: body?.message,
       history: body?.history,
     });
-    await recordAiUsage({ userId: g.userId, feature: 'valentina' });
+    await recordAiUsage({ userId: g.userId, feature: 'alice' });
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.warn('valentina crash:', e instanceof Error ? e.message : e);
+    console.warn('alice crash:', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

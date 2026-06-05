@@ -19,7 +19,7 @@
 import Image from 'next/image';
 
 export interface AvatarConfig {
-  /** ReactNode customizado pro avatar (ex.: círculo lavanda da Valentina).
+  /** ReactNode customizado pro avatar (ex.: imagem da Alice Codessi).
    *  Quando definido, ignora src/alt. */
   node?: React.ReactNode;
   /** Caminho da imagem (usado se node não for passado). */

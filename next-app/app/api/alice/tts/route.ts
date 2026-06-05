@@ -1,4 +1,4 @@
-// app/api/valentina/tts/route.ts — TTS pra Valentina (non-PRO, voz feminina).
+// app/api/alice/tts/route.ts — TTS pra Alice Codessi (non-PRO, voz feminina).
 // Espelha /api/tts mas com requirePro: false. Voz default 'nova' (feminino
 // acolhedor); caller pode forçar outra via body.voice mas a allowlist no
 // service só aceita 6 vozes OpenAI.
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
   const g = await gateProAI(request, body, {
-    endpoint: 'valentina-tts',
+    endpoint: 'alice-tts',
     limit: 10,
     requirePro: false,
   });
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const aiGate = await gateAiUsage({
     userId: g.userId,
     email: g.user?.email,
-    feature: 'valentina_tts',
+    feature: 'alice_tts',
   });
   if (aiGate instanceof NextResponse) return aiGate;
   try {
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       text: body?.text,
       voice: typeof body?.voice === 'string' ? body.voice : 'nova',
     });
-    await recordAiUsage({ userId: g.userId, feature: 'valentina_tts' });
+    await recordAiUsage({ userId: g.userId, feature: 'alice_tts' });
     return new NextResponse(audio, {
       status: 200,
       headers: {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.warn('valentina-tts crash:', e instanceof Error ? e.message : e);
+    console.warn('alice-tts crash:', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
