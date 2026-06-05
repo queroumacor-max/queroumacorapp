@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { __resetSupabaseForTests, __setSupabaseForTests } from '../../lib/supabase';
-import { checkTagAvailability, validateInviteCode, signUp } from '../../lib/services/signup';
+import { checkTagAvailability, signUp } from '../../lib/services/signup';
 import { ConflictError, ValidationError } from '../../lib/errors';
 
 beforeEach(() => {
@@ -132,62 +132,8 @@ describe('checkTagAvailability', () => {
   });
 });
 
-// ── validateInviteCode ───────────────────────────────────────────────────────
-
-describe('validateInviteCode', () => {
-  it('código vazio → { referrerId: null } sem ir pra rede', async () => {
-    __setSupabaseForTests(makeFakeClient());
-    const r = await validateInviteCode('');
-    expect(r).toEqual({ referrerId: null });
-  });
-
-  it('código sem prefixo QUC- → { referrerId: null }', async () => {
-    __setSupabaseForTests(makeFakeClient());
-    const r = await validateInviteCode('ABC-12345');
-    expect(r).toEqual({ referrerId: null });
-  });
-
-  it('código válido e disponível → retorna referrer_id', async () => {
-    __setSupabaseForTests(
-      makeFakeClient({
-        tables: {
-          referrals: {
-            selectResult: {
-              data: [{ referrer_id: 'ref-abc' }],
-              error: null,
-            },
-          },
-        },
-      }),
-    );
-    const r = await validateInviteCode('QUC-AB12X');
-    expect(r).toEqual({ referrerId: 'ref-abc' });
-  });
-
-  it('código não encontrado → { referrerId: null }', async () => {
-    __setSupabaseForTests(
-      makeFakeClient({
-        tables: { referrals: { selectResult: { data: [], error: null } } },
-      }),
-    );
-    const r = await validateInviteCode('QUC-NOPE1');
-    expect(r).toEqual({ referrerId: null });
-  });
-
-  it('normaliza pra uppercase + trim', async () => {
-    __setSupabaseForTests(
-      makeFakeClient({
-        tables: {
-          referrals: {
-            selectResult: { data: [{ referrer_id: 'ref-x' }], error: null },
-          },
-        },
-      }),
-    );
-    const r = await validateInviteCode('  quc-ab12x  ');
-    expect(r).toEqual({ referrerId: 'ref-x' });
-  });
-});
+// validateInviteCode foi removida do service (cadastro agora é invite-only
+// via link de perfil, sem código manual). Testes removidos junto com a fn.
 
 // ── signUp ───────────────────────────────────────────────────────────────────
 
@@ -276,15 +222,14 @@ describe('signUp', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('inviteCode válido → faz update em referrals após criar conta', async () => {
-    const referralsTbl: FakeTable = {
-      selectResult: { data: [{ referrer_id: 'ref-xyz' }], error: null },
-    };
+  it('referrerId presente → cria conta e mantém userId', async () => {
+    // Fluxo novo (invite-by-link): o caller passa o referrerId capturado
+    // pelo ReferralCapture. signup.ts grava em profiles.invited_by + faz
+    // INSERT em referrals (best-effort). Como o fake client não captura
+    // .insert(), aqui validamos só que o signUp resolve com o userId — o
+    // efeito colateral é silencioso por design.
     const client = makeFakeClient({
-      tables: {
-        profiles_public: { selectResult: { data: [], error: null } },
-        referrals: referralsTbl,
-      },
+      tables: { profiles_public: { selectResult: { data: [], error: null } } },
       signUp: { data: { user: { id: 'user-new' } } },
     });
     __setSupabaseForTests(client);
@@ -296,23 +241,14 @@ describe('signUp', () => {
       tag: 'joao',
       phone: '5511959765031',
       userType: 'pintor',
-      inviteCode: 'QUC-AB12X',
+      referrerId: 'ref-xyz',
     });
     expect(r.userId).toBe('user-new');
-    // Update foi disparado com o referred_id correto.
-    expect(referralsTbl.lastUpdate?.payload).toEqual({ referred_id: 'user-new' });
-    expect(referralsTbl.lastUpdate?.eq).toEqual(['code', 'QUC-AB12X']);
   });
 
-  it('inviteCode sem prefixo QUC- → conta criada sem update em referrals', async () => {
-    const referralsTbl: FakeTable = {
-      selectResult: { data: [], error: null },
-    };
+  it('referrerId igual ao próprio user → ignora (não tenta auto-indicação)', async () => {
     const client = makeFakeClient({
-      tables: {
-        profiles_public: { selectResult: { data: [], error: null } },
-        referrals: referralsTbl,
-      },
+      tables: { profiles_public: { selectResult: { data: [], error: null } } },
       signUp: { data: { user: { id: 'user-new' } } },
     });
     __setSupabaseForTests(client);
@@ -324,10 +260,9 @@ describe('signUp', () => {
       tag: 'joao',
       phone: '5511959765031',
       userType: 'pintor',
-      inviteCode: 'INVALID',
+      referrerId: 'user-new',
     });
     expect(r.userId).toBe('user-new');
-    expect(referralsTbl.lastUpdate).toBeUndefined();
   });
 
   it('passa metadados (name, tag, phone, user_type) pro auth.signUp', async () => {

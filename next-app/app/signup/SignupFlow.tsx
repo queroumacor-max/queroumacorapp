@@ -1,18 +1,17 @@
 'use client';
-// SignupFlow — orquestrador do multi-step. Estado local com useState (sem
-// Context novo): cada step é um form RHF+Zod independente que reporta seu
-// dado consolidado via callback `onNext(stepData)`. O motivo de lift de
-// estado em vez de Context: só 3 steps, dados pequenos, e a vida do estado
-// é exatamente igual à vida do componente. Context aqui seria over-engineering
-// (consumers únicos, sem cross-cutting concerns).
+// SignupFlow — orquestrador do multi-step.
 //
-// Cobre os 3 passos do vanilla:
-//  Step 1 → role selector (selectRole/signupNext(2))
-//  Step 2 → name/tag/email/phone + check de tag (validateAndGoStep3)
-//  Step 3 → senha + invite + termos (doSignup)
+// Cadastro AGORA é invite-only via link de indicação. NÃO existe mais
+// código manual (QUC-XXXXX). O usuário precisa chegar com `?ref=<userId>`
+// na URL (link compartilhado por alguém já cadastrado). Sem ref:
+//  - mostra mensagem "convite necessário" no step 1
+//  - botão de criar conta no step 3 também bloqueia + repete a mensagem
 //
-// Submit final: chama lib/services/signup.signUp e redireciona pra `/`.
-import { useState } from 'react';
+// Steps:
+//  Step 1 → role selector
+//  Step 2 → name/tag/email/phone
+//  Step 3 → senha + termos (sem invite code)
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signUp } from '@/lib/services/signup';
@@ -43,6 +42,14 @@ export function SignupFlow() {
   const [draft, setDraft] = useState<DraftSignup>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Convite: lê do localStorage (gravado pelo ReferralCapture quando o
+  // link com ?ref=<userId> pousa em qualquer rota). Se vazio = sem convite.
+  const [referrerId, setReferrerId] = useState<string | null>(null);
+  useEffect(() => {
+    setReferrerId(readPendingReferrer());
+  }, []);
+
+  const hasInvite = !!referrerId;
 
   function handleStep1(data: Step1Data) {
     setDraft((d) => ({ ...d, userType: data.userType }));
@@ -66,16 +73,21 @@ export function SignupFlow() {
 
   async function handleStep3(data: Step3Data) {
     setServerError(null);
+    // Re-check do convite no submit (caso o user tenha aberto a aba antes
+    // de receber o link — agora deve ter ref ou bloqueia).
+    const ref = readPendingReferrer();
+    if (!ref) {
+      setServerError(
+        'Cadastro requer convite. Peça pra alguém já cadastrado compartilhar o perfil dele com você — o link abre o app e libera o cadastro.',
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       if (!draft.userType || !draft.name || !draft.tag || !draft.email || !draft.phone) {
         setServerError('Volte e preencha os passos anteriores.');
         return;
       }
-      // ReferralCapture armazenou ?ref=<userId> em localStorage quando o
-      // link compartilhado pousou em qualquer rota. signUp passa pro service
-      // que insere em `referrals` + seta profiles.invited_by.
-      const referrerId = readPendingReferrer();
       const { userId } = await signUp({
         userType: draft.userType,
         name: draft.name,
@@ -83,11 +95,10 @@ export function SignupFlow() {
         email: draft.email,
         phone: draft.phone,
         password: data.password,
-        inviteCode: data.inviteCode || undefined,
         birthDate: draft.birthDate || null,
         city: draft.city || null,
         state: draft.state || null,
-        referrerId: referrerId || undefined,
+        referrerId: ref,
         // Avatar é uploaded depois (precisa do userId da conta criada
         // pra usar o path do storage policy `<userId>/<ts>.<ext>`).
       });
@@ -106,10 +117,9 @@ export function SignupFlow() {
           /* silent — user pode subir depois via /perfil/editar */
         }
       }
-      // Limpa o referrer salvo + redireciona pro perfil de quem indicou
-      // (vanilla head.js linha 1188 openUserProfile). Sem referrer → /.
+      // Limpa o referrer salvo + redireciona pro perfil de quem indicou.
       clearPendingReferrer();
-      router.push(referrerId ? `/perfil/${referrerId}` : '/');
+      router.push(`/perfil/${ref}`);
       router.refresh();
     } catch (e) {
       if (e instanceof ConflictError) {
@@ -128,6 +138,28 @@ export function SignupFlow() {
 
   return (
     <div>
+      {!hasInvite ? (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 16,
+            padding: '12px 14px',
+            borderRadius: 12,
+            background: 'rgba(255,107,53,.08)',
+            border: '1.5px solid rgba(255,107,53,.35)',
+            color: 'var(--color-ink)',
+            fontSize: 13,
+            lineHeight: 1.55,
+          }}
+        >
+          <strong>🔒 Cadastro por convite</strong>
+          <br />
+          O QueroUmaCor é uma comunidade fechada. Pra criar conta você
+          precisa do link de perfil de alguém já cadastrado. Peça pra um
+          pintor/cliente que você conhece compartilhar o perfil dele —
+          o link já libera o cadastro automaticamente.
+        </div>
+      ) : null}
       <StepDots current={step} />
       {step === 1 && (
         <SignupStep1
