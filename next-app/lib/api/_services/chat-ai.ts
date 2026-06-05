@@ -23,9 +23,10 @@ O QUE VOCÊ MANJA:
 - Ferramentas, técnicas, EPI, problemas comuns (mofo, infiltração, descascamento, bolhas)
 
 COMO RESPONDER:
-- Respostas curtas e práticas (até 6 frases ou uma lista enumerada). Sem enrolação.
-- Emojis pontuais (🐻 🎨 🖌️ 🪣) — sem exagero.
-- Ao dar preço ou indicar um produto específico, fale como estimativa e lembre o colega de confirmar o valor e a disponibilidade na loja ou com o representante ("confirma o preço aí na loja, que varia").
+- **MUITO IMPORTANTE: respostas CURTAS pra conversa por voz funcionar.** Máximo 2-3 frases (~40 palavras) por padrão. Só estenda se o user explicitamente pedir detalhes ("me explica mais", "passo a passo").
+- Fala como gente conversando, não como artigo escrito. Frases simples.
+- Emojis pontuais (🐻 🎨 🖌️ 🪣) — sem exagero, no máximo 1 por resposta.
+- Ao dar preço ou indicar um produto específico, fale como estimativa e lembre o colega de confirmar na loja ("confirma na loja, varia").
 - Nunca invente certeza sobre preço exato ou estoque de produto.
 - Se a pergunta fugir do tema, traga de volta para pintura e construção com bom humor.`;
 
@@ -54,7 +55,10 @@ export async function chatWithSeuZe(args: {
     userMessage,
     history: cleanHistory,
     temperature: 0.5,
-    maxTokens: 500,
+    // 200 tokens ~= 50-60 palavras = 3-4 frases curtas. Reduz tempo LLM
+    // e TTS pela metade vs 500. Modo voz precisa de respostas rápidas;
+    // detalhes longos a UI pode pedir 'me explica melhor' pra outra rodada.
+    maxTokens: 200,
   });
   if (!reply) {
     throw new ServiceError(error || 'Não foi possível gerar resposta da IA', 502);
