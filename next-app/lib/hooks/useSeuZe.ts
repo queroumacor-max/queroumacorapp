@@ -31,6 +31,7 @@ import {
   trimHistory,
   type ChatMessage,
 } from '@/lib/services/aiChat';
+import { useAuth } from '@/components/AuthProvider';
 import { useVoiceRecorder } from '@/lib/hooks/useVoiceRecorder';
 import { errMsg } from '@/lib/utils';
 
@@ -78,6 +79,11 @@ export interface UseSeuZeResult {
 
 const AUTO_SPEAK_KEY = 'seuze:autoSpeak';
 const CONVERSATION_MODE_KEY = 'seuze:conversationMode';
+const THREAD_KEY_PREFIX = 'seuze:thread:'; // + userId
+// Cap defensivo: histórico longo demais bloated localStorage E inflate
+// tokens enviados pro backend. 40 mensagens (~20 turnos) cobre conversas
+// reais; mais antigo é descartado FIFO no load.
+const MAX_PERSISTED_MESSAGES = 40;
 function readBoolFlag(key: string, defaultVal: boolean): boolean {
   if (typeof window === 'undefined') return defaultVal;
   try {
@@ -95,6 +101,50 @@ function readAutoSpeak(): boolean {
   return readBoolFlag(AUTO_SPEAK_KEY, true);
 }
 
+function readThread(userId: string | null): ThreadMessage[] {
+  if (!userId || typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(THREAD_KEY_PREFIX + userId);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    // Validação defensiva — descarta entradas malformadas (storage corrompido).
+    return arr
+      .filter(
+        (m): m is ThreadMessage =>
+          !!m &&
+          typeof m === 'object' &&
+          typeof (m as { id?: unknown }).id === 'string' &&
+          typeof (m as { role?: unknown }).role === 'string' &&
+          typeof (m as { content?: unknown }).content === 'string' &&
+          ((m as { role: string }).role === 'user' ||
+            (m as { role: string }).role === 'assistant'),
+      )
+      .slice(-MAX_PERSISTED_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function writeThread(userId: string | null, msgs: ThreadMessage[]): void {
+  if (!userId || typeof window === 'undefined') return;
+  try {
+    const trimmed = msgs.slice(-MAX_PERSISTED_MESSAGES);
+    window.localStorage.setItem(
+      THREAD_KEY_PREFIX + userId,
+      JSON.stringify(trimmed),
+    );
+  } catch {
+    // Quota exceeded / private mode — sem fallback. Próximo refresh
+    // perde mas conversa atual segue normal.
+  }
+}
+
+function clearThread(userId: string | null): void {
+  if (!userId || typeof window === 'undefined') return;
+  try { window.localStorage.removeItem(THREAD_KEY_PREFIX + userId); } catch { /* ignore */ }
+}
+
 // Gerador de id estável e curto pra cada msg. Date.now+rand basta — não
 // precisa de uuid (não persiste, é só pra React key).
 function nextId(): string {
@@ -102,10 +152,28 @@ function nextId(): string {
 }
 
 export function useSeuZe(): UseSeuZeResult {
-  const [messages, setMessages] = useState<ThreadMessage[]>([]);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  // Hidrata thread do localStorage no mount inicial. Por user pra não vazar
+  // contexto entre contas no mesmo device.
+  const [messages, setMessages] = useState<ThreadMessage[]>(() => readThread(userId));
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  // Re-hidrata quando user troca (multi-conta no mesmo device).
+  const hydratedForUserRef = useRef<string | null>(userId);
+  useEffect(() => {
+    if (hydratedForUserRef.current === userId) return;
+    hydratedForUserRef.current = userId;
+    setMessages(readThread(userId));
+  }, [userId]);
+
+  // Persiste a cada mudança. Throttle implícito: setState bate em batch
+  // React já agrega múltiplos updates por frame.
+  useEffect(() => {
+    writeThread(userId, messages);
+  }, [userId, messages]);
   const [autoSpeak, setAutoSpeakState] = useState<boolean>(() => readAutoSpeak());
   const [conversationMode, setConversationModeState] = useState<boolean>(
     () => readBoolFlag(CONVERSATION_MODE_KEY, false),
@@ -212,8 +280,9 @@ export function useSeuZe(): UseSeuZeResult {
   const reset = useCallback(() => {
     stopSpeaking();
     setMessages([]);
+    clearThread(userId);
     sendMutation.reset();
-  }, [sendMutation, stopSpeaking]);
+  }, [sendMutation, stopSpeaking, userId]);
 
   // Voz: integra useVoiceRecorder + transcribe. Quando o blob fica pronto,
   // transcrevemos e chamamos send() com o texto resultante.
