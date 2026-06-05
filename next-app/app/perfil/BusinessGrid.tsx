@@ -52,6 +52,12 @@ const SeuZeChat = lazy(() =>
 const AliceChat = lazy(() =>
   import('@/app/alice/AliceChat').then((m) => ({ default: m.AliceChat })),
 );
+const FeChat = lazy(() =>
+  import('@/app/fe/FeChat').then((m) => ({ default: m.FeChat })),
+);
+const SennaChat = lazy(() =>
+  import('@/app/senna/SennaChat').then((m) => ({ default: m.SennaChat })),
+);
 const AiArtStudio = lazy(() =>
   import('@/app/arte-ig/AiArtStudio').then((m) => ({ default: m.AiArtStudio })),
 );
@@ -82,6 +88,8 @@ type SheetKey =
   | 'notes'
   | 'seu-ze'
   | 'alice'
+  | 'fe'
+  | 'senna'
   | 'arte-ig'
   | 'camisetas'
   | 'formacao'
@@ -107,6 +115,8 @@ const SHEETS: Record<SheetKey, SheetConfig> = {
   notes: { label: 'Anotações', Component: NotesView as ComponentType },
   'seu-ze': { label: 'Seu Zé', Component: SeuZeChat as ComponentType },
   alice: { label: 'Alice Codessi', Component: AliceChat as ComponentType },
+  fe: { label: 'Fê', Component: FeChat as ComponentType },
+  senna: { label: 'Senna', Component: SennaChat as ComponentType },
   'arte-ig': { label: 'Arte pra IG', Component: AiArtStudio as ComponentType },
   camisetas: { label: 'Camisetas', Component: ShirtCustomizer as ComponentType },
   formacao: { label: 'Formação', Component: QualsSection as ComponentType },
@@ -120,7 +130,7 @@ interface Tile {
   icon?: ReactNode;
   title: string;
   subtitle: string;
-  gradient?: 'pro' | 'art' | 'designer';
+  gradient?: 'pro' | 'art' | 'designer' | 'graf' | 'auto';
 }
 
 const TILES: readonly Tile[] = [
@@ -137,6 +147,8 @@ const TILES: readonly Tile[] = [
   { sheet: 'notes', emoji: '📝', title: 'Anotações', subtitle: 'Notas e lembretes' },
   { sheet: 'seu-ze', title: 'Seu Zé', subtitle: 'Tira dúvidas · PRO', gradient: 'pro' },
   { sheet: 'alice', title: 'Alice Codessi', subtitle: 'Designer de interiores', gradient: 'designer' },
+  { sheet: 'fe', title: 'Fê', subtitle: 'Cena grafite · PRO', gradient: 'graf' },
+  { sheet: 'senna', title: 'Senna', subtitle: 'Funilaria/auto · PRO', gradient: 'auto' },
   { sheet: 'arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { sheet: 'camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
   { sheet: 'formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
@@ -182,13 +194,18 @@ export function BusinessGrid() {
     t.roles.some((r) => r === userRole),
   );
 
-  // Personas IA são role-específicas:
-  //  - Seu Zé → profissionais (pintor/grafite/auto). Cliente não vê (pra
-  //    cliente o Seu Zé é PRO e fora de contexto — assistente de obra).
-  //  - Alice → cliente. Profissionais não veem (já tem o Seu Zé).
-  //  - Admin sempre vê os dois (pra testar).
+  // Personas IA são role-específicas (1 persona por role profissional):
+  //  - Seu Zé → pintor (e fallback genérico se role vazio)
+  //  - Fê    → grafiteiro
+  //  - Senna → automotivo / funileiro
+  //  - Alice → cliente
+  //  - Admin → vê todos os 4 pra testar
   const visibleTiles = TILES.filter((t) => {
-    if (t.sheet === 'seu-ze') return showAdmin || userRole !== 'cliente';
+    if (t.sheet === 'seu-ze') {
+      return showAdmin || userRole === 'pintor' || (!userRole && userRole !== 'cliente');
+    }
+    if (t.sheet === 'fe') return showAdmin || userRole === 'grafiteiro';
+    if (t.sheet === 'senna') return showAdmin || userRole === 'automotivo' || userRole === 'funileiro';
     if (t.sheet === 'alice') return showAdmin || userRole === 'cliente';
     return true;
   });
@@ -251,7 +268,11 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
       ? 'linear-gradient(135deg, #2ec4b6, #8338ec)'
       : tile.gradient === 'designer'
         ? 'linear-gradient(135deg, #a78bfa, #7c3aed)'
-        : 'linear-gradient(135deg, #ff6b35, #8338ec)';
+        : tile.gradient === 'graf'
+          ? 'linear-gradient(135deg, #ff6b35, #e10600)'
+          : tile.gradient === 'auto'
+            ? 'linear-gradient(135deg, #e10600, #1a1a2e)'
+            : 'linear-gradient(135deg, #ff6b35, #8338ec)';
 
   const textColor = isGradient ? '#fff' : 'var(--color-ink)';
   const subColor = isGradient ? 'rgba(255,255,255,.85)' : 'var(--color-muted)';
@@ -305,6 +326,46 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
               objectFit: 'cover',
               objectPosition: 'center top',
               background: '#f3e8ff',
+              margin: '0 auto',
+              display: 'block',
+              border: '1.5px solid rgba(255,255,255,.7)',
+            }}
+          />
+        ) : tile.gradient === 'graf' ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src="/img/fe.webp"
+            alt="Fê"
+            width={34}
+            height={34}
+            loading="lazy"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              objectPosition: 'center top',
+              background: '#1a1a2e',
+              margin: '0 auto',
+              display: 'block',
+              border: '1.5px solid rgba(255,255,255,.7)',
+            }}
+          />
+        ) : tile.gradient === 'auto' ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src="/img/senna.webp"
+            alt="Senna"
+            width={34}
+            height={34}
+            loading="lazy"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              objectPosition: 'center top',
+              background: '#1a1a2e',
               margin: '0 auto',
               display: 'block',
               border: '1.5px solid rgba(255,255,255,.7)',
