@@ -44,7 +44,22 @@ export function SeuZeChat() {
     speakingId,
     autoSpeak,
     setAutoSpeak,
+    conversationMode,
+    setConversationMode,
   } = useSeuZe();
+
+  // Quando o user liga o modo conversa, abre o mic IMEDIATAMENTE pra começar
+  // a primeira fala. Sem isso, ele clicava no toggle e ainda tinha que apertar
+  // o botão de microfone — não era hands-free.
+  async function handleToggleConversation() {
+    const next = !conversationMode;
+    setConversationMode(next);
+    if (next && !isRecording) {
+      try { await startVoice(); } catch { /* permissão negada — UI mostra erro */ }
+    } else if (!next && isRecording) {
+      stopVoice();
+    }
+  }
 
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -137,6 +152,23 @@ export function SeuZeChat() {
           Chat com o Seu Zé
         </h2>
         <div className="flex items-center gap-3">
+          {/* Modo conversa hands-free: ativa, fala sem clicar, IA responde
+              em áudio e abre o mic de novo automaticamente. */}
+          {isVoiceSupported ? (
+            <button
+              type="button"
+              onClick={handleToggleConversation}
+              aria-pressed={conversationMode}
+              aria-label={conversationMode ? 'Sair do modo conversa' : 'Modo conversa hands-free'}
+              title={conversationMode ? 'Modo conversa ON — toque pra sair' : 'Conversa contínua sem precisar clicar'}
+              className="text-base hover:scale-110 transition-transform font-bold"
+              style={{
+                color: conversationMode ? 'var(--color-p1)' : 'var(--color-muted)',
+              }}
+            >
+              {conversationMode ? '🟢' : '⚪'}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setAutoSpeak(!autoSpeak)}
@@ -185,6 +217,42 @@ export function SeuZeChat() {
         ))}
 
         {isSending || isTranscribing ? <TypingIndicator /> : null}
+
+        {/* Indicador visual quando o mic está aberto em modo conversa */}
+        {conversationMode && isRecording && !isTranscribing && !isSending ? (
+          <div
+            className="my-2 p-3 rounded-xl flex items-center gap-2 text-sm"
+            style={{
+              background: 'rgba(255,107,53,.08)',
+              border: '1px solid rgba(255,107,53,.25)',
+              color: 'var(--color-ink)',
+            }}
+            aria-live="polite"
+          >
+            <span className="inline-flex items-center gap-1">
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#e63946',
+                  animation: 'pulse-rec 1s ease-in-out infinite',
+                }}
+              />
+              <style>{`
+                @keyframes pulse-rec {
+                  0%, 100% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.4; transform: scale(0.8); }
+                }
+              `}</style>
+            </span>
+            <span className="font-bold">Ouvindo…</span>
+            <span className="text-xs text-[color:var(--color-muted)]">
+              fale e pause — eu pego sozinho
+            </span>
+          </div>
+        ) : null}
 
         {sendError ? (
           <div
