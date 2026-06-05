@@ -16,7 +16,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useSeuZe } from '@/lib/hooks/useSeuZe';
@@ -55,26 +55,32 @@ export function SeuZeChat() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // Saudação falada na primeira abertura do chat (thread vazia + autoSpeak ON).
-  // Roda 1x por mount usando ref — sem ref o effect dispararia toda vez que
-  // o usuário voltasse pra tela e a thread estivesse vazia (ex.: depois de
-  // limpar) o que seria irritante.
+  // Saudação falada — "Aceita um café?" só na 1ª abertura (thread vazia +
+  // autoSpeak ON). Pegadinha resolvida: tentar `audio.play()` direto no
+  // mount é bloqueado pelo navegador (autoplay policy), mesmo com sticky
+  // activation, porque o `fetch` do TTS quebra a cadeia de user-gesture.
+  // Solução: ARMA no mount, DISPARA no 1º gesto dentro do chat (focus no
+  // input, tap em botão, scroll). Aí a `play()` roda dentro do gesto e
+  // o navegador libera. Se o user nunca interage, sem saudação (ok).
   const greetedRef = useRef(false);
+  const greetingArmedRef = useRef(false);
   useEffect(() => {
     if (greetedRef.current) return;
     if (!user) return;
-    if (messages.length > 0) return; // já tem conversa — nada a apresentar
-    if (!autoSpeak) return; // user desligou áudio — respeita
+    if (messages.length > 0) { greetingArmedRef.current = false; return; }
+    if (!autoSpeak) { greetingArmedRef.current = false; return; }
+    greetingArmedRef.current = true;
+  }, [user, messages.length, autoSpeak]);
+
+  // Dispara a saudação no 1º gesto. Idempotente — desarma após tocar.
+  const fireGreeting = useCallback(() => {
+    if (greetedRef.current || !greetingArmedRef.current) return;
     greetedRef.current = true;
-    // Delay 400ms pra dar tempo do user ver a tela montada (autoplay
-    // mais natural — som não estoura no exato instante do mount).
-    const t = setTimeout(() => {
-      void speakText(
-        'Opa, colega! Sou o Seu Zé. Aceita um café enquanto a gente fala de obra?',
-      );
-    }, 400);
-    return () => clearTimeout(t);
-  }, [user, messages.length, autoSpeak, speakText]);
+    greetingArmedRef.current = false;
+    void speakText(
+      'Opa, colega! Sou o Seu Zé. Aceita um café enquanto a gente fala de obra?',
+    );
+  }, [speakText]);
 
   // Quando o user liga o modo conversa, abre o mic IMEDIATAMENTE pra começar
   // a primeira fala. Sem isso, ele clicava no toggle e ainda tinha que apertar
@@ -174,6 +180,8 @@ export function SeuZeChat() {
     <section
       className="bg-white rounded-2xl border border-[color:var(--color-border)] flex flex-col"
       style={{ height: 'min(70vh, 600px)' }}
+      onPointerDownCapture={fireGreeting}
+      onKeyDownCapture={fireGreeting}
     >
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">

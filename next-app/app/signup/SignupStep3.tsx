@@ -1,9 +1,11 @@
 'use client';
-// SignupStep3 — senha + invite code opcional + termos.
-// O vanilla tinha duas variantes (pintor: especialidades; cliente: tipos de
-// serviço). Aqui simplificamos: o que de fato é gravado pelo doSignup vanilla
-// é a senha; as especialidades viram edição de perfil pós-cadastro. Mantemos
-// invite code opcional (formato QUC-XXXXX) e checkbox de consentimento LGPD.
+// SignupStep3 — senha + termos (invite acontece via link de indicação).
+//
+// Mudança importante: NÃO existe mais campo de "código de convite QUC-XXXXX".
+// Agora o acesso ao app é por convite-via-link: alguém já cadastrado
+// compartilha o próprio perfil e o link carrega ?ref=<userId>. O
+// ReferralCapture armazena em localStorage e o SignupFlow só permite criar
+// conta se houver um ref válido. Sem ref = sem cadastro.
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,17 +14,6 @@ import { strongPasswordSchema } from '@/lib/schemas';
 
 const schema = z.object({
   password: strongPasswordSchema,
-  // Invite code: opcional, mas se preenchido tem que começar com "QUC-".
-  // Trimmed + uppercase no submit pra bater com generateInviteCode vanilla.
-  inviteCode: z
-    .string()
-    .trim()
-    .transform((v) => v.toUpperCase())
-    .refine((v) => v === '' || /^QUC-[A-Z0-9]{5}$/.test(v), {
-      message: 'Código de convite inválido (formato QUC-XXXXX)',
-    })
-    .optional()
-    .default(''),
   consent: z.literal(true, {
     errorMap: () => ({ message: 'Você precisa aceitar os Termos e a Política de Privacidade' }),
   }),
@@ -46,7 +37,6 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
     resolver: zodResolver(schema),
     defaultValues: {
       password: '',
-      inviteCode: '',
       // consent default omitted on purpose: literal(true) só passa quando
       // o usuário marcar; manter undefined força a validação.
     },
@@ -83,31 +73,6 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
         {errors.password && (
           <p className="text-sm text-[color:var(--color-danger)] mt-1">
             {errors.password.message}
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label
-          htmlFor="inviteCode"
-          className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]"
-        >
-          Código de convite{' '}
-          <span className="text-xs text-[color:var(--color-muted)] font-normal">
-            (opcional)
-          </span>
-        </label>
-        <input
-          id="inviteCode"
-          type="text"
-          placeholder="QUC-XXXXX"
-          {...register('inviteCode')}
-          className="w-full px-4 py-3 text-base bg-[color:var(--color-bg)] border-2 border-transparent focus:border-[color:var(--color-p1)] rounded-xl outline-none transition-colors uppercase"
-          aria-invalid={errors.inviteCode ? 'true' : 'false'}
-        />
-        {errors.inviteCode && (
-          <p className="text-sm text-[color:var(--color-danger)] mt-1">
-            {errors.inviteCode.message}
           </p>
         )}
       </div>

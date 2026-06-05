@@ -1,20 +1,13 @@
-// signup.ts — server-callable helpers que portam o fluxo de signup vanilla
-// (modules/signup-flow.js + modules/signup-tag.js + modules/invite.js +
-// head.js doRegisterSupabase) para um shape testável de TS.
+// signup.ts — server-callable helpers do fluxo de signup.
 //
-// Diferenças vs vanilla:
-//  - sem DOM (`document.getElementById`); o caller passa os campos já lidos
-//    do form (react-hook-form);
-//  - erros viram exceptions tipadas (ValidationError, ConflictError) em vez
-//    de toast()+return silencioso;
-//  - invite code segue o formato novo "QUC-XXXXX" gravado em `referrals`
-//    (alinhado com generateInviteCode em modules/invite.js); a tabela
-//    `invites` legada não é consultada aqui — referrals é a fonte de verdade
-//    pós-SQL Wave 3.
+// Cadastro AGORA é invite-only via link de indicação. Não existe mais código
+// manual (QUC-XXXXX). O caller (SignupFlow) só chama signUp() quando o
+// referrerId está presente no localStorage (capturado pelo ReferralCapture).
 //
 // O trigger `handle_new_user` no Supabase cuida do INSERT em profiles a
 // partir dos metadados (name, tag, phone, user_type). Não duplicamos isso
 // aqui pra não competir com a trigger.
+
 import { getSupabase } from '@/lib/supabase';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import type { UserType } from '@/lib/types';
@@ -26,7 +19,6 @@ export interface SignupData {
   tag: string;
   phone: string;
   userType: UserType;
-  inviteCode?: string;
   /** Campos opcionais que vão pra profiles via UPDATE depois do signup
    *  (a trigger handle_new_user só popula a partir de user_metadata, e
    *  esses campos não fazem parte do JWT — UPDATE pós-trigger é mais
@@ -37,18 +29,17 @@ export interface SignupData {
   /** Avatar pré-uploadado (URL pública) — caller pode subir antes via
    *  uploadAvatar e passar a URL aqui pro UPDATE final. */
   avatarUrl?: string | null;
-  /** Referrer (?ref=<userId> capturado pelo ReferralCapture). Cria linha em
-   *  `referrals` (status=completed, bonus_points=1) + seta profiles.invited_by.
-   *  Quando vazio/igual ao próprio user, ignorado. */
+  /** Referrer (?ref=<userId> capturado pelo ReferralCapture). OBRIGATÓRIO
+   *  no fluxo novo de invite-only. Cria linha em `referrals`
+   *  (status=completed, bonus_points=1) + seta profiles.invited_by.
+   *  Quando vazio/igual ao próprio user, ignorado e cadastro falha
+   *  (caller deve validar antes — bloqueia o submit).
+   */
   referrerId?: string;
 }
 
 export interface SignupResult {
   userId: string;
-}
-
-export interface InviteValidation {
-  referrerId: string | null;
 }
 
 /**
@@ -75,38 +66,13 @@ export async function checkTagAvailability(tag: string): Promise<boolean> {
 }
 
 /**
- * Valida invite code no formato `QUC-XXXXX` consultando a tabela `referrals`.
- * Retorna `{ referrerId }` quando o código é válido e ainda não foi consumido
- * (`referred_id IS NULL`). Caso o código não comece com `QUC-`, vazio, ou não
- * exista, devolve `{ referrerId: null }` — não estoura.
- */
-export async function validateInviteCode(code: string): Promise<InviteValidation> {
-  const normalized = (code || '').trim().toUpperCase();
-  if (!normalized || !normalized.startsWith('QUC-')) {
-    return { referrerId: null };
-  }
-  try {
-    const sb = getSupabase();
-    const { data, error } = await sb
-      .from('referrals')
-      .select('referrer_id')
-      .eq('code', normalized)
-      .is('referred_id', null)
-      .limit(1);
-    if (error) return { referrerId: null };
-    const row = data?.[0] as { referrer_id?: string | null } | undefined;
-    return { referrerId: row?.referrer_id ?? null };
-  } catch {
-    return { referrerId: null };
-  }
-}
-
-/**
  * Cria a conta no Supabase Auth (`auth.signUp`) com metadados que a trigger
  * `handle_new_user` consome pra popular `profiles`. Antes do signUp re-checa
  * a tag pra mitigar TOCTOU (alguém pegou a tag entre o check do step 2 e o
- * submit do step 3). Se houver invite code válido, atualiza o registro em
- * `referrals` com o `referred_id` recém-criado.
+ * submit do step 3).
+ *
+ * Pós-signup, se houver referrerId válido, grava em `profiles.invited_by` E
+ * insere linha em `referrals` (trigger no banco credita 1 pt no referrer).
  *
  * Throws:
  *  - ConflictError quando a tag já está em uso;
@@ -142,21 +108,6 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
     throw new ValidationError('Falha ao criar conta.');
   }
 
-  if (input.inviteCode) {
-    const { referrerId } = await validateInviteCode(input.inviteCode);
-    if (referrerId) {
-      try {
-        await sb
-          .from('referrals')
-          .update({ referred_id: data.user.id })
-          .eq('code', input.inviteCode.trim().toUpperCase());
-      } catch {
-        // Best-effort: a conta já foi criada; falhar no consume não deve
-        // bloquear o usuário. Logging vai pelo logger no caller se quiser.
-      }
-    }
-  }
-
   // UPDATE pós-trigger: campos que não foram populados pela trigger
   // handle_new_user (birth_date, city, state, avatar_url, invited_by).
   // Best-effort — falhar não invalida a conta criada.
@@ -182,9 +133,9 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
     }
   }
 
-  // Registra a indicação em `referrals` — trigger no banco credita 1 pt no
-  // referrer (vanilla head.js linha 1174, bonus_points=20 era pre-Wave 5;
-  // o spec novo é 1 pt). Best-effort: falhar não bloqueia o cadastro.
+  // Registra a indicação em `referrals` — trigger no banco credita 1 pt
+  // pro referrer. Best-effort: falhar não bloqueia o cadastro (a conta
+  // já foi criada e invited_by já foi gravado no profile como backup).
   if (input.referrerId && input.referrerId !== data.user.id) {
     try {
       const sbAny = sb as unknown as {
@@ -199,7 +150,7 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
         bonus_points: 1,
       });
     } catch {
-      /* silent — perfil já tem invited_by, admin pode reconciliar manualmente */
+      /* silent — perfil já tem invited_by, admin pode reconciliar */
     }
   }
 
