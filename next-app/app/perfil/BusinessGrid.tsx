@@ -182,10 +182,21 @@ export function BusinessGrid() {
     t.roles.some((r) => r === userRole),
   );
 
+  // Personas IA são role-específicas:
+  //  - Seu Zé → profissionais (pintor/grafite/auto). Cliente não vê (pra
+  //    cliente o Seu Zé é PRO e fora de contexto — assistente de obra).
+  //  - Valentina → cliente. Profissionais não veem (já tem o Seu Zé).
+  //  - Admin sempre vê os dois (pra testar).
+  const visibleTiles = TILES.filter((t) => {
+    if (t.sheet === 'seu-ze') return showAdmin || userRole !== 'cliente';
+    if (t.sheet === 'valentina') return showAdmin || userRole === 'cliente';
+    return true;
+  });
+
   return (
     <>
       <div className="grid grid-cols-3 gap-2.5">
-        {TILES.map((t) => (
+        {visibleTiles.map((t) => (
           <BusinessCard
             key={t.sheet}
             tile={t}
