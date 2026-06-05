@@ -165,7 +165,7 @@ export async function sendChatMessage(
   const text = String(userMessage || '').trim();
   if (!text) throw new ValidationError('Mensagem vazia');
 
-  // Endpoint padrão = Seu Zé. Valentina passa '/api/valentina'.
+  // Endpoint padrão = Seu Zé. Alice passa '/api/alice'.
   const endpoint = opts?.endpoint || '/api/chat-ai';
 
   let res: Response | null = null;
@@ -193,10 +193,12 @@ export async function sendChatMessage(
     data = null;
   }
 
-  if (!res.ok || !data || !data.reply) {
-    return offlineReply(text);
-  }
-  return data.reply;
+  // Se o backend mandou um reply explícito (mesmo em 429/4xx — caso da
+  // Alice quando bate o limite diário com mensagem amigável + CTA pra
+  // loja), respeitamos. Só caímos no offlineReply pra falhas SEM reply.
+  if (data?.reply) return data.reply;
+  if (!res.ok || !data) return offlineReply(text);
+  return offlineReply(text);
 }
 
 // Helper privado: monta o reply offline (knowledge base + disclaimer).
@@ -323,8 +325,8 @@ export async function textToSpeech(
   const t = String(text || '').trim();
   if (!t) throw new ValidationError('Texto vazio');
 
-  // Endpoint default = Seu Zé (PRO + onyx). Valentina passa
-  // '/api/valentina/tts' + voice 'nova'.
+  // Endpoint default = Seu Zé (PRO + onyx). Alice passa
+  // '/api/alice/tts' + voice 'nova'.
   const endpoint = opts?.endpoint || '/api/tts';
   const body: Record<string, unknown> = { text: t.slice(0, 1500) };
   if (opts?.voice) body.voice = opts.voice;

@@ -1,11 +1,11 @@
-// ValentinaChat — clone do SeuZeChat com mudanças cirúrgicas pra Valentina:
-//   - useValentina (em vez de useSeuZe)
+// AliceChat — clone do SeuZeChat com mudanças cirúrgicas pra Alice Codessi:
+//   - useAlice (em vez de useSeuZe)
 //   - Sem gate PRO (cliente final é livre/logado)
-//   - Avatar custom (círculo lavanda com "V") em vez de imagem do urso
+//   - Avatar próprio (ursinha designer com paleta)
 //   - Saudação e copy ajustados pra designer de interiores
-//   - Cor de destaque: lavanda (#8b5cf6 → var(--color-p2 ou inline))
+//   - Cor de destaque: lavanda (#7c3aed)
 //
-// Quando vier 3ª persona, refatorar SeuZeChat + ValentinaChat em
+// Quando vier 3ª persona, refatorar SeuZeChat + AliceChat em
 // AiPersonaChat parametrizado. Por ora, clone explícito mantém Seu Zé
 // (em prod, PRO-only) isolado de mudanças.
 
@@ -14,17 +14,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { useValentina } from '@/lib/hooks/useValentina';
+import { useAlice } from '@/lib/hooks/useAlice';
 import { ChatMessage, TypingIndicator, type AvatarConfig } from '../seu-ze/ChatMessage';
 import { VoiceRecorder } from '../seu-ze/VoiceRecorder';
 
-const VALENTINA_AVATAR: AvatarConfig = {
-  src: '/img/valentina.webp',
-  alt: 'Valentina',
-  typingLabel: 'Valentina está digitando',
+const ALICE_AVATAR: AvatarConfig = {
+  src: '/img/alice.webp',
+  alt: 'Alice Codessi',
+  typingLabel: 'Alice está digitando',
 };
 
-export function ValentinaChat() {
+export function AliceChat() {
   const { user, loading: authLoading } = useAuth();
   const {
     messages,
@@ -49,7 +49,7 @@ export function ValentinaChat() {
     newSession,
     loadSession,
     deleteSession,
-  } = useValentina();
+  } = useAlice();
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -70,7 +70,7 @@ export function ValentinaChat() {
     greetedRef.current = true;
     greetingArmedRef.current = false;
     void speakText(
-      'Oi, querido! Sou a Valentina. Me conta o ambiente que você quer transformar e eu te ajudo com a cor.',
+      'Oi, querido! Sou a Alice Codessi. Me conta o ambiente que você quer transformar e eu te ajudo com a cor.',
     );
   }, [speakText]);
 
@@ -106,7 +106,7 @@ export function ValentinaChat() {
     return (
       <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
         <div className="text-5xl mb-3" aria-hidden="true">💜</div>
-        <h2 className="font-semibold mb-2">Entre pra conversar com a Valentina</h2>
+        <h2 className="font-semibold mb-2">Entre pra conversar com a Alice</h2>
         <p className="text-sm text-[color:var(--color-muted)] mb-4">
           A designer de interiores está te esperando — faça login pra começar.
         </p>
@@ -145,7 +145,7 @@ export function ValentinaChat() {
     >
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
-          Chat com a Valentina
+          Chat com a Alice
         </h2>
         <div className="flex items-center gap-3">
           {isVoiceSupported ? (
@@ -250,11 +250,11 @@ export function ValentinaChat() {
             content={m.content}
             isSpeaking={speakingId === m.id}
             onSpeak={m.role === 'assistant' ? () => void speak(m.id) : undefined}
-            avatar={VALENTINA_AVATAR}
+            avatar={ALICE_AVATAR}
           />
         ))}
 
-        {isSending || isTranscribing ? <TypingIndicator avatar={VALENTINA_AVATAR} /> : null}
+        {isSending || isTranscribing ? <TypingIndicator avatar={ALICE_AVATAR} /> : null}
 
         {conversationMode && isRecording && !isTranscribing && !isSending ? (
           <div
@@ -316,11 +316,11 @@ export function ValentinaChat() {
               }
             }
           }}
-          placeholder="Pergunte à Valentina…"
+          placeholder="Pergunte à Alice…"
           rows={1}
           className="flex-1 resize-none px-3 py-2 text-sm border border-[color:var(--color-border)] rounded-xl focus:outline-none focus:ring-2 max-h-32"
           style={{ ['--tw-ring-color' as never]: '#7c3aed' }}
-          aria-label="Mensagem para a Valentina"
+          aria-label="Mensagem para a Alice"
           disabled={isSending || isTranscribing}
         />
         <VoiceRecorder
@@ -384,7 +384,7 @@ export function ValentinaChat() {
                 >
                   Sem conversas anteriores ainda.
                   <br />
-                  Comece falando com a Valentina!
+                  Comece falando com a Alice!
                 </p>
               ) : (
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>

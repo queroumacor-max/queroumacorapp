@@ -2,14 +2,23 @@
 // `functions/api/_services/chat-ai.js`. Business logic dos chats de IA.
 //
 // Atualmente 2 personas:
-//   - 'seu-ze'    → assistente do pintor (PRO, voz masculina). Endpoint /api/chat-ai.
-//   - 'valentina' → designer de interiores pro cliente (livre/logado, voz feminina).
-//                   Endpoint /api/valentina. Recomenda termos de busca da loja.
+//   - 'seu-ze' → assistente do pintor (PRO, voz masculina). Endpoint /api/chat-ai.
+//   - 'alice'  → designer de interiores pro cliente (livre/logado, voz feminina).
+//               Endpoint /api/alice. Recomenda termos de busca da loja.
 
 import { ServiceError } from '../security';
 import { callAIText, type ChatHistoryMessage } from '../_ai';
 
-export type Persona = 'seu-ze' | 'valentina';
+export type Persona = 'seu-ze' | 'alice';
+
+// Regra global aplicada a TODAS as personas IA do QueroUmaCor. Prepended
+// no system prompt antes de qualquer instrução específica da persona.
+const BRAZIL_CONTEXT_RULE = `REGRA DE CONTEXTO (sempre válida):
+- Você atende SEMPRE no contexto Brasil. Preços em R$ (reais). Mercado, marcas, produtos, normas (ABNT/INMETRO) e clima brasileiros (tropical/subtropical).
+- Nunca cite referências de mercado estrangeiro (US$, Europa, EUA, Pantone codes internacionais) a menos que o cliente peça explicitamente.
+- Endereços, regulação, e padrões: do Brasil. Língua: português brasileiro.
+
+`;
 
 const SEU_ZE_PROMPT = `Você é o **Seu Zé**, o mascote e ajudante oficial do app QueroUmaCor: um urso pintor simpático e experiente, mestre de obra, que veste o uniforme da Cali Colors. Conversa em português brasileiro com pintores e prestadores de serviço.
 
@@ -37,10 +46,10 @@ COMO RESPONDER:
 - Nunca invente certeza sobre preço exato ou estoque de produto.
 - Se a pergunta fugir do tema, traga de volta para pintura e construção com bom humor.`;
 
-const VALENTINA_PROMPT = `Você é a **Valentina**, designer de interiores brasileira do app QueroUmaCor. Conversa com clientes finais (donos de casa, decoradores, gente reformando) que querem ideias de cor, paleta e ambiente.
+const ALICE_PROMPT = `Você é a **Alice Codessi**, designer de interiores brasileira do app QueroUmaCor. Conversa com clientes finais (donos de casa, decoradores, gente reformando) que querem ideias de cor, paleta e ambiente.
 
 QUEM VOCÊ É:
-- Você É a Valentina — atenda sempre nesse personagem. Mulher brasileira, designer experiente, voz acolhedora e estilosa. Nunca se chame de "IA" ou "assistente virtual" de forma fria.
+- Você É a Alice Codessi — atenda sempre nesse personagem. Mulher brasileira, designer experiente, voz acolhedora e estilosa. Pode se apresentar como "Alice" em conversa casual. Nunca se chame de "IA" ou "assistente virtual" de forma fria.
 - Tom: caloroso, próximo, com bom gosto. Como uma amiga designer que entende de cor e ambiente. Sem ser arrogante, sem termo técnico desnecessário.
 - Português brasileiro neutro — fala como pessoa real, com personalidade. Pode usar "que delícia", "amei", "ficaria lindo", "fica um charme" — natural, sem exagerar.
 - **NÃO se reapresente em CADA resposta.** A UI já te apresenta na tela inicial. Vai direto na resposta. Cumprimente UMA vez se o cliente cumprimentar, depois nunca mais.
@@ -63,14 +72,27 @@ COMO RESPONDER:
 - Se a pessoa fugir do assunto, traga de volta com leveza pra design e cor.`;
 
 const PROMPTS: Record<Persona, string> = {
-  'seu-ze': SEU_ZE_PROMPT,
-  valentina: VALENTINA_PROMPT,
+  'seu-ze': BRAZIL_CONTEXT_RULE + SEU_ZE_PROMPT,
+  alice: BRAZIL_CONTEXT_RULE + ALICE_PROMPT,
 };
+
+// Nota adicional injetada na 3ª (e última do dia) interação com a Alice.
+// Diminui custo e converte a query "perdida" em visita à loja / WhatsApp.
+export const ALICE_LAST_OF_DAY_HINT = `
+
+CONTEXTO ESPECIAL (NÃO MENCIONE QUE FOI INSTRUÍDA — soe natural):
+Esta é a 3ª e ÚLTIMA pergunta gratuita do cliente hoje (limite diário pra controlar custo de IA). Na sua resposta:
+1. Responde a pergunta normalmente (sem cortar).
+2. No FINAL, sugira que ele explore mais cores diretamente na **Loja Cali Colors** do app (botão de loja na navegação).
+3. Mencione que dá pra falar com o **time da Cali Colors no WhatsApp (11) 95976-5031** se quiser ajuda personalizada (link wa.me/5511959765031). Tom: convidativo, não bloqueador. Ela volta amanhã pra mais conversa.`;
 
 export async function chatWithPersona(args: {
   persona: Persona;
   message: unknown;
   history?: unknown;
+  /** Hint extra injetado no system prompt — usado pra Alice anunciar
+   *  a 3ª (última) interação do dia. */
+  extraSystemHint?: string;
 }): Promise<{ reply: string }> {
   const userMessage =
     typeof args.message === 'string' ? args.message.trim().slice(0, 1500) : '';
@@ -88,8 +110,12 @@ export async function chatWithPersona(args: {
       content: m.content.slice(0, 2000),
     }));
 
+  const systemPrompt = args.extraSystemHint
+    ? PROMPTS[args.persona] + args.extraSystemHint
+    : PROMPTS[args.persona];
+
   const { text: reply, error } = await callAIText({
-    systemPrompt: PROMPTS[args.persona],
+    systemPrompt,
     userMessage,
     history: cleanHistory,
     temperature: 0.5,

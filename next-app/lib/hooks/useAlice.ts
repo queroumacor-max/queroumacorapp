@@ -1,13 +1,13 @@
-// useValentina — clone do useSeuZe com 3 mudanças cirúrgicas:
-//   1. Storage prefix `valentina:` (sessões separadas do Seu Zé)
-//   2. Chat endpoint /api/valentina (non-PRO)
-//   3. TTS endpoint /api/valentina/tts + voice 'nova' (feminino)
+// useAlice — clone do useSeuZe com 3 mudanças cirúrgicas:
+//   1. Storage prefix `alice:` (sessões separadas do Seu Zé)
+//   2. Chat endpoint /api/alice (non-PRO)
+//   3. TTS endpoint /api/alice/tts + voice 'nova' (feminino)
 //
 // Resto da mecânica é idêntica: thread de mensagens, modo conversa hands-free,
 // histórico de sessões persistido em localStorage, auto-fala, VAD adaptativo.
 //
 // Optei por clonar em vez de generalizar pra useAiPersona pra manter o Seu Zé
-// (em prod) intocado durante o lançamento da Valentina. Quando vier 3ª persona,
+// (em prod) intocado durante o lançamento da Alice. Quando vier 3ª persona,
 // fazemos o refactor pra config-driven.
 
 'use client';
@@ -29,7 +29,7 @@ export interface ThreadMessage extends ChatMessage {
   id: string;
 }
 
-export interface UseValentinaResult {
+export interface UseAliceResult {
   messages: ThreadMessage[];
   isSending: boolean;
   sendError: Error | null;
@@ -70,12 +70,12 @@ export interface SessionMeta {
 }
 
 // Storage keys distintos do Seu Zé pra sessões/preferências não se misturarem.
-const AUTO_SPEAK_KEY = 'valentina:autoSpeak';
-const CONVERSATION_MODE_KEY = 'valentina:conversationMode';
-const SESSIONS_KEY_PREFIX = 'valentina:sessions:';
-const ACTIVE_SESSION_KEY_PREFIX = 'valentina:activeSession:';
-const CHAT_ENDPOINT = '/api/valentina';
-const TTS_ENDPOINT = '/api/valentina/tts';
+const AUTO_SPEAK_KEY = 'alice:autoSpeak';
+const CONVERSATION_MODE_KEY = 'alice:conversationMode';
+const SESSIONS_KEY_PREFIX = 'alice:sessions:';
+const ACTIVE_SESSION_KEY_PREFIX = 'alice:activeSession:';
+const CHAT_ENDPOINT = '/api/alice';
+const TTS_ENDPOINT = '/api/alice/tts';
 const TTS_VOICE = 'nova';
 
 const MAX_PERSISTED_MESSAGES = 40;
@@ -178,7 +178,7 @@ function nextId(): string {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function useValentina(): UseValentinaResult {
+export function useAlice(): UseAliceResult {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
