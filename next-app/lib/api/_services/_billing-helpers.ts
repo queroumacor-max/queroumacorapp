@@ -168,6 +168,51 @@ export async function getAiUsageThisMonthViaRest(args: {
 }
 
 /**
+ * Conta uso da feature pelo user HOJE (UTC date). Usado pra rate-limit
+ * diário (ex.: Alice = 3/dia). Faz query direta na tabela `ai_usage` via
+ * PostgREST com `Prefer: count=exact` + `Range: 0-0` (não baixa rows, só
+ * conta). Fail-open: erro → retorna 0.
+ *
+ * Não precisa de migration nova — usa a tabela ai_usage já existente.
+ */
+export async function getAiUsageTodayViaRest(args: {
+  supaUrl: string;
+  serviceKey: string;
+  userId: string;
+  feature: string;
+}): Promise<number> {
+  const { supaUrl, serviceKey, userId, feature } = args;
+  if (!supaUrl || !serviceKey || !userId || !feature) return 0;
+  // ISO date YYYY-MM-DD na timezone UTC. Em UTC pra evitar drift entre
+  // edge regions; cliente brasileiro no fim do dia (~21h UTC = 18h BRT)
+  // ainda pode ter sua "noite" no dia UTC seguinte. Aceitável — efetivo
+  // window é 24h sliding na pior das hipóteses.
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const url = `${supaUrl}/rest/v1/ai_usage?user_id=eq.${encodeURIComponent(userId)}&feature=eq.${encodeURIComponent(feature)}&created_at=gte.${today}T00:00:00Z&select=id`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Prefer: 'count=exact',
+        Range: '0-0',
+      },
+      signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
+    });
+    if (!res.ok) return 0;
+    // Content-Range: "0-0/N" ou "*/N" — extrai o N após a /
+    const contentRange = res.headers.get('content-range') || '';
+    const m = contentRange.match(/\/(\d+)$/);
+    if (!m) return 0;
+    const n = parseInt(m[1], 10);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Checa se o user tem PRO ativo (considerando grace period). RPC
  * `is_pro_active`. Falha → false (fail-closed pra evitar bypass).
  */

@@ -193,10 +193,12 @@ export async function sendChatMessage(
     data = null;
   }
 
-  if (!res.ok || !data || !data.reply) {
-    return offlineReply(text);
-  }
-  return data.reply;
+  // Se o backend mandou um reply explícito (mesmo em 429/4xx — caso da
+  // Alice quando bate o limite diário com mensagem amigável + CTA pra
+  // loja), respeitamos. Só caímos no offlineReply pra falhas SEM reply.
+  if (data?.reply) return data.reply;
+  if (!res.ok || !data) return offlineReply(text);
+  return offlineReply(text);
 }
 
 // Helper privado: monta o reply offline (knowledge base + disclaimer).
