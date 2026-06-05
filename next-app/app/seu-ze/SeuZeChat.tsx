@@ -197,11 +197,38 @@ export function SeuZeChat() {
         aria-live="polite"
       >
         {messages.length === 0 && !isSending ? (
-          <div className="text-center py-8 text-sm text-[color:var(--color-muted)]">
-            <p className="mb-2 text-base">👋 Oi, sou o Seu Zé!</p>
-            <p>
-              Pergunta o que você quiser sobre tinta, preço, técnica,
-              ferramentas ou material.
+          <div
+            className="text-center py-6 px-4"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,107,53,.06), rgba(131,56,236,.06))',
+              borderRadius: 16,
+              border: '1px solid var(--color-border)',
+              margin: '8px 0',
+            }}
+          >
+            <div className="text-4xl mb-2" aria-hidden="true">☕</div>
+            <p
+              className="font-extrabold mb-1"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                color: 'var(--color-ink)',
+              }}
+            >
+              Opa, colega! Sou o Seu Zé 🐻
+            </p>
+            <p
+              className="text-sm"
+              style={{ color: 'var(--color-ink)', lineHeight: 1.55, marginBottom: 8 }}
+            >
+              Aceita um café enquanto a gente fala de obra?
+            </p>
+            <p
+              className="text-xs"
+              style={{ color: 'var(--color-muted)', lineHeight: 1.5 }}
+            >
+              Tira dúvida de tinta, preço, técnica ou ferramenta — eu manjo.
+              Pode falar ou escrever.
             </p>
           </div>
         ) : null}
