@@ -75,15 +75,35 @@ export interface UseSeuZeResult {
   // resposta termina de tocar, abre o mic de novo. Persistido em localStorage.
   conversationMode: boolean;
   setConversationMode: (v: boolean) => void;
+
+  // ── Histórico de sessões ──────────────────────────────────────────────
+  // Lista resumida de conversas passadas (id + title + timestamp + preview)
+  // pro user navegar pelo histórico. Cada sessão tem mensagens próprias.
+  sessions: SessionMeta[];
+  activeSessionId: string | null;
+  newSession: () => void;
+  loadSession: (id: string) => void;
+  deleteSession: (id: string) => void;
+}
+
+export interface SessionMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  preview: string; // primeira frase da última msg do user
 }
 
 const AUTO_SPEAK_KEY = 'seuze:autoSpeak';
 const CONVERSATION_MODE_KEY = 'seuze:conversationMode';
-const THREAD_KEY_PREFIX = 'seuze:thread:'; // + userId
+const SESSIONS_KEY_PREFIX = 'seuze:sessions:'; // + userId → array de sessões completas
+const ACTIVE_SESSION_KEY_PREFIX = 'seuze:activeSession:'; // + userId → sessionId
 // Cap defensivo: histórico longo demais bloated localStorage E inflate
-// tokens enviados pro backend. 40 mensagens (~20 turnos) cobre conversas
-// reais; mais antigo é descartado FIFO no load.
+// tokens enviados pro backend. 40 mensagens por sessão, 15 sessões = ~600
+// mensagens total (~300KB). FIFO descarta sessão mais antiga quando cheio.
 const MAX_PERSISTED_MESSAGES = 40;
+const MAX_SESSIONS = 15;
 function readBoolFlag(key: string, defaultVal: boolean): boolean {
   if (typeof window === 'undefined') return defaultVal;
   try {
@@ -101,48 +121,88 @@ function readAutoSpeak(): boolean {
   return readBoolFlag(AUTO_SPEAK_KEY, true);
 }
 
-function readThread(userId: string | null): ThreadMessage[] {
+interface StoredSession extends SessionMeta {
+  messages: ThreadMessage[];
+}
+
+function readSessions(userId: string | null): StoredSession[] {
   if (!userId || typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(THREAD_KEY_PREFIX + userId);
+    const raw = window.localStorage.getItem(SESSIONS_KEY_PREFIX + userId);
     if (!raw) return [];
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return [];
-    // Validação defensiva — descarta entradas malformadas (storage corrompido).
-    return arr
-      .filter(
-        (m): m is ThreadMessage =>
-          !!m &&
-          typeof m === 'object' &&
-          typeof (m as { id?: unknown }).id === 'string' &&
-          typeof (m as { role?: unknown }).role === 'string' &&
-          typeof (m as { content?: unknown }).content === 'string' &&
-          ((m as { role: string }).role === 'user' ||
-            (m as { role: string }).role === 'assistant'),
-      )
-      .slice(-MAX_PERSISTED_MESSAGES);
+    return arr.filter(
+      (s): s is StoredSession =>
+        !!s &&
+        typeof s === 'object' &&
+        typeof (s as { id?: unknown }).id === 'string' &&
+        Array.isArray((s as { messages?: unknown }).messages),
+    );
   } catch {
     return [];
   }
 }
 
-function writeThread(userId: string | null, msgs: ThreadMessage[]): void {
+function writeSessions(userId: string | null, sessions: StoredSession[]): void {
   if (!userId || typeof window === 'undefined') return;
   try {
-    const trimmed = msgs.slice(-MAX_PERSISTED_MESSAGES);
-    window.localStorage.setItem(
-      THREAD_KEY_PREFIX + userId,
-      JSON.stringify(trimmed),
-    );
+    // Mantém max N sessões mais recentes (sort updatedAt desc, slice).
+    const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_SESSIONS);
+    // Trim messages de cada sessão pro cap por sessão.
+    const trimmed = sorted.map((s) => ({
+      ...s,
+      messages: s.messages.slice(-MAX_PERSISTED_MESSAGES),
+    }));
+    window.localStorage.setItem(SESSIONS_KEY_PREFIX + userId, JSON.stringify(trimmed));
   } catch {
-    // Quota exceeded / private mode — sem fallback. Próximo refresh
-    // perde mas conversa atual segue normal.
+    /* quota / private mode — ignora */
   }
 }
 
-function clearThread(userId: string | null): void {
+function readActiveSessionId(userId: string | null): string | null {
+  if (!userId || typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(ACTIVE_SESSION_KEY_PREFIX + userId);
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveSessionId(userId: string | null, sessionId: string | null): void {
   if (!userId || typeof window === 'undefined') return;
-  try { window.localStorage.removeItem(THREAD_KEY_PREFIX + userId); } catch { /* ignore */ }
+  try {
+    if (sessionId) {
+      window.localStorage.setItem(ACTIVE_SESSION_KEY_PREFIX + userId, sessionId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_SESSION_KEY_PREFIX + userId);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// Deriva título da sessão a partir das mensagens — primeira frase do user
+// truncada a 40 chars. Fallback: "Nova conversa" + horário curto.
+function deriveTitle(messages: ThreadMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user');
+  if (firstUser) {
+    const t = firstUser.content.trim().replace(/\s+/g, ' ');
+    return t.length > 40 ? t.slice(0, 40) + '…' : t;
+  }
+  const d = new Date();
+  return `Nova conversa · ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+function derivePreview(messages: ThreadMessage[]): string {
+  const last = messages[messages.length - 1];
+  if (!last) return '';
+  const t = last.content.trim().replace(/\s+/g, ' ');
+  return t.length > 60 ? t.slice(0, 60) + '…' : t;
+}
+
+function newSessionId(): string {
+  return `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 // Gerador de id estável e curto pra cada msg. Date.now+rand basta — não
@@ -154,9 +214,71 @@ function nextId(): string {
 export function useSeuZe(): UseSeuZeResult {
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  // Hidrata thread do localStorage no mount inicial. Por user pra não vazar
-  // contexto entre contas no mesmo device.
-  const [messages, setMessages] = useState<ThreadMessage[]>(() => readThread(userId));
+
+  // Sessions: hidrata array no mount. Active session: pegamos o último
+  // ativo ou o mais recente do array, ou null se sem sessões.
+  const [sessions, setSessions] = useState<StoredSession[]>(() => readSessions(userId));
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const persisted = readActiveSessionId(userId);
+    if (persisted) return persisted;
+    const all = readSessions(userId);
+    const sorted = [...all].sort((a, b) => b.updatedAt - a.updatedAt);
+    return sorted[0]?.id ?? null;
+  });
+
+  // Mensagens da sessão ativa — derivadas do array de sessions.
+  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
+  const messages = activeSession?.messages ?? [];
+
+  const setMessages = useCallback(
+    (updater: ThreadMessage[] | ((prev: ThreadMessage[]) => ThreadMessage[])) => {
+      setSessions((prev) => {
+        let activeId = activeSessionId;
+        let activeIdx = activeId ? prev.findIndex((s) => s.id === activeId) : -1;
+        // Sem sessão ativa → cria uma nova on-the-fly (auto na primeira msg).
+        if (activeIdx < 0) {
+          const id = newSessionId();
+          const now = Date.now();
+          const newSess: StoredSession = {
+            id,
+            title: 'Nova conversa',
+            createdAt: now,
+            updatedAt: now,
+            messageCount: 0,
+            preview: '',
+            messages: [],
+          };
+          activeId = id;
+          activeIdx = prev.length;
+          prev = [...prev, newSess];
+          // Sync activeSessionId em side-effect porque não dá pra
+          // setSessions+setActiveSessionId atômico aqui (mas a próxima
+          // tick do React vê o id novo via useEffect abaixo).
+          setActiveSessionId(id);
+        }
+        const cur = prev[activeIdx];
+        const nextMsgs =
+          typeof updater === 'function'
+            ? (updater as (m: ThreadMessage[]) => ThreadMessage[])(cur.messages)
+            : updater;
+        const updated: StoredSession = {
+          ...cur,
+          messages: nextMsgs,
+          messageCount: nextMsgs.length,
+          updatedAt: Date.now(),
+          title: cur.title === 'Nova conversa' || !cur.title
+            ? deriveTitle(nextMsgs)
+            : cur.title,
+          preview: derivePreview(nextMsgs),
+        };
+        const next = [...prev];
+        next[activeIdx] = updated;
+        return next;
+      });
+    },
+    [activeSessionId],
+  );
+
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
@@ -166,14 +288,26 @@ export function useSeuZe(): UseSeuZeResult {
   useEffect(() => {
     if (hydratedForUserRef.current === userId) return;
     hydratedForUserRef.current = userId;
-    setMessages(readThread(userId));
+    setSessions(readSessions(userId));
+    const persisted = readActiveSessionId(userId);
+    if (persisted) {
+      setActiveSessionId(persisted);
+    } else {
+      const all = readSessions(userId);
+      const sorted = [...all].sort((a, b) => b.updatedAt - a.updatedAt);
+      setActiveSessionId(sorted[0]?.id ?? null);
+    }
   }, [userId]);
 
-  // Persiste a cada mudança. Throttle implícito: setState bate em batch
-  // React já agrega múltiplos updates por frame.
+  // Persiste sessions array a cada mudança.
   useEffect(() => {
-    writeThread(userId, messages);
-  }, [userId, messages]);
+    writeSessions(userId, sessions);
+  }, [userId, sessions]);
+
+  // Persiste active session id.
+  useEffect(() => {
+    writeActiveSessionId(userId, activeSessionId);
+  }, [userId, activeSessionId]);
   const [autoSpeak, setAutoSpeakState] = useState<boolean>(() => readAutoSpeak());
   const [conversationMode, setConversationModeState] = useState<boolean>(
     () => readBoolFlag(CONVERSATION_MODE_KEY, false),
@@ -277,12 +411,56 @@ export function useSeuZe(): UseSeuZeResult {
     [sendMutation]
   );
 
+  // reset() = limpa TUDO (sessions + active). Botão 'Limpar' do header.
   const reset = useCallback(() => {
     stopSpeaking();
-    setMessages([]);
-    clearThread(userId);
+    setSessions([]);
+    setActiveSessionId(null);
     sendMutation.reset();
-  }, [sendMutation, stopSpeaking, userId]);
+  }, [sendMutation, stopSpeaking]);
+
+  // newSession() = arquivar a atual + começar conversa nova.
+  const newSession = useCallback(() => {
+    stopSpeaking();
+    const id = newSessionId();
+    const now = Date.now();
+    const newSess: StoredSession = {
+      id,
+      title: 'Nova conversa',
+      createdAt: now,
+      updatedAt: now,
+      messageCount: 0,
+      preview: '',
+      messages: [],
+    };
+    setSessions((prev) => [...prev, newSess]);
+    setActiveSessionId(id);
+    sendMutation.reset();
+  }, [sendMutation, stopSpeaking]);
+
+  const loadSession = useCallback(
+    (id: string) => {
+      stopSpeaking();
+      setActiveSessionId(id);
+      sendMutation.reset();
+    },
+    [sendMutation, stopSpeaking],
+  );
+
+  const deleteSession = useCallback(
+    (id: string) => {
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      // Se apagou a ativa, escolhe a mais recente das restantes (ou null).
+      if (id === activeSessionId) {
+        setSessions((prev) => {
+          const sorted = [...prev].sort((a, b) => b.updatedAt - a.updatedAt);
+          setActiveSessionId(sorted[0]?.id ?? null);
+          return prev;
+        });
+      }
+    },
+    [activeSessionId],
+  );
 
   // Voz: integra useVoiceRecorder + transcribe. Quando o blob fica pronto,
   // transcrevemos e chamamos send() com o texto resultante.
@@ -402,6 +580,15 @@ export function useSeuZe(): UseSeuZeResult {
     setAutoSpeak,
     conversationMode,
     setConversationMode,
+
+    // Sessions — só meta (sem mensagens) pra UI listar leve.
+    sessions: sessions
+      .map(({ messages: _msgs, ...meta }) => meta as SessionMeta)
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+    activeSessionId,
+    newSession,
+    loadSession,
+    deleteSession,
   };
 }
 
