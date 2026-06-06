@@ -200,6 +200,7 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
       .from('comments')
       .select('id, post_id, user_id, text, created_at')
       .in('post_id', postIds)
+      .is('deleted_at', null) // Wave 8 soft-delete: snapshot inicial só ativos
       .order('created_at', { ascending: false })
       .limit(200),
   );
