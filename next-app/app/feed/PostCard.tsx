@@ -25,6 +25,8 @@ import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { isAdmin } from '@/lib/policies';
 import { showToast } from '@/lib/toast';
 import { BottomSheet } from '@/components/BottomSheet';
 import { OrcamentoSheet } from '@/components/OrcamentoSheet';
@@ -57,6 +59,8 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const dialog = useDialog();
   const router = useRouter();
   const { user } = useAuth();
+  const policyUser = usePolicyUser();
+  const userIsAdmin = isAdmin(policyUser);
   const qc = useQueryClient();
   const name = displayName(post.profile);
   const handle = post.profile.tag ? '@' + post.profile.tag : '';
@@ -448,8 +452,15 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
             const author = cAny.author;
             const authorTag = author?.tag ? '@' + author.tag : null;
             const authorName = author?.name || authorTag || 'Usuário';
+            // Espelha as 3 policies de DELETE no banco (Wave 9):
+            //   - dono do comment
+            //   - dono do post
+            //   - admin (qualquer comment, qualquer post → moderação direta)
             const canDeleteComment =
-              !!user && (user.id === cAny.user_id || user.id === post.user_id);
+              !!user &&
+              (user.id === cAny.user_id ||
+                user.id === post.user_id ||
+                userIsAdmin);
             return (
               <li
                 key={c.id}
