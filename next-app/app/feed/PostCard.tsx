@@ -451,7 +451,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
             };
             const author = cAny.author;
             const authorTag = author?.tag ? '@' + author.tag : null;
-            const authorName = author?.name || authorTag || 'Usuário';
+            const authorLabel = authorTag || author?.name || 'Usuário';
             // Espelha as 3 policies de DELETE no banco (Wave 9):
             //   - dono do comment
             //   - dono do post
@@ -474,7 +474,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
                 }}
               >
                 <span style={{ flex: 1 }}>
-                  <b style={{ fontWeight: 600 }}>{authorName}</b> {c.text}
+                  <b style={{ fontWeight: 600 }}>{authorLabel}</b> {c.text}
                 </span>
                 {canDeleteComment ? (
                   <button
