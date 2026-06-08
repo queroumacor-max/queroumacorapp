@@ -1,10 +1,11 @@
 // suggestedProfiles.ts — lista de "pessoas que você pode seguir".
 // Replica o que o vanilla mostra na tela de busca quando o input está
-// vazio (modules/feed.js / explore + sugestões). Aqui prioriza:
-//   1. perfis verificados (role pintor/grafiteiro/automotivo);
-//   2. quem tem avatar + nome preenchido (perfil "completo");
-//   3. exclui o próprio user;
-//   4. limita a 50 sugestões.
+// vazio (modules/feed.js / explore + sugestões). Filtros:
+//   1. exclui o próprio user;
+//   2. exclui quem o user já segue (puxa de `follows` primeiro);
+//   3. nome não-vazio (perfil mínimo preenchido);
+//   4. ordena pelos mais recentes;
+//   5. limita a `limit` (default 50).
 
 import { getSupabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
@@ -14,10 +15,24 @@ export async function fetchSuggestedProfiles(
   limit = 50
 ): Promise<Profile[]> {
   const sb = getSupabase();
-  // profiles_public é a view safe (sem email/dados sensíveis). Filtros:
-  //   - role em pintor/grafiteiro/automotivo OU user_type semelhante
-  //   - name não-vazio
-  //   - exclui o caller (se houver)
+
+  // 1) Carrega quem o user já segue pra excluir das sugestões.
+  let followingIds: string[] = [];
+  if (excludeUserId) {
+    const { data: follows } = await sb
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', excludeUserId);
+    followingIds = (follows ?? [])
+      .map((f) => (f as { following_id: string | null }).following_id)
+      .filter((id): id is string => !!id);
+  }
+
+  // 2) Monta a lista de IDs a excluir (self + already-followed).
+  const excludeIds = excludeUserId
+    ? [excludeUserId, ...followingIds]
+    : followingIds;
+
   let query = sb
     .from('profiles_public')
     .select('id, name, tag, avatar_url, role, user_type, city, state, is_pro, bio')
@@ -25,8 +40,9 @@ export async function fetchSuggestedProfiles(
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (excludeUserId) {
-    query = query.neq('id', excludeUserId);
+  if (excludeIds.length > 0) {
+    // PostgREST: `.not('id', 'in', '(uuid1,uuid2)')` — paren-delimited list.
+    query = query.not('id', 'in', `(${excludeIds.join(',')})`);
   }
   const { data, error } = await query;
   if (error) throw new Error(error.message);
