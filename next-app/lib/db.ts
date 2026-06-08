@@ -195,16 +195,20 @@ async function follow(followerId: string, followingId: string): Promise<Mutation
     const { error } = await sb
       .from('follows')
       .insert({ follower_id: followerId, following_id: followingId });
+    // 23505 = duplicate key. Já segue → estado final correto, sucesso.
+    if (!error || (error as { code?: string }).code === '23505') {
+      return { ok: true };
+    }
+    // Outro erro: tenta SELECT pra ver se a row existe mesmo assim (defense
+    // in depth contra error.code stale do supabase-js).
     const { data: chk } = await sb
       .from('follows')
-      .select('id')
+      .select('follower_id')
       .eq('follower_id', followerId)
       .eq('following_id', followingId)
       .limit(1);
     if (chk && chk.length > 0) return { ok: true };
-    const code = error?.code || 'no-row';
-    const message = error?.message || 'Follow não persistiu';
-    return { ok: false, code, message };
+    return { ok: false, code: error.code || 'no-row', message: error.message || 'Follow não persistiu' };
   } catch (e) {
     return { ok: false, code: 'exception', message: errMsg(e) };
   }
