@@ -22,6 +22,7 @@ import { DB } from '@/lib/db';
 import { useSearch } from '@/lib/hooks/useSearch';
 import { fetchSuggestedProfiles } from '@/lib/services/suggestedProfiles';
 import { Avatar } from '@/components/Avatar';
+import { showToast } from '@/lib/toast';
 import type { SearchResult, SearchResultType } from '@/lib/services/search';
 import type { Profile } from '@/lib/types';
 
@@ -219,7 +220,10 @@ function SuggestionsList() {
   }, [followingIds]);
 
   async function handleFollow(profileId: string) {
-    if (!user) return;
+    if (!user) {
+      showToast('Faça login pra seguir', 'error');
+      return;
+    }
     setLocalFollowing((s) => new Set(s).add(profileId));
     const r = await DB.follows.follow(user.id, profileId);
     if (!r.ok) {
@@ -228,10 +232,12 @@ function SuggestionsList() {
         n.delete(profileId);
         return n;
       });
+      showToast(
+        `Não foi possível seguir: ${r.message || r.code || 'erro desconhecido'}`,
+        'error',
+      );
       return;
     }
-    // invalidateFollowing() já chama qc.invalidateQueries internamente —
-    // antes tinha as duas chamadas (redundante).
     invalidateFollowing();
   }
 
@@ -245,10 +251,12 @@ function SuggestionsList() {
     const r = await DB.follows.unfollow(user.id, profileId);
     if (!r.ok) {
       setLocalFollowing((s) => new Set(s).add(profileId));
+      showToast(
+        `Não foi possível deixar de seguir: ${r.message || r.code || 'erro desconhecido'}`,
+        'error',
+      );
       return;
     }
-    // invalidateFollowing() já chama qc.invalidateQueries internamente —
-    // antes tinha as duas chamadas (redundante).
     invalidateFollowing();
   }
 
