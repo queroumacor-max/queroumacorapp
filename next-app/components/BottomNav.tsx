@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { useUnreadNotificationCount } from '@/lib/hooks/useUnreadNotificationCount';
 
 interface NavItem {
   href: string;
@@ -80,6 +81,7 @@ const ITEMS: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
+  const unreadNotif = useUnreadNotificationCount();
 
   return (
     <nav
@@ -93,11 +95,16 @@ export function BottomNav() {
     >
       {ITEMS.map((item) => {
         const active = item.match(pathname);
+        const isNotif = item.href === '/notificacoes';
+        const showBadge = isNotif && unreadNotif > 0;
+        const badgeLabel = unreadNotif > 99 ? '99+' : String(unreadNotif);
         return (
           <Link
             key={item.href}
             href={item.href}
-            aria-label={item.label}
+            aria-label={
+              showBadge ? `${item.label} (${unreadNotif} não lidas)` : item.label
+            }
             aria-current={active ? 'page' : undefined}
             className="relative flex flex-col items-center justify-center w-12 h-12 rounded-xl gap-1 transition-colors"
             style={{
@@ -119,6 +126,14 @@ export function BottomNav() {
                 className="absolute top-1.5 right-2 w-2.5 h-2.5 rounded-full"
                 style={{ background: 'var(--color-p4)' }}
               />
+            )}
+            {showBadge && (
+              <span
+                className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                style={{ background: 'var(--color-p4)', lineHeight: 1 }}
+              >
+                {badgeLabel}
+              </span>
             )}
           </Link>
         );
