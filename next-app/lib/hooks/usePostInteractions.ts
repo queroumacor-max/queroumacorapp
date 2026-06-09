@@ -59,8 +59,14 @@ interface LikeSnapshot {
 /**
  * Hook do botão "curtir". Hidrata estado inicial em paralelo (hasLiked + count)
  * via useQuery; toggle usa mutation otimista com rollback em caso de erro.
+ *
+ * `initialData` (opcional): quando o caller já tem `{liked, count}` em mãos
+ * (ex.: FeedPost que veio do RPC `get_feed_v2` ou enrichment do feed legacy),
+ * usa como cache inicial pra pular o fetch separado de hasLiked+countLikes.
+ * O useQuery só refetcha quando staleTime expira — economiza 2 round-trips
+ * por card visível no feed.
  */
-export function useLike(postId: string): UseLikeResult {
+export function useLike(postId: string, initialData?: LikeSnapshot): UseLikeResult {
   const { user } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id ?? '';
@@ -78,6 +84,7 @@ export function useLike(postId: string): UseLikeResult {
     },
     enabled: !!postId,
     staleTime: 30_000,
+    initialData,
   });
 
   const mutation = useMutation<
@@ -148,8 +155,13 @@ export interface UseCommentsResult {
  * Hook da lista de comentários. add/remove são mutateAsync (Promise) pra que
  * o caller possa await no submit e fechar input/limpar campo só depois do
  * sucesso. Não usa otimismo — a row depende do id gerado pelo servidor.
+ *
+ * `initialData` (opcional): quando o caller já tem os top-N comments em mãos
+ * (ex.: FeedPost.comments do RPC `get_feed_v2`), usa como cache inicial pra
+ * pular o fetchComments inicial. O useQuery só refetcha quando staleTime
+ * expira — economiza 1 round-trip por card visível.
  */
-export function useComments(postId: string): UseCommentsResult {
+export function useComments(postId: string, initialData?: PostComment[]): UseCommentsResult {
   const { user } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id ?? '';
@@ -160,6 +172,7 @@ export function useComments(postId: string): UseCommentsResult {
     queryFn: () => fetchComments(postId),
     enabled: !!postId,
     staleTime: 30_000,
+    initialData,
   });
 
   const addMut = useMutation<

@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
+import { ListSkeleton } from '@/components/Skeletons';
 import {
   computeBalance,
   listPoints,
@@ -300,9 +301,9 @@ export function PontosView() {
         Histórico
       </div>
       {query.isLoading ? (
-        <p className="text-center text-sm text-[color:var(--color-muted)] py-3">
-          Carregando…
-        </p>
+        <div aria-label="Carregando histórico" className="py-2">
+          <ListSkeleton count={5} itemHeight={54} gap={8} />
+        </div>
       ) : points.length === 0 ? (
         <p className="text-center text-sm text-[color:var(--color-muted)] py-3">
           Nenhuma movimentação

@@ -33,7 +33,15 @@ export function QueryProvider({ children }: { children: ReactNode }) {
     const c = new QueryClient({
       defaultOptions: {
         queries: {
-          staleTime: 30_000,
+          // 60s default — snappy o suficiente pra navegação rápida não
+          // refazer queries que acabaram de carregar, e curto o bastante
+          // pra dados sociais (likes, comments) atualizarem em refocus.
+          // Hooks específicos podem sobrescrever pra cima (ex.: perfil
+          // próprio 5min) ou pra baixo (real-time chat 5s).
+          staleTime: 60_000,
+          // gcTime 10min: mantém queries inativas em memória pra navegação
+          // back/forward não precisar refetch. Default TanStack é 5min.
+          gcTime: 10 * 60 * 1000,
           retry: 1,
           refetchOnWindowFocus: false,
         },
