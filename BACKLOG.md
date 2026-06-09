@@ -1,91 +1,85 @@
 # Backlog — Melhorias e features pendentes
 
-Lista de melhorias identificadas em auditorias mas ainda não atacadas. Priorize daqui.
+Última auditoria: 2026-06-09. Itens com ✅ foram fechados em sprints recentes (ver CLAUDE.md).
 
 ---
 
-## 🔧 Recursos do plano Pro ainda não ativados
+## 🔧 Recursos do plano Pro ainda não ativados (TOGGLE NO PAINEL CF)
 
-Configuração no dashboard, sem código. Ganho de perf/segurança imediato.
+Configuração no Cloudflare Dashboard, sem código. Ganho de perf/segurança imediato. Pendentes:
 
 | # | Recurso | Onde ativar | Ganho |
 |---|---|---|---|
-| 1 | **Cloudflare Polish (lossy)** | Dashboard CF → Speed → Optimization | Comprime imagens no edge ~30-40% sem mexer no código |
-| 2 | **Cloudflare Mirage** | Speed → Optimization | Lazy-load + downsizing por device. Combina com PWA |
-| 3 | **Image Resizing (CF)** | Usar URL `/cdn-cgi/image/?width=400&quality=80&format=webp` ao buscar avatars/posts | Reduz avatars/posts do feed (1024 → 400) sem novo upload |
-| 4 | **WAF Managed Rules (OWASP)** | Security → WAF → Managed Rules | Filtra SQLi/XSS comuns no edge antes de chegar no app |
-| 5 | **Cloudflare Cache Reserve** | Caching → Cache Reserve | Cache de longo prazo para `/img/*`, reduz origin requests |
-| 6 | **Cloudflare Rate Limiting** | Security → Rate Limiting Rules | Rate limit em `/api/*` no edge (complementa `rate_limits` no DB) |
-| 7 | **Argo Smart Routing** | Traffic → Argo | Roteia tráfego pelo backbone Cloudflare. ~30% mais rápido em geografias distantes |
+| 1 | **Cloudflare Polish (lossy)** | Speed → Optimization | Comprime imagens no edge ~30-40% |
+| 2 | **Cloudflare Mirage** | Speed → Optimization | Lazy-load + downsizing por device |
+| 3 | **Image Resizing (CF)** ⚠️ | Speed → Optimization → Image Resizing **ON** + "Resize images from any origin" **ON** | **Código já deployado** (`cfImg.ts` reescreve URLs pra `/cdn-cgi/image/...`). Sem o toggle, browsers caem no `onError` e mostram placeholder |
+| 4 | **WAF Managed Rules (OWASP)** | Security → WAF → Managed Rules | Filtra SQLi/XSS comuns no edge |
+| 5 | **Cloudflare Cache Reserve** | Caching → Cache Reserve | Cache de longo prazo para `/img/*` |
+| 6 | **Cloudflare Rate Limiting** | Security → Rate Limiting Rules | Rate limit em `/api/*` no edge |
+| 7 | **Argo Smart Routing** | Traffic → Argo | ~30% mais rápido em geografias distantes |
 
 ---
 
 ## 📱 Features sociais (estilo IG) faltando
 
-Mapa feito em 26/05/2026. Funcionalidades não-implementadas.
+### ✅ Já feitos (Sprints 5–7)
 
-### Quick wins (faço rápido, valor real)
+S1 verified, S2 sugestões, S3 editar caption, S4 links externos, S5 story link, S6 bloquear, S7 menções, S8 hashtags, S11 boost, S12 explore trending, S13 modo escuro.
 
-| # | Feature | Esforço | Notas |
-|---|---|---|---|
-| S1 | **Badge "Verified" ✓** na UI | Trivial | Coluna `profiles.verified` já existe, só falta render |
-| S2 | **Sugestões de quem seguir** | Pequeno | Query top pintores não-seguidos ordenados por rating + região |
-| S3 | **Editar caption do post** | Pequeno | Hoje só apaga. Padrão IG. Validar moderação na edição |
-| S4 | **Links externos no perfil** | Pequeno | Adicionar colunas `profiles.instagram_url`, `website_url` + UI no editar-perfil |
-| S5 | **Story com `link_url`** | Pequeno | Story com botão "ver mais" linkando externamente |
-
-### Médio prazo
+### Pendentes
 
 | # | Feature | Esforço | Notas |
 |---|---|---|---|
-| S6 | **Bloquear usuário** | Médio | Nova tabela `blocks(blocker_id, blocked_id)` + filtros em feed/busca/chat/notif |
-| S7 | **Menções `@user`** clicáveis | Médio | Parser regex em posts/comentários/chat. Renderiza como link ao perfil |
-| S8 | **Hashtags `#tag`** | Médio | Parser + tela de busca por tag + ordem trending |
-| S9 | **Carousel de múltiplas fotos no post** | Médio | Hoje 1 foto por post; precisa array de media |
-| S10 | **Antes/Depois real em posts** | Médio | Hoje só funciona em perfil mock. Coluna `posts.before_after_pair` ou par de posts |
-| S11 | **Post boost / pinned (PRO only)** | Médio | Coluna `promoted_until` + ordenação prioritária no feed |
-| S12 | **Explore real (feed de descoberta)** | Médio | Hoje `/explore` é só mapa de profissionais; pode ter trending posts |
-| S13 | **Modo escuro** | Pequeno-Médio | Variáveis CSS já existem, falta toggle + persistência |
-
-### Esforço grande
-
-| # | Feature | Esforço | Notas |
-|---|---|---|---|
-| S14 | **Web Push Notifications** | Grande | VAPID + service worker handler. Hoje notif é só in-app |
+| S9 | **Carousel de múltiplas fotos no post** | Médio | Hoje 1 foto por post. Padrão IG (swipe horizontal). Schema novo: tabela `post_media` ou JSONB |
+| S10 | **Antes/Depois real em posts** | Médio | Hoje só mock no perfil. Coluna `posts.before_after_pair` ou par de posts linkados |
+| S14 | **Web Push Notifications** | Grande | VAPID + service worker handler. Hoje notif é só in-app. Tabela `push_subscriptions` |
 | S15 | **Reels / vídeos curtos verticais** | Grande | UI nova com swipe vertical. Posts já aceitam vídeo |
 | S16 | **Story editor (texto/stickers/desenho)** | Grande | UI nova estilo IG |
-| S17 | **Compartilhar story de outro (regram)** | Médio | Padrão IG: repostar story de quem te marcou |
+| S17 | **Compartilhar story de outro (regram)** | Médio | Padrão IG |
 
 ---
 
-## 🚀 Performance / arquitetura (do audit anterior)
+## 🚀 Performance / arquitetura
+
+### ✅ Já feitos
+
+P4 width/height (Wave 17), parte de P2 cursor-based via `get_feed_v2` (Wave 16, mas frontend ainda usa fallback legacy com offset em alguns paths).
+
+### Pendentes
 
 | # | Item | Esforço | Notas |
 |---|---|---|---|
-| P1 | **Code-splitting `app.js`** | Grande | Quebrar monólito de 8000 linhas em módulos (CRM, IA, PDF, mapa, chat). Espera dados de Web Vitals antes |
-| P2 | **Cursor-based pagination no feed** | Médio | Hoje é `.offset()` — escala mal e perde estado ao voltar |
-| P3 | **Lazy-load Leaflet** | Pequeno | Hoje carrega 163KB em toda navegação; só usado em `/explore`. Carregar on-click |
-| P4 | **`<img width height>` em posts dinâmicos** | Médio | Hoje sem dimensões → CLS alto. Precisa salvar W/H no upload |
+| P1 | **Code-splitting `app.js` vanilla** | Grande | App vanilla tem 1299 linhas + 44 módulos. Migrar pra import dinâmico por feature pra reduzir bundle inicial. Mexe na arquitetura IIFE+shim deliberada — alto risco de regressão |
+| P3 | **Lazy-load Leaflet** | Pequeno | Hoje carrega 163KB em toda navegação; só usado em `/explore`. Carregar on-click no map view |
+| Px | **Firmar RPC `get_feed_v2` (remover fallback legacy)** | Pequeno | Telemetria Sentry foi adicionada na Sprint 4. Depois de 2-3 semanas só `rpc_ok`, dá pra remover o caminho legacy em `feed.ts` |
 
 ---
 
 ## 🔍 Observability / dados
 
+### ✅ Já feitos
+
+O2 dashboard feature_interest (Sprint 4), O3 dashboard reports (Sprint 3), B7 Web Vitals RUM via Sentry (Sprint 3). Sentry GitHub integration ativa.
+
+### Pendentes
+
 | # | Item | Notas |
 |---|---|---|
-| O1 | **Sentry / PostHog** (escolher vendor) | Crash reports + funil. `/api/log-error` já coleta crashes/Web Vitals em CF logs (retenção 7 dias) |
-| O2 | **Dashboard interno de `feature_interest`** | Tabela já criada. Falta UI no portal admin para ver quem clicou "tenho interesse na Maquininha" |
-| O3 | **Dashboard de `reports` no portal** | Tabela já criada. UI lista denúncias pendentes, admin marca como `reviewed`/`resolved`/`dismissed` |
+| O1 | **DSN Sentry frontend** | Hoje Sentry coleta server-side via `/api/log-error` + GitHub integration. Falta ligar DSN no browser pra capturar erros JS no cliente. Decisão deferida (ver CLAUDE.md) |
 
 ---
 
 ## 🛡️ Segurança / config externa (não-código)
 
+### ✅ Já feitos
+
+X1 HSTS preload submetido, X3 Search Console verificado.
+
+### Pendentes
+
 | # | Item | Quando |
 |---|---|---|
-| X1 | **HSTS preload** | ~07/07/2026 (6 semanas após 25/05). Adicionar `preload` no header HSTS + submeter em https://hstspreload.org |
 | X2 | **DMARC em `calicolors.com.br`** | Adicionar no GoDaddy DNS: TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:dpo@calicolors.com.br` |
-| X3 | **Submeter sitemap ao Google Search Console** | https://search.google.com/search-console — `https://queroumacor.com.br/sitemap.xml` |
-| X4 | **Testar restore de backup Supabase** | Criar projeto staging, restaurar PITR, validar dados |
+| X4 | **Testar restore de backup Supabase (PITR)** | Plano PRO tem 7d PITR. Criar projeto staging, restaurar, validar — pra ter confiança no DR |
 | X5 | **Pentest externo** | Quando crescer (>10k usuários ou faturamento sério) |
-| X6 | **Validar Turnstile server-side** | Hoje carrega o widget mas nenhum endpoint chama `siteverify`. Decisão deferida |
+| X6 | **Validar Turnstile server-side** | Widget no front mas nenhum endpoint chama `siteverify`. Decisão deferida (usuário deixou quieto) |
