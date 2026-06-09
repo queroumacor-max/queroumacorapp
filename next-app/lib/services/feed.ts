@@ -167,9 +167,11 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
 
   const { data, error } = await withSignalRpc;
   if (error) {
-    // Sinaliza pro caller cair pro legacy. Loga pra Sentry capturar.
+    // Sinaliza pro caller cair pro legacy. Loga pra Sentry capturar
+    // como breadcrumb — quando Sentry estiver carregado (browser).
     // eslint-disable-next-line no-console
     console.warn('[feed] get_feed_v2 falhou, fallback legacy:', error.message);
+    addFeedBreadcrumb('rpc_error', { error: error.message });
     return null;
   }
   if (!Array.isArray(data)) return null;
@@ -246,7 +248,28 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
   const lastRow = rows[rows.length - 1];
   const nextCursor = lastRow?.created_at ?? null;
   const hasMore = rows.length >= limit;
+  addFeedBreadcrumb('rpc_ok', { rows: rows.length });
   return { items, nextCursor, hasMore };
+}
+
+// Breadcrumb pro Sentry — fica como rastro em qualquer erro futuro e
+// também aparece em Performance traces. Não joga error pra não poluir
+// Issues do Sentry. Silent quando @sentry/nextjs não carregou (SSR/test).
+async function addFeedBreadcrumb(
+  category: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const Sentry = await import('@sentry/nextjs');
+    Sentry.addBreadcrumb({
+      category: `feed.${category}`,
+      level: category === 'rpc_error' ? 'warning' : 'info',
+      data,
+    });
+  } catch {
+    // Sentry não carregou (build sem DSN, ou import quebrado) — ignora.
+  }
 }
 
 export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage> {
@@ -256,6 +279,7 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   const v2 = await fetchFeedV2(params).catch((e) => {
     // eslint-disable-next-line no-console
     console.warn('[feed] get_feed_v2 throw, fallback legacy:', e);
+    addFeedBreadcrumb('rpc_throw', { error: String(e) });
     return null;
   });
   if (v2) return v2;

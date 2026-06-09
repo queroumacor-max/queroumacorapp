@@ -308,4 +308,27 @@
   `:root[data-theme="dark"] .bg-white { background-color: var(--color-white) }`
   pra ficarem escuros — refinar componente-a-componente se aparecer
   contraste ruim.
+- **SQL Wave 19 (2026-06-09) — policy admin pra `feature_interest` —
+  JÁ EXECUTADO no Supabase.** O2 do BACKLOG. Adiciona
+  `feature_interest_select_admin` (SELECT TO authenticated USING
+  `is_portal_admin()`). Sem UPDATE/DELETE — tabela é append-only.
+  Dashboard em `/admin/feature-interest` (RSC shell +
+  `FeatureInterestAdmin` client component) mostra resumo agregado por
+  feature (count + último click) com drill-down em lista de cliques
+  recentes (usuário + ação + contato + tempo). Service em
+  `next-app/lib/services/adminFeatureInterest.ts`. Migration em
+  `/migrations/2026-06-09-admin-feature-interest-policy.sql`.
+- **Telemetria fetchFeed (Sprint 4 polish) — DEPLOYADO em 2026-06-09.**
+  `lib/services/feed.ts` agora chama `addFeedBreadcrumb()` em 3 caminhos:
+  `rpc_ok` (sucesso, com row count), `rpc_error` (RPC retornou error,
+  fallback legacy), `rpc_throw` (RPC throw, fallback). Breadcrumb vai
+  pro Sentry e aparece como contexto em qualquer erro futuro do feed.
+  Usar pra decidir quando remover o fallback legacy: se Sentry mostra
+  só `rpc_ok` por semanas → seguro firmar.
+- **SQL `/migrations/2026-06-09-perf-indexes-check.sql` — NÃO É
+  MIGRATION, é auditoria.** Roda EXPLAIN ANALYZE nas 3 queries
+  esperadas pelos índices Wave 15 + lista tamanho/scan count via
+  `pg_stat_user_indexes`. Cole no SQL Editor pra confirmar que os
+  índices estão sendo escolhidos pelo planner. "Seq Scan" no plano =
+  índice não cobre, refazer.
 
