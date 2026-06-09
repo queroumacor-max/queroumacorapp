@@ -25,6 +25,8 @@ import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
+import { useBlockMutations } from '@/lib/hooks/useBlocks';
+import { renderRichText } from '@/lib/utils/richText';
 import type { PostComment } from '@/lib/services/postInteractions';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { isAdmin } from '@/lib/policies';
@@ -76,6 +78,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   });
   const { isSaved, toggle: toggleSave } = useSavedPosts();
   const saved = isSaved(post.id);
+  const blockMut = useBlockMutations();
   const [showComment, setShowComment] = useState(false);
   // Comments via hook — assina o cache ['post-comments', id] que a
   // CommentForm invalida após insert. `post.comments` (do feed) é só
@@ -150,6 +153,25 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   function handleOpenReport() {
     setOptsOpen(false);
     setReportOpen(true);
+  }
+
+  async function handleBlockUser() {
+    setOptsOpen(false);
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    const ok = await dialog.confirm(
+      `Bloquear ${post.profile.name ?? 'este usuário'}? Você não vai mais ver posts dele.`,
+      { title: 'Bloquear', okLabel: 'Bloquear', danger: true },
+    );
+    if (!ok) return;
+    try {
+      await blockMut.block(post.user_id);
+      showToast('Usuário bloqueado.', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Falha ao bloquear.', 'error');
+    }
   }
 
   async function submitReport(reason: string) {
@@ -452,7 +474,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
 
       {post.caption ? (
         <div style={{ fontSize: 13.5, padding: '0 14px 6px', lineHeight: 1.5 }}>
-          <b style={{ fontWeight: 600 }}>{name}</b> {post.caption}
+          <b style={{ fontWeight: 600 }}>{name}</b> {renderRichText(post.caption)}
         </div>
       ) : null}
 
@@ -488,7 +510,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
                 }}
               >
                 <span style={{ flex: 1 }}>
-                  <b style={{ fontWeight: 600 }}>{authorLabel}</b> {c.text}
+                  <b style={{ fontWeight: 600 }}>{authorLabel}</b> {renderRichText(c.text)}
                 </span>
                 {canDeleteComment ? (
                   <button
@@ -579,7 +601,15 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
               <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
             </>
           ) : (
-            <PostOptRow icon="⚠️" label="Denunciar" onClick={handleOpenReport} danger />
+            <>
+              <PostOptRow
+                icon="🚫"
+                label="Bloquear usuário"
+                onClick={handleBlockUser}
+                danger
+              />
+              <PostOptRow icon="⚠️" label="Denunciar" onClick={handleOpenReport} danger />
+            </>
           )}
         </div>
       </BottomSheet>

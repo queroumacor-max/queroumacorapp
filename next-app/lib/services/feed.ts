@@ -493,6 +493,21 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
     const role = String(roleFilter).toLowerCase();
     items = enriched.filter((p) => String(p.profile.role ?? '').toLowerCase() === role);
   }
+  // S6: filtra blocked client-side no caminho legacy (RPC v2 já filtra
+  // server-side, mas fallback precisa de defesa em profundidade). Best-
+  // effort: se a RPC list_blocked_ids falhar, ignora (sem regressão).
+  if (userId) {
+    try {
+      const { listBlockedIds } = await import('@/lib/services/blocks');
+      const blocked = await listBlockedIds();
+      if (blocked.length > 0) {
+        const set = new Set(blocked);
+        items = items.filter((p) => !set.has(p.user_id));
+      }
+    } catch {
+      // ignora — feed continua mostrando blocked nesse caso extremo.
+    }
+  }
   return { items, nextCursor, hasMore };
 }
 
