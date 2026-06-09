@@ -48,7 +48,7 @@ export function FriendlyErrorToast({
         <h3 className="font-bold text-sm text-[color:var(--color-ink,#222)]">
           {error.title}
         </h3>
-        <p className="text-sm text-gray-600 mt-0.5">{error.message}</p>
+        <p className="text-sm text-[color:var(--color-muted)] mt-0.5">{error.message}</p>
         {error.actionable && onAction && (
           <button
             type="button"
@@ -63,7 +63,7 @@ export function FriendlyErrorToast({
         type="button"
         onClick={onClose}
         aria-label="Fechar aviso"
-        className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1"
+        className="text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)] text-lg leading-none px-1 opacity-70 hover:opacity-100"
       >
         ×
       </button>

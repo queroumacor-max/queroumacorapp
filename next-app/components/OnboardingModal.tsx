@@ -106,7 +106,7 @@ export function OnboardingModal() {
             <span
               key={i}
               className={`h-1.5 rounded-full transition-all ${
-                i === step ? 'w-6 bg-[color:var(--color-p1,#2563eb)]' : 'w-1.5 bg-gray-300'
+                i === step ? 'w-6 bg-[color:var(--color-p1,#2563eb)]' : 'w-1.5 bg-[color:var(--color-border)]'
               }`}
             />
           ))}
@@ -123,14 +123,14 @@ export function OnboardingModal() {
           {current.title}
         </h2>
 
-        <p className="text-sm text-gray-600 mb-6 leading-relaxed">{current.text}</p>
+        <p className="text-sm text-[color:var(--color-muted)] mb-6 leading-relaxed">{current.text}</p>
 
         <div className="flex items-center justify-between gap-3">
           {!isLast ? (
             <button
               type="button"
               onClick={finish}
-              className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700"
+              className="px-4 py-2 text-sm font-medium text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
             >
               Pular
             </button>
@@ -150,7 +150,7 @@ export function OnboardingModal() {
           </button>
         </div>
 
-        <p className="mt-4 text-xs text-gray-400" aria-hidden="true">
+        <p className="mt-4 text-xs text-[color:var(--color-muted)] opacity-70" aria-hidden="true">
           {step + 1} de {STEPS.length}
         </p>
       </div>
