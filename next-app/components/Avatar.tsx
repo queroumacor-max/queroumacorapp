@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import type { Profile } from '@/lib/types';
+import { cfImg, cfImgSrcSet } from '@/lib/cfImg';
 
 export interface AvatarProps {
   profile: Pick<Profile, 'id' | 'name' | 'tag' | 'avatar_url'> | null | undefined;
@@ -51,9 +52,17 @@ export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
   const dim = `${size}px`;
 
   if (showImg) {
+    // CF Image Resizing: gera srcset 1x/2x/3x baseado no `size` pedido.
+    // Browser pega a melhor variante por DPR. cfImg() devolve URL com
+    // /cdn-cgi/image/w=<size>,q=85,f=auto/ — auto serve AVIF/WebP/JPEG
+    // conforme suporte do browser. Em DPR=3 (iPhone 14), pra avatar
+    // 40px o browser baixa a versão 120px — gigante saving vs original
+    // 2000px de Supabase.
     return (
       <img
-        src={url}
+        src={cfImg(url, { width: size, fit: 'cover' })}
+        srcSet={cfImgSrcSet(url, size, { fit: 'cover' })}
+        sizes={`${size}px`}
         alt={profile?.name ?? profile?.tag ?? 'Avatar'}
         width={size}
         height={size}

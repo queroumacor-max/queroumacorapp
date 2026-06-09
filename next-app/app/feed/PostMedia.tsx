@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { isVideoUrl } from '@/lib/utils';
+import { cfImg, cfImgSrcSet } from '@/lib/cfImg';
 
 export interface PostMediaProps {
   url: string;
@@ -124,9 +125,14 @@ export function PostMedia({ url, mediaType, muted, onToggleMute }: PostMediaProp
     );
   }
 
+  // Feed mobile-first: card é max-width 430px (BottomNav container) e ocupa
+  // 100% width do viewport até 430. srcset cobre 1x/2x/3x até 430 (DPR=3).
+  // sizes="(max-width: 430px) 100vw, 430px" ensina o browser a escolher.
   return (
     <img
-      src={url}
+      src={cfImg(url, { width: 430, fit: 'cover' })}
+      srcSet={cfImgSrcSet(url, 430, { fit: 'cover' })}
+      sizes="(max-width: 430px) 100vw, 430px"
       alt=""
       loading="lazy"
       decoding="async"
