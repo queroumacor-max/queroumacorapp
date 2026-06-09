@@ -185,6 +185,7 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
     media_width: number | null;
     media_height: number | null;
     created_at: string;
+    boosted_until: string | null;
     author: Record<string, unknown> | null;
     like_count: number | string;
     comment_count: number | string;
@@ -237,6 +238,7 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
       media_width: r.media_width ?? null,
       media_height: r.media_height ?? null,
       created_at: r.created_at,
+      boosted_until: r.boosted_until ?? null,
       profile,
       liked: !!r.liked_by_me,
       saved: !!r.saved_by_me,

@@ -368,6 +368,19 @@ export function SearchResults() {
       </header>
 
       <div className="px-3 pt-3 pb-4">
+        {/* S12: atalho pra /explore (trending). Visível quando input vazio. */}
+        {showSuggestions ? (
+          <Link
+            href="/explore"
+            className="flex items-center justify-between px-4 py-3 mb-3 rounded-xl bg-white border border-[color:var(--color-border)]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span aria-hidden="true">🔥</span>
+              <span>Em alta esta semana</span>
+            </span>
+            <span className="text-[color:var(--color-muted)]">→</span>
+          </Link>
+        ) : null}
         {/* Sugestões — só quando input vazio */}
         {showSuggestions ? (
           <section aria-label="Sugestões para você">

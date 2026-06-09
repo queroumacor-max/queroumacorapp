@@ -102,6 +102,9 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const visibleComments = commentsLoading ? post.comments : freshComments;
 
   const isOwn = !!user && user.id === post.user_id;
+  // S11: post boost. NULL ou passado = sem destaque.
+  const isBoosted =
+    !!post.boosted_until && new Date(post.boosted_until).getTime() > Date.now();
 
   const [optsOpen, setOptsOpen] = useState(false);
 
@@ -153,6 +156,38 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   function handleOpenReport() {
     setOptsOpen(false);
     setReportOpen(true);
+  }
+
+  async function handleBoost() {
+    setOptsOpen(false);
+    if (!user) return;
+    const ok = await dialog.confirm(
+      'Destacar este post no topo do feed por 7 dias?',
+      { title: 'Destacar post (PRO)', okLabel: 'Destacar' },
+    );
+    if (!ok) return;
+    try {
+      const { boostPost } = await import('@/lib/services/boost');
+      await boostPost(post.id, 7);
+      showToast('Post destacado por 7 dias.', 'success');
+      qc.invalidateQueries({ queryKey: ['feed'] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao destacar.';
+      // RPC manda 42501 com mensagem 'Recurso PRO' quando não-PRO.
+      showToast(/PRO/i.test(msg) ? 'Destaque é recurso PRO.' : msg, 'error');
+    }
+  }
+
+  async function handleUnboost() {
+    setOptsOpen(false);
+    try {
+      const { unboostPost } = await import('@/lib/services/boost');
+      await unboostPost(post.id);
+      showToast('Destaque removido.', 'success');
+      qc.invalidateQueries({ queryKey: ['feed'] });
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Falha ao remover.', 'error');
+    }
   }
 
   async function handleBlockUser() {
@@ -307,8 +342,21 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
       style={{
         borderRadius: 18,
         boxShadow: '0 2px 12px rgba(0,0,0,.06)',
+        border: isBoosted ? '1.5px solid var(--color-p1)' : undefined,
       }}
     >
+      {isBoosted ? (
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold"
+          style={{
+            background: 'linear-gradient(90deg, var(--color-p1), var(--color-p3))',
+            color: '#fff',
+          }}
+        >
+          <span aria-hidden="true">⭐</span>
+          <span>Em destaque</span>
+        </div>
+      ) : null}
       {/* mpost-head — avatar com ring gradient + meta + dots */}
       <header className="flex items-center gap-2.5" style={{ padding: '12px 14px' }}>
         <div
@@ -598,6 +646,19 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
                   setEditOpen(true);
                 }}
               />
+              {isBoosted ? (
+                <PostOptRow
+                  icon="⭐"
+                  label="Remover destaque"
+                  onClick={handleUnboost}
+                />
+              ) : (
+                <PostOptRow
+                  icon="⭐"
+                  label="Destacar por 7 dias (PRO)"
+                  onClick={handleBoost}
+                />
+              )}
               <PostOptRow icon="🗑️" label="Apagar post" onClick={handleDelete} danger />
             </>
           ) : (

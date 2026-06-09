@@ -331,6 +331,24 @@
   `pg_stat_user_indexes`. Cole no SQL Editor pra confirmar que os
   índices estão sendo escolhidos pelo planner. "Seq Scan" no plano =
   índice não cobre, refazer.
+- **SQL Wave 22 (2026-06-09) — boost + trending (S11/S12) — JÁ
+  EXECUTADO no Supabase.** Coluna `posts.boosted_until timestamptz`
+  (NULL = sem destaque) + índice parcial
+  `idx_posts_boosted_active WHERE boosted_until > now()`. RPCs:
+  `boost_post(uuid, int days=7)` valida ownership + PRO/portal, atomic
+  swap (limpa boost ativo anterior do mesmo user antes de aplicar; 1-30
+  dias); `unboost_post(uuid)` cancela. `get_feed_v2` recriada
+  inserindo até 3 posts boosted no TOPO da PRIMEIRA página (cursor
+  NULL); páginas seguintes não inflam — boosted reaparece só por
+  created_at. `get_trending_posts(limit, window_days)` retorna posts
+  ordenados por score = likes_window + 3*comments_window, exclui
+  blocked do user logado, default 7 dias. Frontend: serviços
+  `boost.ts` + `trending.ts`, badge "Em destaque" no topo do PostCard
+  com gradient laranja, menu opt "Destacar 7 dias (PRO)" / "Remover
+  destaque" no opts (só dono), página `/explore` (RSC + client
+  `TrendingGrid`) grid 3 colunas com score no canto, atalho
+  "Em alta esta semana" no `/search` quando input vazio.
+  Migration em `/migrations/2026-06-09-boost-trending.sql`.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
