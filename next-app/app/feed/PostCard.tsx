@@ -357,6 +357,8 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
           <PostMedia
             url={post.media_url}
             mediaType={post.media_type}
+            mediaWidth={post.media_width}
+            mediaHeight={post.media_height}
             muted={muted}
             onToggleMute={onToggleMute}
           />

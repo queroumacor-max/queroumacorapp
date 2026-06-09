@@ -5,6 +5,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function ProfileFooter() {
   const { signOut } = useAuth();
@@ -22,7 +23,8 @@ export function ProfileFooter() {
   }
 
   return (
-    <div className="px-3.5 pt-5 pb-8">
+    <div className="px-3.5 pt-5 pb-8 space-y-3">
+      <ThemeToggle withLabel />
       <button
         type="button"
         onClick={handleLogout}

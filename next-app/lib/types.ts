@@ -85,6 +85,11 @@ export interface Post {
   caption?: string | null;
   media_url?: string | null;
   media_type?: PostMediaType | null;
+  // Wave 17: dimensões da mídia capturadas no upload (P4 / CLS).
+  // Frontend usa pra setar <img width height>. Opcional pra compat com
+  // posts antigos sem captura.
+  media_width?: number | null;
+  media_height?: number | null;
   status?: PostStatus;
   for_sale?: boolean | null;
   price?: number | null;

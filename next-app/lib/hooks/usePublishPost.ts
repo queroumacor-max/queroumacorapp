@@ -17,6 +17,7 @@ import { useAuth } from '@/components/AuthProvider';
 import {
   uploadMedia,
   createPost,
+  readImageDimensions,
   type CreatePostMediaType,
   type CreatePostResult,
 } from '@/lib/services/posts';
@@ -50,6 +51,17 @@ export function usePublishPost(): UsePublishPostResult {
       // e não saturar conexão móvel. Pra 1-5 arquivos pequenos a diferença
       // de latência é irrelevante.
       const urls: string[] = [];
+      // W/H da primeira imagem (Wave 17): só captura pra image; vídeo
+      // segue null e o frontend usa aspect-ratio CSS como hoje.
+      let firstWidth: number | null = null;
+      let firstHeight: number | null = null;
+      if (input.files[0] && input.mediaType !== 'video') {
+        const dims = await readImageDimensions(input.files[0]);
+        if (dims) {
+          firstWidth = dims.width;
+          firstHeight = dims.height;
+        }
+      }
       for (const file of input.files) {
         const { url } = await uploadMedia(user.id, file);
         urls.push(url);
@@ -59,6 +71,8 @@ export function usePublishPost(): UsePublishPostResult {
         caption: input.caption || null,
         mediaUrls: urls,
         mediaType: input.mediaType,
+        mediaWidth: firstWidth,
+        mediaHeight: firstHeight,
         forSale: input.forSale,
         price: input.price ?? null,
         artType: input.artType ?? null,
