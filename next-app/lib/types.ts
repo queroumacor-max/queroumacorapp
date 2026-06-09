@@ -101,6 +101,9 @@ export interface Post {
   // Wave 20 / S5: link externo do story (CTA "ver mais"). Só renderiza
   // em media_type='story'; ignorado em posts comuns.
   link_url?: string | null;
+  // Wave 22 / S11: timestamp até quando o post está "em destaque" (boost
+  // PRO). NULL ou passado = sem boost. Feed dá prioridade enquanto válido.
+  boosted_until?: string | null;
   status?: PostStatus;
   for_sale?: boolean | null;
   price?: number | null;
