@@ -185,9 +185,10 @@ describe('getProfile', () => {
   });
 
   it('error path → joga NetworkError com message do supabase', async () => {
-    // Duas chamadas de assertion = duas respostas no queue.
+    // 2 expects = 2 calls de getProfile; cada uma faz select em profiles +
+    // fallback em profiles_public quando profiles erra. 4 respostas total.
     const err = { data: null, error: { message: 'rls bloqueou' } };
-    const { client } = makeFakeClient({ queue: [err, err] });
+    const { client } = makeFakeClient({ queue: [err, err, err, err] });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     await expect(getProfile('u1')).rejects.toBeInstanceOf(NetworkError);
     await expect(getProfile('u1')).rejects.toMatchObject({

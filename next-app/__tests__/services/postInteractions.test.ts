@@ -126,6 +126,10 @@ function makeFakeClient(opts: FakeOpts = {}): {
       spies.eq(col, val);
       return chain;
     },
+    // .is() usado pelo Wave 8 (soft delete: .is('deleted_at', null)).
+    is: (_col: string, _val: unknown) => chain,
+    // .in() pra enrichment de comentários (profiles_public IN (authors)).
+    in: (_col: string, _vals: unknown[]) => chain,
     order: (col: string, optsOrder?: { ascending: boolean }) => {
       spies.order(col, optsOrder);
       return chain;
@@ -366,7 +370,11 @@ describe('deleteComment', () => {
   });
 
   it('happy: delete + eq id', async () => {
-    const { client, spies } = makeFakeClient();
+    // deleteComment espera array não-vazio em data (rows afetadas). Sem
+    // isso o service interpreta como "RLS bloqueou" e joga NetworkError.
+    const { client, spies } = makeFakeClient({
+      responses: [{ data: [{ id: 'c1' }] }],
+    });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     await deleteComment('c1', 'u1');
     expect(spies.from).toHaveBeenCalledWith('comments');
@@ -391,10 +399,14 @@ describe('fetchComments', () => {
       { id: 'c1', post_id: 'p1', user_id: 'u1', text: 'a', created_at: '1' },
       { id: 'c2', post_id: 'p1', user_id: 'u2', text: 'b', created_at: '2' },
     ];
-    const { client, spies } = makeFakeClient({ data: rows });
+    // fetchComments faz 2 queries: comments + profiles_public. Sem author
+    // resolvido, devolve author:null por linha.
+    const { client, spies } = makeFakeClient({
+      responses: [{ data: rows }, { data: [] }],
+    });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchComments('p1');
-    expect(out).toEqual(rows);
+    expect(out).toEqual(rows.map((r) => ({ ...r, author: null })));
     expect(spies.eq).toHaveBeenCalledWith('post_id', 'p1');
     expect(spies.order).toHaveBeenCalledWith('created_at', { ascending: true });
   });

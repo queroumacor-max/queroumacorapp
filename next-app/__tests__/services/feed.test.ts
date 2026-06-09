@@ -81,6 +81,8 @@ function makeFakeClient(byTable: Record<string, TableResp>): {
     chain.or = (_expr: string) => chain;
     chain.not = (_col: string, _op: string, _val: unknown) => chain;
     chain.gte = (_col: string, _val: unknown) => chain;
+    // .is() usado pelo Wave 8 (soft delete: .is('deleted_at', null)).
+    chain.is = (_col: string, _val: unknown) => chain;
     chain.in = (col: string, vals: unknown[]) => {
       (spies.insByTable[table] ??= []).push({ col, vals });
       return chain;
@@ -108,11 +110,25 @@ function makeFakeClient(byTable: Record<string, TableResp>): {
     return chain;
   }
 
+  // rpc() mock devolve erro pra forçar fetchFeed a cair no caminho legado.
+  // Os tests deste arquivo cobrem o legacy (que continua sendo o fallback
+  // confiável até a telemetria firmar a RPC v2 — ver feed.ts). Quando
+  // for testar a RPC v2 em si, escrever suite separada.
+  function rpcChain() {
+    const chain: Record<string, unknown> = {};
+    chain.abortSignal = () => chain;
+    chain.then = (resolve: (v: { data: unknown; error: unknown }) => void) => {
+      resolve({ data: null, error: { message: 'rpc unavailable in test' } });
+    };
+    return chain;
+  }
+
   const client = {
     from: (table: string) => {
       spies.fromCalls.push(table);
       return makeChain(table);
     },
+    rpc: () => rpcChain(),
   };
   return { client, spies };
 }
