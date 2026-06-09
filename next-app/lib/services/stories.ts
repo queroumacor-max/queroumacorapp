@@ -27,6 +27,8 @@ export interface StoryRow {
   user_id: string;
   media_url: string | null;
   media_type: string | null;
+  // S5: link externo do story (CTA "ver mais"). Definido na publicação.
+  link_url?: string | null;
   created_at: string;
 }
 
@@ -49,7 +51,7 @@ export interface StoryGroup {
   isOwn: boolean;
 }
 
-const STORY_COLS = 'id, user_id, media_url, media_type, created_at';
+const STORY_COLS = 'id, user_id, media_url, media_type, link_url, created_at';
 const PROFILE_COLS = 'id, name, tag, avatar_url';
 const STORY_BUCKET = 'posts';
 
@@ -98,7 +100,7 @@ export async function fetchStoriesGroupedByUser(
   if (storiesErr) {
     throw new NetworkError(storiesErr.message, storiesErr);
   }
-  const rows = (storiesData ?? []) as StoryRow[];
+  const rows = (storiesData ?? []) as unknown as StoryRow[];
   // IMPORTANTE: não fazer early-return quando rows=[]. Mesmo sem story na
   // janela de 24h, queremos renderizar bolinhas dos seguidos (com anel cinza)
   // pro user ter quick-link pros perfis. Vanilla faz a mesma coisa

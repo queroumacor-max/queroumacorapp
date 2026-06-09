@@ -39,6 +39,14 @@ export interface Profile {
   user_type?: UserType | null;
   is_pro?: boolean | null;
   is_admin?: boolean | null;
+  // Wave 20 / S1: badge ✓ Verified (separado do is_pro). Admin-only via
+  // trigger protect_profile_columns. Distingue contas oficiais/notáveis
+  // do PRO comum.
+  verified?: boolean | null;
+  // Wave 20 / S4: links externos do perfil (Instagram + site/portfólio).
+  // Editáveis pelo próprio user via /perfil/editar.
+  instagram_url?: string | null;
+  website_url?: string | null;
   display_name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -90,6 +98,9 @@ export interface Post {
   // posts antigos sem captura.
   media_width?: number | null;
   media_height?: number | null;
+  // Wave 20 / S5: link externo do story (CTA "ver mais"). Só renderiza
+  // em media_type='story'; ignorado em posts comuns.
+  link_url?: string | null;
   status?: PostStatus;
   for_sale?: boolean | null;
   price?: number | null;

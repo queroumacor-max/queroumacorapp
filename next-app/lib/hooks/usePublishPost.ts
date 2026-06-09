@@ -30,6 +30,8 @@ export interface PublishPostInput {
   forSale?: boolean;
   price?: number | null;
   artType?: string | null;
+  // S5: CTA "ver mais" pra story. Só usado quando mediaType='story'.
+  linkUrl?: string | null;
 }
 
 export interface UsePublishPostResult {
@@ -76,6 +78,7 @@ export function usePublishPost(): UsePublishPostResult {
         forSale: input.forSale,
         price: input.price ?? null,
         artType: input.artType ?? null,
+        linkUrl: input.linkUrl ?? null,
       });
     },
     onSuccess: () => {
