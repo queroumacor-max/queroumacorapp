@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { ListSkeleton } from '@/components/Skeletons';
 import {
   CHECKLIST_TEMPLATES,
   loadChecklist,
@@ -121,9 +122,9 @@ export function ChecklistView() {
 
       <div style={{ marginBottom: 12 }}>
         {loading ? (
-          <p className="text-center text-sm text-[color:var(--color-muted)] py-6">
-            Carregando…
-          </p>
+          <div aria-label="Carregando checklist" className="py-2">
+            <ListSkeleton count={4} itemHeight={62} />
+          </div>
         ) : items.length === 0 ? (
           <div
             className="bg-white text-center"

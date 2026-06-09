@@ -25,6 +25,7 @@ import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
+import type { PostComment } from '@/lib/services/postInteractions';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { isAdmin } from '@/lib/policies';
 import { showToast } from '@/lib/toast';
@@ -66,7 +67,13 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const handle = post.profile.tag ? '@' + post.profile.tag : '';
   const timeAgo = getTimeAgo(post.created_at);
 
-  const { liked, count: likeCount, toggle: toggleLike } = useLike(post.id);
+  // Hidrata useLike com `{liked, count}` que já veio do feed (RPC get_feed_v2
+  // ou enrichment legacy). Evita 2 round-trips extra (hasLiked + countLikes)
+  // por card. staleTime do hook (30s) cuida do refresh natural.
+  const { liked, count: likeCount, toggle: toggleLike } = useLike(post.id, {
+    liked: post.liked,
+    count: post.likeCount,
+  });
   const { isSaved, toggle: toggleSave } = useSavedPosts();
   const saved = isSaved(post.id);
   const [showComment, setShowComment] = useState(false);
@@ -81,12 +88,14 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   // snapshot velha do feed. Resultado: comment novo (ou apagar comment)
   // não refletia. Fix: usa `loading` pra decidir; depois de carregar,
   // confia no resultado do hook (mesmo se vazio).
+  // Hidrata useComments com os top-N comments do feed. PostComment e
+  // FeedComment têm o mesmo shape (id/post_id/user_id/text/created_at/author).
   const {
     comments: freshComments,
     loading: commentsLoading,
     remove: removeComment,
     isRemoving: isRemovingComment,
-  } = useComments(post.id);
+  } = useComments(post.id, post.comments as unknown as PostComment[]);
   const visibleComments = commentsLoading ? post.comments : freshComments;
 
   const isOwn = !!user && user.id === post.user_id;

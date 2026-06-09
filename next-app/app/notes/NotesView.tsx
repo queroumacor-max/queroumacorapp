@@ -7,6 +7,7 @@ import { useNotes } from '@/lib/hooks/useNotes';
 import { useAudioRecording } from '@/lib/hooks/useAudioRecording';
 import { transcribeAudio } from '@/lib/services/audioStt';
 import { canSeeProFeature } from '@/lib/policies';
+import { ListSkeleton } from '@/components/Skeletons';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { showToast } from '@/lib/toast';
 
@@ -257,9 +258,9 @@ export function NotesView() {
       ) : null}
 
       {loading ? (
-        <p className="text-center text-sm text-[color:var(--color-muted)] py-6">
-          Carregando…
-        </p>
+        <div aria-label="Carregando anotações" className="py-2">
+          <ListSkeleton count={4} itemHeight={84} />
+        </div>
       ) : notes.length === 0 ? (
         <div
           className="bg-white text-center"

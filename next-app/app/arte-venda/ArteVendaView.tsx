@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
+import { ListSkeleton } from '@/components/Skeletons';
 import { getSupabase } from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
 
@@ -166,9 +167,9 @@ export function ArteVendaView() {
       </Link>
 
       {query.isLoading ? (
-        <p className="text-center text-sm text-[color:var(--color-muted)] py-6">
-          Carregando…
-        </p>
+        <div aria-label="Carregando artes" className="py-2">
+          <ListSkeleton count={3} itemHeight={110} />
+        </div>
       ) : listings.length === 0 ? (
         <div
           className="bg-white text-center"

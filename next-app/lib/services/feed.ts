@@ -124,7 +124,138 @@ export async function fetchPublicProfiles(ids: string[]): Promise<Profile[]> {
 // têm sua própria página/feature). Devolve posts já enriquecidos com profile,
 // liked, saved, likeCount e comments — pronto pra renderizar.
 
+// fetchFeedV2: tenta a RPC `get_feed_v2` (SQL Wave 16). Devolve null em
+// qualquer erro pro caller cair no caminho legado. Mapeia o jsonb agregado
+// da RPC pra FeedPost. Vantagem: 1 round-trip em vez de 5 (post + perfis +
+// likes + saves + comments).
+async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
+  const limit = Math.min(
+    Math.max(1, params.limit ?? FEED_PAGE_DEFAULT),
+    FEED_PAGE_MAX,
+  );
+  const userId = params.userId ?? null;
+  const cursor = params.cursor ?? null;
+  const followingOnly = params.followingOnly ?? false;
+  const roleFilter = params.roleFilter ?? null;
+  const signal = params.signal;
+
+  // followingOnly precisa da lista de IDs — mesma lógica do caminho legado.
+  let followingIds: string[] | null = null;
+  if (followingOnly && userId) {
+    const following = await DB.follows.listFollowingIds(userId);
+    followingIds = [...following, userId];
+  }
+
+  const sb = getSupabase();
+  // Cast: a RPC `get_feed_v2` foi criada manualmente no DB (Wave 16) e ainda
+  // não está no schema TS gerado. Quando rodar `supabase gen types`, dá
+  // pra remover o cast.
+  const rpcAny = sb.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => { abortSignal?: (s: AbortSignal) => unknown };
+  const builder = rpcAny('get_feed_v2', {
+    p_limit: limit,
+    p_cursor: cursor,
+    p_user_id: userId,
+    p_following_ids: followingIds,
+    p_role_filter: roleFilter ? String(roleFilter).toLowerCase() : null,
+  });
+  const withSignalRpc = signal && builder.abortSignal
+    ? (builder.abortSignal(signal) as unknown as PromiseLike<{ data: unknown; error: { message: string } | null }>)
+    : (builder as unknown as PromiseLike<{ data: unknown; error: { message: string } | null }>);
+
+  const { data, error } = await withSignalRpc;
+  if (error) {
+    // Sinaliza pro caller cair pro legacy. Loga pra Sentry capturar.
+    // eslint-disable-next-line no-console
+    console.warn('[feed] get_feed_v2 falhou, fallback legacy:', error.message);
+    return null;
+  }
+  if (!Array.isArray(data)) return null;
+
+  type RpcRow = {
+    post_id: string;
+    user_id: string;
+    caption: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    created_at: string;
+    author: Record<string, unknown> | null;
+    like_count: number | string;
+    comment_count: number | string;
+    liked_by_me: boolean;
+    saved_by_me: boolean;
+    top_comments: Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      created_at: string;
+      author: { id?: string; name?: string | null; tag?: string | null; avatar_url?: string | null } | null;
+    }> | null;
+  };
+
+  const rows = data as RpcRow[];
+  const items: FeedPost[] = rows.map((r) => {
+    const authorObj = (r.author ?? {}) as Record<string, unknown>;
+    const profile: Profile = {
+      id: r.user_id,
+      name: (authorObj.name as string | null | undefined) ?? null,
+      avatar_url: (authorObj.avatar_url as string | null | undefined) ?? null,
+      role: (authorObj.role as Profile['role']) ?? undefined,
+      is_pro: (authorObj.is_pro as boolean | undefined) ?? undefined,
+      city: (authorObj.city as string | null | undefined) ?? null,
+      state: (authorObj.state as string | null | undefined) ?? null,
+      // tag mora fora do shape Profile estrito (vem do JSON da RPC); cast
+      // mínimo via index signature.
+      ...(authorObj.tag ? { tag: authorObj.tag as string } : {}),
+    } as Profile;
+    const comments: FeedComment[] = (r.top_comments ?? []).map((c) => ({
+      id: c.id,
+      post_id: r.post_id,
+      user_id: c.user_id,
+      text: c.text,
+      created_at: c.created_at,
+      author: c.author
+        ? {
+            name: c.author.name ?? null,
+            tag: c.author.tag ?? null,
+            avatar_url: c.author.avatar_url ?? null,
+          }
+        : null,
+    }));
+    return {
+      id: r.post_id,
+      user_id: r.user_id,
+      caption: r.caption,
+      media_url: r.media_url,
+      media_type: (r.media_type ?? null) as Post['media_type'],
+      created_at: r.created_at,
+      profile,
+      liked: !!r.liked_by_me,
+      saved: !!r.saved_by_me,
+      likeCount: Number(r.like_count ?? 0),
+      comments,
+    };
+  });
+
+  const lastRow = rows[rows.length - 1];
+  const nextCursor = lastRow?.created_at ?? null;
+  const hasMore = rows.length >= limit;
+  return { items, nextCursor, hasMore };
+}
+
 export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage> {
+  // Tenta RPC primeiro (Sprint 1.5). Em qualquer falha, cai pro caminho
+  // legado abaixo — proteção contra regressão se a RPC ainda não existir
+  // no DB ou se schema mudar.
+  const v2 = await fetchFeedV2(params).catch((e) => {
+    // eslint-disable-next-line no-console
+    console.warn('[feed] get_feed_v2 throw, fallback legacy:', e);
+    return null;
+  });
+  if (v2) return v2;
+
   const offset = Math.max(0, params.offset ?? 0);
   const limit = Math.min(
     Math.max(1, params.limit ?? FEED_PAGE_DEFAULT),
