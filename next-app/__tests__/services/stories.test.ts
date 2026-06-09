@@ -202,16 +202,29 @@ describe('fetchStoriesGroupedByUser', () => {
     expect(spies.from).not.toHaveBeenCalled();
   });
 
-  it('sem stories → retorna [] (não dispara fetch de profiles)', async () => {
-    // queue: stories=[] → função sai cedo (não bate em profiles/seen).
-    const { client, spies } = makeFakeClient([{ data: [] }]);
+  it('sem follows nem viewer válido → retorna [] (early return)', async () => {
+    // Service mudou: rows=[] NÃO faz early return — quando tem followingIds,
+    // renderiza bolinhas cinzas pra cada follow sem story (modules/stories.js
+    // linha 154+). Só early-returna quando viewerId vazio ou feedIds vazio.
+    const { client, spies } = makeFakeClient([]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await fetchStoriesGroupedByUser('', []);
+    expect(out).toEqual([]);
+    expect(spies.from).not.toHaveBeenCalled();
+  });
+
+  it('rows vazio mas com follows → retorna bolinhas cinzas dos follows', async () => {
+    // queue: stories=[], profiles=[{u2 profile}], seen=null.
+    const u2Prof = { id: 'u2', name: 'User 2', tag: 'u2tag', avatar_url: null };
+    const { client } = makeFakeClient([
+      { data: [] },           // stories
+      { data: [u2Prof] },     // profiles
+      { data: null },         // seen_stories maybeSingle
+    ]);
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchStoriesGroupedByUser('u1', ['u2']);
-    expect(out).toEqual([]);
-    // Só 1 from() — só a query de stories. Profiles e seen_stories nem
-    // chegam a rodar porque o early return cobre.
-    expect(spies.from).toHaveBeenCalledTimes(1);
-    expect(spies.from).toHaveBeenCalledWith('posts');
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ user_id: 'u2', stories: [], seen: true });
   });
 
   it('error no fetch de stories → joga NetworkError', async () => {

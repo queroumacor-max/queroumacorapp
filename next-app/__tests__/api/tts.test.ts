@@ -30,7 +30,10 @@ describe('POST /api/tts', () => {
     expect(res.status).toBe(403);
   });
 
-  it('happy path: returns audio/mpeg bytes', async () => {
+  it('happy path: returns audio/ogg opus bytes', async () => {
+    // Route mudou pra ogg/opus (route.ts:41) — menor que mp3 em 4G, todos
+    // browsers modernos suportam. Upstream OpenAI continua retornando mp3,
+    // mas o frontend recebe via response opus.
     mocks = installAuthMocks({
       fetchRest: async () =>
         new Response(new Uint8Array([0x1, 0x2, 0x3]), {
@@ -41,7 +44,7 @@ describe('POST /api/tts', () => {
     const { POST } = await import('@/app/api/tts/route');
     const res = await POST(mkJsonReq('/api/tts', { text: 'oi' }) as never);
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toBe('audio/mpeg');
+    expect(res.headers.get('content-type')).toBe('audio/ogg; codecs=opus');
     const buf = await res.arrayBuffer();
     expect(buf.byteLength).toBe(3);
   });
