@@ -245,4 +245,36 @@
   `useUndoable<TArgs>` empacotando ciclo. Migration única em
   `/migrations/2026-05-31-soft-delete.sql`. Trocar para "JÁ EXECUTADO"
   após o usuário rodar no SQL Editor.
+- **SQL Wave 15 (2026-06-09) — índices de perf — JÁ EXECUTADO no
+  Supabase.** 3 índices parciais cobrindo caminho crítico:
+  `idx_comments_post_active_created` (post_id + created_at WHERE
+  deleted_at IS NULL) acelera `fetchComments`;
+  `idx_notifications_user_unread_created` (user_id + created_at WHERE
+  read=false) acelera o badge do sininho;
+  `idx_posts_approved_active_created` (created_at WHERE status=approved
+  AND deleted_at IS NULL) acelera o feed "Todos". Criados
+  CONCURRENTLY (sem lock). Migration em
+  `/migrations/2026-06-09-perf-indexes.sql`. Não pedir pra rodar de novo.
+- **SQL Wave 16 (2026-06-09) — RPC `get_feed_v2` — JÁ EXECUTADO no
+  Supabase.** Função SQL agregando posts + autor + like_count +
+  comment_count + liked_by_me + saved_by_me + top 3 comments em UMA
+  chamada. Substitui o trio Wave A + Wave B do `fetchFeed` (5
+  round-trips → 1). **A função existe mas o frontend AINDA NÃO chama
+  ela** — swap em `next-app/lib/services/feed.ts:127 fetchFeed()` é a
+  Sprint 1.5 (ficou pendente porque user pulou pro Sprint 2 antes).
+  Migration em `/migrations/2026-06-09-rpc-get-feed-v2.sql`. Não pedir
+  pra rodar SQL de novo.
+- **B7 (Web Vitals RUM via Sentry) — DEPLOYADO em 2026-06-09.**
+  `sentry.client.config.ts` agora carrega `browserTracingIntegration`
+  com `tracesSampleRate: 1.0`. Sentry → Performance → Web Vitals
+  começa a popular ~24h depois do primeiro acesso. Não mexer no sample
+  rate sem checar quota.
+- **B2 (Cloudflare Image Resizing) — código DEPLOYADO mas REQUER
+  toggle no painel CF pra valer.** Helper `next-app/lib/cfImg.ts`
+  reescreve URLs pra `/cdn-cgi/image/w=...,q=85,f=auto/<original-url>`.
+  Avatar e PostMedia usam srcset 1x/2x/3x. **Pra ganhar perf, ligar no
+  Cloudflare Dashboard:** Speed → Optimization → **Image Resizing ON**
+  + "Resize images from any origin" **ON** + Polish em **Lossy**.
+  Enquanto não liga, as `<img>` caem no `onError` e mostram placeholder
+  (sem regressão fatal, mas sem ganho). Anotar aqui quando user ligar.
 
