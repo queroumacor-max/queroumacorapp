@@ -277,4 +277,35 @@
   + "Resize images from any origin" **ON** + Polish em **Lossy**.
   Enquanto não liga, as `<img>` caem no `onError` e mostram placeholder
   (sem regressão fatal, mas sem ganho). Anotar aqui quando user ligar.
+- **SQL Wave 17 (2026-06-09) — width/height em posts (CLS=0) — JÁ
+  EXECUTADO no Supabase.** P4 do BACKLOG. Adiciona `posts.media_width`
+  e `posts.media_height` (int, opcionais). `usePublishPost` captura
+  W/H da primeira imagem via `readImageDimensions()` antes do upload e
+  grava no insert. `PostMedia` seta `width={...} height={...}` no
+  `<img>` quando presente — browser reserva espaço exato e CLS = 0.
+  Posts antigos sem W/H caem no `aspect-ratio: 1/1` CSS (sem
+  regressão). RPC `get_feed_v2` foi DROP+CREATE pra incluir as 2
+  colunas no RETURNS TABLE. Migration em
+  `/migrations/2026-06-09-posts-media-dimensions.sql`. Não pedir pra
+  rodar de novo.
+- **SQL Wave 18 (2026-06-09) — policies admin pra `reports` — JÁ
+  EXECUTADO no Supabase.** O3 do BACKLOG. Adiciona `reports_select_admin`
+  e `reports_update_admin` (USING/WITH CHECK `is_portal_admin()`).
+  Convive com as policies restritivas existentes via OR. Dashboard em
+  `/admin/reports` (RSC shell + `ReportsAdmin` client component) lista
+  denúncias por status (pending/reviewed/resolved/dismissed/all) com
+  botões Resolver/Dispensar/Marcar revisado. Service em
+  `next-app/lib/services/adminReports.ts`. Migration em
+  `/migrations/2026-06-09-admin-reports-policies.sql`. Não pedir pra
+  rodar de novo.
+- **S13 (Modo escuro) — DEPLOYADO em 2026-06-09.** CSS vars dark em
+  `:root[data-theme="dark"]` no `globals.css` + inline script no
+  `<head>` lê `localStorage.theme` (ou `prefers-color-scheme` fallback)
+  e seta data-theme ANTES do hydrate (sem FOUC). Hook `useTheme` em
+  `lib/hooks/useTheme.ts`. Componente `<ThemeToggle withLabel />`
+  inserido no `ProfileFooter` acima do botão "Sair". Cards com
+  `bg-white` hard-coded são interceptados por regra global
+  `:root[data-theme="dark"] .bg-white { background-color: var(--color-white) }`
+  pra ficarem escuros — refinar componente-a-componente se aparecer
+  contraste ruim.
 

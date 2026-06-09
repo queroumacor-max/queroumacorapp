@@ -180,6 +180,8 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
     caption: string | null;
     media_url: string | null;
     media_type: string | null;
+    media_width: number | null;
+    media_height: number | null;
     created_at: string;
     author: Record<string, unknown> | null;
     like_count: number | string;
@@ -230,6 +232,8 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
       caption: r.caption,
       media_url: r.media_url,
       media_type: (r.media_type ?? null) as Post['media_type'],
+      media_width: r.media_width ?? null,
+      media_height: r.media_height ?? null,
       created_at: r.created_at,
       profile,
       liked: !!r.liked_by_me,

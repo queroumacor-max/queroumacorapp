@@ -202,6 +202,36 @@ export function extractVideoThumbnail(file: File): Promise<Blob> {
 }
 
 /**
+ * Lê width/height naturais de um File de imagem via <img>. Retorna null
+ * pra files não-imagem ou se a leitura falhar (não bloquia upload — W/H
+ * é opcional, posts sem ele caem no aspect-ratio CSS).
+ */
+export function readImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  if (typeof document === 'undefined') return Promise.resolve(null);
+  if (!file.type.startsWith('image/')) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const cleanup = () => {
+      try { URL.revokeObjectURL(url); } catch { /* ignore */ }
+    };
+    img.onload = () => {
+      const w = img.naturalWidth || 0;
+      const h = img.naturalHeight || 0;
+      cleanup();
+      resolve(w > 0 && h > 0 ? { width: w, height: h } : null);
+    };
+    img.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/**
  * Comprime imagem via canvas (resize + JPEG q=0.85). Só faz sentido pra
  * imagem; caller decide se chama (típico: file.size > COMPRESS_THRESHOLD).
  * Retorna File novo com mesmo nome trocando ext pra .jpg.
@@ -359,6 +389,11 @@ export interface CreatePostInput {
                              // posts virarem carrosel, virar tabela
                              // post_media (1-N) — interface já antecipa o N.
   mediaType: CreatePostMediaType;
+  // Dimensões da primeira mídia (Wave 17). Frontend usa pra setar
+  // <img width height> e eliminar CLS. Opcional pra compat com posts
+  // sem captura (vídeo, ou caller antigo).
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   forSale?: boolean;
   price?: number | null;
   artType?: string | null;
@@ -409,12 +444,16 @@ export async function createPost(
       caption: caption || null,
       media_url: input.mediaUrls[0] || null,
       media_type: input.mediaType,
+      // Wave 17: grava W/H se o caller capturou no upload. Permite
+      // <img width height> no feed sem onLoad → CLS zero.
+      media_width: input.mediaWidth ?? null,
+      media_height: input.mediaHeight ?? null,
       status: 'approved',
       for_sale: !!input.forSale,
       price: input.forSale && input.price ? input.price : null,
       art_type: input.forSale && input.artType ? input.artType : null,
       created_at: new Date().toISOString(),
-    })
+    } as never)
     .select('id, media_url')
     .single();
 

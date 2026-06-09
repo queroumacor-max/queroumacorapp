@@ -31,6 +31,28 @@ body {
   color: var(--color-ink);
 }
 
+/* Modo escuro — override das vars de @theme via :root[data-theme="dark"].
+   Tema é setado por inline script em layout.tsx ANTES do hydrate pra evitar
+   FOUC. Mantém as cores de marca (p1-p5) e success/danger porque acentos
+   funcionam em fundo escuro com pequeno ajuste de contraste. */
+:root[data-theme="dark"] {
+  --color-ink: #f5f0e7;
+  --color-ink2: #d8d0bf;
+  --color-cream: #1a1a2e;
+  --color-muted: #9a9588;
+  --color-bg: #14141f;
+  --color-white: #1f1f33;
+  --color-border: #2d2d44;
+}
+
+/* Cards/superfícies com `bg-white` direto (não via var) ficam claros no
+   dark mode — não dá pra interceptar utility class de tailwind via CSS.
+   Aplicamos uma regra global que troca bg branco hard-coded por cream
+   escuro quando dark mode ativo. Pode ser refinada por componente depois. */
+:root[data-theme="dark"] .bg-white {
+  background-color: var(--color-white);
+}
+
 /* Esconde barras de rolagem em todo o app — vanilla usa
    `.scroll::-webkit-scrollbar{display:none}` no #scroll-area. Aqui
    aplicamos no body + main + qualquer container marcado .hide-scrollbar

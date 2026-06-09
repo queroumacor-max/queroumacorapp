@@ -75,6 +75,14 @@ export default function RootLayout({
             <link rel="dns-prefetch" href={`https://${SUPABASE_HOST}`} />
           </>
         ) : null}
+        {/* Setar tema ANTES do hydrate pra evitar FOUC (flash de tema
+            claro). Lê localStorage 'theme' ('light'|'dark'); se ausente,
+            cai no prefers-color-scheme do sistema. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('theme');var t=s||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         {/* AuthProvider envolve toda a árvore — substitui o `currentUser` global

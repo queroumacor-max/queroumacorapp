@@ -21,6 +21,12 @@ import { cfImg, cfImgSrcSet } from '@/lib/cfImg';
 export interface PostMediaProps {
   url: string;
   mediaType?: string | null;
+  // Wave 17 (P4): width/height da mídia capturados no upload. Quando
+  // presentes, viram atributo do <img>/<video> e o browser reserva o
+  // espaço exato antes da imagem chegar (CLS=0). Posts antigos sem
+  // dimensões caem no aspect-ratio CSS 1/1 como hoje.
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   // Controle do mute compartilhado entre todos os vídeos do feed (estilo IG:
   // mexeu no mute de um, mexeu em todos). Lifted state — FeedView mantém e
   // passa pra cá.
@@ -28,7 +34,7 @@ export interface PostMediaProps {
   onToggleMute: () => void;
 }
 
-export function PostMedia({ url, mediaType, muted, onToggleMute }: PostMediaProps) {
+export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, muted, onToggleMute }: PostMediaProps) {
   const isVideo = !!url && (isVideoUrl(url) || mediaType === 'video');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // imgError: idem Avatar — fallback gracioso se a img der erro 403/404 em
@@ -128,18 +134,27 @@ export function PostMedia({ url, mediaType, muted, onToggleMute }: PostMediaProp
   // Feed mobile-first: card é max-width 430px (BottomNav container) e ocupa
   // 100% width do viewport até 430. srcset cobre 1x/2x/3x até 430 (DPR=3).
   // sizes="(max-width: 430px) 100vw, 430px" ensina o browser a escolher.
+  //
+  // Wave 17: quando o post tem W/H reais (upload novo), passa como atributo
+  // — o browser reserva espaço com a proporção exata. Sem W/H (posts
+  // antigos), cai no aspect-ratio 1/1 do CSS (sem regressão).
+  const hasDims = !!mediaWidth && !!mediaHeight && mediaWidth > 0 && mediaHeight > 0;
   return (
     <img
       src={cfImg(url, { width: 430, fit: 'cover' })}
       srcSet={cfImgSrcSet(url, 430, { fit: 'cover' })}
       sizes="(max-width: 430px) 100vw, 430px"
       alt=""
+      width={hasDims ? mediaWidth! : undefined}
+      height={hasDims ? mediaHeight! : undefined}
       loading="lazy"
       decoding="async"
       onError={() => setImgError(true)}
       className="w-full block object-cover"
       style={{
-        aspectRatio: '1 / 1',
+        // hasDims: deixa o browser calcular aspect-ratio do W/H. Sem dims,
+        // fallback aspect-ratio 1/1 (compat posts antigos).
+        aspectRatio: hasDims ? undefined : '1 / 1',
         // Placeholder com cor cream do brand enquanto image carrega — evita
         // flash branco e dá sensação de "tá vindo" em vez de "broken".
         background: 'linear-gradient(135deg, #f5e8da 0%, #e8d6c0 100%)',
