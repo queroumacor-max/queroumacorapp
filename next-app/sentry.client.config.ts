@@ -9,10 +9,21 @@ Sentry.init({
     /(?:^|\.)queroumacor\.com\.br$/i.test(window.location.hostname)
       ? 'production'
       : 'preview',
-  tracesSampleRate: 0.1,
   replaysSessionSampleRate: 0.0,
   replaysOnErrorSampleRate: 1.0,
   integrations: [
+    // browserTracingIntegration auto-captura Web Vitals (LCP, INP, CLS,
+    // FCP, TTFB) e route changes. Sem isso, otimizações de perf são
+    // cegas — não tem como saber se a mudança moveu a agulha em prod.
+    Sentry.browserTracingIntegration(),
     Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
+  ],
+  // Sample 100% das transactions só pra ter Web Vitals em todas as
+  // navegações. Volume é baixo (app interno, mobile-first). Se virar
+  // problema de quota, baixa pra 0.5.
+  tracesSampleRate: 1.0,
+  tracePropagationTargets: [
+    /^https:\/\/(?:.*\.)?queroumacor\.com\.br/,
+    /^https:\/\/uwqebaqweehiljsqkifm\.supabase\.co/,
   ],
 });
