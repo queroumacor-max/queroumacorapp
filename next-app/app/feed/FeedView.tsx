@@ -23,6 +23,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useFeed } from '@/lib/hooks/useFeed';
 import { PostCard } from './PostCard';
 import { FeedStories } from './FeedStories';
+import { SuggestionsList } from '@/components/SuggestionsList';
 
 type RoleFilter = '' | 'pintor' | 'grafiteiro' | 'automotivo';
 
@@ -166,13 +167,18 @@ export function FeedView() {
           </button>
         </div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-12 px-4 m-3 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <div className="text-5xl mb-3" aria-hidden="true">🎨</div>
-          <h2 className="font-semibold mb-2">Sem publicacoes por aqui</h2>
-          <p className="text-sm text-[color:var(--color-muted)]">
-            Siga pintores, grafiteiros e estudios pra ver o trabalho deles no feed.
-          </p>
-        </div>
+        <>
+          <div className="text-center py-12 px-4 m-3 rounded-xl bg-white border border-[color:var(--color-border)]">
+            <div className="text-5xl mb-3" aria-hidden="true">🎨</div>
+            <h2 className="font-semibold mb-2">Sem publicacoes por aqui</h2>
+            <p className="text-sm text-[color:var(--color-muted)]">
+              Siga pintores, grafiteiros e estudios pra ver o trabalho deles no feed.
+            </p>
+          </div>
+          {/* S2: sugestões — botão "Seguir" direto pra resolver o feed
+              vazio (clássico "quem seguir" do IG na primeira sessão). */}
+          <SuggestionsList limit={8} />
+        </>
       ) : (
         <ul>
           {posts.map((p) => (

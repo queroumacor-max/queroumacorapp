@@ -331,6 +331,29 @@
   `pg_stat_user_indexes`. Cole no SQL Editor pra confirmar que os
   índices estão sendo escolhidos pelo planner. "Seq Scan" no plano =
   índice não cobre, refazer.
+- **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
+  EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
+  UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
+  owner-only (SELECT/INSERT/DELETE só pra blocker = auth.uid()). RPC
+  `list_blocked_ids()` retorna uuid[] do user logado (cliente filtra
+  feed/notif sem N+1). RPC `get_feed_v2` recriada incluindo filtro
+  `NOT EXISTS (SELECT 1 FROM blocks WHERE blocker_id=p_user_id AND
+  blocked_id=p.user_id)`. RPC nova `suggest_to_follow(limit)` retorna
+  top pintores não-seguidos (exclui blocked, admin, portal_access),
+  ordenando por mesma cidade > mesma UF > rating_avg > review_count >
+  created_at. Frontend: serviços `blocks.ts` + `suggestions.ts`, hooks
+  `useBlockedList/useBlockedIds/useBlockMutations`, componente
+  `<SuggestionsList>` (renderizado no FeedView quando `posts.length=0`
+  estilo IG primeira sessão), tela `/perfil/bloqueados`, item no
+  ProfileFooter linkando, "Bloquear usuário" no menu opts do PostCard,
+  `fetchFeed` legacy também filtra client-side via `listBlockedIds()`
+  (defesa em profundidade). Parser `renderRichText(text)` em
+  `lib/utils/richText.tsx` transforma `@user` em link `/perfil/<tag>`,
+  `#hashtag` em link `/hashtag/<tag>`, e URLs em `<a target=_blank>`.
+  Aplicado em PostCard caption + comments. Página `/hashtag/[tag]`
+  (RSC + client `HashtagFeed`) lista posts via ILIKE `'%#tag%'` em
+  caption — adequado pra volume médio; quando virar gargalo, adicionar
+  índice GIN trigram. Migration em `/migrations/2026-06-09-blocks.sql`.
 - **SQL Wave 20 (2026-06-09) — quick wins sociais (S1/S4/S5) — JÁ
   EXECUTADO no Supabase.** Adiciona `profiles.verified` (boolean, S1),
   `profiles.instagram_url` + `profiles.website_url` (text, S4),
