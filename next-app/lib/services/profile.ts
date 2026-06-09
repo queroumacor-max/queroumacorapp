@@ -44,6 +44,9 @@ export interface ProfilePatch {
   service_radius?: number | null;
   business_logo_url?: string | null;
   business_name?: string | null;
+  // Wave 20 / S4: links externos públicos no perfil.
+  instagram_url?: string | null;
+  website_url?: string | null;
 }
 
 /**
@@ -63,7 +66,8 @@ const PROFILE_COLS =
   'city, state, address, business_logo_url, business_name, role, user_type, ' +
   'profession, specialties, service_radius, is_pro, pro_expires_at, ' +
   'pro_grace_until, is_admin, portal_access, verified, rating_avg, ' +
-  'review_count, birth_date, ai_logo_gen_count, created_at';
+  'review_count, birth_date, ai_logo_gen_count, instagram_url, ' +
+  'website_url, created_at';
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   if (!userId) return null;
@@ -134,7 +138,7 @@ export async function updateProfile(
   let attempt: ProfilePatch = { ...cleaned };
   for (let i = 0; i < Object.keys(cleaned).length + 1; i++) {
     if (Object.keys(attempt).length === 0) return; // nada sobrou pra atualizar
-    const { error } = await sb.from('profiles').update(attempt).eq('id', userId);
+    const { error } = await sb.from('profiles').update(attempt as never).eq('id', userId);
     if (!error) return;
     const msg = (error as { message?: string }).message || '';
     // Postgrest 4.x reporta "Could not find the 'X' column" quando a coluna

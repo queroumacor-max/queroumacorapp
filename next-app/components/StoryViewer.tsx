@@ -286,6 +286,25 @@ export function StoryViewer({
         className="absolute top-0 right-0 h-full w-2/3 bg-transparent focus:outline-none"
         aria-label="Próximo story"
       />
+
+      {/* S5: CTA "ver mais" quando o story tem link_url. Fica acima das
+          tap zones (z-10) e impede que o clique propague pra goNext.
+          Pause-on-hold continua via outras tap zones. */}
+      {currentStory.link_url ? (
+        <a
+          href={currentStory.link_url}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 text-[color:var(--color-ink)] text-sm font-bold shadow-lg"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          Ver mais
+        </a>
+      ) : null}
     </div>
   );
 }

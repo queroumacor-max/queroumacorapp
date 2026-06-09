@@ -397,6 +397,8 @@ export interface CreatePostInput {
   forSale?: boolean;
   price?: number | null;
   artType?: string | null;
+  // Wave 20 / S5: link externo do story (CTA "ver mais").
+  linkUrl?: string | null;
 }
 
 export interface CreatePostResult {
@@ -448,6 +450,9 @@ export async function createPost(
       // <img width height> no feed sem onLoad → CLS zero.
       media_width: input.mediaWidth ?? null,
       media_height: input.mediaHeight ?? null,
+      // Wave 20 / S5: link externo. Schema impõe sanidade (http/https
+      // validado no client antes daqui).
+      link_url: input.linkUrl ?? null,
       status: 'approved',
       for_sale: !!input.forSale,
       price: input.forSale && input.price ? input.price : null,

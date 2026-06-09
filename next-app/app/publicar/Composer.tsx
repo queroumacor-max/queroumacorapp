@@ -111,6 +111,8 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
   const [forSale, setForSale] = useState(initialForSale);
   const [priceText, setPriceText] = useState('');
   const [artType, setArtType] = useState<string>(ART_TYPES[0].value);
+  // S5: link externo opcional pra story (CTA "ver mais" no viewer).
+  const [linkUrl, setLinkUrl] = useState('');
 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
@@ -223,6 +225,7 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
 
     const price = forSale ? parseBRL(priceText) : 0;
 
+    const linkUrlTrim = linkUrl.trim();
     publish.publishAsync({
       files,
       caption: caption.trim(),
@@ -230,6 +233,7 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
       forSale,
       price: forSale ? price : null,
       artType: forSale ? artType : null,
+      linkUrl: mediaType === 'story' && linkUrlTrim ? linkUrlTrim : null,
     })
       .then(() => {
         // Limpa estado. Em embedded (modal), só chama onPublishSuccess pra
@@ -379,6 +383,27 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
           className="p-3 rounded-xl bg-yellow-50 border border-yellow-200 text-sm text-yellow-900"
         >
           {genError}
+        </div>
+      ) : null}
+
+      {/* S5: link externo só faz sentido em story (CTA "ver mais"). */}
+      {postType === 'story' ? (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4">
+          <label htmlFor="story-link" className="block text-sm font-semibold mb-2">
+            Link "ver mais" (opcional)
+          </label>
+          <input
+            id="story-link"
+            type="url"
+            placeholder="https://seusite.com/promo"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value.slice(0, 500))}
+            disabled={submitting}
+            className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm"
+          />
+          <p className="text-[11px] text-[color:var(--color-muted)] mt-1">
+            Aparece como botão no story. Deixe vazio se não quiser link.
+          </p>
         </div>
       ) : null}
 

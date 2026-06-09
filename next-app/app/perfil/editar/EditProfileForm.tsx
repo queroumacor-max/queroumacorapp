@@ -73,6 +73,25 @@ const schema = z.object({
     .max(80, 'Nome do negócio com no máximo 80 caracteres')
     .optional()
     .or(z.literal('')),
+  // S4: links externos. Aceita só http/https (UI valida visualmente, schema
+  // garante). Vazio é OK (sem link). Instagram pode vir com ou sem URL —
+  // permite "@user" também sendo conservador (mas dá preferência a URL).
+  instagram_url: z
+    .string()
+    .trim()
+    .max(200, 'URL longa demais')
+    .optional()
+    .or(z.literal('')),
+  website_url: z
+    .string()
+    .trim()
+    .max(200, 'URL longa demais')
+    .refine(
+      (v) => !v || /^https?:\/\//i.test(v),
+      { message: 'Use https://exemplo.com' },
+    )
+    .optional()
+    .or(z.literal('')),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -113,6 +132,8 @@ export function EditProfileForm() {
       state: '',
       address: '',
       business_name: '',
+      instagram_url: '',
+      website_url: '',
     },
   });
 
@@ -133,6 +154,8 @@ export function EditProfileForm() {
       address: profile.address ?? '',
       business_name:
         ((profile as { business_name?: string | null }).business_name ?? '') as string,
+      instagram_url: profile.instagram_url ?? '',
+      website_url: profile.website_url ?? '',
     });
   }, [profile, reset, isDirty]);
 
@@ -300,6 +323,8 @@ export function EditProfileForm() {
         // business_name: vazio explicitamente vira null (limpa dirty data
         // legado tipo nome de logo de camisa antigo). Trim já feito pelo schema.
         business_name: data.business_name ? data.business_name : null,
+        instagram_url: data.instagram_url ? data.instagram_url : null,
+        website_url: data.website_url ? data.website_url : null,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       } as Parameters<typeof update>[0] & { business_name?: string | null });
 
@@ -632,6 +657,36 @@ export function EditProfileForm() {
         <p className="text-[11px] text-[color:var(--color-muted)] mt-1">
           Aparece em PDFs e geração de IA. Apague pra usar seu nome pessoal.
         </p>
+      </Field>
+
+      <Field
+        id="instagram_url"
+        label="Instagram (opcional)"
+        error={errors.instagram_url?.message}
+      >
+        <input
+          id="instagram_url"
+          type="text"
+          placeholder="https://instagram.com/seu_perfil ou @seu_perfil"
+          {...register('instagram_url')}
+          className={inputClass}
+          aria-invalid={errors.instagram_url ? 'true' : 'false'}
+        />
+      </Field>
+
+      <Field
+        id="website_url"
+        label="Site / portfólio (opcional)"
+        error={errors.website_url?.message}
+      >
+        <input
+          id="website_url"
+          type="url"
+          placeholder="https://seusite.com.br"
+          {...register('website_url')}
+          className={inputClass}
+          aria-invalid={errors.website_url ? 'true' : 'false'}
+        />
       </Field>
 
       {submitError && (

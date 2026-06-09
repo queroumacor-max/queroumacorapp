@@ -313,8 +313,11 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
             style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}
           >
             <span className="truncate">{name}</span>
-            {/* Badge verificado: PRO benefit (#pro-modal "✓ Badge verificado") */}
-            {(post.profile as { is_pro?: boolean | null })?.is_pro ? (
+            {/* Badge verificado (S1): admin marca contas oficiais via
+                profiles.verified. Compat: is_pro também mostra badge
+                (foi o critério histórico). Cria divergência semântica
+                que admin pode separar depois (remover OR is_pro). */}
+            {post.profile?.verified || post.profile?.is_pro ? (
               <span
                 aria-label="Verificado"
                 title="Perfil verificado"

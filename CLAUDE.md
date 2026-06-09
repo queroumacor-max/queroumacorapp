@@ -331,4 +331,21 @@
   `pg_stat_user_indexes`. Cole no SQL Editor pra confirmar que os
   índices estão sendo escolhidos pelo planner. "Seq Scan" no plano =
   índice não cobre, refazer.
+- **SQL Wave 20 (2026-06-09) — quick wins sociais (S1/S4/S5) — JÁ
+  EXECUTADO no Supabase.** Adiciona `profiles.verified` (boolean, S1),
+  `profiles.instagram_url` + `profiles.website_url` (text, S4),
+  `posts.link_url` (text, S5). View `profiles_public` recriada
+  incluindo instagram_url + website_url (públicos por design).
+  Trigger `protect_profile_columns` revisado pra também impedir
+  escalada de `verified=true` por usuário comum (admin-only via
+  is_portal_admin). Frontend: PostCard + ProfileHeader mostram badge
+  ✓ azul pra `verified || is_pro` (backward compat); EditProfileForm
+  ganhou inputs Instagram + Site; ProfileHeader renderiza ícones IG+Site
+  no header dark quando preenchidos (normaliza `@user` pra URL completa
+  de IG); Composer mostra input "Link 'ver mais'" só em postType='story'
+  e grava em `posts.link_url`; StoryViewer renderiza CTA "Ver mais"
+  flutuante quando story tem `link_url`. S3 (editar caption) já estava
+  implementado em `PostCard.tsx` (modal editOpen + service
+  `updatePostCaption`) — item BACKLOG obsoleto. Migration em
+  `/migrations/2026-06-09-social-quick-wins.sql`.
 
