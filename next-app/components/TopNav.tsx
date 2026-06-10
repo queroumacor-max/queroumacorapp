@@ -65,7 +65,7 @@ export function TopNav({ proStatus }: TopNavProps) {
   return (
     <header
       role="banner"
-      className="sticky top-0 z-50 flex items-center justify-between gap-2.5 bg-[color:var(--color-ink)] px-3.5 min-h-14"
+      className="sticky top-0 z-50 flex items-center justify-between gap-2.5 bg-[color:var(--color-ink-fixed)] px-3.5 min-h-14"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
         paddingLeft: 'max(14px, env(safe-area-inset-left))',
@@ -123,7 +123,7 @@ export function TopNav({ proStatus }: TopNavProps) {
               className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
               style={{
                 background: 'var(--color-p4)',
-                border: '2px solid var(--color-ink)',
+                border: '2px solid var(--color-ink-fixed)',
                 lineHeight: 1,
               }}
             >

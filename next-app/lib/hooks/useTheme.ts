@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
 
@@ -18,22 +18,9 @@ function readInitialTheme(): Theme {
 export function useTheme(): { theme: Theme; setTheme: (t: Theme) => void; toggle: () => void } {
   const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
-  // Sincroniza mudanças do sistema (prefers-color-scheme) quando user
-  // NÃO salvou preferência explícita. Se já salvou no localStorage,
-  // ignora — preferência do user manda.
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      const saved = localStorage.getItem('theme');
-      if (saved) return; // user override domina
-      const next: Theme = e.matches ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      setThemeState(next);
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  // Sem listener de prefers-color-scheme: default é sempre 'light' (decisão
+  // de produto). User opta por dark explicitamente via toggle, e a escolha
+  // fica em localStorage.
 
   const setTheme = useCallback((t: Theme) => {
     try {

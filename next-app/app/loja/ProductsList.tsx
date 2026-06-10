@@ -144,7 +144,7 @@ export function ProductsList() {
       <header
         className="sticky top-0 z-20"
         style={{
-          background: 'var(--color-ink)',
+          background: 'var(--color-ink-fixed)',
           padding: '14px 16px 0',
         }}
       >

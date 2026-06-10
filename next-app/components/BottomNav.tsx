@@ -86,7 +86,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[430px] z-[300] bg-[color:var(--color-ink)] flex items-center justify-around px-2"
+      className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[430px] z-[300] bg-[color:var(--color-ink-fixed)] flex items-center justify-around px-2"
       style={{
         height: 'calc(60px + env(safe-area-inset-bottom))',
         paddingBottom: 'env(safe-area-inset-bottom)',

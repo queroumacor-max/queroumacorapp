@@ -250,8 +250,11 @@ interface BusinessCardProps {
 
 function BusinessCard({ tile, onOpen }: BusinessCardProps) {
   const isGradient = tile.gradient !== undefined;
+  // var(--color-white) bate com cards do resto do app — vira #1f1f33 em
+  // dark mode (regra de :root[data-theme="dark"] em globals.css). Texto
+  // já usa var(--color-ink), então contrasta automaticamente.
   const background = !isGradient
-    ? '#fff'
+    ? 'var(--color-white)'
     : tile.gradient === 'pro'
       ? 'linear-gradient(135deg, #2ec4b6, #8338ec)'
       : tile.gradient === 'designer'

@@ -140,7 +140,7 @@ export function ProfileHeader() {
       <div
         className="px-4 pt-5 pb-5"
         style={{
-          background: 'var(--color-ink)',
+          background: 'var(--color-ink-fixed)',
           color: '#fff',
         }}
       >

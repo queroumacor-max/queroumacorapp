@@ -263,7 +263,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                     padding: '10px 16px',
                     borderRadius: 10,
                     fontSize: 13,
-                    background: '#fff',
+                    background: 'var(--color-white)',
                     color: 'var(--color-ink)',
                     border: '1.5px solid var(--color-border)',
                     cursor: 'pointer',

@@ -77,10 +77,11 @@ export default function RootLayout({
         ) : null}
         {/* Setar tema ANTES do hydrate pra evitar FOUC (flash de tema
             claro). Lê localStorage 'theme' ('light'|'dark'); se ausente,
-            cai no prefers-color-scheme do sistema. */}
+            default = 'light'. Não segue prefers-color-scheme do sistema —
+            opt-in explícito via /perfil → toggle Tema. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('theme');var t=s||(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+            __html: `(function(){try{var s=localStorage.getItem('theme');var t=s==='dark'?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
           }}
         />
       </head>
