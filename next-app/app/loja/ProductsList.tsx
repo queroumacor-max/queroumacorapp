@@ -43,8 +43,11 @@ function SkeletonRow() {
 // Threshold de drill-down: só ativa o agrupamento por linha quando a
 // categoria tem pelo menos N produtos distribuídos em M+ linhas. Senão
 // fica como lista flat (não tem ganho UX em listas curtas).
+// MIN_LINES=2 porque a base do queroumacor tem hoje 2 linhas grandes
+// (Sherwin-Williams 2719 + Linha Premium 1452), e abrir os 4k SKUs flat
+// é exatamente o problema reportado.
 const DRILL_MIN_PRODUCTS = 30;
-const DRILL_MIN_LINES = 3;
+const DRILL_MIN_LINES = 2;
 
 function normalizeLineKey(line: string | null | undefined): string {
   return (line ?? '').trim();
