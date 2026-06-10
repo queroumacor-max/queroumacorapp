@@ -13,19 +13,19 @@
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
+import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessageCount';
 
 interface TopNavProps {
   /** Override do badge — usado em telas onde a regra de derivação não
    *  bate (ex.: preview de admin como se fosse usuário comum). Sem
    *  passar, o badge é computado do profile. */
   proStatus?: 'GRÁTIS' | 'PRO' | 'ADMIN';
-  /** Se true, mostra dot vermelho no ícone de chat. */
-  hasUnreadChat?: boolean;
 }
 
-export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
+export function TopNav({ proStatus }: TopNavProps) {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
+  const unreadChat = useUnreadMessageCount();
 
   // Derivação automática se o caller não passou proStatus.
   // is_admin/portal_access podem não estar no SELECT (Profile type
@@ -100,7 +100,9 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
 
         <Link
           href="/chat"
-          aria-label="Chat"
+          aria-label={
+            unreadChat > 0 ? `Chat (${unreadChat} não lidas)` : 'Chat'
+          }
           className="relative w-11 h-11 flex items-center justify-center rounded-full"
         >
           <svg
@@ -116,14 +118,17 @@ export function TopNav({ proStatus, hasUnreadChat = false }: TopNavProps) {
           >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          {hasUnreadChat && (
+          {unreadChat > 0 && (
             <span
-              className="absolute top-1.5 right-1 w-2.5 h-2.5 rounded-full"
+              className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
               style={{
                 background: 'var(--color-p4)',
                 border: '2px solid var(--color-ink)',
+                lineHeight: 1,
               }}
-            />
+            >
+              {unreadChat > 99 ? '99+' : unreadChat}
+            </span>
           )}
         </Link>
       </div>

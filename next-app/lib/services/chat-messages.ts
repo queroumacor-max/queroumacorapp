@@ -147,3 +147,36 @@ export async function undoDeleteMessage(
     .eq('sender_id', userId);
   if (error) throw new NetworkError(error.message, error);
 }
+
+/**
+ * Marca todas as mensagens da conversa cujo receiver é o user logado como
+ * lidas (read_at = now()). Idempotente — só toca rows com read_at IS NULL.
+ * Backed por RPC mark_conversation_read (SECURITY DEFINER + auth.uid()).
+ */
+export async function markConversationRead(convId: string): Promise<number> {
+  if (!convId) return 0;
+  const sb = getSupabase();
+  const rpc = sb.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>;
+  const { data, error } = await rpc('mark_conversation_read', { p_conv_id: convId });
+  if (error) throw new NetworkError(error.message, error);
+  return data ?? 0;
+}
+
+/**
+ * Contagem total de mensagens não lidas recebidas pelo user logado, em
+ * todas as conversas. Usado pelo badge do ícone de chat na TopNav.
+ * Backed por RPC unread_message_count (SECURITY DEFINER + auth.uid()).
+ */
+export async function fetchUnreadMessageCount(): Promise<number> {
+  const sb = getSupabase();
+  const rpc = sb.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>;
+  const { data, error } = await rpc('unread_message_count', {});
+  if (error) throw new NetworkError(error.message, error);
+  return data ?? 0;
+}
