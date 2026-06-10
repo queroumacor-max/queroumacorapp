@@ -60,6 +60,28 @@ export function ChatConversation({ convId }: ChatConversationProps) {
   // Cobre o caso de deeplink direto na conv.
   useChatRealtime(user?.id ?? null);
 
+  // Wave 24: marca todas as msgs recebidas dessa conversa como lidas quando
+  // o user abre. Invalida o counter da TopNav. RPC é idempotente — chamar
+  // 2x não duplica trabalho.
+  useEffect(() => {
+    if (!user?.id || !convId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { markConversationRead } = await import('@/lib/services/chat-messages');
+        await markConversationRead(convId);
+        if (!cancelled) {
+          qc.invalidateQueries({ queryKey: ['messages-unread-count', user.id] });
+        }
+      } catch {
+        // Silent — badge fica stale uns segundos, sem-op pro fluxo principal.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, convId, qc]);
+
   // ID da loja Cali Colors (pra colorir msgs dela como 'store').
   const { id: storeId } = useCalicolorsId();
 
