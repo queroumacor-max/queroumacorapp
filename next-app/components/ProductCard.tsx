@@ -85,7 +85,15 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-[color:var(--color-ink)] truncate">
+          <div
+            className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
             {product.name}
             {inactive ? (
               <span className="ml-2 text-[10px] text-[color:var(--color-muted)]">

@@ -12,7 +12,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ProductDetailSheet } from './ProductDetailSheet';
 import type { Product } from '@/lib/services/mkt';
 import {
@@ -40,6 +40,16 @@ function SkeletonRow() {
   );
 }
 
+// Threshold de drill-down: só ativa o agrupamento por linha quando a
+// categoria tem pelo menos N produtos distribuídos em M+ linhas. Senão
+// fica como lista flat (não tem ganho UX em listas curtas).
+const DRILL_MIN_PRODUCTS = 30;
+const DRILL_MIN_LINES = 3;
+
+function normalizeLineKey(line: string | null | undefined): string {
+  return (line ?? '').trim();
+}
+
 export function ProductsList() {
   const {
     all,
@@ -56,6 +66,47 @@ export function ProductsList() {
   // Produto aberto no detail-sheet. Quando o user clica num row, abre o
   // sheet com qty picker em vez de adicionar 1 unidade direto.
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  // Drill-down: linha selecionada dentro da categoria atual. null = mostra
+  // grid de linhas. Reseta quando categoria muda OU quando busca começa.
+  const [selectedLine, setSelectedLine] = useState<string | null>(null);
+
+  // Agrupa os products do filter atual por `line` (pula campo vazio: "Outros").
+  // Computa antes do early-return pra useMemo manter ordem estável de hooks.
+  const lineGroups = useMemo(() => {
+    const groups = new Map<string, Product[]>();
+    for (const p of filtered) {
+      const key = normalizeLineKey(p.line) || 'Outros';
+      const arr = groups.get(key);
+      if (arr) arr.push(p);
+      else groups.set(key, [p]);
+    }
+    // Ordena alfabético pra estabilidade — "Outros" sempre por último.
+    return Array.from(groups.entries()).sort((a, b) => {
+      if (a[0] === 'Outros') return 1;
+      if (b[0] === 'Outros') return -1;
+      return a[0].localeCompare(b[0], 'pt-BR');
+    });
+  }, [filtered]);
+
+  // Heurística: drill-down só vale quando tem >= DRILL_MIN_LINES linhas
+  // E >= DRILL_MIN_PRODUCTS produtos. Em busca aberta, sempre flat.
+  const drillEligible =
+    !search.trim() &&
+    lineGroups.length >= DRILL_MIN_LINES &&
+    filtered.length >= DRILL_MIN_PRODUCTS;
+  const showLineGrid = drillEligible && selectedLine === null;
+  const visibleProducts = useMemo(() => {
+    if (!drillEligible || selectedLine === null) return filtered;
+    return filtered.filter(
+      (p) => (normalizeLineKey(p.line) || 'Outros') === selectedLine,
+    );
+  }, [drillEligible, selectedLine, filtered]);
+
+  // Reseta a linha selecionada quando o user troca de categoria ou começa
+  // a buscar — drill-down não faz sentido fora do escopo da categoria atual.
+  useEffect(() => {
+    setSelectedLine(null);
+  }, [category, search]);
 
   function handleAddFromSheet(prod: Product, qty: number) {
     add({ product: prod, qty });
@@ -273,20 +324,83 @@ export function ProductsList() {
               Limpar filtros
             </button>
           </div>
-        ) : (
-          <ul className="space-y-2 pb-4">
-            {filtered.map((p) => (
-              <li key={p.id}>
-                <ProductCard
-                  product={p}
-                  // Click no row OU no "+ Carrinho" abre o detail sheet
-                  // pra escolher quantidade (vanilla openProductDetail).
-                  onAdd={(prod) => setDetailProduct(prod)}
-                  onOpen={(prod) => setDetailProduct(prod)}
-                />
+        ) : showLineGrid ? (
+          // Drill-down nível 1: mostra um card por LINHA dentro da categoria.
+          // Click numa linha entra no nível 2 (lista de produtos da linha).
+          <ul className="space-y-2 pb-4" aria-label="Linhas disponíveis">
+            {lineGroups.map(([line, items]) => (
+              <li key={line}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLine(line)}
+                  className="w-full flex items-center justify-between p-4 bg-white rounded-xl border border-[color:var(--color-border)] hover:shadow-sm transition-shadow text-left"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[color:var(--color-ink)]">
+                      {line}
+                    </div>
+                    <div className="text-xs text-[color:var(--color-muted)] mt-0.5">
+                      {items.length} {items.length === 1 ? 'opção' : 'opções'}
+                    </div>
+                  </div>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="var(--color-muted)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
               </li>
             ))}
           </ul>
+        ) : (
+          <>
+            {/* Breadcrumb "← Voltar" só aparece quando o user entrou numa
+                linha específica (nível 2 do drill). */}
+            {drillEligible && selectedLine !== null ? (
+              <button
+                type="button"
+                onClick={() => setSelectedLine(null)}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-[color:var(--color-p1)] mb-3"
+                aria-label="Voltar pra lista de linhas"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                {selectedLine} ({visibleProducts.length})
+              </button>
+            ) : null}
+            <ul className="space-y-2 pb-4">
+              {visibleProducts.map((p) => (
+                <li key={p.id}>
+                  <ProductCard
+                    product={p}
+                    // Click no row OU no "+ Carrinho" abre o detail sheet
+                    // pra escolher quantidade (vanilla openProductDetail).
+                    onAdd={(prod) => setDetailProduct(prod)}
+                    onOpen={(prod) => setDetailProduct(prod)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
 
