@@ -349,6 +349,14 @@
   `TrendingGrid`) grid 3 colunas com score no canto, atalho
   "Em alta esta semana" no `/search` quando input vazio.
   Migration em `/migrations/2026-06-09-boost-trending.sql`.
+- **SQL Wave 23 (2026-06-09) — fix B1 badge verified no feed — JÁ
+  EXECUTADO no Supabase.** `get_feed_v2` (Wave 22) omitia `verified` no
+  jsonb_build_object do author, então o badge ✓ S1 (Wave 20) só
+  renderizava no fallback legacy. DROP+CREATE adicionando
+  `'verified', pr.verified` no author_json. Toda a lógica de
+  boosted_until + blocks idêntica à Wave 22. Migration em
+  `/migrations/2026-06-09-feed-verified-fix.sql`. Não pedir pra rodar
+  de novo.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
