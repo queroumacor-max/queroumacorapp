@@ -47,9 +47,21 @@ export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
   // Local state pra controlar fallback quando a img estoura (URL quebrada,
   // 403, etc.). Sem estado, browser deixa o broken-image ícone aparecer.
   const [imgError, setImgError] = useState(false);
+  // fallbackToOriginal: se a URL reescrita pelo cfImg falhar, tenta a URL
+  // original antes de mostrar placeholder de inicial. Cobre o caso do
+  // toggle CF Image Resizing OFF (default em novo zone).
+  const [fallbackToOriginal, setFallbackToOriginal] = useState(false);
   const url = profile?.avatar_url ?? null;
   const showImg = !!url && !imgError;
   const dim = `${size}px`;
+
+  function handleImgError() {
+    if (!fallbackToOriginal) {
+      setFallbackToOriginal(true);
+    } else {
+      setImgError(true);
+    }
+  }
 
   if (showImg) {
     // CF Image Resizing: gera srcset 1x/2x/3x baseado no `size` pedido.
@@ -60,15 +72,15 @@ export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
     // 2000px de Supabase.
     return (
       <img
-        src={cfImg(url, { width: size, fit: 'cover' })}
-        srcSet={cfImgSrcSet(url, size, { fit: 'cover' })}
+        src={fallbackToOriginal ? url! : cfImg(url, { width: size, fit: 'cover' })}
+        srcSet={fallbackToOriginal ? undefined : cfImgSrcSet(url, size, { fit: 'cover' })}
         sizes={`${size}px`}
         alt={profile?.name ?? profile?.tag ?? 'Avatar'}
         width={size}
         height={size}
         loading="lazy"
         decoding="async"
-        onError={() => setImgError(true)}
+        onError={handleImgError}
         className={`rounded-full object-cover ${className}`}
         style={{ width: dim, height: dim }}
       />

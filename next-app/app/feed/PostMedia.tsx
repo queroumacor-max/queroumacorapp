@@ -40,6 +40,19 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, muted, onTo
   // imgError: idem Avatar — fallback gracioso se a img der erro 403/404 em
   // vez de mostrar o ícone de imagem quebrada do browser.
   const [imgError, setImgError] = useState(false);
+  // fallbackToOriginal: se a URL reescrita pelo cfImg (CF Image Resizing)
+  // falhar, tenta a URL original do Supabase antes de mostrar placeholder.
+  // Cobre o caso onde o toggle "Resize images from any origin" no painel
+  // CF ainda está OFF — sem isso, /cdn-cgi/image/.../<supabase-url> 404a.
+  const [fallbackToOriginal, setFallbackToOriginal] = useState(false);
+
+  function handleImgError() {
+    if (!fallbackToOriginal) {
+      setFallbackToOriginal(true);
+    } else {
+      setImgError(true);
+    }
+  }
 
   // Sincroniza prop `muted` com o estado real do <video> (toggle do botão
   // muda o estado no pai, propaga pra cá via prop).
@@ -141,15 +154,15 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, muted, onTo
   const hasDims = !!mediaWidth && !!mediaHeight && mediaWidth > 0 && mediaHeight > 0;
   return (
     <img
-      src={cfImg(url, { width: 430, fit: 'cover' })}
-      srcSet={cfImgSrcSet(url, 430, { fit: 'cover' })}
+      src={fallbackToOriginal ? url : cfImg(url, { width: 430, fit: 'cover' })}
+      srcSet={fallbackToOriginal ? undefined : cfImgSrcSet(url, 430, { fit: 'cover' })}
       sizes="(max-width: 430px) 100vw, 430px"
       alt=""
       width={hasDims ? mediaWidth! : undefined}
       height={hasDims ? mediaHeight! : undefined}
       loading="lazy"
       decoding="async"
-      onError={() => setImgError(true)}
+      onError={handleImgError}
       className="w-full block object-cover"
       style={{
         // hasDims: deixa o browser calcular aspect-ratio do W/H. Sem dims,

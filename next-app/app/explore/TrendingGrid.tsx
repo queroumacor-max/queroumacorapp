@@ -42,6 +42,14 @@ export function TrendingGrid() {
               alt={p.caption ?? ''}
               loading="lazy"
               decoding="async"
+              onError={(e) => {
+                // Fallback: se a URL reescrita pelo cfImg falhar (toggle CF
+                // Image Resizing OFF), tenta a URL original do Supabase.
+                const img = e.currentTarget;
+                if (p.media_url && img.src !== p.media_url) {
+                  img.src = p.media_url;
+                }
+              }}
               className="w-full h-full object-cover"
             />
           ) : null}

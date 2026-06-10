@@ -69,6 +69,14 @@ export function HashtagFeed({ tag }: { tag: string }) {
               alt={p.caption ?? ''}
               loading="lazy"
               decoding="async"
+              onError={(e) => {
+                // Fallback: se a URL reescrita pelo cfImg (CF Image Resizing)
+                // falhar, tenta a URL original do Supabase. Guard contra loop.
+                const img = e.currentTarget;
+                if (p.media_url && img.src !== p.media_url) {
+                  img.src = p.media_url;
+                }
+              }}
               className="w-full h-full object-cover"
             />
           ) : null}
