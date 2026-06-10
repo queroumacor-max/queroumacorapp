@@ -358,6 +358,20 @@
   boosted_until + blocks idêntica à Wave 22. Migration em
   `/migrations/2026-06-09-feed-verified-fix.sql`. Não pedir pra rodar
   de novo.
+- **SQL Wave 24 (2026-06-10) — unread chat (TopNav badge) — JÁ
+  EXECUTADO no Supabase.** Coluna `messages.read_at timestamptz`
+  (NULL = não lida) + índice parcial `idx_messages_receiver_unread`
+  (receiver_id + created_at WHERE read_at IS NULL AND deleted_at IS
+  NULL). RPCs `mark_conversation_read(p_conv_id text)` (SECURITY
+  DEFINER, marca todas as msgs da conv onde receiver = auth.uid()) e
+  `unread_message_count()` (count total do user logado). Frontend:
+  service `chat-messages.markConversationRead/fetchUnreadMessageCount`,
+  hook `useUnreadMessageCount` (espelha o de notif: COUNT + realtime
+  subscribe em messages filtered by receiver_id), TopNav lê do hook e
+  renderiza badge com número (99+ pra >99) — prop `hasUnreadChat`
+  removida (era sempre false). ChatConversation chama
+  `markConversationRead` em useEffect ao montar. Migration em
+  `/migrations/2026-06-10-messages-read-at.sql`.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
