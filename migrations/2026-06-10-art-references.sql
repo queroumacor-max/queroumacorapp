@@ -3,6 +3,11 @@
 -- Sprint 1 da feature "AR Grafite": pintor sobe arte uma vez, reusa em
 -- várias paredes. Sprint 2 conecta a biblioteca ao WallARView pra
 -- overlay AR com drag/pinch/rotate.
+--
+-- IMPORTANTE: o bucket `art-refs` é criado pela UI do Supabase Storage
+-- (Storage → New bucket → name: art-refs, public ON, 20MB, mime jpeg/
+-- png/webp). Tentar criar via `INSERT INTO storage.buckets` quebra com
+-- syntax error em alguns projetos managed.
 
 CREATE TABLE IF NOT EXISTS public.art_references (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,37 +44,16 @@ CREATE POLICY art_references_owner
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
--- ─── Bucket de storage ──────────────────────────────────────────────────
-
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'art-refs',
-  'art-refs',
-  true,  -- read público via URL (paths são UUID random; sem enumeração)
-  20971520,  -- 20MB por upload
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
-)
-ON CONFLICT (id) DO UPDATE SET
-  file_size_limit = EXCLUDED.file_size_limit,
-  allowed_mime_types = EXCLUDED.allowed_mime_types,
-  public = EXCLUDED.public;
-
+-- ─── Policies do storage.objects pro bucket art-refs ────────────────────
 -- Path pattern: art-refs/{user_id}/{uuid}.{ext}
--- Owner write/delete: primeira folder do name precisa ser auth.uid().
+-- split_part(name, '/', 1) é o primeiro segmento — bate com auth.uid().
+
 DROP POLICY IF EXISTS "art-refs owner write" ON storage.objects;
 CREATE POLICY "art-refs owner write"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'art-refs'
-    AND auth.uid()::text = (storage.foldername(name))[1]
-  );
-
-DROP POLICY IF EXISTS "art-refs owner update" ON storage.objects;
-CREATE POLICY "art-refs owner update"
-  ON storage.objects FOR UPDATE TO authenticated
-  USING (
-    bucket_id = 'art-refs'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND split_part(name, '/', 1) = auth.uid()::text
   );
 
 DROP POLICY IF EXISTS "art-refs owner delete" ON storage.objects;
@@ -77,7 +61,7 @@ CREATE POLICY "art-refs owner delete"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'art-refs'
-    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND split_part(name, '/', 1) = auth.uid()::text
   );
 
 DROP POLICY IF EXISTS "art-refs public read" ON storage.objects;
