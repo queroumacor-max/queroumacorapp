@@ -269,14 +269,15 @@
   com `tracesSampleRate: 1.0`. Sentry → Performance → Web Vitals
   começa a popular ~24h depois do primeiro acesso. Não mexer no sample
   rate sem checar quota.
-- **B2 (Cloudflare Image Resizing) — código DEPLOYADO mas REQUER
-  toggle no painel CF pra valer.** Helper `next-app/lib/cfImg.ts`
-  reescreve URLs pra `/cdn-cgi/image/w=...,q=85,f=auto/<original-url>`.
-  Avatar e PostMedia usam srcset 1x/2x/3x. **Pra ganhar perf, ligar no
-  Cloudflare Dashboard:** Speed → Optimization → **Image Resizing ON**
-  + "Resize images from any origin" **ON** + Polish em **Lossy**.
-  Enquanto não liga, as `<img>` caem no `onError` e mostram placeholder
-  (sem regressão fatal, mas sem ganho). Anotar aqui quando user ligar.
+- **B2 (Cloudflare Image Resizing) — ATIVO (2026-06-10).** Helper
+  `next-app/lib/cfImg.ts` reescreve URLs pra
+  `/cdn-cgi/image/w=...,q=85,f=auto/<original-url>`. Avatar e PostMedia
+  usam srcset 1x/2x/3x. **Toggles ligados no Cloudflare Dashboard**:
+  Speed → Optimization → Image Resizing ON + "Resize images from any
+  origin" ON. Defesa em profundidade: PostMedia/Avatar/HashtagFeed/
+  TrendingGrid têm fallback automático pra URL original do Supabase se
+  a URL reescrita falhar (cobre transient errors ou se algum dia o
+  toggle voltar pra OFF).
 - **SQL Wave 17 (2026-06-09) — width/height em posts (CLS=0) — JÁ
   EXECUTADO no Supabase.** P4 do BACKLOG. Adiciona `posts.media_width`
   e `posts.media_height` (int, opcionais). `usePublishPost` captura
