@@ -6,6 +6,7 @@
 
 import { useState, lazy, Suspense } from 'react';
 import type { ComponentType, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { BottomSheet } from '@/components/BottomSheet';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { isAdmin } from '@/lib/policies';
@@ -94,14 +95,18 @@ type SheetKey =
   | 'camisetas'
   | 'formacao'
   | 'cursos'
-  | 'arte-venda';
+  | 'arte-venda'
+  | 'grafites';
 
 interface SheetConfig {
   label: string;
   Component: ComponentType<Record<string, unknown>>;
 }
 
-const SHEETS: Record<SheetKey, SheetConfig> = {
+// SHEETS é `Partial` porque alguns tiles (ex.: grafites) abrem ROTA
+// dedicada via router push em vez de bottom-sheet inline. Esses ficam
+// fora do mapa e o handler trata o caso especial.
+const SHEETS: Partial<Record<SheetKey, SheetConfig>> = {
   pedidos: { label: 'Meus Pedidos', Component: PedidosList as ComponentType },
   orcamento: { label: 'Orçamento', Component: QuoteWizard as ComponentType },
   orcamentos: { label: 'Pipeline de Orçamentos', Component: PipelineKanban as ComponentType },
@@ -169,6 +174,14 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
     roles: ['grafiteiro'],
     gradient: 'art',
   },
+  {
+    sheet: 'grafites',
+    emoji: '🎨',
+    title: 'AR Grafite',
+    subtitle: 'Projete arte na parede',
+    roles: ['grafiteiro', 'pintor'],
+    gradient: 'art',
+  },
 ];
 
 // Os tiles "Moderação" e "Erros" foram removidos daqui (jun/2026) — o
@@ -176,11 +189,26 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
 // #errors direto na URL; só não aparecem mais como atalho no grid pra
 // não poluir a tela de perfil pra admins.
 
+// Tiles que não abrem sheet inline, mas navegam pra rota dedicada.
+const ROUTE_TILES: Partial<Record<SheetKey, string>> = {
+  grafites: '/perfil/grafites',
+};
+
 export function BusinessGrid() {
   const [openSheet, setOpenSheet] = useState<SheetKey | null>(null);
   const activeConfig = openSheet ? SHEETS[openSheet] : null;
   const Active = activeConfig?.Component ?? null;
+  const router = useRouter();
   const policyUser = usePolicyUser();
+
+  function handleTileOpen(sheet: SheetKey) {
+    const route = ROUTE_TILES[sheet];
+    if (route) {
+      router.push(route);
+      return;
+    }
+    setOpenSheet(sheet);
+  }
   const showAdmin = isAdmin(policyUser);
   const userRole = (policyUser?.role || '').toLowerCase();
   const visibleRoleTiles = ROLE_TILES.filter((t) =>
@@ -210,14 +238,14 @@ export function BusinessGrid() {
           <BusinessCard
             key={t.sheet}
             tile={t}
-            onOpen={() => setOpenSheet(t.sheet)}
+            onOpen={() => handleTileOpen(t.sheet)}
           />
         ))}
         {visibleRoleTiles.map((t) => (
           <BusinessCard
             key={t.sheet}
             tile={t}
-            onOpen={() => setOpenSheet(t.sheet)}
+            onOpen={() => handleTileOpen(t.sheet)}
           />
         ))}
       </div>
