@@ -14,7 +14,7 @@
 import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
 import { ProductDetailSheet } from './ProductDetailSheet';
-import type { Product } from '@/lib/services/mkt';
+import type { Product, ProductVariant } from '@/lib/services/mkt';
 import {
   MKT_MENU_LABEL,
   MKT_MENUS,
@@ -111,8 +111,12 @@ export function ProductsList() {
     setSelectedLine(null);
   }, [category, search]);
 
-  function handleAddFromSheet(prod: Product, qty: number) {
-    add({ product: prod, qty });
+  function handleAddFromSheet(
+    prod: Product,
+    qty: number,
+    variant?: ProductVariant | null,
+  ) {
+    add({ product: prod, qty, variant: variant ?? null });
   }
 
   const cartCount = cartItems.reduce((acc, it) => acc + (it.qty || 0), 0);

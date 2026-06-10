@@ -8,7 +8,7 @@
 //   - botão "+ Adicionar ao Carrinho · R$NN,NN" full-width laranja.
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
 import {
@@ -17,7 +17,9 @@ import {
   resolveColorHex,
   type MktCategory,
   type Product,
+  type ProductVariant,
 } from '@/lib/services/mkt';
+import { useProductVariants } from '@/lib/hooks/useProductVariants';
 import { WallARView } from './WallARView';
 
 // Categorias onde "Ver na parede" faz sentido — tinta/textura/epoxi/arte.
@@ -50,16 +52,36 @@ function categoryEmoji(cat: string | null | undefined): string {
 export interface ProductDetailSheetProps {
   product: Product | null;
   onClose: () => void;
-  onAdd: (product: Product, qty: number) => void;
+  // Wave 25: assinatura ganha `variant` opcional. Caller que ignora
+  // variant cai no comportamento legado (produto plano sem variante).
+  onAdd: (product: Product, qty: number, variant?: ProductVariant | null) => void;
 }
 
 export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailSheetProps) {
   const [qty, setQty] = useState(1);
   const [arOpen, setArOpen] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  // Wave 25: busca variantes do produto aberto. Se vazio, UI cai no preço
+  // base (products.price) — sem seletor.
+  const { variants } = useProductVariants(product?.id ?? null);
+
+  // Quando variantes carregam, seleciona a primeira (sort_order menor) por
+  // default. Quando product muda, reseta a seleção.
+  useEffect(() => {
+    if (variants.length === 0) {
+      setSelectedVariantId(null);
+      return;
+    }
+    const first = variants[0]!;
+    setSelectedVariantId(first.id);
+  }, [variants, product?.id]);
+
+  const selectedVariant =
+    variants.find((v) => v.id === selectedVariantId) ?? null;
 
   function handleAdd() {
     if (!product) return;
-    onAdd(product, qty);
+    onAdd(product, qty, selectedVariant);
     showToast('Adicionado ao carrinho!', 'success');
     onClose();
     setQty(1);
@@ -77,7 +99,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // (b) caem numa categoria pintável. Sem isso o botão aparecia em
   // adaptador de tomada, pincel etc. e tingia nada visível.
   const arEligible = !!solidHex && AR_PAINTABLE.has(mktClassify(product));
-  const price = Number(product.price || 0);
+  // Quando há variante selecionada, preço dela substitui o de products.
+  const price = selectedVariant ? selectedVariant.price : Number(product.price || 0);
   const total = price * qty;
 
   return (
@@ -214,6 +237,69 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             }}
           />
         </button>
+      ) : null}
+
+      {/* Seletor de variante (Wave 25) — só renderiza quando o produto tem
+          variantes cadastradas. Cada tamanho vira um chip com label e preço.
+          Click muda preço/CTA na hora. */}
+      {variants.length > 0 ? (
+        <div style={{ marginBottom: 14 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--color-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: 8,
+            }}
+          >
+            Tamanho
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Tamanho"
+            className="flex flex-wrap gap-2"
+          >
+            {variants.map((v) => {
+              const active = v.id === selectedVariantId;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setSelectedVariantId(v.id)}
+                  className="text-left"
+                  style={{
+                    flex: '1 1 calc(33.333% - 8px)',
+                    minWidth: 96,
+                    padding: '10px 12px',
+                    background: active ? 'var(--color-p1)' : 'var(--color-cream)',
+                    color: active ? '#fff' : 'var(--color-ink)',
+                    border: `2px solid ${active ? 'var(--color-p1)' : 'var(--color-border)'}`,
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    transition: 'background .15s, border-color .15s',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>
+                    {v.size_label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      opacity: active ? 0.95 : 0.7,
+                      marginTop: 2,
+                    }}
+                  >
+                    {BRL.format(v.price)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
 
       {/* Preço + qty picker */}
