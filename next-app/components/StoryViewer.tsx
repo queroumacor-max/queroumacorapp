@@ -289,8 +289,10 @@ export function StoryViewer({
 
       {/* S5: CTA "ver mais" quando o story tem link_url. Fica acima das
           tap zones (z-10) e impede que o clique propague pra goNext.
-          Pause-on-hold continua via outras tap zones. */}
-      {currentStory.link_url ? (
+          Pause-on-hold continua via outras tap zones.
+          B4 fix: valida http/https antes de renderizar — Composer não
+          valida client-side e dado pode chegar de qualquer origem. */}
+      {currentStory.link_url && /^https?:\/\//i.test(currentStory.link_url) ? (
         <a
           href={currentStory.link_url}
           target="_blank"

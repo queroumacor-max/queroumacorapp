@@ -66,6 +66,10 @@ export function useFollow(targetId: string): UseFollowResult {
       qc.invalidateQueries({ queryKey: key });
       qc.invalidateQueries({ queryKey: ['following-ids', userId] });
       qc.invalidateQueries({ queryKey: ['profile', targetId] });
+      // E4: suggest_to_follow exclui quem já é seguido. Quando o user
+      // segue alguém da lista de sugestões, a próxima abertura deve
+      // recalcular pra não mostrar o mesmo perfil de novo.
+      qc.invalidateQueries({ queryKey: ['suggestions', userId] });
     },
   });
 
