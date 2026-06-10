@@ -10,6 +10,12 @@
   --color-bg: #f7f3ee;
   --color-white: #ffffff;
   --color-border: #e8e2d9;
+  /* `--color-ink-fixed` NÃO inverte entre temas. Usar pra fundos que
+     precisam ficar permanentemente escuros (TopNav, BottomNav,
+     ProfileHeader). Em light mode é igual a --color-ink; em dark mode
+     o --color-ink vira creme claro mas este aqui segue escuro pra
+     texto/ícones brancos continuarem legíveis. */
+  --color-ink-fixed: #1a1a2e;
   --color-p1: #ff6b35;   /* orange */
   --color-p2: #f7c59f;   /* peach */
   --color-p3: #2ec4b6;   /* teal */

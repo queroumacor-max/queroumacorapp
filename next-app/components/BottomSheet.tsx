@@ -63,7 +63,7 @@ export function BottomSheet({ open, onClose, children, ariaLabel }: BottomSheetP
           aria-hidden="true"
           className="sticky top-0 z-10 flex items-center justify-center"
           style={{
-            background: '#fff',
+            background: 'var(--color-white)',
             padding: '10px 14px 6px',
           }}
         >
