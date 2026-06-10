@@ -372,6 +372,28 @@
   removida (era sempre false). ChatConversation chama
   `markConversationRead` em useEffect ao montar. Migration em
   `/migrations/2026-06-10-messages-read-at.sql`.
+- **SQL Wave 25 (2026-06-10) — variantes de tamanho de produto — JÁ
+  EXECUTADO no Supabase.** Tabela `product_variants(id, product_id FK
+  products ON DELETE CASCADE, size_label text, volume_ml int, price
+  numeric CHECK >= 0, stock int, sort_order int, created/updated_at)`
+  com UNIQUE em (product_id, size_label), índice
+  idx_product_variants_product_sort, trigger updated_at via
+  set_updated_at(). RLS: SELECT public (anon+authenticated) pra
+  catálogo aberto; INSERT/UPDATE/DELETE só `is_portal_admin()`. Modelo
+  1:N — products.price segue valendo como fallback quando o produto
+  não tem variantes cadastradas (compat). Frontend: service
+  `fetchProductVariants` (cast manual pq tabela ainda não está no
+  schema TS gerado, rodar `supabase gen types` depois), hook
+  `useProductVariants`, ProductDetailSheet renderiza seletor visual
+  de chips quando há variantes (cada chip mostra label + preço,
+  clique muda preço/CTA). addItemToCart compõe id do CartItem como
+  `productId:variantId` pra cada tamanho contar como linha separada
+  no carrinho. CartItem já mostra `volume` que agora carrega
+  size_label. Base atual da Cali Colors tem 4171 produtos SEM
+  variantes — admin precisa popular `product_variants` pra ativar
+  seletor (decisão pendente: botão "Gerar variantes" no admin ou
+  SQL bulk com regra de preço por proporção). Migration em
+  `/migrations/2026-06-10-product-variants.sql`.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
