@@ -211,8 +211,10 @@ export function BusinessGrid() {
   }
   const showAdmin = isAdmin(policyUser);
   const userRole = (policyUser?.role || '').toLowerCase();
+  // Admin enxerga TODOS os role tiles pra testar/preview (mesmo padrão das
+  // personas IA logo abaixo).
   const visibleRoleTiles = ROLE_TILES.filter((t) =>
-    t.roles.some((r) => r === userRole),
+    showAdmin || t.roles.some((r) => r === userRole),
   );
 
   // Personas IA são role-específicas (1 persona por role profissional):
