@@ -384,13 +384,27 @@ function ProfileLinks({
   websiteUrl: string | null;
 }) {
   if (!instagramUrl && !websiteUrl) return null;
+  // B3 fix: render-side validation pra ambos os hrefs. Schema do form
+  // valida no submit, mas dado pode chegar de qualquer origem (admin SQL,
+  // import legado). javascript:/data: ficariam clicáveis sem isso.
+  const safeHref = (raw: string | null): string | null => {
+    if (!raw) return null;
+    const v = raw.trim();
+    return /^https?:\/\//i.test(v) ? v : null;
+  };
   const igHref = (() => {
     if (!instagramUrl) return null;
     const v = instagramUrl.trim();
     if (/^https?:\/\//i.test(v)) return v;
-    const handle = v.replace(/^@/, "");
-    return `https://instagram.com/${handle}`;
+    // Aceita "@user" ou "user" puro como handle de IG. Bloqueia qualquer
+    // outra forma (ex.: "javascript:alert(1)" sem leading @).
+    if (/^@?[a-zA-Z0-9._]+$/.test(v)) {
+      const handle = v.replace(/^@/, '');
+      return `https://instagram.com/${handle}`;
+    }
+    return null;
   })();
+  const safeSite = safeHref(websiteUrl);
   return (
     <div className="mt-2 flex items-center gap-3 text-white/85 text-xs">
       {igHref ? (
@@ -405,9 +419,9 @@ function ProfileLinks({
           Instagram
         </a>
       ) : null}
-      {websiteUrl ? (
+      {safeSite ? (
         <a
-          href={websiteUrl}
+          href={safeSite}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 hover:underline"

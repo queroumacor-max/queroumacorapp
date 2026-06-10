@@ -7,17 +7,24 @@
 //     O componente caller decide se @tag resolve perfil pelo `tag` field
 //     (não pelo id) — backend tem trigger sync_profile_tag_username.
 //   - #tag: letras unicode + dígitos + underscore, 1-50 chars. Vira
-//     <Link href="/hashtag/{tag}">.
+//     <Link href="/hashtag/{tag}">. Só conta se vier no início ou
+//     precedido por espaço/quebra (evita falso-positivo em "foo#bar").
 //   - URLs http(s) automáticas viram <a> com target=_blank rel=noreferrer.
+//     Pontuação final ".,!?;:)" é stripada do match (fica como texto fora
+//     do link).
 //
 // Não trata bold/italic/etc — mantém o texto simples.
 
 import Link from 'next/link';
 import { Fragment, type ReactNode } from 'react';
 
-// Regex única que captura @mention, #hashtag ou URL. Cada alternative tem
-// um named capture pra discriminar.
-const TOKEN_RE = /(@[a-zA-Z0-9_]{2,30})|(#[\p{L}\p{N}_]{1,50})|(https?:\/\/[^\s]+)/gu;
+// Boundary pra @mention e #hashtag: início da string ou whitespace antes.
+// Lookbehind tem suporte universal (Safari 16+, Chrome 62+, FF 78+).
+const TOKEN_RE =
+  /(?<=^|\s)(@[a-zA-Z0-9_]{2,30})|(?<=^|\s)(#[\p{L}\p{N}_]{1,50})|(https?:\/\/[^\s<>"]+)/gu;
+
+// Pontuação que costuma seguir uma URL e NÃO faz parte dela.
+const URL_TRAILING_RE = /[.,!?;:)\]}'"]+$/;
 
 export function renderRichText(text: string | null | undefined): ReactNode {
   if (!text) return null;
@@ -54,17 +61,24 @@ export function renderRichText(text: string | null | undefined): ReactNode {
         </Link>,
       );
     } else if (url) {
+      // E2: stripa pontuação trailing. "veja https://foo.com." → URL é
+      // "https://foo.com" e o "." vira texto solto depois do link.
+      const trailing = url.match(URL_TRAILING_RE)?.[0] ?? '';
+      const cleanUrl = trailing ? url.slice(0, url.length - trailing.length) : url;
       out.push(
         <a
           key={key++}
-          href={url}
+          href={cleanUrl}
           target="_blank"
           rel="noopener noreferrer nofollow"
           className="text-[color:var(--color-p1)] hover:underline break-all"
         >
-          {url}
+          {cleanUrl}
         </a>,
       );
+      if (trailing) {
+        out.push(<Fragment key={key++}>{trailing}</Fragment>);
+      }
     }
     lastIndex = m.index + match.length;
   }
@@ -74,10 +88,11 @@ export function renderRichText(text: string | null | undefined): ReactNode {
   return out;
 }
 
-/** Extrai hashtags (lowercase, sem o #) de um texto. Util pra search/insert. */
+/** Extrai hashtags (lowercase, sem o #) de um texto. Util pra search/insert.
+ *  Boundary igual ao TOKEN_RE: só conta hashtag precedida de início/whitespace. */
 export function extractHashtags(text: string | null | undefined): string[] {
   if (!text) return [];
-  const re = /#([\p{L}\p{N}_]{1,50})/gu;
+  const re = /(?<=^|\s)#([\p{L}\p{N}_]{1,50})/gu;
   const out = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) out.add(m[1]!.toLowerCase());

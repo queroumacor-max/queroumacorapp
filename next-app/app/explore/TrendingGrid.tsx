@@ -32,7 +32,10 @@ export function TrendingGrid() {
       {query.data.map((p) => (
         <Link
           key={p.id}
-          href={`/?post=${p.id}`}
+          // B2 fix: rota /post/[id] não existe ainda. Linka pro perfil do
+          // autor (degraded mas funcional). Quando criarmos /post/[id]
+          // dedicada, trocar pra `/post/${p.id}`.
+          href={`/perfil/${p.user_id}`}
           className="relative block aspect-square overflow-hidden bg-[color:var(--color-border)]"
           title={`${p.score} pontos`}
         >

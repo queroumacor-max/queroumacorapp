@@ -209,10 +209,11 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
       avatar_url: (authorObj.avatar_url as string | null | undefined) ?? null,
       role: (authorObj.role as Profile['role']) ?? undefined,
       is_pro: (authorObj.is_pro as boolean | undefined) ?? undefined,
+      // Wave 23 fix B1: badge ✓ S1 precisa de `verified` no profile do
+      // RPC. Wave 22 omitia, então badge só renderizava no fallback legacy.
+      verified: (authorObj.verified as boolean | undefined) ?? undefined,
       city: (authorObj.city as string | null | undefined) ?? null,
       state: (authorObj.state as string | null | undefined) ?? null,
-      // tag mora fora do shape Profile estrito (vem do JSON da RPC); cast
-      // mínimo via index signature.
       ...(authorObj.tag ? { tag: authorObj.tag as string } : {}),
     } as Profile;
     const comments: FeedComment[] = (r.top_comments ?? []).map((c) => ({

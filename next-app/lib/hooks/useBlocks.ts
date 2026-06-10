@@ -47,6 +47,9 @@ export function useBlockMutations() {
       qc.invalidateQueries({ queryKey: ['blocks-ids', userId] });
       qc.invalidateQueries({ queryKey: ['feed'] });
       qc.invalidateQueries({ queryKey: ['notifications', userId] });
+      // E4: suggest_to_follow exclui blocked no servidor, então o user
+      // recém-bloqueado precisa sumir da lista de sugestões na hora.
+      qc.invalidateQueries({ queryKey: ['suggestions', userId] });
     },
   });
 
@@ -56,6 +59,7 @@ export function useBlockMutations() {
       qc.invalidateQueries({ queryKey: ['blocks-list', userId] });
       qc.invalidateQueries({ queryKey: ['blocks-ids', userId] });
       qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['suggestions', userId] });
     },
   });
 
