@@ -516,3 +516,120 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
 
 // Re-exporta a constante de page size pra o hook usar como pageSize default.
 export const FEED_PAGE_SIZE = FEED_PAGE_DEFAULT;
+
+// ─── fetchPostById ────────────────────────────────────────────────────────
+// Busca UM post enriquecido (profile + likes + saved + comments), mesmo
+// shape do feed. Usado pela rota /post/[id] (página dedicada de post,
+// linkada de /hashtag e /explore). Não usa RPC v2 porque ela não aceita
+// filtro por id; query direta + waves de enrichment é simples o bastante
+// pra 1 post só.
+//
+// Retorna null se:
+//   - post não existe;
+//   - post.deleted_at != null (soft-deleted);
+//   - post.status != 'approved' (em moderação ou rejeitado, exceto
+//     status NULL pra compat com posts pré-moderação).
+//
+// Não filtra por `media_type='story'`: stories só ficam visíveis via
+// /perfil/[tag] no padrão IG, e nada linka stories pra /post/[id] (CTA
+// "ver mais" abre URL externa). Mas se chegar, mostramos.
+
+export async function fetchPostById(
+  postId: string,
+  userId?: string | null,
+): Promise<FeedPost | null> {
+  if (!postId) return null;
+  const sb = getSupabase();
+
+  const { data: postRow, error: postErr } = await sb
+    .from('posts')
+    .select('*')
+    .eq('id', postId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (postErr) {
+    throw new NetworkError(postErr.message || 'Falha ao carregar post', postErr);
+  }
+  if (!postRow) return null;
+  const status = (postRow as { status?: string | null }).status;
+  if (status && status !== 'approved') return null;
+
+  const post = postRow as unknown as Post;
+
+  // Enriquecimento em paralelo (mesma idéia da Wave B do legacy).
+  const [profiles, allLikesRes, myLikesRes, savedRes, commentsRes] = await Promise.all([
+    fetchPublicProfiles([post.user_id]),
+    sb.from('likes').select('post_id').eq('post_id', postId),
+    userId
+      ? sb.from('likes').select('post_id').eq('user_id', userId).eq('post_id', postId)
+      : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null }),
+    userId
+      ? sb
+          .from('saved_posts')
+          .select('post_id')
+          .eq('user_id', userId)
+          .eq('post_id', postId)
+      : Promise.resolve({ data: [] as Array<{ post_id: string | null }>, error: null }),
+    sb
+      .from('comments')
+      .select('id, post_id, user_id, text, created_at')
+      .eq('post_id', postId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  const profile: Profile = profiles[0] ?? { id: post.user_id };
+
+  const commentsArr: FeedComment[] = (commentsRes.data ?? []).map((c) => ({
+    id: c.id,
+    post_id: c.post_id ?? postId,
+    user_id: c.user_id ?? '',
+    text: c.text,
+    created_at: c.created_at ?? '',
+    author: null,
+  }));
+
+  // Backfill author dos commenters (perfis diferentes do autor do post).
+  const commentUserIds = [
+    ...new Set(commentsArr.map((c) => c.user_id).filter((id) => id && id !== post.user_id)),
+  ];
+  if (commentUserIds.length > 0) {
+    const commentProfiles = await fetchPublicProfiles(commentUserIds);
+    const map = new Map<string, Profile>();
+    for (const p of commentProfiles) map.set(p.id, p);
+    for (const c of commentsArr) {
+      const p = map.get(c.user_id);
+      if (p) {
+        c.author = {
+          name: p.name ?? null,
+          tag: (p as { tag?: string | null }).tag ?? null,
+          avatar_url: p.avatar_url ?? null,
+        };
+      }
+    }
+  }
+  // Author do post autor (caso ele tenha comentado no próprio post).
+  for (const c of commentsArr) {
+    if (!c.author && c.user_id === post.user_id) {
+      c.author = {
+        name: profile.name ?? null,
+        tag: (profile as { tag?: string | null }).tag ?? null,
+        avatar_url: profile.avatar_url ?? null,
+      };
+    }
+  }
+
+  const liked = (myLikesRes.data ?? []).length > 0;
+  const saved = (savedRes.data ?? []).length > 0;
+  const likeCount = (allLikesRes.data ?? []).length;
+
+  return {
+    ...post,
+    profile,
+    liked,
+    saved,
+    likeCount,
+    comments: commentsArr,
+  };
+}
