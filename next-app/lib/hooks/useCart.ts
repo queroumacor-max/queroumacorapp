@@ -33,6 +33,7 @@ import {
   cartCount,
   type CartItem,
   type Product,
+  type ProductVariant,
   type OrderSubmitResult,
 } from '@/lib/services/mkt';
 
@@ -45,6 +46,9 @@ interface MutationContext {
 interface AddArg {
   product: Pick<Product, 'id' | 'name' | 'price' | 'color_hex' | 'color_gradient' | 'volume'>;
   qty: number;
+  // Wave 25 — opcional. Quando passa, item entra no carrinho como linha
+  // separada com price/label da variante.
+  variant?: ProductVariant | null;
 }
 
 interface ChangeQtyArg {
@@ -87,16 +91,19 @@ export function useCart(): UseCartResult {
   // saiba o que aplicar.
 
   const addMutation = useMutation<CartItem[], Error, AddArg, MutationContext>({
-    mutationFn: async ({ product, qty }) => {
+    mutationFn: async ({ product, qty, variant }) => {
       const current = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      const next = addItemToCart(current, product, qty);
+      const next = addItemToCart(current, product, qty, variant ?? null);
       await saveCart(user!.id, next);
       return next;
     },
-    onMutate: async ({ product, qty }): Promise<MutationContext> => {
+    onMutate: async ({ product, qty, variant }): Promise<MutationContext> => {
       await qc.cancelQueries({ queryKey });
       const prev = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      qc.setQueryData<CartItem[]>(queryKey, addItemToCart(prev, product, qty));
+      qc.setQueryData<CartItem[]>(
+        queryKey,
+        addItemToCart(prev, product, qty, variant ?? null),
+      );
       return { prev };
     },
     onError: (_err, _arg, ctx) => {

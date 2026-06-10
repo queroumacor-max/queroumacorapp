@@ -50,6 +50,18 @@ export interface Product {
   created_at?: string | null;
 }
 
+// Variante de produto (Wave 25) — quartinho/galão/lata etc.
+// Sem variantes cadastradas, products.price segue valendo (fallback).
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  size_label: string;
+  volume_ml: number | null;
+  price: number;
+  stock: number | null;
+  sort_order: number;
+}
+
 // Item de carrinho — snapshot de Product no momento que foi adicionado
 // (preserva price/color mesmo se o produto for atualizado depois).
 export interface CartItem {
@@ -60,6 +72,12 @@ export interface CartItem {
   color_hex?: string | null;
   color_gradient?: string | null;
   volume?: string | null;
+  // Wave 25: variante escolhida. Quando preenchido, o `id` do CartItem é
+  // composto (`<productId>:<variantId>`) pra que dois tamanhos do mesmo
+  // produto contem como linhas separadas. `price`/`volume` já refletem a
+  // variante (snapshot — não atualiza se o admin mudar depois).
+  variant_id?: string | null;
+  variant_label?: string | null;
   // Suporta produtos sintéticos (camiseta personalizada com customização).
   customization?: ShirtCustomization | null;
 }
@@ -394,6 +412,58 @@ export async function fetchProduct(
   return (data as Product) ?? null;
 }
 
+// ─── variantes (Wave 25) ──────────────────────────────────────────────────
+
+/**
+ * Lista variantes de um produto, já ordenadas por sort_order + size_label.
+ * Retorna [] se o produto não tem variantes — caller deve cair pro price
+ * de products.price (modelo legacy).
+ */
+export async function fetchProductVariants(
+  productId: string,
+  options?: { signal?: AbortSignal },
+): Promise<ProductVariant[]> {
+  if (!productId) return [];
+  const sb = getSupabase();
+  // Cast `from` por unknown porque product_variants ainda não está no
+  // schema TS gerado (Wave 25 criou a tabela). Quando rodar `supabase
+  // gen types`, dá pra remover.
+  const sbAny = sb as unknown as {
+    from: (t: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: string) => {
+          order: (col: string, opts: { ascending: boolean }) => {
+            order: (col: string, opts: { ascending: boolean }) => PromiseLike<{
+              data: Array<Record<string, unknown>> | null;
+              error: { message: string } | null;
+            }> & { abortSignal: (s: AbortSignal) => PromiseLike<{
+              data: Array<Record<string, unknown>> | null;
+              error: { message: string } | null;
+            }> };
+          };
+        };
+      };
+    };
+  };
+  const q = sbAny
+    .from('product_variants')
+    .select('id, product_id, size_label, volume_ml, price, stock, sort_order')
+    .eq('product_id', productId)
+    .order('sort_order', { ascending: true })
+    .order('size_label', { ascending: true });
+  const { data, error } = await (options?.signal ? q.abortSignal(options.signal) : q);
+  if (error) throw new NetworkError(error.message, error);
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    product_id: r.product_id as string,
+    size_label: r.size_label as string,
+    volume_ml: (r.volume_ml as number | null) ?? null,
+    price: Number(r.price ?? 0),
+    stock: (r.stock as number | null) ?? null,
+    sort_order: (r.sort_order as number | null) ?? 0,
+  }));
+}
+
 // ─── carrinho: persistência em profiles.cart ──────────────────────────────
 
 /**
@@ -559,24 +629,31 @@ export async function buyShirt(
 export function addItemToCart(
   items: CartItem[],
   product: Pick<Product, 'id' | 'name' | 'price' | 'color_hex' | 'color_gradient' | 'volume'>,
-  qty: number
+  qty: number,
+  // Wave 25: variante opcional. Quando preenchida, o id do CartItem é
+  // composto pra que tamanhos diferentes do mesmo produto contem como
+  // linhas separadas no carrinho.
+  variant?: ProductVariant | null,
 ): CartItem[] {
   const safeQty = Math.max(1, parseInt(String(qty), 10) || 1);
-  const existing = items.find((it) => it.id === product.id);
+  const cartId = variant ? `${product.id}:${variant.id}` : product.id;
+  const existing = items.find((it) => it.id === cartId);
   if (existing) {
     return items.map((it) =>
-      it.id === product.id ? { ...it, qty: (it.qty || 1) + safeQty } : it
+      it.id === cartId ? { ...it, qty: (it.qty || 1) + safeQty } : it
     );
   }
   return [
     ...items,
     {
-      id: product.id,
+      id: cartId,
       name: product.name,
-      price: Number(product.price || 0),
+      price: variant ? variant.price : Number(product.price || 0),
       color_hex: product.color_hex ?? null,
       color_gradient: product.color_gradient ?? null,
-      volume: product.volume ?? null,
+      volume: variant?.size_label ?? product.volume ?? null,
+      variant_id: variant?.id ?? null,
+      variant_label: variant?.size_label ?? null,
       qty: safeQty,
     },
   ];
