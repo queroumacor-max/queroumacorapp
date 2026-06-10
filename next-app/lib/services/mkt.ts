@@ -464,6 +464,111 @@ export async function fetchProductVariants(
   }));
 }
 
+// ─── variantes: mutations admin (Wave 25) ────────────────────────────────
+// RLS no banco gateia tudo pra is_portal_admin() — sem token de admin, retorna
+// erro. Cast manual em `sb.from` igual ao fetchProductVariants.
+
+interface VariantAdminClient {
+  from: (t: string) => {
+    insert: (row: Record<string, unknown>) => {
+      select: (cols: string) => {
+        single: () => PromiseLike<{
+          data: { id: string } | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+    update: (patch: Record<string, unknown>) => {
+      eq: (col: string, val: string) => PromiseLike<{
+        data: unknown;
+        error: { message: string } | null;
+      }>;
+    };
+    delete: () => {
+      eq: (col: string, val: string) => PromiseLike<{
+        data: unknown;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+}
+
+function variantClient(): VariantAdminClient {
+  return getSupabase() as unknown as VariantAdminClient;
+}
+
+/** Cria uma variante. Retorna o id criado. */
+export async function createVariant(
+  productId: string,
+  input: { size_label: string; volume_ml?: number | null; price: number; stock?: number | null; sort_order?: number },
+): Promise<string> {
+  const { data, error } = await variantClient()
+    .from('product_variants')
+    .insert({
+      product_id: productId,
+      size_label: input.size_label,
+      volume_ml: input.volume_ml ?? null,
+      price: input.price,
+      stock: input.stock ?? null,
+      sort_order: input.sort_order ?? 0,
+    })
+    .select('id')
+    .single();
+  if (error) throw new NetworkError(error.message, error);
+  return data!.id;
+}
+
+/** Atualiza campos de uma variante. */
+export async function updateVariant(
+  id: string,
+  patch: Partial<Pick<ProductVariant, 'size_label' | 'volume_ml' | 'price' | 'stock' | 'sort_order'>>,
+): Promise<void> {
+  const { error } = await variantClient()
+    .from('product_variants')
+    .update({ ...patch })
+    .eq('id', id);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+/** Remove uma variante (CASCADE não aplica — só ela). */
+export async function deleteVariant(id: string): Promise<void> {
+  const { error } = await variantClient()
+    .from('product_variants')
+    .delete()
+    .eq('id', id);
+  if (error) throw new NetworkError(error.message, error);
+}
+
+/**
+ * Gera as 3 variantes default (Quartinho 900ml, Galão 3.6L, Lata 18L) pra
+ * um produto. Calcula preço por proporção partindo do products.price atual
+ * (assumido como preço da lata 18L). Quartinho = ÷14, Galão = ÷4.
+ * Idempotente: se já existe variante com o mesmo size_label, o INSERT
+ * estoura UNIQUE — caller deve apagar antes ou checar antes.
+ */
+export async function generateDefaultVariants(
+  productId: string,
+  basePrice: number,
+): Promise<void> {
+  const lata = basePrice;
+  const galao = +(basePrice / 4).toFixed(2);
+  const quartinho = +(basePrice / 14).toFixed(2);
+  const sb = variantClient() as unknown as {
+    from: (t: string) => {
+      insert: (rows: Array<Record<string, unknown>>) => PromiseLike<{
+        data: unknown;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+  const { error } = await sb.from('product_variants').insert([
+    { product_id: productId, size_label: 'Quartinho 900ml', volume_ml: 900,   price: quartinho, sort_order: 1 },
+    { product_id: productId, size_label: 'Galão 3.6L',     volume_ml: 3600,  price: galao,     sort_order: 2 },
+    { product_id: productId, size_label: 'Lata 18L',       volume_ml: 18000, price: lata,      sort_order: 3 },
+  ]);
+  if (error) throw new NetworkError(error.message, error);
+}
+
 // ─── carrinho: persistência em profiles.cart ──────────────────────────────
 
 /**
