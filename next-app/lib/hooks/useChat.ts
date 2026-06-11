@@ -140,12 +140,15 @@ export function useSendMessage(
   convId: string | null,
   toId: string | null,
 ): UseSendMessageResult {
-  const { user } = useAuth();
+  const { user, emailVerified } = useAuth();
   const qc = useQueryClient();
 
   const mutation = useMutation<Message, Error, SendMessageVars>({
     mutationFn: async ({ text, attachment }) => {
       if (!user) throw new Error('Faça login pra enviar mensagens');
+      if (emailVerified === false) {
+        throw new Error('Confirme seu email antes de enviar mensagens.');
+      }
       if (!convId) throw new Error('Conversa inválida');
       if (!toId) throw new Error('Destinatário não resolvido');
 

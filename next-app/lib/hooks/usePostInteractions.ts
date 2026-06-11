@@ -162,7 +162,7 @@ export interface UseCommentsResult {
  * expira — economiza 1 round-trip por card visível.
  */
 export function useComments(postId: string, initialData?: PostComment[]): UseCommentsResult {
-  const { user } = useAuth();
+  const { user, emailVerified } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id ?? '';
   const key = ['post-comments', postId];
@@ -181,7 +181,14 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
     string,
     { previous: PostComment[] | undefined; tempId: string }
   >({
-    mutationFn: (text: string) => addComment(userId, postId, text),
+    mutationFn: (text: string) => {
+      if (emailVerified === false) {
+        return Promise.reject(
+          new Error('Confirme seu email antes de comentar.'),
+        );
+      }
+      return addComment(userId, postId, text);
+    },
     // Otimista: prepend de comment temporário pra UI atualizar na hora.
     // Reconciliação no onSuccess troca o temp pelo row real do servidor.
     onMutate: async (text: string) => {

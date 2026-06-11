@@ -8,7 +8,7 @@
 //    head.js:1008 após doLoginSupabase);
 //  - reset de senha vive em rota separada (`/reset-password`) — ver TODO.
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,8 +23,29 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+// Whitelist de rotas permitidas como destino após login. Não aceitamos
+// URL absoluta nem ?next= externo (mitiga open-redirect).
+const ALLOWED_NEXT = new Set<string>([
+  '/feed',
+  '/perfil',
+  '/delete-account',
+  '/info',
+  '/info/privacidade',
+  '/info/termos',
+  '/pro',
+]);
+
+function safeNext(raw: string | null | undefined): string {
+  if (!raw) return '/feed';
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/feed';
+  const clean = raw.split('?')[0].split('#')[0];
+  return ALLOWED_NEXT.has(clean) ? raw : '/feed';
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
   const { signIn } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
@@ -49,9 +70,10 @@ export function LoginForm() {
       setServerError(friendly);
       return;
     }
-    // Após login bem-sucedido: feed (app principal). Vanilla fazia
-    // `showScreen('feed')` em head.js:1008 logo após doLoginSupabase.
-    router.push('/feed');
+    // Após login bem-sucedido: redireciona pra `?next=` quando válido
+    // (whitelist), senão `/feed`. Vanilla fazia `showScreen('feed')` em
+    // head.js:1008 logo após doLoginSupabase.
+    router.push(next);
     router.refresh();
   }
 

@@ -10,6 +10,7 @@
 
 import { getSupabase } from '@/lib/supabase';
 import { ConflictError, ValidationError } from '@/lib/errors';
+import { calculateAge, MIN_AGE } from '@/lib/schemas';
 import type { UserType } from '@/lib/types';
 
 export interface SignupData {
@@ -80,6 +81,17 @@ export async function checkTagAvailability(tag: string): Promise<boolean> {
  */
 export async function signUp(input: SignupData): Promise<SignupResult> {
   const sb = getSupabase();
+
+  // Age gate (defesa em profundidade — frontend já bloqueia via Zod).
+  // LGPD-K + Apple 1.6 + Google Family Policy: hard block <MIN_AGE.
+  if (input.birthDate) {
+    const age = calculateAge(input.birthDate);
+    if (age >= 0 && age < MIN_AGE) {
+      throw new ValidationError(
+        `Você precisa ter pelo menos ${MIN_AGE} anos para usar o app.`,
+      );
+    }
+  }
 
   // Re-check da tag imediatamente antes do insert. Não 100% à prova de
   // TOCTOU, mas reduz a janela de corrida significativamente.

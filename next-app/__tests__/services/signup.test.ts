@@ -265,6 +265,81 @@ describe('signUp', () => {
     expect(r.userId).toBe('user-new');
   });
 
+  // ── Age gate (LGPD-K + Apple 1.6 + Google Family Policy) ──────────────────
+
+  it('birthDate de menor de 16 anos → ValidationError', async () => {
+    const client = makeFakeClient({
+      tables: { profiles_public: { selectResult: { data: [], error: null } } },
+      signUp: { data: { user: { id: 'user-new' } } },
+    });
+    __setSupabaseForTests(client);
+
+    // 14 anos atrás
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 14);
+    const tooYoung = d.toISOString().slice(0, 10);
+
+    await expect(
+      signUp({
+        email: 'menor@teste.com',
+        password: 'senha1234',
+        name: 'Menor',
+        tag: 'menorzao',
+        phone: '5511959765031',
+        userType: 'pintor',
+        birthDate: tooYoung,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    // auth.signUp não deve ser chamado quando age gate bloqueia.
+    const authMock = (client.auth as unknown as { signUp: { mock: { calls: unknown[] } } }).signUp;
+    expect(authMock.mock.calls.length).toBe(0);
+  });
+
+  it('birthDate de exatamente 16 anos → aceita', async () => {
+    const client = makeFakeClient({
+      tables: { profiles_public: { selectResult: { data: [], error: null } } },
+      signUp: { data: { user: { id: 'user-ok' } } },
+    });
+    __setSupabaseForTests(client);
+
+    // 16 anos atrás (ontem pra garantir que já completou)
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 16);
+    d.setDate(d.getDate() - 1);
+    const okAge = d.toISOString().slice(0, 10);
+
+    const r = await signUp({
+      email: 'ok@teste.com',
+      password: 'senha1234',
+      name: 'Joao',
+      tag: 'joaook',
+      phone: '5511959765031',
+      userType: 'pintor',
+      birthDate: okAge,
+    });
+    expect(r.userId).toBe('user-ok');
+  });
+
+  it('birthDate ausente → passa (compat com users legacy via UPDATE)', async () => {
+    const client = makeFakeClient({
+      tables: { profiles_public: { selectResult: { data: [], error: null } } },
+      signUp: { data: { user: { id: 'user-legacy' } } },
+    });
+    __setSupabaseForTests(client);
+
+    const r = await signUp({
+      email: 'legacy@teste.com',
+      password: 'senha1234',
+      name: 'Legacy',
+      tag: 'legacy',
+      phone: '5511959765031',
+      userType: 'pintor',
+      // sem birthDate — frontend novo sempre manda, mas mantemos compat
+    });
+    expect(r.userId).toBe('user-legacy');
+  });
+
   it('passa metadados (name, tag, phone, user_type) pro auth.signUp', async () => {
     const client = makeFakeClient({
       tables: { profiles_public: { selectResult: { data: [], error: null } } },

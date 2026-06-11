@@ -277,6 +277,49 @@ export const dateBRSchema = z
     return z.NEVER;
   });
 
+// ─── age gate (LGPD-K + Apple 1.6 + Google Family Policy) ───────────────────
+
+// Idade mínima do app: 16 anos.
+// - <13 cai em COPPA (US) e LGPD-K Art. 14 §1º (consentimento parental
+//   específico).
+// - 13-15 ainda é menor em LGPD-K e exige base legal explícita; Google
+//   Family Policy aplica analytics-restriction se aceitar essa faixa
+//   (Sentry deixa de ser legal).
+// 16+ é a faixa segura pra app social brasileiro com UGC + chat aberto.
+export const MIN_AGE = 16;
+
+/** Calcula idade em anos cheios a partir de data ISO `YYYY-MM-DD`.
+ *  Retorna -1 quando inválida. */
+export function calculateAge(birthISO: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthISO)) return -1;
+  const birth = new Date(birthISO);
+  if (isNaN(birth.getTime())) return -1;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+// Schema pra data de nascimento obrigatória com gate >= MIN_AGE.
+// Usado em signup; perfil antigo (legacy) atualiza via update onde
+// também revalidamos.
+export const birthDateSchema = z
+  .string({ invalid_type_error: 'Data inválida' })
+  .trim()
+  .min(1, 'Informe sua data de nascimento')
+  .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v), { message: 'Data inválida' })
+  .refine(
+    (v) => {
+      const age = calculateAge(v);
+      return age >= 0 && age <= 120;
+    },
+    { message: 'Data inválida' },
+  )
+  .refine((v) => calculateAge(v) >= MIN_AGE, {
+    message: `Você precisa ter pelo menos ${MIN_AGE} anos para usar o app`,
+  });
+
 // ─── aggregator ──────────────────────────────────────────────────────────────
 
 // Map nome → schema, equivalente ao window.Schemas vanilla. Útil pra

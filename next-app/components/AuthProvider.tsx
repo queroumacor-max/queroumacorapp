@@ -29,8 +29,17 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  /** True quando o user tem email confirmado (Supabase
+   *  `auth.users.email_confirmed_at` presente). False quando logado mas
+   *  sem confirmar; null quando deslogado. Usado por componentes pra
+   *  gating de mutações (publicar post, comentar, mandar DM) e pra
+   *  banner de "Confirme seu email". */
+  emailVerified: boolean | null;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  /** Reenvio do email de confirmação (Supabase resend). Retorna mensagem
+   *  amigável de erro ou undefined em sucesso. */
+  resendVerification: () => Promise<{ error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -80,11 +89,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await getSupabase().auth.signOut();
   }, []);
 
+  const resendVerification = useCallback(async (): Promise<{ error?: string }> => {
+    if (!user?.email) return { error: 'Faça login antes de reenviar.' };
+    try {
+      const sb = getSupabase();
+      // Supabase v2: auth.resend({ type: 'signup', email })
+      const sbAny = sb.auth as unknown as {
+        resend: (opts: { type: 'signup'; email: string }) => Promise<{ error?: { message: string } | null }>;
+      };
+      const { error } = await sbAny.resend({ type: 'signup', email: user.email });
+      if (error) return { error: error.message };
+      return {};
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Falha ao reenviar' };
+    }
+  }, [user]);
+
+  // emailVerified: true quando Supabase marcou email_confirmed_at; false
+  // quando logado e ainda não confirmou; null quando deslogado.
+  const emailVerified: boolean | null = user
+    ? Boolean((user as User & { email_confirmed_at?: string | null }).email_confirmed_at)
+    : null;
+
   // useMemo evita re-render dos consumers quando o pai re-renderiza sem
   // mudança real no value — só refaz quando algum field muda de identidade.
   const value = useMemo<AuthContextValue>(
-    () => ({ user, session, loading, signIn, signOut }),
-    [user, session, loading, signIn, signOut],
+    () => ({ user, session, loading, emailVerified, signIn, signOut, resendVerification }),
+    [user, session, loading, emailVerified, signIn, signOut, resendVerification],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
