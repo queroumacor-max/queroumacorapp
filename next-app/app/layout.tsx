@@ -8,6 +8,7 @@ import { StagingBanner } from '@/components/StagingBanner';
 import { ReferralCapture } from '@/components/ReferralCapture';
 import { DialogProvider } from '@/components/Dialog';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { EmailVerifyBanner } from '@/components/EmailVerifyBanner';
 import './globals.css';
 
 // Domínio do Supabase pra preconnect — economiza 100-300ms no primeiro request
@@ -99,6 +100,7 @@ export default function RootLayout({
           <QueryProvider>
             <DialogProvider>
               <StagingBanner />
+              <EmailVerifyBanner />
               {/* Suspense exigido por useSearchParams() em ReferralCapture
                   quando renderiza em rotas dinâmicas. */}
               <Suspense fallback={null}>

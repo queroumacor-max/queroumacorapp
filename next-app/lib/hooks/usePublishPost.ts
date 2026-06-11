@@ -43,12 +43,17 @@ export interface UsePublishPostResult {
 }
 
 export function usePublishPost(): UsePublishPostResult {
-  const { user } = useAuth();
+  const { user, emailVerified } = useAuth();
   const qc = useQueryClient();
 
   const mutation = useMutation<CreatePostResult, Error, PublishPostInput>({
     mutationFn: async (input: PublishPostInput) => {
       if (!user) throw new AuthenticationError('Faça login para publicar.');
+      if (emailVerified === false) {
+        throw new AuthenticationError(
+          'Confirme seu email antes de publicar (link enviado no cadastro).',
+        );
+      }
       // Upload sequencial (não paralelo) pra mostrar progresso previsível
       // e não saturar conexão móvel. Pra 1-5 arquivos pequenos a diferença
       // de latência é irrelevante.

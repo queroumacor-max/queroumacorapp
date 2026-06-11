@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { emailSchema, tagSchema, phoneSchema, requiredField } from '@/lib/schemas';
+import { emailSchema, tagSchema, phoneSchema, requiredField, birthDateSchema, MIN_AGE } from '@/lib/schemas';
 import { useTagAvailability } from '@/lib/hooks/useTagAvailability';
 
 // 27 UFs brasileiras (vanilla index.html linha 430+).
@@ -40,7 +40,14 @@ const UFS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'TO', label: 'Tocantins' },
 ];
 
-const todayISO = new Date().toISOString().slice(0, 10);
+// Limite superior do `max` no input: hoje - MIN_AGE anos. O navegador
+// não vai deixar selecionar data que tornaria o user menor de MIN_AGE
+// (UX); a validação Zod (`birthDateSchema`) é a defesa real.
+const maxBirthISO = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d.toISOString().slice(0, 10);
+})();
 
 const schema = z.object({
   name: requiredField('seu nome').refine((v) => !v.includes('@'), {
@@ -49,14 +56,9 @@ const schema = z.object({
   tag: tagSchema,
   email: emailSchema,
   phone: phoneSchema,
-  birthDate: z
-    .string()
-    .trim()
-    .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), {
-      message: 'Data inválida',
-    })
-    .optional()
-    .default(''),
+  // birthDate é obrigatório (LGPD-K + Apple 1.6 + Google Family Policy).
+  // birthDateSchema bloqueia <16 (definido em MIN_AGE).
+  birthDate: birthDateSchema,
   city: z.string().trim().max(80, 'Cidade muito longa').optional().default(''),
   state: z
     .string()
@@ -258,14 +260,14 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           id="birthDate"
           type="date"
           autoComplete="bday"
-          max={todayISO}
+          max={maxBirthISO}
           min="1920-01-01"
           {...register('birthDate')}
           className={inputClass}
           aria-invalid={errors.birthDate ? 'true' : 'false'}
         />
         <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          Usado para personalização do seu perfil
+          É necessário ter pelo menos {MIN_AGE} anos para usar o app.
         </p>
       </Field>
 
