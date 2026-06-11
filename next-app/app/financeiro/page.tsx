@@ -13,6 +13,7 @@
 import type { Metadata } from 'next';
 import { Dashboard } from './Dashboard';
 import { AppShell } from '@/components/AppShell';
+import { MaquininhaCard } from '@/components/MaquininhaCard';
 
 export const metadata: Metadata = {
   title: 'Financeiro | QueroUmaCor',
@@ -33,6 +34,9 @@ export default function FinanceiroPage() {
         Lucro, custos e análise dos últimos meses
       </p>
       <Dashboard />
+      <div className="mt-6">
+        <MaquininhaCard />
+      </div>
     </div></AppShell>
   );
 }

@@ -96,7 +96,8 @@ type SheetKey =
   | 'formacao'
   | 'cursos'
   | 'arte-venda'
-  | 'grafites';
+  | 'grafites'
+  | 'avaliar';
 
 interface SheetConfig {
   label: string;
@@ -182,6 +183,13 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
     roles: ['grafiteiro', 'pintor'],
     gradient: 'art',
   },
+  {
+    sheet: 'avaliar',
+    emoji: '⭐',
+    title: 'Avaliar serviço',
+    subtitle: 'Pinte como foi a obra',
+    roles: ['cliente'],
+  },
 ];
 
 // Os tiles "Moderação" e "Erros" foram removidos daqui (jun/2026) — o
@@ -192,6 +200,7 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
 // Tiles que não abrem sheet inline, mas navegam pra rota dedicada.
 const ROUTE_TILES: Partial<Record<SheetKey, string>> = {
   grafites: '/perfil/grafites',
+  avaliar: '/avaliar',
 };
 
 export function BusinessGrid() {
