@@ -153,3 +153,104 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
+
+// ─── Push Notifications (Release C8) ────────────────────────────────────────
+// Browser/FCM/Mozilla autopush entrega encrypted payloads aqui via 'push'.
+// O servidor (/api/push-notify) envia JSON cifrado AES128-GCM com schema:
+//   { title: string, body?: string, url?: string, icon?: string, tag?: string }
+// Se payload vier vazio (heartbeat/ping), mostra notificação genérica.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    if (event.data) {
+      // event.data.json() já decripta + parseia se for JSON.
+      data = event.data.json();
+    }
+  } catch (e) {
+    // Payload pode não ser JSON (raro mas possível); cai num texto puro.
+    try {
+      data = { title: 'QueroUmaCor', body: event.data ? event.data.text() : '' };
+    } catch {
+      data = {};
+    }
+  }
+
+  const title = (data && data.title) || 'QueroUmaCor';
+  const options = {
+    body: (data && data.body) || '',
+    icon: (data && data.icon) || '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: (data && data.tag) || undefined,
+    data: {
+      url: (data && data.url) || '/notificacoes',
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Click na notificação: foca janela existente em data.url se possível,
+// senão abre nova. Fallback `/notificacoes` quando não tem url.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/notificacoes';
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      // Procura uma aba do mesmo origin pra reaproveitar (UX: não duplica
+      // aba). Compara origin pra ignorar hash/query.
+      let target = null;
+      for (const client of allClients) {
+        try {
+          const clientUrl = new URL(client.url);
+          const wantUrl = new URL(targetUrl, self.location.origin);
+          if (clientUrl.origin === wantUrl.origin) {
+            target = client;
+            break;
+          }
+        } catch {
+          // URL inválido — ignora.
+        }
+      }
+      if (target) {
+        try {
+          await target.focus();
+          if ('navigate' in target) {
+            await target.navigate(targetUrl);
+          }
+          return;
+        } catch {
+          // Continua pro openWindow fallback.
+        }
+      }
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })(),
+  );
+});
+
+// Browser/FCM pode revogar subscription (user bloqueou, key rotacionada);
+// avisa todas abas pra refazer flow de subscribe quando voltar (precisa
+// do userId logado pro re-subscribe, então não dá pra fazer direto aqui).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      for (const client of allClients) {
+        try {
+          client.postMessage({ type: 'pushsubscriptionchange' });
+        } catch {
+          // ignora
+        }
+      }
+    })(),
+  );
+});
