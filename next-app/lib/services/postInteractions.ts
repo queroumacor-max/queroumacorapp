@@ -293,7 +293,7 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
     created_at: string | null;
   }>;
   const authorIds = [...new Set(rows.map((r) => r.user_id).filter((u): u is string => !!u))];
-  let authors: Record<string, { name?: string | null; tag?: string | null; avatar_url?: string | null }> = {};
+  const authors: Record<string, { name?: string | null; tag?: string | null; avatar_url?: string | null }> = {};
   if (authorIds.length > 0) {
     const { data: profs } = await sb
       .from('profiles_public')

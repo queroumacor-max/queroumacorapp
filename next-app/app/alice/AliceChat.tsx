@@ -14,9 +14,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useProfile } from '@/lib/hooks/useProfile';
 import { useAlice } from '@/lib/hooks/useAlice';
 import { ChatMessage, TypingIndicator, type AvatarConfig } from '../seu-ze/ChatMessage';
 import { VoiceRecorder } from '../seu-ze/VoiceRecorder';
+
+const PROFESSIONAL_ROLES = new Set(['pintor', 'grafiteiro', 'automotivo', 'funileiro']);
 
 const ALICE_AVATAR: AvatarConfig = {
   src: '/img/alice.webp',
@@ -26,6 +29,7 @@ const ALICE_AVATAR: AvatarConfig = {
 
 export function AliceChat() {
   const { user, loading: authLoading } = useAuth();
+  const { profile } = useProfile();
   const {
     messages,
     isSending,
@@ -115,6 +119,33 @@ export function AliceChat() {
           className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
         >
           Entrar
+        </Link>
+      </div>
+    );
+  }
+
+  // M7 fix: Alice é pra cliente. Profissional (pintor/grafiteiro/auto/
+  // funileiro) chegar aqui via URL direta cai na persona errada. Admin
+  // (is_admin/portal_access) passa pra testar/preview.
+  const role = (profile?.role || '').toLowerCase();
+  const isAdminLike =
+    (profile as { is_admin?: boolean } | null)?.is_admin === true ||
+    (profile as { portal_access?: boolean } | null)?.portal_access === true ||
+    role === 'admin';
+  if (!isAdminLike && PROFESSIONAL_ROLES.has(role)) {
+    return (
+      <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
+        <div className="text-5xl mb-3" aria-hidden="true">🎨</div>
+        <h2 className="font-semibold mb-2">Alice é pra clientes</h2>
+        <p className="text-sm text-[color:var(--color-muted)] mb-4">
+          Você tem sua própria IA — Seu Zé (pintor), Fê (grafiteiro) ou
+          Senna (automotivo). Acesse pelo perfil.
+        </p>
+        <Link
+          href="/perfil"
+          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
+        >
+          Ir pro perfil
         </Link>
       </div>
     );

@@ -234,7 +234,10 @@ export function BusinessGrid() {
   //  - Admin → vê todos os 4 pra testar
   const visibleTiles = TILES.filter((t) => {
     if (t.sheet === 'seu-ze') {
-      return showAdmin || userRole === 'pintor' || (!userRole && userRole !== 'cliente');
+      // M6 fix: condição era `!userRole && userRole !== 'cliente'` que é
+      // tautológica (se !userRole, segunda parte é sempre true). Intenção
+      // original era: pintor OU sem role definida (fallback). Sem cliente.
+      return showAdmin || userRole === 'pintor' || !userRole;
     }
     if (t.sheet === 'fe') return showAdmin || userRole === 'grafiteiro';
     if (t.sheet === 'senna') return showAdmin || userRole === 'automotivo' || userRole === 'funileiro';
