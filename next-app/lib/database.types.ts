@@ -326,6 +326,7 @@ export type Database = {
           type: string | null;
           created_at: string | null;
           deleted_at: string | null;
+          read_at: string | null; // Wave 24 (2026-06-10)
         };
         Insert: {
           id?: string;
@@ -336,6 +337,7 @@ export type Database = {
           type?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
+          read_at?: string | null;
         };
         Update: {
           id?: string;
@@ -346,6 +348,7 @@ export type Database = {
           type?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
+          read_at?: string | null;
         };
         Relationships: [];
       };
@@ -1336,6 +1339,80 @@ export type Database = {
           message: string | null;
           active: boolean | null;
           created_at: string | null;
+        };
+        Relationships: [];
+      };
+      // ─── product_variants (Wave 25, 2026-06-10) ─────────────────────────
+      product_variants: {
+        Row: {
+          id: string;
+          product_id: string;
+          size_label: string;
+          volume_ml: number | null;
+          price: number;
+          stock: number | null;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          size_label: string;
+          volume_ml?: number | null;
+          price: number;
+          stock?: number | null;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          size_label?: string;
+          volume_ml?: number | null;
+          price?: number;
+          stock?: number | null;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      // ─── art_references (Wave 26, 2026-06-10) ──────────────────────────
+      art_references: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string | null;
+          image_url: string;
+          tags: string[];
+          width: number | null;
+          height: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title?: string | null;
+          image_url: string;
+          tags?: string[];
+          width?: number | null;
+          height?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string | null;
+          image_url?: string;
+          tags?: string[];
+          width?: number | null;
+          height?: number | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

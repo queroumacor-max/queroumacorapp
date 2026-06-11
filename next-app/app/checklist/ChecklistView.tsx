@@ -53,7 +53,10 @@ export function ChecklistView() {
 
   function persist(next: ChecklistItem[]) {
     if (!user) return;
-    const snapshot = JSON.parse(JSON.stringify(next)) as ChecklistItem[];
+    // structuredClone é nativo (Node 17+, browsers modernos). Deep clone
+    // sem risco de serialização (Date, undefined, NaN) e mais rápido que
+    // JSON.parse(JSON.stringify(...)).
+    const snapshot = structuredClone(next);
     const currentRowId = rowId;
     saveQueueRef.current = saveQueueRef.current
       .then(async () => {
