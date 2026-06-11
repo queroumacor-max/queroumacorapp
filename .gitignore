@@ -6,3 +6,11 @@ node_modules/
 .env.local
 .wrangler/
 next-app/node_modules/
+
+# Android / Bubblewrap (TWA) — keystore NUNCA entra no repo
+android.keystore
+android.keystore.passwords
+keystore.properties
+app/build/
+.gradle/
+local.properties
