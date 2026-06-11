@@ -75,7 +75,8 @@ export default function RootLayout({
             <link rel="dns-prefetch" href={`https://${SUPABASE_HOST}`} />
           </>
         ) : null}
-        {/* Tema fixo claro — dark mode removido por decisão de produto.
+        {/* Tema fixo claro — dark mode removido por decisão de produto
+            (v2 — 2026-06-10 force-rebuild bump pra invalidar CDN cache).
             Limpa a chave legada `theme` do localStorage de quem tinha
             ativado dark, garantindo light pra todo mundo na próxima
             visita. data-theme="light" explícito pro CSS (mesmo que não
