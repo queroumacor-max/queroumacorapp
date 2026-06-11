@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { showToast } from '@/lib/toast';
+import { startProCheckout } from '@/lib/services/billing-platform';
 
 interface Feature {
   icon: string;
@@ -31,19 +32,16 @@ export function ProView() {
   const isPro = !!profile?.is_pro;
 
   async function handleCheckout() {
-    // Mercado Pago checkout: endpoint /api/mp-checkout-pro ainda não foi
-    // portado pro next-app. Por enquanto, mostra toast informativo e abre
-    // WhatsApp da Cali Colors pra tratativa manual.
+    // Roteia pelo provider correto da plataforma: web → Mercado Pago,
+    // iOS wrapper → Apple StoreKit IAP, Android wrapper → Google Play
+    // Billing. Detalhes em `lib/services/billing-platform.ts` +
+    // `docs/BILLING_STRATEGY.md`. Compliance Apple 3.1.1 / Google Play
+    // 2024 exige IAP/Play Billing pra digital content.
     if (!user) {
       showToast('Faça login pra continuar', 'info');
       return;
     }
-    const wpp =
-      'https://wa.me/5511959765031?text=' +
-      encodeURIComponent(
-        `Olá! Quero ativar o Plano PRO no QueroUmaCor. Meu email: ${user.email ?? ''}`,
-      );
-    window.open(wpp, '_blank', 'noopener');
+    await startProCheckout(user.id);
   }
 
   return (
