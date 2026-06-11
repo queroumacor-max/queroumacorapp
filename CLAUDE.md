@@ -269,15 +269,14 @@
   com `tracesSampleRate: 1.0`. Sentry → Performance → Web Vitals
   começa a popular ~24h depois do primeiro acesso. Não mexer no sample
   rate sem checar quota.
-- **B2 (Cloudflare Image Resizing) — ATIVO (2026-06-10).** Helper
-  `next-app/lib/cfImg.ts` reescreve URLs pra
-  `/cdn-cgi/image/w=...,q=85,f=auto/<original-url>`. Avatar e PostMedia
-  usam srcset 1x/2x/3x. **Toggles ligados no Cloudflare Dashboard**:
-  Speed → Optimization → Image Resizing ON + "Resize images from any
-  origin" ON. Defesa em profundidade: PostMedia/Avatar/HashtagFeed/
-  TrendingGrid têm fallback automático pra URL original do Supabase se
-  a URL reescrita falhar (cobre transient errors ou se algum dia o
-  toggle voltar pra OFF).
+- **B2 (Cloudflare Image Resizing) — código DEPLOYADO mas REQUER
+  toggle no painel CF pra valer.** Helper `next-app/lib/cfImg.ts`
+  reescreve URLs pra `/cdn-cgi/image/w=...,q=85,f=auto/<original-url>`.
+  Avatar e PostMedia usam srcset 1x/2x/3x. **Pra ganhar perf, ligar no
+  Cloudflare Dashboard:** Speed → Optimization → **Image Resizing ON**
+  + "Resize images from any origin" **ON** + Polish em **Lossy**.
+  Enquanto não liga, as `<img>` caem no `onError` e mostram placeholder
+  (sem regressão fatal, mas sem ganho). Anotar aqui quando user ligar.
 - **SQL Wave 17 (2026-06-09) — width/height em posts (CLS=0) — JÁ
   EXECUTADO no Supabase.** P4 do BACKLOG. Adiciona `posts.media_width`
   e `posts.media_height` (int, opcionais). `usePublishPost` captura
@@ -394,6 +393,32 @@
   seletor (decisão pendente: botão "Gerar variantes" no admin ou
   SQL bulk com regra de preço por proporção). Migration em
   `/migrations/2026-06-10-product-variants.sql`.
+- **SQL Wave 26 (2026-06-10) — biblioteca de artes (AR Grafite) — JÁ
+  EXECUTADO no Supabase.** Tabela `art_references(id, user_id FK
+  profiles ON DELETE CASCADE, title, image_url, tags text[], width,
+  height, created/updated_at)` com índices b-tree em (user_id,
+  created_at DESC) e GIN em tags, RLS owner-only, trigger updated_at.
+  Bucket Supabase Storage `art-refs` (criado pela UI: public read,
+  20MB, mime jpeg/png/webp) com policies em `storage.objects` gating
+  por `split_part(name, '/', 1) = auth.uid()::text` (path pattern
+  `userId/uuid.ext`). Sprint 1 da feature AR Grafite: pintor/grafiteiro/
+  admin sobe imagens em `/perfil/grafites` (tile na BusinessGrid
+  '🎨 AR Grafite' via ROLE_TILES + ROUTE_TILES pra navegar em vez de
+  bottom-sheet). Service `artReferences.ts` faz upload no bucket +
+  insert na tabela; cast manual no `from` (tabela fora do schema TS
+  gen). Hook `useArtReferences`. **Sprint 2 entregue (2026-06-10)**:
+  componente novo `ArtAROverlay` (`app/perfil/grafites/ArtAROverlay.tsx`)
+  — câmera ao vivo via getUserMedia (back facing), `<img>` absoluto
+  com transform translate/scale/rotate sobre vídeo, touch handlers
+  (1 dedo = drag, 2 dedos = pinch + rotate), slider de opacidade
+  (10-100%), botão Capturar que composita vídeo + imagem num canvas
+  e baixa PNG. Botão "🪄 Projetar na parede" em cada card da
+  biblioteca abre o overlay. Migration em
+  `/migrations/2026-06-10-art-references.sql` (versão atualizada sem
+  INSERT INTO storage.buckets — bucket criado via UI). SQL rodado em
+  6 blocos separados pra contornar erro 42601 com `text[] NOT NULL
+  DEFAULT '{}'` em alguns editores Supabase managed; default usado foi
+  `ARRAY[]::text[]`.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
