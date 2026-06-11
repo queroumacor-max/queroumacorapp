@@ -28,11 +28,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      # Audit do projeto vanilla (raiz). --omit=dev pra não estourar com
-      # vulns de devDeps que nunca vão pro browser. --audit-level=high
-      # ignora LOW/MODERATE — fail só em HIGH/CRITICAL.
-      - name: npm audit (vanilla)
-        run: npm audit --audit-level=high --omit=dev
+      # Vanilla foi removido — npm audit roda só no next-app abaixo.
 
       # Audit do next-app (deps de runtime: next/react/supabase/sentry).
       - name: npm audit (next-app)

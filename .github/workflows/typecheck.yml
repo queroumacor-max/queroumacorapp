@@ -1,9 +1,6 @@
 name: Typecheck
 
-# tsc --checkJs sobre os arquivos novos modulares (db/policies/errors/logger/
-# config/utils/events/schemas/functions/scripts). Pega TDZ-like bugs, no-undef
-# real e type mismatches que ESLint não vê. Vanilla legacy (app.js, head.js,
-# shims.js, modules/*) seguem fora — migração gradual.
+# tsc --noEmit no next-app/. Pega type mismatches que ESLint não vê.
 on:
   push:
     branches-ignore: [main]
@@ -22,6 +19,9 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: next-app
     steps:
       - uses: actions/checkout@v4
 
@@ -29,11 +29,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: next-app/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      # typecheck
-      - name: Type check (tsc --checkJs)
+      - name: Type check
         run: npm run typecheck
         continue-on-error: false

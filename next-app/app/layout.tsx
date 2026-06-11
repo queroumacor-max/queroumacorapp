@@ -75,13 +75,14 @@ export default function RootLayout({
             <link rel="dns-prefetch" href={`https://${SUPABASE_HOST}`} />
           </>
         ) : null}
-        {/* Setar tema ANTES do hydrate pra evitar FOUC (flash de tema
-            claro). Lê localStorage 'theme' ('light'|'dark'); se ausente,
-            default = 'light'. Não segue prefers-color-scheme do sistema —
-            opt-in explícito via /perfil → toggle Tema. */}
+        {/* Tema fixo claro — dark mode removido por decisão de produto.
+            Limpa a chave legada `theme` do localStorage de quem tinha
+            ativado dark, garantindo light pra todo mundo na próxima
+            visita. data-theme="light" explícito pro CSS (mesmo que não
+            haja mais variante :root[data-theme="dark"]). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('theme');var t=s==='dark'?'dark':'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+            __html: `(function(){try{localStorage.removeItem('theme');}catch(e){}document.documentElement.setAttribute('data-theme','light');})();`,
           }}
         />
       </head>

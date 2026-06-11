@@ -6,7 +6,6 @@
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function ProfileFooter() {
   const { signOut } = useAuth();
@@ -25,7 +24,6 @@ export function ProfileFooter() {
 
   return (
     <div className="px-3.5 pt-5 pb-8 space-y-3">
-      <ThemeToggle withLabel />
       <Link
         href="/perfil/bloqueados"
         className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white border border-[color:var(--color-border)] text-sm font-semibold text-[color:var(--color-ink)]"
