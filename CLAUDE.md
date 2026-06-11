@@ -433,6 +433,14 @@
   user podia escrever em qualquer path — path traversal). Path pattern
   `{userId}/...` já era seguido por todos uploads no Next. Migration
   em `/migrations/2026-06-10-wave-27-rls-hardening.sql`. Idempotente.
+- **SQL Wave 28 (2026-06-10) — pg_cron pros cleanups — JÁ EXECUTADO no
+  Supabase.** Agenda automática das 3 funções de limpeza criadas em
+  waves anteriores: `cleanup_old_audit_log()` diário 03:00 UTC,
+  `cleanup_soft_deleted()` diário 03:30 UTC, `cleanup_orphan_media()`
+  (scan, não execute) semanal domingo 04:00 UTC. Migration em
+  `/migrations/2026-06-10-cron-cleanups.sql`. `cron.schedule` é
+  idempotente (substitui job de mesmo nome). Inspecionar com
+  `SELECT * FROM cron.job`.
 - **LAUNCH_AUDIT.md** (na raiz do repo) — auditoria de
   production-readiness via 6 sub-auditorias paralelas. 5 blockers
   iniciais: B1 (vanilla legado) **EM ANDAMENTO** (ports `/avaliar` +

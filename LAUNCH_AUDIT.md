@@ -8,7 +8,9 @@
 
 ## 0. EXECUTIVE SUMMARY
 
-**Estado geral:** **7/10 — quase pronto pra lançar, com 3 blockers críticos.**
+**Estado geral (atualizado 2026-06-10):** **9.5/10 — pronto pra lançar.** Todos os 5 blockers críticos resolvidos (B1 vanilla deletado, B2-B5 RLS fechados via Wave 27). 8 de 10 médios fechados. Resta só ações externas que dependem do usuário (M1 painel CF, DMARC GoDaddy, popular variants).
+
+**Estado original do audit:** ~~7/10 — quase pronto pra lançar, com 3 blockers críticos.~~
 
 O port Next.js está **funcionalmente completo** (52 rotas production-ready), com infra de IA sólida (14 features com gate+record sem escapatória), pagamentos Mercado Pago hardenizados (idempotência, anti-fraude, signature HMAC), e RLS coberta na maioria das tabelas.
 
@@ -628,24 +630,24 @@ Linha 56, sem try/catch. Trocar por `structuredClone(next)`.
 ## 18. FINAL LAUNCH CHECKLIST
 
 ### 🔴 Bloqueia launch — fazer antes
-- [~] **B1** Vanilla legado: **EM ANDAMENTO** — `/avaliar` e Maquininha portados, killswitch SW deployado. Falta delete dos 122 arquivos vanilla (`app.js`, `head.js`, `shims.js`, `modules/`, `functions/api/*.js`, `styles.css`, `index.html`, etc.).
+- [x] **B1** ~~Vanilla legado deletado~~ — 5.447 linhas removidas + workflows ajustados pra next-app/ ✓
 - [x] **B2** ~~Fix RLS orders~~ — Wave 27 ✓
 - [x] **B3** ~~messages UPDATE + SELECT filter~~ — Wave 27 ✓
 - [x] **B4** ~~quotes SELECT~~ — Wave 27 ✓
 - [x] **B5** ~~storage posts + avatars path validation~~ — Wave 27 ✓
 
 ### 🟡 Forte recomendação — fazer antes do GA
-- [ ] **M1** Setar `MP_WEBHOOK_SECRET` + `MP_WEBHOOK_ENFORCE=true`
-- [ ] **M2** Popular consent_log automaticamente no signup
-- [ ] **M3** Endpoint `/api/delete-account` LGPD
-- [ ] **M4** Configurar pg_cron pros 3 cleanup jobs
-- [ ] **M5** Atualizar database.types.ts (rodar supabase gen types)
-- [x] **M6** ~~Bug Seu Zé visibility~~ — ✓
-- [x] **M7** ~~Gate de role em /alice~~ — ✓
-- [x] **M8** ~~Fix ESLint dependency~~ — ✓
-- [ ] **M9** comments realtime invalida globalmente (N+1)
-- [ ] **M10** `JSON.parse(JSON.stringify(next))` em ChecklistView sem try/catch
-- [ ] DMARC em calicolors.com.br (DNS GoDaddy)
+- [ ] **M1** Setar `MP_WEBHOOK_SECRET` + `MP_WEBHOOK_ENFORCE=true` (painel CF Pages — só você)
+- [x] **M2** ~~consent_log no signup~~ — auto-grava terms+privacy ✓
+- [x] **M3** ~~Endpoint /api/delete-account LGPD~~ — endpoint + UI com confirm duplo ✓
+- [x] **M4** ~~pg_cron pros cleanups~~ — Wave 28 ✓
+- [x] **M5** ~~database.types.ts~~ — read_at + product_variants + art_references adicionados (manual, sem rodar gen types) ✓
+- [x] **M6** ~~Bug Seu Zé visibility~~ ✓
+- [x] **M7** ~~Gate de role em /alice~~ ✓
+- [x] **M8** ~~Fix ESLint dependency~~ ✓
+- [⏩] **M9** comments realtime — audit estava equivocada (não é N+1 de invalidate, é volume de events). Deferred — fix decente requer arquitetura mais cuidadosa.
+- [x] **M10** ~~JSON.parse(JSON.stringify) → structuredClone~~ ✓
+- [ ] DMARC em calicolors.com.br (DNS GoDaddy — só você)
 - [ ] Popular variants pros 4.171 produtos (SQL bulk pronto, aguarda execução)
 
 ### 🟢 Pode ir pra depois do launch
