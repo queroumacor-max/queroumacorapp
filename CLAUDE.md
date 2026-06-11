@@ -349,6 +349,76 @@
   `TrendingGrid`) grid 3 colunas com score no canto, atalho
   "Em alta esta semana" no `/search` quando input vazio.
   Migration em `/migrations/2026-06-09-boost-trending.sql`.
+- **SQL Wave 23 (2026-06-09) — fix B1 badge verified no feed — JÁ
+  EXECUTADO no Supabase.** `get_feed_v2` (Wave 22) omitia `verified` no
+  jsonb_build_object do author, então o badge ✓ S1 (Wave 20) só
+  renderizava no fallback legacy. DROP+CREATE adicionando
+  `'verified', pr.verified` no author_json. Toda a lógica de
+  boosted_until + blocks idêntica à Wave 22. Migration em
+  `/migrations/2026-06-09-feed-verified-fix.sql`. Não pedir pra rodar
+  de novo.
+- **SQL Wave 24 (2026-06-10) — unread chat (TopNav badge) — JÁ
+  EXECUTADO no Supabase.** Coluna `messages.read_at timestamptz`
+  (NULL = não lida) + índice parcial `idx_messages_receiver_unread`
+  (receiver_id + created_at WHERE read_at IS NULL AND deleted_at IS
+  NULL). RPCs `mark_conversation_read(p_conv_id text)` (SECURITY
+  DEFINER, marca todas as msgs da conv onde receiver = auth.uid()) e
+  `unread_message_count()` (count total do user logado). Frontend:
+  service `chat-messages.markConversationRead/fetchUnreadMessageCount`,
+  hook `useUnreadMessageCount` (espelha o de notif: COUNT + realtime
+  subscribe em messages filtered by receiver_id), TopNav lê do hook e
+  renderiza badge com número (99+ pra >99) — prop `hasUnreadChat`
+  removida (era sempre false). ChatConversation chama
+  `markConversationRead` em useEffect ao montar. Migration em
+  `/migrations/2026-06-10-messages-read-at.sql`.
+- **SQL Wave 25 (2026-06-10) — variantes de tamanho de produto — JÁ
+  EXECUTADO no Supabase.** Tabela `product_variants(id, product_id FK
+  products ON DELETE CASCADE, size_label text, volume_ml int, price
+  numeric CHECK >= 0, stock int, sort_order int, created/updated_at)`
+  com UNIQUE em (product_id, size_label), índice
+  idx_product_variants_product_sort, trigger updated_at via
+  set_updated_at(). RLS: SELECT public (anon+authenticated) pra
+  catálogo aberto; INSERT/UPDATE/DELETE só `is_portal_admin()`. Modelo
+  1:N — products.price segue valendo como fallback quando o produto
+  não tem variantes cadastradas (compat). Frontend: service
+  `fetchProductVariants` (cast manual pq tabela ainda não está no
+  schema TS gerado, rodar `supabase gen types` depois), hook
+  `useProductVariants`, ProductDetailSheet renderiza seletor visual
+  de chips quando há variantes (cada chip mostra label + preço,
+  clique muda preço/CTA). addItemToCart compõe id do CartItem como
+  `productId:variantId` pra cada tamanho contar como linha separada
+  no carrinho. CartItem já mostra `volume` que agora carrega
+  size_label. Base atual da Cali Colors tem 4171 produtos SEM
+  variantes — admin precisa popular `product_variants` pra ativar
+  seletor (decisão pendente: botão "Gerar variantes" no admin ou
+  SQL bulk com regra de preço por proporção). Migration em
+  `/migrations/2026-06-10-product-variants.sql`.
+- **SQL Wave 26 (2026-06-10) — biblioteca de artes (AR Grafite) — JÁ
+  EXECUTADO no Supabase.** Tabela `art_references(id, user_id FK
+  profiles ON DELETE CASCADE, title, image_url, tags text[], width,
+  height, created/updated_at)` com índices b-tree em (user_id,
+  created_at DESC) e GIN em tags, RLS owner-only, trigger updated_at.
+  Bucket Supabase Storage `art-refs` (criado pela UI: public read,
+  20MB, mime jpeg/png/webp) com policies em `storage.objects` gating
+  por `split_part(name, '/', 1) = auth.uid()::text` (path pattern
+  `userId/uuid.ext`). Sprint 1 da feature AR Grafite: pintor/grafiteiro/
+  admin sobe imagens em `/perfil/grafites` (tile na BusinessGrid
+  '🎨 AR Grafite' via ROLE_TILES + ROUTE_TILES pra navegar em vez de
+  bottom-sheet). Service `artReferences.ts` faz upload no bucket +
+  insert na tabela; cast manual no `from` (tabela fora do schema TS
+  gen). Hook `useArtReferences`. **Sprint 2 entregue (2026-06-10)**:
+  componente novo `ArtAROverlay` (`app/perfil/grafites/ArtAROverlay.tsx`)
+  — câmera ao vivo via getUserMedia (back facing), `<img>` absoluto
+  com transform translate/scale/rotate sobre vídeo, touch handlers
+  (1 dedo = drag, 2 dedos = pinch + rotate), slider de opacidade
+  (10-100%), botão Capturar que composita vídeo + imagem num canvas
+  e baixa PNG. Botão "🪄 Projetar na parede" em cada card da
+  biblioteca abre o overlay. Migration em
+  `/migrations/2026-06-10-art-references.sql` (versão atualizada sem
+  INSERT INTO storage.buckets — bucket criado via UI). SQL rodado em
+  6 blocos separados pra contornar erro 42601 com `text[] NOT NULL
+  DEFAULT '{}'` em alguns editores Supabase managed; default usado foi
+  `ARRAY[]::text[]`.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS

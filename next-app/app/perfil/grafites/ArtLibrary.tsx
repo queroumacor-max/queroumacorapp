@@ -11,6 +11,7 @@ import { useArtReferences } from '@/lib/hooks/useArtReferences';
 import { readImageDimensions, type ArtReference } from '@/lib/services/artReferences';
 import { showToast } from '@/lib/toast';
 import { cfImg } from '@/lib/cfImg';
+import { ArtAROverlay } from './ArtAROverlay';
 
 const BRL = new Intl.NumberFormat('pt-BR');
 
@@ -29,6 +30,7 @@ export function ArtLibrary() {
 
   const [title, setTitle] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [arRef, setArRef] = useState<ArtReference | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   if (!user) {
@@ -143,12 +145,26 @@ export function ArtLibrary() {
           <ul className="grid grid-cols-2 gap-3">
             {items.map((ref) => (
               <li key={ref.id}>
-                <ArtCard ref_={ref} onDelete={() => handleDelete(ref)} disabled={isDeleting} />
+                <ArtCard
+                  ref_={ref}
+                  onDelete={() => handleDelete(ref)}
+                  onProject={() => setArRef(ref)}
+                  disabled={isDeleting}
+                />
               </li>
             ))}
           </ul>
         </>
       )}
+
+      {arRef ? (
+        <ArtAROverlay
+          open={!!arRef}
+          imageUrl={arRef.image_url}
+          title={arRef.title}
+          onClose={() => setArRef(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -156,10 +172,12 @@ export function ArtLibrary() {
 function ArtCard({
   ref_,
   onDelete,
+  onProject,
   disabled,
 }: {
   ref_: ArtReference;
   onDelete: () => void;
+  onProject: () => void;
   disabled: boolean;
 }) {
   return (
@@ -190,9 +208,17 @@ function ArtCard({
         ) : null}
         <button
           type="button"
+          onClick={onProject}
+          disabled={disabled}
+          className="mt-2 w-full px-2 py-1.5 text-[11px] font-bold bg-[color:var(--color-p1)] text-white rounded disabled:opacity-60"
+        >
+          🪄 Projetar na parede
+        </button>
+        <button
+          type="button"
           onClick={onDelete}
           disabled={disabled}
-          className="mt-2 w-full px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50 rounded disabled:opacity-60"
+          className="mt-1 w-full px-2 py-1 text-[10px] font-semibold text-red-600 hover:bg-red-50 rounded disabled:opacity-60"
         >
           Apagar
         </button>
