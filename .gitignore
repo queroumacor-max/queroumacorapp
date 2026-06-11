@@ -19,3 +19,11 @@ ios/DerivedData/
 ios/App/Podfile.lock
 ios/capacitor-cordova-ios-plugins/
 ios/App/public/
+
+# Android / Bubblewrap (TWA) — keystore NUNCA entra no repo
+android.keystore
+android.keystore.passwords
+keystore.properties
+app/build/
+.gradle/
+local.properties

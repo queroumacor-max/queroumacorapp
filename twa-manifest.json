@@ -1,0 +1,60 @@
+{
+  "packageId": "com.calicolors.queroumacor",
+  "host": "queroumacor.com.br",
+  "name": "QueroUmaCor",
+  "launcherName": "QueroUmaCor",
+  "display": "standalone",
+  "themeColor": "#ff6b35",
+  "navigationColor": "#1a1a2e",
+  "navigationColorDark": "#0f0f1e",
+  "navigationDividerColor": "#1a1a2e",
+  "navigationDividerColorDark": "#0f0f1e",
+  "backgroundColor": "#1a1a2e",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://queroumacor.com.br/icon-512.png",
+  "maskableIconUrl": "https://queroumacor.com.br/icon-512-maskable.png",
+  "monochromeIconUrl": "https://queroumacor.com.br/icon-monochrome.png",
+  "shortcuts": [
+    {
+      "name": "Feed",
+      "shortName": "Feed",
+      "url": "/feed",
+      "chosenIconUrl": "https://queroumacor.com.br/icon-192.png"
+    },
+    {
+      "name": "Novo orçamento",
+      "shortName": "Orçar",
+      "url": "/orcamento-ia",
+      "chosenIconUrl": "https://queroumacor.com.br/icon-192.png"
+    },
+    {
+      "name": "Notas",
+      "shortName": "Notas",
+      "url": "/notes",
+      "chosenIconUrl": "https://queroumacor.com.br/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://queroumacor.com.br/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": false },
+    "playBilling": { "enabled": true }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "orientation": "default",
+  "fingerprints": [
+    {
+      "name": "release",
+      "value": "REPLACE_WITH_REAL_SHA256_FROM_KEYSTORE"
+    }
+  ],
+  "minSdkVersion": 23,
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "fullScopeUrl": "https://queroumacor.com.br/",
+  "scopeMode": "domain"
+}
