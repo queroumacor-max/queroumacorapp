@@ -1,5 +1,46 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **RELEASE_AUDIT.md (2026-06-11) — 9 blockers atacados.** Auditoria de
+  release nas lojas (Apple App Store + Google Play) em `RELEASE_AUDIT.md`.
+  Status atual:
+  - **C1 Billing platform**: abstração em `next-app/lib/services/billing-platform.ts`
+    detecta web/iOS-wrapper/Android-wrapper e roteia checkout pra
+    MP/StoreKit/Play Billing. `/api/play-billing-verify` e
+    `/api/apple-iap-verify` são STUBS (aceitam token sem call ao server
+    do Apple/Google) — TODO antes de production. Doc: `docs/BILLING_STRATEGY.md`.
+  - **C2+C7 iOS scaffold**: `capacitor.config.ts` + `ios/App/App/Info.plist`
+    + `ios/App/App/PrivacyInfo.xcprivacy` + `AppDelegate.swift` versionados.
+    Falta user instalar Capacitor + rodar `npx cap add ios` em macOS +
+    Xcode. Doc: `docs/IOS_BUILD.md`.
+  - **C3 Android TWA**: `twa-manifest.json` raiz, `docs/ANDROID_BUILD.md`.
+    `.well-known/assetlinks.json` tem SHA-256 + package_name placeholders;
+    user precisa gerar keystore via `bubblewrap build` e atualizar.
+  - **C4 CSAM (SQL Wave 29)**: tabelas `media_hash_blocklist` +
+    `media_review_queue` + coluna `posts.media_hash`. `/api/moderate` agora
+    aceita `mediaUrl`, calcula hash SHA-256, checa blocklist (curto-circuita
+    Gemini em hit), enfileira review em severity hard+. Admin queue em
+    `/admin/media-review`. **SQL AINDA NÃO RODADO** — colar do agent result
+    no SQL Editor. Doc: `docs/CSAM_POLICY.md` (Cloudflare CSAM Scanning
+    Tool a ativar manualmente no painel).
+  - **C5 age gate <16**: `MIN_AGE=16` em `lib/schemas.ts`, `birthDateSchema`
+    obrigatório no signup, revalidação server-side em `signup.ts`. Tests
+    cobrindo. ✓ Live.
+  - **C6 email verification enforce**: `AuthProvider.emailVerified`
+    bloqueia `usePublishPost`, `useComments.add`, `useSendMessage`.
+    `<EmailVerifyBanner>` amarelo global com botão reenviar. ✓ Live.
+  - **C8 Push Notifications (SQL Wave 30)**: Web Push API end-to-end —
+    VAPID JWT ES256 + aes128gcm AES-GCM em `/api/push-notify` (zero deps).
+    Tabela `push_subscriptions` + RLS user-owned + trigger pg_net dispara
+    push em insert de `notifications`. `<PushOptIn>` no ProfileFooter.
+    **SQL AINDA NÃO RODADO** — colar do agent result, habilitar `pg_net`,
+    rodar 2 ALTER DATABASE pra setar `app.push_notify_url` e
+    `app.push_internal_secret`. Falta gerar VAPID keys e setar 4 ENVs no
+    CF Pages: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+    `VAPID_SUBJECT`, `PUSH_INTERNAL_SECRET`. Doc: `docs/PUSH_NOTIFICATIONS.md`.
+    iOS: só funciona iOS 16.4+ em modo PWA "Adicionar à Tela de Início".
+  - **C9 `/delete-account` web URL**: página pública pra Google Play Policy
+    2023. Logado: renderiza DeleteAccountSection. Deslogado: CTA login
+    com `?next=/delete-account` (whitelist em `LoginForm`). ✓ Live.
 - **Fase 4 etapa 2 da modularização: COMPLETA (2026-05-31).** `app.js`
   caiu de **9176 → 1299 linhas (-86%)**. 338 funções foram extraídas em
   44 módulos sob `modules/*.js` (cada um é um IIFE registrando
