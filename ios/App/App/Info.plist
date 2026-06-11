@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>pt_BR</string>
+    <key>CFBundleDisplayName</key>
+    <string>QueroUmaCor</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.calicolors.queroumacor</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.business</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Encryption export compliance: PWA over HTTPS = exempt category -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+
+    <!-- Launch / UI -->
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+    </array>
+    <key>UIRequiresFullScreen</key>
+    <false/>
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleLightContent</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    <key>UIRequiresPersistentWiFi</key>
+    <false/>
+
+    <!-- Orientations: portrait everywhere; iPad also supports landscape -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- Background modes: only remote-notification (Web Push via APNs) -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
+
+    <!--
+        WKAppBoundDomains — pairs with capacitor.config.ts
+        `limitsNavigationsToAppBoundDomains: true`. The WKWebView is
+        only allowed to navigate within these domains, which lets us
+        use cross-origin-aware features (e.g., Web Share, Storage Access
+        API) without prompts.
+    -->
+    <key>WKAppBoundDomains</key>
+    <array>
+        <string>queroumacor.com.br</string>
+        <string>www.queroumacor.com.br</string>
+    </array>
+
+    <!--
+        Usage descriptions (UI permission prompts).
+        Strings must be in pt-BR — the app is Brazil-only. Apple shows
+        these verbatim in the system permission alert; rejecting review
+        for vague strings is common — keep them concrete and user-facing.
+    -->
+    <key>NSCameraUsageDescription</key>
+    <string>O QueroUmaCor usa a câmera para você fotografar seus trabalhos do portfólio e projetar artes na parede com AR Grafite.</string>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>O QueroUmaCor usa o microfone para você gravar notas de voz que o assistente Seu Zé transcreve em orçamentos e atualizações de obra.</string>
+
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>O QueroUmaCor usa sua localização para mostrar pintores próximos e calcular raio de atendimento.</string>
+
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>O QueroUmaCor acessa suas fotos para você publicar trabalhos no feed, montar portfólio e enviar referências para orçamento.</string>
+
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>O QueroUmaCor salva na sua galeria as artes geradas pelo AR Grafite e os PDFs de orçamento.</string>
+
+    <key>NSUserTrackingUsageDescription</key>
+    <string>O QueroUmaCor não realiza rastreamento entre apps. Este aviso está aqui apenas para conformidade do sistema.</string>
+
+    <!--
+        URL scheme for OAuth callback (Supabase / Apple Sign-In if added)
+    -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.calicolors.queroumacor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.calicolors.queroumacor</string>
+            </array>
+        </dict>
+    </array>
+
+    <!--
+        App Transport Security: enforce HTTPS everywhere. No exception
+        domains — capacitor.config.ts also enforces cleartext: false.
+    -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+    </dict>
+</dict>
+</plist>
