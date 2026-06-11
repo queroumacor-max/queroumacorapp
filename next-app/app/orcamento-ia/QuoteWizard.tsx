@@ -175,6 +175,15 @@ export function QuoteWizard() {
     onSuccess: (res) => setPriceResult(res),
   });
 
+  // M8 fix: useMemo precisa rodar ANTES dos early returns (rules-of-hooks).
+  // Valor numérico atual — manual sobrescreve IA. priceResult.price serve de
+  // pré-preencho quando o user clica "Sugerir preço".
+  const effectivePrice = useMemo(() => {
+    const manual = parseFloat(form.price.replace(',', '.'));
+    if (Number.isFinite(manual) && manual > 0) return manual;
+    return priceResult?.price ?? 0;
+  }, [form.price, priceResult]);
+
   if (authLoading) {
     return (
       <div
@@ -235,14 +244,6 @@ export function QuoteWizard() {
   function handleSuggestScope() {
     scopeMutation.mutate(richDescription);
   }
-
-  // Valor numérico atual — manual sobrescreve IA. priceResult.price serve de
-  // pré-preencho quando o user clica "Sugerir preço".
-  const effectivePrice = useMemo(() => {
-    const manual = parseFloat(form.price.replace(',', '.'));
-    if (Number.isFinite(manual) && manual > 0) return manual;
-    return priceResult?.price ?? 0;
-  }, [form.price, priceResult]);
 
   // Profile do pintor pro cabeçalho do PDF/preview.
   type ProfileLite = {
