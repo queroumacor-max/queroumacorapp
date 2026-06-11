@@ -117,6 +117,22 @@ export function SignupFlow() {
           /* silent — user pode subir depois via /perfil/editar */
         }
       }
+      // M2 (LGPD): registra consentimento em consent_log. Best-effort —
+      // falha aqui não invalida cadastro (audit trail é secundário ao
+      // fluxo principal). Grava 2 linhas: terms + privacy. O checkbox no
+      // SignupStep3 é único pra ambos pq Cali Colors trata como mesmo
+      // ato; cada linha permite revogação independente depois.
+      if (userId) {
+        try {
+          const { recordConsent } = await import('@/lib/services/consent');
+          await Promise.all([
+            recordConsent({ userId, consentType: 'terms', consentGiven: true }),
+            recordConsent({ userId, consentType: 'privacy', consentGiven: true }),
+          ]);
+        } catch {
+          /* silent */
+        }
+      }
       // Limpa o referrer salvo + redireciona pro perfil de quem indicou.
       clearPendingReferrer();
       router.push(`/perfil/${ref}`);

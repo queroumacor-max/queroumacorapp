@@ -11,6 +11,7 @@
 //    como `supportWhatsApp()` / `supportEmail()` fazem via window.open/location.
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DeleteAccountSection } from './DeleteAccountSection';
 
 export const metadata: Metadata = {
   title: 'Informações | QueroUmaCor',
@@ -35,11 +36,7 @@ const mailtoHref =
   `?subject=${encodeURIComponent('Suporte QueroUmaCor')}` +
   `&body=${encodeURIComponent('Descreva sua dúvida ou problema:\n\n')}`;
 
-const waDeleteHref =
-  `https://wa.me/${SUPPORT.whatsapp}?text=` +
-  encodeURIComponent(
-    'Olá! Quero solicitar a exclusão da minha conta no QueroUmaCor (LGPD).',
-  );
+// waDeleteHref movido pra DeleteAccountSection.tsx (LGPD M3).
 
 interface InfoItem {
   icon: string;
@@ -83,15 +80,9 @@ const ITEMS: InfoItem[] = [
     body: 'Conectamos clientes aos melhores profissionais de pintura — pintores, grafiteiros, muralistas, pintores automotivos e funileiros.',
     actions: [{ label: 'Saiba mais', href: '/info/sobre' }],
   },
-  {
-    icon: '🗑️',
-    title: 'Excluir minha conta',
-    body: 'Solicite a remoção dos seus dados. Processamos em até 15 dias úteis (LGPD).',
-    actions: [
-      { label: 'Solicitar exclusão', href: waDeleteHref, variant: 'primary' },
-    ],
-    danger: true,
-  },
+  // Card "Excluir minha conta" agora é o componente client
+  // DeleteAccountSection (renderizado no JSX abaixo), que chama o
+  // endpoint /api/delete-account com confirmação dupla.
 ];
 
 export default function InfoPage() {
@@ -117,6 +108,8 @@ export default function InfoPage() {
         {ITEMS.map((item) => (
           <InfoCard key={item.title} item={item} />
         ))}
+
+        <DeleteAccountSection />
 
         <p className="text-center text-xs text-[color:var(--color-muted)] pt-4">
           QueroUmaCor • Versão 1.0
