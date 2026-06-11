@@ -69,9 +69,14 @@ export function usePublishPost(): UsePublishPostResult {
           firstHeight = dims.height;
         }
       }
-      for (const file of input.files) {
-        const { url } = await uploadMedia(user.id, file);
+      // Wave 29 (C4): SHA-256 da primeira mídia. uploadMedia calcula e
+      // retorna o hash junto da URL; só persistimos o da primeira mídia
+      // (paridade com mediaWidth/Height).
+      let firstHash: string | null = null;
+      for (let i = 0; i < input.files.length; i++) {
+        const { url, mediaHash } = await uploadMedia(user.id, input.files[i]);
         urls.push(url);
+        if (i === 0 && mediaHash) firstHash = mediaHash;
       }
       return createPost({
         userId: user.id,
@@ -80,6 +85,7 @@ export function usePublishPost(): UsePublishPostResult {
         mediaType: input.mediaType,
         mediaWidth: firstWidth,
         mediaHeight: firstHeight,
+        mediaHash: firstHash,
         forSale: input.forSale,
         price: input.price ?? null,
         artType: input.artType ?? null,

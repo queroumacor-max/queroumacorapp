@@ -62,6 +62,35 @@ export interface UploadMediaResult {
   url: string;
   mediaType: 'image' | 'video';
   path: string; // path no bucket (útil pra cleanup em rollback)
+  // Wave 29 (C4): SHA-256 hex do binário, calculado ANTES do upload.
+  // Usado pra (1) gravar em `posts.media_hash` (audit/dedup) e (2)
+  // permitir lookup futuro contra `media_hash_blocklist`. Pode ser
+  // string vazia se crypto.subtle não estiver disponível (raro;
+  // browsers modernos têm).
+  mediaHash: string;
+}
+
+/**
+ * SHA-256 hex de um File via crypto.subtle. Edge/browser friendly.
+ * Retorna string vazia se a API não estiver disponível ou arquivo vazio
+ * (caller decide se trata como blocker — uploadMedia segue mesmo sem hash).
+ */
+async function sha256Hex(file: File): Promise<string> {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return '';
+  try {
+    const buf = await file.arrayBuffer();
+    if (buf.byteLength === 0) return '';
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    const bytes = new Uint8Array(digest);
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) {
+      const h = bytes[i].toString(16);
+      out += h.length === 1 ? '0' + h : h;
+    }
+    return out;
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -104,19 +133,28 @@ export async function uploadMedia(
     (mediaType === 'video' ? 'mp4' : 'jpg');
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
+  // Wave 29: SHA-256 do binário ANTES do upload. Calcula em paralelo
+  // com o upload pra não inflar latência (hash de 1-5MB ~50ms; upload
+  // ~200ms-2s na rede móvel).
   const sb = getSupabase();
-  const { error: upError } = await sb.storage.from('posts').upload(path, file, {
-    contentType: mime,
-    upsert: false,
-  });
-  if (upError) {
-    throw new NetworkError(upError.message || 'Falha ao subir mídia.', upError);
+  const [hashResult, uploadResult] = await Promise.all([
+    sha256Hex(file),
+    sb.storage.from('posts').upload(path, file, {
+      contentType: mime,
+      upsert: false,
+    }),
+  ]);
+  if (uploadResult.error) {
+    throw new NetworkError(
+      uploadResult.error.message || 'Falha ao subir mídia.',
+      uploadResult.error,
+    );
   }
   const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
   if (!urlData?.publicUrl) {
     throw new NetworkError('Bucket não devolveu publicUrl.');
   }
-  return { url: urlData.publicUrl, mediaType, path };
+  return { url: urlData.publicUrl, mediaType, path, mediaHash: hashResult };
 }
 
 /**
@@ -394,6 +432,10 @@ export interface CreatePostInput {
   // sem captura (vídeo, ou caller antigo).
   mediaWidth?: number | null;
   mediaHeight?: number | null;
+  // Wave 29 (C4): SHA-256 hex da primeira mídia. Opcional pra compat
+  // com posts sem mídia ou caller antigo. Gravado em `posts.media_hash`
+  // pra rastrear reuploads e habilitar lookup futuro no blocklist.
+  mediaHash?: string | null;
   forSale?: boolean;
   price?: number | null;
   artType?: string | null;
@@ -450,6 +492,9 @@ export async function createPost(
       // <img width height> no feed sem onLoad → CLS zero.
       media_width: input.mediaWidth ?? null,
       media_height: input.mediaHeight ?? null,
+      // Wave 29 (C4): SHA-256 da primeira mídia (gravado pra dedup +
+      // futura integração com blocklist).
+      media_hash: input.mediaHash ?? null,
       // Wave 20 / S5: link externo. Schema impõe sanidade (http/https
       // validado no client antes daqui).
       link_url: input.linkUrl ?? null,
