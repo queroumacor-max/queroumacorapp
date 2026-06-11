@@ -628,11 +628,11 @@ Linha 56, sem try/catch. Trocar por `structuredClone(next)`.
 ## 18. FINAL LAUNCH CHECKLIST
 
 ### 🔴 Bloqueia launch — fazer antes
-- [ ] **B1** Decidir destino do vanilla legado (deletar OU consolidar) — 1-2 semanas
-- [ ] **B2** Fix RLS orders (INSERT/UPDATE com `auth.uid() = user_id`)
-- [ ] **B3** Adicionar UPDATE policy em messages + filtrar deleted_at no SELECT
-- [ ] **B4** Restringir quotes SELECT pra participants + admin
-- [ ] **B5** Adicionar path validation em storage posts + avatars
+- [~] **B1** Vanilla legado: **EM ANDAMENTO** — `/avaliar` e Maquininha portados, killswitch SW deployado. Falta delete dos 122 arquivos vanilla (`app.js`, `head.js`, `shims.js`, `modules/`, `functions/api/*.js`, `styles.css`, `index.html`, etc.).
+- [x] **B2** ~~Fix RLS orders~~ — Wave 27 ✓
+- [x] **B3** ~~messages UPDATE + SELECT filter~~ — Wave 27 ✓
+- [x] **B4** ~~quotes SELECT~~ — Wave 27 ✓
+- [x] **B5** ~~storage posts + avatars path validation~~ — Wave 27 ✓
 
 ### 🟡 Forte recomendação — fazer antes do GA
 - [ ] **M1** Setar `MP_WEBHOOK_SECRET` + `MP_WEBHOOK_ENFORCE=true`
@@ -640,9 +640,11 @@ Linha 56, sem try/catch. Trocar por `structuredClone(next)`.
 - [ ] **M3** Endpoint `/api/delete-account` LGPD
 - [ ] **M4** Configurar pg_cron pros 3 cleanup jobs
 - [ ] **M5** Atualizar database.types.ts (rodar supabase gen types)
-- [ ] **M6** Verificar lógica Seu Zé visibility
-- [ ] **M7** Gate de role em /alice
-- [ ] **M8** Fix ESLint dependency
+- [x] **M6** ~~Bug Seu Zé visibility~~ — ✓
+- [x] **M7** ~~Gate de role em /alice~~ — ✓
+- [x] **M8** ~~Fix ESLint dependency~~ — ✓
+- [ ] **M9** comments realtime invalida globalmente (N+1)
+- [ ] **M10** `JSON.parse(JSON.stringify(next))` em ChecklistView sem try/catch
 - [ ] DMARC em calicolors.com.br (DNS GoDaddy)
 - [ ] Popular variants pros 4.171 produtos (SQL bulk pronto, aguarda execução)
 

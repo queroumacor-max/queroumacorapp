@@ -419,6 +419,27 @@
   6 blocos separados pra contornar erro 42601 com `text[] NOT NULL
   DEFAULT '{}'` em alguns editores Supabase managed; default usado foi
   `ARRAY[]::text[]`.
+- **SQL Wave 27 (2026-06-10) — RLS hardening pós LAUNCH_AUDIT — JÁ
+  EXECUTADO no Supabase.** Fecha os 4 blockers críticos B2-B5 do
+  `LAUNCH_AUDIT.md`:
+  (B2) `orders` INSERT/UPDATE com `auth.uid()=user_id` no WITH CHECK
+  (antes era `WITH CHECK (true)` — user A podia criar order pra B);
+  (B3) `messages` ganha UPDATE policy (sender/receiver), SELECT filtra
+  `deleted_at IS NULL` (admin via `is_portal_admin()` ainda enxerga);
+  (B4) `quotes` SELECT restrito a `client_id` + `painter_id` + admin
+  (antes USING `true` expunha phone/address de leads — LGPD);
+  (B5) storage `posts` + `avatars` com path validation
+  `split_part(name, '/', 1) = auth.uid()::text` (antes qualquer auth
+  user podia escrever em qualquer path — path traversal). Path pattern
+  `{userId}/...` já era seguido por todos uploads no Next. Migration
+  em `/migrations/2026-06-10-wave-27-rls-hardening.sql`. Idempotente.
+- **LAUNCH_AUDIT.md** (na raiz do repo) — auditoria de
+  production-readiness via 6 sub-auditorias paralelas. 5 blockers
+  iniciais: B1 (vanilla legado) **EM ANDAMENTO** (ports `/avaliar` +
+  Maquininha entregues, killswitch SW deployado, delete dos 122
+  arquivos pendente); B2-B5 (RLS) **RESOLVIDOS via Wave 27**. Médios
+  M6 (Seu Zé visibility), M7 (`/alice` role gate), M8 (ESLint dep
+  corruption) **RESOLVIDOS**. Restantes M1-M5+M9-M10: ver audit.
 - **SQL Wave 21 (2026-06-09) — plataforma social (S2/S6/S7/S8) — JÁ
   EXECUTADO no Supabase.** Tabela `blocks(blocker_id, blocked_id)` com
   UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS
