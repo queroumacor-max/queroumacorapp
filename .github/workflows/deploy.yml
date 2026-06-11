@@ -13,6 +13,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,10 +24,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: next-app/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Build Cloudflare Pages output
+        run: npx @cloudflare/next-on-pages@1
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=queroumacorapp --branch=main --commit-dirty=true
+          workingDirectory: next-app
+          command: pages deploy .vercel/output/static --project-name=queroumacorapp --branch=main --commit-dirty=true
