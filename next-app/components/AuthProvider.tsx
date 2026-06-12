@@ -86,6 +86,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // CRIT-4: limpa o cookie httpOnly `sb-session-token` (gravado no login
+    // por /api/auth/set-session-cookie) pra que o guard server-side de
+    // /admin/* não conceda acesso após logout. Não-fatal.
+    try {
+      await fetch('/api/auth/set-session-cookie', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+    } catch {
+      // Silencioso.
+    }
     await getSupabase().auth.signOut();
   }, []);
 
