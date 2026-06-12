@@ -7,13 +7,18 @@
 
 import type { Metadata } from 'next';
 import { FlagsAdmin } from './FlagsAdmin';
+import { requireAdminServer } from '@/lib/auth-server';
 
 export const metadata: Metadata = {
   title: 'Feature Flags | QueroUmaCor Admin',
   description: 'Gerencia rollout de features experimentais.',
 };
 
-export default function AdminFlagsPage() {
+// CRIT-4 (audit 2026-06-12): guard server-side. Não-admin recebe 404.
+export const dynamic = 'force-dynamic';
+
+export default async function AdminFlagsPage() {
+  await requireAdminServer();
   return (
     <main className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: 'var(--font-display)' }}>

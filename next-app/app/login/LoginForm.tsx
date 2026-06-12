@@ -15,6 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
+import { getSupabase } from '@/lib/supabase';
 
 const schema = z.object({
   email: emailSchema,
@@ -69,6 +70,24 @@ export function LoginForm() {
           : error;
       setServerError(friendly);
       return;
+    }
+    // CRIT-4: grava cookie httpOnly com access_token pra que RSCs do painel
+    // /admin/* consigam validar admin server-side via lib/auth-server.ts.
+    // Não-fatal: se falhar, login continua normal (cookie só afeta /admin).
+    try {
+      const sb = getSupabase();
+      const { data } = await sb.auth.getSession();
+      const accessToken = data.session?.access_token;
+      if (accessToken) {
+        await fetch('/api/auth/set-session-cookie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken }),
+          credentials: 'same-origin',
+        });
+      }
+    } catch {
+      // Silencioso — UX-only pra admin.
     }
     // Após login bem-sucedido: redireciona pra `?next=` quando válido
     // (whitelist), senão `/feed`. Vanilla fazia `showScreen('feed')` em

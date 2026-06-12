@@ -8,6 +8,7 @@
 
 import type { Metadata } from 'next';
 import { MediaReviewAdmin } from './MediaReviewAdmin';
+import { requireAdminServer } from '@/lib/auth-server';
 
 export const metadata: Metadata = {
   title: 'Fila de revisão de mídia | QueroUmaCor Admin',
@@ -15,7 +16,11 @@ export const metadata: Metadata = {
     'Mídias enviadas pelos usuários que foram flagadas pela moderação automática.',
 };
 
-export default function AdminMediaReviewPage() {
+// CRIT-4 (audit 2026-06-12): guard server-side. Não-admin recebe 404.
+export const dynamic = 'force-dynamic';
+
+export default async function AdminMediaReviewPage() {
+  await requireAdminServer();
   return (
     <main className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1

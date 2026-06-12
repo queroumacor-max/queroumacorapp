@@ -4,13 +4,18 @@
 
 import type { Metadata } from 'next';
 import { ProductsAdminList } from './ProductsAdminList';
+import { requireAdminServer } from '@/lib/auth-server';
 
 export const metadata: Metadata = {
   title: 'Produtos | QueroUmaCor Admin',
   description: 'Gerencia variantes de tamanho dos produtos da loja.',
 };
 
-export default function AdminProductsPage() {
+// CRIT-4 (audit 2026-06-12): guard server-side. Não-admin recebe 404.
+export const dynamic = 'force-dynamic';
+
+export default async function AdminProductsPage() {
+  await requireAdminServer();
   return (
     <main className="min-h-screen p-4 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: 'var(--font-display)' }}>
