@@ -41,6 +41,30 @@
   - **C9 `/delete-account` web URL**: página pública pra Google Play Policy
     2023. Logado: renderiza DeleteAccountSection. Deslogado: CTA login
     com `?next=/delete-account` (whitelist em `LoginForm`). ✓ Live.
+- **5 CRITICALs do audit 2026-06-12 FECHADOS.** Detalhes em
+  `next-app/lib/utils/sanitize.ts`, `next-app/lib/auth-server.ts`,
+  `next-app/lib/api/env-check.ts` e nos commits `22b6dc9`, `91927d2`,
+  `650e7b8`, `047a147`, `948c21a`:
+  - **CRIT-1 IAP stubs**: `/api/{play-billing,apple-iap}-verify` agora
+    retornam 503 sem `IAP_PRODUCTION_VERIFICATION_ENABLED=true`. NÃO
+    setar essa env até implementar verificação real (Google Play
+    Developer API + Apple verifyReceipt).
+  - **CRIT-2 MP webhook**: fail-closed em prod sem `MP_WEBHOOK_SECRET`.
+    Rejeição vai pra `audit_log` (`action='mp.webhook.rejected_no_secret'`).
+  - **CRIT-3 XSS Search**: `sanitizeSearchSnippet()` no frontend
+    (escape HTML + sentinelas `⟦HL_OPEN⟧`/`⟦HL_CLOSE⟧` viram `<b>`).
+    **SQL Wave 31 JÁ EXECUTADO** (`search_all` recria com sentinelas
+    no `ts_headline`). Defesa em profundidade ativa.
+  - **CRIT-4 Admin RSC auth**: `requireAdminServer()` em todas as 6
+    pages `/admin/*`. Login agora grava cookie httpOnly
+    `sb-session-token` via `/api/auth/set-session-cookie` (POST=set,
+    DELETE=clear no signOut). **Admins precisam logar uma vez após
+    o deploy pra gerar o cookie.** Sessões anteriores não habilitam
+    `/admin/*` (vão pra 404).
+  - **CRIT-5 requirePro fail-closed**: `requirePro()` e `gateAiUsage()`
+    em prod sem `SUPABASE_SERVICE_ROLE_KEY` retornam 503. Boot check
+    `assertProductionEnvs()` chama no module-load do `security.ts`;
+    em vitest skipa salvo `{ force: true }`.
 - **Fase 4 etapa 2 da modularização: COMPLETA (2026-05-31).** `app.js`
   caiu de **9176 → 1299 linhas (-86%)**. 338 funções foram extraídas em
   44 módulos sob `modules/*.js` (cada um é um IIFE registrando
