@@ -16,6 +16,12 @@
 //     compatibilidade com endpoints que ainda dependem dela.
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { assertProductionEnvs } from './env-check';
+
+// Boot-time check: roda 1x por cold-start de edge runtime. Em produção
+// throws se faltar env crítica (Supabase URL/anon/service-role) — preferível
+// a fail-open silencioso. Em dev/staging é no-op.
+assertProductionEnvs();
 
 export const ERR_PRO_ONLY = 'Esta função é exclusiva do Plano PRO ⚡';
 export const ERR_UNAVAILABLE = 'serviço temporariamente indisponível';
@@ -287,9 +293,11 @@ export function rateLimitResponse(rl: RateLimitResult): NextResponse {
 
 /**
  * Consulta `profiles.is_pro` + `pro_expires_at` via service_role.
- * FAIL-OPEN quando userId vazio ou service key ausente (mantém compat
- * com vanilla). FAIL-CLOSED quando service key existe mas Supabase
- * está indisponível — atacante não bypassa PRO via DoS.
+ * FAIL-OPEN quando userId vazio (anônimo — gateProAI já barra). FAIL-CLOSED
+ * em produção quando service key ausente (CRIT-5: env quebrada em prod não
+ * pode liberar todos os features PRO). Dev/staging mantém fail-open pra DX.
+ * FAIL-CLOSED quando service key existe mas Supabase está indisponível —
+ * atacante não bypassa PRO via DoS.
  */
 export async function requirePro(
   userId: string | null | undefined
@@ -297,7 +305,13 @@ export async function requirePro(
   if (!userId) return { pro: true, checked: false };
   const serviceKey = getServiceKey();
   if (!serviceKey) {
-    console.warn('requirePro: service key não configurada — fail-open');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        'requirePro: SUPABASE_SERVICE_ROLE_KEY ausente em produção — bloqueando acesso (fail-closed)'
+      );
+      return { pro: false, checked: false, error: 'service_unavailable' };
+    }
+    console.warn('requirePro: service key ausente — dev/staging fail-open');
     return { pro: true, checked: false };
   }
   let supaUrl: string;
@@ -393,8 +407,12 @@ import {
  *   2. is_pro_active (RPC com grace) → 'pro' (limite 500)
  *   3. fallback → 'free' (limite 30)
  *
- * Fail-open: se DB não responde, libera (preferimos perder telemetria a
- * travar usuário PRO legítimo).
+ * `getPlanLimitViaRest` e `getAiUsageThisMonthViaRest` continuam fail-open
+ * em DB error temporário — isso é resiliência (preferimos perder telemetria
+ * a travar usuário PRO legítimo num blip do banco). O que mudou (CRIT-5):
+ * service key AUSENTE agora é fail-CLOSED em produção, porque indica config
+ * quebrada (não blip transitório), e o comportamento antigo libera-tudo era
+ * abuso de quota IA esperando acontecer.
  */
 export async function gateAiUsage(opts: {
   userId: string | undefined;
@@ -408,7 +426,17 @@ export async function gateAiUsage(opts: {
   }
   const serviceKey = getServiceKey();
   if (!serviceKey) {
-    // Sem service key, não dá pra checar — fail-open.
+    if (process.env.NODE_ENV === 'production') {
+      // CRIT-5: env quebrada em prod não pode liberar quota IA.
+      console.error(
+        'gateAiUsage: SUPABASE_SERVICE_ROLE_KEY ausente em produção — 503 (fail-closed)'
+      );
+      return NextResponse.json(
+        { error: 'service_unavailable' },
+        { status: 503 }
+      );
+    }
+    // dev/staging: deixa passar pra DX (mesmo comportamento antigo).
     return { allowed: true, plan: 'free', used: 0, limit: 30 };
   }
   let supaUrl: string;
