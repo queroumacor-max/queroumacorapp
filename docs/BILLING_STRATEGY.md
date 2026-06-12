@@ -1,10 +1,38 @@
 # BILLING_STRATEGY.md
 
-**Última atualização:** 2026-06-11
+**Última atualização:** 2026-06-12
 **Owner:** Cali Colors / QueroUmaCor
 **Escopo:** Estratégia de cobrança da assinatura PRO (R$ 39/mês) e da
 loja física (tinta, camiseta etc.) considerando políticas da Apple App
 Store, Google Play Store e Mercado Pago (web).
+
+---
+
+## Status de implementação (2026-06-12)
+
+⚠️ **Endpoints `/api/play-billing-verify` e `/api/apple-iap-verify` estão
+DESABILITADOS por padrão** (retornam `503 { error: 'iap_not_implemented' }`).
+Esse kill-switch fecha o CRIT-1 do audit 2026-06-12 — os handlers eram
+stubs que aceitavam qualquer `purchaseToken`/`receipt` forjado e ativavam
+PRO grátis via `upsert_invoice(status='paid')`.
+
+Tentativas com a flag desligada são logadas em `audit_log` com action
+`iap.play_billing.attempt_blocked` / `iap.apple.attempt_blocked` para
+rastrear abuso.
+
+Pra reabilitar:
+
+1. **Implementar verificação server-side real** (TODOs no JSDoc dos dois
+   arquivos):
+   - Google Play: `androidpublisher.purchases.subscriptionsv2.get` com
+     service account em `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+   - Apple: POST `https://buy.itunes.apple.com/verifyReceipt` com
+     `APPLE_APP_SHARED_SECRET`, validar `status === 0`.
+2. **Setar** `IAP_PRODUCTION_VERIFICATION_ENABLED=true` no Cloudflare
+   Pages (production + preview, se quiser testar em staging).
+
+⚠️ **NÃO LIGUE** a flag antes desses dois passos — qualquer token
+forjado ativaria PRO grátis (regressão direta do CRIT-1).
 
 ---
 
