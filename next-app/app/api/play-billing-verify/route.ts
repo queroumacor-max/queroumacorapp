@@ -9,7 +9,13 @@
 // produção, qualquer cliente honesto vai mandar um token válido, mas qualquer
 // um pode forjar um string aleatório e virar PRO.
 //
-// PRÉ-PRODUÇÃO TODO:
+// 🛑 KILL-SWITCH (CRIT-1 audit 2026-06-12)
+// ────────────────────────────────────────
+// Pra fechar o exploit enquanto a verificação real não está implementada,
+// o handler é GATED por `IAP_PRODUCTION_VERIFICATION_ENABLED === 'true'`.
+// Sem a flag, retorna 503 `iap_not_implemented` e loga a tentativa em
+// `audit_log` (rastreio anti-abuse). **NÃO LIGUE essa flag** antes de:
+//
 //   1. Instalar `googleapis` (`npm i googleapis`).
 //   2. Criar service account no Google Cloud Console com permissão
 //      `androidpublisher.subscriptions.get` e armazenar JSON em
@@ -23,7 +29,8 @@
 //      via Pub/Sub pra atualizar status em renewal/cancel/grace sem
 //      precisar de polling.
 //
-// Detalhes em `docs/BILLING_STRATEGY.md`.
+// Ligar a flag SEM esses passos = qualquer token forjado vira PRO grátis
+// (CRIT-1 do audit 2026-06-12). Detalhes em `docs/BILLING_STRATEGY.md`.
 
 import { type NextRequest, NextResponse } from 'next/server';
 import {
@@ -34,6 +41,7 @@ import {
   requireAuthStrict,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -79,8 +87,50 @@ export async function POST(request: NextRequest) {
     return jsonResponse({ error: 'auth falhou' }, 401);
   }
 
+  // CRIT-1 fix: stub não pode ativar PRO sem validação real.
+  // Ligamos via env var explícita SÓ depois de implementar a chamada
+  // real ao Google Play Developer API
+  // (androidpublisher.purchases.subscriptionsv2.get). Sem isso, qualquer
+  // purchaseToken aceito = PRO grátis. Ver docs/BILLING_STRATEGY.md.
+  const verificationEnabled =
+    process.env.IAP_PRODUCTION_VERIFICATION_ENABLED === 'true';
+  if (!verificationEnabled) {
+    console.warn(
+      '[play-billing-verify] Endpoint desabilitado: IAP_PRODUCTION_VERIFICATION_ENABLED != true. ' +
+        'Verificação server-side com Google Play Developer API ainda não implementada.'
+    );
+    // Audit log pra rastrear tentativas (pode ser exploit).
+    try {
+      await logAuditEvent({
+        actorId: userId,
+        action: 'iap.play_billing.attempt_blocked',
+        targetTable: 'invoices',
+        targetId: null,
+        changes: {
+          reason: 'verification_not_enabled',
+          productId,
+        },
+        request,
+      });
+    } catch {
+      /* silent — fail-open de auditoria */
+    }
+    return NextResponse.json(
+      {
+        error: 'iap_not_implemented',
+        message:
+          'Verificação server-side de Google Play Billing ainda não implementada. ' +
+          'Use o checkout web (Mercado Pago) ou aguarde a implementação completa.',
+      },
+      { status: 503 }
+    );
+  }
+
   // ⚠️  STUB: produção precisa chamar Google Play Developer API aqui.
-  // Sem isso, qualquer token é aceito. Veja JSDoc no topo do arquivo.
+  // Mesmo com `verificationEnabled === true`, o código abaixo PRECISA
+  // chamar Google Play Developer API antes de gravar a invoice. Por
+  // enquanto, está como stub — ver docs/BILLING_STRATEGY.md pra TODO.
+  // Sem isso, qualquer token é aceito.
   console.warn(
     '[play-billing-verify] STUB: aceitando purchaseToken sem verificação ' +
       'server-side. NÃO usar em produção sem chamar Google Play Developer API.'

@@ -8,7 +8,13 @@
 // Em produção, qualquer cliente honesto vai mandar um receipt válido, mas
 // qualquer um pode forjar um string aleatório e virar PRO.
 //
-// PRÉ-PRODUÇÃO TODO:
+// 🛑 KILL-SWITCH (CRIT-1 audit 2026-06-12)
+// ────────────────────────────────────────
+// Pra fechar o exploit enquanto a verificação real não está implementada,
+// o handler é GATED por `IAP_PRODUCTION_VERIFICATION_ENABLED === 'true'`.
+// Sem a flag, retorna 503 `iap_not_implemented` e loga a tentativa em
+// `audit_log` (rastreio anti-abuse). **NÃO LIGUE essa flag** antes de:
+//
 //   1. Configurar `APPLE_APP_SHARED_SECRET` (App Store Connect →
 //      Subscriptions → App-Specific Shared Secret).
 //   2. POST `https://buy.itunes.apple.com/verifyReceipt` (production) ou
@@ -20,7 +26,8 @@
 //   4. Idealmente também configurar App Store Server Notifications V2
 //      (webhook do Apple) pra renewal/cancel/grace sem polling.
 //
-// Detalhes em `docs/BILLING_STRATEGY.md`.
+// Ligar a flag SEM esses passos = qualquer receipt forjado vira PRO grátis
+// (CRIT-1 do audit 2026-06-12). Detalhes em `docs/BILLING_STRATEGY.md`.
 
 import { type NextRequest, NextResponse } from 'next/server';
 import {
@@ -31,6 +38,7 @@ import {
   requireAuthStrict,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
@@ -75,8 +83,49 @@ export async function POST(request: NextRequest) {
     return jsonResponse({ error: 'auth falhou' }, 401);
   }
 
+  // CRIT-1 fix: stub não pode ativar PRO sem validação real.
+  // Ligamos via env var explícita SÓ depois de implementar a chamada
+  // real ao Apple verifyReceipt. Sem isso, qualquer receipt aceito =
+  // PRO grátis. Ver docs/BILLING_STRATEGY.md.
+  const verificationEnabled =
+    process.env.IAP_PRODUCTION_VERIFICATION_ENABLED === 'true';
+  if (!verificationEnabled) {
+    console.warn(
+      '[apple-iap-verify] Endpoint desabilitado: IAP_PRODUCTION_VERIFICATION_ENABLED != true. ' +
+        'Verificação server-side com Apple verifyReceipt ainda não implementada.'
+    );
+    // Audit log pra rastrear tentativas (pode ser exploit).
+    try {
+      await logAuditEvent({
+        actorId: userId,
+        action: 'iap.apple.attempt_blocked',
+        targetTable: 'invoices',
+        targetId: null,
+        changes: {
+          reason: 'verification_not_enabled',
+          productId,
+        },
+        request,
+      });
+    } catch {
+      /* silent — fail-open de auditoria */
+    }
+    return NextResponse.json(
+      {
+        error: 'iap_not_implemented',
+        message:
+          'Verificação server-side de Apple verifyReceipt ainda não implementada. ' +
+          'Use o checkout web (Mercado Pago) ou aguarde a implementação completa.',
+      },
+      { status: 503 }
+    );
+  }
+
   // ⚠️  STUB: produção precisa chamar Apple verifyReceipt aqui.
-  // Sem isso, qualquer receipt é aceito. Veja JSDoc no topo do arquivo.
+  // Mesmo com `verificationEnabled === true`, o código abaixo PRECISA
+  // chamar Apple verifyReceipt antes de gravar a invoice. Por enquanto,
+  // está como stub — ver docs/BILLING_STRATEGY.md pra TODO. Sem isso,
+  // qualquer receipt é aceito.
   console.warn(
     '[apple-iap-verify] STUB: aceitando receipt sem verificação ' +
       'server-side. NÃO usar em produção sem chamar Apple verifyReceipt.'
