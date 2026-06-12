@@ -37,6 +37,20 @@ export interface AuditEventOpts {
   changes?: Record<string, unknown> | null;
   /** Request original — usado pra extrair IP/UA. Opcional pra calls server-only. */
   request?: Request | { headers: Headers } | null;
+  /**
+   * Quando `true`, falha do insert dispara `throw` em vez de fail-open
+   * silencioso. Use pra ações LGPD/financeiras (R-H5) onde perder o
+   * registro é problema regulatório. Default `false` (compat: fail-open).
+   *
+   * Cobre 3 caminhos de falha:
+   *   - action vazia → throw `audit critical: empty action`
+   *   - config ausente (SUPABASE_URL / service key) → throw
+   *   - REST insert retornou !ok ou network error → throw
+   *
+   * Caller é responsável por traduzir o throw em 500 genérico (não vazar
+   * `error.message` pro cliente — pode conter detalhes de infra).
+   */
+  critical?: boolean;
 }
 
 function pickIp(headers: Headers): string | null {
@@ -77,9 +91,14 @@ function truncateChanges(changes: Record<string, unknown> | null | undefined): u
 }
 
 /**
- * Grava um evento de auditoria. NUNCA throws — falha vira `console.warn`.
+ * Grava um evento de auditoria.
  *
- * Chamada típica:
+ * Por padrão é FAIL-OPEN: qualquer erro vira `console.warn` e o controller
+ * segue. Pra ações LGPD/financeiras (R-H5), passe `critical: true` — neste
+ * modo qualquer falha de insert (config ausente, !ok, network) vira `throw`
+ * e o caller deve traduzir pra 500 genérico.
+ *
+ * Chamada típica (fail-open):
  *   await logAuditEvent({
  *     actorId: callerId,
  *     action: 'admin.user.set_pro',
@@ -88,16 +107,30 @@ function truncateChanges(changes: Record<string, unknown> | null | undefined): u
  *     changes: { is_pro: { from: false, to: true } },
  *     request,
  *   });
+ *
+ * Chamada crítica (LGPD/financeiro):
+ *   try {
+ *     await logAuditEvent({ ..., critical: true });
+ *   } catch (e) {
+ *     return NextResponse.json({ error: 'erro interno' }, { status: 500 });
+ *   }
  */
 export async function logAuditEvent(opts: AuditEventOpts): Promise<void> {
+  const critical = !!opts.critical;
   try {
     if (!opts.action) {
       console.warn('audit: action vazia, skip');
+      if (critical) {
+        throw new Error('audit critical: empty action');
+      }
       return;
     }
     const serviceKey = getServiceKey();
     if (!serviceKey) {
       console.warn('audit: SUPABASE_SERVICE_ROLE ausente, skip');
+      if (critical) {
+        throw new Error('audit critical: SUPABASE_SERVICE_ROLE ausente');
+      }
       return;
     }
 
@@ -106,6 +139,9 @@ export async function logAuditEvent(opts: AuditEventOpts): Promise<void> {
       supaUrl = getSupabaseUrl();
     } catch {
       console.warn('audit: SUPABASE_URL ausente, skip');
+      if (critical) {
+        throw new Error('audit critical: SUPABASE_URL ausente');
+      }
       return;
     }
 
@@ -138,9 +174,16 @@ export async function logAuditEvent(opts: AuditEventOpts): Promise<void> {
     if (!r.ok) {
       const txt = (await r.text().catch(() => '')).slice(0, 200);
       console.warn('audit: insert falhou', r.status, txt);
+      if (critical) {
+        throw new Error(`audit critical insert failed: status=${r.status}`);
+      }
     }
   } catch (e) {
-    // FAIL-OPEN absoluto — qualquer exception aqui vira warn, nunca propaga.
+    // FAIL-OPEN por default — qualquer exception aqui vira warn.
+    // FAIL-CLOSED quando `critical: true` — re-throw pra caller traduzir em 500.
     console.warn('audit: exception', e instanceof Error ? e.message : e);
+    if (critical) {
+      throw e instanceof Error ? e : new Error('audit critical failure');
+    }
   }
 }

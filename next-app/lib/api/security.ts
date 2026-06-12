@@ -17,6 +17,11 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { assertProductionEnvs } from './env-check';
+// `isAdminEmail` é implementada em `admin-config.ts` (cache + validação
+// no startup, R-H6). Re-exportada abaixo pra manter o contrato existente
+// (chamadores já importam de `lib/api/security`).
+import { isAdminEmail } from './admin-config';
+export { isAdminEmail };
 
 // Boot-time check: roda 1x por cold-start de edge runtime. Em produção
 // throws se faltar env crítica (Supabase URL/anon/service-role) — preferível
@@ -190,19 +195,6 @@ export async function requireAuthStrict(
     user: { id: user.id, email: (user.email || '').toLowerCase() },
     token,
   };
-}
-
-/**
- * Checa se `email` está em ADMIN_EMAILS (comma-separated env var).
- * Equivalente ao vanilla `_admin.isAdminEmail`.
- */
-export function isAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const admins = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map(s => s.trim().toLowerCase())
-    .filter(Boolean);
-  return admins.includes(email.toLowerCase());
 }
 
 /**
