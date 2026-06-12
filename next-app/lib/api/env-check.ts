@@ -22,8 +22,16 @@ const REQUIRED_IN_PROD = [
   'SUPABASE_SERVICE_ROLE_KEY',
 ] as const;
 
-export function assertProductionEnvs(): void {
+export function assertProductionEnvs(opts: { force?: boolean } = {}): void {
   if (process.env.NODE_ENV !== 'production') return;
+  // Skip silencioso quando importado durante vitest (`security.ts` chama
+  // `assertProductionEnvs()` no module-load; outros tests setam
+  // NODE_ENV='production' pra exercitar caminhos fail-closed e seriam
+  // obrigados a mockar TODAS as envs prod só por causa desse assert).
+  // Tests que querem exercitar o assert chamam com `{ force: true }`.
+  if (!opts.force && (process.env.VITEST === 'true' || process.env.VITEST_WORKER_ID)) {
+    return;
+  }
   const missing = REQUIRED_IN_PROD.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     // Edge runtime não tem process.exit; throw é a única opção.

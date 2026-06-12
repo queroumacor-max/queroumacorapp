@@ -222,7 +222,7 @@ describe('assertProductionEnvs', () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     const { assertProductionEnvs } = await import('../../lib/api/env-check');
-    expect(() => assertProductionEnvs()).toThrow(
+    expect(() => assertProductionEnvs({ force: true })).toThrow(
       /Variáveis obrigatórias ausentes em produção/
     );
   });
@@ -254,6 +254,6 @@ describe('assertProductionEnvs', () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     const { assertProductionEnvs } = await import('../../lib/api/env-check');
-    expect(() => assertProductionEnvs()).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
+    expect(() => assertProductionEnvs({ force: true })).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
   });
 });
