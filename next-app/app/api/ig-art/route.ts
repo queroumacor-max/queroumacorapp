@@ -10,6 +10,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { errorResponse } from '@/lib/api/errors';
 import { generateIgArt } from '@/lib/api/_services/ig-art';
 
 export const runtime = 'edge';
@@ -37,14 +38,13 @@ export async function POST(request: NextRequest) {
     return await Promise.race([handle(request), hardTimeout]);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.error('ig-art handler-crash:', e instanceof Error ? e.message : e);
-    return NextResponse.json(
-      {
-        error: 'Erro interno',
-        detail: String(e instanceof Error ? e.message : e).slice(0, 200),
-      },
-      { status: 500 }
-    );
+    // R-H11: detalhe da exception vai pro Sentry, cliente recebe msg amigável
+    // sem leak (antes mandava `e.message` que vazava hostnames internos).
+    return errorResponse(e, {
+      status: 500,
+      clientMessage: 'Erro interno',
+      tags: { route: 'ig-art' },
+    });
   }
 }
 

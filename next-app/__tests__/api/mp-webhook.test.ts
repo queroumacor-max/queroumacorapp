@@ -601,7 +601,10 @@ describe('POST /api/mp-webhook — preapproval (PRO)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('cancelled preapproval deactivates PRO', async () => {
+  it('cancelled preapproval keeps PRO until pro_expires_at (R-H12 grace)', async () => {
+    // R-H12: cancel NÃO revoga acesso imediato — mantém PRO até fim do ciclo.
+    // Flow: GET MP preapproval → GET profile (pro_expires_at) → PATCH profile.
+    const existingExpiresAt = '2026-08-01T00:00:00.000Z';
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -614,6 +617,12 @@ describe('POST /api/mp-webhook — preapproval (PRO)', () => {
           { status: 200 }
         )
       )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([{ pro_expires_at: existingExpiresAt }]),
+          { status: 200 }
+        )
+      )
       .mockResolvedValueOnce(new Response(null, { status: 200 }));
     globalThis.fetch = fetchMock;
     const { POST } = await import('@/app/api/mp-webhook/route');
@@ -622,9 +631,18 @@ describe('POST /api/mp-webhook — preapproval (PRO)', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(200);
-    const patch = JSON.parse(fetchMock.mock.calls[1][1].body);
-    expect(patch.is_pro).toBe(false);
-    expect(patch.pro_expires_at).toBeNull();
+    // 3a chamada (index 2) é o PATCH em /rest/v1/profiles
+    const patchCall = fetchMock.mock.calls[2];
+    expect(patchCall[1].method).toBe('PATCH');
+    const patch = JSON.parse(patchCall[1].body);
+    // NÃO seta is_pro=false (acesso continua até pro_expires_at)
+    expect(patch.is_pro).toBeUndefined();
+    // NÃO zera pro_expires_at (mantém expiração natural do ciclo pago)
+    expect(patch.pro_expires_at).toBeUndefined();
+    // Copia pro_expires_at em pro_grace_until pra UX sinalizar "expira em"
+    expect(patch.pro_grace_until).toBe(existingExpiresAt);
+    // Marca mp_preapproval_id pra trilha
+    expect(patch.mp_preapproval_id).toBe('pre-cancel');
   });
 
   it('pending preapproval is no-op (does NOT touch is_pro)', async () => {

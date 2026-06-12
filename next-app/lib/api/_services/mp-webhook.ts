@@ -439,13 +439,51 @@ async function processPreapprovalEvent(opts: {
       ).toISOString(),
     };
   } else if (status === 'cancelled' || status === 'paused') {
-    // Desativa só em estados finais — NUNCA em 'pending' (estado
-    // intermediário de uma 2ª subscription pendente; zerar is_pro aqui
-    // tira PRO de quem já pagou a 1ª).
+    // R-H12 (2026-06-12): cancel/pause da subscription NÃO revoga acesso
+    // imediato — usuário mantém PRO até o fim do ciclo já pago.
+    //
+    // Comportamento documentado:
+    //   (1) acesso continua até `pro_expires_at` (data do fim do ciclo);
+    //   (2) `pro_grace_until = pro_expires_at` sinaliza pro UX "subscription
+    //       cancelada, expira em <data>";
+    //   (3) `is_pro_active(uuid)` (SQL Wave 7) honra `pro_grace_until`
+    //       (cláusula OR no SQL), então user permanece PRO até a data;
+    //   (4) admin pode revogar IMEDIATO via `/admin/users` se precisar
+    //       (chargeback, fraude) — esse caminho zera `is_pro`/`pro_expires_at`.
+    //
+    // NÃO setamos `is_pro=false` aqui nem zeramos `pro_expires_at`. O
+    // próximo ciclo que não chegar ativa a expiração natural via `now()`.
+    //
+    // SELECT prévio do profile pra copiar `pro_expires_at` em
+    // `pro_grace_until` — UX precisa do timestamp pra mostrar "expira em".
+    // Falha silenciosa: se SELECT falhar, fazemos só o patch parcial sem
+    // grace_until (acesso continua via pro_expires_at, que é o que importa).
+    let currentExpiresAt: string | null = null;
+    try {
+      const pr = await fetch(
+        `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=pro_expires_at`,
+        {
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
+        },
+      );
+      if (pr.ok) {
+        const rows = (await pr.json().catch(() => [])) as Array<{
+          pro_expires_at?: string | null;
+        }>;
+        currentExpiresAt = rows?.[0]?.pro_expires_at ?? null;
+      }
+    } catch {
+      /* silent — patch parcial vale (acesso preservado por pro_expires_at) */
+    }
     patch = {
-      is_pro: false,
       mp_preapproval_id: eventId,
-      pro_expires_at: null,
+      pro_grace_until: currentExpiresAt,
+      // is_pro intacto: trigger handle_invoice_paid e ativação normal mexem
+      // nele. pro_expires_at também intacto pra expiração natural.
     };
   } else {
     return ok('preapproval status ' + status + ' — sem ação');
