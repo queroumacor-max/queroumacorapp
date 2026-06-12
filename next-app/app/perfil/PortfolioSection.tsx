@@ -107,7 +107,7 @@ export function PortfolioSection() {
           {posts.map((p) => (
             <Link
               key={p.id}
-              href="/feed"
+              href={`/post/${p.id}`}
               className="block overflow-hidden bg-[color:var(--color-ink)] relative"
               style={{ aspectRatio: '1 / 1', borderRadius: 8 }}
             >

@@ -17,6 +17,7 @@
 // porque preservava a luminância alta da parede branca.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   open: boolean;
@@ -483,7 +484,15 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const showLoadingOverlay = status !== 'ready' && status !== 'loading-model';
   const aiModeNotReady = mode === 'ai' && (!segmenterRef.current || status === 'loading-model');
 
-  return (
+  // Render via portal pro document.body. O ProductDetailSheet abre esse
+  // overlay de DENTRO do BottomSheet, cujo painel anima com `transform`
+  // (slideUp) — e `transform` cria um containing block, então um filho
+  // `position: fixed` deixa de ser relativo ao viewport e fica preso/clipado
+  // dentro do sheet. Resultado: o botão ✕ (e o resto dos controles) não
+  // recebia clique. Portar pro body resolve o posicionamento; o zIndex
+  // 1100 garante que o overlay fique ACIMA do backdrop do BottomSheet
+  // (z-1000), senão o backdrop cobriria a câmera.
+  const content = (
     <div
       role="dialog"
       aria-modal="true"
@@ -491,7 +500,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 70,
+        zIndex: 1100,
         background: '#000',
         display: 'flex',
         flexDirection: 'column',
@@ -683,6 +692,8 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       )}
     </div>
   );
+
+  return createPortal(content, document.body);
 }
 
 // ── subcomponentes ──────────────────────────────────────────────────────
