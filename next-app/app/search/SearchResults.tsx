@@ -23,16 +23,9 @@ import { useSearch } from '@/lib/hooks/useSearch';
 import { fetchSuggestedProfiles } from '@/lib/services/suggestedProfiles';
 import { Avatar } from '@/components/Avatar';
 import { showToast } from '@/lib/toast';
+import { sanitizeSearchSnippet } from '@/lib/utils/sanitize';
 import type { SearchResult, SearchResultType } from '@/lib/services/search';
 import type { Profile } from '@/lib/types';
-
-const SNIPPET_TAG_RX = /<\/?([a-z][a-z0-9]*)[^>]*>/gi;
-function sanitizeSnippet(raw: string): string {
-  if (!raw) return '';
-  return raw.replace(SNIPPET_TAG_RX, (full, tag) =>
-    String(tag).toLowerCase() === 'b' ? full : '',
-  );
-}
 
 const TYPE_LABEL: Record<SearchResultType, string> = {
   profile: 'Pintores',
@@ -59,7 +52,14 @@ function hrefFor(r: SearchResult): string {
 }
 
 function ResultCard({ r }: { r: SearchResult }) {
-  const snippet = useMemo(() => sanitizeSnippet(r.snippet || ''), [r.snippet]);
+  // CRIT-3 (audit 2026-06-12): snippet vem do RPC `search_all` com
+  // ts_headline. O input do banco (bio/caption/description) é
+  // user-generated — escapar TODO HTML e reintroduzir só as sentinelas
+  // de highlight via `sanitizeSearchSnippet`. Defesa-em-profundidade:
+  // mesmo se a migration Wave 31 não tiver rodado e o banco ainda
+  // mandar `<b>...</b>` direto, o helper escapa e nada de HTML
+  // arbitrário (incluindo `<script>`/`<img onerror>`) chega no DOM.
+  const snippet = useMemo(() => sanitizeSearchSnippet(r.snippet || ''), [r.snippet]);
   return (
     <Link
       href={hrefFor(r)}
