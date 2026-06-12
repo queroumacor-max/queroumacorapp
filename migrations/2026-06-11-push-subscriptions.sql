@@ -68,19 +68,38 @@ create policy push_subscriptions_update_own
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+-- ─── Settings via tabela app_settings (Supabase managed) ─────────────────
+-- ALTER DATABASE requer superuser e NÃO funciona no Supabase managed
+-- (postgres role do painel não tem permissão — erro 42501). Em vez disso,
+-- guardamos os settings numa tabela e a função SECURITY DEFINER lê dela.
+-- A tabela é RLS-protegida e só service_role / SECURITY DEFINER functions
+-- enxergam — `authenticated` não tem policy de SELECT, então não vaza
+-- o secret pro cliente.
+create table if not exists app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table app_settings enable row level security;
+-- Sem policies pra authenticated/anon — sem leitura possível via PostgREST.
+-- service_role bypassa RLS; SECURITY DEFINER functions também (rodam como
+-- owner). É o pattern padrão pra "secrets em tabela" no Supabase managed.
+
 -- ─── Trigger pg_net: dispara push em insert de notification ──────────────
--- A URL e o secret saem de `current_setting('app.*')` — setáveis via
---   ALTER DATABASE postgres SET app.push_notify_url = '...';
---   ALTER DATABASE postgres SET app.push_internal_secret = '...';
--- Se algum dos dois estiver NULL/vazio, o trigger só retorna NEW (no-op
+-- Lê URL e secret de `app_settings` em vez de current_setting('app.*'),
+-- porque ALTER DATABASE não é permitido em Supabase managed.
+-- Se algum dos dois estiver ausente, o trigger só retorna NEW (no-op
 -- silencioso), pra não bloquear o insert da notificação em ambientes sem
 -- pg_net configurado.
 create or replace function dispatch_push_on_notification()
 returns trigger language plpgsql security definer set search_path = public, extensions as $$
 declare
-  v_url text := current_setting('app.push_notify_url', true);
-  v_secret text := current_setting('app.push_internal_secret', true);
+  v_url text;
+  v_secret text;
 begin
+  select value into v_url from app_settings where key = 'push_notify_url';
+  select value into v_secret from app_settings where key = 'push_internal_secret';
   if v_url is null or v_url = '' or v_secret is null or v_secret = '' then
     return new;
   end if;
@@ -111,14 +130,13 @@ create trigger trg_dispatch_push_notification
   for each row execute function dispatch_push_on_notification();
 
 -- ─── Settings (rodar UMA VEZ separadamente, fora deste script) ───────────
--- Estas duas linhas precisam ser executadas pelo DBA depois do deploy:
+-- Em vez de ALTER DATABASE (não funciona em Supabase managed), insere/
+-- atualiza na tabela app_settings:
 --
---   ALTER DATABASE postgres SET app.push_notify_url =
---     'https://queroumacor.com.br/api/push-notify';
---   ALTER DATABASE postgres SET app.push_internal_secret =
---     '<copiar de PUSH_INTERNAL_SECRET no Cloudflare Pages>';
+--   insert into app_settings (key, value) values
+--     ('push_notify_url',      'https://queroumacor.com.br/api/push-notify'),
+--     ('push_internal_secret', '<copiar de PUSH_INTERNAL_SECRET no CF Pages>')
+--   on conflict (key) do update set value = excluded.value, updated_at = now();
 --
--- Após rodar, encerrar e reabrir as conexões pra `current_setting()` ler
--- os novos valores (ou aguardar o pool reciclar). Sem essas duas linhas,
--- o trigger fica em no-op silencioso e nenhum push é enviado — sininho
--- ainda funciona normal.
+-- Sem essas linhas, o trigger fica em no-op silencioso e nenhum push é
+-- enviado — sininho ainda funciona normal.
