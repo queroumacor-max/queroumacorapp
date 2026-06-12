@@ -82,29 +82,38 @@ Endpoints:
 
 ---
 
-## 3. Cloudflare CSAM Scanning Tool — ativação manual
+## 3. Cloudflare CSAM Scanning Tool — ativação via opt-in legal
 
-A integração **NÃO** é code-actionable; precisa ser feita pelo admin
-do app (titular da conta Cloudflare) no Dashboard:
+A integração **NÃO** é code-actionable **e também não é um toggle de
+painel**. A página `/stream/csam` no Dashboard existe mas **carrega em
+branco** — a Cloudflare exige um **processo de opt-in manual com acordo
+legal** antes de habilitar a ferramenta. Não dá pra ligar sozinho pelo
+painel.
 
-### Passo a passo
+### Processo real (descoberto 2026-06-12)
 
-1. Entrar no [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Selecionar o domínio **queroumacor.com.br**
-3. Menu lateral → **Security** → **CSAM Scanning Tool**
-4. Clicar em **Get Started**
-5. Aceitar o **NCMEC Reporting Agreement** (obrigatório — termo legal
-   que autoriza CF a reportar em nome do operador)
-6. Preencher dados do **DPO/responsável legal** (usar dados Cali Colors
-   — CNPJ, endereço, contato):
+1. O **titular da conta Cloudflare** precisa **entrar em contato com o
+   suporte da Cloudflare** (ticket no Dashboard) **ou enviar email para
+   `cloudflare-csam@cloudflare.com`** solicitando a habilitação da
+   CSAM Scanning Tool para o domínio **queroumacor.com.br**.
+2. A Cloudflare envia um **acordo legal específico** (inclui o **NCMEC
+   Reporting Agreement** — termo que autoriza a CF a reportar ao NCMEC
+   em nome do operador). É preciso **assinar** antes de a ferramenta ser
+   habilitada.
+3. Fornecer os dados do **responsável legal / DPO** (usar dados Cali
+   Colors):
    - Nome legal: CALICOLORS TINTAS LTDA
    - CNPJ: 47.677.346/0001-92
    - Endereço: Est. Presidente Juscelino Kubitschek de Oliveira, 1071 —
      Jardim dos Pimentas — Guarulhos/SP — CEP 07.272-345
    - Contato responsável: loja@calicolors.com.br
-7. Confirmar emails de notificação (pra onde CF avisa quando detectar
-   CSAM): **loja@calicolors.com.br**
-8. Salvar.
+4. Definir o(s) email(s) de notificação (pra onde a CF avisa ao detectar
+   CSAM): **loja@calicolors.com.br**.
+5. Só **depois** que a CF processa o opt-in e assina o acordo é que a
+   página `/stream/csam` passa a renderizar e a varredura é ativada.
+
+> ⚠️ **Status:** PENDENTE — depende do titular da conta abrir o
+> contato/assinar o acordo. Não é destravável pelo Claude nem por toggle.
 
 ### O que acontece depois
 

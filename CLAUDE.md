@@ -19,9 +19,12 @@
     `media_review_queue` + coluna `posts.media_hash`. `/api/moderate` agora
     aceita `mediaUrl`, calcula hash SHA-256, checa blocklist (curto-circuita
     Gemini em hit), enfileira review em severity hard+. Admin queue em
-    `/admin/media-review`. **SQL JÁ EXECUTADO (2026-06-12).** Falta só
-    ativar o Cloudflare CSAM Scanning Tool manualmente no painel. Doc:
-    `docs/CSAM_POLICY.md`.
+    `/admin/media-review`. **SQL JÁ EXECUTADO (2026-06-12).** Falta o
+    Cloudflare CSAM Scanning Tool: **NÃO é toggle de painel** (a página
+    `/stream/csam` carrega em branco) — exige opt-in legal manual, o
+    titular da conta tem que contatar o suporte CF ou mandar email pra
+    `cloudflare-csam@cloudflare.com` e assinar o NCMEC Reporting
+    Agreement. Doc: `docs/CSAM_POLICY.md`.
   - **C5 age gate <16**: `MIN_AGE=16` em `lib/schemas.ts`, `birthDateSchema`
     obrigatório no signup, revalidação server-side em `signup.ts`. Tests
     cobrindo. ✓ Live.
@@ -511,7 +514,9 @@
   - **Wave 29 (CSAM, C4)**: `posts.media_hash` + tabelas
     `media_hash_blocklist` + `media_review_queue` (RLS admin-only via
     `is_portal_admin()`). `/migrations/2026-06-11-csam-media-hash.sql`.
-    Falta só ativar o Cloudflare CSAM Scanning Tool no painel.
+    Falta o Cloudflare CSAM Scanning Tool — **opt-in legal manual**
+    (email `cloudflare-csam@cloudflare.com` + NCMEC Agreement), NÃO é
+    toggle de painel.
   - **Wave 32 (R-H7)**: `profiles_public` recriada SEM `portal_access`
     (não vazar identidade de admin pra spear-phishing). **A view foi
     rodada SEM as colunas `palette`/`country`** (não existem na tabela
