@@ -136,17 +136,30 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Audit log (trilha de exclusão pra DPO da Cali Colors).
-  await logAuditEvent({
-    actorId: userId,
-    action: 'lgpd.account_deletion',
-    targetTable: 'profiles',
-    targetId: userId,
-    changes: {
-      email_hash: email ? email.slice(0, 4) + '***' : null,
-      deleted_at: now,
-    },
-    request,
-  });
+  // R-H5: ação LGPD → critical=true. Perder o registro de exclusão é
+  // problema regulatório (Art. 18 VI da LGPD). Se o insert falhar,
+  // retornamos 500 genérico sem deletar o auth.user — operador re-tenta
+  // depois com o estado de soft-delete já aplicado (idempotente).
+  try {
+    await logAuditEvent({
+      actorId: userId,
+      action: 'lgpd.account_deletion',
+      targetTable: 'profiles',
+      targetId: userId,
+      changes: {
+        email_hash: email ? email.slice(0, 4) + '***' : null,
+        deleted_at: now,
+      },
+      request,
+      critical: true,
+    });
+  } catch (e) {
+    console.warn(
+      'delete-account: audit critical failed',
+      e instanceof Error ? e.message : e,
+    );
+    return NextResponse.json({ error: 'erro interno' }, { status: 500 });
+  }
 
   // 4. Deleta o auth.user. SECURITY: service_role tem auth.admin.
   // Endpoint: POST /auth/v1/admin/users/{user_id} com DELETE method.

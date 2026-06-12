@@ -87,14 +87,33 @@ export async function POST(request: NextRequest) {
     const result = await patchProfile({ userId, patch });
     // Audit-log: ação admin em profile alvo. `changes` carrega o patch
     // (sem segredos — buildPatch só constrói campos de RBAC/PRO/role).
-    await logAuditEvent({
-      actorId: callerId || null,
-      action: `admin.user.${action}`,
-      targetTable: 'profiles',
-      targetId: userId,
-      changes: { patch, admin_email: email },
-      request,
-    });
+    // R-H5: critical=true pra mudanças sensíveis (set_pro / set_portal_access)
+    // — sem trilha, sumimos com prova de quem promoveu/demovou quem (input
+    // de auditoria interna + DPO). Outras actions (set_verified, role)
+    // mantêm fail-open.
+    const isCriticalAction =
+      action === 'set_pro' || action === 'set_portal_access';
+    try {
+      await logAuditEvent({
+        actorId: callerId || null,
+        action: `admin.user.${action}`,
+        targetTable: 'profiles',
+        targetId: userId,
+        changes: { patch, admin_email: email },
+        request,
+        critical: isCriticalAction,
+      });
+    } catch (e) {
+      // Throw aqui = audit critical falhou. Profile JÁ foi modificado;
+      // melhor logar e retornar 500 genérico do que vazar inconsistência
+      // pra UI admin (que mostraria sucesso sem trilha).
+      console.error(
+        'admin-users: CRITICAL audit insert failed',
+        { action, targetUserId: userId },
+        e instanceof Error ? e.message : e,
+      );
+      return NextResponse.json({ error: 'erro interno' }, { status: 500 });
+    }
     return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);

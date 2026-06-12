@@ -297,20 +297,34 @@ async function processPaymentEvent(opts: {
 
   // Audit-log: pagamento concluído (paid/amount_mismatch/refunded/cancelled).
   // Actor null porque webhook é server-to-server; target_table=orders.
-  // fail-open: helper já não throws.
-  await logAuditEvent({
-    actorId: null,
-    action: `mp.order.${patch.status}`,
-    targetTable: 'orders',
-    targetId: orderId,
-    changes: {
-      mp_status: status,
-      tx_id: String(eventId),
-      paid_amount: patch.paid_amount,
-      payment_method: paymentMethod,
-    },
-    request: { headers: reqHeaders },
-  });
+  // R-H5: critical=true só pra `paid` (financeiro real). Outros estados
+  // (cancelled, refunded, amount_mismatch) mantém fail-open: perder
+  // trilha de cancelamento é menos crítico que perder de pagamento.
+  // Como o webhook DEVE retornar 200 (anti-retry storm), capturamos o
+  // throw e logamos `console.error` (Sentry alerta) sem mudar o status.
+  try {
+    await logAuditEvent({
+      actorId: null,
+      action: `mp.order.${patch.status}`,
+      targetTable: 'orders',
+      targetId: orderId,
+      changes: {
+        mp_status: status,
+        tx_id: String(eventId),
+        paid_amount: patch.paid_amount,
+        payment_method: paymentMethod,
+      },
+      request: { headers: reqHeaders },
+      critical: patch.status === 'paid',
+    });
+  } catch (e) {
+    console.error(
+      'mp-webhook: CRITICAL audit insert failed for paid order',
+      { orderId, tx_id: String(eventId) },
+      e instanceof Error ? e.message : e,
+    );
+    // Não muda o status retornado pro MP — order já está paid no banco.
+  }
 
   // Hardening#11 — registra invoice pra conciliação. Idempotente por
   // external_id via RPC upsert_invoice. Falha aqui NÃO reverte o pagamento
@@ -458,20 +472,34 @@ async function processPreapprovalEvent(opts: {
   // Audit-log: mudança de subscription PRO (activate/cancel/pause).
   // actor_id é o usuário cuja subscription mudou — webhook é server-to-server
   // mas a ação afeta este usuário diretamente.
-  await logAuditEvent({
-    actorId: userId,
-    action: `mp.subscription.${status}`,
-    targetTable: 'profiles',
-    targetId: userId,
-    changes: {
-      mp_preapproval_id: eventId,
-      mp_status: status,
-      is_pro_new: patch.is_pro,
-      pro_amount: proAmount,
-      pro_currency: proCurrency,
-    },
-    request: { headers: reqHeaders },
-  });
+  // R-H5: critical=true só pra `authorized` (financeiro: PRO ativado).
+  // Cancel/pause mantém fail-open (perder trilha de desativação é menos
+  // problemático que perder de ativação). Webhook DEVE retornar 200
+  // (anti-retry MP) — capturamos throw e logamos via console.error.
+  try {
+    await logAuditEvent({
+      actorId: userId,
+      action: `mp.subscription.${status}`,
+      targetTable: 'profiles',
+      targetId: userId,
+      changes: {
+        mp_preapproval_id: eventId,
+        mp_status: status,
+        is_pro_new: patch.is_pro,
+        pro_amount: proAmount,
+        pro_currency: proCurrency,
+      },
+      request: { headers: reqHeaders },
+      critical: status === 'authorized',
+    });
+  } catch (e) {
+    console.error(
+      'mp-webhook: CRITICAL audit insert failed for authorized subscription',
+      { userIdPrefix: String(userId).slice(0, 8), mp_preapproval_id: eventId },
+      e instanceof Error ? e.message : e,
+    );
+    // Não muda status retornado — profile já está is_pro=true no banco.
+  }
 
   // Hardening#11 — registra invoice de subscription. Idempotente por
   // external_id (mp preapproval id). O trigger handle_invoice_paid propaga
@@ -532,18 +560,29 @@ async function verifyMpSignature(args: {
         'mp-webhook: MP_WEBHOOK_SECRET ausente em produção — rejeitando webhook (fail-closed)'
       );
       // Audit-log: tentativa de webhook em prod sem secret configurado.
-      // Helper já é fail-safe (no-throw); ignoramos retorno.
-      await logAuditEvent({
-        actorId: null,
-        action: 'mp.webhook.rejected_no_secret',
-        targetTable: null,
-        targetId: null,
-        changes: {
-          reason: 'MP_WEBHOOK_SECRET ausente em produção',
-          node_env: 'production',
-        },
-        request: { headers },
-      });
+      // R-H5: critical=true — esta é a única visibilidade que temos de
+      // tentativas de fraude com config quebrada em prod. Perder o
+      // registro = perder evidência forense. Capturamos throw porque o
+      // webhook sempre retorna 401 a partir daqui (não muda nada).
+      try {
+        await logAuditEvent({
+          actorId: null,
+          action: 'mp.webhook.rejected_no_secret',
+          targetTable: null,
+          targetId: null,
+          changes: {
+            reason: 'MP_WEBHOOK_SECRET ausente em produção',
+            node_env: 'production',
+          },
+          request: { headers },
+          critical: true,
+        });
+      } catch (e) {
+        console.error(
+          'mp-webhook: CRITICAL audit insert failed for rejected_no_secret',
+          e instanceof Error ? e.message : e,
+        );
+      }
       return false;
     }
     if (process.env.MP_WEBHOOK_ENFORCE === 'true') {

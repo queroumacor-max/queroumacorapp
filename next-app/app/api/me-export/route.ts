@@ -30,6 +30,9 @@ export async function POST(request: NextRequest) {
     const data = await exportUserData({ userId: user.id, email: user.email });
     // Audit-log LGPD: portabilidade de dados é direito do titular (Art. 18 V).
     // Registramos quem exportou + quando pra rastreio de compliance.
+    // R-H5: critical=true — sem trilha de quem exportou o que, perdemos
+    // resposta a eventual incidente/auditoria DPO. Falha do insert
+    // bloqueia o download (cliente recebe 500 e re-tenta).
     await logAuditEvent({
       actorId: user.id,
       action: 'lgpd.me_export',
@@ -37,6 +40,7 @@ export async function POST(request: NextRequest) {
       targetId: user.id,
       changes: { email_prefix: user.email.split('@')[0]?.slice(0, 4) ?? null },
       request,
+      critical: true,
     });
     return new NextResponse(JSON.stringify(data, null, 2), {
       status: 200,
