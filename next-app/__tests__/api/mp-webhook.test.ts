@@ -16,6 +16,14 @@ const originalEnv = { ...process.env };
 
 const WEBHOOK_SECRET = 'test-webhook-secret-abc123';
 
+/**
+ * Helper pra setar NODE_ENV em test (next/@types/node 22 marca como readonly).
+ * Bracket-access bypassa o readonly do tipo NodeJS.ProcessEnv.NODE_ENV.
+ */
+function setNodeEnv(value: 'production' | 'development' | 'test'): void {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
+}
+
 async function sign(manifest: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
@@ -138,9 +146,11 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     expect(res.status).toBe(401);
   });
 
-  it('fail-open: accepts unsigned when MP_WEBHOOK_SECRET unset and ENFORCE off', async () => {
+  it('fail-open: accepts unsigned when MP_WEBHOOK_SECRET unset and ENFORCE off (dev)', async () => {
     delete process.env.MP_WEBHOOK_SECRET;
     delete process.env.MP_WEBHOOK_ENFORCE;
+    // NODE_ENV=test em vitest, mas garantimos != production
+    setNodeEnv('development');
     const { POST } = await import('@/app/api/mp-webhook/route');
     const req = mkRawReq({
       rawBody: JSON.stringify({ type: 'something_ignored' }),
@@ -170,6 +180,101 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     const body = await res.json();
     expect(body.received).toBe(true);
     expect(body.msg).toMatch(/ativo/);
+  });
+});
+
+// CRIT-2 (2026-06-12) — fail-closed em produção sem MP_WEBHOOK_SECRET.
+// Antes: sem secret + sem ENFORCE → fail-open (atacante forjava webhook).
+// Agora: NODE_ENV=production sem secret → 401 sempre.
+describe('POST /api/mp-webhook — CRIT-2 fail-closed em produção', () => {
+  it('fail-closed: NODE_ENV=production sem MP_WEBHOOK_SECRET → 401', async () => {
+    delete process.env.MP_WEBHOOK_SECRET;
+    delete process.env.MP_WEBHOOK_ENFORCE;
+    setNodeEnv('production');
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    // Payload de ativação maliciosa: type=preapproval + status=authorized.
+    // Sem secret, atacante forjaria isso pra liberar PRO. Tem que dar 401.
+    const req = mkRawReq({
+      rawBody: JSON.stringify({
+        type: 'preapproval',
+        data: { id: 'pre-evil' },
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('invalid signature');
+  });
+
+  it('fail-closed em prod NÃO chama MP API nem Supabase (fetchMock untouched)', async () => {
+    delete process.env.MP_WEBHOOK_SECRET;
+    setNodeEnv('production');
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = mkRawReq({
+      rawBody: JSON.stringify({
+        type: 'preapproval',
+        data: { id: 'pre-evil' },
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    // Nenhum side-effect: HMAC barra antes de qualquer fetch.
+    // (logAuditEvent pode ter chamado fetch internamente — mas como
+    //  service key está set, ele pode tentar. Verificamos que nenhuma
+    //  call de MP API ou orders/profiles PATCH aconteceu.)
+    const mpCalls = fetchMock.mock.calls.filter(
+      ([url]) => typeof url === 'string' && url.includes('mercadopago.com')
+    );
+    expect(mpCalls).toHaveLength(0);
+    const profilePatch = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        typeof url === 'string' &&
+        url.includes('/rest/v1/profiles') &&
+        init?.method === 'PATCH'
+    );
+    expect(profilePatch).toHaveLength(0);
+  });
+
+  it('fail-open: NODE_ENV=development sem secret/enforce permite passar (UX local)', async () => {
+    delete process.env.MP_WEBHOOK_SECRET;
+    delete process.env.MP_WEBHOOK_ENFORCE;
+    setNodeEnv('development');
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = mkRawReq({
+      rawBody: JSON.stringify({ type: 'something_ignored' }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.msg).toMatch(/ignorado/);
+  });
+
+  it('fail-closed em dev quando MP_WEBHOOK_ENFORCE=true mesmo sem secret', async () => {
+    delete process.env.MP_WEBHOOK_SECRET;
+    process.env.MP_WEBHOOK_ENFORCE = 'true';
+    setNodeEnv('development');
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = mkRawReq({
+      rawBody: JSON.stringify({ type: 'payment', data: { id: '1' } }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it('com secret + signature válida em production → segue normal (não bloqueia)', async () => {
+    process.env.MP_WEBHOOK_SECRET = WEBHOOK_SECRET;
+    setNodeEnv('production');
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = await mkSignedReq({
+      body: { type: 'something_ignored' },
+    });
+    const res = await POST(req);
+    // Signature válida passou; depois caiu em 'evento ignorado' (200).
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.msg).toMatch(/ignorado/);
   });
 });
 

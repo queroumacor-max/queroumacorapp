@@ -4,9 +4,13 @@
 //
 // Comportamento crítico (PRESERVADO do vanilla):
 //   1. HMAC-SHA256 sobre `id:<dataId>;request-id:<reqId>;ts:<ts>;` com
-//      MP_WEBHOOK_SECRET (Web Crypto, edge-friendly). Fail-open default
-//      se MP_WEBHOOK_SECRET ausente (compat); fail-closed se
-//      MP_WEBHOOK_ENFORCE=true.
+//      MP_WEBHOOK_SECRET (Web Crypto, edge-friendly).
+//      - PRODUÇÃO (NODE_ENV=production): SEM secret → fail-closed (401).
+//        Fechado no CRIT-2 do audit 2026-06-12 — sem secret atacante
+//        forjava webhook `external_reference=<vítima>` + `status=authorized`
+//        e liberava PRO sem pagamento.
+//      - DEV/STAGING: SEM secret → fail-open (compat com ambientes locais).
+//      - MP_WEBHOOK_ENFORCE=true em qualquer ambiente: SEM secret → 401.
 //   2. Timing-safe equal (manual; Web Crypto não expõe timingSafeEqual).
 //   3. Return 200 EM TODOS os erros não-fatais (anti-retry storm do MP).
 //      Exceção: signature inválida → 401 (sinaliza pro atacante que está
@@ -38,6 +42,25 @@ const MP_TIMEOUT_MS = 15000;
 const SUPA_TIMEOUT_MS = 10000;
 const PRO_AMOUNT_BRL = 39;
 const PRO_VALIDITY_DAYS = 33;
+
+/**
+ * Startup check (idempotente, roda 1x por instância). Emite `console.error`
+ * caro em produção sem `MP_WEBHOOK_SECRET` configurado — combinado com o
+ * fail-closed em `verifyMpSignature`, qualquer webhook em prod sem secret
+ * vai 401 (não há janela de fraude), mas o log explícito facilita
+ * diagnóstico no Sentry/CF logs.
+ */
+let configValidated = false;
+function validateMpConfigOnce(): void {
+  if (configValidated) return;
+  if (process.env.NODE_ENV === 'production' && !process.env.MP_WEBHOOK_SECRET) {
+    console.error(
+      '[mp-webhook] CRITICAL: MP_WEBHOOK_SECRET ausente em produção. ' +
+        'Webhooks serão rejeitados com 401 (fail-closed). Configure a env var.'
+    );
+  }
+  configValidated = true;
+}
 
 export interface WebhookResult {
   status: number;
@@ -84,6 +107,7 @@ export async function processMpWebhook(args: {
   url: string;
   headers: Headers;
 }): Promise<WebhookResult> {
+  validateMpConfigOnce();
   const { rawBody, url, headers } = args;
 
   let body: MpWebhookBody = {};
@@ -491,8 +515,11 @@ async function processPreapprovalEvent(opts: {
  * HMAC calculado sobre `id:<dataId>;request-id:<reqId>;ts:<ts>;` usando
  * MP_WEBHOOK_SECRET.
  *
- * Fail-open: se MP_WEBHOOK_SECRET não estiver definido, retorna true.
- * Fail-closed: se MP_WEBHOOK_ENFORCE=true e secret ausente, retorna false.
+ * Comportamento quando MP_WEBHOOK_SECRET está ausente (CRIT-2 fix 2026-06-12):
+ *   - NODE_ENV=production → fail-closed (401). Loga `audit_event` com
+ *     action='mp.webhook.rejected_no_secret' pra alertar operação.
+ *   - MP_WEBHOOK_ENFORCE=true (qualquer env) → fail-closed.
+ *   - Dev/staging sem ENFORCE → fail-open (UX local).
  */
 async function verifyMpSignature(args: {
   headers: Headers;
@@ -500,6 +527,25 @@ async function verifyMpSignature(args: {
 }): Promise<boolean> {
   const { headers, body } = args;
   if (!process.env.MP_WEBHOOK_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        'mp-webhook: MP_WEBHOOK_SECRET ausente em produção — rejeitando webhook (fail-closed)'
+      );
+      // Audit-log: tentativa de webhook em prod sem secret configurado.
+      // Helper já é fail-safe (no-throw); ignoramos retorno.
+      await logAuditEvent({
+        actorId: null,
+        action: 'mp.webhook.rejected_no_secret',
+        targetTable: null,
+        targetId: null,
+        changes: {
+          reason: 'MP_WEBHOOK_SECRET ausente em produção',
+          node_env: 'production',
+        },
+        request: { headers },
+      });
+      return false;
+    }
     if (process.env.MP_WEBHOOK_ENFORCE === 'true') {
       console.warn(
         'mp-webhook: MP_WEBHOOK_ENFORCE=true mas MP_WEBHOOK_SECRET ausente — rejeitando'
@@ -507,7 +553,7 @@ async function verifyMpSignature(args: {
       return false;
     }
     console.warn(
-      'mp-webhook: MP_WEBHOOK_SECRET não configurado — pulando verificação (fail-open)'
+      'mp-webhook: MP_WEBHOOK_SECRET não configurado — dev/staging fail-open'
     );
     return true;
   }
