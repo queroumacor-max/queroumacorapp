@@ -525,6 +525,19 @@
   - **Wave 33 (R-H8)**: UPDATE policy `"art-refs owner update"` no bucket
     `art-refs` com path enforcement `split_part(name,'/',1)=auth.uid()`.
     `/migrations/2026-06-12-art-refs-update-policy.sql`.
+- **QA fixes de produção (2026-06-12) — 2 SQLs JÁ EXECUTADOS.** Pacote de 8
+  bugs do QA (BUG-01..07 + UX-04); 6 são código puro, 2 dependiam de SQL:
+  - **BUG-02 (busca)**: `profiles.search_vector` recriada incluindo
+    `profession` (peso A) + `specialties` (peso B) — buscar "pintor"/
+    "grafiteiro"/"textura" agora casa. `search_all` inalterada.
+    `/migrations/2026-06-12-search-include-profession.sql`. ✓ Live.
+  - **BUG-04 (filtros de feed)**: signup grava `user_type` mas `get_feed_v2`
+    filtra por `role` (ficava NULL → filtro vazio). Backfill
+    `role ← user_type` + trigger `trg_sync_role_from_user_type` BEFORE
+    INSERT/UPDATE (só preenche role vazio, nunca sobrescreve 'admin').
+    `/migrations/2026-06-12-role-from-user-type.sql`. ✓ Live. Efeito
+    colateral bom: badges de role + chat + suggestions também passam a ver
+    a categoria de quem se cadastrou pelo fluxo novo.
 - **LAUNCH_AUDIT.md** (na raiz do repo) — auditoria de
   production-readiness via 6 sub-auditorias paralelas. 5 blockers
   iniciais: B1 (vanilla legado) **EM ANDAMENTO** (ports `/avaliar` +
