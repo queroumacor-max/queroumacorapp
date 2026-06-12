@@ -11,10 +11,11 @@
 drop view if exists public.profiles_public cascade;
 create view public.profiles_public as
 select
-  id, name, avatar_url, bio, tag, role, user_type, profession, specialties, palette,
-  city, state, country, is_pro, verified, rating_avg, review_count,
+  id, name, avatar_url, bio, tag, role, user_type, profession, specialties,
+  city, state, is_pro, verified, rating_avg, review_count,
   service_radius, instagram_url, website_url, created_at
   -- portal_access removido (Wave 32 — R-H7)
+  -- palette/country removidos: não existem na tabela real (ver CLAUDE.md)
 from public.profiles;
 
 -- Garante leitura pública na view (RLS na tabela base segue valendo

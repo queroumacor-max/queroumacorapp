@@ -19,9 +19,9 @@
     `media_review_queue` + coluna `posts.media_hash`. `/api/moderate` agora
     aceita `mediaUrl`, calcula hash SHA-256, checa blocklist (curto-circuita
     Gemini em hit), enfileira review em severity hard+. Admin queue em
-    `/admin/media-review`. **SQL AINDA NÃO RODADO** — colar do agent result
-    no SQL Editor. Doc: `docs/CSAM_POLICY.md` (Cloudflare CSAM Scanning
-    Tool a ativar manualmente no painel).
+    `/admin/media-review`. **SQL JÁ EXECUTADO (2026-06-12).** Falta só
+    ativar o Cloudflare CSAM Scanning Tool manualmente no painel. Doc:
+    `docs/CSAM_POLICY.md`.
   - **C5 age gate <16**: `MIN_AGE=16` em `lib/schemas.ts`, `birthDateSchema`
     obrigatório no signup, revalidação server-side em `signup.ts`. Tests
     cobrindo. ✓ Live.
@@ -506,6 +506,20 @@
   `/migrations/2026-06-10-cron-cleanups.sql`. `cron.schedule` é
   idempotente (substitui job de mesmo nome). Inspecionar com
   `SELECT * FROM cron.job`.
+- **SQL Waves 29/32/33 (2026-06-12) — JÁ EXECUTADAS no Supabase.** Pacote
+  de hardening pré-produção rodado de uma vez:
+  - **Wave 29 (CSAM, C4)**: `posts.media_hash` + tabelas
+    `media_hash_blocklist` + `media_review_queue` (RLS admin-only via
+    `is_portal_admin()`). `/migrations/2026-06-11-csam-media-hash.sql`.
+    Falta só ativar o Cloudflare CSAM Scanning Tool no painel.
+  - **Wave 32 (R-H7)**: `profiles_public` recriada SEM `portal_access`
+    (não vazar identidade de admin pra spear-phishing). **A view foi
+    rodada SEM as colunas `palette`/`country`** (não existem na tabela
+    real) — o arquivo no repo foi corrigido pra refletir isso.
+    `/migrations/2026-06-12-profiles-public-hide-admin.sql`.
+  - **Wave 33 (R-H8)**: UPDATE policy `"art-refs owner update"` no bucket
+    `art-refs` com path enforcement `split_part(name,'/',1)=auth.uid()`.
+    `/migrations/2026-06-12-art-refs-update-policy.sql`.
 - **LAUNCH_AUDIT.md** (na raiz do repo) — auditoria de
   production-readiness via 6 sub-auditorias paralelas. 5 blockers
   iniciais: B1 (vanilla legado) **EM ANDAMENTO** (ports `/avaliar` +
