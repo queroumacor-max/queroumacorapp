@@ -10,6 +10,7 @@ import {
   serviceErrorResponse,
 } from '@/lib/api/security';
 import { chatWithSeuZe } from '@/lib/api/_services/chat-ai';
+import { chatAiSchema, formatZodError } from '@/lib/api/schemas/chat-ai';
 
 export const runtime = 'edge';
 
@@ -20,12 +21,17 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
-  let body: { message?: unknown; history?: unknown; accessToken?: unknown };
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
+  const parsed = chatAiSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(formatZodError(parsed.error.issues), { status: 400 });
+  }
+  const body = parsed.data;
   const g = await gateProAI(request, body, { endpoint: 'chat-ai', limit: 20 });
   if (g instanceof NextResponse) return g;
 
@@ -40,8 +46,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await chatWithSeuZe({
-      message: body?.message,
-      history: body?.history,
+      message: body.message,
+      history: body.history,
     });
     // Conta o uso só após sucesso da chamada upstream.
     await recordAiUsage({ userId: g.userId, feature: 'chat_ai' });
