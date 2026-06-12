@@ -9,18 +9,22 @@ import {
   serviceErrorResponse,
 } from '@/lib/api/security';
 import { createProCheckout } from '@/lib/api/_services/checkout';
+import { checkoutSchema, formatZodError } from '@/lib/api/schemas/checkout';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
-  let body: { accessToken?: unknown } = {};
+  let raw: unknown;
   try {
-    body = (await request.json()) as { accessToken?: unknown };
+    raw = await request.json();
   } catch {
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
-  const accessToken =
-    typeof body?.accessToken === 'string' ? body.accessToken.trim() : '';
+  const parsed = checkoutSchema.safeParse(raw);
+  if (!parsed.success) {
+    return jsonResponse(formatZodError(parsed.error.issues), 400);
+  }
+  const accessToken = parsed.data.accessToken?.trim() ?? '';
   try {
     return jsonResponse(await createProCheckout({ accessToken }));
   } catch (e) {

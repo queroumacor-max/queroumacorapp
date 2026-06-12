@@ -25,6 +25,7 @@ import {
   checkHashBlocklist,
   enqueueMediaReview,
 } from '@/lib/api/mediaHash';
+import { moderateSchema, formatZodError } from '@/lib/api/schemas/moderate';
 
 export const runtime = 'edge';
 
@@ -45,14 +46,6 @@ function isAllowedMediaHost(urlStr: string): boolean {
   }
 }
 
-interface ModerateBody {
-  text?: unknown;
-  imageUrl?: unknown;
-  mediaUrl?: unknown;
-  postId?: unknown;
-  accessToken?: unknown;
-}
-
 export async function POST(request: NextRequest) {
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
@@ -64,12 +57,17 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
-  let body: ModerateBody;
+  let raw: unknown;
   try {
-    body = (await request.json()) as ModerateBody;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
+  const parsed = moderateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(formatZodError(parsed.error.issues), { status: 400 });
+  }
+  const body = parsed.data;
   const auth = await requireAuth(request, body);
   if (auth.error)
     return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
@@ -88,8 +86,8 @@ export async function POST(request: NextRequest) {
   });
   if (aiGate instanceof NextResponse) return aiGate;
 
-  const mediaUrl = typeof body.mediaUrl === 'string' ? body.mediaUrl : '';
-  const postId = typeof body.postId === 'string' ? body.postId : null;
+  const mediaUrl = body.mediaUrl ?? '';
+  const postId = body.postId ?? null;
   const userId = auth.user.id;
 
   // ── (1) Hash + blocklist check ──────────────────────────────────────
