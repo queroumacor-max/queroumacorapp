@@ -6,11 +6,26 @@
 import Link from 'next/link';
 import type { ConversationMeta } from '@/lib/services/chat';
 
+// Detecta nome que na verdade é um email (display_name nulo no perfil e o
+// fallback acabou pegando o email). Nesses casos preferimos a @tag; se não
+// houver, mostramos só a parte local do email (antes do @) em vez do
+// endereço inteiro vazando na lista de conversas (BUG-06).
+function looksLikeEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 function displayName(c: ConversationMeta): string {
   if (c.is3way) return (c.name || 'Conversa') + ' + Cali Colors';
   const nm = (c.name ?? '').trim();
-  if (nm && !/^usu[aá]rio$/i.test(nm)) return nm;
-  if (c.tag && c.tag.trim()) return '@' + c.tag.trim().replace(/^@/, '');
+  const tag = c.tag && c.tag.trim() ? '@' + c.tag.trim().replace(/^@/, '') : '';
+  if (nm && !/^usu[aá]rio$/i.test(nm)) {
+    if (looksLikeEmail(nm)) {
+      // Tag é o melhor substituto; sem tag, usa o local-part do email.
+      return tag || nm.split('@')[0] || 'Usuário';
+    }
+    return nm;
+  }
+  if (tag) return tag;
   return 'Usuário';
 }
 

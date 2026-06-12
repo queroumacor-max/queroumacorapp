@@ -179,7 +179,11 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
     PostComment,
     Error,
     string,
-    { previous: PostComment[] | undefined; tempId: string }
+    {
+      previous: PostComment[] | undefined;
+      tempId: string;
+      optimisticAuthor: { name: string | null; tag: string | null; avatar_url: string | null };
+    }
   >({
     mutationFn: (text: string) => {
       if (emailVerified === false) {
@@ -189,35 +193,70 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
       }
       return addComment(userId, postId, text);
     },
-    // Otimista: prepend de comment temporário pra UI atualizar na hora.
+    // Otimista: append de comment temporário pra UI atualizar na hora.
     // Reconciliação no onSuccess troca o temp pelo row real do servidor.
+    //
+    // Autor preenchido a partir do user_metadata (name/tag/avatar gravados no
+    // signup) pra o comment já renderizar com o nome certo — e, crucialmente,
+    // pra ele NÃO depender do refetch pra existir. Antes o autor vinha null e
+    // o `onSettled` refazia `fetchComments`; se esse refetch voltasse sem o
+    // comment (read-back atrasado / RLS), o otimista era descartado em
+    // silêncio: texto sumia, nada aparecia, sem erro (BUG-01).
     onMutate: async (text: string) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<PostComment[]>(key);
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const meta = (user?.user_metadata ?? {}) as {
+        name?: string | null;
+        tag?: string | null;
+        avatar_url?: string | null;
+      };
+      const optimisticAuthor = {
+        name: meta.name ?? null,
+        tag: meta.tag ?? null,
+        avatar_url: meta.avatar_url ?? null,
+      };
       const temp: PostComment = {
         id: tempId,
         post_id: postId,
         user_id: userId,
         text,
         created_at: new Date().toISOString(),
-        author: null,
+        author: optimisticAuthor,
       };
       qc.setQueryData<PostComment[]>(key, (old) => [...(old ?? []), temp]);
-      return { previous, tempId };
+      return { previous, tempId, optimisticAuthor };
     },
     onError: (_err, _text, ctx) => {
       if (ctx?.previous !== undefined) qc.setQueryData(key, ctx.previous);
     },
     onSuccess: (real, _text, ctx) => {
-      // Troca temp pelo row real (mesma referência preservada se possível).
+      // Troca temp pelo row real, preservando o autor otimista quando o row
+      // do INSERT não trouxe author (o service só seleciona campos crus).
+      const merged: PostComment = real.author
+        ? real
+        : { ...real, author: ctx?.optimisticAuthor ?? null };
       qc.setQueryData<PostComment[]>(key, (old) =>
-        (old ?? []).map((c) => (c.id === ctx?.tempId ? real : c)),
+        (old ?? []).map((c) => (c.id === ctx?.tempId ? merged : c)),
       );
     },
-    onSettled: () => {
-      // Garante consistência final com banco (autor pode chegar via JOIN só agora).
-      qc.invalidateQueries({ queryKey: key });
+    onSettled: async (real, _err, _text, ctx) => {
+      // Reconcilia com o banco (autor via JOIN, id real). Mas blinda contra o
+      // drop silencioso: se o refetch voltar SEM o comment recém-criado
+      // (lag de read-back / RLS), reinsere o otimista pra não sumir sem aviso.
+      await qc.invalidateQueries({ queryKey: key });
+      if (!real) return;
+      const after = qc.getQueryData<PostComment[]>(key) ?? [];
+      const hasReal = after.some((c) => c.id === real.id);
+      const hasTemp = ctx?.tempId
+        ? after.some((c) => c.id === ctx.tempId)
+        : false;
+      if (!hasReal && !hasTemp) {
+        const merged: PostComment = real.author
+          ? real
+          : { ...real, author: ctx?.optimisticAuthor ?? null };
+        qc.setQueryData<PostComment[]>(key, [...after, merged]);
+      }
     },
   });
 

@@ -170,7 +170,7 @@ export function FeedView() {
         <>
           <div className="text-center py-12 px-4 m-3 rounded-xl bg-white border border-[color:var(--color-border)]">
             <div className="text-5xl mb-3" aria-hidden="true">🎨</div>
-            <h2 className="font-semibold mb-2">Sem publicacoes por aqui</h2>
+            <h2 className="font-semibold mb-2">Sem publicações por aqui</h2>
             <p className="text-sm text-[color:var(--color-muted)]">
               Siga pintores, grafiteiros e estudios pra ver o trabalho deles no feed.
             </p>

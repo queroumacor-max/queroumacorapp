@@ -46,9 +46,15 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
   const hasColor = !!(product.color_gradient || resolveColorHex(product));
   const inactive = product.active === false;
   const price = BRL.format(Number(product.price || 0));
+  // Estoque ≤ 0 = esgotado. Bloqueia compra (botão desabilitado) e troca o
+  // "· N un" por "Sem estoque". Antes mostrava "-2 un"/"-1 un" e o botão
+  // "+ Carrinho" continuava ativo (BUG-05).
+  const outOfStock = product.stock != null && product.stock <= 0;
   const stock =
     product.stock != null && product.stock !== undefined
-      ? ` · ${product.stock} un`
+      ? outOfStock
+        ? ''
+        : ` · ${product.stock} un`
       : '';
 
   return (
@@ -104,6 +110,11 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           <div className="text-xs text-[color:var(--color-muted)] truncate">
             {product.code ? `Cód ${product.code}` : ''}
             {stock}
+            {outOfStock ? (
+              <span className="ml-1 font-semibold text-[color:var(--color-danger,#d11)]">
+                · Sem estoque
+              </span>
+            ) : null}
           </div>
           <div className="text-sm font-bold text-[color:var(--color-ink)] mt-0.5">
             {price}
@@ -115,13 +126,18 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (outOfStock) return;
             onAdd(product);
           }}
-          disabled={isAdding || inactive}
+          disabled={isAdding || inactive || outOfStock}
           className="px-3 py-2 text-xs font-semibold bg-[color:var(--color-ink)] text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
-          aria-label={`Adicionar ${product.name} ao carrinho`}
+          aria-label={
+            outOfStock
+              ? `${product.name} sem estoque`
+              : `Adicionar ${product.name} ao carrinho`
+          }
         >
-          {isAdding ? '...' : '+ Carrinho'}
+          {outOfStock ? 'Sem estoque' : isAdding ? '...' : '+ Carrinho'}
         </button>
       ) : null}
     </article>

@@ -79,8 +79,14 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
+  // Esgotado: variante selecionada (se houver) manda; senão o produto base.
+  // stock ≤ 0 bloqueia a adição ao carrinho (BUG-05).
+  const outOfStock = selectedVariant
+    ? selectedVariant.stock != null && selectedVariant.stock <= 0
+    : !!product && product.stock != null && product.stock <= 0;
+
   function handleAdd() {
-    if (!product) return;
+    if (!product || outOfStock) return;
     onAdd(product, qty, selectedVariant);
     showToast('Adicionado ao carrinho!', 'success');
     onClose();
@@ -388,18 +394,22 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       <button
         type="button"
         onClick={handleAdd}
+        disabled={outOfStock}
         className="w-full text-white font-bold"
         style={{
           padding: 14,
-          background: 'var(--color-p1)',
+          background: outOfStock ? 'var(--color-muted)' : 'var(--color-p1)',
           borderRadius: 14,
           fontSize: 15,
           border: 'none',
-          cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(255,107,53,.3)',
+          cursor: outOfStock ? 'not-allowed' : 'pointer',
+          opacity: outOfStock ? 0.7 : 1,
+          boxShadow: outOfStock ? 'none' : '0 4px 12px rgba(255,107,53,.3)',
         }}
       >
-        + Adicionar ao Carrinho · {BRL.format(total)}
+        {outOfStock
+          ? 'Sem estoque'
+          : `+ Adicionar ao Carrinho · ${BRL.format(total)}`}
       </button>
 
       {/* Visualizador AR — render fora do bottom-sheet via portal-like
