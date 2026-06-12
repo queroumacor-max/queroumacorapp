@@ -18,18 +18,10 @@
 // (subscription expirou / user revogou).
 
 import type { NextRequest } from 'next/server';
-import { jsonResponse } from '@/lib/api/security';
+import { checkRateLimit, jsonResponse, rateLimitResponse } from '@/lib/api/security';
+import { pushNotifySchema } from '@/lib/api/schemas/push-notify';
 
 export const runtime = 'edge';
-
-interface PushNotifyBody {
-  userIds?: unknown;
-  title?: unknown;
-  body?: unknown;
-  url?: unknown;
-  icon?: unknown;
-  tag?: unknown;
-}
 
 interface PushSubscriptionRow {
   id: string;
@@ -61,30 +53,53 @@ export async function POST(request: NextRequest): Promise<Response> {
     return jsonResponse({ ok: false, error: 'unauthorized' }, 401);
   }
 
-  // ─── 2) Parse + valida payload ───────────────────────────────────────────
-  let body: PushNotifyBody;
+  // ─── 2) Rate limit por IP (defesa contra leak de PUSH_INTERNAL_SECRET) ──
+  // Se o secret vazar, atacante pode chamar este endpoint pra spammar push;
+  // cap por IP corta o abuso na origem mesmo com auth válida.
+  // FAIL-OPEN: `checkRateLimit` retorna `{ allowed: true, skipped: true }`
+  // quando DB indisponível — push interno continua funcionando em incidente.
+  const ip = extractIp(request);
+  const rl = await checkRateLimit({
+    userId: `push-notify:${ip}`,
+    endpoint: 'push-notify',
+    limit: 60, // 60 chamadas/min por IP — gera headroom pro pg_net normal
+  });
+  if (!rl.allowed) return rateLimitResponse(rl);
+
+  // ─── 3) Parse + valida payload via Zod (R-H10) ──────────────────────────
+  let raw: unknown;
   try {
-    body = (await request.json()) as PushNotifyBody;
+    raw = await request.json();
   } catch {
     return jsonResponse({ ok: false, error: 'invalid_body' }, 400);
   }
+  const parsed = pushNotifySchema.safeParse(raw);
+  if (!parsed.success) {
+    return jsonResponse(
+      { ok: false, error: 'invalid_input', issues: parsed.error.issues },
+      400,
+    );
+  }
+  const userIds = parsed.data.userIds;
 
-  const userIds = Array.isArray(body.userIds)
-    ? (body.userIds.filter((x) => typeof x === 'string' && x.length > 0) as string[])
-    : [];
-  if (userIds.length === 0) {
-    return jsonResponse({ ok: true, sent: 0, removed: 0 });
+  // Sinal de potencial abuso: trigger pg_net normal manda 1 userId; chamadas
+  // com volume alto em um shot são suspeitas. Log warning (Cloudflare/CF logs
+  // capturam) — quando @sentry/nextjs estiver no edge, virar addBreadcrumb.
+  if (userIds.length > 50) {
+    console.warn(
+      `[push-notify] high-volume call ip=${ip} userIds=${userIds.length}`,
+    );
   }
 
   const payload: PushPayload = {
-    title: typeof body.title === 'string' && body.title ? body.title.slice(0, 200) : 'QueroUmaCor',
-    body: typeof body.body === 'string' ? body.body.slice(0, 500) : '',
-    url: typeof body.url === 'string' && body.url ? body.url.slice(0, 500) : '/notificacoes',
-    icon: typeof body.icon === 'string' ? body.icon.slice(0, 500) : undefined,
-    tag: typeof body.tag === 'string' ? body.tag.slice(0, 100) : undefined,
+    title: parsed.data.title,
+    body: parsed.data.body,
+    url: parsed.data.url,
+    icon: parsed.data.icon,
+    tag: parsed.data.tag,
   };
 
-  // ─── 3) VAPID config ──────────────────────────────────────────────────────
+  // ─── 4) VAPID config ──────────────────────────────────────────────────────
   const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY;
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
   const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:loja@calicolors.com.br';
@@ -92,7 +107,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return jsonResponse({ ok: false, error: 'vapid_not_configured' }, 503);
   }
 
-  // ─── 4) Lê subscriptions via service_role ────────────────────────────────
+  // ─── 5) Lê subscriptions via service_role ────────────────────────────────
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -104,7 +119,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const subs = await fetchSubscriptions(supabaseUrl, serviceKey, userIds);
 
-  // ─── 5) Envia em paralelo (com limite simples de concorrência) ───────────
+  // ─── 6) Envia em paralelo (com limite simples de concorrência) ───────────
   const payloadJson = JSON.stringify(payload);
   const payloadBytes = new TextEncoder().encode(payloadJson);
 
@@ -120,7 +135,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     ),
   );
 
-  // ─── 6) Cleanup de endpoints expirados (404/410) ─────────────────────────
+  // ─── 7) Cleanup de endpoints expirados (404/410) ─────────────────────────
   const expiredIds = results
     .filter((r) => r.status === 'expired')
     .map((r) => r.sub.id);
@@ -515,4 +530,21 @@ function safeCompare(a: string, b: string): boolean {
   let result = 0;
   for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return result === 0;
+}
+
+/**
+ * Extrai IP do request usando os headers que o Cloudflare Pages popula.
+ * `cf-connecting-ip` é a fonte canônica; `x-forwarded-for` é fallback pra
+ * outros edges (Vercel/local). Retorna 'unknown' se nenhum bater — não
+ * bloqueia o request mas o rate limit ainda funciona com a string fixa.
+ */
+function extractIp(request: NextRequest | Request): string {
+  const cf = request.headers.get('cf-connecting-ip');
+  if (cf) return cf;
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const first = xff.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return 'unknown';
 }
