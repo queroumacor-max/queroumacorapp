@@ -11,6 +11,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { errorResponse } from '@/lib/api/errors';
 import {
   moderateVideoPost,
   verifyOwnerToken,
@@ -57,7 +58,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(out);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.error('moderate-video crash:', e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: 'erro interno' }, { status: 500 });
+    // R-H11: exception detalhada vai pro Sentry, cliente recebe msg genérica.
+    return errorResponse(e, {
+      status: 500,
+      clientMessage: 'erro interno',
+      tags: { route: 'moderate-video' },
+    });
   }
 }

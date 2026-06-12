@@ -2,12 +2,13 @@
 // Controller fino — Mercado Pago Checkout Pro (Loja).
 // Business logic em `@/lib/api/_services/mp-checkout-loja`.
 
-import { type NextRequest, NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
 import {
   ServiceError,
   jsonResponse,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { errorResponse } from '@/lib/api/errors';
 import { createLojaCheckout } from '@/lib/api/_services/mp-checkout-loja';
 
 export const runtime = 'edge';
@@ -30,10 +31,11 @@ export async function POST(request: NextRequest) {
     return jsonResponse(await createLojaCheckout({ orderId, accessToken }));
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.error('mp-checkout-loja crash:', e instanceof Error ? e.message : e);
-    return NextResponse.json(
-      { error: 'Erro interno — tente de novo em instantes' },
-      { status: 500 }
-    );
+    // R-H11: exception vai pro Sentry com tag, cliente recebe msg genérica.
+    return errorResponse(e, {
+      status: 500,
+      clientMessage: 'Erro interno — tente de novo em instantes',
+      tags: { route: 'mp-checkout-loja' },
+    });
   }
 }

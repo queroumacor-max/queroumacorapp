@@ -7,7 +7,7 @@
 //   - `multipart/form-data`  → fields `styleKey`, `file`, `accessToken?`
 //                              (forma preferida; token pode vir no Authorization)
 
-import { type NextRequest, NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
 import {
   ensureAdminEmail,
   getToken,
@@ -17,6 +17,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { errorResponse } from '@/lib/api/errors';
 
 // Cap específico pra style-refs: 4MB cobre PNG/JPG até ~3000x3000 com
 // qualidade alta. Acima disso é abuso / bug do cliente. JSON branch
@@ -89,13 +90,12 @@ export async function POST(request: NextRequest) {
     return jsonResponse(result);
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
-    console.warn('upload-style-ref crash:', e instanceof Error ? e.message : e);
-    return NextResponse.json(
-      {
-        error: 'Erro interno',
-        detail: String(e instanceof Error ? e.message : e).slice(0, 200),
-      },
-      { status: 500 }
-    );
+    // R-H11: detalhe da exception vai pro Sentry; cliente recebe msg genérica
+    // (antes vazava e.message — hostnames internos, paths do bucket etc).
+    return errorResponse(e, {
+      status: 500,
+      clientMessage: 'Erro interno',
+      tags: { route: 'upload-style-ref' },
+    });
   }
 }
