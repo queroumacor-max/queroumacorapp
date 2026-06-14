@@ -20,6 +20,7 @@
 
 import { memo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Avatar } from '@/components/Avatar';
 import { CommentForm } from '@/components/CommentForm';
 import { useAuth } from '@/components/AuthProvider';
@@ -50,6 +51,15 @@ const BRL_FMT = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+// Área de atuação exibida embaixo do nome no card (pedido do QA). Só pra
+// roles profissionais — cliente/admin/vazio não mostra.
+const ROLE_LABEL: Record<string, string> = {
+  pintor: 'Pintor',
+  grafiteiro: 'Grafiteiro',
+  automotivo: 'Funileiro / Automotivo',
+  funileiro: 'Funileiro / Automotivo',
+};
+
 function displayName(profile: FeedPost['profile']): string {
   let name = profile.name || (profile.tag ? '@' + profile.tag : 'Usuário');
   if (name.includes('@') && !profile.tag) {
@@ -68,6 +78,11 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const name = displayName(post.profile);
   const handle = post.profile.tag ? '@' + post.profile.tag : '';
   const timeAgo = getTimeAgo(post.created_at);
+  // Link pro perfil do autor (tag quando tem, senão o id) + área de atuação.
+  const profileHref = post.profile.tag
+    ? `/perfil/${post.profile.tag}`
+    : `/perfil/${post.user_id}`;
+  const roleText = ROLE_LABEL[String(post.profile.role ?? '').toLowerCase()] ?? null;
 
   // Hidrata useLike com `{liked, count}` que já veio do feed (RPC get_feed_v2
   // ou enrichment legacy). Evita 2 round-trips extra (hasLiked + countLikes)
@@ -357,63 +372,65 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
           <span>Em destaque</span>
         </div>
       ) : null}
-      {/* mpost-head — avatar com ring gradient + meta + dots */}
+      {/* mpost-head — avatar com ring gradient + meta + dots. Avatar+nome
+          linkam pro perfil do autor (pedido do QA). */}
       <header className="flex items-center gap-2.5" style={{ padding: '12px 14px' }}>
-        <div
-          className="flex-shrink-0"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: '50%',
-            padding: 2,
-            background:
-              'conic-gradient(var(--color-p1), var(--color-p4), var(--color-p5), var(--color-p3), var(--color-p1))',
-          }}
+        <Link
+          href={profileHref}
+          className="flex items-center gap-2.5 flex-1 min-w-0"
+          style={{ textDecoration: 'none', color: 'inherit' }}
+          aria-label={`Ver perfil de ${name}`}
         >
           <div
-            className="w-full h-full overflow-hidden bg-white"
-            style={{ borderRadius: '50%', border: '2px solid #fff' }}
+            className="flex-shrink-0"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              padding: 2,
+              background:
+                'conic-gradient(var(--color-p1), var(--color-p4), var(--color-p5), var(--color-p3), var(--color-p1))',
+            }}
           >
-            <Avatar profile={post.profile} size={30} />
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <span
-            className="flex items-center gap-1 truncate"
-            style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}
-          >
-            <span className="truncate">{name}</span>
-            {/* Badge verificado (S1): admin marca contas oficiais via
-                profiles.verified. Compat: is_pro também mostra badge
-                (foi o critério histórico). Cria divergência semântica
-                que admin pode separar depois (remover OR is_pro). */}
-            {post.profile?.verified || post.profile?.is_pro ? (
-              <span
-                aria-label="Verificado"
-                title="Perfil verificado"
-                className="inline-flex items-center justify-center flex-shrink-0"
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  background: '#1d9bf0',
-                }}
-              >
-                <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </span>
-            ) : null}
-          </span>
-          {handle ? (
-            <span
-              className="block truncate"
-              style={{ fontSize: 11, color: 'var(--color-muted)' }}
+            <div
+              className="w-full h-full overflow-hidden bg-white"
+              style={{ borderRadius: '50%', border: '2px solid #fff' }}
             >
-              {handle}
+              <Avatar profile={post.profile} size={30} />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <span
+              className="flex items-center gap-1 truncate"
+              style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}
+            >
+              <span className="truncate">{name}</span>
+              {post.profile?.verified || post.profile?.is_pro ? (
+                <span
+                  aria-label="Verificado"
+                  title="Perfil verificado"
+                  className="inline-flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: '#1d9bf0',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+              ) : null}
             </span>
-          ) : null}
-        </div>
+            {/* @tag + área de atuação (role) embaixo do nome */}
+            <span className="block truncate" style={{ fontSize: 11, color: 'var(--color-muted)' }}>
+              {handle}
+              {handle && roleText ? ' · ' : ''}
+              {roleText ?? ''}
+            </span>
+          </div>
+        </Link>
         <button
           type="button"
           onClick={() => setOptsOpen(true)}

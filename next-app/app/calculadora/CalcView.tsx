@@ -254,7 +254,7 @@ export function CalcView() {
             marginBottom: 14,
           }}
         >
-          <div style={{ fontSize: 11, opacity: 0.7 }}>VOCÊ VAI PRECISAR DE</div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>SUGERIMOS A QUANTIDADE ABAIXO</div>
           <div
             style={{
               fontSize: 36,
@@ -267,6 +267,10 @@ export function CalcView() {
           <div style={{ fontSize: 12, opacity: 0.8 }}>litros de tinta</div>
           <div style={{ fontSize: 13, marginTop: 10, opacity: 0.95 }}>
             ≈ {result.latas} latas 3,6L &nbsp;ou&nbsp; {result.galoes} galão 18L
+          </div>
+          <div style={{ fontSize: 10.5, marginTop: 12, opacity: 0.85, lineHeight: 1.45 }}>
+            Esse cálculo pode variar conforme a qualidade da tinta, o substrato e
+            o modo de aplicação.
           </div>
         </div>
       ) : null}

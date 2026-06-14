@@ -494,8 +494,9 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
         ) : (
           <div className="grid grid-cols-3 gap-1">
             {portfolio.map((p) => (
-              <div
+              <Link
                 key={p.id}
+                href={`/post/${p.id}`}
                 className="block overflow-hidden bg-[color:var(--color-ink)] relative"
                 style={{ aspectRatio: '1 / 1', borderRadius: 8 }}
               >
@@ -518,7 +519,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
                     />
                   )
                 ) : null}
-              </div>
+              </Link>
             ))}
           </div>
         )}
