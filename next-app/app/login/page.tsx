@@ -2,6 +2,7 @@
 // Pattern: `AuthScreen` (dark hero com logo + tagline, cream card com form
 // arredondado no topo). Sem TopNav/BottomNav (vanilla esconde shells em
 // telas de auth — modules/nav.js noNav=['login','signup','chatconv']).
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { AuthScreen } from '@/components/AuthScreen';
 import { LoginForm } from './LoginForm';
@@ -38,7 +39,10 @@ export default function LoginPage() {
       >
         Entre na sua conta para continuar
       </div>
-      <LoginForm />
+      {/* Suspense obrigatório: LoginForm usa useSearchParams() */}
+      <Suspense>
+        <LoginForm />
+      </Suspense>
     </AuthScreen>
   );
 }
