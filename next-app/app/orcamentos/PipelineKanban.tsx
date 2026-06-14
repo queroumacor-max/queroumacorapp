@@ -59,11 +59,11 @@ function SkeletonGrid() {
 
 function resolveStatus(raw: string | null | undefined): PipelineStatus {
   if (!raw) return 'rascunho';
-  // 'aceito' (rótulo legado) cai em aprovado — UI deixa o card aparecer na
-  // lane correta em vez de ignorar.
+  // Rótulos legados que ainda podem aparecer em rows antigas: 'aceito' →
+  // aprovado; 'pending' → enviado (mesmo destino da migração do banco).
   if (raw === 'aceito') return 'aprovado';
+  if (raw === 'pending') return 'enviado';
   const valid: PipelineStatus[] = [
-    'pending',
     'rascunho',
     'enviado',
     'aprovado',

@@ -66,6 +66,13 @@ export interface Profile {
   pro_expires_at?: string | null;
   pro_grace_until?: string | null;
   service_radius?: number | null;
+  // Contadores desnormalizados mantidos por triggers no banco
+  // (migração 2026-06-14). A UI lê estas colunas direto em vez de rodar
+  // COUNT(*) em follows/posts. Optional porque `profiles_public` pode
+  // não projetá-las em instâncias antigas (fallback → 0 na UI).
+  followers_count?: number | null;
+  following_count?: number | null;
+  posts_count?: number | null;
   created_at?: string | null;
 }
 
@@ -201,15 +208,16 @@ export interface Order {
 //   (+ recusado).
 // Mantemos `aceito` no union pra absorver rótulos legados gravados antes da
 // migration; UI mapeia desconhecidos pro grupo "Rascunho" como fallback.
+// quotes.status — CHECK constraint no banco aceita SÓ estes 6 valores
+// (migração 2026-06-14). Legados 'pending' (→ 'enviado') e 'aceito'
+// (→ 'aprovado') já foram migrados; o frontend nunca mais os escreve.
 export type QuoteStatus =
-  | 'pending'
   | 'rascunho'
   | 'enviado'
   | 'aprovado'
   | 'em_execucao'
   | 'concluido'
-  | 'recusado'
-  | 'aceito';
+  | 'recusado';
 
 export interface QuoteSnapshot {
   frozen_at: string;

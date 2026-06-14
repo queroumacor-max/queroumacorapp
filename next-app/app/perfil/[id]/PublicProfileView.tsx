@@ -38,7 +38,8 @@ const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // `profiles.tag`/`username` sync — view projeta só `tag` e `username` é
 // virtual). Mantemos `tag` como handle canônico.
 const PROFILE_COLS =
-  'id, name, tag, avatar_url, role, user_type, city, state, bio, is_pro';
+  'id, name, tag, avatar_url, role, user_type, city, state, bio, is_pro, ' +
+  'followers_count, following_count, posts_count';
 
 export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const { user } = useAuth();
@@ -90,7 +91,15 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
           setProfileNotFound(true);
           return;
         }
-        setProfile(data as unknown as Profile);
+        const prof = data as unknown as Profile;
+        setProfile(prof);
+        // Stats lidos direto das colunas desnormalizadas (mantidas por
+        // triggers) — sem COUNT(*). O delta otimista do follow opera por cima.
+        setStats({
+          posts: prof.posts_count ?? 0,
+          followers: prof.followers_count ?? 0,
+          following: prof.following_count ?? 0,
+        });
       } catch {
         if (cancel) return;
         setProfile(null);
@@ -112,30 +121,24 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
     if (!profile?.id) return;
     let cancel = false;
     const sb = getSupabase();
-    Promise.all([
-      DB.posts.countByUser(profile.id),
-      DB.follows.countFollowers(profile.id),
-      DB.follows.countFollowing(profile.id),
-      sb
-        .from('posts')
-        .select('id, media_url, media_type, caption')
-        .eq('user_id', profile.id)
-        .neq('media_type', 'story')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(30),
-    ])
-      .then(([posts, followers, following, portfolioRes]) => {
-        if (cancel) return;
-        setStats({ posts, followers, following });
-        setPortfolio((portfolioRes.data as PortfolioPost[] | null) ?? []);
-      })
-      .catch(() => {
+    // Stats já vêm das colunas do profile (efeito acima). Aqui só o portfólio.
+    void (async () => {
+      try {
+        const { data } = await sb
+          .from('posts')
+          .select('id, media_url, media_type, caption')
+          .eq('user_id', profile.id)
+          .neq('media_type', 'story')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (!cancel) setPortfolio((data as PortfolioPost[] | null) ?? []);
+      } catch {
         /* silent */
-      })
-      .finally(() => {
+      } finally {
         if (!cancel) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancel = true;

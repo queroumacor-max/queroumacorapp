@@ -42,25 +42,16 @@ export function ProfileHeader() {
   const dialog = useDialog();
   const { profile } = useProfile();
 
-  // Stats (posts/followers/following) via TanStack Query — assim ficam
-  // cacheadas + persistidas via queryPersistence (refresh = mostra anterior
-  // na hora). Antes usava useState + useEffect, refetchava a cada navegação
-  // pro perfil e dava 0/0/0 piscando enquanto Promise.all rodava.
-  const statsQuery = useQuery<Stats, Error>({
-    queryKey: ['profile-stats', user?.id],
-    queryFn: async () => {
-      const [posts, followers, following] = await Promise.all([
-        DB.posts.countByUser(user!.id),
-        DB.follows.countFollowers(user!.id),
-        DB.follows.countFollowing(user!.id),
-      ]);
-      return { posts, followers, following };
-    },
-    enabled: !!user?.id,
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
-  });
-  const stats: Stats = statsQuery.data ?? { posts: 0, followers: 0, following: 0 };
+  // Stats (posts/followers/following) lidos DIRETO das colunas
+  // desnormalizadas do profile (followers_count/following_count/posts_count),
+  // mantidas por triggers no banco. Antes rodava 3 COUNT(*) em paralelo a
+  // cada visita — agora vem de graça no row do profile, e useFollow invalida
+  // `['profile', id]` no follow/unfollow pra atualizar na hora.
+  const stats: Stats = {
+    posts: profile?.posts_count ?? 0,
+    followers: profile?.followers_count ?? 0,
+    following: profile?.following_count ?? 0,
+  };
 
   // Fallback do avatar via profiles_public (mesma fonte que o feed usa pra
   // mostrar Jackson Matos no header do post). Se `useProfile().avatar_url`

@@ -67,7 +67,7 @@ const PROFILE_COLS =
   'profession, specialties, service_radius, is_pro, pro_expires_at, ' +
   'pro_grace_until, is_admin, portal_access, verified, rating_avg, ' +
   'review_count, birth_date, ai_logo_gen_count, instagram_url, ' +
-  'website_url, created_at';
+  'website_url, followers_count, following_count, posts_count, created_at';
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   if (!userId) return null;
