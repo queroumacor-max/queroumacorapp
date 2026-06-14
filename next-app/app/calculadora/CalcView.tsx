@@ -17,6 +17,41 @@ const SURFACE_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 0.8, label: 'Teto liso' },
 ];
 
+// Cobertura por unidade num acabamento de ~2 demãos (base do QA):
+//   quartinho 0,9L ≈ 5 m² · galão 3,6L ≈ 20 m² · lata 18L ≈ 100 m².
+// Resultado SEMPRE em unidades (nunca litros), arredondando pra cima.
+interface UnitQty { count: number; label: string }
+
+function combineUnits(areaM2: number): UnitQty[] {
+  let rem = Math.ceil(areaM2);
+  const out: UnitQty[] = [];
+  const latas = Math.floor(rem / 100);
+  if (latas > 0) {
+    out.push({ count: latas, label: 'lata 18L' });
+    rem -= latas * 100;
+  }
+  if (rem > 0) {
+    if (rem <= 5) out.push({ count: 1, label: 'quartinho 0,9L' });
+    else if (rem <= 20) out.push({ count: 1, label: 'galão 3,6L' });
+    else if (rem <= 80) out.push({ count: Math.ceil(rem / 20), label: 'galão 3,6L' });
+    else out.push({ count: 1, label: 'lata 18L' }); // 81–99 m² → 1 lata (menos sobra)
+  }
+  if (out.length === 0) out.push({ count: 1, label: 'quartinho 0,9L' });
+  // Junta labels iguais (ex.: lata do floor + lata do arredondamento) e ordena.
+  const merged = new Map<string, number>();
+  for (const u of out) merged.set(u.label, (merged.get(u.label) ?? 0) + u.count);
+  const order = ['lata 18L', 'galão 3,6L', 'quartinho 0,9L'];
+  return order.filter((l) => merged.has(l)).map((l) => ({ count: merged.get(l)!, label: l }));
+}
+
+function pluralUnit({ count, label }: UnitQty): string {
+  if (count === 1) return `1 ${label}`;
+  const base = label.split(' ')[0]!;
+  const size = label.slice(base.length);
+  const pl = base === 'galão' ? 'galões' : base === 'lata' ? 'latas' : 'quartinhos';
+  return `${count} ${pl}${size}`;
+}
+
 export function CalcView() {
   const [area, setArea] = useState('');
   const [fator, setFator] = useState(1);
@@ -82,10 +117,10 @@ export function CalcView() {
   const result = useMemo(() => {
     const a = parseFloat(area);
     if (!isFinite(a) || a <= 0) return null;
-    const litros = Math.ceil((a * fator * demaos) / 11 * 1.1);
-    const latas = Math.ceil(litros / 3.6);
-    const galoes = Math.ceil(litros / 18);
-    return { litros, latas, galoes };
+    // Demanda em m² ajustada pelo substrato (fator) e pelas demãos (base = 2,
+    // já que a cobertura por unidade considera acabamento de 2 a 3 demãos).
+    const demandM2 = a * fator * (demaos / 2);
+    return { demandM2, units: combineUnits(demandM2) };
   }, [area, fator, demaos]);
 
   return (
@@ -257,16 +292,17 @@ export function CalcView() {
           <div style={{ fontSize: 11, opacity: 0.7 }}>SUGERIMOS A QUANTIDADE ABAIXO</div>
           <div
             style={{
-              fontSize: 36,
+              fontSize: 26,
               fontWeight: 800,
               fontFamily: 'var(--font-display)',
+              lineHeight: 1.2,
+              marginTop: 6,
             }}
           >
-            {result.litros} L
+            {result.units.map(pluralUnit).join('  +  ')}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>litros de tinta</div>
-          <div style={{ fontSize: 13, marginTop: 10, opacity: 0.95 }}>
-            ≈ {result.latas} latas 3,6L &nbsp;ou&nbsp; {result.galoes} galão 18L
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
+            pra cobrir ~{Math.ceil(result.demandM2)} m² em 2 a 3 demãos
           </div>
           <div style={{ fontSize: 10.5, marginTop: 12, opacity: 0.85, lineHeight: 1.45 }}>
             Esse cálculo pode variar conforme a qualidade da tinta, o substrato e
@@ -277,8 +313,8 @@ export function CalcView() {
 
       <div className="flex flex-col gap-2" style={{ marginBottom: 14 }}>
         {[
-          ['💡', 'Rendimento médio: 1L cobre ~10–12m² com 2 demãos em superfície lisa.'],
-          ['🛒', 'Compre 10% a mais para retoques futuros.'],
+          ['💡', 'O rendimento médio pode mudar com o acabamento, substrato, aplicação e qualidade da tinta. Como base: galão 3,6L cobre ~20m² e lata 18L ~100m², em 2 a 3 demãos.'],
+          ['🛒', 'Compre um pouco a mais para retoques futuros.'],
         ].map(([icon, text]) => (
           <div
             key={text}
