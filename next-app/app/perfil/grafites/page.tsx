@@ -19,8 +19,8 @@ export default function GrafitesPage() {
           Minhas artes
         </h1>
         <p className="text-sm text-[color:var(--color-muted)] mb-6">
-          Suba imagens uma vez e reuse em várias paredes. AR overlay com
-          opacidade vem no próximo update.
+          Suba imagens uma vez e reuse em várias paredes. Toque em
+          “Projetar na parede” pra ver a arte em AR, com controle de opacidade.
         </p>
         <ArtLibrary />
       </main>
