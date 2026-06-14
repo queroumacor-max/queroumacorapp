@@ -1,247 +1,219 @@
 # Arquitetura — QueroUmaCor
 
-> Estado **atual** da arquitetura (não o ideal, não o futuro). Para o plano
-> de modularização ver `ARCHITECTURE_PLAN.md`. Para workflow de preview ver
-> `STAGING.md`. Para convenções e SQL já rodado ver `CLAUDE.md`.
+> Estado **atual** da arquitetura (2026-06-14). A SPA vanilla legada
+> (`index.html` + `app.js` + `modules/` IIFE) **foi removida** — produção é
+> 100% Next.js em `next-app/`. O histórico do port vanilla→Next vive em
+> `MIGRATION_PLAN.md`. Convenções e SQL já rodado em `CLAUDE.md`; workflow de
+> preview em `STAGING.md`.
 
 ## Stack
 
-- **Hosting**: Cloudflare Pages (plano PRO) — entrega de estáticos + Pages
-  Functions (V8 isolates) para o backend.
-- **Banco**: Supabase Postgres (plano PRO) + Auth + Storage + Realtime + RLS.
-- **Frontend**: vanilla JS (sem framework), HTML + CSS estáticos. PWA com
-  Service Worker e manifest.
-- **Portal admin**: React 18 (UMD) + Babel standalone em `/portal`, JSX
-  inline no navegador (sem build).
-- **IA**: OpenAI + Gemini com fallback automático (`functions/api/_ai.js`).
-- **Testes**: Vitest.
-- **CI**: GitHub Actions (`ci.yml` em qualquer branch ≠ main; `deploy.yml` em
-  push para `main`).
+| Camada | Tecnologia |
+|---|---|
+| **Framework** | Next.js 15 (App Router) + React 19 + TypeScript strict |
+| **Hosting** | Cloudflare Pages (PRO) via `@cloudflare/next-on-pages` (V8 isolates / edge runtime) |
+| **Banco** | Supabase Postgres (PRO) + Auth + Storage + Realtime + RLS |
+| **Estado/dados no client** | TanStack Query v5 (cache, stale-while-revalidate, mutations otimistas) |
+| **Estilo** | Tailwind CSS v4 + CSS vars (tema claro/escuro sem FOUC) |
+| **Pagamentos** | Mercado Pago (web) + stubs IAP StoreKit/Play (lojas) |
+| **IA** | OpenAI + Gemini com fallback (`lib/api/_ai.ts`) |
+| **Observabilidade** | Sentry v8 (erros + Web Vitals RUM + breadcrumbs) + tabela `errors` caseira |
+| **Mobile** | PWA (Service Worker + Web Push) + Capacitor (iOS) + Android TWA |
+| **Testes** | Vitest (~1000 testes, 80 arquivos) |
+| **CI/CD** | GitHub Actions + auto-deploy Cloudflare Pages a partir de `main` |
 
 ## Estrutura do repo
 
-- `index.html` — SPA principal, ~2300 linhas. Todas as telas em `div.screen`.
-- `app.js` — lógica residual da SPA (~1300 linhas pós-Fase 4 etapa 2 —
-  reduzido de ~9100 linhas; sobra state vars, boot one-shots e helpers
-  exclusivos. Funções de feature vivem em `modules/`).
-- `modules/` — 44 módulos IIFE (`window.Modules.X`), cada um cobre uma
-  feature isolada (feed, chat, mkt, agenda, ranking, ai-chat, etc.).
-- `shims.js` — ponte `window.Modules.X.fn → window.fn` (+ `window.Utils.X
-  → window.X`) pra que HTML inline handlers (onclick="...") e bare calls
-  legados continuem funcionando. Carrega ANTES do `app.js`.
-- `head.js` — boot, auth, helpers de fetch, observabilidade, perfil.
-- `db.js` — fachada `window.DB` sobre Supabase (profiles/follows/posts).
-- `schemas/` (`_core.js`, `primitives.js`, `documents.js`, `social.js`,
-  `index.js`) — `window.Schemas` (regras de validação shape estilo Zod;
-  `parse(v) → { ok, value?, error?:{code,message} }`, chainable via
-  `.optional()` e `.refine(fn,msg)`).
-- `policies.js` — `window.Policies` (RBAC + ownership puro, sem rede).
-- `utils.js` — `window.Utils` (helpers puros: parseBRL, toast, escapeHtml,
-  getTimeAgo, etc.). Re-exportado como globals via `shims.js`.
-- `errors.js` / `logger.js` / `types.js` — helpers globais.
-- `styles.css` — único arquivo de CSS.
-- `supabase.js`, `jspdf.umd.min.js`, `leaflet.js/css` — libs self-hosted (SRI).
-- `sw.js`, `manifest.json`, `offline.html` — PWA.
-- `_headers`, `_redirects` — config Cloudflare Pages.
-- `robots.txt`, `sitemap.xml` — SEO.
-- `supabase_init.sql` — source-of-truth do schema (~2000 linhas).
-- `functions/api/` — backend (Cloudflare Pages Functions, ~25 endpoints).
-- `portal/` — admin React (`app.jsx` + Babel) servido em `/portal`.
-- `fonts/` — Syne self-hosted (woff2).
-- `img/`, `products/`, `style-refs/` — assets estáticos.
-- `tests/` — Vitest.
-- `scripts/build-portal.js` — script de build do portal.
-- `.github/workflows/` — `ci.yml` + `deploy.yml`.
-- `CLAUDE.md`, `STAGING.md`, `ARCHITECTURE_PLAN.md`, `BACKLOG.md`,
-  `SECURITY_AUDIT_LOG.md` — docs.
-- `_layers/` — índice nominal Clean Architecture (4 subpastas
-  `domain/application/infrastructure/ui` com READMEs apontando pros
-  arquivos reais; sem código). Resolve item A5 da auditoria sem mover
-  arquivos. Ver `LAYERS.md` pro trade-off completo.
+- `next-app/` — **a aplicação** (Next.js App Router).
+  - `app/` — rotas (50+) e route handlers de API (`app/api/*`).
+  - `components/` — ~35 componentes compartilhados (Avatar, PostCard, BottomSheet, providers).
+  - `lib/services/` — ~46 services (I/O puro contra Supabase, sem DOM).
+  - `lib/hooks/` — ~45 hooks (TanStack Query sobre os services).
+  - `lib/api/` — lógica server-side dos endpoints (`security.ts`, `env-check.ts`, `_ai.ts`, etc.).
+  - `lib/` — fundacionais: `supabase.ts`, `policies.ts`, `schemas.ts`, `types.ts`,
+    `errors.ts`, `db.ts`, `cfImg.ts`, `toast.ts`, `auth-server.ts`.
+  - `__tests__/` — Vitest.
+  - `public/` — assets estáticos, Service Worker, manifest.
+- `migrations/*.sql` — migrations numeradas (waves). **Source of truth** do schema
+  junto com `supabase_init.sql`.
+- `docs/` — `BILLING_STRATEGY.md`, `IOS_BUILD.md`, `ANDROID_BUILD.md`,
+  `CSAM_POLICY.md`, `PUSH_NOTIFICATIONS.md`.
+- `capacitor.config.ts`, `ios/`, `twa-manifest.json`, `.well-known/` — empacotamento mobile.
+- Docs na raiz: `CLAUDE.md`, `LAUNCH_AUDIT.md`, `RELEASE_AUDIT.md`,
+  `MIGRATION_PLAN.md`, `STAGING.md`, `BACKLOG.md`, `DATABASE.md`, `DEPLOYMENT.md`.
 
-## Frontend
+## Frontend (`next-app/app/`)
 
-Scripts carregados em `index.html` via `<script defer>`, nesta ordem
-(execução respeitando ordem de declaração porque defer é serial):
+App Router misturando **Server Components** (shells, gates de auth em `/admin/*`)
+com **Client Components** (`'use client'` — interatividade + hooks).
 
-1. `supabase.js` — UMD do supabase-js (SRI travado).
-2. `head.js` — define `getSupabase()`, `currentUser`, `apiPost`, auth,
-   `loadMyProfileData`, helpers (`brl`, `dateBR`, `avatarUrl`, `cfImg`,
-   `gateProClient`, `withTimeout`, `safeAwait`, `withErrorHandling`).
-3. `config.js` / `utils.js` / `errors.js` / `logger.js` / `policies.js` /
-   `db.js` / `schemas/*` — camadas fundacionais. Expostas em
-   `window.Config`, `window.Utils`, `window.Errors`, `window.Schemas`, etc.
-4. `modules/*.js` (44 arquivos, ~10000 linhas) — features encapsuladas em
-   IIFE. Cada módulo registra `window.Modules.X = { ... }`.
-5. `shims.js` — republica `Modules.X.fn` e `Utils.X` como bare globals em
-   `window` pra HTML inline handlers (onclick) e código legado seguirem
-   funcionando. **Roda ANTES de `app.js`** pra que boot calls em app.js
-   (`_bootstrapFromUrl()`, `_consumeInviteFromUrl()`, `updateCartBadge()`)
-   já tenham as window.* wireadas.
-6. `app.js` — agora ~1300 linhas: state vars residuais, boot one-shots
-   (`_injectSheetCloseButtons`), `getAccessToken` (helper auth), e
-   comentários sentinela apontando pra cada feature que migrou.
+Providers globais em `app/layout.tsx` (ordem importa):
 
-Padrão de modal: `.sheet` (overlay clicável → painel). Cache offline via
-`sw.js`. Sem bundler; tudo é global em `window`.
+```
+<AuthProvider>          ← sessão Supabase no Context (substitui o currentUser global)
+  <QueryProvider>       ← TanStack QueryClient + persistência
+    <DialogProvider>    ← modais/confirm imperativos
+      {children}
+      + ToastViewport, StagingBanner, EmailVerifyBanner,
+        ReferralCapture, ServiceWorkerRegister
+```
 
-### Por que IIFE + shim em vez de ES modules?
+Grupos de rotas:
+- **Auth/onboarding:** `/`, `/login`, `/signup` (3 steps), `/reset-password`, `/update-password`
+- **Social/feed:** `/feed`, `/post/[id]`, `/explore`, `/search`, `/hashtag/[tag]`, `/notificacoes`, `/publicar`
+- **Perfil:** `/perfil`, `/perfil/[id]`, `/perfil/editar`, `/perfil/formacao`, `/perfil/grafites` (AR), `/perfil/bloqueados`
+- **Profissional (PRO + role gates):** `/orcamentos`, `/orcamento-ia`, `/agenda`, `/financeiro`,
+  `/crm`, `/checklist`, `/calculadora`, `/leads`, `/notes` + assistentes IA
+  `/seu-ze`, `/fe`, `/senna`, `/alice`, `/arte-ig`, `/ai-logo`
+- **Loja:** `/loja`, `/loja/[id]`, `/loja/carrinho`, `/pedidos`, `/camisetas`
+- **Chat:** `/chat`, `/chat/[convId]` (realtime + unread)
+- **Pontos/PRO:** `/pontos`, `/pro`
+- **Info/LGPD:** `/info/*`, `/delete-account`
+- **Admin (RSC + `requireAdminServer()`):** `/admin/products`, `/admin/reports`,
+  `/admin/feature-interest`, `/admin/media-review`, `/admin/errors`
 
-ES modules quebrariam HTML inline handlers (`onclick="loadFeed()"`) — esses
-exigem que a função esteja em `window`. Refatorar todos os inline handlers
-pra `addEventListener` ia ser uma 2ª onda de risco. O padrão IIFE + shim
-mantém a mesma superfície (window globals) com encapsulamento por módulo
-e abre caminho pra migração futura (ESM ou bundler) sem big-bang.
+## Camada de dados (padrão central)
 
-## Backend (`/functions/api/`)
+Fluxo unidirecional em 3 camadas — sem `sb.from()` espalhado em componentes:
 
-Cloudflare Pages Functions em ESM. Cada `X.js` vira a rota `/api/X`.
-Arquivos com prefixo `_` (`_security.js`, `_ai.js`) são módulos privados,
-não roteáveis.
+```
+Componente (UI)
+   │ usa
+   ▼
+Hook (lib/hooks/*)            ← TanStack Query: cache, staleTime, mutations otimistas
+   │ chama
+   ▼
+Service (lib/services/*)      ← I/O puro contra Supabase, types inline, sem DOM
+   │ via
+   ▼
+getSupabase() (lib/supabase.ts)
+   ▼
+Supabase PostgREST / RPC / Realtime / Storage
+```
 
-- `_security.js` — `getToken`, `getTokenFromForm`, `requireAuth`,
-  `requirePro`, `checkRateLimit`, `gateProAI` (fail-open por design quando
-  config incompleta).
-- `_ai.js` — wrapper OpenAI ↔ Gemini com fallback.
-- `health.js` — uptime monitor.
-- `log-error.js` — recebe erros do client + Web Vitals e grava em `errors`.
-- `chat-ai.js` — Seu Zé (assistente IA do orçamento).
-- `caption.js`, `transcribe.js`, `tts.js` — captions, STT, TTS.
-- `moderate.js`, `moderate-video.js` — moderação de conteúdo.
-- `admin-moderate.js`, `admin-users.js`, `admin-errors-list.js` — endpoints
-  admin (`ADMIN_EMAILS`).
-- `auth-rate-check.js` — rate limit pré-login.
-- `agenda-order.js`, `crm-draft.js`, `fin-analysis.js`,
-  `pricing-suggest.js`, `area-from-photo.js`, `resolve-color.js` — IAs por
-  feature (pipeline, CRM, financeiro, calc, cor).
-- `generate-logo.js`, `ig-art.js`, `ig-art-diag.js`,
-  `upload-style-ref.js` — logo e Arte pra Instagram.
-- `checkout.js`, `mp-checkout-loja.js`, `mp-webhook.js` — Mercado Pago
-  (PRO + loja).
-- `cidades.js` — autocomplete de cidades.
-- `me-export.js` — export LGPD (dados do próprio usuário).
+- **Services** lançam `NetworkError`/`ValidationError`; são funções puras testáveis.
+- **Hooks** aplicam otimismo + rollback (like/save/comment/delete).
+- **Feed:** RPC `get_feed_v2` (1 round-trip agrega post+autor+likes+comments+boost)
+  com fallback legacy de 5 queries; cursor (keyset) pagination; `initialData` pra
+  pular refetch inicial.
 
-## Camada de dados
+## Backend / API (`app/api/` + `lib/api/`)
 
-- `db.js` (`window.DB`) é a forma centralizada de **ler** `profiles`,
-  `follows` e `posts` a partir de `head.js`/`app.js`. Restante do app ainda
-  usa `sb.from('X')` direto.
-- **Escritas** (insert/update/delete) seguem indo direto via
-  `sb.from('X')` na maioria dos call sites — `DB.follows.follow/unfollow`
-  é exceção.
-- `DB.follows.follow()` faz **verify-after-insert** (SELECT após INSERT)
-  porque triggers AFTER INSERT em `follows` podem dar `ROLLBACK 23505`
-  vindo de OUTRA tabela (ex.: `points`) sem que o frontend perceba.
-- `fetchPublicProfiles()` (em `app.js`) é reaproveitada por `DB.profiles.getMany`
-  — único ponto que sabe do fallback `profiles_public → profiles`.
-- View `profiles_public` esconde colunas sensíveis e projeta `tag` e
-  `username` como sinônimos (trigger `sync_profile_tag_username`).
+~34 route handlers em edge runtime. Cada `app/api/X/route.ts` é fino e delega pra
+`lib/api/X.ts` (testável). Infra:
 
-## Autenticação
+- **`security.ts`** — `requirePro()`, `gateAiUsage()` + `recordAiUsage()`.
+  **Fail-closed em prod** sem `SUPABASE_SERVICE_ROLE_KEY` (503).
+- **`env-check.ts`** — `assertProductionEnvs()` no boot; throw se faltar env crítica.
+- **`auth-server.ts` / `requireAdminServer()`** — gate dos RSC `/admin/*` via cookie
+  httpOnly `sb-session-token`.
+- **`_ai.ts`** — wrapper OpenAI ↔ Gemini com fallback.
+- **`mediaHash.ts`** + **`audit.ts`** — SHA-256 de mídia (CSAM) + trilha de auditoria.
 
-- Supabase Auth com email/senha.
-- Sessão persistida em `localStorage` (default supabase-js).
-- Tela própria `update-password` para fluxo de recovery (link via email).
-- `_security.requireAuth()` valida JWT no backend. **Fail-open por design**
-  em endpoints públicos (deixa passar sem token enquanto a frota de clients
-  legados ainda não envia Bearer).
-- `currentUser` é uma global em `head.js` — fonte da verdade no client.
+Categorias: IA (14 endpoints), pagamentos (`checkout`, `mp-checkout-loja`,
+`mp-webhook`, `apple-iap-verify`, `play-billing-verify`), auth
+(`auth/set-session-cookie`, `auth-rate-check`), LGPD (`me-export`, `delete-account`),
+push (`push-notify`), admin, `health`, `log-error`.
 
-## Autorização
+**Toda IA** passa por `gateAiUsage` (free 30/mês, pro 500, admin 99999) → IA →
+`recordAiUsage`. Sem escapatória.
 
-- **RLS no Supabase** em todas as tabelas mutáveis pelo client. Hardening
-  "SQL Wave 3" já aplicado (trigger `protect_profile_columns` impede
-  escalada de `is_pro`/`portal_access`/`role=admin`; UNIQUE em
-  `points(source, reference_id)` evita double-credit; SELECT restrito a
-  `authenticated` em `follows`/`likes`/`comments`/etc.).
-- `ADMIN_EMAILS` (env var Cloudflare) gateia endpoints admin no backend.
-- `_isAdmin` no client é setado via `GET /api/admin-moderate?action=check`
-  (não dá pra confiar — só esconde UI). Decisão real é server-side.
-- `policies.js` (`window.Policies`) — RBAC + ownership central, puro, sem
-  rede. `canEditProfile`, `canDeletePost`, `canEditQuote`,
-  `canModerateContent`, `canSeeProFeature`, `canFollowUser`, etc.
-  Migração gradual a partir de `_isAdmin`/`_isPro` espalhados pelo app.
+## Banco de dados
 
-## Observabilidade
+- **Source of truth:** `supabase_init.sql` + `migrations/*.sql` (waves numeradas).
+  Claude **não roda SQL** — o conteúdo é colado no chat e o usuário executa no
+  SQL Editor.
+- **RLS** em todas as tabelas mutáveis. Hardening fechado nas Waves 27/32/33
+  (`orders`, `messages`, `quotes`, Storage path-validation, `profiles_public` sem
+  `portal_access`).
+- **RPCs** carregam a lógica pesada: `get_feed_v2`, `search_all` (full-text
+  tsvector+GIN), `get_trending_posts`, `boost_post`, `suggest_to_follow`,
+  `list_blocked_ids`, `unread_message_count`, `upsert_invoice`, `ai_usage_this_month`.
+- **Triggers:** `handle_new_user`, `protect_profile_columns` (anti-escalada
+  is_pro/role=admin), `sync_profile_tag_username`, `trg_sync_role_from_user_type`,
+  `handle_invoice_paid`, notificações via `pg_net`.
+- **Soft delete** (`deleted_at`) + `pg_cron` (cleanups diários/semanais).
+- **Tabelas-chave:** `profiles`, `posts`, `comments`, `likes`, `saved_posts`,
+  `follows`, `messages`, `notifications`, `products`+`product_variants`,
+  `orders`+`invoices`, `quotes`, `jobs`, `points`, `blocks`, `reports`,
+  `media_hash_blocklist`+`media_review_queue`, `push_subscriptions`,
+  `consent_log`+`audit_log`.
 
-- `POST /api/log-error` recebe erros do client (`window.onerror`,
-  `unhandledrejection`) + Web Vitals (LCP, FID, CLS).
-- Tabela `errors` no Supabase guarda histórico.
-- Modal `/admin/errors` no app (gate `_isAdmin`) lista os últimos erros.
-- `GET /api/health` para uptime monitor externo.
+## Auth & autorização
 
-## Deploy
+- **Auth:** Supabase email/senha; sessão em `localStorage`; `AuthProvider` expõe
+  `user`, `session`, `emailVerified`.
+- **Verificação de email (C6):** bloqueia publicar/comentar/DM no client + banner.
+- **Age gate (C5):** `MIN_AGE=16` no signup, revalidado server-side.
+- **3 níveis de autorização:**
+  1. **RLS** (banco) — fonte de verdade.
+  2. **`policies.ts`** — RBAC/ownership puro no client (só esconde UI).
+  3. **Server gates** — `requireAdminServer()` (cookie httpOnly), `requirePro()`,
+     `gateAiUsage()` (fail-closed em prod).
 
-- **Produção**: push em `main` → `deploy.yml` + auto-deploy Cloudflare Pages
-  → `queroumacor.com.br`.
-- **Preview**: push em qualquer branch ≠ `main` → preview deploy automático
-  em `<branch-slug>.queroumacorapp.pages.dev`. Banner amarelo
-  `🧪 STAGING · <hostname>` aparece quando host ≠ `queroumacor.com.br`.
-  `X-Robots-Tag: noindex` automático nos `*.pages.dev`.
-- **Sem build step** — o repo é servido como está. Exceção: `build:portal`
-  pré-compila o JSX do portal admin.
-- **Cache-busting**: `index.html` carrega `head.js`, `db.js`, `schemas/*`
-  e `app.js` com `?v=AAAAMMDD<letra>` (ex.: `?v=20260531d`). **DEVE ser
-  bumpado** sempre que o arquivo muda — senão Cloudflare serve a versão
-  antiga do cache.
-- `_redirects`: `/portal/*` → `/portal/index.html`, `/api/*` → `/api/:splat`,
-  `/*` → `/index.html` (SPA fallback 200).
-- `_headers`: CSP rigorosa, HSTS 12 meses (sem `preload` ainda — flag em
-  07/07/2026 segundo `SECURITY_AUDIT_LOG.md`), cache imutável para assets
-  versionados.
+## Pagamentos (multiplataforma)
 
-## Testes
+`lib/services/billing-platform.ts` detecta o ambiente (web / wrapper iOS / wrapper
+Android) e roteia o checkout:
+- **Web** → Mercado Pago (Checkout PRO assinatura + loja one-shot), webhook
+  HMAC-SHA256 fail-closed, idempotência via `upsert_invoice`, anti-fraude.
+- **iOS** → StoreKit (`apple-iap-verify`) — stub gated por
+  `IAP_PRODUCTION_VERIFICATION_ENABLED`.
+- **Android** → Play Billing (`play-billing-verify`) — idem stub.
 
-- `npm test` → `vitest run` (sem watch).
-- `tests/_security.test.js` — `getToken`, `getTokenFromForm` e contratos
-  do helper de auth.
-- `tests/schemas.test.js` — 13 schemas (email, senha, match, tag,
-  CPF/CNPJ etc.) + helpers chainable (`.optional()`, `.refine()`).
-- `tests/db.test.js` — smoke do shape de `window.DB` + caminho degradado
-  (sem Supabase → tudo retorna seguro).
-- **Sem teste de UI/E2E**. Smoke manual por feature após cada mudança
-  (preview em staging).
-- CI (`ci.yml`) também roda `node -c` em cada `.js` e valida que cada path
-  com `?v=` referenciado em `index.html` existe no disco.
+## Realtime, IA, observabilidade, PWA
+
+- **Realtime:** canais Supabase filtrados por `user_id` (chat, notificações, jobs,
+  points) via `useGlobalRealtime`/`useChatRealtime`.
+- **IA:** OpenAI↔Gemini fallback; assistentes Seu Zé/Fé/Senna/Alice; moderação
+  multimodal Gemini + blocklist de hash (CSAM).
+- **Observabilidade:** Sentry (browser tracing, Web Vitals RUM `tracesSampleRate:1.0`,
+  breadcrumbs do feed) + tabela `errors` + `/admin/errors`.
+- **PWA/mobile:** Service Worker, Web Push (VAPID ES256 + aes128gcm, zero-dep),
+  Capacitor iOS scaffold, Android TWA.
+
+## Deploy & CI
+
+- **Prod:** push `main` → auto-deploy Cloudflare Pages → `queroumacor.com.br`.
+- **Preview:** branch ≠ `main` → `<branch-slug>.queroumacorapp.pages.dev` + banner
+  🧪 STAGING + `X-Robots-Tag: noindex`.
+- **Build:** `next build` → `@cloudflare/next-on-pages` → `.vercel/output/static`.
+- **Headers:** CSP rígida, HSTS preload submetido, cache imutável pra assets versionados.
+- **CI:** typecheck (`tsc --noEmit`) + lint + `vitest run`.
 
 ## Diagrama de fluxo (texto)
 
 ```
-[Browser]
-   │  GET /
+[Browser] GET /
    ▼
-[Cloudflare Pages CDN]
-   │  serve index.html + _headers (CSP/HSTS) + _redirects (SPA)
+[Cloudflare Pages CDN] serve HTML/RSC + _headers (CSP/HSTS)
    ▼
-[Browser parseia index.html]
-   │  <script defer> em ordem:
-   │   1. supabase.js (UMD)
-   │   2. head.js     (auth, currentUser, apiPost, getSupabase)
-   │   3. db.js       (window.DB)
-   │   4. schemas/* (window.Schemas)
-   │   5. app.js      (features + showScreen)
+[Next.js App Router]
+   │  RSC renderiza shell; Client Components hidratam
+   │  Providers: AuthProvider → QueryProvider → DialogProvider
    ▼
-[head.js boot]
-   │  Supabase Auth restore (localStorage) → currentUser
-   │  loadMyProfileData() → profiles row
+[AuthProvider] restaura sessão Supabase (localStorage) → user
    ▼
-[app.js showScreen('feed')]
-   │  loadFeed() → DB.posts.getFeedPosts() + DB.follows.listFollowingIds()
+[Hook (TanStack Query)] → [Service] → getSupabase()
    ▼
-[Supabase REST/PostgREST]
-   │  RLS aplicada (anon ou authenticated)
-   │  Realtime channels pra chat/notifications
+[Supabase PostgREST / RPC] com RLS (anon|authenticated)
+   │  Realtime channels (chat/notifications)
    ▼
-[Render] → DOM atualizado, modais via .sheet pattern
+[Render] DOM + modais (BottomSheet)
 
-[Ações server-side via apiPost('/api/X', body)]
-   │
+[Ações server-side]
    ▼
-[Cloudflare Pages Functions /functions/api/X.js]
-   │  _security.requireAuth(request, body) → valida JWT
-   │  _security.checkRateLimit() / requirePro() conforme endpoint
-   │  _ai.js → OpenAI ↔ Gemini fallback (endpoints de IA)
-   │  Supabase service-role pra operações privilegiadas
+[Route handler app/api/X] → lib/api/X
+   │  requireAdminServer / requirePro / gateAiUsage
+   │  _ai.ts (OpenAI ↔ Gemini)  | service-role pra ops privilegiadas
    ▼
-[JSON response] → client atualiza UI
+[JSON] → client reconcilia cache
 ```
+
+## Dívida / pontos de atenção
+
+- Itens externos pendentes pra produção: `MP_WEBHOOK_SECRET` no CF Pages, opt-in
+  do Cloudflare CSAM Scanning Tool, popular `product_variants` (4171 SKUs), PDF do
+  orçamento (stub), "estimar por foto" da calculadora (não wireado).
+- Verificação real de IAP (StoreKit/Play) ainda é stub — só habilitar quando
+  publicar nas lojas.
