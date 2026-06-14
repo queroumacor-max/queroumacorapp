@@ -24,6 +24,9 @@ const REQUIRED_IN_PROD = [
 
 export function assertProductionEnvs(opts: { force?: boolean } = {}): void {
   if (process.env.NODE_ENV !== 'production') return;
+  // Durante o build do Next.js, as secrets de runtime (service_role) não estão
+  // disponíveis. O assert só é relevante em runtime (edge cold-start).
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
   // Skip silencioso quando importado durante vitest (`security.ts` chama
   // `assertProductionEnvs()` no module-load; outros tests setam
   // NODE_ENV='production' pra exercitar caminhos fail-closed e seriam
