@@ -6,6 +6,67 @@
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 
+// Avaliação pública exibida no perfil de um pintor. Vem da RPC
+// `get_painter_reviews` (SECURITY DEFINER) — a tabela `reviews` liga ao
+// pintor via `quote_id → quotes.painter_id`, e a Wave 27 fechou o SELECT de
+// `quotes`, então o caller não consegue fazer o join por conta própria.
+export interface PainterReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  criteria: string[];
+  created_at: string;
+  reviewer_name: string | null;
+  reviewer_avatar: string | null;
+}
+
+interface RawPainterReview {
+  id: string;
+  rating: number | null;
+  comment: string | null;
+  criteria: unknown;
+  created_at: string | null;
+  reviewer_name: string | null;
+  reviewer_avatar: string | null;
+}
+
+/**
+ * Lista as avaliações de um pintor (perfil público) via RPC. Retorna [] se
+ * painterId vazio ou se a RPC falhar (degradação graciosa — perfil não quebra
+ * por causa da seção de avaliações).
+ */
+export async function listPainterReviews(
+  painterId: string,
+  limit = 20,
+): Promise<PainterReview[]> {
+  if (!painterId) return [];
+  const sb = getSupabase();
+  const { data, error } = await (sb.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: RawPainterReview[] | null; error: { message: string } | null }>)(
+    'get_painter_reviews',
+    { p_painter_id: painterId, p_limit: limit },
+  );
+  if (error) {
+    // Não-fatal: loga e devolve vazio.
+    // eslint-disable-next-line no-console
+    console.warn('[listPainterReviews] RPC falhou:', error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    rating: Number(r.rating ?? 0),
+    comment: r.comment,
+    criteria: Array.isArray(r.criteria)
+      ? (r.criteria as unknown[]).map((c) => String(c))
+      : [],
+    created_at: r.created_at ?? '',
+    reviewer_name: r.reviewer_name,
+    reviewer_avatar: r.reviewer_avatar,
+  }));
+}
+
 export interface ReviewableQuote {
   id: string;
   title: string | null;

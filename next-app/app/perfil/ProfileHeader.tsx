@@ -17,6 +17,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useDialog } from '@/components/Dialog';
 import { Avatar } from '@/components/Avatar';
+import { ProfileLinks } from '@/components/ProfileLinks';
 import { DB } from '@/lib/db';
 import { showToast } from '@/lib/toast';
 
@@ -364,64 +365,3 @@ function StatBlock({ value, label }: { value: number; label: string }) {
 }
 
 
-// S4: links externos no perfil. Normaliza @user no Instagram pra URL
-// completa (UX permite digitar @ ou URL). website_url precisa começar com
-// https:// (schema valida no form), passa direto.
-function ProfileLinks({
-  instagramUrl,
-  websiteUrl,
-}: {
-  instagramUrl: string | null;
-  websiteUrl: string | null;
-}) {
-  if (!instagramUrl && !websiteUrl) return null;
-  // B3 fix: render-side validation pra ambos os hrefs. Schema do form
-  // valida no submit, mas dado pode chegar de qualquer origem (admin SQL,
-  // import legado). javascript:/data: ficariam clicáveis sem isso.
-  const safeHref = (raw: string | null): string | null => {
-    if (!raw) return null;
-    const v = raw.trim();
-    return /^https?:\/\//i.test(v) ? v : null;
-  };
-  const igHref = (() => {
-    if (!instagramUrl) return null;
-    const v = instagramUrl.trim();
-    if (/^https?:\/\//i.test(v)) return v;
-    // Aceita "@user" ou "user" puro como handle de IG. Bloqueia qualquer
-    // outra forma (ex.: "javascript:alert(1)" sem leading @).
-    if (/^@?[a-zA-Z0-9._]+$/.test(v)) {
-      const handle = v.replace(/^@/, '');
-      return `https://instagram.com/${handle}`;
-    }
-    return null;
-  })();
-  const safeSite = safeHref(websiteUrl);
-  return (
-    <div className="mt-2 flex items-center gap-3 text-white/85 text-xs">
-      {igHref ? (
-        <a
-          href={igHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 hover:underline"
-          aria-label="Instagram"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-          Instagram
-        </a>
-      ) : null}
-      {safeSite ? (
-        <a
-          href={safeSite}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 hover:underline"
-          aria-label="Site"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-          Site
-        </a>
-      ) : null}
-    </div>
-  );
-}
