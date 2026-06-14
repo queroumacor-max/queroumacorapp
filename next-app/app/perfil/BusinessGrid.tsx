@@ -180,7 +180,7 @@ const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string;
     emoji: '🎨',
     title: 'AR Grafite',
     subtitle: 'Projete arte na parede',
-    roles: ['grafiteiro', 'pintor'],
+    roles: ['grafiteiro'],
     gradient: 'art',
   },
   {
