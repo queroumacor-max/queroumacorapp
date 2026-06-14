@@ -168,18 +168,18 @@ const TILES: readonly Tile[] = [
 // Mapeia: chave = nome do tile no SHEETS, value = lista de roles que veem.
 const ROLE_TILES: ReadonlyArray<{ sheet: SheetKey; emoji: string; title: string; subtitle: string; roles: string[]; gradient?: 'pro' | 'art' }> = [
   {
-    sheet: 'arte-venda',
-    emoji: '🖼️',
-    title: 'Arte pra venda',
-    subtitle: 'Catálogo de obras',
-    roles: ['grafiteiro'],
-    gradient: 'art',
-  },
-  {
     sheet: 'grafites',
     emoji: '🎨',
     title: 'AR Grafite',
     subtitle: 'Projete arte na parede',
+    roles: ['grafiteiro'],
+    gradient: 'art',
+  },
+  {
+    sheet: 'arte-venda',
+    emoji: '🖼️',
+    title: 'Arte pra venda',
+    subtitle: 'Catálogo de obras',
     roles: ['grafiteiro'],
     gradient: 'art',
   },
@@ -248,14 +248,18 @@ export function BusinessGrid() {
   return (
     <>
       <div className="grid grid-cols-3 gap-2.5">
-        {visibleTiles.map((t) => (
+        {/* Tiles de role (AR Grafite, Arte pra venda, Avaliar) PRIMEIRO —
+            são os mais relevantes pra quem tem o role e antes ficavam
+            soterrados no fim do grid, atrás das ferramentas genéricas + das
+            personas IA (fora da dobra / atrás da nav inferior). */}
+        {visibleRoleTiles.map((t) => (
           <BusinessCard
             key={t.sheet}
             tile={t}
             onOpen={() => handleTileOpen(t.sheet)}
           />
         ))}
-        {visibleRoleTiles.map((t) => (
+        {visibleTiles.map((t) => (
           <BusinessCard
             key={t.sheet}
             tile={t}
