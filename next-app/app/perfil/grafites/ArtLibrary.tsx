@@ -12,6 +12,8 @@ import { readImageDimensions, type ArtReference } from '@/lib/services/artRefere
 import { showToast } from '@/lib/toast';
 import { cfImg } from '@/lib/cfImg';
 import { ArtAROverlay } from './ArtAROverlay';
+import { ArtArWebXR } from './ArtArWebXR';
+import { useWebXrSupport } from '@/lib/hooks/useWebXrSupport';
 
 const BRL = new Intl.NumberFormat('pt-BR');
 
@@ -31,6 +33,9 @@ export function ArtLibrary() {
   const [title, setTitle] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [arRef, setArRef] = useState<ArtReference | null>(null);
+  // AR world-locked (WebXR) — só Android/ARCore. iOS/desktop usa o 2D.
+  const [arXrRef, setArXrRef] = useState<ArtReference | null>(null);
+  const xrSupported = useWebXrSupport() === 'supported';
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   if (!user) {
@@ -149,6 +154,7 @@ export function ArtLibrary() {
                   ref_={ref}
                   onDelete={() => handleDelete(ref)}
                   onProject={() => setArRef(ref)}
+                  onProjectXr={xrSupported ? () => setArXrRef(ref) : undefined}
                   disabled={isDeleting}
                 />
               </li>
@@ -165,6 +171,15 @@ export function ArtLibrary() {
           onClose={() => setArRef(null)}
         />
       ) : null}
+
+      {arXrRef ? (
+        <ArtArWebXR
+          open={!!arXrRef}
+          imageUrl={arXrRef.image_url}
+          title={arXrRef.title}
+          onClose={() => setArXrRef(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -173,11 +188,14 @@ function ArtCard({
   ref_,
   onDelete,
   onProject,
+  onProjectXr,
   disabled,
 }: {
   ref_: ArtReference;
   onDelete: () => void;
   onProject: () => void;
+  /** Só definido quando o device suporta WebXR AR (Android/ARCore). */
+  onProjectXr?: () => void;
   disabled: boolean;
 }) {
   return (
@@ -214,6 +232,17 @@ function ArtCard({
         >
           🪄 Projetar na parede
         </button>
+        {onProjectXr ? (
+          <button
+            type="button"
+            onClick={onProjectXr}
+            disabled={disabled}
+            className="mt-1 w-full px-2 py-1.5 text-[11px] font-bold rounded disabled:opacity-60"
+            style={{ background: 'var(--color-ink)', color: '#fff' }}
+          >
+            📌 Fixar na parede (AR)
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onDelete}
