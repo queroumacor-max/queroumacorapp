@@ -1,17 +1,19 @@
 'use client';
 // ArtArWebXR — AR "world-locked" via WebXR (immersive-ar) + Three.js.
 //
-// Diferente do ArtAROverlay (overlay 2D preso à tela), aqui a arte é um plano
-// texturizado ANCORADO num ponto da parede via hit-test: ao mover o celular
-// ela continua fixa no mundo e escala natural (chega perto = maior). Só roda
-// onde o browser suporta immersive-ar (Android Chrome/ARCore). iOS Safari e
-// desktop não suportam — por isso o caller só mostra o botão quando
-// useWebXrSupport === 'supported' (senão, cai no overlay 2D).
+// Diferente do ArtAROverlay (overlay 2D preso à tela), aqui a arte e um plano
+// texturizado ANCORADO no mundo: ao mover o celular ela continua fixa e escala
+// natural. Depois de fixar, da pra MANIPULAR com gestos (estilo Scene Viewer do
+// GLB): 1 dedo arrasta (frente/tras + lados, no plano horizontal), 2 dedos =
+// pinca pra redimensionar. Mais opacidade + reposicionar.
 //
-// three é importado dinamicamente pra não pesar o bundle inicial — só baixa
-// quando o user abre o AR.
+// So roda onde o browser suporta immersive-ar (Android Chrome/ARCore). iOS
+// Safari/desktop nao suportam — o caller so mostra o botao quando
+// useWebXrSupport === 'supported' (senao, cai no overlay 2D).
+//
+// three e importado dinamicamente pra nao pesar o bundle inicial.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 interface Props {
@@ -23,7 +25,6 @@ interface Props {
 
 type Phase = 'idle' | 'starting' | 'placing' | 'placed' | 'error';
 
-// Tipos mínimos das APIs WebXR (lib.dom não inclui XRSystem por padrão).
 interface XrSessionLike {
   end: () => Promise<void>;
   addEventListener: (t: string, cb: () => void) => void;
@@ -31,8 +32,24 @@ interface XrSessionLike {
   requestHitTestSource?: (opt: { space: unknown }) => Promise<unknown>;
 }
 interface XrSystemLike {
-  isSessionSupported?: (m: string) => Promise<boolean>;
   requestSession: (m: string, opts: unknown) => Promise<XrSessionLike>;
+}
+
+// Handle vivo pros gestos manipularem a cena three (no closure de start()).
+interface ArHandle {
+  cleanup: () => void;
+  replace: () => void;
+  moveBy: (dxPx: number, dyPx: number) => void;
+  setScale: (v: number) => void;
+  getScale: () => number;
+  setOpacity: (v: number) => void;
+}
+
+const SCALE_MIN = 0.1;
+const SCALE_MAX = 5;
+
+function touchDist(a: React.Touch, b: React.Touch): number {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 }
 
 export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
@@ -42,40 +59,25 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [opacity, setOpacity] = useState(0.85);
-  const [scale, setScale] = useState(1); // largura em metros
 
-  // Refs vivos pro render loop / callbacks sem recriar a sessão.
   const opacityRef = useRef(opacity);
-  const scaleRef = useRef(scale);
   opacityRef.current = opacity;
-  scaleRef.current = scale;
 
-  // Handles do three/sessão pra cleanup. `any` aqui é deliberado — o objeto
-  // carrega refs de three (importado dinâmico) + WebXR (sem types em lib.dom).
-  const ctxRef = useRef<{
-    cleanup: () => void;
-    placedRef: { current: boolean };
-    artRef: { current: { material: { opacity: number }; scale: { setScalar: (n: number) => void }; visible: boolean } | null };
-    replace: () => void;
-  } | null>(null);
+  const handleRef = useRef<ArHandle | null>(null);
+  // Estado do gesto de toque (drag/pinch).
+  const gesture = useRef<{ mode: 'none' | 'drag' | 'pinch'; x: number; y: number; dist: number; startScale: number }>({
+    mode: 'none', x: 0, y: 0, dist: 0, startScale: 1,
+  });
 
   const stop = useCallback(() => {
-    try {
-      ctxRef.current?.cleanup();
-    } catch {
-      /* ignore */
-    }
-    ctxRef.current = null;
+    try { handleRef.current?.cleanup(); } catch { /* ignore */ }
+    handleRef.current = null;
   }, []);
 
-  // Aplica opacity/scale ao vivo na arte já colocada.
+  // Opacidade ao vivo.
   useEffect(() => {
-    const art = ctxRef.current?.artRef.current;
-    if (art) {
-      art.material.opacity = opacity;
-      art.scale.setScalar(scale);
-    }
-  }, [opacity, scale]);
+    handleRef.current?.setOpacity(opacity);
+  }, [opacity]);
 
   const start = useCallback(async () => {
     setErrorMsg('');
@@ -83,7 +85,7 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
     try {
       const THREE = await import('three');
       const xr = (navigator as unknown as { xr?: XrSystemLike }).xr;
-      if (!xr) throw new Error('WebXR indisponível neste navegador.');
+      if (!xr) throw new Error('WebXR indisponivel neste navegador.');
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -95,7 +97,6 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 30);
       scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbbb, 1));
 
-      // Reticle (anel) que segue o hit-test até o user tocar pra fixar.
       const reticle = new THREE.Mesh(
         new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0xff6b35 }),
@@ -104,26 +105,19 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       reticle.visible = false;
       scene.add(reticle);
 
-      // Plano da arte (criado escondido; aparece ao fixar).
       const loader = new THREE.TextureLoader();
       loader.setCrossOrigin('anonymous');
       let tex: import('three').Texture;
       try {
         tex = await loader.loadAsync(imageUrl);
       } catch {
-        throw new Error('Não consegui carregar a imagem (CORS do bucket?).');
+        throw new Error('Nao consegui carregar a imagem (CORS do bucket?).');
       }
-      const imgW = tex.image?.width || 1;
-      const imgH = tex.image?.height || 1;
-      const aspect = imgW / imgH || 1;
-      const baseW = 1; // 1 metro de largura base; scale ajusta
-      const geo = new THREE.PlaneGeometry(baseW, baseW / aspect);
+      const aspect = (tex.image?.width || 1) / (tex.image?.height || 1) || 1;
+      const geo = new THREE.PlaneGeometry(1, 1 / aspect);
       const mat = new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        opacity: opacityRef.current,
-        side: THREE.DoubleSide,
-        depthTest: false,
+        map: tex, transparent: true, opacity: opacityRef.current,
+        side: THREE.DoubleSide, depthTest: false,
       });
       const art = new THREE.Mesh(geo, mat);
       art.visible = false;
@@ -131,17 +125,13 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       scene.add(art);
 
       const placedRef = { current: false };
-      const artRef = { current: art as unknown as { material: { opacity: number }; scale: { setScalar: (n: number) => void }; visible: boolean } };
 
-      // Inicia a sessão immersive-ar com hit-test + dom-overlay pros controles.
       const session = await xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test'],
         optionalFeatures: ['dom-overlay'],
         domOverlay: overlayRef.current ? { root: overlayRef.current } : undefined,
       });
-
       renderer.xr.setReferenceSpaceType('local');
-      // setSession aceita XRSession; cast por causa da falta de types.
       await (renderer.xr as unknown as { setSession: (s: unknown) => Promise<void> }).setSession(session);
 
       const viewerSpace = await session.requestReferenceSpace('viewer');
@@ -152,31 +142,28 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
 
       setPhase('placing');
 
+      const xrCam = () => (renderer.xr as unknown as { getCamera: () => import('three').Object3D }).getCamera();
+
       const place = () => {
         if (placedRef.current) return;
-        const camObj = (renderer.xr as unknown as { getCamera: () => import('three').Object3D }).getCamera();
-        const camPos = new THREE.Vector3().setFromMatrixPosition(camObj.matrixWorld);
+        const cam = xrCam();
+        const camPos = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld);
         const target = new THREE.Vector3();
         if (reticle.visible) {
-          // Superfície detectada — ancora exatamente no ponto da parede/chão.
           target.setFromMatrixPosition(reticle.matrix);
         } else {
-          // Parede lisa sem pontos de rastreio — fixa 1,5 m à frente da câmera
-          // (continua world-locked; só não cola exatamente na superfície).
-          const camQuat = new THREE.Quaternion().setFromRotationMatrix(camObj.matrixWorld);
-          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+          const q = new THREE.Quaternion().setFromRotationMatrix(cam.matrixWorld);
+          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
           target.copy(camPos).add(fwd.multiplyScalar(1.5));
         }
         art.position.copy(target);
-        art.lookAt(camPos); // encara o usuário no momento de fixar; depois fica fixo
-        art.scale.setScalar(scaleRef.current);
+        art.lookAt(camPos);
         art.material.opacity = opacityRef.current;
         art.visible = true;
         placedRef.current = true;
         reticle.visible = false;
         setPhase('placed');
       };
-      // Tap em qualquer lugar (controller "select") fixa a arte.
       session.addEventListener('select', place);
 
       renderer.setAnimationLoop((_t: number, frame?: unknown) => {
@@ -185,10 +172,7 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
           const results = f.getHitTestResults(hitSource);
           if (results.length > 0) {
             const pose = results[0]!.getPose(localSpace);
-            if (pose) {
-              reticle.visible = true;
-              reticle.matrix.fromArray(pose.transform.matrix);
-            }
+            if (pose) { reticle.visible = true; reticle.matrix.fromArray(pose.transform.matrix); }
           } else {
             reticle.visible = false;
           }
@@ -196,22 +180,25 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
         renderer.render(scene, camera);
       });
 
-      const onSessionEnd = () => {
-        renderer.setAnimationLoop(null);
-        onClose();
-      };
-      session.addEventListener('end', onSessionEnd);
+      session.addEventListener('end', () => { renderer.setAnimationLoop(null); onClose(); });
 
-      const replace = () => {
-        placedRef.current = false;
-        art.visible = false;
-        setPhase('placing');
-      };
-
-      ctxRef.current = {
-        placedRef,
-        artRef,
-        replace,
+      handleRef.current = {
+        replace: () => { placedRef.current = false; art.visible = false; setPhase('placing'); },
+        moveBy: (dxPx, dyPx) => {
+          const m = xrCam().matrixWorld;
+          // base horizontal da camera (Y zerado) — mover no plano do chao,
+          // estilo Scene Viewer: 1 dedo => frente/tras + lados.
+          const right = new THREE.Vector3().setFromMatrixColumn(m, 0).setY(0);
+          if (right.lengthSq() > 0) right.normalize();
+          const fwd = new THREE.Vector3().setFromMatrixColumn(m, 2).multiplyScalar(-1).setY(0);
+          if (fwd.lengthSq() > 0) fwd.normalize();
+          const K = 0.004; // metros por pixel
+          art.position.addScaledVector(right, dxPx * K);
+          art.position.addScaledVector(fwd, -dyPx * K); // arrastar pra cima => afasta
+        },
+        setScale: (v) => { art.scale.setScalar(Math.max(SCALE_MIN, Math.min(SCALE_MAX, v))); },
+        getScale: () => art.scale.x,
+        setOpacity: (v) => { art.material.opacity = v; },
         cleanup: () => {
           try { renderer.setAnimationLoop(null); } catch { /* */ }
           try { session.end(); } catch { /* */ }
@@ -226,37 +213,74 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
     }
   }, [imageUrl, onClose, stop]);
 
-  // Cleanup ao fechar/desmontar.
   useEffect(() => {
     if (!open) stop();
     return () => stop();
   }, [open, stop]);
 
+  // ─── gestos de toque (so quando 'placed') ──────────────────────────────
+  const onTouchStart = useCallback((e: ReactTouchEvent) => {
+    const t = e.touches;
+    if (t.length >= 2) {
+      gesture.current = { mode: 'pinch', x: 0, y: 0, dist: touchDist(t[0]!, t[1]!), startScale: handleRef.current?.getScale() ?? 1 };
+    } else if (t.length === 1) {
+      gesture.current = { mode: 'drag', x: t[0]!.clientX, y: t[0]!.clientY, dist: 0, startScale: 0 };
+    }
+  }, []);
+
+  const onTouchMove = useCallback((e: ReactTouchEvent) => {
+    const h = handleRef.current;
+    if (!h) return;
+    const t = e.touches;
+    const g = gesture.current;
+    if (t.length >= 2) {
+      if (g.mode !== 'pinch') {
+        gesture.current = { mode: 'pinch', x: 0, y: 0, dist: touchDist(t[0]!, t[1]!), startScale: h.getScale() };
+        return;
+      }
+      const d = touchDist(t[0]!, t[1]!);
+      if (g.dist > 0) h.setScale(g.startScale * (d / g.dist));
+    } else if (t.length === 1 && g.mode === 'drag') {
+      const dx = t[0]!.clientX - g.x;
+      const dy = t[0]!.clientY - g.y;
+      h.moveBy(dx, dy);
+      g.x = t[0]!.clientX;
+      g.y = t[0]!.clientY;
+    }
+  }, []);
+
+  const onTouchEnd = useCallback((e: ReactTouchEvent) => {
+    if (e.touches.length === 0) {
+      gesture.current.mode = 'none';
+    } else if (e.touches.length === 1) {
+      gesture.current = { mode: 'drag', x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, dist: 0, startScale: 0 };
+    }
+  }, []);
+
   if (!open) return null;
 
   const content = (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1200, background: '#000' }}
-      aria-label={`AR — ${title || 'arte'}`}
-    >
-      {/* Mount do canvas WebGL */}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: '#000' }} aria-label={`AR — ${title || 'arte'}`}>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-      {/* dom-overlay (HTML por cima do AR durante a sessão) + telas idle/error */}
       <div ref={overlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {/* Topo: fechar */}
+        {/* Camada de gesto (atras dos controles) — so quando colocada */}
+        {phase === 'placed' ? (
+          <div
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onTouchCancel={onTouchEnd}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none' }}
+          />
+        ) : null}
+
+        {/* Fechar */}
         <div style={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'auto' }}>
           <button
-            type="button"
-            onClick={() => { stop(); onClose(); }}
-            aria-label="Sair do AR"
-            style={{
-              width: 40, height: 40, borderRadius: 20, border: '1px solid rgba(255,255,255,.25)',
-              background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 18, cursor: 'pointer',
-            }}
-          >
-            ✕
-          </button>
+            type="button" onClick={() => { stop(); onClose(); }} aria-label="Sair do AR"
+            style={{ width: 40, height: 40, borderRadius: 20, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 18, cursor: 'pointer' }}
+          >✕</button>
         </div>
 
         {phase === 'idle' ? (
@@ -264,17 +288,15 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
             <div style={{ fontSize: 44 }} aria-hidden="true">📌</div>
             <div style={{ fontSize: 16, fontWeight: 800, marginTop: 8 }}>Fixar na parede (AR)</div>
             <p style={{ fontSize: 13, opacity: 0.85, maxWidth: 300, marginTop: 6, lineHeight: 1.5 }}>
-              A arte fica ancorada no ponto que você tocar — ande em volta e ela
-              continua fixa, escala natural ao chegar perto/longe.
+              A arte fica ancorada no mundo. Depois de fixar: arraste pra mover,
+              pinca pra redimensionar.
             </p>
             <button type="button" onClick={start} style={primaryBtn}>Iniciar AR</button>
           </div>
         ) : null}
 
         {phase === 'starting' ? (
-          <div style={overlayCenter}>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Iniciando AR…</div>
-          </div>
+          <div style={overlayCenter}><div style={{ fontSize: 14, fontWeight: 700 }}>Iniciando AR…</div></div>
         ) : null}
 
         {phase === 'error' ? (
@@ -287,24 +309,28 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
 
         {phase === 'placing' ? (
           <div style={{ position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-            <div style={hintChip}>Toque pra fixar a arte (parede lisa fixa à sua frente)</div>
+            <div style={hintChip}>Toque pra fixar a arte (parede lisa fixa a sua frente)</div>
           </div>
         ) : null}
 
-        {/* Controles quando colocada: opacidade + tamanho + refazer */}
         {phase === 'placed' ? (
           <div style={bottomBar}>
-            <SliderRow label="Opacidade" value={opacity} min={0.1} max={1} step={0.05}
-              onChange={setOpacity} display={`${Math.round(opacity * 100)}%`} />
-            <SliderRow label="Tamanho" value={scale} min={0.3} max={3} step={0.05}
-              onChange={setScale} display={`${scale.toFixed(1)} m`} />
+            <div style={{ ...hintChip, alignSelf: 'center', marginBottom: 2 }}>
+              ✋ Arraste pra mover · 🤏 pinca pra redimensionar
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'auto' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, minWidth: 64, color: '#fff' }}>Opacidade</span>
+              <input
+                type="range" min={0.1} max={1} step={0.05} value={opacity}
+                onChange={(e) => setOpacity(parseFloat(e.target.value))}
+                aria-label="Opacidade" style={{ flex: 1, accentColor: '#ff6b35' }}
+              />
+              <span style={{ fontSize: 11, fontWeight: 700, minWidth: 44, textAlign: 'right', color: '#fff' }}>{Math.round(opacity * 100)}%</span>
+            </div>
             <button
-              type="button"
-              onClick={() => ctxRef.current?.replace()}
-              style={{ ...primaryBtn, marginTop: 6, background: 'rgba(255,255,255,.16)' }}
-            >
-              🔄 Reposicionar
-            </button>
+              type="button" onClick={() => handleRef.current?.replace()}
+              style={{ ...primaryBtn, marginTop: 4, background: 'rgba(255,255,255,.16)', pointerEvents: 'auto' }}
+            >🔄 Reposicionar</button>
           </div>
         ) : null}
       </div>
@@ -314,43 +340,19 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
   return createPortal(content, document.body);
 }
 
-function SliderRow({
-  label, value, min, max, step, onChange, display,
-}: {
-  label: string; value: number; min: number; max: number; step: number;
-  onChange: (n: number) => void; display: string;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'auto' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, minWidth: 64, color: '#fff' }}>{label}</span>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        aria-label={label}
-        style={{ flex: 1, accentColor: '#ff6b35' }}
-      />
-      <span style={{ fontSize: 11, fontWeight: 700, minWidth: 44, textAlign: 'right', color: '#fff' }}>{display}</span>
-    </div>
-  );
-}
-
 const overlayCenter: React.CSSProperties = {
   position: 'absolute', inset: 0, pointerEvents: 'auto',
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-  textAlign: 'center', padding: 24, color: '#fff',
-  background: 'rgba(0,0,0,.6)',
+  textAlign: 'center', padding: 24, color: '#fff', background: 'rgba(0,0,0,.6)',
 };
-
 const primaryBtn: React.CSSProperties = {
   marginTop: 16, padding: '12px 24px', borderRadius: 14, border: 'none',
   background: 'var(--color-p1, #ff6b35)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer',
 };
-
 const hintChip: React.CSSProperties = {
   background: 'rgba(0,0,0,.78)', color: '#fff', padding: '8px 14px', borderRadius: 20,
   fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
 };
-
 const bottomBar: React.CSSProperties = {
   position: 'absolute', bottom: 0, left: 0, right: 0,
   padding: '14px 16px calc(18px + env(safe-area-inset-bottom))',
