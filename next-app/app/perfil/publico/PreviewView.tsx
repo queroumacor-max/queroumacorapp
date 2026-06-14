@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { Avatar } from '@/components/Avatar';
-import { DB } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 
 interface PortfolioPost {
@@ -27,9 +26,16 @@ interface Stats {
 export function PreviewView() {
   const { user } = useAuth();
   const { profile } = useProfile();
-  const [stats, setStats] = useState<Stats>({ posts: 0, followers: 0, following: 0 });
   const [portfolio, setPortfolio] = useState<PortfolioPost[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Stats lidos direto das colunas desnormalizadas do profile (mantidas por
+  // triggers) — sem COUNT(*) manual.
+  const stats: Stats = {
+    posts: profile?.posts_count ?? 0,
+    followers: profile?.followers_count ?? 0,
+    following: profile?.following_count ?? 0,
+  };
 
   useEffect(() => {
     if (!user) {
@@ -40,30 +46,23 @@ export function PreviewView() {
     setLoading(true);
 
     const sb = getSupabase();
-    Promise.all([
-      DB.posts.countByUser(user.id),
-      DB.follows.countFollowers(user.id),
-      DB.follows.countFollowing(user.id),
-      sb
-        .from('posts')
-        .select('id, media_url, media_type, caption')
-        .eq('user_id', user.id)
-        .neq('media_type', 'story')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(30),
-    ])
-      .then(([posts, followers, following, portfolioRes]) => {
-        if (cancel) return;
-        setStats({ posts, followers, following });
-        setPortfolio((portfolioRes.data as PortfolioPost[] | null) ?? []);
-      })
-      .catch(() => {
+    void (async () => {
+      try {
+        const { data } = await sb
+          .from('posts')
+          .select('id, media_url, media_type, caption')
+          .eq('user_id', user.id)
+          .neq('media_type', 'story')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        if (!cancel) setPortfolio((data as PortfolioPost[] | null) ?? []);
+      } catch {
         /* silent */
-      })
-      .finally(() => {
+      } finally {
         if (!cancel) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancel = true;

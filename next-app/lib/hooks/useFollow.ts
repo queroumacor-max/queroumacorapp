@@ -65,7 +65,9 @@ export function useFollow(targetId: string): UseFollowResult {
       // outra aba ou trigger AFTER INSERT do banco).
       qc.invalidateQueries({ queryKey: key });
       qc.invalidateQueries({ queryKey: ['following-ids', userId] });
+      // Counters desnormalizados: alvo (followers_count) + eu (following_count).
       qc.invalidateQueries({ queryKey: ['profile', targetId] });
+      qc.invalidateQueries({ queryKey: ['profile', userId] });
       // E4: suggest_to_follow exclui quem já é seguido. Quando o user
       // segue alguém da lista de sugestões, a próxima abertura deve
       // recalcular pra não mostrar o mesmo perfil de novo.

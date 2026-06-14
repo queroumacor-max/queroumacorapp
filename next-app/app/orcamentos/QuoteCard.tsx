@@ -42,11 +42,12 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 function resolveStatus(raw: string | null | undefined): PipelineStatus {
-  // 'aceito' (rótulo legado) cai em aprovado pra mostrar o card no lugar
-  // certo do kanban; status null cai em rascunho (default do vanilla).
+  // Rótulos legados de rows antigas: 'aceito' → aprovado; 'pending' →
+  // enviado (mesmo destino da migração do banco). status null → rascunho.
   if (!raw) return 'rascunho';
   if (raw in QUOTE_STATUS) return raw as PipelineStatus;
   if (raw === 'aceito') return 'aprovado';
+  if (raw === 'pending') return 'enviado';
   return 'rascunho';
 }
 
@@ -164,7 +165,7 @@ export function QuoteCard({
       {/* Ações por status — mesmo conjunto do vanilla, sem o botão "Ver
           escopo" inline (movido pra tela de detalhe via Link no header). */}
       <div className="flex gap-2 flex-wrap pt-1">
-        {status === 'pending' || status === 'rascunho' ? (
+        {status === 'rascunho' ? (
           <>
             <button
               type="button"

@@ -55,6 +55,7 @@ function resolveStatus(raw: string | null | undefined): PipelineStatus {
   if (!raw) return 'rascunho';
   if (raw in QUOTE_STATUS) return raw as PipelineStatus;
   if (raw === 'aceito') return 'aprovado';
+  if (raw === 'pending') return 'enviado';
   return 'rascunho';
 }
 
@@ -606,7 +607,7 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
 
       {/* Ações disponíveis por status */}
       <section className="flex flex-wrap gap-2">
-        {status === 'pending' || status === 'rascunho' ? (
+        {status === 'rascunho' ? (
           <button
             type="button"
             onClick={handleSend}

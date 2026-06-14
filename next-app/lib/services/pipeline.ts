@@ -3,8 +3,9 @@
 // de DOM/modal removida — aqui só ficam as operações de dados.
 //
 // Schema (supabase_init.sql linhas 538-580 + 1063-1101):
-//   id, painter_id, client_id, status (pending/rascunho/enviado/aprovado/
-//   em_execucao/concluido/recusado), title, service_type, area_m2, address,
+//   id, painter_id, client_id, status (rascunho/enviado/aprovado/
+//   em_execucao/concluido/recusado — CHECK no banco), title, service_type,
+//   area_m2, address,
 //   description, price, proposed_date, sent_at, approved_at, approved_by,
 //   approval_method, approval_note, completed_at, scope_snapshot (jsonb),
 //   quote_data (jsonb), images (jsonb), client_followup_optin, created_at.
@@ -26,9 +27,12 @@ import type { Json } from '@/lib/database.types';
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
 // vida do orçamento). UI lê daqui pra montar lanes do kanban e badges dos
 // cards — manter sincronizado com QuoteStatus em lib/types.ts.
+// CHECK do banco aceita SÓ estas 6 chaves (migração 2026-06-14). 'A orçar'
+// = rascunho (o legado 'pending' foi migrado p/ 'enviado'). Labels do kanban:
+// rascunho→"A orçar", enviado→"Enviado", aprovado→"Aprovado",
+// em_execucao→"Em execução", concluido→"Concluído", recusado→"Recusado".
 export const QUOTE_STATUS = {
-  pending: { label: 'A orçar', color: '#8a8a99' },
-  rascunho: { label: 'Rascunho', color: '#8a8a99' },
+  rascunho: { label: 'A orçar', color: '#8a8a99' },
   enviado: { label: 'Enviado', color: '#f4a300' },
   aprovado: { label: 'Aprovado', color: '#2ec4b6' },
   em_execucao: { label: 'Em execução', color: '#3a86ff' },
@@ -45,7 +49,7 @@ export const PIPELINE_LANES: Array<{
   title: string;
   statuses: PipelineStatus[];
 }> = [
-  { title: 'A orçar', statuses: ['pending', 'rascunho'] },
+  { title: 'A orçar', statuses: ['rascunho'] },
   { title: 'Enviado', statuses: ['enviado'] },
   { title: 'Aprovado', statuses: ['aprovado'] },
   { title: 'Em execução', statuses: ['em_execucao'] },
