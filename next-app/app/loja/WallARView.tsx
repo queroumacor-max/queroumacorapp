@@ -18,6 +18,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { useColorMatch } from '@/lib/hooks/useColorMatch';
+import { rgbToHex, type ColorMatch } from '@/lib/services/colorMatch';
+
+const BRL_FMT = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// Rótulo qualitativo do ΔE (CIE76) pra leigo: quão perto a tinta está.
+function deltaELabel(d: number): string {
+  if (d < 2.3) return 'idêntica';
+  if (d < 6) return 'bem próxima';
+  if (d < 12) return 'próxima';
+  return 'parecida';
+}
 
 interface Props {
   open: boolean;
@@ -71,6 +84,13 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [brushSize, setBrushSize] = useState<number>(BRUSH_SIZES[1]);
   const [tool, setTool] = useState<'paint' | 'erase'>('paint');
+
+  // Eyedropper: toca na câmera/parede pra identificar a cor e cruzar com a loja.
+  const [eyedropper, setEyedropper] = useState(false);
+  const [pickedColor, setPickedColor] = useState<string | null>(null);
+  const [matches, setMatches] = useState<ColorMatch[]>([]);
+  const [matchOpen, setMatchOpen] = useState(false);
+  const { nearest, ready: catalogReady, loading: catalogLoading } = useColorMatch();
 
   // Refs pra acessar dentro do RAF sem re-trigger.
   const modeRef = useRef<Mode>(mode);
@@ -395,8 +415,38 @@ export function WallARView({ open, color, productName, onClose }: Props) {
     };
   }, []);
 
+  // Amostra a cor do pixel tocado no canvas (frame atual da câmera/pintura),
+  // converte pra hex e cruza com o catálogo da loja (ΔE em Lab).
+  const sampleColorAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const c = canvasRef.current;
+      if (!c) return;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      const p = getCanvasPoint(clientX, clientY);
+      const x = Math.max(0, Math.min(c.width - 1, Math.round(p.x)));
+      const y = Math.max(0, Math.min(c.height - 1, Math.round(p.y)));
+      let data: Uint8ClampedArray;
+      try {
+        data = ctx.getImageData(x, y, 1, 1).data;
+      } catch {
+        return; // canvas tainted (não deve ocorrer com getUserMedia same-origin)
+      }
+      const hex = rgbToHex({ r: data[0]!, g: data[1]!, b: data[2]! });
+      setPickedColor(hex);
+      setMatches(nearest(hex, 12));
+      setMatchOpen(true);
+    },
+    [getCanvasPoint, nearest],
+  );
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (eyedropper) {
+        e.preventDefault();
+        sampleColorAt(e.clientX, e.clientY);
+        return;
+      }
       if (mode !== 'brush' || phase !== 'captured') return;
       e.preventDefault();
       (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
@@ -405,11 +455,12 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       // Dot inicial (mover ainda não rolou) — desenha do mesmo ponto.
       drawBrushStroke(p.x, p.y, p.x, p.y);
     },
-    [mode, phase, drawBrushStroke, getCanvasPoint],
+    [eyedropper, sampleColorAt, mode, phase, drawBrushStroke, getCanvasPoint],
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (eyedropper) return;
       if (mode !== 'brush' || phase !== 'captured') return;
       const last = lastBrushPointRef.current;
       if (!last) return;
@@ -417,7 +468,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       drawBrushStroke(last.x, last.y, p.x, p.y);
       lastBrushPointRef.current = p;
     },
-    [mode, phase, drawBrushStroke, getCanvasPoint],
+    [eyedropper, mode, phase, drawBrushStroke, getCanvasPoint],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -520,8 +571,8 @@ export function WallARView({ open, color, productName, onClose }: Props) {
           height: '100%',
           objectFit: 'contain',
           background: '#000',
-          touchAction: mode === 'brush' && phase === 'captured' ? 'none' : 'auto',
-          cursor: mode === 'brush' && phase === 'captured' ? 'crosshair' : 'default',
+          touchAction: eyedropper || (mode === 'brush' && phase === 'captured') ? 'none' : 'auto',
+          cursor: eyedropper || (mode === 'brush' && phase === 'captured') ? 'crosshair' : 'default',
         }}
       />
 
@@ -557,6 +608,30 @@ export function WallARView({ open, color, productName, onClose }: Props) {
         >
           {productName}
         </div>
+        {/* Eyedropper: identifica a cor da parede e cruza com a loja. */}
+        <button
+          type="button"
+          onClick={() => {
+            setEyedropper((v) => {
+              const next = !v;
+              if (next) setMatchOpen(false);
+              return next;
+            });
+          }}
+          aria-label="Identificar cor na loja"
+          aria-pressed={eyedropper}
+          title="Identificar cor na loja"
+          style={{
+            width: 38, height: 38, borderRadius: 19,
+            background: eyedropper ? 'var(--color-p1, #ff6b35)' : 'rgba(0,0,0,.55)',
+            border: '1px solid rgba(255,255,255,.2)',
+            color: '#fff', fontSize: 18, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'auto',
+          }}
+        >
+          💧
+        </button>
         <button
           type="button"
           onClick={onClose}
@@ -573,6 +648,30 @@ export function WallARView({ open, color, productName, onClose }: Props) {
           ✕
         </button>
       </div>
+
+      {/* Hint do eyedropper + painel de resultados */}
+      {eyedropper && !matchOpen ? (
+        <div
+          style={{
+            position: 'absolute', top: 104, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,.78)', color: '#fff',
+            padding: '8px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+            whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 3,
+          }}
+        >
+          💧 Toque na parede pra identificar a cor
+        </div>
+      ) : null}
+
+      {matchOpen && pickedColor ? (
+        <ColorMatchPanel
+          pickedColor={pickedColor}
+          matches={matches}
+          loading={catalogLoading || !catalogReady}
+          onClose={() => setMatchOpen(false)}
+          onCloseAr={onClose}
+        />
+      ) : null}
 
       {/* Mode toggle (logo abaixo do header) */}
       <div
@@ -697,6 +796,123 @@ export function WallARView({ open, color, productName, onClose }: Props) {
 }
 
 // ── subcomponentes ──────────────────────────────────────────────────────
+
+// Painel de resultados do eyedropper: cor identificada + tintas da loja
+// mais próximas (ΔE). Sheet absoluto no rodapé, acima dos controles.
+function ColorMatchPanel({
+  pickedColor,
+  matches,
+  loading,
+  onClose,
+  onCloseAr,
+}: {
+  pickedColor: string;
+  matches: ColorMatch[];
+  loading: boolean;
+  onClose: () => void;
+  onCloseAr: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-label="Tintas parecidas na loja"
+      style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0,
+        maxHeight: '64%', background: '#fff',
+        borderRadius: '18px 18px 0 0',
+        boxShadow: '0 -8px 30px rgba(0,0,0,.4)',
+        display: 'flex', flexDirection: 'column',
+        zIndex: 5, pointerEvents: 'auto',
+      }}
+    >
+      {/* Header: swatch da cor identificada + título + fechar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 10px' }}>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+            background: pickedColor, border: '1.5px solid rgba(0,0,0,.15)',
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-ink, #1a1a2e)' }}>
+            Tintas parecidas na loja
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-muted, #666)' }}>
+            Cor identificada: {pickedColor.toUpperCase()}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar resultados"
+          style={{
+            width: 30, height: 30, borderRadius: 15, border: 'none',
+            background: 'rgba(0,0,0,.07)', color: 'var(--color-ink, #1a1a2e)',
+            fontSize: 15, cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Lista */}
+      <div style={{ overflowY: 'auto', padding: '0 12px 16px' }}>
+        {loading ? (
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-muted, #666)', padding: '20px 0' }}>
+            Carregando catálogo de cores…
+          </p>
+        ) : matches.length === 0 ? (
+          <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-muted, #666)', padding: '20px 0' }}>
+            Nenhuma tinta com cor cadastrada bateu. Tente tocar em outra área.
+          </p>
+        ) : (
+          <ul style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {matches.map((m) => (
+              <li key={m.id}>
+                <Link
+                  href={`/loja/${m.id}`}
+                  onClick={onCloseAr}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '8px 8px', borderRadius: 12, textDecoration: 'none',
+                    background: 'var(--color-cream, #fffaf0)',
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                      background: m.hex, border: '1.5px solid rgba(0,0,0,.12)',
+                    }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'block', fontSize: 13, fontWeight: 700,
+                        color: 'var(--color-ink, #1a1a2e)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {m.name}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--color-muted, #666)' }}>
+                      {m.code ? `Cód. ${m.code} · ` : ''}{deltaELabel(m.deltaE)}
+                      {m.price != null ? ` · ${BRL_FMT.format(Number(m.price))}` : ''}
+                    </span>
+                  </span>
+                  <span aria-hidden="true" style={{ color: 'var(--color-p1, #ff6b35)', fontSize: 18, fontWeight: 700 }}>
+                    ›
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ModeChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
