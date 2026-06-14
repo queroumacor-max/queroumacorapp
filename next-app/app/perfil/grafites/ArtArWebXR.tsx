@@ -40,6 +40,7 @@ interface ArHandle {
   cleanup: () => void;
   replace: () => void;
   moveBy: (dxPx: number, dyPx: number) => void;
+  rotateBy: (dxPx: number, dyPx: number) => void;
   setScale: (v: number) => void;
   getScale: () => number;
   setOpacity: (v: number) => void;
@@ -59,9 +60,13 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [opacity, setOpacity] = useState(0.85);
+  // Modo do arraste de 1 dedo: mover no plano OU girar (yaw+pitch 360).
+  const [tool, setTool] = useState<'move' | 'rotate'>('move');
 
   const opacityRef = useRef(opacity);
   opacityRef.current = opacity;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
 
   const handleRef = useRef<ArHandle | null>(null);
   // Estado do gesto de toque (drag/pinch).
@@ -122,6 +127,10 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       const art = new THREE.Mesh(geo, mat);
       art.visible = false;
       art.renderOrder = 999;
+      // Nunca descartar por frustum culling — o movimento da camera AR faz o
+      // culling falhar e a arte "some" mesmo estando na frente. So 1 objeto,
+      // custo zero. (fix do "ao mover a camera ele some".)
+      art.frustumCulled = false;
       scene.add(art);
 
       const placedRef = { current: false };
@@ -196,6 +205,15 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
           art.position.addScaledVector(right, dxPx * K);
           art.position.addScaledVector(fwd, -dyPx * K); // arrastar pra cima => afasta
         },
+        rotateBy: (dxPx, dyPx) => {
+          const KR = 0.008; // rad por pixel
+          // horizontal (dx) gira em torno do eixo vertical do mundo (yaw 360).
+          art.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), dxPx * KR);
+          // vertical (dy) gira em torno do eixo horizontal da camera (pitch 360).
+          const right = new THREE.Vector3().setFromMatrixColumn(xrCam().matrixWorld, 0);
+          if (right.lengthSq() > 0) right.normalize();
+          art.rotateOnWorldAxis(right, dyPx * KR);
+        },
         setScale: (v) => { art.scale.setScalar(Math.max(SCALE_MIN, Math.min(SCALE_MAX, v))); },
         getScale: () => art.scale.x,
         setOpacity: (v) => { art.material.opacity = v; },
@@ -243,7 +261,8 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
     } else if (t.length === 1 && g.mode === 'drag') {
       const dx = t[0]!.clientX - g.x;
       const dy = t[0]!.clientY - g.y;
-      h.moveBy(dx, dy);
+      if (toolRef.current === 'rotate') h.rotateBy(dx, dy);
+      else h.moveBy(dx, dy);
       g.x = t[0]!.clientX;
       g.y = t[0]!.clientY;
     }
@@ -315,8 +334,15 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
 
         {phase === 'placed' ? (
           <div style={bottomBar}>
+            {/* Toggle: arraste de 1 dedo move OU gira */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', pointerEvents: 'auto' }}>
+              <ToolChip active={tool === 'move'} onClick={() => setTool('move')} label="✋ Mover" />
+              <ToolChip active={tool === 'rotate'} onClick={() => setTool('rotate')} label="🔄 Girar" />
+            </div>
             <div style={{ ...hintChip, alignSelf: 'center', marginBottom: 2 }}>
-              ✋ Arraste pra mover · 🤏 pinca pra redimensionar
+              {tool === 'move'
+                ? '✋ Arraste pra mover · 🤏 pinca pra redimensionar'
+                : '🔄 Arraste: ↔ gira horizontal · ↕ gira vertical'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, pointerEvents: 'auto' }}>
               <span style={{ fontSize: 11, fontWeight: 700, minWidth: 64, color: '#fff' }}>Opacidade</span>
@@ -338,6 +364,23 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
   );
 
   return createPortal(content, document.body);
+}
+
+function ToolChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        padding: '8px 16px', borderRadius: 18, border: '1.5px solid rgba(255,255,255,.25)',
+        background: active ? 'var(--color-p1, #ff6b35)' : 'rgba(0,0,0,.55)',
+        color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 const overlayCenter: React.CSSProperties = {
