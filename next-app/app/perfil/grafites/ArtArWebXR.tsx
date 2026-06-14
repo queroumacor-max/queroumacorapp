@@ -117,7 +117,7 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       const imgH = tex.image?.height || 1;
       const aspect = imgW / imgH || 1;
       const baseW = 1; // 1 metro de largura base; scale ajusta
-      const geo = new THREE.PlaneGeometry(baseW, baseW / aspect).rotateX(-Math.PI / 2);
+      const geo = new THREE.PlaneGeometry(baseW, baseW / aspect);
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
         transparent: true,
@@ -153,13 +153,22 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
       setPhase('placing');
 
       const place = () => {
-        if (placedRef.current || !reticle.visible) return;
-        const pos = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
-        const scl = new THREE.Vector3();
-        reticle.matrix.decompose(pos, quat, scl);
-        art.position.copy(pos);
-        art.quaternion.copy(quat);
+        if (placedRef.current) return;
+        const camObj = (renderer.xr as unknown as { getCamera: () => import('three').Object3D }).getCamera();
+        const camPos = new THREE.Vector3().setFromMatrixPosition(camObj.matrixWorld);
+        const target = new THREE.Vector3();
+        if (reticle.visible) {
+          // Superfície detectada — ancora exatamente no ponto da parede/chão.
+          target.setFromMatrixPosition(reticle.matrix);
+        } else {
+          // Parede lisa sem pontos de rastreio — fixa 1,5 m à frente da câmera
+          // (continua world-locked; só não cola exatamente na superfície).
+          const camQuat = new THREE.Quaternion().setFromRotationMatrix(camObj.matrixWorld);
+          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+          target.copy(camPos).add(fwd.multiplyScalar(1.5));
+        }
+        art.position.copy(target);
+        art.lookAt(camPos); // encara o usuário no momento de fixar; depois fica fixo
         art.scale.setScalar(scaleRef.current);
         art.material.opacity = opacityRef.current;
         art.visible = true;
@@ -278,7 +287,7 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
 
         {phase === 'placing' ? (
           <div style={{ position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
-            <div style={hintChip}>Aponte pra parede e toque pra fixar</div>
+            <div style={hintChip}>Toque pra fixar a arte (parede lisa fixa à sua frente)</div>
           </div>
         ) : null}
 
