@@ -16,6 +16,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
@@ -887,20 +888,37 @@ interface PreviewProps {
 
 function QuotePreviewModal({ onClose, painter, form, price }: PreviewProps) {
   const today = new Date().toLocaleDateString('pt-BR');
-  return (
+  const content = (
     <>
-      {/* Print styles: esconde tudo exceto .quote-pdf-content quando imprime */}
+      {/* Print styles: mostra só .quote-pdf-content e neutraliza os ancestrais
+          que clipavam/posicionavam (overlay fixo + card com max-height/overflow).
+          BUG corrigido: antes o overlay tinha .quote-pdf-noprint (display:none),
+          o que apagava a subárvore inteira — incluindo o conteúdo — e o PDF saía
+          em branco. visibility:visible num filho NÃO volta de um display:none
+          no ancestral. */}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
           .quote-pdf-content, .quote-pdf-content * { visibility: visible !important; }
+          html, body { background: #fff !important; overflow: visible !important; height: auto !important; }
+          .quote-pdf-overlay, .quote-pdf-card {
+            position: static !important;
+            inset: auto !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+          }
           .quote-pdf-content {
-            position: absolute !important;
-            inset: 0 !important;
+            position: static !important;
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 24px !important;
+            padding: 16px !important;
             background: #fff !important;
             color: #000 !important;
           }
@@ -909,13 +927,13 @@ function QuotePreviewModal({ onClose, painter, form, price }: PreviewProps) {
       `}</style>
 
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center quote-pdf-noprint"
-        style={{ background: 'rgba(0,0,0,.55)', padding: 12 }}
+        className="fixed inset-0 flex items-center justify-center quote-pdf-overlay"
+        style={{ background: 'rgba(0,0,0,.55)', padding: 12, zIndex: 1100 }}
         onClick={onClose}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="bg-white"
+          className="bg-white quote-pdf-card"
           style={{
             width: '100%',
             maxWidth: 480,
@@ -925,7 +943,7 @@ function QuotePreviewModal({ onClose, painter, form, price }: PreviewProps) {
           }}
         >
           <header
-            className="flex items-center justify-between"
+            className="flex items-center justify-between quote-pdf-noprint"
             style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}
           >
             <h2 className="font-bold text-sm">Preview do orçamento</h2>
@@ -1087,6 +1105,10 @@ function QuotePreviewModal({ onClose, painter, form, price }: PreviewProps) {
       </div>
     </>
   );
+  // Portaliza pro body: o QuoteWizard abre dentro de um BottomSheet (transform
+  // + overflow + max-height) que cortava o conteúdo no print → PDF em branco.
+  // No body, os ancestrais que clipam somem e o print enxerga o conteúdo.
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : null;
 }
 
 function Cell({ k, v }: { k: string; v: string }) {
