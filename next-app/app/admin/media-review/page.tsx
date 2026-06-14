@@ -10,6 +10,9 @@ import type { Metadata } from 'next';
 import { MediaReviewAdmin } from './MediaReviewAdmin';
 import { requireAdminServer } from '@/lib/auth-server';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: 'Fila de revisão de mídia | QueroUmaCor Admin',
   description:

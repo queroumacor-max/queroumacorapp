@@ -6,6 +6,9 @@ import type { Metadata } from 'next';
 import { FeatureInterestAdmin } from './FeatureInterestAdmin';
 import { requireAdminServer } from '@/lib/auth-server';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: 'Interesse em features | QueroUmaCor Admin',
   description: 'Métrica de cliques em features "em breve" (Maquininha etc.).',

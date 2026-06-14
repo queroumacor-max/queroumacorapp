@@ -6,6 +6,9 @@
 import type { Metadata } from 'next';
 import { HashtagFeed } from './HashtagFeed';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 interface Params { tag: string }
 
 export async function generateMetadata({

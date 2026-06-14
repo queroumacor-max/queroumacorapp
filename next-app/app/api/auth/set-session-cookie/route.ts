@@ -14,6 +14,9 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 const SESSION_COOKIE = 'sb-session-token';
 const AUTH_TIMEOUT_MS = 10_000;
 const COOKIE_MAX_AGE = 60 * 60; // 1h

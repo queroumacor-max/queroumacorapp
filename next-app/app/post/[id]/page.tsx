@@ -5,6 +5,9 @@
 import type { Metadata } from 'next';
 import { PostView } from './PostView';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 interface Params { id: string }
 
 export const metadata: Metadata = {

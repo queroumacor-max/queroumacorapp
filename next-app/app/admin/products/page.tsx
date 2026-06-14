@@ -6,6 +6,9 @@ import type { Metadata } from 'next';
 import { ProductsAdminList } from './ProductsAdminList';
 import { requireAdminServer } from '@/lib/auth-server';
 
+// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: 'Produtos | QueroUmaCor Admin',
   description: 'Gerencia variantes de tamanho dos produtos da loja.',
