@@ -366,16 +366,14 @@
   `next-app/lib/services/adminReports.ts`. Migration em
   `/migrations/2026-06-09-admin-reports-policies.sql`. Não pedir pra
   rodar de novo.
-- **S13 (Modo escuro) — DEPLOYADO em 2026-06-09.** CSS vars dark em
-  `:root[data-theme="dark"]` no `globals.css` + inline script no
-  `<head>` lê `localStorage.theme` (ou `prefers-color-scheme` fallback)
-  e seta data-theme ANTES do hydrate (sem FOUC). Hook `useTheme` em
-  `lib/hooks/useTheme.ts`. Componente `<ThemeToggle withLabel />`
-  inserido no `ProfileFooter` acima do botão "Sair". Cards com
-  `bg-white` hard-coded são interceptados por regra global
-  `:root[data-theme="dark"] .bg-white { background-color: var(--color-white) }`
-  pra ficarem escuros — refinar componente-a-componente se aparecer
-  contraste ruim.
+- **S13 (Modo escuro) — REVERTIDO. App é sempre tema CLARO (commit
+  `d0d0e7d`, 2026-06-10).** O dark mode foi removido por decisão de
+  produto: não existe mais `ThemeToggle` nem `lib/hooks/useTheme.ts`
+  (deletados), nem variante `:root[data-theme="dark"]` no `globals.css`.
+  O inline script no `<head>` do `layout.tsx` agora **força**
+  `data-theme="light"` em todo load e limpa a chave legada
+  `localStorage.theme` de quem tinha ativado dark. NÃO reintroduzir
+  toggle de tema sem o usuário pedir.
 - **SQL Wave 19 (2026-06-09) — policy admin pra `feature_interest` —
   JÁ EXECUTADO no Supabase.** O2 do BACKLOG. Adiciona
   `feature_interest_select_admin` (SELECT TO authenticated USING
