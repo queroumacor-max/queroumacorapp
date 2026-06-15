@@ -214,6 +214,25 @@ export function LoginForm() {
           Cadastre-se grátis
         </Link>
       </p>
+
+      {/* Modo visitante — entra direto no feed sem conta. Cliente pode
+          navegar feed/loja/perfis; ao tentar interagir, o AuthGate abre o
+          cadastro. Escape hatch quando o app abre direto no /login (PWA). */}
+      <div className="flex items-center gap-3 pt-2" aria-hidden="true">
+        <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+        <span className="text-xs text-[color:var(--color-muted)]">ou</span>
+        <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+      </div>
+      <Link
+        href="/feed"
+        className="block w-full text-center font-bold text-base text-[color:var(--color-ink)] bg-white border-[1.5px] border-[color:var(--color-border)] hover:border-[color:var(--color-ink)] transition-colors"
+        style={{ padding: 15, borderRadius: 14 }}
+      >
+        Explore o app sem cadastro
+      </Link>
+      <p className="text-center text-xs text-[color:var(--color-muted)]">
+        Veja publicações e a loja. Pra interagir, é só criar a conta.
+      </p>
     </form>
   );
 }
