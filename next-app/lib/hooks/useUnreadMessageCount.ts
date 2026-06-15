@@ -23,12 +23,17 @@ export function useUnreadMessageCount(): number {
     queryKey: [KEY_BASE, user?.id],
     enabled: !!user,
     queryFn: fetchUnreadMessageCount,
-    staleTime: 60_000,
+    // 15s (era 60s): o badge precisa ficar fresco. Combina com
+    // refetchOnWindowFocus pra reaparecer quando o user volta pro app.
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
     if (!user) return;
     const sb = getSupabase();
+    const invalidate = () =>
+      qc.invalidateQueries({ queryKey: [KEY_BASE, user.id] });
     const channel = sb
       .channel(`msg-count:${user.id}`)
       .on(
@@ -39,9 +44,22 @@ export function useUnreadMessageCount(): number {
           table: 'messages',
           filter: `receiver_id=eq.${user.id}`,
         },
-        () => {
-          qc.invalidateQueries({ queryKey: [KEY_BASE, user.id] });
+        invalidate,
+      )
+      // Piggyback no realtime de `notifications` (comprovadamente entregue —
+      // é o que acende o sininho). Receber mensagem dispara o sininho; aqui
+      // usamos o MESMO evento pra revalidar o contador de chat, garantindo
+      // que o badge de mensagem acenda junto, mesmo se o realtime da tabela
+      // `messages` não disparar (divergência de publication/RLS no DB).
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
         },
+        invalidate,
       )
       .subscribe();
     return () => {
