@@ -10,7 +10,7 @@
 // Quota: ~50MB de cache em mobile típico; runtimeCache é limitado a 100 entries
 // (LRU manual). Mantém apenas o essencial.
 
-const CACHE_VERSION = 'quc-v1';
+const CACHE_VERSION = 'quc-v2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const IMG_CACHE = `${CACHE_VERSION}-img`;
@@ -114,14 +114,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navegação (HTML): network-first com fallback pro shell ('/'). Garante que
-  // mudanças no app são vistas rapidamente, mas funciona offline.
-  if (req.mode === 'navigate' || req.destination === 'document') {
+  // Navegação (HTML) + payloads RSC do Next App Router: network-first.
+  //
+  // CRÍTICO: a navegação client-side do App Router busca o RSC da rota
+  // (`/loja?_rsc=…`). Se isso vier do cache-first, o router recebe um payload
+  // de uma BUILD ANTERIOR e não casa com os chunks atuais → a transição entre
+  // abas TRAVA (bug do modo visitante). Por isso esses requests NUNCA são
+  // cache-first: vão na rede e só caem no cache como fallback offline.
+  const isRsc =
+    url.searchParams.has('_rsc') ||
+    req.headers.get('RSC') === '1' ||
+    req.headers.get('Next-Router-Prefetch') === '1';
+  if (req.mode === 'navigate' || req.destination === 'document' || isRsc) {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const clone = res.clone();
-          caches.open(STATIC_CACHE).then((c) => c.put(req, clone));
+          // Só cacheia navegação real (document), não os payloads RSC — RSC é
+          // versionado por build e poluiria o cache com entries órfãos.
+          if (!isRsc) {
+            const clone = res.clone();
+            caches.open(STATIC_CACHE).then((c) => c.put(req, clone));
+          }
           return res;
         })
         .catch(() =>
@@ -131,11 +144,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // JS/CSS/fontes: cache-first (build hash garante invalidação).
+  // Assets imutáveis do Next (`/_next/static/...` — nome com content-hash):
+  // cache-first é seguro porque uma mudança gera um nome de arquivo novo.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches
+              .open(RUNTIME_CACHE)
+              .then((c) => c.put(req, clone))
+              .then(() => trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES));
+          }
+          return res;
+        });
+      }),
+    );
+    return;
+  }
+
+  // Demais GETs same-origin (JS/CSS não-hasheado, manifest, etc.):
+  // network-first com fallback cache. Evita servir bundle velho após deploy.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req).then((res) => {
+    fetch(req)
+      .then((res) => {
         if (res.ok) {
           const clone = res.clone();
           caches
@@ -144,8 +178,8 @@ self.addEventListener('fetch', (event) => {
             .then(() => trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES));
         }
         return res;
-      });
-    }),
+      })
+      .catch(() => caches.match(req).then((cached) => cached || Response.error())),
   );
 });
 
