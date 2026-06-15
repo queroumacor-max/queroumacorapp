@@ -68,9 +68,6 @@ const ShirtCustomizer = lazy(() =>
 const QualsSection = lazy(() =>
   import('@/app/perfil/formacao/QualsSection').then((m) => ({ default: m.QualsSection })),
 );
-const CoursesSection = lazy(() =>
-  import('@/app/perfil/formacao/CoursesSection').then((m) => ({ default: m.CoursesSection })),
-);
 const ArteVendaView = lazy(() =>
   import('@/app/arte-venda/ArteVendaView').then((m) => ({ default: m.ArteVendaView })),
 );
@@ -94,7 +91,6 @@ type SheetKey =
   | 'arte-ig'
   | 'camisetas'
   | 'formacao'
-  | 'cursos'
   | 'arte-venda'
   | 'grafites'
   | 'avaliar';
@@ -126,7 +122,6 @@ const SHEETS: Partial<Record<SheetKey, SheetConfig>> = {
   'arte-ig': { label: 'Arte pra IG', Component: AiArtStudio as ComponentType },
   camisetas: { label: 'Camisetas', Component: ShirtCustomizer as ComponentType },
   formacao: { label: 'Formação', Component: QualsSection as ComponentType },
-  cursos: { label: 'Cursos', Component: CoursesSection as ComponentType },
   'arte-venda': { label: 'Arte pra venda', Component: ArteVendaView as ComponentType },
 };
 
@@ -153,7 +148,6 @@ const TILES: readonly Tile[] = [
   { sheet: 'arte-ig', emoji: '🎨', title: 'Arte pra IG', subtitle: 'Foto vira post · PRO', gradient: 'art' },
   { sheet: 'camisetas', emoji: '👕', title: 'Camisetas', subtitle: 'Com seu logo' },
   { sheet: 'formacao', emoji: '🎓', title: 'Formação', subtitle: 'Qualificações' },
-  { sheet: 'cursos', emoji: '📚', title: 'Cursos', subtitle: 'Workshops e treinos' },
   // Personas IA por último — filtradas por role no render (visibleTiles).
   // Admin vê os 4 enfileirados; cliente vê só Alice; cada profissional vê
   // a sua. Mantê-las no fim agrupa o grid pra "tools normais primeiro".

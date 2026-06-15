@@ -27,6 +27,7 @@ export interface Qualification {
   org?: string | null;
   year?: string | null;
   icon?: string | null;
+  certificate_url?: string | null;
   created_at?: string;
 }
 
@@ -50,6 +51,7 @@ export interface AddQualInput {
   org?: string | null;
   year?: string | null;
   icon?: string | null;
+  certificate_url?: string | null;
 }
 
 // Input pra addCourse. `url` no spec mapeia pra coluna `link` do schema —
@@ -62,7 +64,7 @@ export interface AddCourseInput {
 // Colunas explícitas — alinhado com vanilla (`select('*')`) mas restrito ao
 // que o frontend usa, pra evitar payload inflado e drift se colunas novas
 // forem adicionadas só pra backend.
-const QUAL_COLS = 'id, user_id, title, org, year, icon, created_at';
+const QUAL_COLS = 'id, user_id, title, org, year, icon, certificate_url, created_at';
 const COURSE_COLS =
   'id, user_id, title, subtitle, cover_url, price, is_free, duration, link, created_at';
 
@@ -110,6 +112,7 @@ export async function addQual(
       org: (input.org || '').trim() || null,
       year: (input.year || '').trim() || null,
       icon: (input.icon || '').trim() || '🎓',
+      certificate_url: input.certificate_url || null,
     })
     .select(QUAL_COLS)
     .single();
