@@ -138,6 +138,62 @@ export async function addQual(
   return data as unknown as Qualification;
 }
 
+export interface UpdateQualInput {
+  title: string;
+  org?: string | null;
+  year?: string | null;
+  icon?: string | null;
+  certificate_url?: string | null;
+}
+
+/**
+ * Atualiza uma formação existente. Mesmo cast manual do addQual pra aceitar
+ * certificate_url (coluna fora do schema TS gerado).
+ */
+export async function updateQual(
+  userId: string,
+  qualId: string,
+  input: UpdateQualInput
+): Promise<Qualification> {
+  if (!userId) throw new ValidationError('Faça login para editar.');
+  if (!qualId) throw new ValidationError('Id inválido.');
+  const title = (input.title || '').trim();
+  if (!title) throw new ValidationError('Informe o título.');
+
+  const patch: Record<string, unknown> = {
+    title,
+    org: (input.org || '').trim() || null,
+    year: (input.year || '').trim() || null,
+    icon: (input.icon || '').trim() || '🎓',
+    certificate_url: input.certificate_url ?? null,
+  };
+
+  const sb = getSupabase();
+  const sbAny = sb as unknown as {
+    from: (t: string) => {
+      update: (p: Record<string, unknown>) => {
+        eq: (c: string, v: string) => {
+          eq: (c: string, v: string) => {
+            select: (c: string) => {
+              single: () => Promise<{ data: unknown; error: { message: string } | null }>;
+            };
+          };
+        };
+      };
+    };
+  };
+  const { data, error } = await sbAny
+    .from('qualifications')
+    .update(patch)
+    .eq('id', qualId)
+    .eq('user_id', userId)
+    .select(QUAL_COLS)
+    .single();
+  if (error) throw new NetworkError(error.message, error);
+  if (!data) throw new NetworkError('Update em qualifications retornou vazio.');
+  return data as unknown as Qualification;
+}
+
 /**
  * Remove uma formação. A RLS de DELETE já restringe ao dono — passar `userId`
  * no `.eq()` é defesa em profundidade caso a policy seja afrouxada por engano.

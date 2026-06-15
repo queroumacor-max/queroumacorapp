@@ -89,6 +89,9 @@ export function PushOptIn() {
 
   if (!user) return null;
 
+  // VAPID não configurada no ambiente → esconde o card (nada pra ativar).
+  if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return null;
+
   const isOn = status === 'subscribed';
   const isLoading = status === 'loading';
   const isUnsupported = status === 'unsupported';
