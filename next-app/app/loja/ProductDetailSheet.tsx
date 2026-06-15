@@ -9,12 +9,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
 import {
+  fetchLequeColors,
   mktClassify,
   productBg,
   resolveColorHex,
+  type LequeColor,
   type MktCategory,
   type Product,
   type ProductVariant,
@@ -35,6 +38,23 @@ const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 });
+
+// Extrai o nome legível da cor a partir do nome do produto do leque.
+// Ex: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO"
+function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'): string {
+  const prefixMap = {
+    suvinil: 'COR SUVINIL ',
+    coral: 'COR CORAL ',
+    sherwin: 'COR SHERWIN-WILLIAMS ',
+  };
+  let rest = c.name;
+  const prefix = prefixMap[brand].toLowerCase();
+  if (rest.toLowerCase().startsWith(prefix)) rest = rest.slice(prefix.length);
+  if (c.code && rest.toLowerCase().startsWith(c.code.toLowerCase())) {
+    rest = rest.slice(c.code.length).trim();
+  }
+  return rest.trim();
+}
 
 function categoryEmoji(cat: string | null | undefined): string {
   switch (cat) {
@@ -67,6 +87,15 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // Seletores da aba "Cores personalizadas"
   const [lequeBrand, setLequeBrand] = useState<'suvinil' | 'coral' | 'sherwin'>('suvinil');
   const [customSize, setCustomSize] = useState<'quartinho' | 'galao' | 'lata'>('lata');
+  const [selectedLequeColor, setSelectedLequeColor] = useState<LequeColor | null>(null);
+
+  // Busca as cores do leque da marca selecionada (só quando aba personalizadas aberta).
+  const { data: lequeColors, isLoading: lequeLoading } = useQuery({
+    queryKey: ['lequeColors', lequeBrand],
+    queryFn: () => fetchLequeColors(lequeBrand),
+    enabled: colorTab === 'personalizadas',
+    staleTime: 10 * 60 * 1000,
+  });
 
   // Wave 25: busca variantes do produto aberto. Se vazio, UI cai no preço
   // base (products.price) — sem seletor.
@@ -88,8 +117,14 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     setColorTab('fabrica');
     setLequeBrand('suvinil');
     setCustomSize('lata');
+    setSelectedLequeColor(null);
     setQty(1);
   }, [product?.id]);
+
+  // Reseta cor selecionada ao trocar de marca.
+  useEffect(() => {
+    setSelectedLequeColor(null);
+  }, [lequeBrand]);
 
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
@@ -150,15 +185,18 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
 
   function handleAddCustom() {
     if (!product) return;
+    const colorLabel = selectedLequeColor
+      ? ` ${selectedLequeColor.code ?? ''} ${extractColorLabel(selectedLequeColor, lequeBrand)}`.trimEnd()
+      : '';
     const syntheticProduct: Product = {
       ...product,
-      name: `${product.name} – Tintometria ${BRAND_LABELS[lequeBrand]}`,
+      name: `${product.name} – Tintometria ${BRAND_LABELS[lequeBrand]}${colorLabel}`,
       price: customPrice,
-      color_hex: null,
+      color_hex: selectedLequeColor?.color_hex ?? null,
       color_gradient: null,
     };
     const syntheticVariant: ProductVariant = {
-      id: `leque-${lequeBrand}-${customSize}`,
+      id: `leque-${lequeBrand}-${customSize}-${selectedLequeColor?.id ?? 'sem-cor'}`,
       product_id: product.id,
       size_label: SIZE_LABELS[customSize],
       volume_ml: customSize === 'quartinho' ? 900 : customSize === 'galao' ? 3600 : 18000,
@@ -476,6 +514,153 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                 );
               })}
             </div>
+          </div>
+
+          {/* Grade de cores do leque da marca selecionada */}
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--color-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: 8,
+              }}
+            >
+              Cor
+            </div>
+
+            {lequeLoading ? (
+              <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Carregando cores…</span>
+              </div>
+            ) : !lequeColors || lequeColors.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                Nenhuma cor cadastrada para esta marca.
+              </p>
+            ) : (
+              <>
+                {/* Cor selecionada — nome completo */}
+                {selectedLequeColor ? (
+                  <div
+                    className="flex items-center gap-2"
+                    style={{
+                      marginBottom: 8,
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      background: 'var(--color-cream)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--color-ink)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        background: selectedLequeColor.color_hex || '#ccc',
+                        border: '1px solid rgba(0,0,0,.12)',
+                        flexShrink: 0,
+                      }}
+                    />
+                    {selectedLequeColor.code ? `${selectedLequeColor.code} · ` : ''}
+                    {extractColorLabel(selectedLequeColor, lequeBrand)}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLequeColor(null)}
+                      style={{
+                        marginLeft: 'auto',
+                        fontSize: 11,
+                        color: 'var(--color-muted)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 11, color: 'var(--color-muted)', marginBottom: 8 }}>
+                    Toque numa cor para selecionar
+                  </p>
+                )}
+
+                {/* Grid de chips de cor */}
+                <div
+                  style={{
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    borderRadius: 10,
+                    border: '1px solid var(--color-border)',
+                    padding: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(6, 1fr)',
+                      gap: 6,
+                    }}
+                  >
+                    {lequeColors.map((c) => {
+                      const active = selectedLequeColor?.id === c.id;
+                      const hex = c.color_hex || '#ccc';
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setSelectedLequeColor(active ? null : c)}
+                          title={`${c.code ?? ''} ${extractColorLabel(c, lequeBrand)}`.trim()}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 3,
+                            padding: 4,
+                            borderRadius: 8,
+                            border: active
+                              ? '2px solid var(--color-p1)'
+                              : '2px solid transparent',
+                            background: active ? 'rgba(255,107,53,.08)' : 'transparent',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: 'block',
+                              width: 30,
+                              height: 30,
+                              borderRadius: '50%',
+                              background: hex,
+                              border: '1px solid rgba(0,0,0,.12)',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 8,
+                              color: 'var(--color-muted)',
+                              lineHeight: 1.2,
+                              textAlign: 'center',
+                              maxWidth: 36,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {c.code ?? ''}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Seletor de tamanho */}

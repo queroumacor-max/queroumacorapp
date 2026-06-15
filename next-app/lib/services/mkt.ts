@@ -304,6 +304,50 @@ export function isLequeColor(p: Pick<Product, 'name'> | null | undefined): boole
   return LEQUE_RE.test((p && p.name) || '');
 }
 
+// Shape mínimo de uma cor de leque pra o seletor de tintometria.
+export interface LequeColor {
+  id: string;
+  name: string;
+  code: string | null;
+  color_hex: string | null;
+}
+
+const LEQUE_PREFIXES: Record<'suvinil' | 'coral' | 'sherwin', string> = {
+  suvinil: 'cor suvinil',
+  coral: 'cor coral',
+  sherwin: 'cor sherwin',
+};
+
+/**
+ * Busca as cores de leque de uma marca específica. Os produtos existem no banco
+ * mas são filtrados do catálogo principal por isLequeColor. Retorna id, name,
+ * code e color_hex pra montar o seletor visual de cores personalizadas.
+ */
+export async function fetchLequeColors(
+  brand: 'suvinil' | 'coral' | 'sherwin',
+): Promise<LequeColor[]> {
+  const sb = getSupabase();
+  const prefix = LEQUE_PREFIXES[brand];
+  const { data, error } = await sb
+    .from('products')
+    .select('id, name, code, color_hex')
+    .ilike('name', `${prefix}%`)
+    .order('name')
+    .limit(500);
+  if (error) throw new NetworkError(error.message, error);
+  return ((data ?? []) as Array<{
+    id: string;
+    name: string;
+    code: string | null;
+    color_hex: string | null;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.name ?? '',
+    code: r.code ?? null,
+    color_hex: r.color_hex ?? null,
+  }));
+}
+
 // Tier de qualidade da tinta — usado pelo sub-filtro da categoria Tintas.
 export type PaintTier = 'economica' | 'standard' | 'premium';
 
