@@ -89,6 +89,18 @@ export function TopNav({ proStatus }: TopNavProps) {
       </Link>
 
       <div className="flex items-center gap-2 shrink-0">
+        {!user ? (
+          // Modo visitante: botão de login no lugar do badge + chat.
+          <Link
+            href="/login"
+            className="text-sm font-extrabold px-4 py-1.5 rounded-full text-white whitespace-nowrap"
+            style={{ background: 'var(--color-p1)', fontFamily: 'var(--font-display)' }}
+            aria-label="Entrar ou cadastrar"
+          >
+            Entrar
+          </Link>
+        ) : (
+          <>
         <button
           type="button"
           className="flex items-center text-xs font-extrabold px-3 py-1.5 rounded-full bg-white/15 text-white tracking-widest cursor-pointer border-none"
@@ -131,6 +143,8 @@ export function TopNav({ proStatus }: TopNavProps) {
             </span>
           )}
         </Link>
+          </>
+        )}
       </div>
     </header>
   );

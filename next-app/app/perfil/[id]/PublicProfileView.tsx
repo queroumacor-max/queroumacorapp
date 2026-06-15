@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@/components/Avatar';
 import { ProfileLinks } from '@/components/ProfileLinks';
 import { OrcamentoSheet } from '@/components/OrcamentoSheet';
+import { useAuthGate } from '@/components/AuthGate';
 import { DB } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { useFollowing, followingQueryKey } from '@/lib/hooks/useFollowing';
@@ -54,6 +55,7 @@ const PROFILE_COLS =
 
 export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const { user } = useAuth();
+  const { requireAuth } = useAuthGate();
   const qc = useQueryClient();
   // useFollowing é a source of truth — qualquer follow/unfollow em
   // outro lugar (search, stories carousel) invalida essa cache e
@@ -178,6 +180,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const isOwn = !!user && !!profile && user.id === profile.id;
 
   async function toggleFollow() {
+    if (!requireAuth('seguir')) return; // visitante: abre cadastro
     if (!user || !profile || isOwn || followBusy) return;
     setFollowBusy(true);
     const prev = isFollowing;
@@ -237,13 +240,12 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const reviewCount = Number(profile?.review_count ?? 0);
   const serviceRadius = Number(profile?.service_radius ?? 0);
   const isProfessional = PRO_ROLES.has(String(role ?? '').toLowerCase());
-  const canMessage = !!user && !isOwn && !!profile?.id;
+  // Visitante também vê "Mensagem" — o clique abre o cadastro via handleMessage.
+  const canMessage = !isOwn && !!profile?.id;
 
   function handleMessage() {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
+    if (!requireAuth('mandar mensagem')) return;
+    if (!user) return;
     if (!profile?.id) return;
     router.push(`/chat/${encodeURIComponent(buildDirectConvId(user.id, profile.id))}`);
   }
@@ -391,7 +393,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
             <button
               type="button"
               onClick={toggleFollow}
-              disabled={followBusy || !user}
+              disabled={followBusy}
               aria-pressed={isFollowing}
               aria-label={isFollowing ? `Deixar de seguir ${name}` : `Seguir ${name}`}
               className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"
@@ -401,7 +403,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
                   : 'var(--color-p1)',
                 color: '#fff',
                 opacity: followBusy ? 0.6 : 1,
-                cursor: !user ? 'not-allowed' : 'pointer',
+                cursor: followBusy ? 'wait' : 'pointer',
               }}
             >
               {isFollowing ? 'Seguindo' : 'Seguir'}
@@ -444,10 +446,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (!user) {
-                    router.push('/login');
-                    return;
-                  }
+                  if (!requireAuth('pedir orçamento')) return;
                   setOrcOpen(true);
                 }}
                 className="flex-1 text-center py-2.5 rounded-xl text-sm font-extrabold"

@@ -20,6 +20,7 @@ import {
   type ProductVariant,
 } from '@/lib/services/mkt';
 import { useProductVariants } from '@/lib/hooks/useProductVariants';
+import { useAuthGate } from '@/components/AuthGate';
 import { WallARView } from './WallARView';
 
 // Categorias onde "Ver na parede" faz sentido — tinta/textura/epoxi/arte.
@@ -64,6 +65,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // Wave 25: busca variantes do produto aberto. Se vazio, UI cai no preço
   // base (products.price) — sem seletor.
   const { variants } = useProductVariants(product?.id ?? null);
+  const { requireAuth } = useAuthGate();
 
   // Quando variantes carregam, seleciona a primeira (sort_order menor) por
   // default. Quando product muda, reseta a seleção.
@@ -87,6 +89,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
 
   function handleAdd() {
     if (!product || outOfStock) return;
+    if (!requireAuth('comprar')) return; // visitante: abre cadastro
     onAdd(product, qty, selectedVariant);
     showToast('Adicionado ao carrinho!', 'success');
     onClose();

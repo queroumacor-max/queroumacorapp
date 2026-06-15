@@ -27,6 +27,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { useLike, useSavedPosts, useComments } from '@/lib/hooks/usePostInteractions';
 import { useBlockMutations } from '@/lib/hooks/useBlocks';
+import { useAuthGate } from '@/components/AuthGate';
 import { renderRichText } from '@/lib/utils/richText';
 import type { PostComment } from '@/lib/services/postInteractions';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
@@ -72,6 +73,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const dialog = useDialog();
   const router = useRouter();
   const { user } = useAuth();
+  const { requireAuth } = useAuthGate();
   const policyUser = usePolicyUser();
   const userIsAdmin = isAdmin(policyUser);
   const qc = useQueryClient();
@@ -342,10 +344,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
     }
   }
   function handleOrcar() {
-    if (!user) {
-      router.push('/login');
-      return;
-    }
+    if (!requireAuth('pedir orçamento')) return;
     setOrcOpen(true);
   }
 
@@ -477,7 +476,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
       >
         <ActionButton
           label={`Curtir${likeCount > 0 ? ` · ${likeCount}` : ''}`}
-          onClick={toggleLike}
+          onClick={() => { if (requireAuth('curtir')) toggleLike(); }}
           ariaLabel={liked ? 'Descurtir' : 'Curtir'}
           ariaPressed={liked}
         >
@@ -487,7 +486,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
         <ActionButton
           label="Comentar"
           ariaLabel="Comentar"
-          onClick={() => setShowComment((v) => !v)}
+          onClick={() => { if (requireAuth('comentar')) setShowComment((v) => !v); }}
         >
           <CommentIcon />
         </ActionButton>
@@ -505,7 +504,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
         <div className="ml-auto">
           <ActionButton
             label="Salvar"
-            onClick={() => toggleSave(post.id)}
+            onClick={() => { if (requireAuth('salvar')) toggleSave(post.id); }}
             ariaLabel={saved ? 'Remover dos salvos' : 'Salvar'}
             ariaPressed={saved}
           >

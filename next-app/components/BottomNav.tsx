@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useUnreadNotificationCount } from '@/lib/hooks/useUnreadNotificationCount';
+import { useAuthGate } from '@/components/AuthGate';
 
 interface NavItem {
   href: string;
@@ -18,6 +19,10 @@ interface NavItem {
   icon: ReactNode;
   /** Função pra mostrar dot vermelho (notificações pendentes, etc.). */
   showDot?: boolean;
+  /** Visitante: ao tocar, abre o cadastro em vez de navegar (área logada). */
+  requiresAuth?: boolean;
+  /** Rótulo curto pro prompt de cadastro (ex.: "ver seu perfil"). */
+  gateAction?: string;
 }
 
 const ITEMS: NavItem[] = [
@@ -58,6 +63,8 @@ const ITEMS: NavItem[] = [
   {
     href: '/notificacoes',
     label: 'Notificações',
+    requiresAuth: true,
+    gateAction: 'ver suas notificações',
     match: (p) => p.startsWith('/notificacoes'),
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -69,6 +76,8 @@ const ITEMS: NavItem[] = [
   {
     href: '/perfil',
     label: 'Perfil',
+    requiresAuth: true,
+    gateAction: 'acessar seu perfil',
     match: (p) => p.startsWith('/perfil') || p.startsWith('/pedidos') || p.startsWith('/orcamentos') || p.startsWith('/agenda') || p.startsWith('/crm') || p.startsWith('/financeiro'),
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -82,6 +91,7 @@ const ITEMS: NavItem[] = [
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
   const unreadNotif = useUnreadNotificationCount();
+  const { requireAuth } = useAuthGate();
 
   return (
     <nav
@@ -102,6 +112,12 @@ export function BottomNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={(e) => {
+              // Visitante tocando numa aba de área logada → abre cadastro.
+              if (item.requiresAuth && !requireAuth(item.gateAction)) {
+                e.preventDefault();
+              }
+            }}
             aria-label={
               showBadge ? `${item.label} (${unreadNotif} não lidas)` : item.label
             }
