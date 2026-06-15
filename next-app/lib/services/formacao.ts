@@ -86,7 +86,9 @@ export async function listQuals(userId: string): Promise<Qualification[]> {
   if (error) {
     throw new NetworkError(error.message, error);
   }
-  return (data ?? []) as Qualification[];
+  // certificate_url ainda não está no database.types gen — cast via unknown
+  // (mesmo padrão de artReferences pra colunas fora do schema TS).
+  return (data ?? []) as unknown as Qualification[];
 }
 
 /**
@@ -104,7 +106,18 @@ export async function addQual(
   if (!title) throw new ValidationError('Informe o título.');
 
   const sb = getSupabase();
-  const { data, error } = await sb
+  // certificate_url ainda não está no database.types gen — cast manual do
+  // client pra aceitar a coluna nova no insert/select (padrão artReferences).
+  const sbAny = sb as unknown as {
+    from: (t: string) => {
+      insert: (row: Record<string, unknown>) => {
+        select: (c: string) => {
+          single: () => Promise<{ data: unknown; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+  const { data, error } = await sbAny
     .from('qualifications')
     .insert({
       user_id: userId,
@@ -122,7 +135,7 @@ export async function addQual(
   if (!data) {
     throw new NetworkError('Insert em qualifications retornou vazio.');
   }
-  return data as Qualification;
+  return data as unknown as Qualification;
 }
 
 /**

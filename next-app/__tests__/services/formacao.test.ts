@@ -212,6 +212,7 @@ describe('addQual', () => {
       org: null,
       year: null,
       icon: '🎓',
+      certificate_url: null,
     });
     expect(spies.single).toHaveBeenCalled();
   });
