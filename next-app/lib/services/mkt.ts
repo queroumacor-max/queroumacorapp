@@ -312,28 +312,32 @@ export interface LequeColor {
   color_hex: string | null;
 }
 
-const LEQUE_PREFIXES: Record<'suvinil' | 'coral' | 'sherwin', string> = {
-  suvinil: 'cor suvinil',
-  coral: 'cor coral',
-  sherwin: 'cor sherwin',
-};
-
 /**
- * Busca as cores de leque de uma marca específica. Os produtos existem no banco
- * mas são filtrados do catálogo principal por isLequeColor. Retorna id, name,
- * code e color_hex pra montar o seletor visual de cores personalizadas.
+ * Busca as cores de leque de uma marca específica filtrando pelo prefixo do
+ * código tintométrico:
+ *   Suvinil  → code ILIKE 's-%'  (exclui 'sw-%' que é Sherwin)
+ *   Coral    → code ILIKE 'c-%'
+ *   Sherwin  → code ILIKE 'sw-%'
  */
 export async function fetchLequeColors(
   brand: 'suvinil' | 'coral' | 'sherwin',
 ): Promise<LequeColor[]> {
   const sb = getSupabase();
-  const prefix = LEQUE_PREFIXES[brand];
-  const { data, error } = await sb
+  let query = sb
     .from('products')
     .select('id, name, code, color_hex')
-    .ilike('name', `${prefix}%`)
-    .order('name')
-    .limit(500);
+    .not('code', 'is', null);
+
+  if (brand === 'sherwin') {
+    query = query.ilike('code', 'sw-%');
+  } else if (brand === 'coral') {
+    query = query.ilike('code', 'c-%');
+  } else {
+    // suvinil: starts with s- but NOT sw-
+    query = query.ilike('code', 's-%').not('code', 'ilike', 'sw-%');
+  }
+
+  const { data, error } = await query.order('code').limit(500);
   if (error) throw new NetworkError(error.message, error);
   return ((data ?? []) as Array<{
     id: string;
