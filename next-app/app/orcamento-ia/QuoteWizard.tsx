@@ -792,40 +792,48 @@ export function QuoteWizard() {
         >
           {saving ? 'Gravando…' : '💾 Gravar'}
         </button>
-        <div className="relative">
+        <button
+          type="button"
+          onClick={handleSendChat}
+          className="font-bold text-white text-center"
+          style={{
+            padding: 12,
+            background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+            borderRadius: 12,
+            fontSize: 13,
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          📤 Enviar para a loja
+        </button>
+        {/* Compartilhar com o cliente (WhatsApp / E-mail / nativo) — full width */}
+        <div className="relative col-span-2">
           <details className="w-full">
             <summary
-              className="font-bold text-white text-center list-none"
+              className="font-bold text-center list-none"
               style={{
                 padding: 12,
-                background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+                background: '#fff',
+                color: 'var(--color-ink)',
                 borderRadius: 12,
                 fontSize: 13,
-                border: 'none',
+                border: '1.5px solid var(--color-border)',
                 cursor: 'pointer',
               }}
             >
-              📤 Enviar
+              💬 Compartilhar com o cliente
             </summary>
             <div
-              className="absolute right-0 z-10 bg-white"
+              className="absolute left-0 right-0 z-10 bg-white"
               style={{
                 top: 'calc(100% + 6px)',
-                width: 180,
                 borderRadius: 12,
                 border: '1px solid var(--color-border)',
                 boxShadow: '0 4px 16px rgba(0,0,0,.12)',
                 padding: 6,
               }}
             >
-              <button
-                type="button"
-                onClick={handleSendChat}
-                className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
-                style={{ cursor: 'pointer', background: 'none', border: 'none' }}
-              >
-                💭 Chat do app
-              </button>
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
@@ -848,7 +856,7 @@ export function QuoteWizard() {
                 className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
               >
-                📲 Compartilhar
+                📲 Compartilhar (outros apps)
               </button>
             </div>
           </details>

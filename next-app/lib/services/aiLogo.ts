@@ -58,6 +58,11 @@ export async function generateLogos(
   if (!name) throw new ValidationError('Digite o nome do logo');
 
   let res: Response;
+  // Timeout no cliente: gpt-image-1 gera 3 imagens (até ~45s no server). Sem
+  // isto, se o edge function nao responder, a UI fica "Gerando..." pra sempre
+  // (bug reportado no QA). 75s cobre o caso normal e aborta o resto.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 75_000);
   try {
     res = await fetch('/api/generate-logo', {
       method: 'POST',
@@ -67,9 +72,15 @@ export async function generateLogos(
         slogan: (input.slogan || '').trim() || undefined,
         style: (input.style || '').trim() || undefined,
       }),
+      signal: controller.signal,
     });
   } catch (e) {
+    if ((e as Error)?.name === 'AbortError') {
+      throw new NetworkError('A geração demorou demais. Tente de novo.');
+    }
     throw new NetworkError('Falha de rede ao gerar logo', e);
+  } finally {
+    clearTimeout(timer);
   }
 
   // Backend pode devolver 401/403/429/503 com JSON `{ error: '...' }`. Tenta

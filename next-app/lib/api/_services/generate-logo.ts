@@ -3,7 +3,7 @@
 
 import { ServiceError } from '../security';
 
-const TIMEOUT_MS = 45000;
+const TIMEOUT_MS = 35000;
 
 function buildPrompts(name: string, styleHint: string): string[] {
   return [
@@ -72,7 +72,7 @@ export async function generateLogo(args: {
     const isTimeout =
       e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
     if (isTimeout) {
-      throw new ServiceError('DALL-E timeout (45s) — tente de novo', 504);
+      throw new ServiceError('A IA demorou demais pra gerar — tente de novo', 504);
     }
     console.warn('generate-logo: exception', e instanceof Error ? e.message : e);
     throw new ServiceError('Erro interno — tente de novo em instantes', 500);
