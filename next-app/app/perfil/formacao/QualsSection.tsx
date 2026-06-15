@@ -12,9 +12,10 @@
 
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { getSupabase } from '@/lib/supabase';
 import { useQualifications } from '@/lib/hooks/useQualifications';
 import type { Qualification } from '@/lib/services/formacao';
 
@@ -41,12 +42,28 @@ function QualRow({
 }) {
   return (
     <li className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[color:var(--color-border)]">
-      <span
-        className="w-10 h-10 rounded-full bg-[color:var(--color-bg)] flex items-center justify-center text-lg flex-shrink-0"
-        aria-hidden="true"
-      >
-        {q.icon || '🎓'}
-      </span>
+      {q.certificate_url ? (
+        <a
+          href={q.certificate_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0"
+          title="Ver certificado"
+        >
+          <img
+            src={q.certificate_url}
+            alt="Certificado"
+            className="w-10 h-10 rounded-lg object-cover border border-[color:var(--color-border)]"
+          />
+        </a>
+      ) : (
+        <span
+          className="w-10 h-10 rounded-full bg-[color:var(--color-bg)] flex items-center justify-center text-lg flex-shrink-0"
+          aria-hidden="true"
+        >
+          {q.icon || '🎓'}
+        </span>
+      )}
       <span className="flex-1 min-w-0">
         <span className="block font-semibold text-sm truncate">
           {q.title || '(sem título)'}
@@ -55,6 +72,17 @@ function QualRow({
           {q.org || ''}
           {q.year ? ` · ${q.year}` : ''}
         </span>
+        {q.certificate_url && (
+          <a
+            href={q.certificate_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold"
+            style={{ color: 'var(--color-p1)' }}
+          >
+            Ver certificado →
+          </a>
+        )}
       </span>
       <button
         type="button"
@@ -81,33 +109,58 @@ export function QualsSection() {
     isRemoving,
     addError,
   } = useQualifications();
-  // Estado local pra exibir mensagem inline pós-erro (o hook expõe addError,
-  // mas queremos limpar quando o usuário começa a digitar de novo).
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPreview, setCertPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function handleCertChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) return;
+    setCertFile(f);
+    setCertPreview(URL.createObjectURL(f));
+  }
+
+  function removeCert() {
+    setCertFile(null);
+    if (certPreview) URL.revokeObjectURL(certPreview);
+    setCertPreview(null);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitError(null);
     const form = e.currentTarget;
     const fd = new FormData(form);
     const title = String(fd.get('title') || '').trim();
-    if (!title) {
-      setSubmitError('Informe o título.');
-      return;
-    }
+    if (!title) { setSubmitError('Informe o título.'); return; }
     const institution = String(fd.get('institution') || '').trim();
     const year = String(fd.get('year') || '').trim();
-    add(
-      {
-        title,
-        org: institution || null,
-        year: year || null,
-      },
-    );
-    // Otimista: limpa o form imediatamente. Se add() falhar, o hook expõe
-    // addError e o usuário pode tentar de novo. Mesmo padrão do vanilla
-    // (modules/quals-courses.js linha 58).
+
+    let certificate_url: string | null = null;
+    if (certFile && user) {
+      setUploading(true);
+      try {
+        const ext = certFile.name.split('.').pop() || 'jpg';
+        const path = `certificates/${user.id}/${Date.now()}.${ext}`;
+        const sb = getSupabase();
+        const { error: upErr } = await sb.storage.from('posts').upload(path, certFile, {
+          contentType: certFile.type || 'image/jpeg',
+          upsert: false,
+        });
+        if (upErr) { setSubmitError('Erro ao enviar imagem: ' + upErr.message); setUploading(false); return; }
+        const { data: urlData } = sb.storage.from('posts').getPublicUrl(path);
+        certificate_url = urlData?.publicUrl ?? null;
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    add({ title, org: institution || null, year: year || null, certificate_url });
     form.reset();
+    removeCert();
   }
 
   if (authLoading) {
@@ -197,6 +250,44 @@ export function QualsSection() {
             className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm"
           />
         </div>
+        {/* Upload de certificado (opcional) */}
+        <div>
+          <label className="block text-xs font-semibold mb-1">
+            Foto do certificado <span className="font-normal text-[color:var(--color-muted)]">(opcional)</span>
+          </label>
+          {certPreview ? (
+            <div className="flex items-center gap-3">
+              <img
+                src={certPreview}
+                alt="Prévia do certificado"
+                className="w-16 h-16 rounded-lg object-cover border border-[color:var(--color-border)]"
+              />
+              <button
+                type="button"
+                onClick={removeCert}
+                className="text-xs text-red-500 font-semibold"
+              >
+                Remover
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-full py-2 rounded-lg border border-dashed border-[color:var(--color-border)] text-sm text-[color:var(--color-muted)] font-semibold"
+            >
+              📎 Adicionar foto do certificado
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleCertChange}
+          />
+        </div>
+
         {(submitError || addError) ? (
           <p className="text-xs text-red-600">
             {submitError || addError?.message || 'Erro ao salvar.'}
@@ -204,10 +295,10 @@ export function QualsSection() {
         ) : null}
         <button
           type="submit"
-          disabled={isAdding}
+          disabled={isAdding || uploading}
           className="w-full py-2 bg-[color:var(--color-p1)] text-white rounded-xl text-sm font-semibold disabled:opacity-50"
         >
-          {isAdding ? 'Salvando...' : 'Adicionar formação'}
+          {uploading ? 'Enviando imagem…' : isAdding ? 'Salvando...' : 'Adicionar formação'}
         </button>
       </form>
 
