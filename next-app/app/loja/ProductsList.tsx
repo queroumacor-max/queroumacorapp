@@ -12,7 +12,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { ProductDetailSheet } from './ProductDetailSheet';
 import type { Product, ProductVariant } from '@/lib/services/mkt';
 import {
@@ -50,6 +50,13 @@ function SkeletonRow() {
 // é exatamente o problema reportado.
 const DRILL_MIN_PRODUCTS = 30;
 const DRILL_MIN_LINES = 2;
+
+// Renderização em janela: começa mostrando RENDER_PAGE cards e cresce o
+// mesmo tanto quando o sentinel entra em vista. Antes a lista flat ("Todos"
+// = 4171 itens, ou uma linha grande como Sherwin = 2719) montava TODOS os
+// <ProductCard> de uma vez — milhares de nós no DOM = trava no scroll e na
+// abertura. Com a janela, só ~40 nós existem inicialmente.
+const RENDER_PAGE = 40;
 
 function normalizeLineKey(line: string | null | undefined): string {
   return (line ?? '').trim();
@@ -112,6 +119,43 @@ export function ProductsList() {
     }
     return rows;
   }, [drillEligible, selectedLine, filtered, category, paintTier]);
+
+  // Janela de renderização — quantos produtos da lista atual estão montados.
+  const [renderLimit, setRenderLimit] = useState(RENDER_PAGE);
+  const loadMoreRef = useRef<HTMLLIElement | null>(null);
+
+  // Sempre que a lista visível MUDA (filtro/categoria/linha/tier/busca), volta
+  // a janela pro começo — senão um filtro novo herdaria um limit inflado.
+  useEffect(() => {
+    setRenderLimit(RENDER_PAGE);
+  }, [category, selectedLine, paintTier, search]);
+
+  const renderedProducts = useMemo(
+    () => visibleProducts.slice(0, renderLimit),
+    [visibleProducts, renderLimit],
+  );
+  const hasMoreToRender = renderLimit < visibleProducts.length;
+
+  // IntersectionObserver no sentinel — cresce a janela quando o user chega
+  // perto do fim. rootMargin 600px pra crescer antes de bater no fim (sem
+  // flash de "buraco"). Mesmo padrão do feed.
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          if (en.isIntersecting && hasMoreToRender) {
+            setRenderLimit((n) => n + RENDER_PAGE);
+          }
+        }
+      },
+      { rootMargin: '600px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMoreToRender]);
 
   // Reseta a linha selecionada quando o user troca de categoria ou começa
   // a buscar — drill-down não faz sentido fora do escopo da categoria atual.
@@ -444,7 +488,7 @@ export function ProductsList() {
               </button>
             ) : null}
             <ul className="space-y-2 pb-4">
-              {visibleProducts.map((p) => (
+              {renderedProducts.map((p) => (
                 <li key={p.id}>
                   <ProductCard
                     product={p}
@@ -455,6 +499,10 @@ export function ProductsList() {
                   />
                 </li>
               ))}
+              {/* Sentinel da janela de renderização — cresce a lista ao rolar. */}
+              {hasMoreToRender ? (
+                <li ref={loadMoreRef} aria-hidden="true" className="h-8" />
+              ) : null}
             </ul>
           </>
         )}

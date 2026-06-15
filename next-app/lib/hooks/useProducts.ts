@@ -13,7 +13,7 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchProduct,
@@ -41,7 +41,17 @@ const MKT_TTL = 5 * 60 * 1000;
 
 export function useProducts(): UseProductsResult {
   const [category, setCategory] = useState<ProductCategoryFilter>('todos');
+  // `search` reflete o input em tempo real (digitação fluida). `debouncedSearch`
+  // é o valor que efetivamente filtra os ~4k produtos — atrasado 250ms pra não
+  // refiltrar + re-renderizar a lista inteira a cada tecla (era a maior fonte
+  // de "trava ao digitar" reportada).
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const query = useQuery<Product[], Error>({
     queryKey: ['products'],
@@ -71,7 +81,7 @@ export function useProducts(): UseProductsResult {
     if (category !== 'todos') {
       rows = byCategory[category] ?? [];
     }
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
         (p) =>
@@ -80,7 +90,7 @@ export function useProducts(): UseProductsResult {
       );
     }
     return rows;
-  }, [all, byCategory, category, search]);
+  }, [all, byCategory, category, debouncedSearch]);
 
   return {
     all,
