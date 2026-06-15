@@ -47,8 +47,6 @@ export default function PerfilPage() {
         </div>
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
           <ConfigRow href="/perfil/editar" emoji="✏️" label="Editar Perfil" />
-          <ConfigRow href="/perfil/editar?tab=specs" emoji="🎨" label="Especialidades" />
-          <ConfigRow href="/perfil/editar?tab=raio" emoji="📍" label="Raio de Atendimento" />
           <ConfigRow href="/notificacoes" emoji="🔔" label="Notificações" />
           <ConfigRow href="/perfil/publico" emoji="👁️" label="Ver meu perfil público" last />
         </div>
