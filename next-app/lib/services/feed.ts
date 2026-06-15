@@ -84,6 +84,12 @@ export interface FetchFeedParams {
   // Se false/undefined, lista posts globais — usado em "Descobrir" no
   // futuro. Por enquanto sempre true no caller (FeedView).
   followingOnly?: boolean;
+  // "Perto de você": restringe os posts a estes autores (user_ids da mesma
+  // cidade/UF). Quando setado, usa o caminho legacy (a RPC v2 não filtra por
+  // autor) e embaralha. Array vazio = ninguém perto → feed vazio.
+  authorIds?: string[] | null;
+  // Embaralha a ordem dos posts (usado pelo "Perto de você").
+  shuffle?: boolean;
   // signal pra abortar fetches em voo quando o componente desmonta ou a
   // query é invalidada (TanStack `useQuery({signal})` propaga aqui).
   signal?: AbortSignal;
@@ -276,16 +282,21 @@ async function addFeedBreadcrumb(
 }
 
 export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage> {
-  // Tenta RPC primeiro (Sprint 1.5). Em qualquer falha, cai pro caminho
-  // legado abaixo — proteção contra regressão se a RPC ainda não existir
-  // no DB ou se schema mudar.
-  const v2 = await fetchFeedV2(params).catch((e) => {
-    // eslint-disable-next-line no-console
-    console.warn('[feed] get_feed_v2 throw, fallback legacy:', e);
-    addFeedBreadcrumb('rpc_throw', { error: String(e) });
-    return null;
-  });
-  if (v2) return v2;
+  // "Perto de você": nenhum autor próximo → feed vazio direto.
+  if (params.authorIds && params.authorIds.length === 0) {
+    return { items: [], nextCursor: null, hasMore: false };
+  }
+  // Tenta RPC primeiro (Sprint 1.5). PULA a RPC quando filtramos por autor
+  // (authorIds) — a v2 não suporta esse filtro; vai direto pro legacy.
+  if (!params.authorIds) {
+    const v2 = await fetchFeedV2(params).catch((e) => {
+      // eslint-disable-next-line no-console
+      console.warn('[feed] get_feed_v2 throw, fallback legacy:', e);
+      addFeedBreadcrumb('rpc_throw', { error: String(e) });
+      return null;
+    });
+    if (v2) return v2;
+  }
 
   const offset = Math.max(0, params.offset ?? 0);
   const limit = Math.min(
@@ -305,7 +316,10 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   //   - feedIds vazio = lista global,
   //   - abortSignal pra cancel quando query desmonta/invalida.
   let feedIds: string[] = [];
-  if (followingOnly && userId) {
+  if (params.authorIds && params.authorIds.length > 0) {
+    // "Perto de você": só posts dos autores da cidade/UF.
+    feedIds = params.authorIds;
+  } else if (followingOnly && userId) {
     // Lista de quem o user segue + o próprio user (mesma lógica de
     // getFollowingIds do vanilla — inclui o próprio user pra ver os
     // próprios posts no feed).
@@ -509,6 +523,13 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
       }
     } catch {
       // ignora — feed continua mostrando blocked nesse caso extremo.
+    }
+  }
+  // "Perto de você" pede ordem aleatória (Fisher-Yates só nesta página).
+  if (params.shuffle && items.length > 1) {
+    for (let i = items.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [items[i], items[j]] = [items[j]!, items[i]!];
     }
   }
   return { items, nextCursor, hasMore };

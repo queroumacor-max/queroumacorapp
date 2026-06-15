@@ -70,12 +70,46 @@ export function FeedView() {
   // a cada mudança de qualquer state no FeedView (re-render bomb em feeds longos).
   const toggleMute = useCallback(() => setVideoMuted((m) => !m), []);
 
-  const { posts, loading, error, hasMore, loadingMore, loadMore, refetch } = useFeed({
-    roleFilter,
-    // Se não-logado, mostra feed global (followingOnly=false). Logado,
-    // followingOnly=true (default do hook, mas explícito aqui pra clareza).
-    followingOnly: !!user,
-  });
+  // "📍 Perto de você" (Option A — por cidade/UF). Pede localização, resolve a
+  // cidade e filtra o feed por usuários de lá (aleatório).
+  const [nearby, setNearby] = useState(false);
+  const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [nearbyIds, setNearbyIds] = useState<string[] | null>(null);
+  const [nearbyCity, setNearbyCity] = useState('');
+  const [nearbyError, setNearbyError] = useState('');
+
+  const enableNearby = useCallback(async () => {
+    setNearby(true);
+    setRoleFilter('');
+    if (nearbyStatus === 'ready') return; // já resolvido nesta sessão
+    setNearbyStatus('loading');
+    setNearbyError('');
+    try {
+      const { getCurrentPosition, resolveCity, fetchNearbyUserIds } = await import(
+        '@/lib/services/nearbyFeed'
+      );
+      const { lat, lng } = await getCurrentPosition();
+      const loc = await resolveCity(lat, lng);
+      const ids = await fetchNearbyUserIds(loc);
+      setNearbyCity(loc.state ? `${loc.city}/${loc.state}` : loc.city);
+      setNearbyIds(ids);
+      setNearbyStatus('ready');
+    } catch (e) {
+      setNearbyError(e instanceof Error ? e.message : 'Falha ao usar localização.');
+      setNearbyStatus('error');
+    }
+  }, [nearbyStatus]);
+
+  const { posts, loading, error, hasMore, loadingMore, loadMore, refetch } = useFeed(
+    nearby
+      ? { authorIds: nearbyIds ?? [], shuffle: true, followingOnly: false }
+      : {
+          roleFilter,
+          // Se não-logado, mostra feed global (followingOnly=false). Logado,
+          // followingOnly=true (default do hook, mas explícito aqui pra clareza).
+          followingOnly: !!user,
+        },
+  );
 
   // IntersectionObserver no sentinel — quando o sentinel entra em vista,
   // dispara loadMore. Sem polling, sem botão. rootMargin 200px pra começar
@@ -124,13 +158,27 @@ export function FeedView() {
           role="tablist"
           aria-label="Filtrar por categoria"
         >
+          {/* 📍 Perto de você — filtra por usuários da mesma cidade/UF */}
+          <button
+            type="button"
+            onClick={() => { void enableNearby(); }}
+            className={
+              'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
+              (nearby
+                ? 'bg-[color:var(--color-p1)] text-white border-[color:var(--color-p1)]'
+                : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
+            }
+            aria-pressed={nearby}
+          >
+            📍 Perto de você
+          </button>
           {FILTER_BUTTONS.map((f) => {
-            const active = roleFilter === f.value;
+            const active = !nearby && roleFilter === f.value;
             return (
               <button
                 key={f.value || 'all'}
                 type="button"
-                onClick={() => setRoleFilter(f.value)}
+                onClick={() => { setNearby(false); setRoleFilter(f.value); }}
                 className={
                   'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
                   (active
@@ -146,7 +194,36 @@ export function FeedView() {
         </div>
       </div>
 
-      {loading ? (
+      {nearby && nearbyStatus === 'ready' && nearbyCity ? (
+        <div
+          className="mx-3 mt-3 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+          style={{ background: 'var(--color-cream)', color: 'var(--color-ink)' }}
+        >
+          <span aria-hidden="true">📍</span>
+          Mostrando posts de pessoas em <b>{nearbyCity}</b>
+        </div>
+      ) : null}
+
+      {nearby && nearbyStatus === 'loading' ? (
+        <div className="text-center py-12 px-4 m-3 rounded-xl bg-white border border-[color:var(--color-border)]">
+          <div className="text-4xl mb-3" aria-hidden="true">📍</div>
+          <p className="text-sm text-[color:var(--color-muted)]">
+            Procurando posts de gente perto de você…
+          </p>
+        </div>
+      ) : nearby && nearbyStatus === 'error' ? (
+        <div className="text-center py-10 px-4 m-3 rounded-xl bg-white border border-[color:var(--color-border)]">
+          <div className="text-4xl mb-3" aria-hidden="true">📍</div>
+          <p className="text-sm text-[color:var(--color-muted)] mb-4">{nearbyError}</p>
+          <button
+            type="button"
+            onClick={() => { void enableNearby(); }}
+            className="px-5 py-2 bg-[color:var(--color-ink)] text-white rounded-xl font-semibold text-sm"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      ) : loading ? (
         <div aria-label="Carregando posts">
           {Array.from({ length: 4 }).map((_, i) => (
             <PostSkeleton key={i} />

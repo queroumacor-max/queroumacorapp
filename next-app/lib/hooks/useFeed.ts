@@ -31,6 +31,11 @@ export interface UseFeedOptions {
   // followingOnly: true (default) = só posts de quem você segue + você mesmo.
   // false = feed global (não-logado vê isso, ou usuário em modo "descobrir").
   followingOnly?: boolean;
+  // "Perto de você": restringe aos posts destes autores (user_ids da cidade).
+  // null/undefined = sem filtro de localização.
+  authorIds?: string[] | null;
+  // Embaralha o feed (usado pelo "Perto de você").
+  shuffle?: boolean;
 }
 
 export interface UseFeedResult {
@@ -47,6 +52,10 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
   const { user } = useAuth();
   const roleFilter = options.roleFilter ?? null;
   const followingOnly = options.followingOnly ?? true;
+  const authorIds = options.authorIds ?? null;
+  const shuffle = options.shuffle ?? false;
+  // Chave estável pro cache do "perto" (a ordem dos ids não importa).
+  const authorKey = authorIds ? [...authorIds].sort().join(',') : null;
 
   // pageParam = cursor ISO timestamp (created_at do último post da página
   // anterior). null = primeira página (sem cursor, devolve as N mais
@@ -59,7 +68,7 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
     readonly unknown[],
     string | null
   >({
-    queryKey: ['feed', user?.id ?? null, roleFilter, followingOnly],
+    queryKey: ['feed', user?.id ?? null, roleFilter, followingOnly, authorKey, shuffle],
     queryFn: async ({ pageParam, signal }) =>
       fetchFeed({
         userId: user?.id ?? null,
@@ -67,6 +76,8 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedResult {
         limit: FEED_PAGE_SIZE,
         roleFilter,
         followingOnly,
+        authorIds,
+        shuffle,
         // signal cancela fetch quando o componente desmonta ou a query é
         // invalidada — evita race conditions e wastes de banda.
         signal,
