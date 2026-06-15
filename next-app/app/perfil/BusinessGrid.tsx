@@ -140,7 +140,7 @@ interface Tile {
 }
 
 const TILES: readonly Tile[] = [
-  { sheet: 'pedidos', emoji: '📋', title: 'Meus Pedidos', subtitle: 'Orçamentos' },
+  { sheet: 'pedidos', emoji: '📋', title: 'Meus Pedidos', subtitle: 'Compras na loja' },
   { sheet: 'orcamento', emoji: '📄', title: 'Orçamento', subtitle: 'Crie e envie' },
   { sheet: 'orcamentos', emoji: '🗂️', title: 'Orçamentos', subtitle: 'Pipeline e aprovação' },
   { sheet: 'pontos', emoji: '🎁', title: 'Meus Pontos', subtitle: 'Pra ganhar PRO' },

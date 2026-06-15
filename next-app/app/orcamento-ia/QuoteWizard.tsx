@@ -864,13 +864,31 @@ export function QuoteWizard() {
       </div>
 
       {savedQuoteId ? (
-        <p className="text-center text-xs text-[color:var(--color-muted)]">
-          Salvo no pipeline. Ver em{' '}
-          <Link href="/orcamentos" className="font-bold text-[color:var(--color-p1)]">
-            Orçamentos
+        <div
+          className="text-center"
+          style={{
+            marginTop: 8,
+            padding: 14,
+            borderRadius: 14,
+            background: 'var(--color-cream)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="text-sm font-extrabold" style={{ color: 'var(--color-ink)' }}>
+            ✅ Orçamento gravado!
+          </div>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-muted)', lineHeight: 1.5 }}>
+            Ele fica em <b>Orçamentos → coluna “A orçar”</b> (não em “Meus Pedidos”,
+            que é das compras na loja).
+          </p>
+          <Link
+            href="/orcamentos"
+            className="inline-block mt-2.5 font-bold text-white"
+            style={{ padding: '9px 18px', borderRadius: 10, background: 'var(--color-p1)', fontSize: 13 }}
+          >
+            👉 Ver no pipeline
           </Link>
-          .
-        </p>
+        </div>
       ) : null}
 
       {previewOpen ? (
