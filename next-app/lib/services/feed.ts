@@ -553,7 +553,9 @@ export async function fetchPostById(
   }
   if (!postRow) return null;
   const status = (postRow as { status?: string | null }).status;
-  if (status && status !== 'approved') return null;
+  const postUserId = (postRow as { user_id?: string }).user_id;
+  // Dono vê sempre; outros só veem posts aprovados.
+  if (status && status !== 'approved' && userId !== postUserId) return null;
 
   const post = postRow as unknown as Post;
 
