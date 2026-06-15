@@ -1,5 +1,23 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Modo visitante (guest) — LIVE (2026-06-15).** Cliente navega feed/loja/
+  perfis sem login; ao interagir (curtir/comentar/seguir/mensagem/orçar/comprar)
+  o `AuthGate` (`next-app/components/AuthGate.tsx`) abre cadastro. Raiz `/`
+  redireciona todo mundo pro `/feed`. Botão "Explore o app sem cadastro" no
+  `/login` → `/feed`. TopNav mostra pill "Entrar" pro visitante. **SQL
+  `2026-06-15-loja-anon-read.sql` JÁ EXECUTADO no Supabase** — policy
+  `"products public read"` + `"product_variants public read"` (SELECT TO
+  anon, authenticated USING true) pra a loja abrir pro visitante (anon lia
+  zero produtos antes). Não pedir pra rodar de novo.
+- **Badge de chat não lido (TopNav) — fix LIVE (2026-06-15).**
+  `useUnreadMessageCount` revalida tb no INSERT de `notifications` (mesmo
+  evento que acende o sininho, comprovadamente entregue) + refetchOnWindowFocus
+  + staleTime 15s. O realtime da tabela `messages` não disparava o badge no DB
+  live; piggyback no sininho garante que acenda junto.
+- **Perf loja (2026-06-15) — LIVE.** `useProducts` filtra busca debounced
+  (250ms); `ProductsList` renderiza em janela (40 cards, cresce via
+  IntersectionObserver) em vez de montar a lista flat inteira (~4k).
+
 - **RELEASE_AUDIT.md (2026-06-11) — 9 blockers atacados.** Auditoria de
   release nas lojas (Apple App Store + Google Play) em `RELEASE_AUDIT.md`.
   Status atual:
