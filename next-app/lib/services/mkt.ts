@@ -295,6 +295,76 @@ export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolea
   return MKT_HIDDEN.test((p && p.name) || '');
 }
 
+// Cores de leque (COR SUVINIL S-A-..., COR CORAL ..., COR SHERWIN ...) são
+// SKUs individuais de tintometria — escondidos do catálogo geral e acessíveis
+// pela aba "Cores personalizadas" dentro do detalhe de cada tinta.
+const LEQUE_RE = /(\bleque\b)|(^cor\s+(suvinil|coral|sherwin))/i;
+
+export function isLequeColor(p: Pick<Product, 'name'> | null | undefined): boolean {
+  return LEQUE_RE.test((p && p.name) || '');
+}
+
+// Shape mínimo de uma cor de leque pra o seletor de tintometria.
+export interface LequeColor {
+  id: string;
+  name: string;
+  code: string | null;
+  color_hex: string | null;
+}
+
+/**
+ * Busca as cores de leque de uma marca específica filtrando pelo prefixo do
+ * código tintométrico:
+ *   Suvinil  → code ILIKE 's-%'  (exclui 'sw-%' que é Sherwin)
+ *   Coral    → code ILIKE 'c-%'
+ *   Sherwin  → code ILIKE 'sw-%'
+ */
+export async function fetchLequeColors(
+  brand: 'suvinil' | 'coral' | 'sherwin',
+): Promise<LequeColor[]> {
+  const sb = getSupabase();
+  let query = sb
+    .from('products')
+    .select('id, name, code, color_hex')
+    .not('code', 'is', null);
+
+  if (brand === 'sherwin') {
+    query = query.ilike('code', 'sw-%');
+  } else if (brand === 'coral') {
+    query = query.ilike('code', 'c-%');
+  } else {
+    // suvinil: starts with s- but NOT sw-
+    query = query.ilike('code', 's-%').not('code', 'ilike', 'sw-%');
+  }
+
+  const { data, error } = await query.order('code').limit(500);
+  if (error) throw new NetworkError(error.message, error);
+  return ((data ?? []) as Array<{
+    id: string;
+    name: string;
+    code: string | null;
+    color_hex: string | null;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.name ?? '',
+    code: r.code ?? null,
+    color_hex: r.color_hex ?? null,
+  }));
+}
+
+// Tier de qualidade da tinta — usado pelo sub-filtro da categoria Tintas.
+export type PaintTier = 'economica' | 'standard' | 'premium';
+
+export function paintTierClassify(
+  p: Pick<Product, 'name'> | null | undefined,
+): PaintTier {
+  if (!p) return 'economica';
+  const txt = (p.name || '').toLowerCase();
+  if (/sherwin|linha premium/.test(txt)) return 'premium';
+  if (/suvinil|coral|novacor/.test(txt)) return 'standard';
+  return 'economica';
+}
+
 // ─── catálogo: fetch + filtro ─────────────────────────────────────────────
 
 // Colunas COMPLETAS — usadas só na página de detalhe (fetchProduct).
@@ -367,7 +437,7 @@ export async function fetchProducts(filter: ProductFilter = {}): Promise<Product
     for (const batch of batches) all.push(...batch);
   }
 
-  let rows = all.filter((p) => !isMktHidden(p));
+  let rows = all.filter((p) => !isMktHidden(p) && !isLequeColor(p));
   if (cap) rows = rows.slice(0, cap);
 
   if (filter.category) {

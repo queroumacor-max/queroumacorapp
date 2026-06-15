@@ -38,8 +38,8 @@ function combineUnits(areaM2: number): UnitQty[] {
   if (rem > 0) {
     if (rem <= 5) out.push({ count: 1, label: 'quartinho 0,9L' });
     else if (rem <= 20) out.push({ count: 1, label: 'galão 3,6L' });
-    else if (rem <= 80) out.push({ count: Math.ceil(rem / 20), label: 'galão 3,6L' });
-    else out.push({ count: 1, label: 'lata 18L' }); // 81–99 m² → 1 lata (menos sobra)
+    else if (rem <= 60) out.push({ count: Math.ceil(rem / 20), label: 'galão 3,6L' });
+    else out.push({ count: 1, label: 'lata 18L' }); // >60 m² → 1 lata (mais prático que 4+ galões)
   }
   if (out.length === 0) out.push({ count: 1, label: 'quartinho 0,9L' });
   // Junta labels iguais (ex.: lata do floor + lata do arredondamento) e ordena.
@@ -225,20 +225,21 @@ export function CalcView() {
               }}
             />
           ) : (
-            <div className="flex gap-2">
+            <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <input
                 type="number"
                 inputMode="decimal"
                 value={altura}
                 onChange={(e) => setAltura(e.target.value)}
                 placeholder="Altura (m)"
-                className="flex-1 text-white outline-none"
+                className="w-full min-w-0 text-white outline-none"
                 style={{
                   padding: 12,
                   borderRadius: 12,
                   border: '1.5px solid rgba(255,255,255,.14)',
                   background: 'rgba(255,255,255,.07)',
                   fontSize: 15,
+                  boxSizing: 'border-box',
                 }}
               />
               <input
@@ -247,13 +248,14 @@ export function CalcView() {
                 value={comp}
                 onChange={(e) => setComp(e.target.value)}
                 placeholder="Comprimento (m)"
-                className="flex-1 text-white outline-none"
+                className="w-full min-w-0 text-white outline-none"
                 style={{
                   padding: 12,
                   borderRadius: 12,
                   border: '1.5px solid rgba(255,255,255,.14)',
                   background: 'rgba(255,255,255,.07)',
                   fontSize: 15,
+                  boxSizing: 'border-box',
                 }}
               />
             </div>

@@ -18,7 +18,9 @@ import type { Product, ProductVariant } from '@/lib/services/mkt';
 import {
   MKT_MENU_LABEL,
   MKT_MENUS,
+  paintTierClassify,
   type MktCategory,
+  type PaintTier,
 } from '@/lib/services/mkt';
 import {
   useProducts,
@@ -72,6 +74,8 @@ export function ProductsList() {
   // Drill-down: linha selecionada dentro da categoria atual. null = mostra
   // grid de linhas. Reseta quando categoria muda OU quando busca começa.
   const [selectedLine, setSelectedLine] = useState<string | null>(null);
+  // Sub-filtro de qualidade dentro de Tintas (null = todas as tintas).
+  const [paintTier, setPaintTier] = useState<PaintTier | null>(null);
 
   // Agrupa os products do filter atual por `line` (pula campo vazio: "Outros").
   // Computa antes do early-return pra useMemo manter ordem estável de hooks.
@@ -99,17 +103,26 @@ export function ProductsList() {
     filtered.length >= DRILL_MIN_PRODUCTS;
   const showLineGrid = drillEligible && selectedLine === null;
   const visibleProducts = useMemo(() => {
-    if (!drillEligible || selectedLine === null) return filtered;
-    return filtered.filter(
-      (p) => (normalizeLineKey(p.line) || 'Outros') === selectedLine,
-    );
-  }, [drillEligible, selectedLine, filtered]);
+    let rows =
+      !drillEligible || selectedLine === null
+        ? filtered
+        : filtered.filter((p) => (normalizeLineKey(p.line) || 'Outros') === selectedLine);
+    if (category === 'tintas' && paintTier !== null) {
+      rows = rows.filter((p) => paintTierClassify(p) === paintTier);
+    }
+    return rows;
+  }, [drillEligible, selectedLine, filtered, category, paintTier]);
 
   // Reseta a linha selecionada quando o user troca de categoria ou começa
   // a buscar — drill-down não faz sentido fora do escopo da categoria atual.
   useEffect(() => {
     setSelectedLine(null);
   }, [category, search]);
+
+  // Reseta o tier de tinta quando sai da categoria Tintas.
+  useEffect(() => {
+    if (category !== 'tintas') setPaintTier(null);
+  }, [category]);
 
   function handleAddFromSheet(
     prod: Product,
@@ -253,6 +266,42 @@ export function ProductsList() {
             </svg>
           </span>
         </div>
+
+        {/* Sub-filtro de tier — só aparece quando categoria = Tintas e sem busca ativa */}
+        {category === 'tintas' && !search.trim() ? (
+          <div className="flex gap-2" style={{ paddingBottom: 12 }}>
+            {([null, 'economica', 'standard', 'premium'] as const).map((tier) => {
+              const active = paintTier === tier;
+              const labels: Record<string, string> = {
+                economica: 'Econômica',
+                standard: 'Standard',
+                premium: 'Premium',
+              };
+              const label = tier === null ? 'Todas' : labels[tier]!;
+              return (
+                <button
+                  key={tier ?? 'todas'}
+                  type="button"
+                  onClick={() => setPaintTier(tier)}
+                  className="flex-1 font-semibold"
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
+                    color: active ? '#fff' : 'rgba(255,255,255,.6)',
+                    border: active
+                      ? '1.5px solid var(--color-p1)'
+                      : '1.5px solid rgba(255,255,255,.14)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         {/* Busca — input estilo vanilla (dark com ícone laranja absoluto) */}
         <div className="relative" role="search" style={{ paddingBottom: 14 }}>

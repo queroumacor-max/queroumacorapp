@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
 import { useQualifications } from '@/lib/hooks/useQualifications';
-import type { Qualification } from '@/lib/services/formacao';
+import type { Qualification, UpdateQualInput } from '@/lib/services/formacao';
 
 function SkeletonRow() {
   return (
@@ -34,12 +34,87 @@ function SkeletonRow() {
 function QualRow({
   q,
   onRemove,
+  onUpdate,
   removing,
+  updating,
 }: {
   q: Qualification;
   onRemove: (id: string) => void;
+  onUpdate: (qualId: string, input: UpdateQualInput) => void;
   removing: boolean;
+  updating: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(q.title || '');
+  const [editOrg, setEditOrg] = useState(q.org || '');
+  const [editYear, setEditYear] = useState(q.year || '');
+
+  function startEdit() {
+    setEditTitle(q.title || '');
+    setEditOrg(q.org || '');
+    setEditYear(q.year || '');
+    setEditing(true);
+  }
+
+  function handleSave() {
+    if (!editTitle.trim()) return;
+    onUpdate(q.id, {
+      title: editTitle,
+      org: editOrg.trim() || null,
+      year: editYear.trim() || null,
+      icon: q.icon,
+      certificate_url: q.certificate_url,
+    });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <li className="p-3 rounded-xl bg-white border border-[color:var(--color-p1)] space-y-2">
+        <input
+          type="text"
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          placeholder="Título *"
+          className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm"
+        />
+        <input
+          type="text"
+          value={editOrg}
+          onChange={(e) => setEditOrg(e.target.value)}
+          placeholder="Instituição"
+          className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm"
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={editYear}
+          onChange={(e) => setEditYear(e.target.value)}
+          placeholder="Ano"
+          className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm"
+        />
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={updating || !editTitle.trim()}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+            style={{ background: 'var(--color-p1)' }}
+          >
+            {updating ? 'Salvando…' : 'Salvar'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="flex-1 py-2 rounded-xl text-sm font-semibold border border-[color:var(--color-border)]"
+          >
+            Cancelar
+          </button>
+        </div>
+      </li>
+    );
+  }
+
   return (
     <li className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[color:var(--color-border)]">
       {q.certificate_url ? (
@@ -84,15 +159,27 @@ function QualRow({
           </a>
         )}
       </span>
-      <button
-        type="button"
-        onClick={() => onRemove(q.id)}
-        disabled={removing}
-        className="text-xs font-semibold text-red-600 disabled:opacity-50 px-2 py-1"
-        aria-label={`Remover ${q.title || 'formação'}`}
-      >
-        Remover
-      </button>
+      <div className="flex flex-col gap-1 flex-shrink-0">
+        <button
+          type="button"
+          onClick={startEdit}
+          disabled={removing || updating}
+          className="text-xs font-semibold disabled:opacity-50 px-2 py-1 rounded-lg"
+          style={{ color: 'var(--color-p1)', background: 'var(--color-cream)' }}
+          aria-label={`Editar ${q.title || 'formação'}`}
+        >
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove(q.id)}
+          disabled={removing || updating}
+          className="text-xs font-semibold text-red-600 disabled:opacity-50 px-2 py-1"
+          aria-label={`Remover ${q.title || 'formação'}`}
+        >
+          Remover
+        </button>
+      </div>
     </li>
   );
 }
@@ -104,8 +191,10 @@ export function QualsSection() {
     loading,
     error,
     add,
+    update,
     remove,
     isAdding,
+    isUpdating,
     isRemoving,
     addError,
   } = useQualifications();
@@ -323,7 +412,14 @@ export function QualsSection() {
       ) : (
         <ul className="space-y-2">
           {qualifications.map((q) => (
-            <QualRow key={q.id} q={q} onRemove={remove} removing={isRemoving} />
+            <QualRow
+              key={q.id}
+              q={q}
+              onRemove={remove}
+              onUpdate={(qualId, input) => update({ qualId, input })}
+              removing={isRemoving}
+              updating={isUpdating}
+            />
           ))}
         </ul>
       )}

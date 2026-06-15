@@ -19,7 +19,9 @@ import {
   addQual,
   deleteQual,
   listQuals,
+  updateQual,
   type AddQualInput,
+  type UpdateQualInput,
   type Qualification,
 } from '@/lib/services/formacao';
 
@@ -28,10 +30,13 @@ export interface UseQualificationsResult {
   loading: boolean;
   error: Error | null;
   add: (input: AddQualInput) => void;
+  update: (args: { qualId: string; input: UpdateQualInput }) => void;
   remove: (qualId: string) => void;
   isAdding: boolean;
+  isUpdating: boolean;
   isRemoving: boolean;
   addError: Error | null;
+  updateError: Error | null;
   removeError: Error | null;
 }
 
@@ -44,20 +49,28 @@ export function useQualifications(): UseQualificationsResult {
     queryFn: () => listQuals(user!.id),
     enabled: !!user,
     staleTime: 60_000,
+    refetchOnMount: 'always',
   });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['qualifications', user?.id] });
 
   const addMutation = useMutation<Qualification, Error, AddQualInput>({
     mutationFn: (input: AddQualInput) => addQual(user!.id, input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['qualifications', user?.id] });
-    },
+    onSuccess: invalidate,
+  });
+
+  const updateMutation = useMutation<
+    Qualification,
+    Error,
+    { qualId: string; input: UpdateQualInput }
+  >({
+    mutationFn: ({ qualId, input }) => updateQual(user!.id, qualId, input),
+    onSuccess: invalidate,
   });
 
   const removeMutation = useMutation<void, Error, string>({
     mutationFn: (qualId: string) => deleteQual(user!.id, qualId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['qualifications', user?.id] });
-    },
+    onSuccess: invalidate,
   });
 
   return {
@@ -65,10 +78,13 @@ export function useQualifications(): UseQualificationsResult {
     loading: query.isLoading,
     error: query.error ?? null,
     add: addMutation.mutate,
+    update: updateMutation.mutate,
     remove: removeMutation.mutate,
     isAdding: addMutation.isPending,
+    isUpdating: updateMutation.isPending,
     isRemoving: removeMutation.isPending,
     addError: addMutation.error ?? null,
+    updateError: updateMutation.error ?? null,
     removeError: removeMutation.error ?? null,
   };
 }
