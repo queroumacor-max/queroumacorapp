@@ -38,8 +38,8 @@ function combineUnits(areaM2: number): UnitQty[] {
   if (rem > 0) {
     if (rem <= 5) out.push({ count: 1, label: 'quartinho 0,9L' });
     else if (rem <= 20) out.push({ count: 1, label: 'galão 3,6L' });
-    else if (rem <= 80) out.push({ count: Math.ceil(rem / 20), label: 'galão 3,6L' });
-    else out.push({ count: 1, label: 'lata 18L' }); // 81–99 m² → 1 lata (menos sobra)
+    else if (rem <= 60) out.push({ count: Math.ceil(rem / 20), label: 'galão 3,6L' });
+    else out.push({ count: 1, label: 'lata 18L' }); // >60 m² → 1 lata (mais prático que 4+ galões)
   }
   if (out.length === 0) out.push({ count: 1, label: 'quartinho 0,9L' });
   // Junta labels iguais (ex.: lata do floor + lata do arredondamento) e ordena.
