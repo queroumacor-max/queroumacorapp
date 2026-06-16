@@ -8,23 +8,6 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
 
-# Portal admin (vanilla, ainda não portado pro Next)
-# As 3 variações de path (bare dir, com barra e index.html explícito) precisam
-# da mesma regra no-cache — senão acessar /portal/ servia um index.html antigo
-# de cache, que continuava apontando pro app.js?v= velho mesmo após deploy.
-/portal
-  Cache-Control: public, max-age=0, must-revalidate
-/portal/
-  Cache-Control: public, max-age=0, must-revalidate
-/portal/index.html
-  Cache-Control: public, max-age=0, must-revalidate
-/portal/app.js
-  Cache-Control: public, max-age=31536000, immutable
-/portal/react.production.min.js
-  Cache-Control: public, max-age=31536000, immutable
-/portal/react-dom.production.min.js
-  Cache-Control: public, max-age=31536000, immutable
-
 # SEO files
 /robots.txt
   Cache-Control: public, max-age=86400

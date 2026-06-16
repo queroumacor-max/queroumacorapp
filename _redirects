@@ -1,6 +1,3 @@
-# Portal admin (vanilla, ainda não portado pro Next) — mantém o SPA fallback.
-/portal/*  /portal/index.html  200
-
 # Versionamento de API: /api/v1/* é alias pra /api/* (a versão atual).
 /api/v1/*  /api/:splat         200
 
