@@ -299,6 +299,13 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
   if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
   // Primers de uso exclusivamente automotivo
   if (n.includes(' primer pu ') || (n.includes('primer universal') && n.includes(' auto'))) return 'tintas_auto';
+  // Seladoras para plástico → tintas automotivas
+  if ((n.includes('seladora') || n.includes('selador')) && (n.includes('plástico') || n.includes('plastico'))) return 'tintas_auto';
+  // Luvas látex e misturadores → acessórios de pintura
+  if (n.includes('luva') && (n.includes('latex') || n.includes('látex') || n.includes('latéx'))) return 'pintura';
+  if (n.includes('misturador')) return 'pintura';
+  // Massa acrílica → texturas (keyword 'acrilic' em tintas bate antes do loop)
+  if (n.includes('massa acril')) return 'texturas';
   for (const m of MKT_MENUS) {
     if (m.kw.some((k) => n.includes(k))) return m.key;
   }
@@ -307,7 +314,7 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
 
 // Regex pra esconder bases tinturométricas (nomes "BASE VY", "BASE Z" etc.)
 // que aparecem no catálogo mas não devem ser vendidas direto pro consumidor.
-const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b/i;
+const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura/i;
 
 export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolean {
   return MKT_HIDDEN.test((p && p.name) || '');
@@ -428,9 +435,9 @@ export function paintTierClassify(
 ): PaintTier {
   if (!p) return 'economica';
   const txt = (p.name || '').toLowerCase();
-  if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador/.test(txt)) return 'primer';
-  if (/sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
-  if (/suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
+  if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
+  if (/metalatex elastic|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
+  if (/sintelux|suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
 }
 
@@ -442,10 +449,10 @@ export function autoTierClassify(
 ): AutoTier {
   if (!p) return 'tinta';
   const txt = (p.name || '').toLowerCase();
-  if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador/.test(txt)) return 'primer';
+  if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
   if (/thinner|solvente|diluente|reducer|redutor|aguarras|aguarrás/.test(txt)) return 'solventes';
-  if (/massa|selador|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
+  if (/massa|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
   return 'tinta';
 }
 
