@@ -304,7 +304,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
   if (n.includes('nc esm') || n.includes('nc acr') || n.includes('nc lat')) return 'tintas';
-  if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
+  if (n.includes('metalatex') || n.includes('novacor') || n.includes('kemtone')) return 'tintas';
   // Tinta auto PU (poliuretano industrial) → epoxi
   if (n.includes('tinta') && n.includes('auto') && n.includes(' pu ')) return 'epoxi';
   // Primers de uso exclusivamente automotivo
@@ -367,7 +367,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
 
 // Regex pra esconder bases tinturométricas (nomes "BASE VY", "BASE Z" etc.)
 // que aparecem no catálogo mas não devem ser vendidas direto pro consumidor.
-const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]|hs785|ultrabase|^lazzumix|^lm[\s-]|^mixing\s+fleet/i;
+const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]|hs785|ultrabase|^lazzumix|^lm|^mixing\s+fleet/i;
 
 export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolean {
   return MKT_HIDDEN.test((p && p.name) || '');
