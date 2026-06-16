@@ -1123,10 +1123,11 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS installments   integer,
   ADD COLUMN IF NOT EXISTS receipt_url    text;
 
--- Status pode ficar: pending | paid | amount_mismatch | refunded | canceled
+-- Status: pagamento (webhook) — pending | paid | amount_mismatch | refunded
+-- + fulfillment (admin no portal) — processing | shipped | completed | canceled
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
-  CHECK (status IN ('pending','paid','amount_mismatch','refunded','canceled'));
+  CHECK (status IN ('pending','paid','amount_mismatch','refunded','canceled','processing','shipped','completed'));
 
 -- Index para o webhook achar a order rápido
 CREATE INDEX IF NOT EXISTS idx_orders_tx_id ON public.orders(tx_id) WHERE tx_id IS NOT NULL;

@@ -82,19 +82,28 @@ const REFERRALS_STATUS_LABELS = {
   pending: 'Pendente',
   cancelled: 'Cancelada'
 };
+
+// Status de fulfillment (setados pelo admin) + de pagamento (setados pelo
+// webhook do MP). Grafia 'canceled' (1 L) pra casar com o constraint do banco.
 const ORDERS_STATUS_COLORS = {
   pending: '#ffd166',
   processing: '#ff6b35',
   shipped: '#2ec4b6',
   completed: '#06d6a0',
-  cancelled: '#e63946'
+  canceled: '#e63946',
+  paid: '#06d6a0',
+  amount_mismatch: '#e63946',
+  refunded: '#8338ec'
 };
 const ORDERS_STATUS_LABELS = {
   pending: 'Aguardando',
   processing: 'Em andamento',
   shipped: 'Enviado',
   completed: 'Concluido',
-  cancelled: 'Cancelado'
+  canceled: 'Cancelado',
+  paid: 'Pago',
+  amount_mismatch: 'Divergencia valor',
+  refunded: 'Reembolsado'
 };
 const LEADS_STATUS_LABELS = {
   novo: 'Novo',
@@ -5772,7 +5781,7 @@ const PedidosLoja = () => {
     }, "Enviado"), /*#__PURE__*/React.createElement("option", {
       value: "completed"
     }, "Concluido"), /*#__PURE__*/React.createElement("option", {
-      value: "cancelled"
+      value: "canceled"
     }, "Cancelado"))));
   }))))), detailOrder && (() => {
     const o = detailOrder;
@@ -5946,7 +5955,7 @@ const PedidosLoja = () => {
     }, "Enviado"), /*#__PURE__*/React.createElement("option", {
       value: "completed"
     }, "Concluido"), /*#__PURE__*/React.createElement("option", {
-      value: "cancelled"
+      value: "canceled"
     }, "Cancelado"))), /*#__PURE__*/React.createElement("div", {
       style: sec
     }, "Pagamento"), hasPay ? /*#__PURE__*/React.createElement(React.Fragment, null, row('Gateway', o.gateway || '—'), row('Transação', o.tx_id || '—'), row('Valor pago', o.paid_amount != null ? brl(o.paid_amount) : '—'), row('Método', o.payment_method || '—'), row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—'), o.receipt_url ? /*#__PURE__*/React.createElement("a", {

@@ -39,8 +39,10 @@ const REPORTS_STATUS_LABELS = { pending: 'Pendente', resolved: 'Resolvida', dism
 const REFERRALS_STATUS_COLORS = { completed: '#06d6a0', pending: '#b8860b', cancelled: '#e63946' };
 const REFERRALS_STATUS_LABELS = { completed: 'Completa', pending: 'Pendente', cancelled: 'Cancelada' };
 
-const ORDERS_STATUS_COLORS = { pending: '#ffd166', processing: '#ff6b35', shipped: '#2ec4b6', completed: '#06d6a0', cancelled: '#e63946' };
-const ORDERS_STATUS_LABELS = { pending: 'Aguardando', processing: 'Em andamento', shipped: 'Enviado', completed: 'Concluido', cancelled: 'Cancelado' };
+// Status de fulfillment (setados pelo admin) + de pagamento (setados pelo
+// webhook do MP). Grafia 'canceled' (1 L) pra casar com o constraint do banco.
+const ORDERS_STATUS_COLORS = { pending: '#ffd166', processing: '#ff6b35', shipped: '#2ec4b6', completed: '#06d6a0', canceled: '#e63946', paid: '#06d6a0', amount_mismatch: '#e63946', refunded: '#8338ec' };
+const ORDERS_STATUS_LABELS = { pending: 'Aguardando', processing: 'Em andamento', shipped: 'Enviado', completed: 'Concluido', canceled: 'Cancelado', paid: 'Pago', amount_mismatch: 'Divergencia valor', refunded: 'Reembolsado' };
 
 const LEADS_STATUS_LABELS = { novo: 'Novo', contactado: 'Contactado', qualificado: 'Qualificado', convertido: 'Convertido', perdido: 'Perdido' };
 
@@ -2387,7 +2389,7 @@ const PedidosLoja = () => {
                       <option value="processing">Em andamento</option>
                       <option value="shipped">Enviado</option>
                       <option value="completed">Concluido</option>
-                      <option value="cancelled">Cancelado</option>
+                      <option value="canceled">Cancelado</option>
                     </select>
                   </td>
                 </tr>
@@ -2450,7 +2452,7 @@ const PedidosLoja = () => {
                   <option value="processing">Em andamento</option>
                   <option value="shipped">Enviado</option>
                   <option value="completed">Concluido</option>
-                  <option value="cancelled">Cancelado</option>
+                  <option value="canceled">Cancelado</option>
                 </select>
               </div>
 
