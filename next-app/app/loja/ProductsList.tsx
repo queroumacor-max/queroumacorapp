@@ -314,12 +314,13 @@ export function ProductsList() {
         {/* Sub-filtro de tier — só aparece quando categoria = Tintas e sem busca ativa */}
         {category === 'tintas' && !search.trim() ? (
           <div className="flex gap-2" style={{ paddingBottom: 12 }}>
-            {([null, 'economica', 'standard', 'premium'] as const).map((tier) => {
+            {([null, 'economica', 'standard', 'premium', 'primer'] as const).map((tier) => {
               const active = paintTier === tier;
               const labels: Record<string, string> = {
                 economica: 'Econômica',
                 standard: 'Standard',
                 premium: 'Premium',
+                primer: 'Fundos & Primer',
               };
               const label = tier === null ? 'Todas' : labels[tier]!;
               return (

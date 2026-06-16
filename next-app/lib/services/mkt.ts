@@ -408,13 +408,14 @@ export async function fetchLequeColors(
 }
 
 // Tier de qualidade da tinta — usado pelo sub-filtro da categoria Tintas.
-export type PaintTier = 'economica' | 'standard' | 'premium';
+export type PaintTier = 'economica' | 'standard' | 'premium' | 'primer';
 
 export function paintTierClassify(
   p: Pick<Product, 'name'> | null | undefined,
 ): PaintTier {
   if (!p) return 'economica';
   const txt = (p.name || '').toLowerCase();
+  if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador/.test(txt)) return 'primer';
   if (/sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
   if (/suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
