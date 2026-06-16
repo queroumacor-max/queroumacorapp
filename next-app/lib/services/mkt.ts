@@ -700,11 +700,14 @@ export async function saveCart(userId: string, items: CartItem[]): Promise<void>
 export async function submitOrder(
   userId: string,
   items: CartItem[],
-  _address?: Record<string, string> | null
+  opts?: { status?: string },
 ): Promise<OrderSubmitResult> {
-  if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
+  if (!userId) throw new AuthorizationError('Faça login para solicitar o orçamento.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
 
+  // total fica gravado pra referência interna da loja (o cliente não vê
+  // preço — fluxo de orçamento, 2026-06-16), mas a loja precisa do valor
+  // de catálogo pra montar a resposta.
   const total = items.reduce(
     (sum, item) => sum + Number(item.price || 0) * (item.qty || 1),
     0
@@ -717,7 +720,7 @@ export async function submitOrder(
       user_id: userId,
       items: items as unknown as Json, // jsonb column — mesmo padrão de saveCart
       total,
-      status: 'pending',
+      status: opts?.status ?? 'pending',
       created_at: new Date().toISOString(),
     })
     .select('id')
@@ -867,4 +870,89 @@ export function cartTotal(items: CartItem[]): number {
  */
 export function cartCount(items: CartItem[]): number {
   return items.reduce((s, c) => s + (c.qty || 1), 0);
+}
+
+// ─── unificação de produtos por tamanho (2026-06-16) ──────────────────────
+// A base da Cali Colors tem o mesmo produto repetido em linhas diferentes,
+// variando só o tamanho embutido no NOME ("NOVACOR COBRE MAIS BRANCO 18L",
+// "... 3,6L", "... 900ML"). O pedido foi "unificar" essas linhas num único
+// card com os tamanhos como opções. Como não há coluna de família/base no
+// banco (4k+ SKUs sem variantes cadastradas), o agrupamento é client-side:
+// extrai o tamanho do fim do nome e agrupa pelo nome-base.
+
+// Regex do sufixo de tamanho: número (com vírgula/ponto) + unidade comum de
+// tinta/volume/peso, opcionalmente com "x N" (ex.: "900ML"). Ancorado no fim.
+const SIZE_SUFFIX_RE =
+  /\s+(\d+(?:[.,]\d+)?)\s*(l|lt|litros?|ml|kg|g|gl|gal(?:ão|ao)?)\b\.?\s*$/i;
+
+/**
+ * Separa nome-base e rótulo de tamanho de um nome de produto. Quando não
+ * casa um sufixo de tamanho, `size` volta null e `base` é o nome inteiro.
+ */
+export function parseProductSize(name: string): { base: string; size: string | null } {
+  const raw = (name ?? '').trim();
+  const m = raw.match(SIZE_SUFFIX_RE);
+  if (!m) return { base: raw, size: null };
+  const base = raw.slice(0, m.index).trim();
+  // Rótulo = o próprio sufixo como aparece no nome ("18L", "3,6L", "900ML"),
+  // só colapsando espaços internos ("900 ML" → "900 ML" vira "900ML"? não —
+  // preserva legibilidade trimando as pontas).
+  const size = m[0].trim().replace(/\s+/g, ' ');
+  return { base: base || raw, size };
+}
+
+// Peso aproximado em ml/g pra ordenar tamanhos (quartinho < galão < lata).
+function sizeWeight(size: string | null): number {
+  if (!size) return Number.MAX_SAFE_INTEGER;
+  const m = size.match(/(\d+(?:[.,]\d+)?)\s*(ml|l|kg|g)/i);
+  if (!m) return Number.MAX_SAFE_INTEGER;
+  const n = parseFloat(m[1].replace(',', '.'));
+  const u = m[2].toLowerCase();
+  if (u === 'l' || u === 'kg') return n * 1000;
+  return n;
+}
+
+export interface ProductGroup {
+  key: string;
+  base: string;
+  line: string | null;
+  // Produtos do grupo, ordenados por tamanho. Length 1 = produto avulso
+  // (sem unificação). >1 = mesma família em tamanhos diferentes.
+  products: Product[];
+}
+
+/**
+ * Agrupa uma lista de produtos por nome-base, unificando os que só diferem
+ * no tamanho. Preserva a ordem de aparição (o grupo assume a posição do seu
+ * primeiro membro). Produtos sem sufixo de tamanho viram grupos de 1.
+ */
+export function groupProductsBySize(products: Product[]): ProductGroup[] {
+  const groups = new Map<string, ProductGroup>();
+  const order: string[] = [];
+  for (const p of products) {
+    const { base, size } = parseProductSize(p.name);
+    // Só unifica quando há tamanho detectável; senão usa o id pra ficar avulso.
+    const key = size
+      ? `${base.toLowerCase()}|${(p.line ?? '').toLowerCase()}|${(p.category ?? '').toLowerCase()}`
+      : `solo:${p.id}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.products.push(p);
+    } else {
+      groups.set(key, { key, base: size ? base : p.name, line: p.line ?? null, products: [p] });
+      order.push(key);
+    }
+  }
+  const result = order.map((k) => groups.get(k)!);
+  // Ordena os tamanhos dentro de cada grupo (menor → maior).
+  for (const g of result) {
+    if (g.products.length > 1) {
+      g.products.sort(
+        (a, b) =>
+          sizeWeight(parseProductSize(a.name).size) -
+          sizeWeight(parseProductSize(b.name).size),
+      );
+    }
+  }
+  return result;
 }

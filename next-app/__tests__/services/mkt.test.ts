@@ -27,6 +27,8 @@ import {
   changeItemQty,
   cartTotal,
   cartCount,
+  parseProductSize,
+  groupProductsBySize,
   type Product,
   type CartItem,
 } from '../../lib/services/mkt';
@@ -570,5 +572,81 @@ describe('buyShirt', () => {
     await expect(
       buyShirt('u1', { color: '#fff', size: 'M', qty: 1, shirtId: 'nao-existe' })
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+// ─── unificação por tamanho (2026-06-16) ─────────────────────────────────────
+
+describe('parseProductSize', () => {
+  it('extrai sufixo de litros', () => {
+    expect(parseProductSize('NOVACOR COBRE MAIS BRANCO 18L')).toEqual({
+      base: 'NOVACOR COBRE MAIS BRANCO',
+      size: '18L',
+    });
+  });
+
+  it('extrai galão com vírgula', () => {
+    expect(parseProductSize('NOVACOR COBRE MAIS BRANCO 3,6L')).toEqual({
+      base: 'NOVACOR COBRE MAIS BRANCO',
+      size: '3,6L',
+    });
+  });
+
+  it('extrai mililitros', () => {
+    expect(parseProductSize('ACELERADOR SEC 900ML')).toEqual({
+      base: 'ACELERADOR SEC',
+      size: '900ML',
+    });
+  });
+
+  it('sem sufixo de tamanho → size null', () => {
+    expect(parseProductSize('ROLO DE LÃ 23CM')).toEqual({
+      base: 'ROLO DE LÃ 23CM',
+      size: null,
+    });
+  });
+});
+
+describe('groupProductsBySize', () => {
+  const mk = (id: string, name: string, line: string | null = 'Premium'): Product => ({
+    id,
+    name,
+    price: 10,
+    line,
+  });
+
+  it('unifica mesmo produto em tamanhos diferentes num grupo só', () => {
+    const groups = groupProductsBySize([
+      mk('1', 'TINTA BRANCA 18L'),
+      mk('2', 'TINTA BRANCA 3,6L'),
+      mk('3', 'TINTA BRANCA 900ML'),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].base).toBe('TINTA BRANCA');
+    // Ordenado menor → maior (900ml < 3,6L < 18L).
+    expect(groups[0].products.map((p) => p.id)).toEqual(['3', '2', '1']);
+  });
+
+  it('linhas diferentes não se misturam', () => {
+    const groups = groupProductsBySize([
+      mk('1', 'TINTA BRANCA 18L', 'Premium'),
+      mk('2', 'TINTA BRANCA 18L', 'Econômica'),
+    ]);
+    expect(groups).toHaveLength(2);
+  });
+
+  it('produto sem tamanho fica avulso (grupo de 1)', () => {
+    const groups = groupProductsBySize([mk('1', 'PINCEL CHATO')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].products).toHaveLength(1);
+  });
+
+  it('preserva ordem de aparição do primeiro membro', () => {
+    const groups = groupProductsBySize([
+      mk('1', 'PINCEL CHATO'),
+      mk('2', 'TINTA BRANCA 18L'),
+      mk('3', 'TINTA BRANCA 3,6L'),
+    ]);
+    expect(groups.map((g) => g.base)).toEqual(['PINCEL CHATO', 'TINTA BRANCA']);
   });
 });

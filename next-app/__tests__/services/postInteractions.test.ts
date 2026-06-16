@@ -341,13 +341,15 @@ describe('addComment', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await addComment('u1', 'p1', '  olá mundo  ');
-    expect(out).toEqual(row);
+    // Wave 34: retorno hidrata like_count/liked_by_me zerados.
+    expect(out).toEqual({ ...row, like_count: 0, liked_by_me: false });
     expect(spies.from).toHaveBeenCalledWith('comments');
-    // O insert deve ter recebido o text trimado.
+    // O insert deve ter recebido o text trimado + parent_id null (top-level).
     expect(spies.insert).toHaveBeenCalledWith({
       post_id: 'p1',
       user_id: 'u1',
       text: 'olá mundo',
+      parent_id: null,
     });
   });
 
@@ -399,14 +401,23 @@ describe('fetchComments', () => {
       { id: 'c1', post_id: 'p1', user_id: 'u1', text: 'a', created_at: '1' },
       { id: 'c2', post_id: 'p1', user_id: 'u2', text: 'b', created_at: '2' },
     ];
-    // fetchComments faz 2 queries: comments + profiles_public. Sem author
-    // resolvido, devolve author:null por linha.
+    // fetchComments faz 3 queries: comments + profiles_public + comment_likes
+    // (Wave 34). Sem author/likes resolvidos, devolve author:null e contadores
+    // zerados por linha.
     const { client, spies } = makeFakeClient({
-      responses: [{ data: rows }, { data: [] }],
+      responses: [{ data: rows }, { data: [] }, { data: [] }],
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const out = await fetchComments('p1');
-    expect(out).toEqual(rows.map((r) => ({ ...r, author: null })));
+    expect(out).toEqual(
+      rows.map((r) => ({
+        ...r,
+        parent_id: null,
+        like_count: 0,
+        liked_by_me: false,
+        author: null,
+      })),
+    );
     expect(spies.eq).toHaveBeenCalledWith('post_id', 'p1');
     expect(spies.order).toHaveBeenCalledWith('created_at', { ascending: true });
   });

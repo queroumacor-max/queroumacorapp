@@ -179,7 +179,9 @@ export function useCart(): UseCartResult {
   const checkoutMutation = useMutation<OrderSubmitResult, Error, void>({
     mutationFn: async () => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      return submitOrder(user!.id, items);
+      // Fluxo de orçamento (2026-06-16): cria a order como 'orcamento' — a
+      // loja responde com preço pelo WhatsApp; não passa mais pelo MP.
+      return submitOrder(user!.id, items, { status: 'orcamento' });
     },
     onSuccess: async () => {
       // Pedido criado → carrinho fica vazio. Persiste vazio no perfil

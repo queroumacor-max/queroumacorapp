@@ -35,11 +35,6 @@ const AR_PAINTABLE: ReadonlySet<MktCategory> = new Set([
   'arte_urbana',
 ]);
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 // Extrai o nome legível da cor a partir do nome do produto do leque.
 // Ex: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO"
 function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'): string {
@@ -161,11 +156,9 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const arEligible = !!solidHex && AR_PAINTABLE.has(productCat);
   // Aba de cores personalizadas só aparece pra tintas.
   const showColorTabs = productCat === 'tintas';
-  // Quando há variante selecionada, preço dela substitui o de products.
-  const price = selectedVariant ? selectedVariant.price : Number(product.price || 0);
-  const total = price * qty;
-
   // Preço derivado pra tintometria (lata = base, galão = /4, quartinho = /14).
+  // Cliente não vê valor (fluxo de orçamento), mas o snapshot do CartItem
+  // ainda guarda o preço de catálogo pra referência interna da loja.
   const basePrice = Number(product.price || 0);
   const customPrice =
     customSize === 'quartinho'
@@ -173,7 +166,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       : customSize === 'galao'
         ? Math.max(1, +(basePrice / 4).toFixed(2))
         : basePrice;
-  const customTotal = customPrice * qty;
 
   const BRAND_LABELS: Record<typeof lequeBrand, string> = {
     suvinil: 'Suvinil',
@@ -425,9 +417,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{v.size_label}</div>
-                      <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.7, marginTop: 2 }}>
-                        {BRL.format(v.price)}
-                      </div>
                     </button>
                   );
                 })}
@@ -435,17 +424,10 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             </div>
           ) : null}
 
-          {/* Preço + qty picker */}
+          {/* Qty picker (sem preço — fluxo de orçamento) */}
           <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--color-p1)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {BRL.format(price)}
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-muted)' }}>
+              Quantidade
             </div>
             <QtyPicker qty={qty} onChange={setQty} />
           </div>
@@ -467,7 +449,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: outOfStock ? 'none' : '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {outOfStock ? 'Sem estoque' : `+ Adicionar ao Carrinho · ${BRL.format(total)}`}
+            {outOfStock ? 'Sem estoque' : '+ Adicionar ao orçamento'}
           </button>
         </>
       ) : (
@@ -687,12 +669,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                 { key: 'lata', label: 'Lata', sub: '18L' },
               ] as const).map(({ key, label, sub }) => {
                 const active = customSize === key;
-                const sizePrice =
-                  key === 'quartinho'
-                    ? Math.max(1, +(basePrice / 14).toFixed(2))
-                    : key === 'galao'
-                      ? Math.max(1, +(basePrice / 4).toFixed(2))
-                      : basePrice;
                 return (
                   <button
                     key={key}
@@ -711,26 +687,16 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   >
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
                     <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.65, marginTop: 2 }}>{sub}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, opacity: active ? 1 : 0.8 }}>
-                      {BRL.format(sizePrice)}
-                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Preço + qty picker */}
+          {/* Qty picker (sem preço — fluxo de orçamento) */}
           <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--color-p1)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {BRL.format(customPrice)}
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-muted)' }}>
+              Quantidade
             </div>
             <QtyPicker qty={qty} onChange={setQty} />
           </div>
@@ -750,7 +716,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {`+ Adicionar ao Carrinho · ${BRL.format(customTotal)}`}
+            + Adicionar ao orçamento
           </button>
         </>
       )}

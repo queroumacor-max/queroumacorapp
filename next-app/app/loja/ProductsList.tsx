@@ -19,6 +19,7 @@ import {
   MKT_MENU_LABEL,
   MKT_MENUS,
   paintTierClassify,
+  groupProductsBySize,
   type MktCategory,
   type PaintTier,
 } from '@/lib/services/mkt';
@@ -28,6 +29,7 @@ import {
 } from '@/lib/hooks/useProducts';
 import { useCart } from '@/lib/hooks/useCart';
 import { ProductCard } from '@/components/ProductCard';
+import { ProductGroupCard } from '@/components/ProductGroupCard';
 
 function SkeletonRow() {
   return (
@@ -130,11 +132,18 @@ export function ProductsList() {
     setRenderLimit(RENDER_PAGE);
   }, [category, selectedLine, paintTier, search]);
 
-  const renderedProducts = useMemo(
-    () => visibleProducts.slice(0, renderLimit),
-    [visibleProducts, renderLimit],
+  // Unifica produtos iguais que só diferem no tamanho (2026-06-16) — um card
+  // por família, tamanhos como chips. A janela de renderização passa a operar
+  // sobre GRUPOS em vez de produtos avulsos.
+  const productGroups = useMemo(
+    () => groupProductsBySize(visibleProducts),
+    [visibleProducts],
   );
-  const hasMoreToRender = renderLimit < visibleProducts.length;
+  const renderedGroups = useMemo(
+    () => productGroups.slice(0, renderLimit),
+    [productGroups, renderLimit],
+  );
+  const hasMoreToRender = renderLimit < productGroups.length;
 
   // IntersectionObserver no sentinel — cresce a janela quando o user chega
   // perto do fim. rootMargin 600px pra crescer antes de bater no fim (sem
@@ -488,17 +497,26 @@ export function ProductsList() {
               </button>
             ) : null}
             <ul className="space-y-2 pb-4">
-              {renderedProducts.map((p) => (
-                <li key={p.id}>
-                  <ProductCard
-                    product={p}
-                    // Click no row OU no "+ Carrinho" abre o detail sheet
-                    // pra escolher quantidade (vanilla openProductDetail).
-                    onAdd={(prod) => setDetailProduct(prod)}
-                    onOpen={(prod) => setDetailProduct(prod)}
-                  />
-                </li>
-              ))}
+              {renderedGroups.map((g) =>
+                g.products.length > 1 ? (
+                  <li key={g.key}>
+                    <ProductGroupCard
+                      group={g}
+                      onOpen={(prod) => setDetailProduct(prod)}
+                    />
+                  </li>
+                ) : (
+                  <li key={g.key}>
+                    <ProductCard
+                      product={g.products[0]}
+                      // Click no row OU no "+ Carrinho" abre o detail sheet
+                      // pra escolher quantidade (vanilla openProductDetail).
+                      onAdd={(prod) => setDetailProduct(prod)}
+                      onOpen={(prod) => setDetailProduct(prod)}
+                    />
+                  </li>
+                ),
+              )}
               {/* Sentinel da janela de renderização — cresce a lista ao rolar. */}
               {hasMoreToRender ? (
                 <li ref={loadMoreRef} aria-hidden="true" className="h-8" />

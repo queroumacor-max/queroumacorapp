@@ -1,24 +1,48 @@
-// CartView — client component que renderiza o carrinho + total + botão de
-// checkout. Espelha o conteúdo do `cart-modal` do vanilla.
+// CartView — client component que renderiza o carrinho + botão de
+// "Solicitar orçamento para a loja".
 //
-// Checkout: dispara submitOrder via useCart.checkout(), pega o orderId
-// e POSTa em /api/mp-checkout-loja pra gerar o init_point do Mercado Pago,
-// e finalmente faz `window.location.href = init_point` (vanilla parity).
-// Em caso de fallback 503 (MP indisponível), mostra mensagem orientando
-// o usuário a aguardar contato da loja.
+// Fluxo de orçamento (2026-06-16): o cliente não vê preço. Ao solicitar,
+// `useCart.checkout()` grava a order como 'orcamento' e devolve o orderId;
+// abrimos o WhatsApp da loja com itens + dados do cliente já preenchidos e
+// mostramos confirmação ("solicitação enviada, será respondida rapidamente").
 
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCart } from '@/lib/hooks/useCart';
 import { CartItem } from '@/components/CartItem';
+import { Config } from '@/lib/config';
+import type { CartItem as CartItemModel } from '@/lib/services/mkt';
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
+// Monta a mensagem de WhatsApp com os dados do pedido + cliente. A loja
+// responde com o preço (catálogo não exibe valor pro cliente).
+function buildQuoteMessage(
+  items: CartItemModel[],
+  clientName: string,
+  clientContact: string,
+  orderId: string,
+): string {
+  const lines = items.map((it) => {
+    const vol = it.volume ? ` (${it.volume})` : '';
+    return `• ${it.qty || 1}x ${it.name}${vol}`;
+  });
+  return [
+    '🎨 *Solicitação de orçamento — QueroUmaCor*',
+    '',
+    `Cliente: ${clientName || 'Não informado'}`,
+    clientContact ? `Contato: ${clientContact}` : '',
+    `Pedido: #${orderId}`,
+    '',
+    'Itens:',
+    ...lines,
+    '',
+    'Aguardo o orçamento, por favor. 🙏',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 
 function SkeletonItem() {
   return (
@@ -37,7 +61,7 @@ export function CartView() {
   const { user, loading: authLoading } = useAuth();
   const {
     items,
-    total,
+    count,
     loading,
     error,
     remove,
@@ -49,36 +73,37 @@ export function CartView() {
     checkoutError,
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
+  // Após enviar a solicitação, guarda o link do WhatsApp pra reabrir caso o
+  // popup tenha sido bloqueado, e troca a tela pela confirmação.
+  const [sentWaUrl, setSentWaUrl] = useState<string | null>(null);
 
-  async function handleCheckout() {
+  const clientName = useMemo(() => {
+    const meta = (user?.user_metadata ?? {}) as { name?: string | null };
+    return meta.name || user?.email || '';
+  }, [user]);
+
+  async function handleRequestQuote() {
     setCheckoutMsg(null);
+    // Snapshot dos itens ANTES do checkout (o sucesso limpa o carrinho).
+    const snapshot = items;
     try {
       const { orderId } = await checkout();
-      // 2ª fase: chama /api/mp-checkout-loja pra obter o init_point.
-      const res = await fetch('/api/mp-checkout-loja', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | { init_point?: string; error?: string }
-        | null;
-      if (!res.ok || !data || !data.init_point) {
-        if (res.status === 503) {
-          setCheckoutMsg(
-            'Pedido recebido! A loja entrará em contato (pagamento online em breve).'
-          );
-          return;
-        }
-        setCheckoutMsg(
-          (data && data.error) || `Erro ${res.status}: tente de novo.`
-        );
-        return;
+      const msg = buildQuoteMessage(
+        snapshot,
+        clientName,
+        user?.email ?? '',
+        orderId,
+      );
+      const waUrl = `https://wa.me/${Config.support.whatsapp}?text=${encodeURIComponent(msg)}`;
+      // Abre o WhatsApp da loja já preenchido. Se o navegador bloquear o
+      // popup, o link fica disponível na tela de confirmação.
+      if (typeof window !== 'undefined') {
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
       }
-      window.location.href = data.init_point;
+      setSentWaUrl(waUrl);
     } catch (err) {
       setCheckoutMsg(
-        (err as Error).message || 'Não foi possível finalizar a compra.'
+        (err as Error).message || 'Não foi possível enviar a solicitação.'
       );
     }
   }
@@ -89,6 +114,38 @@ export function CartView() {
         {Array.from({ length: 2 }).map((_, i) => (
           <SkeletonItem key={i} />
         ))}
+      </div>
+    );
+  }
+
+  // Confirmação pós-envio: "solicitação enviada, será respondida rapidamente".
+  if (sentWaUrl) {
+    return (
+      <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+        <div className="text-5xl mb-3" aria-hidden="true">
+          ✅
+        </div>
+        <h2 className="font-semibold mb-2">Solicitação enviada!</h2>
+        <p className="text-sm text-[color:var(--color-muted)] mb-5">
+          A loja recebeu o seu pedido de orçamento e vai responder rapidamente.
+          Se o WhatsApp não abriu, toque no botão abaixo.
+        </p>
+        <a
+          href={sentWaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block px-5 py-2.5 bg-[#25D366] text-white rounded-xl font-semibold mb-3"
+        >
+          Abrir WhatsApp da loja
+        </a>
+        <div>
+          <Link
+            href="/loja"
+            className="inline-block text-sm font-semibold text-[color:var(--color-p1)] mt-2"
+          >
+            Voltar pra loja
+          </Link>
+        </div>
       </div>
     );
   }
@@ -197,23 +254,25 @@ export function CartView() {
       </ul>
 
       <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-[color:var(--color-border)] mb-4">
-        <span className="text-sm font-semibold">Total</span>
-        <span
-          className="text-xl font-bold"
-          style={{ color: 'var(--color-p1)', fontFamily: 'var(--font-display)' }}
-        >
-          {BRL.format(total)}
+        <span className="text-sm font-semibold">
+          {count} {count === 1 ? 'item' : 'itens'}
+        </span>
+        <span className="text-xs text-[color:var(--color-muted)]">
+          A loja envia o orçamento
         </span>
       </div>
 
       <button
         type="button"
-        onClick={handleCheckout}
+        onClick={handleRequestQuote}
         disabled={isCheckingOut || items.length === 0}
         className="w-full py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        {isCheckingOut ? 'Criando pedido…' : 'Finalizar compra'}
+        {isCheckingOut ? 'Enviando…' : 'Solicitar orçamento para a loja'}
       </button>
+      <p className="text-xs text-[color:var(--color-muted)] text-center mt-3">
+        Você será levado ao WhatsApp da loja com o pedido já preenchido.
+      </p>
     </div>
   );
 }

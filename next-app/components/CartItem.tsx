@@ -10,11 +10,6 @@
 
 import { productBg, type CartItem as CartItemModel } from '@/lib/services/mkt';
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 export interface CartItemProps {
   item: CartItemModel;
   onChangeQty: (delta: number) => void;
@@ -24,7 +19,6 @@ export interface CartItemProps {
 
 export function CartItem({ item, onChangeQty, onRemove, disabled }: CartItemProps) {
   const qty = item.qty || 1;
-  const subtotal = Number(item.price || 0) * qty;
   const bg = productBg({
     id: item.id,
     name: item.name,
@@ -73,9 +67,6 @@ export function CartItem({ item, onChangeQty, onRemove, disabled }: CartItemProp
             +
           </button>
         </div>
-      </div>
-      <div className="text-sm font-bold text-[color:var(--color-ink)] whitespace-nowrap">
-        {BRL.format(subtotal)}
       </div>
       <button
         type="button"
