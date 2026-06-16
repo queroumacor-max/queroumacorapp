@@ -364,9 +364,12 @@ export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolea
 // S-A … S-Z = séries de cores tintométricas Suvinil — ocultas do catálogo
 // principal (acessíveis via aba "Cores personalizadas" dentro de cada tinta).
 const LEQUE_RE = /(\bleque\b)|(^cor\s+(suvinil|coral|sherwin))|(^s-[a-z]\b)/i;
+// Prefixos de código tintométrico: s- (Suvinil), c- (Coral), sw- (Sherwin).
+const LEQUE_CODE_RE = /^(sw-|s-|c-)/i;
 
-export function isLequeColor(p: Pick<Product, 'name'> | null | undefined): boolean {
-  return LEQUE_RE.test((p && p.name) || '');
+export function isLequeColor(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
+  if (LEQUE_RE.test((p && p.name) || '')) return true;
+  return LEQUE_CODE_RE.test(((p && p.code) || '').trim());
 }
 
 // Produtos complementares — catalisadores e endurecedores que não aparecem no
