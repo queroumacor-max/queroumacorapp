@@ -94,6 +94,7 @@ export type MktCategory =
   | 'pintura'
   | 'eletrica'
   | 'equipamentos'
+  | 'estetica_automotiva'
   | 'outros';
 
 export interface MktMenuEntry {
@@ -266,6 +267,7 @@ export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'pintura', label: '🖌️ Acessórios de Pintura', kw: ['rolo', 'pincel', 'trincha', 'bandeja', 'fita crepe', 'fita', 'lixa', 'cabo extensor', 'extensor', 'gaiola', 'luva', 'mascara', 'máscara', 'respirador', 'oculos', 'óculos', 'lona', 'plastico', 'plástico', 'crepe'] },
   { key: 'eletrica', label: '🔌 Elétrica', kw: ['tomada', 'adaptador', 'extens', 'lampada', 'lâmpada', 'disjuntor', 'filtro de linha', 'benjamim', 'fio ', 'interruptor'] },
   { key: 'equipamentos', label: '🛠️ Equipamentos', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
+  { key: 'estetica_automotiva', label: '🚗 Estética Automotiva', kw: ['vonixx', 'polidor', 'polimento', 'cera automotiva', 'cristalizacao', 'cristalização', 'revitalizador', 'renovador automotiv', 'shampoo automotiv', 'limpa vidro', 'desengraxante automotiv', 'pretinho', 'silicon automotiv', 'autoshine', 'autodetailing', 'auto detailing'] },
 ];
 
 export const MKT_MENU_LABEL: Record<string, string> = {
@@ -279,7 +281,7 @@ export const MKT_MENU_LABEL: Record<string, string> = {
  */
 export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCategory {
   const n = ' ' + String((p && p.name) || '').toLowerCase() + ' ';
-  if (n.includes('vonixx')) return 'outros';
+  if (n.includes('vonixx')) return 'estetica_automotiva';
   if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
   for (const m of MKT_MENUS) {
     if (m.kw.some((k) => n.includes(k))) return m.key;
