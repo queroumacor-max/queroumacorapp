@@ -65,6 +65,9 @@ const nextConfig = {
 
   // Cabeçalhos de segurança alinhados com /_headers do projeto vanilla.
   async headers() {
+    const noCache = [
+      { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+    ];
     return [
       {
         source: '/(.*)',
@@ -75,6 +78,13 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
         ],
       },
+      // Portal admin (estático em public/portal). O index.html não pode ser
+      // cacheado, senão segue apontando pro app.js?v= antigo depois de um
+      // deploy. As 3 variações de path (bare, com barra, explícito) precisam
+      // da regra. O app.js já fura cache via ?v= no <script>.
+      { source: '/portal', headers: noCache },
+      { source: '/portal/', headers: noCache },
+      { source: '/portal/index.html', headers: noCache },
     ];
   },
 
