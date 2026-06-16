@@ -1,5 +1,43 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Batch de features dos prints (2026-06-16) — branch
+  `claude/admiring-goodall-34xfkp`.** 4 pedidos:
+  1. **Notificação → post**: clicar numa notif de curtida/comentário leva pro
+     `/post/[id]` (usa `ref_id`). `NotificationsList.destFor()`. ✓ código.
+  2. **Comentário: responder + curtir (SQL Wave 34 — AINDA NÃO RODADO).**
+     `comments.parent_id` (resposta 1 nível) + tabela `comment_likes` (pincel
+     por comentário). Triggers: curtir comentário avisa o dono; responder
+     avisa o dono do comentário pai. Service `toggleCommentLike`/`fetchComments`
+     (agora aceita userId p/ liked_by_me) em `postInteractions.ts`; hook
+     `useComments` ganhou `likeComment` + `add(text, parentId)`. `database.types.ts`
+     atualizado manualmente (comments.parent_id + comment_likes) — rodar
+     `supabase gen types` depois. **Colar o SQL `migrations/2026-06-16-wave-34-
+     comment-replies-likes.sql` no SQL Editor.**
+  3. **Loja unifica produtos por tamanho**: produtos iguais que só diferem no
+     tamanho (nome "... 18L"/"... 3,6L"/"... 900ML") viram UM card com os
+     tamanhos como chips (`ProductGroupCard` + `groupProductsBySize`/
+     `parseProductSize` em `mkt.ts`, agrupamento client-side por nome-base+linha
+     porque os 4k SKUs não têm variantes cadastradas).
+  4. **Loja vira fluxo de orçamento (sem preço)**: removidos todos os preços do
+     cliente (ProductCard/ProductDetailSheet/CartItem). Carrinho: "Finalizar
+     compra" → "Solicitar orçamento para a loja" → grava order `status='orcamento'`,
+     abre WhatsApp da loja (`Config.support.whatsapp`) com itens+dados do cliente
+     e mostra confirmação. `submitOrder` aceita `{status}`; `total` segue gravado
+     só pra referência interna da loja. **NÃO passa mais pelo MercadoPago.**
+  - **Anti-compartilhamento de conta PRO**: decisão = ligar "Enforce single
+    session per user" no painel Supabase (Authentication → Sessions). Zero
+    código. Custo de IA já é capado por `plan_limits` (pro=500/mês), então o
+    risco do sharing é receita, não custo.
+- **Migração Firebird → Supabase (2026-06-16) — CONCLUÍDA.** 92 tabelas do
+  BBFCoresSW.FDB (~3.9M registros) no MESMO projeto Supabase do queroumacor
+  (`uwqebaqweehiljsqkifm`). Tabelas de tintometria: `cores` (23.703),
+  `corantes` (17), `bases`, `colecoes`, `formulas` (1.1M), `formulas_corantes`
+  (1.7M), `producao_f_corantes`/`producao_f_valores` (preços), `corantes_tabelas`/
+  `produtos_be_tabelas`. Colunas lowercase (Firebird era UPPERCASE). Preços/
+  quantidades são `numeric`. RLS ativo (anon p/ leitura, service_role p/ admin).
+  Relação: `formulas → formulas_corantes → corantes`. Útil pra features de cor/
+  fórmula (resolve-color, tintometria). Ainda não wireado no app.
+
 - **Modo visitante (guest) — LIVE (2026-06-15).** Cliente navega feed/loja/
   perfis sem login; ao interagir (curtir/comentar/seguir/mensagem/orçar/comprar)
   o `AuthGate` (`next-app/components/AuthGate.tsx`) abre cadastro. Raiz `/`
