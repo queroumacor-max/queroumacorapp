@@ -34,7 +34,7 @@ function SkeletonItem() {
 }
 
 export function CartView() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const {
     items,
     total,
@@ -43,6 +43,7 @@ export function CartView() {
     remove,
     changeQty,
     checkout,
+    clearCart,
     isMutating,
     mutationError,
     isCheckingOut,
@@ -54,27 +55,41 @@ export function CartView() {
     setCheckoutMsg(null);
     try {
       const { orderId } = await checkout();
-      // 2ª fase: chama /api/mp-checkout-loja pra obter o init_point.
+      // 2ª fase: chama /api/mp-checkout-loja pra obter o init_point. O
+      // endpoint EXIGE accessToken (valida o JWT do user); sem ele retornava
+      // 401 "Sessão inválida" silenciosamente e o checkout nunca chegava no MP.
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setCheckoutMsg('Sessão expirada — entre novamente para finalizar.');
+        return;
+      }
       const res = await fetch('/api/mp-checkout-loja', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, accessToken }),
       });
       const data = (await res.json().catch(() => null)) as
         | { init_point?: string; error?: string }
         | null;
       if (!res.ok || !data || !data.init_point) {
         if (res.status === 503) {
+          // Pagamento online indisponível, mas o pedido foi gravado → esvazia
+          // o carrinho e avisa que a loja fará o follow-up.
+          await clearCart().catch(() => {});
           setCheckoutMsg(
             'Pedido recebido! A loja entrará em contato (pagamento online em breve).'
           );
           return;
         }
+        // Falha real: mantém o carrinho pra o usuário tentar de novo (o
+        // submitOrder faz dedupe, então não cria pedido duplicado).
         setCheckoutMsg(
           (data && data.error) || `Erro ${res.status}: tente de novo.`
         );
         return;
       }
+      // Sucesso: pedido com link de pagamento → esvazia o carrinho e redireciona.
+      await clearCart().catch(() => {});
       window.location.href = data.init_point;
     } catch (err) {
       setCheckoutMsg(
@@ -138,20 +153,30 @@ export function CartView() {
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-        <div className="text-5xl mb-3" aria-hidden="true">
-          🛒
+      <div>
+        {checkoutMsg ? (
+          <div
+            role="alert"
+            className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800"
+          >
+            {checkoutMsg}
+          </div>
+        ) : null}
+        <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+          <div className="text-5xl mb-3" aria-hidden="true">
+            🛒
+          </div>
+          <h2 className="font-semibold mb-2">Carrinho vazio</h2>
+          <p className="text-sm text-[color:var(--color-muted)] mb-4">
+            Adicione produtos pra começar.
+          </p>
+          <Link
+            href="/loja"
+            className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
+          >
+            Ver loja
+          </Link>
         </div>
-        <h2 className="font-semibold mb-2">Carrinho vazio</h2>
-        <p className="text-sm text-[color:var(--color-muted)] mb-4">
-          Adicione produtos pra começar.
-        </p>
-        <Link
-          href="/loja"
-          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Ver loja
-        </Link>
       </div>
     );
   }

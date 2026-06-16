@@ -902,6 +902,16 @@ export async function saveCart(userId: string, items: CartItem[]): Promise<void>
  * coluna shipping_address. O param fica aceito pra quando essa coluna for
  * adicionada por migration; até lá, ignorado.
  */
+// Assinatura estável de um carrinho pra comparar pedidos (dedupe). Ordena
+// por id pra ser invariante à ordem dos itens; inclui qty pra distinguir
+// quantidades. Usada por submitOrder pra detectar pedido pending idêntico.
+function cartSignature(items: CartItem[]): string {
+  return items
+    .map((it) => `${it.id}x${Number(it.qty) || 1}`)
+    .sort()
+    .join('|');
+}
+
 export async function submitOrder(
   userId: string,
   items: CartItem[],
@@ -916,6 +926,32 @@ export async function submitOrder(
   );
 
   const sb = getSupabase();
+
+  // Dedupe (BUG 3): se já existe um pedido `pending` recente (< 1h) com
+  // exatamente os mesmos itens, reusa o id em vez de criar uma duplicata.
+  // Cenário: o usuário clica "Finalizar compra" várias vezes quando o passo
+  // do Mercado Pago não redireciona, acumulando pedidos pendentes órfãos.
+  // UPDATE de orders é admin-only no RLS, então só lemos/reusamos (o user
+  // pode SELECT os próprios pedidos via policy "Users can view own orders").
+  const sig = cartSignature(items);
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data: recent } = await sb
+    .from('orders')
+    .select('id, items, status, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .gte('created_at', oneHourAgo)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (Array.isArray(recent)) {
+    const dup = recent.find(
+      (o) => cartSignature((o.items as CartItem[] | null) ?? []) === sig
+    );
+    if (dup && typeof dup.id === 'string' && dup.id) {
+      return { orderId: dup.id, total };
+    }
+  }
+
   const { data, error } = await sb
     .from('orders')
     .insert({

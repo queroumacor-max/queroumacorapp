@@ -67,6 +67,9 @@ export interface UseCartResult {
   remove: (id: string) => void;
   changeQty: (arg: ChangeQtyArg) => void;
   clear: () => void;
+  /** Limpa o carrinho de forma awaitable (persiste vazio em profiles.cart).
+   *  Usado pelo checkout pra só esvaziar após estado terminal de sucesso. */
+  clearCart: () => Promise<void>;
   checkout: () => Promise<OrderSubmitResult>;
   isMutating: boolean;
   mutationError: Error | null;
@@ -182,23 +185,18 @@ export function useCart(): UseCartResult {
   });
 
   // Checkout — não é otimista (não dá pra "fingir" criação do pedido).
-  // Sucesso: limpa o carrinho local (servidor mantém via tabela orders).
+  // NÃO limpa o carrinho aqui: a limpeza é decisão do CartView e só deve
+  // acontecer quando o checkout chega num estado terminal de sucesso
+  // (redirect pro MP ou fallback "loja entrará em contato"). Se o passo do
+  // pagamento falhar, o carrinho precisa sobreviver pra o usuário tentar de
+  // novo (e o submitOrder faz dedupe pra não duplicar o pedido pending).
   const checkoutMutation = useMutation<OrderSubmitResult, Error, void>({
     mutationFn: async () => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];
       return submitOrder(user!.id, items);
     },
-    onSuccess: async () => {
-      // Pedido criado → carrinho fica vazio. Persiste vazio no perfil
-      // (o submitOrder do server NÃO limpa profiles.cart sozinho).
-      try {
-        await saveCart(user!.id, []);
-      } catch {
-        // Falha em limpar não invalida o pedido — só loga.
-      }
-      qc.setQueryData<CartItem[]>(queryKey, []);
-      qc.invalidateQueries({ queryKey });
-      // Também invalida pedidos pra refletir a nova order na tela /pedidos.
+    onSuccess: () => {
+      // Reflete a nova order na tela /pedidos. Carrinho intocado de propósito.
       qc.invalidateQueries({ queryKey: ['pedidos', user?.id] });
     },
   });
@@ -226,6 +224,7 @@ export function useCart(): UseCartResult {
     remove: removeMutation.mutate,
     changeQty: qtyMutation.mutate,
     clear: () => clearMutation.mutate(),
+    clearCart: () => clearMutation.mutateAsync(),
     checkout: () => checkoutMutation.mutateAsync(),
     isMutating,
     mutationError,
