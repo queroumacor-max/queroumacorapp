@@ -456,9 +456,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       >
                         {c.name}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
-                        {c.price ? BRL.format(Number(c.price)) : 'Consulte'}
-                      </div>
                     </div>
                     <button
                       type="button"
@@ -529,9 +526,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{gv.sizeLabel}</div>
-                      <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.7, marginTop: 2 }}>
-                        {BRL.format(Number(gv.product.price || 0))}
-                      </div>
                       {outStock ? (
                         <div style={{ fontSize: 10, color: active ? 'rgba(255,255,255,.8)' : '#ef4444', marginTop: 2 }}>
                           Sem estoque
@@ -583,9 +577,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{v.size_label}</div>
-                      <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.7, marginTop: 2 }}>
-                        {BRL.format(v.price)}
-                      </div>
                     </button>
                   );
                 })}
@@ -593,18 +584,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             </div>
           ) : null}
 
-          {/* Preço + qty picker */}
-          <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--color-p1)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {BRL.format(price)}
-            </div>
+          {/* Qty picker + CTA */}
+          <div className="flex items-center justify-end" style={{ marginBottom: 16 }}>
             <QtyPicker qty={qty} onChange={setQty} />
           </div>
 
@@ -625,7 +606,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: outOfStock ? 'none' : '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {outOfStock ? 'Sem estoque' : `+ Adicionar ao Carrinho · ${BRL.format(total)}`}
+            {outOfStock ? 'Sem estoque' : '+ Adicionar ao Carrinho'}
           </button>
         </>
       ) : (
@@ -930,27 +911,14 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   >
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
                     <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.65, marginTop: 2 }}>{sub}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, opacity: active ? 1 : 0.8 }}>
-                      {BRL.format(sizePrice)}
-                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Preço + qty picker */}
-          <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: 'var(--color-p1)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {BRL.format(customPrice)}
-            </div>
+          {/* Qty picker + CTA */}
+          <div className="flex items-center justify-end" style={{ marginBottom: 16 }}>
             <QtyPicker qty={qty} onChange={setQty} />
           </div>
 
@@ -969,7 +937,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {`+ Adicionar ao Carrinho · ${BRL.format(customTotal)}`}
+            + Adicionar ao Carrinho
           </button>
         </>
       )}

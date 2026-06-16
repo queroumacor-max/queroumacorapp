@@ -105,6 +105,7 @@ export type MktCategory =
   | 'eletrica'
   | 'equipamentos'
   | 'estetica_automotiva'
+  | 'epi'
   | 'outros';
 
 export interface MktMenuEntry {
@@ -277,8 +278,9 @@ export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'ferramentas', label: '🧰 Ferramentas', kw: ['alicate', 'tesoura', 'chave', 'martelo', 'abre trinca', 'espatula', 'espátula', 'desempenadeira', 'colher de pedreiro', 'trena', 'serra', 'furadeira', 'broca', 'lixadeira', 'estilete', 'formao', 'formão', 'grosa', 'lima', 'torques'] },
   { key: 'pintura', label: '🖌️ Acessórios de Pintura', kw: ['rolo', 'pincel', 'trincha', 'bandeja', 'fita crepe', 'fita', 'lixa', 'cabo extensor', 'extensor', 'gaiola', 'luva', 'mascara', 'máscara', 'respirador', 'oculos', 'óculos', 'lona', 'plastico', 'plástico', 'crepe'] },
   { key: 'eletrica', label: '🔌 Elétrica', kw: ['tomada', 'adaptador', 'extens', 'lampada', 'lâmpada', 'disjuntor', 'filtro de linha', 'benjamim', 'fio ', 'interruptor'] },
-  { key: 'equipamentos', label: '🛠️ Equipamentos', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
+  { key: 'equipamentos', label: '⚙️ Máquinas', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
   { key: 'estetica_automotiva', label: '🚗 Estética Automotiva', kw: ['vonixx', 'polidor', 'polimento', 'cera automotiva', 'cristalizacao', 'cristalização', 'revitalizador', 'renovador automotiv', 'shampoo automotiv', 'limpa vidro', 'desengraxante automotiv', 'pretinho', 'silicon automotiv', 'autoshine', 'autodetailing', 'auto detailing'] },
+  { key: 'epi', label: '🦺 EPI', kw: ['epi ', 'equipamento de proteção', 'proteção individual', 'capacete', 'bota de segurança', 'avental proteção', 'abafador', 'protetor auricular'] },
 ];
 
 export const MKT_MENU_LABEL: Record<string, string> = {
@@ -321,9 +323,10 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('colordur') || n.includes('colorsteel')) return 'epoxi';
   // Corante xadrez → tintas imobiliárias (complementos tier)
   if (n.includes('corante') || n.includes('xadrez')) return 'tintas';
-  // Estética automotiva: boinas, clay bar, auge (marca de detailing)
+  // Estética automotiva: boinas, clay bar, auge (marca de detailing), removedor de cimento
   if (n.includes('boina') || n.includes(' clay ') || n.includes('clay bar')) return 'estetica_automotiva';
   if (n.includes('auge ')) return 'estetica_automotiva';
+  if (n.includes('removedor') && n.includes('cimento')) return 'estetica_automotiva';
   // Ferramentas: aspirador, bateria, bits, bolsa+conjunto, coador
   if (n.includes('aspirador')) return 'equipamentos';
   if (n.includes('bateria')) return 'ferramentas';
