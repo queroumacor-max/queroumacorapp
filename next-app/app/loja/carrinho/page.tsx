@@ -3,8 +3,13 @@
 // Como rota dedicada, dá link compartilhável e navegação browser (back/fwd
 // funciona). O conteúdo dinâmico (lista + total + checkout) vive em
 // CartView (client) que consome useCart.
+//
+// Envolve em <AppShell> pra ter o mesmo modelo do app (TopNav no topo +
+// BottomNav embaixo) — sem ele a página ficava "solta", sem cabeçalho nem
+// barra inferior.
 
 import type { Metadata } from 'next';
+import { AppShell } from '@/components/AppShell';
 import { CartView } from './CartView';
 
 export const metadata: Metadata = {
@@ -14,17 +19,19 @@ export const metadata: Metadata = {
 
 export default function CarrinhoPage() {
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
-      <h1
-        className="text-3xl font-bold mb-2"
-        style={{ fontFamily: 'var(--font-display)' }}
-      >
-        Carrinho
-      </h1>
-      <p className="text-sm text-[color:var(--color-muted)] mb-6">
-        Revise antes de finalizar a compra
-      </p>
-      <CartView />
-    </main>
+    <AppShell>
+      <div className="p-4">
+        <h1
+          className="text-3xl font-bold mb-2"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          Carrinho
+        </h1>
+        <p className="text-sm text-[color:var(--color-muted)] mb-6">
+          Revise antes de finalizar a compra
+        </p>
+        <CartView />
+      </div>
+    </AppShell>
   );
 }

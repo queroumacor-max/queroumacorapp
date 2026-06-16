@@ -10,6 +10,7 @@
 //
 // Next.js 15: `params` é Promise — precisa `await` dentro de Server Component.
 
+import { AppShell } from '@/components/AppShell';
 import { ProductDetail } from './ProductDetail';
 
 // Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
@@ -23,8 +24,10 @@ interface PageProps {
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
   return (
-    <main className="min-h-screen p-4 max-w-3xl mx-auto">
-      <ProductDetail id={id} />
-    </main>
+    <AppShell>
+      <div className="p-4">
+        <ProductDetail id={id} />
+      </div>
+    </AppShell>
   );
 }
