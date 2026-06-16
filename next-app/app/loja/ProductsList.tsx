@@ -18,7 +18,9 @@ import type { Product, ProductVariant } from '@/lib/services/mkt';
 import {
   MKT_MENU_LABEL,
   MKT_MENUS,
+  autoTierClassify,
   paintTierClassify,
+  type AutoTier,
   type MktCategory,
   type PaintTier,
 } from '@/lib/services/mkt';
@@ -81,8 +83,10 @@ export function ProductsList() {
   // Drill-down: linha selecionada dentro da categoria atual. null = mostra
   // grid de linhas. Reseta quando categoria muda OU quando busca começa.
   const [selectedLine, setSelectedLine] = useState<string | null>(null);
-  // Sub-filtro de qualidade dentro de Tintas (null = todas as tintas).
+  // Sub-filtro de qualidade dentro de Tintas Imobiliárias (null = todas).
   const [paintTier, setPaintTier] = useState<PaintTier | null>(null);
+  // Sub-filtro de tipo dentro de Tintas Automotivas (null = todas).
+  const [autoTier, setAutoTier] = useState<AutoTier | null>(null);
 
   // Agrupa os products do filter atual por `line` (pula campo vazio: "Outros").
   // Computa antes do early-return pra useMemo manter ordem estável de hooks.
@@ -117,8 +121,11 @@ export function ProductsList() {
     if (category === 'tintas' && paintTier !== null) {
       rows = rows.filter((p) => paintTierClassify(p) === paintTier);
     }
+    if (category === 'tintas_auto' && autoTier !== null) {
+      rows = rows.filter((p) => autoTierClassify(p) === autoTier);
+    }
     return rows;
-  }, [drillEligible, selectedLine, filtered, category, paintTier]);
+  }, [drillEligible, selectedLine, filtered, category, paintTier, autoTier]);
 
   // Janela de renderização — quantos produtos da lista atual estão montados.
   const [renderLimit, setRenderLimit] = useState(RENDER_PAGE);
@@ -128,7 +135,7 @@ export function ProductsList() {
   // a janela pro começo — senão um filtro novo herdaria um limit inflado.
   useEffect(() => {
     setRenderLimit(RENDER_PAGE);
-  }, [category, selectedLine, paintTier, search]);
+  }, [category, selectedLine, paintTier, autoTier, search]);
 
   const renderedProducts = useMemo(
     () => visibleProducts.slice(0, renderLimit),
@@ -163,9 +170,10 @@ export function ProductsList() {
     setSelectedLine(null);
   }, [category, search]);
 
-  // Reseta o tier de tinta quando sai da categoria Tintas.
+  // Reseta tiers ao trocar de categoria.
   useEffect(() => {
     if (category !== 'tintas') setPaintTier(null);
+    if (category !== 'tintas_auto') setAutoTier(null);
   }, [category]);
 
   function handleAddFromSheet(
@@ -331,6 +339,44 @@ export function ProductsList() {
                   className="flex-1 font-semibold"
                   style={{
                     padding: '8px 6px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
+                    color: active ? '#fff' : 'rgba(255,255,255,.6)',
+                    border: active
+                      ? '1.5px solid var(--color-p1)'
+                      : '1.5px solid rgba(255,255,255,.14)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Sub-filtro de tipo — só aparece quando categoria = Tintas Automotivas e sem busca */}
+        {category === 'tintas_auto' && !search.trim() ? (
+          <div className="flex flex-wrap gap-2" style={{ paddingBottom: 12 }}>
+            {([null, 'primer', 'tinta', 'verniz', 'complementos', 'solventes'] as const).map((tier) => {
+              const active = autoTier === tier;
+              const labels: Record<string, string> = {
+                primer: 'Primer',
+                tinta: 'Tinta',
+                verniz: 'Verniz',
+                complementos: 'Complementos',
+                solventes: 'Solventes',
+              };
+              const label = tier === null ? 'Todas' : labels[tier]!;
+              return (
+                <button
+                  key={tier ?? 'todas'}
+                  type="button"
+                  onClick={() => setAutoTier(tier)}
+                  className="font-semibold"
+                  style={{
+                    padding: '8px 12px',
                     borderRadius: 10,
                     fontSize: 12,
                     background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',

@@ -86,6 +86,7 @@ export interface CartItem {
 export type MktCategory =
   | 'arte_urbana'
   | 'tintas'
+  | 'tintas_auto'
   | 'texturas'
   | 'epoxi'
   | 'solventes'
@@ -258,7 +259,8 @@ export function productBg(p: Product | null | undefined): string {
 
 export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'arte_urbana', label: '🎨 Arte Urbana & Spray', kw: ['arte urbana', 'colorgin', 'spray', 'aerossol', 'aerosol', 'grafit', 'graffit'] },
-  { key: 'tintas', label: '🪣 Tintas', kw: ['tinta', 'esmalte', 'latex', 'látex', 'acrilic', 'acrílic', 'verniz', 'primer', 'seladora', 'fundo preparador', 'base coat', 'automotiva', 'suvinil', 'coral', 'sherwin'] },
+  { key: 'tintas', label: '🪣 Tintas Imobiliárias', kw: ['tinta', 'esmalte', 'latex', 'látex', 'acrilic', 'acrílic', 'verniz', 'primer', 'seladora', 'fundo preparador', 'base coat', 'suvinil', 'coral', 'sherwin'] },
+  { key: 'tintas_auto', label: '🚘 Tintas Automotivas', kw: ['automotiv', 'automotiva', 'esmalte automotiv', 'tinta automotiv', 'basecoat', 'base coat auto', 'clear coat', 'primer automotiv'] },
   { key: 'texturas', label: '🧱 Texturas & Massas', kw: ['textura', 'grafiato', 'massa corrida', 'massa acrilic', 'massa pva', 'reboco', 'chapisco'] },
   { key: 'epoxi', label: '⚗️ Epóxi & Poliuretano', kw: ['epoxi', 'epóxi', 'poliuretano', ' pu '] },
   { key: 'solventes', label: '💧 Solventes & Aditivos', kw: ['thinner', 'solvente', 'diluente', 'aguarras', 'aguarrás', 'acelerador', 'secante', 'catalisador', 'endurecedor', 'aditivo', 'redutor', 'removedor'] },
@@ -419,6 +421,21 @@ export function paintTierClassify(
   if (/sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
   if (/suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
+}
+
+// Sub-tier da categoria Tintas Automotivas.
+export type AutoTier = 'primer' | 'tinta' | 'verniz' | 'complementos' | 'solventes';
+
+export function autoTierClassify(
+  p: Pick<Product, 'name'> | null | undefined,
+): AutoTier {
+  if (!p) return 'tinta';
+  const txt = (p.name || '').toLowerCase();
+  if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador/.test(txt)) return 'primer';
+  if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
+  if (/thinner|solvente|diluente|reducer|redutor|aguarras|aguarrás/.test(txt)) return 'solventes';
+  if (/massa|selador|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
+  return 'tinta';
 }
 
 // ─── catálogo: fetch + filtro ─────────────────────────────────────────────
