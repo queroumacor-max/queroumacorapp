@@ -98,9 +98,11 @@ export function useCart(): UseCartResult {
   // saiba o que aplicar.
 
   const addMutation = useMutation<CartItem[], Error, AddArg, MutationContext>({
-    mutationFn: async ({ product, qty, variant }) => {
-      const current = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      const next = addItemToCart(current, product, qty, variant ?? null);
+    // BUG FIX: o `onMutate` JÁ aplicou o add otimista no cache. O mutationFn
+    // só persiste esse estado — antes ele lia o cache (já incrementado) e
+    // chamava addItemToCart DE NOVO, dobrando a quantidade (add 1 → virava 2).
+    mutationFn: async () => {
+      const next = qc.getQueryData<CartItem[]>(queryKey) ?? [];
       await saveCart(user!.id, next);
       return next;
     },
