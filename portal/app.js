@@ -5593,9 +5593,38 @@ const PedidosLoja = () => {
     data,
     loading,
     refetch
-  } = useSupabaseQuery(sb => sb.from('orders').select('*, user:profiles!user_id(name, phone, city, state, tag)').order('created_at', {
-    ascending: false
-  }), []);
+  } = useSupabaseQuery(async sb => {
+    // Busca em 2 passos (sem embed PostgREST `profiles!user_id`): a FK de
+    // orders.user_id aponta pra auth.users, não pra profiles, então o embed
+    // quebrava a query inteira e a tela ficava "Nenhum pedido recebido".
+    // RLS (orders_admin_view = is_portal_admin) continua filtrando.
+    const {
+      data: rows,
+      error
+    } = await sb.from('orders').select('*').order('created_at', {
+      ascending: false
+    });
+    if (error) return {
+      error
+    };
+    const list = rows || [];
+    const userIds = [...new Set(list.map(o => o.user_id).filter(Boolean))];
+    const pmap = {};
+    if (userIds.length) {
+      const {
+        data: profs
+      } = await sb.from('profiles').select('id, name, phone, city, state, tag').in('id', userIds);
+      (profs || []).forEach(p => {
+        pmap[p.id] = p;
+      });
+    }
+    return {
+      data: list.map(o => ({
+        ...o,
+        user: pmap[o.user_id] || null
+      }))
+    };
+  }, []);
   const orders = data || [];
   const updateOrderStatus = async (id, status) => {
     try {
