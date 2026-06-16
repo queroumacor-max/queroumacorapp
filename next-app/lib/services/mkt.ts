@@ -309,6 +309,56 @@ export function isLequeColor(p: Pick<Product, 'name'> | null | undefined): boole
   return LEQUE_RE.test((p && p.name) || '');
 }
 
+// Produtos complementares — catalisadores e endurecedores que não aparecem no
+// catálogo principal mas são exibidos dentro do produto pai ao qual pertencem.
+const COMPANION_RE = /^(catalisador|endurecedor)\b/i;
+
+export function isCompanionProduct(p: Pick<Product, 'name'> | null | undefined): boolean {
+  return COMPANION_RE.test(((p && p.name) || '').trim());
+}
+
+// Palavras genéricas ignoradas na extração de keywords do produto pai.
+const COMPANION_SKIP = new Set([
+  'de', 'do', 'da', 'dos', 'das', 'em', 'com', 'para', 'por', 'que',
+  'um', 'uma', 'uns', 'umas', 'ou', 'e', 'a', 'o', 'as', 'os',
+  'tinta', 'esmalte', 'verniz', 'primer', 'seladora', 'fundo', 'base',
+  'cor', 'acrilica', 'acrilico', 'latex', 'pva', 'stand', 'lata', 'galao',
+]);
+
+/**
+ * Busca catalisadores e endurecedores relacionados a um produto pai.
+ * Extrai palavras-chave do nome do pai (prioriza códigos alfanuméricos como
+ * "KP350") e filtra os companions que contêm ao menos uma dessas palavras.
+ */
+export async function fetchCompanionsForProduct(parent: Pick<Product, 'id' | 'name'>): Promise<Product[]> {
+  const sb = getSupabase();
+
+  const words = (parent.name || '')
+    .split(/\s+/)
+    .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    .filter((w) => w.length >= 2 && !COMPANION_SKIP.has(w));
+
+  // Prefere códigos (contêm dígitos) para evitar falsos positivos.
+  const codes = words.filter((w) => /\d/.test(w));
+  const keywords = codes.length > 0 ? codes : words.slice(0, 3);
+
+  if (!keywords.length) return [];
+
+  const { data, error } = await sb
+    .from('products')
+    .select(PRODUCT_COLS)
+    .or('name.ilike.catalisador%,name.ilike.endurecedor%')
+    .eq('active', true)
+    .limit(100);
+
+  if (error || !data) return [];
+
+  return (data as Product[]).filter((c) => {
+    const cn = (c.name || '').toLowerCase();
+    return keywords.some((kw) => cn.includes(kw));
+  });
+}
+
 // Shape mínimo de uma cor de leque pra o seletor de tintometria.
 export interface LequeColor {
   id: string;
@@ -365,7 +415,7 @@ export function paintTierClassify(
 ): PaintTier {
   if (!p) return 'economica';
   const txt = (p.name || '').toLowerCase();
-  if (/sherwin|linha premium/.test(txt)) return 'premium';
+  if (/sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
   if (/suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
 }
@@ -442,7 +492,7 @@ export async function fetchProducts(filter: ProductFilter = {}): Promise<Product
     for (const batch of batches) all.push(...batch);
   }
 
-  let rows = all.filter((p) => !isMktHidden(p) && !isLequeColor(p));
+  let rows = all.filter((p) => !isMktHidden(p) && !isLequeColor(p) && !isCompanionProduct(p));
   if (cap) rows = rows.slice(0, cap);
 
   if (filter.category) {

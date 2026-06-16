@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
 import {
+  fetchCompanionsForProduct,
   fetchLequeColors,
   mktClassify,
   productBg,
@@ -101,6 +102,15 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // Wave 25: busca variantes do produto aberto. Se vazio, UI cai no preço
   // base (products.price) — sem seletor.
   const { variants } = useProductVariants(product?.id ?? null);
+
+  // Companions: catalisadores/endurecedores vinculados ao produto pai.
+  const { data: companions } = useQuery({
+    queryKey: ['companions', product?.id],
+    queryFn: () => fetchCompanionsForProduct(product!),
+    enabled: !!product,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { requireAuth } = useAuthGate();
 
   // Quando variantes carregam, seleciona a primeira (sort_order menor) por
@@ -386,8 +396,80 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             </button>
           ) : null}
 
-          {/* Seletor de variante (Wave 25) */}
-          {variants.length > 0 ? (
+          {/* Produtos complementares (catalisadores/endurecedores) */}
+          {companions && companions.length > 0 ? (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'var(--color-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: 8,
+                }}
+              >
+                🧪 Produtos complementares
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {companions.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3"
+                    style={{
+                      padding: '10px 12px',
+                      background: 'var(--color-cream)',
+                      border: '1.5px solid var(--color-border)',
+                      borderRadius: 12,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>⚗️</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: 'var(--color-ink)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {c.name}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
+                        {c.price ? BRL.format(Number(c.price)) : 'Consulte'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!requireAuth('comprar')) return;
+                        onAdd(c, 1, null);
+                        showToast(`${c.name} adicionado!`, 'success');
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        background: 'var(--color-p1)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 10,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      + Carrinho
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Seletor de variante (Wave 25) — só exibe em tintas (litragem) */}
+          {variants.length > 0 && showColorTabs ? (
             <div style={{ marginBottom: 14 }}>
               <div
                 style={{
