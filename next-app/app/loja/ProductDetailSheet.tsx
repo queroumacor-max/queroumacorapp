@@ -37,11 +37,6 @@ const AR_PAINTABLE: ReadonlySet<MktCategory> = new Set([
   'arte_urbana',
 ]);
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 // Extrai o nome legível da cor a partir do nome do produto do leque.
 // Ex: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO"
 function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'): string {
@@ -185,16 +180,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const arEligible = !!solidHex && AR_PAINTABLE.has(productCat);
   // Aba de cores personalizadas só aparece pra tintas.
   const showColorTabs = productCat === 'tintas';
-  // Quando há variante selecionada, preço dela substitui o de products.
-  // Grupo variant tem prioridade sobre Wave 25.
-  const price = activeGroupProduct
-    ? Number(activeGroupProduct.price || 0)
-    : selectedVariant
-      ? selectedVariant.price
-      : Number(product.price || 0);
-  const total = price * qty;
-
-  // Preço derivado pra tintometria (lata = base, galão = /4, quartinho = /14).
+  // Preço derivado pra tintometria: usado no addItem quando user confirma cor.
   const basePrice = Number(product.price || 0);
   const customPrice =
     customSize === 'quartinho'
@@ -202,7 +188,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       : customSize === 'galao'
         ? Math.max(1, +(basePrice / 4).toFixed(2))
         : basePrice;
-  const customTotal = customPrice * qty;
 
   const BRAND_LABELS: Record<typeof lequeBrand, string> = {
     suvinil: 'Suvinil',
@@ -887,12 +872,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                 { key: 'lata', label: 'Lata', sub: '18L' },
               ] as const).map(({ key, label, sub }) => {
                 const active = customSize === key;
-                const sizePrice =
-                  key === 'quartinho'
-                    ? Math.max(1, +(basePrice / 14).toFixed(2))
-                    : key === 'galao'
-                      ? Math.max(1, +(basePrice / 4).toFixed(2))
-                      : basePrice;
                 return (
                   <button
                     key={key}
