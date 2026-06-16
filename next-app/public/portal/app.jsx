@@ -2331,6 +2331,8 @@ const PedidosLoja = () => {
     return { data: list.map((o) => ({ ...o, user: pmap[o.user_id] || null })) };
   }, []);
   const orders = data || [];
+  const [detailOrder, setDetailOrder] = React.useState(null);
+  const brl = (n) => 'R$ ' + Number(n || 0).toFixed(2).replace('.', ',');
 
   const updateOrderStatus = async (id, status) => {
     try {
@@ -2363,7 +2365,7 @@ const PedidosLoja = () => {
               const st = o.status || 'pending';
               const data = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
               return (
-                <tr key={o.id || i} style={{ borderBottom:'1px solid '+C.border }}>
+                <tr key={o.id || i} onClick={() => setDetailOrder(o)} style={{ borderBottom:'1px solid '+C.border, cursor:'pointer' }}>
                   <td style={{ padding:'10px 12px', fontWeight:600 }}>{user.name || '—'}{user.tag ? ' @'+user.tag : ''}</td>
                   <td style={{ padding:'10px 12px', color:C.muted }}>{user.phone || '—'}</td>
                   <td style={{ padding:'10px 12px', maxWidth:280 }}>
@@ -2379,7 +2381,7 @@ const PedidosLoja = () => {
                     <StatusBadge status={st} colorMap={ORDERS_STATUS_COLORS} labelMap={ORDERS_STATUS_LABELS} />
                   </td>
                   <td style={{ padding:'10px 12px', color:C.muted }}>{data}</td>
-                  <td style={{ padding:'10px 12px' }}>
+                  <td style={{ padding:'10px 12px' }} onClick={e=>e.stopPropagation()}>
                     <select value={st} onChange={e=>updateOrderStatus(o.id, e.target.value)} style={{ padding:'4px 8px', borderRadius:8, border:'1px solid '+C.border, fontSize:12, cursor:'pointer' }}>
                       <option value="pending">Aguardando</option>
                       <option value="processing">Em andamento</option>
@@ -2395,6 +2397,85 @@ const PedidosLoja = () => {
         </table>
         </div>
       </div>
+
+      {detailOrder && (() => {
+        const o = detailOrder;
+        const u = o.user || {};
+        const its = o.items || [];
+        const st = o.status || 'pending';
+        const dt = o.created_at ? new Date(o.created_at).toLocaleString('pt-BR') : '—';
+        const hasPay = o.gateway || o.tx_id || o.paid_at || o.paid_amount != null;
+        const sec = { fontWeight:700, fontSize:12, textTransform:'uppercase', color:C.muted, margin:'16px 0 6px', letterSpacing:0.4 };
+        const row = (label, val) => (
+          <div style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'4px 0', fontSize:13 }}>
+            <span style={{ color:C.muted }}>{label}</span>
+            <span style={{ fontWeight:600, textAlign:'right' }}>{val}</span>
+          </div>
+        );
+        return (
+          <div role="dialog" aria-modal="true" onClick={()=>setDetailOrder(null)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{ background:C.white, borderRadius:16, padding:24, width:'100%', maxWidth:520, maxHeight:'85vh', overflowY:'auto', boxShadow:'0 10px 40px rgba(0,0,0,0.25)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:700, fontSize:16, color:C.ink }}>🛒 Pedido #{String(o.id||'').slice(0,8)}</div>
+                <button onClick={()=>setDetailOrder(null)} aria-label="Fechar" style={{ border:'none', background:'transparent', fontSize:24, cursor:'pointer', color:C.muted, lineHeight:1 }}>×</button>
+              </div>
+
+              <div style={sec}>Cliente</div>
+              {row('Nome', (u.name||'—') + (u.tag ? ' @'+u.tag : ''))}
+              {row('Telefone', u.phone||'—')}
+              {row('Cidade/UF', [u.city, u.state].filter(Boolean).join('/') || '—')}
+
+              <div style={sec}>Itens</div>
+              {its.length ? its.map((it, idx) => {
+                const q = Number(it.qty)||1; const unit = Number(it.price)||0;
+                return (
+                  <div key={idx} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'6px 0', borderBottom:'1px solid '+C.border, fontSize:13 }}>
+                    <span><span style={{ fontWeight:600 }}>{q}×</span> {it.name||'Item'}{it.volume ? <span style={{ color:C.muted }}> · {it.volume}</span> : null}</span>
+                    <span style={{ whiteSpace:'nowrap', textAlign:'right' }}>{brl(unit)} <span style={{ color:C.muted, fontSize:11 }}>= {brl(unit*q)}</span></span>
+                  </div>
+                );
+              }) : <div style={{ color:C.muted, fontSize:13 }}>—</div>}
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', fontWeight:700, fontSize:15 }}>
+                <span>Total</span><span style={{ color:C.p1 }}>{brl(o.total)}</span>
+              </div>
+
+              <div style={sec}>Pedido</div>
+              {row('Data', dt)}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, padding:'4px 0' }}>
+                <span style={{ color:C.muted, fontSize:13 }}>Status</span>
+                <select value={st} onChange={e=>{ updateOrderStatus(o.id, e.target.value); setDetailOrder(null); }} style={{ padding:'4px 8px', borderRadius:8, border:'1px solid '+C.border, fontSize:12, cursor:'pointer' }}>
+                  <option value="pending">Aguardando</option>
+                  <option value="processing">Em andamento</option>
+                  <option value="shipped">Enviado</option>
+                  <option value="completed">Concluido</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </div>
+
+              <div style={sec}>Pagamento</div>
+              {hasPay ? (
+                <>
+                  {row('Gateway', o.gateway||'—')}
+                  {row('Transação', o.tx_id||'—')}
+                  {row('Valor pago', o.paid_amount!=null ? brl(o.paid_amount) : '—')}
+                  {row('Método', o.payment_method||'—')}
+                  {row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—')}
+                  {o.receipt_url ? <a href={o.receipt_url} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
+                </>
+              ) : (
+                <div style={{ color:C.muted, fontSize:13, fontStyle:'italic' }}>Aguardando pagamento / contato (pagamento online ainda não ativado).</div>
+              )}
+
+              <div style={sec}>Entrega</div>
+              <div style={{ color:C.muted, fontSize:13, fontStyle:'italic' }}>
+                {o.shipping_address || 'Endereço não informado (captura no checkout ainda não implementada).'}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

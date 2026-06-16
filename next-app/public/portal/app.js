@@ -5589,15 +5589,15 @@ const Avisos = () => {
 
 // ══ PEDIDOS DA LOJA (Orders) ══
 const PedidosLoja = () => {
+  // Busca em 2 passos (sem embed PostgREST `profiles!user_id`): a FK de
+  // orders.user_id aponta pra auth.users, não pra profiles, então o embed
+  // quebrava a query inteira e a tela ficava "Nenhum pedido recebido".
+  // RLS (orders_admin_view = is_portal_admin) continua filtrando.
   const {
     data,
     loading,
     refetch
   } = useSupabaseQuery(async sb => {
-    // Busca em 2 passos (sem embed PostgREST `profiles!user_id`): a FK de
-    // orders.user_id aponta pra auth.users, não pra profiles, então o embed
-    // quebrava a query inteira e a tela ficava "Nenhum pedido recebido".
-    // RLS (orders_admin_view = is_portal_admin) continua filtrando.
     const {
       data: rows,
       error
@@ -5626,6 +5626,8 @@ const PedidosLoja = () => {
     };
   }, []);
   const orders = data || [];
+  const [detailOrder, setDetailOrder] = React.useState(null);
+  const brl = n => 'R$ ' + Number(n || 0).toFixed(2).replace('.', ',');
   const updateOrderStatus = async (id, status) => {
     try {
       await ordersService.updateStatus(id, status);
@@ -5694,8 +5696,10 @@ const PedidosLoja = () => {
     }) : '';
     return /*#__PURE__*/React.createElement("tr", {
       key: o.id || i,
+      onClick: () => setDetailOrder(o),
       style: {
-        borderBottom: '1px solid ' + C.border
+        borderBottom: '1px solid ' + C.border,
+        cursor: 'pointer'
       }
     }, /*#__PURE__*/React.createElement("td", {
       style: {
@@ -5721,11 +5725,11 @@ const PedidosLoja = () => {
       style: {
         fontWeight: 600
       }
-    }, (Number(it.qty) || 1) + "×"), " " + (it.name || 'Item'), it.volume ? /*#__PURE__*/React.createElement("span", {
+    }, Number(it.qty) || 1, "\xD7"), " ", it.name || 'Item', it.volume ? /*#__PURE__*/React.createElement("span", {
       style: {
         color: C.muted
       }
-    }, " · " + it.volume) : null)) : '—'), /*#__PURE__*/React.createElement("td", {
+    }, " \xB7 ", it.volume) : null)) : '—'), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px',
         fontWeight: 700,
@@ -5747,7 +5751,8 @@ const PedidosLoja = () => {
     }, data), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px'
-      }
+      },
+      onClick: e => e.stopPropagation()
     }, /*#__PURE__*/React.createElement("select", {
       value: st,
       onChange: e => updateOrderStatus(o.id, e.target.value),
@@ -5769,7 +5774,205 @@ const PedidosLoja = () => {
     }, "Concluido"), /*#__PURE__*/React.createElement("option", {
       value: "cancelled"
     }, "Cancelado"))));
-  }))))));
+  }))))), detailOrder && (() => {
+    const o = detailOrder;
+    const u = o.user || {};
+    const its = o.items || [];
+    const st = o.status || 'pending';
+    const dt = o.created_at ? new Date(o.created_at).toLocaleString('pt-BR') : '—';
+    const hasPay = o.gateway || o.tx_id || o.paid_at || o.paid_amount != null;
+    const sec = {
+      fontWeight: 700,
+      fontSize: 12,
+      textTransform: 'uppercase',
+      color: C.muted,
+      margin: '16px 0 6px',
+      letterSpacing: 0.4
+    };
+    const row = (label, val) => /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '4px 0',
+        fontSize: 13
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600,
+        textAlign: 'right'
+      }
+    }, val));
+    return /*#__PURE__*/React.createElement("div", {
+      role: "dialog",
+      "aria-modal": "true",
+      onClick: () => setDetailOrder(null),
+      style: {
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      onClick: e => e.stopPropagation(),
+      style: {
+        background: C.white,
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 520,
+        maxHeight: '85vh',
+        overflowY: 'auto',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.25)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 16,
+        color: C.ink
+      }
+    }, "\uD83D\uDED2 Pedido #", String(o.id || '').slice(0, 8)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setDetailOrder(null),
+      "aria-label": "Fechar",
+      style: {
+        border: 'none',
+        background: 'transparent',
+        fontSize: 24,
+        cursor: 'pointer',
+        color: C.muted,
+        lineHeight: 1
+      }
+    }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+      style: sec
+    }, "Cliente"), row('Nome', (u.name || '—') + (u.tag ? ' @' + u.tag : '')), row('Telefone', u.phone || '—'), row('Cidade/UF', [u.city, u.state].filter(Boolean).join('/') || '—'), /*#__PURE__*/React.createElement("div", {
+      style: sec
+    }, "Itens"), its.length ? its.map((it, idx) => {
+      const q = Number(it.qty) || 1;
+      const unit = Number(it.price) || 0;
+      return /*#__PURE__*/React.createElement("div", {
+        key: idx,
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '6px 0',
+          borderBottom: '1px solid ' + C.border,
+          fontSize: 13
+        }
+      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 600
+        }
+      }, q, "\xD7"), " ", it.name || 'Item', it.volume ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.muted
+        }
+      }, " \xB7 ", it.volume) : null), /*#__PURE__*/React.createElement("span", {
+        style: {
+          whiteSpace: 'nowrap',
+          textAlign: 'right'
+        }
+      }, brl(unit), " ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          color: C.muted,
+          fontSize: 11
+        }
+      }, "= ", brl(unit * q))));
+    }) : /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.muted,
+        fontSize: 13
+      }
+    }, "\u2014"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '10px 0',
+        fontWeight: 700,
+        fontSize: 15
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "Total"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.p1
+      }
+    }, brl(o.total))), /*#__PURE__*/React.createElement("div", {
+      style: sec
+    }, "Pedido"), row('Data', dt), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        padding: '4px 0'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted,
+        fontSize: 13
+      }
+    }, "Status"), /*#__PURE__*/React.createElement("select", {
+      value: st,
+      onChange: e => {
+        updateOrderStatus(o.id, e.target.value);
+        setDetailOrder(null);
+      },
+      style: {
+        padding: '4px 8px',
+        borderRadius: 8,
+        border: '1px solid ' + C.border,
+        fontSize: 12,
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "pending"
+    }, "Aguardando"), /*#__PURE__*/React.createElement("option", {
+      value: "processing"
+    }, "Em andamento"), /*#__PURE__*/React.createElement("option", {
+      value: "shipped"
+    }, "Enviado"), /*#__PURE__*/React.createElement("option", {
+      value: "completed"
+    }, "Concluido"), /*#__PURE__*/React.createElement("option", {
+      value: "cancelled"
+    }, "Cancelado"))), /*#__PURE__*/React.createElement("div", {
+      style: sec
+    }, "Pagamento"), hasPay ? /*#__PURE__*/React.createElement(React.Fragment, null, row('Gateway', o.gateway || '—'), row('Transação', o.tx_id || '—'), row('Valor pago', o.paid_amount != null ? brl(o.paid_amount) : '—'), row('Método', o.payment_method || '—'), row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—'), o.receipt_url ? /*#__PURE__*/React.createElement("a", {
+      href: o.receipt_url,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        color: C.p1,
+        fontSize: 13
+      }
+    }, "Ver comprovante") : null) : /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.muted,
+        fontSize: 13,
+        fontStyle: 'italic'
+      }
+    }, "Aguardando pagamento / contato (pagamento online ainda n\xE3o ativado)."), /*#__PURE__*/React.createElement("div", {
+      style: sec
+    }, "Entrega"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: C.muted,
+        fontSize: 13,
+        fontStyle: 'italic'
+      }
+    }, o.shipping_address || 'Endereço não informado (captura no checkout ainda não implementada).')));
+  })());
 };
 const PortalUsersList = () => {
   const {
