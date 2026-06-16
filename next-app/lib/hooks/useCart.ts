@@ -16,6 +16,7 @@
 
 'use client';
 
+import { useRef } from 'react';
 import {
   useMutation,
   useQuery,
@@ -77,6 +78,9 @@ export function useCart(): UseCartResult {
   const { user } = useAuth();
   const qc = useQueryClient();
   const queryKey = ['cart', user?.id] as const;
+  // Snapshot pré-otimista para o qtyMutation — evita aplicar delta duas
+  // vezes (mutationFn roda após onMutate que já atualizou o cache).
+  const qtyPrevRef = useRef<CartItem[]>([]);
 
   const query = useQuery<CartItem[], Error>({
     queryKey,
@@ -137,14 +141,17 @@ export function useCart(): UseCartResult {
 
   const qtyMutation = useMutation<CartItem[], Error, ChangeQtyArg, MutationContext>({
     mutationFn: async ({ id, delta }) => {
-      const current = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      const next = changeItemQty(current, id, delta);
+      // BUG FIX: usar snapshot pré-otimista (qtyPrevRef) em vez de
+      // qc.getQueryData() — que já contém o update otimista do onMutate,
+      // causando aplicação dupla do delta (ex: -1 virava -2).
+      const next = changeItemQty(qtyPrevRef.current, id, delta);
       await saveCart(user!.id, next);
       return next;
     },
     onMutate: async ({ id, delta }): Promise<MutationContext> => {
       await qc.cancelQueries({ queryKey });
       const prev = qc.getQueryData<CartItem[]>(queryKey) ?? [];
+      qtyPrevRef.current = prev; // salva antes do update otimista
       qc.setQueryData<CartItem[]>(queryKey, changeItemQty(prev, id, delta));
       return { prev };
     },
