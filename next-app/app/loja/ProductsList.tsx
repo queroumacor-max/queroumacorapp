@@ -321,14 +321,24 @@ export function ProductsList() {
 
         {/* Sub-filtro de tier — só aparece quando categoria = Tintas e sem busca ativa */}
         {category === 'tintas' && !search.trim() ? (
-          <div className="flex gap-2" style={{ paddingBottom: 12 }}>
-            {([null, 'economica', 'standard', 'premium', 'primer'] as const).map((tier) => {
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              paddingBottom: 12,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {([null, 'primer', 'economica', 'standard', 'premium'] as const).map((tier) => {
               const active = paintTier === tier;
               const labels: Record<string, string> = {
+                primer: 'Fundos & Primer',
                 economica: 'Econômica',
                 standard: 'Standard',
                 premium: 'Premium',
-                primer: 'Fundos & Primer',
               };
               const label = tier === null ? 'Todas' : labels[tier]!;
               return (
@@ -336,11 +346,13 @@ export function ProductsList() {
                   key={tier ?? 'todas'}
                   type="button"
                   onClick={() => setPaintTier(tier)}
-                  className="flex-1 font-semibold"
+                  className="font-semibold"
                   style={{
-                    padding: '8px 6px',
+                    flexShrink: 0,
+                    padding: '8px 14px',
                     borderRadius: 10,
                     fontSize: 12,
+                    whiteSpace: 'nowrap',
                     background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
                     color: active ? '#fff' : 'rgba(255,255,255,.6)',
                     border: active
@@ -358,7 +370,17 @@ export function ProductsList() {
 
         {/* Sub-filtro de tipo — só aparece quando categoria = Tintas Automotivas e sem busca */}
         {category === 'tintas_auto' && !search.trim() ? (
-          <div className="flex flex-wrap gap-2" style={{ paddingBottom: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              paddingBottom: 12,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
             {([null, 'primer', 'tinta', 'verniz', 'complementos', 'solventes'] as const).map((tier) => {
               const active = autoTier === tier;
               const labels: Record<string, string> = {
@@ -376,9 +398,11 @@ export function ProductsList() {
                   onClick={() => setAutoTier(tier)}
                   className="font-semibold"
                   style={{
-                    padding: '8px 12px',
+                    flexShrink: 0,
+                    padding: '8px 14px',
                     borderRadius: 10,
                     fontSize: 12,
+                    whiteSpace: 'nowrap',
                     background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
                     color: active ? '#fff' : 'rgba(255,255,255,.6)',
                     border: active
