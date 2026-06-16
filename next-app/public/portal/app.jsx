@@ -2360,14 +2360,20 @@ const PedidosLoja = () => {
             {orders.map((o, i) => {
               const user = o.user || {};
               const items = o.items || [];
-              const itemNames = items.map(it => it.name).join(', ');
               const st = o.status || 'pending';
               const data = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
               return (
                 <tr key={o.id || i} style={{ borderBottom:'1px solid '+C.border }}>
                   <td style={{ padding:'10px 12px', fontWeight:600 }}>{user.name || '—'}{user.tag ? ' @'+user.tag : ''}</td>
                   <td style={{ padding:'10px 12px', color:C.muted }}>{user.phone || '—'}</td>
-                  <td style={{ padding:'10px 12px', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{itemNames || '—'}</td>
+                  <td style={{ padding:'10px 12px', maxWidth:280 }}>
+                    {items.length ? items.map((it, idx) => (
+                      <div key={idx} style={{ lineHeight:1.35 }}>
+                        <span style={{ fontWeight:600 }}>{(Number(it.qty)||1)}×</span> {it.name || 'Item'}
+                        {it.volume ? <span style={{ color:C.muted }}> · {it.volume}</span> : null}
+                      </div>
+                    )) : '—'}
+                  </td>
                   <td style={{ padding:'10px 12px', fontWeight:700, color:C.p1 }}>R${Number(o.total||0).toFixed(2).replace('.',',')}</td>
                   <td style={{ padding:'10px 12px' }}>
                     <StatusBadge status={st} colorMap={ORDERS_STATUS_COLORS} labelMap={ORDERS_STATUS_LABELS} />

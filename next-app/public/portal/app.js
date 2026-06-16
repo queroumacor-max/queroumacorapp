@@ -5685,7 +5685,6 @@ const PedidosLoja = () => {
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, orders.map((o, i) => {
     const user = o.user || {};
     const items = o.items || [];
-    const itemNames = items.map(it => it.name).join(', ');
     const st = o.status || 'pending';
     const data = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -5711,12 +5710,22 @@ const PedidosLoja = () => {
     }, user.phone || '—'), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px',
-        maxWidth: 200,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap'
+        maxWidth: 280
       }
-    }, itemNames || '—'), /*#__PURE__*/React.createElement("td", {
+    }, items.length ? items.map((it, idx) => /*#__PURE__*/React.createElement("div", {
+      key: idx,
+      style: {
+        lineHeight: 1.35
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600
+      }
+    }, (Number(it.qty) || 1) + "×"), " " + (it.name || 'Item'), it.volume ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, " · " + it.volume) : null)) : '—'), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px',
         fontWeight: 700,
