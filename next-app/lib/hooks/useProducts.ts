@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   fetchProduct,
   fetchProducts,
+  groupProductsByName,
   mktClassify,
   type MktCategory,
   type Product,
@@ -62,7 +63,8 @@ export function useProducts(): UseProductsResult {
     staleTime: MKT_TTL,
   });
 
-  const all = query.data ?? [];
+  // Agrupa produtos com mesmo nome base (diferindo só pelo sufixo de tamanho).
+  const all = useMemo(() => groupProductsByName(query.data ?? []), [query.data]);
 
   // Agrupa por categoria. Usado pra mostrar contadores no menu (X tintas,
   // Y texturas etc.). useMemo evita recálculo quando search muda mas a

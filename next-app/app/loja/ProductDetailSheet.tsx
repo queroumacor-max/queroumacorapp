@@ -18,6 +18,7 @@ import {
   mktClassify,
   productBg,
   resolveColorHex,
+  type GroupVariant,
   type LequeColor,
   type MktCategory,
   type Product,
@@ -91,6 +92,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const [customSize, setCustomSize] = useState<'quartinho' | 'galao' | 'lata'>('lata');
   const [selectedLequeColor, setSelectedLequeColor] = useState<LequeColor | null>(null);
   const [lequeSearch, setLequeSearch] = useState('');
+  // Seletor de variante de tamanho gerado automaticamente por agrupamento de nomes.
+  const [selectedGroupVariant, setSelectedGroupVariant] = useState<GroupVariant | null>(null);
 
   // Busca as cores do leque da marca selecionada (só quando aba personalizadas aberta).
   const { data: lequeColors, isLoading: lequeLoading } = useQuery({
@@ -133,6 +136,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     setSelectedLequeColor(null);
     setLequeSearch('');
     setQty(1);
+    // Auto-seleciona a primeira variante de grupo (menor preço).
+    setSelectedGroupVariant(product?._groupVariants?.[0] ?? null);
   }, [product?.id]);
 
   // Reseta cor selecionada e busca ao trocar de marca.
@@ -144,16 +149,22 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
-  // Esgotado: variante selecionada (se houver) manda; senão o produto base.
-  // stock ≤ 0 bloqueia a adição ao carrinho (BUG-05).
-  const outOfStock = selectedVariant
-    ? selectedVariant.stock != null && selectedVariant.stock <= 0
-    : !!product && product.stock != null && product.stock <= 0;
+  // Produto ativo: grupo variant (auto-agrupamento) tem prioridade.
+  const activeGroupProduct = selectedGroupVariant?.product ?? null;
+  const hasGroupVariants = !!(product?._groupVariants && product._groupVariants.length > 1);
+
+  // Esgotado: grupo variant manda quando disponível; senão Wave 25; senão base.
+  const outOfStock = activeGroupProduct
+    ? !!(activeGroupProduct.stock != null && activeGroupProduct.stock <= 0)
+    : selectedVariant
+      ? selectedVariant.stock != null && selectedVariant.stock <= 0
+      : !!product && product.stock != null && product.stock <= 0;
 
   function handleAdd() {
     if (!product || outOfStock) return;
     if (!requireAuth('comprar')) return; // visitante: abre cadastro
-    onAdd(product, qty, selectedVariant);
+    const productToAdd = activeGroupProduct ?? product;
+    onAdd(productToAdd, qty, selectedVariant);
     showToast('Adicionado ao carrinho!', 'success');
     onClose();
     setQty(1);
@@ -175,7 +186,12 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // Aba de cores personalizadas só aparece pra tintas.
   const showColorTabs = productCat === 'tintas';
   // Quando há variante selecionada, preço dela substitui o de products.
-  const price = selectedVariant ? selectedVariant.price : Number(product.price || 0);
+  // Grupo variant tem prioridade sobre Wave 25.
+  const price = activeGroupProduct
+    ? Number(activeGroupProduct.price || 0)
+    : selectedVariant
+      ? selectedVariant.price
+      : Number(product.price || 0);
   const total = price * qty;
 
   // Preço derivado pra tintometria (lata = base, galão = /4, quartinho = /14).
@@ -471,8 +487,65 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             </div>
           ) : null}
 
-          {/* Seletor de variante (Wave 25) — só exibe em tintas (litragem) */}
-          {variants.length > 0 && showColorTabs ? (
+          {/* Seletor de tamanho — grupo automático (tem prioridade sobre Wave 25) */}
+          {hasGroupVariants ? (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'var(--color-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: 8,
+                }}
+              >
+                Tamanho
+              </div>
+              <div role="radiogroup" aria-label="Tamanho" className="flex flex-wrap gap-2">
+                {product._groupVariants!.map((gv) => {
+                  const active = selectedGroupVariant?.product.id === gv.product.id;
+                  const outStock = gv.product.stock != null && gv.product.stock <= 0;
+                  return (
+                    <button
+                      key={gv.product.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setSelectedGroupVariant(gv)}
+                      disabled={outStock}
+                      className="text-left"
+                      style={{
+                        flex: '1 1 calc(33.333% - 8px)',
+                        minWidth: 88,
+                        padding: '10px 12px',
+                        background: active ? 'var(--color-p1)' : 'var(--color-cream)',
+                        color: active ? '#fff' : outStock ? 'var(--color-muted)' : 'var(--color-ink)',
+                        border: `2px solid ${active ? 'var(--color-p1)' : 'var(--color-border)'}`,
+                        borderRadius: 12,
+                        cursor: outStock ? 'not-allowed' : 'pointer',
+                        opacity: outStock ? 0.6 : 1,
+                        transition: 'background .15s, border-color .15s',
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{gv.sizeLabel}</div>
+                      <div style={{ fontSize: 11, opacity: active ? 0.95 : 0.7, marginTop: 2 }}>
+                        {BRL.format(Number(gv.product.price || 0))}
+                      </div>
+                      {outStock ? (
+                        <div style={{ fontSize: 10, color: active ? 'rgba(255,255,255,.8)' : '#ef4444', marginTop: 2 }}>
+                          Sem estoque
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Seletor de variante (Wave 25) — só exibe em tintas sem grupo automático */}
+          {variants.length > 0 && showColorTabs && !hasGroupVariants ? (
             <div style={{ marginBottom: 14 }}>
               <div
                 style={{

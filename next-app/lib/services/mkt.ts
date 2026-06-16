@@ -48,6 +48,15 @@ export interface Product {
   active?: boolean | null;
   image_url?: string | null;
   created_at?: string | null;
+  // Campo virtual (não vem do banco): produtos agrupados pelo mesmo nome
+  // base, diferindo apenas pelo sufixo de tamanho (18L, 3,6L, 900ml…).
+  _groupVariants?: GroupVariant[];
+}
+
+// Variante de tamanho gerada automaticamente pelo agrupamento de nomes.
+export interface GroupVariant {
+  sizeLabel: string;
+  product: Product;
 }
 
 // Variante de produto (Wave 25) — quartinho/galão/lata etc.
@@ -436,6 +445,61 @@ export function autoTierClassify(
   if (/thinner|solvente|diluente|reducer|redutor|aguarras|aguarrás/.test(txt)) return 'solventes';
   if (/massa|selador|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
   return 'tinta';
+}
+
+// ─── agrupamento por nome base ────────────────────────────────────────────
+// Produtos que diferem apenas pelo sufixo de tamanho são agrupados num único
+// card no catálogo; o seletor de tamanho aparece dentro do detalhe do produto.
+
+// Sufixos de volume/peso reconhecidos no final do nome.
+const SIZE_SUFFIX_RE = /\s+(\d[\d,.]*\s*(?:kg|g|ml|l|lt|litros?))\s*$/i;
+
+export function normalizeProductName(name: string): string {
+  return (name || '').replace(SIZE_SUFFIX_RE, '').trim();
+}
+
+function extractSizeSuffix(name: string): string | null {
+  const m = (name || '').match(SIZE_SUFFIX_RE);
+  return m ? m[1].trim().toUpperCase() : null;
+}
+
+/**
+ * Agrupa produtos com o mesmo nome base (sem sufixo de tamanho).
+ * O representante do grupo recebe `_groupVariants` com todos os membros
+ * ordenados por preço crescente.
+ */
+export function groupProductsByName(products: Product[]): Product[] {
+  const groups = new Map<string, Product[]>();
+  const noSize: Product[] = [];
+
+  for (const p of products) {
+    const sizeLabel = extractSizeSuffix(p.name);
+    if (!sizeLabel) {
+      noSize.push(p);
+      continue;
+    }
+    const key = normalizeProductName(p.name).toUpperCase();
+    const arr = groups.get(key);
+    if (arr) arr.push(p);
+    else groups.set(key, [p]);
+  }
+
+  const result: Product[] = [...noSize];
+
+  for (const [baseName, members] of groups) {
+    const sorted = [...members].sort(
+      (a, b) => Number(a.price || 0) - Number(b.price || 0),
+    );
+    // Representante: cópia do menor preço com nome normalizado.
+    const rep: Product = { ...sorted[0], name: baseName };
+    rep._groupVariants = sorted.map((p) => ({
+      sizeLabel: extractSizeSuffix(p.name)!,
+      product: p,
+    }));
+    result.push(rep);
+  }
+
+  return result;
 }
 
 // ─── catálogo: fetch + filtro ─────────────────────────────────────────────
