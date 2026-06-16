@@ -297,10 +297,16 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
   if (n.includes('nc esm') || n.includes('nc acr') || n.includes('nc lat')) return 'tintas';
   if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
+  // Tinta auto PU (poliuretano industrial) → epoxi
+  if (n.includes('tinta') && n.includes('auto') && n.includes(' pu ')) return 'epoxi';
   // Primers de uso exclusivamente automotivo
   if (n.includes(' primer pu ') || (n.includes('primer universal') && n.includes(' auto'))) return 'tintas_auto';
   // Seladoras para plástico → tintas automotivas
   if ((n.includes('seladora') || n.includes('selador')) && (n.includes('plástico') || n.includes('plastico'))) return 'tintas_auto';
+  // Vernizes automotivos (PU / poliuretano / lazzudur / códigos HG / HT)
+  if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
+  // Trinchas → acessórios de pintura ('tinta'/'latex' no nome batem tintas antes)
+  if (n.includes('trincha')) return 'pintura';
   // Luvas látex e misturadores → acessórios de pintura
   if (n.includes('luva') && (n.includes('latex') || n.includes('látex') || n.includes('latéx'))) return 'pintura';
   if (n.includes('misturador')) return 'pintura';
