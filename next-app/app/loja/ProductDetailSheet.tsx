@@ -90,6 +90,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const [lequeBrand, setLequeBrand] = useState<'suvinil' | 'coral' | 'sherwin'>('suvinil');
   const [customSize, setCustomSize] = useState<'quartinho' | 'galao' | 'lata'>('lata');
   const [selectedLequeColor, setSelectedLequeColor] = useState<LequeColor | null>(null);
+  const [lequeSearch, setLequeSearch] = useState('');
 
   // Busca as cores do leque da marca selecionada (só quando aba personalizadas aberta).
   const { data: lequeColors, isLoading: lequeLoading } = useQuery({
@@ -130,12 +131,14 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     setLequeBrand('suvinil');
     setCustomSize('lata');
     setSelectedLequeColor(null);
+    setLequeSearch('');
     setQty(1);
   }, [product?.id]);
 
-  // Reseta cor selecionada ao trocar de marca.
+  // Reseta cor selecionada e busca ao trocar de marca.
   useEffect(() => {
     setSelectedLequeColor(null);
+    setLequeSearch('');
   }, [lequeBrand]);
 
   const selectedVariant =
@@ -616,6 +619,53 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               Cor
             </div>
 
+            {/* Campo de busca por nome ou código */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--color-cream)',
+                border: '1.5px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '7px 10px',
+                marginBottom: 10,
+              }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--color-muted)' }}>🔍</span>
+              <input
+                type="text"
+                value={lequeSearch}
+                onChange={(e) => setLequeSearch(e.target.value)}
+                placeholder="Buscar por nome ou código…"
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'transparent',
+                  fontSize: 13,
+                  color: 'var(--color-ink)',
+                  outline: 'none',
+                }}
+              />
+              {lequeSearch ? (
+                <button
+                  type="button"
+                  onClick={() => setLequeSearch('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 13,
+                    color: 'var(--color-muted)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
+
             {lequeLoading ? (
               <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Carregando cores…</span>
@@ -624,7 +674,20 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               <p style={{ fontSize: 12, color: 'var(--color-muted)' }}>
                 Nenhuma cor cadastrada para esta marca.
               </p>
-            ) : (
+            ) : (() => {
+              const q = lequeSearch.trim().toLowerCase();
+              const filteredLeque = q
+                ? lequeColors.filter(
+                    (c) =>
+                      (c.name || '').toLowerCase().includes(q) ||
+                      (c.code || '').toLowerCase().includes(q),
+                  )
+                : lequeColors;
+              return filteredLeque.length === 0 ? (
+                <p style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                  Nenhuma cor encontrada para "{lequeSearch}".
+                </p>
+              ) : (
               <>
                 {/* Cor selecionada — nome completo */}
                 {selectedLequeColor ? (
@@ -691,7 +754,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       gap: 6,
                     }}
                   >
-                    {lequeColors.map((c) => {
+                    {filteredLeque.map((c) => {
                       const active = selectedLequeColor?.id === c.id;
                       const hex = c.color_hex || '#ccc';
                       return (
@@ -745,7 +808,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   </div>
                 </div>
               </>
-            )}
+              );
+            })()}
           </div>
 
           {/* Seletor de tamanho */}
