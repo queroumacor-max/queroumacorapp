@@ -4,7 +4,7 @@
   `claude/admiring-goodall-34xfkp`.** 4 pedidos:
   1. **Notificação → post**: clicar numa notif de curtida/comentário leva pro
      `/post/[id]` (usa `ref_id`). `NotificationsList.destFor()`. ✓ código.
-  2. **Comentário: responder + curtir (SQL Wave 34 — AINDA NÃO RODADO).**
+  2. **Comentário: responder + curtir (SQL Wave 34 — JÁ EXECUTADO 2026-06-16).**
      `comments.parent_id` (resposta 1 nível) + tabela `comment_likes` (pincel
      por comentário). Triggers: curtir comentário avisa o dono; responder
      avisa o dono do comentário pai. Service `toggleCommentLike`/`fetchComments`
