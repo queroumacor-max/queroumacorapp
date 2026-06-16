@@ -298,6 +298,8 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   // Overrides por código (prioridade máxima)
   if (['803', '804', '805', '1205', '1206'].includes(code)) return 'arte_urbana';
   if (['1222', '1227', '1989'].includes(code)) return 'pintura';
+  if (code === '1661') return 'tintas_auto';
+  if (['1974', '1975'].includes(code)) return 'estetica_automotiva';
   // Overrides por nome (prioridade sobre keyword loop)
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
@@ -323,10 +325,22 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('colordur') || n.includes('colorsteel')) return 'epoxi';
   // Corante xadrez → tintas imobiliárias (complementos tier)
   if (n.includes('corante') || n.includes('xadrez')) return 'tintas';
-  // Estética automotiva: boinas, clay bar, auge (marca de detailing), removedor de cimento
+  // Estética automotiva: boinas, clay bar, auge, microfibra, escova roda, pinceis detalhamento
   if (n.includes('boina') || n.includes(' clay ') || n.includes('clay bar')) return 'estetica_automotiva';
   if (n.includes('auge ')) return 'estetica_automotiva';
   if (n.includes('removedor') && n.includes('cimento')) return 'estetica_automotiva';
+  if (n.includes('microfibra')) return 'estetica_automotiva';
+  if (n.includes('escova') && (n.includes('roda') || n.includes('furo'))) return 'estetica_automotiva';
+  if (n.includes('pincel') && n.includes('detalh')) return 'estetica_automotiva';
+  // Solventes: desengraxante não-automotivo
+  if (n.includes('desengraxante') && !n.includes('automotiv')) return 'solventes';
+  // Tintas automotivas: chapinha
+  if (n.includes('chapinha')) return 'tintas_auto';
+  // Texturas & massas: efeitos decorativos
+  if (n.includes('efeito')) return 'texturas';
+  // Arte urbana & spray: cavalete p/ tela, produtos PC-
+  if (n.includes('cavalete')) return 'arte_urbana';
+  if (n.startsWith(' pc-')) return 'arte_urbana';
   // Ferramentas: aspirador, bateria, bits, bolsa+conjunto, coador
   if (n.includes('aspirador')) return 'equipamentos';
   if (n.includes('bateria')) return 'ferramentas';
@@ -335,13 +349,14 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('coador')) return 'ferramentas';
   // Spray caps → arte urbana
   if (n.startsWith(' cap ')) return 'arte_urbana';
-  // Acessórios de pintura: trinchas, broxa, caçamba, caixa plástica, luvas, misturador
+  // Acessórios de pintura: trinchas, broxa, caçamba, caixa plástica, luvas, misturador, garfo
   if (n.includes('trincha')) return 'pintura';
   if (n.includes('broxa')) return 'pintura';
   if (/ca[cç]amba/.test(n)) return 'pintura';
   if (n.includes('caixa') && (n.includes('plast') || n.includes('plás'))) return 'pintura';
   if (n.includes('luva') && (n.includes('latex') || n.includes('látex') || n.includes('latéx'))) return 'pintura';
   if (n.includes('misturador')) return 'pintura';
+  if (n.includes('garfo')) return 'pintura';
   // Massa acrílica → texturas (keyword 'acrilic' em tintas bate antes do loop)
   if (n.includes('massa acril')) return 'texturas';
   for (const m of MKT_MENUS) {
@@ -352,7 +367,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
 
 // Regex pra esconder bases tinturométricas (nomes "BASE VY", "BASE Z" etc.)
 // que aparecem no catálogo mas não devem ser vendidas direto pro consumidor.
-const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]/i;
+const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]|hs785|ultrabase|^lazzumix|^lm[\s-]|^mixing\s+fleet/i;
 
 export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolean {
   return MKT_HIDDEN.test((p && p.name) || '');
@@ -496,7 +511,7 @@ export function autoTierClassify(
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
   if (/thinner|solvente|diluente|reducer|redutor|aguarras|aguarrás/.test(txt)) return 'solventes';
-  if (/massa|batida pedra|batida|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
+  if (/massa|chapinha|batida pedra|batida|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
   return 'tinta';
 }
 
