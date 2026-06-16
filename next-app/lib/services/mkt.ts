@@ -303,8 +303,12 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
   if (n.includes(' primer pu ') || (n.includes('primer universal') && n.includes(' auto'))) return 'tintas_auto';
   // Seladoras para plástico → tintas automotivas
   if ((n.includes('seladora') || n.includes('selador')) && (n.includes('plástico') || n.includes('plastico'))) return 'tintas_auto';
+  // Barniz (varnish automotivo em espanhol) → tintas_auto
+  if (n.includes('barniz')) return 'tintas_auto';
   // Vernizes automotivos (PU / poliuretano / lazzudur / códigos HG / HT)
   if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
+  // Esmalte anti ferrugem → arte urbana & spray
+  if (n.includes('anti ferrugem') || n.includes('antiferrugem')) return 'arte_urbana';
   // Trinchas → acessórios de pintura ('tinta'/'latex' no nome batem tintas antes)
   if (n.includes('trincha')) return 'pintura';
   // Luvas látex e misturadores → acessórios de pintura
@@ -442,8 +446,8 @@ export function paintTierClassify(
   if (!p) return 'economica';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
-  if (/metalatex elastic|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
-  if (/sintelux|suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
+  if (/metalatex elastic|metalatex eco|super secagem|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
+  if (/sintelux|alkylux|suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
 }
 
