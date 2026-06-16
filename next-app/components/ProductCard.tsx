@@ -12,11 +12,6 @@
 
 import { productBg, resolveColorHex, type Product } from '@/lib/services/mkt';
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 function categoryEmoji(cat: string | null | undefined): string {
   switch (cat) {
     case 'texturas':
@@ -45,17 +40,7 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
   const emoji = categoryEmoji(product.category);
   const hasColor = !!(product.color_gradient || resolveColorHex(product));
   const inactive = product.active === false;
-  const price = BRL.format(Number(product.price || 0));
-  // Estoque ≤ 0 = esgotado. Bloqueia compra (botão desabilitado) e troca o
-  // "· N un" por "Sem estoque". Antes mostrava "-2 un"/"-1 un" e o botão
-  // "+ Carrinho" continuava ativo (BUG-05).
   const outOfStock = product.stock != null && product.stock <= 0;
-  const stock =
-    product.stock != null && product.stock !== undefined
-      ? outOfStock
-        ? ''
-        : ` · ${product.stock} un`
-      : '';
 
   return (
     <article
@@ -109,15 +94,6 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           </div>
           <div className="text-xs text-[color:var(--color-muted)] truncate">
             {product.code ? `Cód ${product.code}` : ''}
-            {stock}
-            {outOfStock ? (
-              <span className="ml-1 font-semibold text-[color:var(--color-danger,#d11)]">
-                · Sem estoque
-              </span>
-            ) : null}
-          </div>
-          <div className="text-sm font-bold text-[color:var(--color-ink)] mt-0.5">
-            {price}
           </div>
         </div>
       </button>
