@@ -290,8 +290,12 @@ export const MKT_MENU_LABEL: Record<string, string> = {
  * Classifica um produto numa categoria do menu pelo nome. Espelha o vanilla
  * incluindo as exceções (vonixx → outros, metalatex/novacor → tintas).
  */
-export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCategory {
+export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined): MktCategory {
   const n = ' ' + String((p && p.name) || '').toLowerCase() + ' ';
+  const code = String((p && p.code) || '').toLowerCase().trim();
+  // Overrides por código (prioridade máxima)
+  if (['803', '804', '805', '1205', '1206'].includes(code)) return 'arte_urbana';
+  if (['1222', '1227', '1989'].includes(code)) return 'pintura';
   // Overrides por nome (prioridade sobre keyword loop)
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
@@ -309,9 +313,30 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
   if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
   // Esmalte anti ferrugem → arte urbana & spray
   if (n.includes('anti ferrugem') || n.includes('antiferrugem')) return 'arte_urbana';
-  // Trinchas → acessórios de pintura ('tinta'/'latex' no nome batem tintas antes)
+  // Base poliester → tintas automotivas
+  if (n.startsWith(' base poliester')) return 'tintas_auto';
+  // Batida pedra → tintas automotivas (complementos)
+  if (n.includes('batida pedra')) return 'tintas_auto';
+  // Colordur / Colorsteel → epoxi & poliuretano
+  if (n.includes('colordur') || n.includes('colorsteel')) return 'epoxi';
+  // Corante xadrez → tintas imobiliárias (complementos tier)
+  if (n.includes('corante') || n.includes('xadrez')) return 'tintas';
+  // Estética automotiva: boinas, clay bar, auge (marca de detailing)
+  if (n.includes('boina') || n.includes(' clay ') || n.includes('clay bar')) return 'estetica_automotiva';
+  if (n.includes('auge ')) return 'estetica_automotiva';
+  // Ferramentas: aspirador, bateria, bits, bolsa+conjunto, coador
+  if (n.includes('aspirador')) return 'equipamentos';
+  if (n.includes('bateria')) return 'ferramentas';
+  if (n.includes('bits')) return 'ferramentas';
+  if (n.includes('bolsa') && n.includes('conjunto')) return 'ferramentas';
+  if (n.includes('coador')) return 'ferramentas';
+  // Spray caps → arte urbana
+  if (n.startsWith(' cap ')) return 'arte_urbana';
+  // Acessórios de pintura: trinchas, broxa, caçamba, caixa plástica, luvas, misturador
   if (n.includes('trincha')) return 'pintura';
-  // Luvas látex e misturadores → acessórios de pintura
+  if (n.includes('broxa')) return 'pintura';
+  if (/ca[cç]amba/.test(n)) return 'pintura';
+  if (n.includes('caixa') && (n.includes('plast') || n.includes('plás'))) return 'pintura';
   if (n.includes('luva') && (n.includes('latex') || n.includes('látex') || n.includes('latéx'))) return 'pintura';
   if (n.includes('misturador')) return 'pintura';
   // Massa acrílica → texturas (keyword 'acrilic' em tintas bate antes do loop)
@@ -324,7 +349,7 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
 
 // Regex pra esconder bases tinturométricas (nomes "BASE VY", "BASE Z" etc.)
 // que aparecem no catálogo mas não devem ser vendidas direto pro consumidor.
-const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura/i;
+const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]/i;
 
 export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolean {
   return MKT_HIDDEN.test((p && p.name) || '');
@@ -333,7 +358,9 @@ export function isMktHidden(p: Pick<Product, 'name'> | null | undefined): boolea
 // Cores de leque (COR SUVINIL S-A-..., COR CORAL ..., COR SHERWIN ...) são
 // SKUs individuais de tintometria — escondidos do catálogo geral e acessíveis
 // pela aba "Cores personalizadas" dentro do detalhe de cada tinta.
-const LEQUE_RE = /(\bleque\b)|(^cor\s+(suvinil|coral|sherwin))/i;
+// S-A … S-Z = séries de cores tintométricas Suvinil — ocultas do catálogo
+// principal (acessíveis via aba "Cores personalizadas" dentro de cada tinta).
+const LEQUE_RE = /(\bleque\b)|(^cor\s+(suvinil|coral|sherwin))|(^s-[a-z]\b)/i;
 
 export function isLequeColor(p: Pick<Product, 'name'> | null | undefined): boolean {
   return LEQUE_RE.test((p && p.name) || '');
@@ -448,6 +475,7 @@ export function paintTierClassify(
   if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/metalatex elastic|metalatex eco|super secagem|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
   if (/sintelux|alkylux|suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
+  if (/corante|xadrez/.test(txt)) return 'complementos';
   return 'economica';
 }
 
@@ -462,7 +490,7 @@ export function autoTierClassify(
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
   if (/thinner|solvente|diluente|reducer|redutor|aguarras|aguarrás/.test(txt)) return 'solventes';
-  if (/massa|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
+  if (/massa|batida pedra|batida|complemento|kit reparo|adesivo/.test(txt)) return 'complementos';
   return 'tinta';
 }
 
