@@ -12,6 +12,8 @@ import { useComments } from '@/lib/hooks/usePostInteractions';
 
 export interface CommentFormProps {
   postId: string;
+  /** Quando preenchido, o comentário é gravado como resposta a este comment. */
+  parentId?: string | null;
   /** Callback opcional chamado após sucesso (parent pode fechar o form, etc). */
   onSuccess?: () => void;
   /** Callback opcional pra toast — service throws NetworkError em falha. */
@@ -21,6 +23,7 @@ export interface CommentFormProps {
 
 export function CommentForm({
   postId,
+  parentId = null,
   onSuccess,
   onError,
   placeholder = 'Adicionar comentário…',
@@ -36,7 +39,7 @@ export function CommentForm({
       if (!trimmed) return;
       if (isAdding) return; // double-submit guard adicional ao disabled.
       try {
-        await add(trimmed);
+        await add(trimmed, parentId);
         setText('');
         onSuccess?.();
       } catch (err) {
@@ -44,7 +47,7 @@ export function CommentForm({
         onError?.(msg);
       }
     },
-    [text, isAdding, add, onSuccess, onError],
+    [text, isAdding, add, parentId, onSuccess, onError],
   );
 
   if (!user) {

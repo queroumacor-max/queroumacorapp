@@ -30,6 +30,7 @@ import {
   hasLiked,
   reportPost as reportPostSvc,
   softDeleteComment as softDeleteCommentSvc,
+  toggleCommentLike as toggleCommentLikeSvc,
   toggleLike as toggleLikeSvc,
   toggleSave as toggleSaveSvc,
   undoDeleteComment as undoDeleteCommentSvc,
@@ -145,8 +146,11 @@ export interface UseCommentsResult {
   comments: PostComment[];
   loading: boolean;
   error: Error | null;
-  add: (text: string) => Promise<PostComment>;
+  /** Adiciona comentário. `parentId` preenchido = resposta a outro comentário. */
+  add: (text: string, parentId?: string | null) => Promise<PostComment>;
   remove: (commentId: string) => Promise<void>;
+  /** Toggle de curtida (pincel) num comentário, com otimismo no cache. */
+  likeComment: (commentId: string) => void;
   isAdding: boolean;
   isRemoving: boolean;
 }
@@ -169,7 +173,7 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
 
   const query = useQuery<PostComment[], Error>({
     queryKey: key,
-    queryFn: () => fetchComments(postId),
+    queryFn: () => fetchComments(postId, userId),
     enabled: !!postId,
     staleTime: 30_000,
     initialData,
@@ -178,20 +182,20 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
   const addMut = useMutation<
     PostComment,
     Error,
-    string,
+    { text: string; parentId?: string | null },
     {
       previous: PostComment[] | undefined;
       tempId: string;
       optimisticAuthor: { name: string | null; tag: string | null; avatar_url: string | null };
     }
   >({
-    mutationFn: (text: string) => {
+    mutationFn: ({ text, parentId }) => {
       if (emailVerified === false) {
         return Promise.reject(
           new Error('Confirme seu email antes de comentar.'),
         );
       }
-      return addComment(userId, postId, text);
+      return addComment(userId, postId, text, parentId ?? null);
     },
     // Otimista: append de comment temporário pra UI atualizar na hora.
     // Reconciliação no onSuccess troca o temp pelo row real do servidor.
@@ -202,7 +206,7 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
     // o `onSettled` refazia `fetchComments`; se esse refetch voltasse sem o
     // comment (read-back atrasado / RLS), o otimista era descartado em
     // silêncio: texto sumia, nada aparecia, sem erro (BUG-01).
-    onMutate: async (text: string) => {
+    onMutate: async ({ text, parentId }) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<PostComment[]>(key);
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -221,16 +225,19 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
         post_id: postId,
         user_id: userId,
         text,
+        parent_id: parentId ?? null,
+        like_count: 0,
+        liked_by_me: false,
         created_at: new Date().toISOString(),
         author: optimisticAuthor,
       };
       qc.setQueryData<PostComment[]>(key, (old) => [...(old ?? []), temp]);
       return { previous, tempId, optimisticAuthor };
     },
-    onError: (_err, _text, ctx) => {
+    onError: (_err, _vars, ctx) => {
       if (ctx?.previous !== undefined) qc.setQueryData(key, ctx.previous);
     },
-    onSuccess: (real, _text, ctx) => {
+    onSuccess: (real, _vars, ctx) => {
       // Troca temp pelo row real, preservando o autor otimista quando o row
       // do INSERT não trouxe author (o service só seleciona campos crus).
       const merged: PostComment = real.author
@@ -240,7 +247,7 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
         (old ?? []).map((c) => (c.id === ctx?.tempId ? merged : c)),
       );
     },
-    onSettled: async (real, _err, _text, ctx) => {
+    onSettled: async (real, _err, _vars, ctx) => {
       // Reconcilia com o banco (autor via JOIN, id real). Mas blinda contra o
       // drop silencioso: se o refetch voltar SEM o comment recém-criado
       // (lag de read-back / RLS), reinsere o otimista pra não sumir sem aviso.
@@ -282,12 +289,58 @@ export function useComments(postId: string, initialData?: PostComment[]): UseCom
     },
   });
 
+  // Curtir comentário (pincel). Otimismo direto no cache da lista: flip de
+  // liked_by_me + ajuste de like_count, com rollback no erro. Espelha o
+  // toggle do post mas operando sobre o array de comments.
+  const likeMut = useMutation<
+    { liked: boolean; count: number },
+    Error,
+    string,
+    { previous: PostComment[] | undefined }
+  >({
+    mutationFn: (commentId: string) => toggleCommentLikeSvc(userId, commentId),
+    onMutate: async (commentId: string) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<PostComment[]>(key);
+      qc.setQueryData<PostComment[]>(key, (old) =>
+        (old ?? []).map((c) => {
+          if (c.id !== commentId) return c;
+          const nowLiked = !c.liked_by_me;
+          return {
+            ...c,
+            liked_by_me: nowLiked,
+            like_count: Math.max(0, (c.like_count ?? 0) + (nowLiked ? 1 : -1)),
+          };
+        }),
+      );
+      return { previous };
+    },
+    onError: (_err, _commentId, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(key, ctx.previous);
+    },
+    onSuccess: (data, commentId) => {
+      // Reconcilia com a contagem autoritativa do servidor.
+      qc.setQueryData<PostComment[]>(key, (old) =>
+        (old ?? []).map((c) =>
+          c.id === commentId
+            ? { ...c, liked_by_me: data.liked, like_count: data.count }
+            : c,
+        ),
+      );
+    },
+  });
+
   return {
     comments: query.data ?? [],
     loading: query.isLoading,
     error: query.error ?? null,
-    add: addMut.mutateAsync,
+    add: (text: string, parentId?: string | null) =>
+      addMut.mutateAsync({ text, parentId }),
     remove: removeMut.mutateAsync,
+    likeComment: (commentId: string) => {
+      if (!userId || !commentId) return;
+      likeMut.mutate(commentId);
+    },
     isAdding: addMut.isPending,
     isRemoving: removeMut.isPending,
   };

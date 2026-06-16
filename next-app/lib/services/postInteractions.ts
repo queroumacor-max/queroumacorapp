@@ -36,6 +36,13 @@ export interface PostComment {
   user_id: string;
   text: string;
   created_at: string;
+  // Resposta a outro comentário (Wave 34). NULL = comentário de topo. Quando
+  // preenchido, a UI renderiza o comment aninhado sob o pai.
+  parent_id?: string | null;
+  // Curtidas do comentário (Wave 34). `like_count` é a contagem total e
+  // `liked_by_me` indica se o usuário logado curtiu — espelha o pincel do post.
+  like_count?: number;
+  liked_by_me?: boolean;
   // Autor — vem do JOIN com profiles em fetchComments. Pode faltar quando o
   // INSERT ainda não passou pela query com join (otimista). UI cai pra "Usuário".
   author?: {
@@ -176,6 +183,7 @@ export async function addComment(
   userId: string,
   postId: string,
   text: string,
+  parentId?: string | null,
 ): Promise<PostComment> {
   if (!userId) throw new ValidationError('userId obrigatório');
   if (!postId) throw new ValidationError('postId obrigatório');
@@ -195,19 +203,79 @@ export async function addComment(
   // resolver pro id real do banco.
   const { data, error } = await sb
     .from('comments')
-    .insert({ post_id: postId, user_id: userId, text: trimmed })
-    .select('id, post_id, user_id, text, created_at')
+    .insert({ post_id: postId, user_id: userId, text: trimmed, parent_id: parentId ?? null })
+    .select('id, post_id, user_id, text, created_at, parent_id')
     .single();
   if (error) throw new NetworkError(error.message, error);
-  if (data) return data as PostComment;
+  if (data) return { ...(data as PostComment), like_count: 0, liked_by_me: false };
   // INSERT ok, SELECT vazio — devolve placeholder que o refetch substitui.
   return {
     id: `pending-${Date.now()}`,
     post_id: postId,
     user_id: userId,
     text: trimmed,
+    parent_id: parentId ?? null,
+    like_count: 0,
+    liked_by_me: false,
     created_at: new Date().toISOString(),
   } as PostComment;
+}
+
+// ─── COMMENT LIKES (Wave 34) ────────────────────────────────────────────────
+
+/**
+ * Toggle idempotente de curtida em comentário. Espelha toggleLike (post):
+ * select → delete-or-insert, swallow do 23505 (corrida de unique). Retorna o
+ * novo estado e a contagem total atualizada pra a UI reconciliar otimismo.
+ */
+export async function toggleCommentLike(
+  userId: string,
+  commentId: string,
+): Promise<{ liked: boolean; count: number }> {
+  if (!userId) throw new ValidationError('userId obrigatório');
+  if (!commentId) throw new ValidationError('commentId obrigatório');
+
+  const sb = getSupabase();
+  const { data: existing, error: selErr } = await sb
+    .from('comment_likes')
+    .select('id')
+    .eq('comment_id', commentId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (selErr) throw new NetworkError(selErr.message, selErr);
+
+  let liked: boolean;
+  if (existing) {
+    const { error } = await sb
+      .from('comment_likes')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId);
+    if (error) throw new NetworkError(error.message, error);
+    liked = false;
+  } else {
+    const { error } = await sb
+      .from('comment_likes')
+      .insert({ user_id: userId, comment_id: commentId });
+    if (error && (error as { code?: string }).code !== '23505') {
+      throw new NetworkError(error.message, error);
+    }
+    liked = true;
+  }
+  const count = await countCommentLikes(commentId);
+  return { liked, count };
+}
+
+/** Conta curtidas de um comentário via count exato (head: true). */
+export async function countCommentLikes(commentId: string): Promise<number> {
+  if (!commentId) return 0;
+  const sb = getSupabase();
+  const { count, error } = await sb
+    .from('comment_likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('comment_id', commentId);
+  if (error) throw new NetworkError(error.message, error);
+  return count ?? 0;
 }
 
 /**
@@ -271,7 +339,10 @@ export async function updatePostCaption(
 /**
  * Lista comentários de um post, mais antigos primeiro (estilo IG/FB).
  */
-export async function fetchComments(postId: string): Promise<PostComment[]> {
+export async function fetchComments(
+  postId: string,
+  userId?: string,
+): Promise<PostComment[]> {
   if (!postId) return [];
   const sb = getSupabase();
   // 2-step em vez de JOIN: PostgREST embedded resource via `profiles!user_id`
@@ -280,7 +351,7 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
   // separado — 2 round-trips mas resultado consistente.
   const { data, error } = await sb
     .from('comments')
-    .select('id, post_id, user_id, text, created_at')
+    .select('id, post_id, user_id, text, created_at, parent_id')
     .eq('post_id', postId)
     .is('deleted_at', null) // Wave 8 soft-delete: esconde apagados.
     .order('created_at', { ascending: true });
@@ -291,6 +362,7 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
     user_id: string | null;
     text: string;
     created_at: string | null;
+    parent_id: string | null;
   }>;
   const authorIds = [...new Set(rows.map((r) => r.user_id).filter((u): u is string => !!u))];
   const authors: Record<string, { name?: string | null; tag?: string | null; avatar_url?: string | null }> = {};
@@ -303,12 +375,33 @@ export async function fetchComments(postId: string): Promise<PostComment[]> {
       if (p.id) authors[p.id] = { name: p.name, tag: p.tag, avatar_url: p.avatar_url };
     }
   }
+
+  // Wave 34: curtidas dos comentários — batch único `.in(commentIds)` em vez
+  // de N round-trips. Agrega contagem + se o user logado curtiu cada um.
+  const commentIds = rows.map((r) => r.id);
+  const likeCounts: Record<string, number> = {};
+  const likedByMe = new Set<string>();
+  if (commentIds.length > 0) {
+    const { data: likes } = await sb
+      .from('comment_likes')
+      .select('comment_id, user_id')
+      .in('comment_id', commentIds);
+    for (const l of (likes ?? []) as Array<{ comment_id: string | null; user_id: string | null }>) {
+      if (!l.comment_id) continue;
+      likeCounts[l.comment_id] = (likeCounts[l.comment_id] ?? 0) + 1;
+      if (userId && l.user_id === userId) likedByMe.add(l.comment_id);
+    }
+  }
+
   return rows.map((r) => ({
     id: r.id,
     post_id: r.post_id ?? '',
     user_id: r.user_id ?? '',
     text: r.text,
     created_at: r.created_at ?? '',
+    parent_id: r.parent_id ?? null,
+    like_count: likeCounts[r.id] ?? 0,
+    liked_by_me: likedByMe.has(r.id),
     author: r.user_id ? authors[r.user_id] ?? null : null,
   })) as PostComment[];
 }

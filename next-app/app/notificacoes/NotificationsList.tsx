@@ -16,6 +16,7 @@
 
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import type { Notification } from '@/lib/types';
@@ -46,6 +47,21 @@ function iconFor(type?: string | null): string {
     case 'info':
     default:
       return '🔔';
+  }
+}
+
+// Destino da notificação ao clicar. Curtidas/comentários gravam o post_id em
+// `ref_id` (ver migrations/2026-06-09-fix-notif-trigger-refid.sql), então
+// levam pro detalhe do post em `/post/[id]`. Tipos sem alvo navegável
+// retornam null (a linha só marca como lida, sem redirecionar).
+function destFor(n: Notification): string | null {
+  if (!n.ref_id) return null;
+  switch (n.type) {
+    case 'like':
+    case 'comment':
+      return `/post/${n.ref_id}`;
+    default:
+      return null;
   }
 }
 
@@ -91,9 +107,12 @@ function NotifRow({
   n: Notification;
   onMarkRead: (id: string) => void;
 }) {
+  const router = useRouter();
   const unread = !n.read;
+  const dest = destFor(n);
   const handleClick = () => {
     if (unread) onMarkRead(n.id);
+    if (dest) router.push(dest);
   };
   return (
     <button

@@ -274,6 +274,7 @@ export type Database = {
           text: string;
           created_at: string | null;
           deleted_at: string | null;
+          parent_id: string | null; // Wave 34 (2026-06-16) — resposta
         };
         Insert: {
           id?: string;
@@ -282,6 +283,7 @@ export type Database = {
           text: string;
           created_at?: string | null;
           deleted_at?: string | null;
+          parent_id?: string | null;
         };
         Update: {
           id?: string;
@@ -290,6 +292,29 @@ export type Database = {
           text?: string;
           created_at?: string | null;
           deleted_at?: string | null;
+          parent_id?: string | null;
+        };
+        Relationships: [];
+      };
+      // ─── comment_likes (Wave 34, 2026-06-16) ───────────────────────────────
+      comment_likes: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          comment_id: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          comment_id?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          comment_id?: string | null;
+          created_at?: string | null;
         };
         Relationships: [];
       };

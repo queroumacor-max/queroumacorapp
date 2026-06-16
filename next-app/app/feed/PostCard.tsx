@@ -115,8 +115,12 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
     loading: commentsLoading,
     remove: removeComment,
     isRemoving: isRemovingComment,
+    likeComment,
   } = useComments(post.id, post.comments as unknown as PostComment[]);
   const visibleComments = commentsLoading ? post.comments : freshComments;
+  // Wave 34: a quem estamos respondendo (id do comentário pai) — controla o
+  // CommentForm inline de resposta. null = nenhum aberto.
+  const [replyTo, setReplyTo] = useState<string | null>(null);
 
   const isOwn = !!user && user.id === post.user_id;
   // S11: post boost. NULL ou passado = sem destaque.
@@ -544,74 +548,166 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
 
       {visibleComments.length > 0 ? (
         <ul style={{ padding: '4px 14px 2px' }}>
-          {visibleComments.map((c) => {
-            const cAny = c as typeof c & {
-              author?: { name?: string | null; tag?: string | null } | null;
-              user_id?: string;
-            };
-            const author = cAny.author;
-            const authorTag = author?.tag ? '@' + author.tag : null;
-            const authorLabel = authorTag || author?.name || 'Usuário';
-            // Espelha as 3 policies de DELETE no banco (Wave 9):
-            //   - dono do comment
-            //   - dono do post
-            //   - admin (qualquer comment, qualquer post → moderação direta)
-            const canDeleteComment =
-              !!user &&
-              (user.id === cAny.user_id ||
-                user.id === post.user_id ||
-                userIsAdmin);
-            return (
-              <li
-                key={c.id}
-                style={{
-                  fontSize: 13,
-                  color: 'var(--color-ink)',
-                  marginBottom: 4,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 6,
-                }}
-              >
-                <span style={{ flex: 1 }}>
-                  <b style={{ fontWeight: 600 }}>{authorLabel}</b> {renderRichText(c.text)}
-                </span>
-                {canDeleteComment ? (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const ok = await dialog.confirm('Apagar comentário?', {
-                        title: 'Apagar comentário',
-                        okLabel: 'Apagar',
-                        danger: true,
-                      });
-                      if (!ok) return;
-                      try {
-                        await removeComment(c.id);
-                      } catch (e) {
-                        showToast((e as Error).message || 'Erro ao apagar', 'error');
-                      }
-                    }}
-                    disabled={isRemovingComment}
-                    aria-label="Apagar comentário"
-                    title="Apagar"
+          {(() => {
+            // Wave 34: agrupa em comentário-pai + respostas. Resposta órfã
+            // (pai fora do snapshot do feed) cai como topo até o fetch completo
+            // trazer o pai.
+            const all = visibleComments as PostComment[];
+            const idSet = new Set(all.map((c) => c.id));
+            const tops: PostComment[] = [];
+            const repliesByParent = new Map<string, PostComment[]>();
+            for (const c of all) {
+              if (c.parent_id && idSet.has(c.parent_id)) {
+                const arr = repliesByParent.get(c.parent_id) ?? [];
+                arr.push(c);
+                repliesByParent.set(c.parent_id, arr);
+              } else {
+                tops.push(c);
+              }
+            }
+
+            const renderContent = (c: PostComment, isReply: boolean) => {
+              const author = c.author;
+              const authorTag = author?.tag ? '@' + author.tag : null;
+              const authorLabel = authorTag || author?.name || 'Usuário';
+              // Espelha as 3 policies de DELETE no banco (Wave 9):
+              //   - dono do comment / dono do post / admin
+              const canDeleteComment =
+                !!user &&
+                (user.id === c.user_id ||
+                  user.id === post.user_id ||
+                  userIsAdmin);
+              const likeN = c.like_count ?? 0;
+              return (
+                <div>
+                  <div
                     style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--color-muted)',
-                      cursor: 'pointer',
-                      fontSize: 16,
-                      lineHeight: 1,
-                      padding: '0 4px',
-                      opacity: isRemovingComment ? 0.5 : 1,
+                      fontSize: 13,
+                      color: 'var(--color-ink)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 6,
                     }}
                   >
-                    ×
-                  </button>
+                    <span style={{ flex: 1 }}>
+                      <b style={{ fontWeight: 600 }}>{authorLabel}</b>{' '}
+                      {renderRichText(c.text)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (requireAuth('curtir')) likeComment(c.id);
+                      }}
+                      aria-label={c.liked_by_me ? 'Descurtir comentário' : 'Curtir comentário'}
+                      aria-pressed={c.liked_by_me ?? false}
+                      title="Curtir"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        padding: '0 2px',
+                        color: 'var(--color-muted)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <BrushIcon active={!!c.liked_by_me} size={15} />
+                      {likeN > 0 ? <span>{likeN}</span> : null}
+                    </button>
+                    {canDeleteComment ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await dialog.confirm('Apagar comentário?', {
+                            title: 'Apagar comentário',
+                            okLabel: 'Apagar',
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          try {
+                            await removeComment(c.id);
+                          } catch (e) {
+                            showToast((e as Error).message || 'Erro ao apagar', 'error');
+                          }
+                        }}
+                        disabled={isRemovingComment}
+                        aria-label="Apagar comentário"
+                        title="Apagar"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--color-muted)',
+                          cursor: 'pointer',
+                          fontSize: 16,
+                          lineHeight: 1,
+                          padding: '0 4px',
+                          opacity: isRemovingComment ? 0.5 : 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                  {!isReply ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (requireAuth('responder'))
+                          setReplyTo((cur) => (cur === c.id ? null : c.id));
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--color-muted)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '1px 0 2px',
+                      }}
+                    >
+                      {replyTo === c.id ? 'Cancelar' : 'Responder'}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            };
+
+            return tops.map((c) => (
+              <li key={c.id} style={{ marginBottom: 6 }}>
+                {renderContent(c, false)}
+                {(repliesByParent.get(c.id) ?? []).length > 0 ? (
+                  <div
+                    style={{
+                      marginLeft: 14,
+                      marginTop: 4,
+                      paddingLeft: 8,
+                      borderLeft: '2px solid var(--color-border)',
+                    }}
+                  >
+                    {(repliesByParent.get(c.id) ?? []).map((r) => (
+                      <div key={r.id} style={{ marginBottom: 4 }}>
+                        {renderContent(r, true)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {replyTo === c.id ? (
+                  <div style={{ marginLeft: 14, marginTop: 4 }}>
+                    <CommentForm
+                      postId={post.id}
+                      parentId={c.id}
+                      placeholder="Escreva uma resposta…"
+                      onSuccess={() => setReplyTo(null)}
+                      onError={(msg) => showToast(msg || 'Erro ao responder', 'error')}
+                    />
+                  </div>
                 ) : null}
               </li>
-            );
-          })}
+            ));
+          })()}
         </ul>
       ) : null}
 
@@ -928,12 +1024,12 @@ function ActionButton({
 // ─── icons ────────────────────────────────────────────────────────────────
 // Inline SVG: paths idênticos ao vanilla pra preservar visual.
 
-function BrushIcon({ active }: { active: boolean }) {
+function BrushIcon({ active, size = 22 }: { active: boolean; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="22"
-      height="22"
+      width={size}
+      height={size}
       fill={active ? 'var(--color-p4)' : 'none'}
       stroke={active ? 'var(--color-p4)' : 'var(--color-ink)'}
       strokeWidth="1.8"
