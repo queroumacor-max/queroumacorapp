@@ -192,7 +192,8 @@ export function ProductsList() {
     ];
     for (const m of MKT_MENUS) {
       const items = byCategory[m.key] ?? [];
-      if (items.length > 0) {
+      // EPI aparece sempre (mesmo vazio) pois é categoria nova sendo populada
+      if (items.length > 0 || m.key === 'epi') {
         out.push({ value: m.key, label: m.label, count: items.length });
       }
     }
