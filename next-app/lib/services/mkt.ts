@@ -438,7 +438,7 @@ export async function fetchLequeColors(
 }
 
 // Tier de qualidade da tinta — usado pelo sub-filtro da categoria Tintas.
-export type PaintTier = 'economica' | 'standard' | 'premium' | 'primer';
+export type PaintTier = 'economica' | 'standard' | 'premium' | 'primer' | 'complementos';
 
 export function paintTierClassify(
   p: Pick<Product, 'name'> | null | undefined,

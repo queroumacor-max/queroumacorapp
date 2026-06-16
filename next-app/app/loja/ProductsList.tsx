@@ -332,13 +332,14 @@ export function ProductsList() {
               msOverflowStyle: 'none',
             }}
           >
-            {([null, 'primer', 'economica', 'standard', 'premium'] as const).map((tier) => {
+            {([null, 'primer', 'economica', 'standard', 'premium', 'complementos'] as const).map((tier) => {
               const active = paintTier === tier;
               const labels: Record<string, string> = {
                 primer: 'Fundos & Primer',
                 economica: 'Econômica',
                 standard: 'Standard',
                 premium: 'Premium',
+                complementos: 'Complementos',
               };
               const label = tier === null ? 'Todas' : labels[tier]!;
               return (
