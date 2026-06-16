@@ -50,11 +50,16 @@ export function CartView() {
     checkoutError,
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
+  const [address, setAddress] = useState('');
 
   async function handleCheckout() {
     setCheckoutMsg(null);
+    if (address.trim().length < 10) {
+      setCheckoutMsg('Informe o endereço de entrega (rua, número, bairro, cidade e CEP).');
+      return;
+    }
     try {
-      const { orderId } = await checkout();
+      const { orderId } = await checkout(address);
       // 2ª fase: chama /api/mp-checkout-loja pra obter o init_point. O
       // endpoint EXIGE accessToken (valida o JWT do user); sem ele retornava
       // 401 "Sessão inválida" silenciosamente e o checkout nunca chegava no MP.
@@ -229,6 +234,27 @@ export function CartView() {
         >
           {BRL.format(total)}
         </span>
+      </div>
+
+      <div className="bg-white rounded-xl p-4 border border-[color:var(--color-border)] mb-4">
+        <label
+          htmlFor="shipping-address"
+          className="block text-sm font-semibold mb-2"
+        >
+          Endereço de entrega
+        </label>
+        <textarea
+          id="shipping-address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          disabled={isCheckingOut}
+          rows={3}
+          placeholder="Rua, número, bairro, cidade/UF, CEP e complemento"
+          className="w-full p-3 rounded-lg border border-[color:var(--color-border)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+        />
+        <p className="text-xs text-[color:var(--color-muted)] mt-1">
+          Pra onde devemos enviar o pedido.
+        </p>
       </div>
 
       <button

@@ -1121,7 +1121,8 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS paid_at        timestamptz,
   ADD COLUMN IF NOT EXISTS payment_method text,
   ADD COLUMN IF NOT EXISTS installments   integer,
-  ADD COLUMN IF NOT EXISTS receipt_url    text;
+  ADD COLUMN IF NOT EXISTS receipt_url    text,
+  ADD COLUMN IF NOT EXISTS shipping_address text;  -- endereço de entrega (texto livre, capturado no checkout)
 
 -- Status: pagamento (webhook) — pending | paid | amount_mismatch | refunded
 -- + fulfillment (admin no portal) — processing | shipped | completed | canceled

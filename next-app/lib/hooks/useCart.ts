@@ -70,7 +70,8 @@ export interface UseCartResult {
   /** Limpa o carrinho de forma awaitable (persiste vazio em profiles.cart).
    *  Usado pelo checkout pra só esvaziar após estado terminal de sucesso. */
   clearCart: () => Promise<void>;
-  checkout: () => Promise<OrderSubmitResult>;
+  /** Cria o pedido. `address` = endereço de entrega (texto livre). */
+  checkout: (address?: string) => Promise<OrderSubmitResult>;
   isMutating: boolean;
   mutationError: Error | null;
   isCheckingOut: boolean;
@@ -192,10 +193,10 @@ export function useCart(): UseCartResult {
   // (redirect pro MP ou fallback "loja entrará em contato"). Se o passo do
   // pagamento falhar, o carrinho precisa sobreviver pra o usuário tentar de
   // novo (e o submitOrder faz dedupe pra não duplicar o pedido pending).
-  const checkoutMutation = useMutation<OrderSubmitResult, Error, void>({
-    mutationFn: async () => {
+  const checkoutMutation = useMutation<OrderSubmitResult, Error, string | undefined>({
+    mutationFn: async (address) => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      return submitOrder(user!.id, items);
+      return submitOrder(user!.id, items, address);
     },
     onSuccess: () => {
       // Reflete a nova order na tela /pedidos. Carrinho intocado de propósito.
@@ -227,7 +228,7 @@ export function useCart(): UseCartResult {
     changeQty: qtyMutation.mutate,
     clear: () => clearMutation.mutate(),
     clearCart: () => clearMutation.mutateAsync(),
-    checkout: () => checkoutMutation.mutateAsync(),
+    checkout: (address?: string) => checkoutMutation.mutateAsync(address),
     isMutating,
     mutationError,
     isCheckingOut: checkoutMutation.isPending,
