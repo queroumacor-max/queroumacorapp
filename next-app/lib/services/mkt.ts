@@ -297,6 +297,8 @@ export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCat
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
   if (n.includes('nc esm') || n.includes('nc acr') || n.includes('nc lat')) return 'tintas';
   if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
+  // Primers de uso exclusivamente automotivo
+  if (n.includes(' primer pu ') || (n.includes('primer universal') && n.includes(' auto'))) return 'tintas_auto';
   for (const m of MKT_MENUS) {
     if (m.kw.some((k) => n.includes(k))) return m.key;
   }

@@ -74,6 +74,11 @@ export function useProducts(): UseProductsResult {
     for (const p of all) {
       const k = mktClassify(p);
       (groups[k] = groups[k] || []).push(p);
+      // Wash Primer aparece tanto em Tintas Imobiliárias (tintas) quanto em
+      // Tintas Automotivas (tintas_auto) — produto de uso misto.
+      if (k === 'tintas' && (p.name || '').toLowerCase().includes('wash primer')) {
+        (groups['tintas_auto'] = groups['tintas_auto'] || []).push(p);
+      }
     }
     return groups;
   }, [all]);
