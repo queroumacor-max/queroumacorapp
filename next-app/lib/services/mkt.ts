@@ -281,7 +281,10 @@ export const MKT_MENU_LABEL: Record<string, string> = {
  */
 export function mktClassify(p: Pick<Product, 'name'> | null | undefined): MktCategory {
   const n = ' ' + String((p && p.name) || '').toLowerCase() + ' ';
-  if (n.includes('vonixx')) return 'estetica_automotiva';
+  // Overrides por nome (prioridade sobre keyword loop)
+  if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
+  if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
+  if (n.includes('nc esm') || n.includes('nc acr') || n.includes('nc lat')) return 'tintas';
   if (n.includes('metalatex') || n.includes('novacor')) return 'tintas';
   for (const m of MKT_MENUS) {
     if (m.kw.some((k) => n.includes(k))) return m.key;
@@ -363,7 +366,7 @@ export function paintTierClassify(
   if (!p) return 'economica';
   const txt = (p.name || '').toLowerCase();
   if (/sherwin|linha premium/.test(txt)) return 'premium';
-  if (/suvinil|coral|novacor/.test(txt)) return 'standard';
+  if (/suvinil|coral|novacor|nc esm|nc acr|nc lat/.test(txt)) return 'standard';
   return 'economica';
 }
 
