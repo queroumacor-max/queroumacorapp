@@ -456,33 +456,50 @@ export async function fetchLequeColors(
   brand: 'suvinil' | 'coral' | 'sherwin',
 ): Promise<LequeColor[]> {
   const sb = getSupabase();
-  let query = sb
-    .from('products')
-    .select('id, name, code, color_hex')
-    .not('code', 'is', null);
 
-  if (brand === 'sherwin') {
-    query = query.ilike('code', 'sw-%');
-  } else if (brand === 'coral') {
-    query = query.ilike('code', 'c-%');
-  } else {
-    // suvinil: starts with s- but NOT sw-
-    query = query.ilike('code', 's-%').not('code', 'ilike', 'sw-%');
+  // PostgREST limita ~1000 linhas por request (max-rows). A Suvinil tem
+  // ~2.7k cores no banco, então paginamos via range() pra trazer TODAS —
+  // senão a busca client-side por nome/código não acha cores além do teto.
+  const PAGE = 1000;
+  const out: LequeColor[] = [];
+
+  for (let from = 0; ; from += PAGE) {
+    let query = sb
+      .from('products')
+      .select('id, name, code, color_hex')
+      .not('code', 'is', null);
+
+    if (brand === 'sherwin') {
+      query = query.ilike('code', 'sw-%');
+    } else if (brand === 'coral') {
+      query = query.ilike('code', 'c-%');
+    } else {
+      // suvinil: starts with s- but NOT sw-
+      query = query.ilike('code', 's-%').not('code', 'ilike', 'sw-%');
+    }
+
+    const { data, error } = await query.order('code').range(from, from + PAGE - 1);
+    if (error) throw new NetworkError(error.message, error);
+
+    const rows = (data ?? []) as Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      color_hex: string | null;
+    }>;
+    for (const r of rows) {
+      out.push({
+        id: r.id,
+        name: r.name ?? '',
+        code: r.code ?? null,
+        color_hex: r.color_hex ?? null,
+      });
+    }
+    // Última página: veio menos que o tamanho cheio → acabou.
+    if (rows.length < PAGE) break;
   }
 
-  const { data, error } = await query.order('code').limit(500);
-  if (error) throw new NetworkError(error.message, error);
-  return ((data ?? []) as Array<{
-    id: string;
-    name: string;
-    code: string | null;
-    color_hex: string | null;
-  }>).map((r) => ({
-    id: r.id,
-    name: r.name ?? '',
-    code: r.code ?? null,
-    color_hex: r.color_hex ?? null,
-  }));
+  return out;
 }
 
 // Tier de qualidade da tinta — usado pelo sub-filtro da categoria Tintas.
