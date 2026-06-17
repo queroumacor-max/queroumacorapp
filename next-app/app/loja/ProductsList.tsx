@@ -64,6 +64,26 @@ function normalizeLineKey(line: string | null | undefined): string {
   return (line ?? '').trim();
 }
 
+// Tiles dos sub-filtros (tier) de Tintas Imobiliárias — emoji + rótulo.
+// Mesmos valores dos chips, agora também como grid de ícones dentro da
+// categoria.
+const PAINT_TIER_TILES: ReadonlyArray<{ tier: PaintTier; emoji: string; label: string }> = [
+  { tier: 'primer', emoji: '🛡️', label: 'Fundos & Primer' },
+  { tier: 'economica', emoji: '💰', label: 'Econômica' },
+  { tier: 'standard', emoji: '🪣', label: 'Standard' },
+  { tier: 'premium', emoji: '⭐', label: 'Premium' },
+  { tier: 'complementos', emoji: '➕', label: 'Complementos' },
+];
+
+// Tiles dos sub-filtros (tipo) de Tintas Automotivas.
+const AUTO_TIER_TILES: ReadonlyArray<{ tier: AutoTier; emoji: string; label: string }> = [
+  { tier: 'primer', emoji: '🛡️', label: 'Primer' },
+  { tier: 'tinta', emoji: '🚗', label: 'Tinta' },
+  { tier: 'verniz', emoji: '✨', label: 'Verniz' },
+  { tier: 'complementos', emoji: '➕', label: 'Complementos' },
+  { tier: 'solventes', emoji: '💧', label: 'Solventes' },
+];
+
 export function ProductsList() {
   const {
     all,
@@ -229,6 +249,31 @@ export function ProductsList() {
   // Tela inicial = grid de ícones. Busca ativa força a lista de produtos.
   const gridVisible = showGrid && !search.trim();
 
+  // Contagem por tier pra mostrar no tile (e esconder tier vazio).
+  const paintTierCounts = useMemo(() => {
+    const m: Record<PaintTier, number> = {
+      primer: 0, economica: 0, standard: 0, premium: 0, complementos: 0,
+    };
+    for (const p of byCategory['tintas'] ?? []) m[paintTierClassify(p)]++;
+    return m;
+  }, [byCategory]);
+  const autoTierCounts = useMemo(() => {
+    const m: Record<AutoTier, number> = {
+      primer: 0, tinta: 0, verniz: 0, complementos: 0, solventes: 0,
+    };
+    for (const p of byCategory['tintas_auto'] ?? []) m[autoTierClassify(p)]++;
+    return m;
+  }, [byCategory]);
+
+  // Dentro de Tintas / Tintas Automotivas, sem tier escolhido e sem busca,
+  // mostramos um grid de ícones dos tiers (em vez da lista direto).
+  const paintTierGridVisible =
+    !gridVisible && category === 'tintas' && paintTier === null && !search.trim()
+    && (byCategory['tintas']?.length ?? 0) > 0;
+  const autoTierGridVisible =
+    !gridVisible && category === 'tintas_auto' && autoTier === null && !search.trim()
+    && (byCategory['tintas_auto']?.length ?? 0) > 0;
+
   return (
     <>
       {/* mkt-header dark — sticky com logo + cart + tabs + busca */}
@@ -346,8 +391,9 @@ export function ProductsList() {
         </div>
         ) : null}
 
-        {/* Sub-filtro de tier — só aparece quando categoria = Tintas e sem busca ativa */}
-        {category === 'tintas' && !search.trim() ? (
+        {/* Sub-filtro de tier (chips) — só depois de escolher um tier no grid,
+            pra trocar rápido. No grid de tiers ficam escondidos. */}
+        {category === 'tintas' && !search.trim() && paintTier !== null ? (
           <div
             style={{
               display: 'flex',
@@ -396,8 +442,8 @@ export function ProductsList() {
           </div>
         ) : null}
 
-        {/* Sub-filtro de tipo — só aparece quando categoria = Tintas Automotivas e sem busca */}
-        {category === 'tintas_auto' && !search.trim() ? (
+        {/* Sub-filtro de tipo (chips) — só depois de escolher um tipo no grid. */}
+        {category === 'tintas_auto' && !search.trim() && autoTier !== null ? (
           <div
             style={{
               display: 'flex',
@@ -560,6 +606,46 @@ export function ProductsList() {
                 </li>
               );
             })}
+          </ul>
+        ) : paintTierGridVisible || autoTierGridVisible ? (
+          // Dentro de Tintas: grid de ícones dos tiers (Fundos, Econômica, …).
+          // Click num tile filtra os produtos daquele tier.
+          <ul className="grid grid-cols-2 gap-3 pb-4" aria-label="Tipos de tinta">
+            {(paintTierGridVisible ? PAINT_TIER_TILES : AUTO_TIER_TILES)
+              .filter((t) =>
+                ((paintTierGridVisible ? paintTierCounts : autoTierCounts) as Record<string, number>)[
+                  t.tier
+                ] > 0,
+              )
+              .map((t) => {
+                const count = (
+                  (paintTierGridVisible ? paintTierCounts : autoTierCounts) as Record<string, number>
+                )[t.tier];
+                return (
+                  <li key={t.tier}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        paintTierGridVisible
+                          ? setPaintTier(t.tier as PaintTier)
+                          : setAutoTier(t.tier as AutoTier)
+                      }
+                      className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
+                      style={{ padding: '22px 12px', minHeight: 128 }}
+                    >
+                      <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
+                        {t.emoji}
+                      </span>
+                      <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
+                        {t.label}
+                      </span>
+                      <span className="text-xs text-[color:var(--color-muted)]">
+                        {count} {count === 1 ? 'item' : 'itens'}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
           </ul>
         ) : filtered.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
