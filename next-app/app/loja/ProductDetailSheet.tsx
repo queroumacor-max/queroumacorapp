@@ -64,6 +64,13 @@ function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'
   return rest.trim();
 }
 
+// Código pra exibição: tira o prefixo técnico "sw-" usado só pra rotear o
+// leque Sherwin (ex: "sw-p-150" → "P-150"). Suvinil/Coral passam intactos.
+function displayCode(code: string | null | undefined): string {
+  const c = (code ?? '').trim();
+  return c.replace(/^sw-/i, '').toUpperCase();
+}
+
 function categoryEmoji(cat: string | null | undefined): string {
   switch (cat) {
     case 'texturas':
@@ -768,7 +775,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                         flexShrink: 0,
                       }}
                     />
-                    {selectedLequeColor.code ? `${selectedLequeColor.code} · ` : ''}
+                    {selectedLequeColor.code ? `${displayCode(selectedLequeColor.code)} · ` : ''}
                     {extractColorLabel(selectedLequeColor, lequeBrand)}
                     <button
                       type="button"
@@ -810,7 +817,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                         key={c.id}
                         type="button"
                         onClick={() => setSelectedLequeColor(active ? null : c)}
-                        title={`${c.code ?? ''} ${label}`.trim()}
+                        title={`${displayCode(c.code)} ${label}`.trim()}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -860,7 +867,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                               color: 'var(--color-muted)',
                             }}
                           >
-                            {(c.code ?? '').toUpperCase()}
+                            {displayCode(c.code)}
                           </span>
                         </span>
                       </button>
