@@ -453,7 +453,7 @@ export interface LequeColor {
  *   Sherwin  → code ILIKE 'sw-%'
  */
 export async function fetchLequeColors(
-  brand: 'suvinil' | 'coral' | 'sherwin',
+  brand: 'suvinil' | 'coral' | 'sherwin' | 'outros',
 ): Promise<LequeColor[]> {
   const sb = getSupabase();
 
@@ -467,12 +467,21 @@ export async function fetchLequeColors(
     let query = sb
       .from('products')
       .select('id, name, code, color_hex')
+      .eq('active', true)
       .not('code', 'is', null);
 
     if (brand === 'sherwin') {
       query = query.ilike('code', 'sw-%');
     } else if (brand === 'coral') {
       query = query.ilike('code', 'c-%');
+    } else if (brand === 'outros') {
+      // Tudo que é cor de leque (category='cores') menos as 3 marcas
+      // nomeadas. Cobre TM/IB/RAL/RIO/RE/ML/LK/NP/L/P/Q/Pantone(x-)/etc.
+      query = query
+        .eq('category', 'cores')
+        .not('code', 'ilike', 's-%')
+        .not('code', 'ilike', 'c-%')
+        .not('code', 'ilike', 'sw-%');
     } else {
       // suvinil: starts with s- but NOT sw-
       query = query.ilike('code', 's-%').not('code', 'ilike', 'sw-%');

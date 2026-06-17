@@ -40,37 +40,37 @@ const AR_PAINTABLE: ReadonlySet<MktCategory> = new Set([
 // Extrai o nome legível da cor a partir do nome do produto do leque.
 // Formato atual do banco: "S-A 001 - Pérola Aveludada" → "Pérola Aveludada".
 // Formato legado: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO".
-function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'): string {
-  const prefixMap = {
+function extractColorLabel(
+  c: LequeColor,
+  brand: 'suvinil' | 'coral' | 'sherwin' | 'outros',
+): string {
+  const prefixMap: Record<string, string> = {
     suvinil: 'COR SUVINIL ',
     coral: 'COR CORAL ',
     sherwin: 'COR SHERWIN-WILLIAMS ',
   };
   let rest = (c.name || '').trim();
 
-  // Remove o prefixo "COR <MARCA> " (formato legado).
-  const prefix = prefixMap[brand].toLowerCase();
-  if (rest.toLowerCase().startsWith(prefix)) rest = rest.slice(prefix.length).trim();
+  // Remove o prefixo "COR <MARCA> " (formato legado), quando houver.
+  const prefix = (prefixMap[brand] || '').toLowerCase();
+  if (prefix && rest.toLowerCase().startsWith(prefix)) rest = rest.slice(prefix.length).trim();
 
   // Formato atual "S-A 001 - Pérola Aveludada": o nome legível vem depois do
   // primeiro separador " - ". Pega tudo após ele.
   const dashIdx = rest.indexOf(' - ');
   if (dashIdx !== -1) return rest.slice(dashIdx + 3).trim();
 
-  // Fallback: remove o código do início ("S-A-150 AMARELO CANÁRIO").
-  if (c.code && rest.toLowerCase().startsWith(c.code.toLowerCase())) {
-    rest = rest.slice(c.code.length).trim();
-  }
-  return rest.trim();
+  // Sem " - " o produto não tem nome distinto do código (ex: "Q1-10F",
+  // "RAL 1002") — devolve vazio pra UI mostrar só o código.
+  return '';
 }
 
-// Código pra exibição: tira o prefixo técnico de roteamento do leque
-// ("sw-" do Sherwin, "c-" do Coral) usado só pra filtrar por marca.
-// Ex: "sw-p-150" → "P-150"; "c-c-00bb 06/017" → "C-00BB 06/017".
-// Suvinil ("s-...") passa intacto (não casa o prefixo).
+// Código pra exibição: tira o prefixo técnico de roteamento do leque usado só
+// pra filtrar por marca/grupo. Ex: "sw-p-150" → "P-150"; "c-c-00bb 06/017" →
+// "C-00BB 06/017"; "tm-tmc 0001" → "TMC 0001". Suvinil ("s-...") passa intacto.
 function displayCode(code: string | null | undefined): string {
   const c = (code ?? '').trim();
-  return c.replace(/^(?:sw|c)-/i, '').toUpperCase();
+  return c.replace(/^(?:sw|ral|rio|tm|ib|re|ml|lk|np|c|l|p|q|x)-/i, '').toUpperCase();
 }
 
 function categoryEmoji(cat: string | null | undefined): string {
@@ -102,7 +102,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // Só relevante pra produtos da categoria Tintas.
   const [colorTab, setColorTab] = useState<'fabrica' | 'personalizadas'>('fabrica');
   // Seletores da aba "Cores personalizadas"
-  const [lequeBrand, setLequeBrand] = useState<'suvinil' | 'coral' | 'sherwin'>('suvinil');
+  const [lequeBrand, setLequeBrand] = useState<'suvinil' | 'coral' | 'sherwin' | 'outros'>('suvinil');
   const [customSize, setCustomSize] = useState<'quartinho' | 'galao' | 'lata'>('lata');
   const [selectedLequeColor, setSelectedLequeColor] = useState<LequeColor | null>(null);
   const [lequeSearch, setLequeSearch] = useState('');
@@ -212,6 +212,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     suvinil: 'Suvinil',
     coral: 'Coral',
     sherwin: 'Sherwin-Williams',
+    outros: 'Outros',
   };
   const SIZE_LABELS: Record<typeof customSize, string> = {
     quartinho: 'Quartinho 900ml',
@@ -634,10 +635,10 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             >
               Leque de cores
             </div>
-            <div className="flex gap-2">
-              {(['suvinil', 'coral', 'sherwin'] as const).map((brand) => {
+            <div className="flex flex-wrap gap-2">
+              {(['suvinil', 'coral', 'sherwin', 'outros'] as const).map((brand) => {
                 const active = lequeBrand === brand;
-                const label = brand === 'suvinil' ? 'Suvinil' : brand === 'coral' ? 'Coral' : 'Sherwin-Williams';
+                const label = BRAND_LABELS[brand];
                 return (
                   <button
                     key={brand}
