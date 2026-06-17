@@ -38,16 +38,26 @@ const AR_PAINTABLE: ReadonlySet<MktCategory> = new Set([
 ]);
 
 // Extrai o nome legível da cor a partir do nome do produto do leque.
-// Ex: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO"
+// Formato atual do banco: "S-A 001 - Pérola Aveludada" → "Pérola Aveludada".
+// Formato legado: "COR SUVINIL S-A-150 AMARELO CANÁRIO" → "AMARELO CANÁRIO".
 function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'): string {
   const prefixMap = {
     suvinil: 'COR SUVINIL ',
     coral: 'COR CORAL ',
     sherwin: 'COR SHERWIN-WILLIAMS ',
   };
-  let rest = c.name;
+  let rest = (c.name || '').trim();
+
+  // Remove o prefixo "COR <MARCA> " (formato legado).
   const prefix = prefixMap[brand].toLowerCase();
-  if (rest.toLowerCase().startsWith(prefix)) rest = rest.slice(prefix.length);
+  if (rest.toLowerCase().startsWith(prefix)) rest = rest.slice(prefix.length).trim();
+
+  // Formato atual "S-A 001 - Pérola Aveludada": o nome legível vem depois do
+  // primeiro separador " - ". Pega tudo após ele.
+  const dashIdx = rest.indexOf(' - ');
+  if (dashIdx !== -1) return rest.slice(dashIdx + 3).trim();
+
+  // Fallback: remove o código do início ("S-A-150 AMARELO CANÁRIO").
   if (c.code && rest.toLowerCase().startsWith(c.code.toLowerCase())) {
     rest = rest.slice(c.code.length).trim();
   }
@@ -722,6 +732,11 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       (c.code || '').toLowerCase().includes(q),
                   )
                 : lequeColors;
+              // A busca roda sobre a lista completa, mas só renderizamos um
+              // teto de linhas pra não montar milhares de nós (Suvinil ~2.7k).
+              const RENDER_CAP = 300;
+              const shown = filteredLeque.slice(0, RENDER_CAP);
+              const truncated = filteredLeque.length > RENDER_CAP;
               return filteredLeque.length === 0 ? (
                 <p style={{ fontSize: 12, color: 'var(--color-muted)' }}>
                   Nenhuma cor encontrada para "{lequeSearch}".
@@ -776,75 +791,95 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                   </p>
                 )}
 
-                {/* Grid de chips de cor */}
+                {/* Lista de cores: círculo + código + nome legível */}
                 <div
                   style={{
-                    maxHeight: 180,
+                    maxHeight: 220,
                     overflowY: 'auto',
                     borderRadius: 10,
                     border: '1px solid var(--color-border)',
-                    padding: 8,
+                    padding: 4,
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(6, 1fr)',
-                      gap: 6,
-                    }}
-                  >
-                    {filteredLeque.map((c) => {
-                      const active = selectedLequeColor?.id === c.id;
-                      const hex = c.color_hex || '#ccc';
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => setSelectedLequeColor(active ? null : c)}
-                          title={`${c.code ?? ''} ${extractColorLabel(c, lequeBrand)}`.trim()}
+                  {shown.map((c) => {
+                    const active = selectedLequeColor?.id === c.id;
+                    const hex = c.color_hex || '#ccc';
+                    const label = extractColorLabel(c, lequeBrand);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedLequeColor(active ? null : c)}
+                        title={`${c.code ?? ''} ${label}`.trim()}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '7px 8px',
+                          borderRadius: 8,
+                          border: active
+                            ? '2px solid var(--color-p1)'
+                            : '2px solid transparent',
+                          background: active ? 'rgba(255,107,53,.08)' : 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span
                           style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: 3,
-                            padding: 4,
-                            borderRadius: 8,
-                            border: active
-                              ? '2px solid var(--color-p1)'
-                              : '2px solid transparent',
-                            background: active ? 'rgba(255,107,53,.08)' : 'transparent',
-                            cursor: 'pointer',
+                            display: 'block',
+                            width: 26,
+                            height: 26,
+                            borderRadius: '50%',
+                            background: hex,
+                            border: '1px solid rgba(0,0,0,.12)',
+                            flexShrink: 0,
                           }}
-                        >
+                        />
+                        <span style={{ minWidth: 0, flex: 1, lineHeight: 1.25 }}>
+                          {label ? (
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: 'var(--color-ink)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {label}
+                            </span>
+                          ) : null}
                           <span
                             style={{
                               display: 'block',
-                              width: 30,
-                              height: 30,
-                              borderRadius: '50%',
-                              background: hex,
-                              border: '1px solid rgba(0,0,0,.12)',
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span
-                            style={{
-                              fontSize: 8,
+                              fontSize: 11,
                               color: 'var(--color-muted)',
-                              lineHeight: 1.2,
-                              textAlign: 'center',
-                              maxWidth: 36,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
                             }}
                           >
-                            {c.code ?? ''}
+                            {(c.code ?? '').toUpperCase()}
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {truncated ? (
+                    <p
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--color-muted)',
+                        textAlign: 'center',
+                        padding: '8px 4px 4px',
+                        margin: 0,
+                      }}
+                    >
+                      Mostrando {RENDER_CAP} de {filteredLeque.length} cores — refine pela
+                      busca pra encontrar a sua.
+                    </p>
+                  ) : null}
                 </div>
               </>
               );
