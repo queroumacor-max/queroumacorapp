@@ -222,7 +222,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   function handleAddCustom() {
     if (!product) return;
     const colorLabel = selectedLequeColor
-      ? ` ${selectedLequeColor.code ?? ''} ${extractColorLabel(selectedLequeColor, lequeBrand)}`.trimEnd()
+      ? ` ${displayCode(selectedLequeColor.code)} ${extractColorLabel(selectedLequeColor, lequeBrand)}`.trimEnd()
       : '';
     const syntheticProduct: Product = {
       ...product,
