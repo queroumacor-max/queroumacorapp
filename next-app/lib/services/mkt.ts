@@ -382,9 +382,17 @@ const LEQUE_RE = /(\bleque\b)|(^cor\s+(suvinil|coral|sherwin))|(^s-[a-z]\b)/i;
 // Prefixos de código tintométrico: s- (Suvinil), c- (Coral), sw- (Sherwin).
 const LEQUE_CODE_RE = /^(sw-|s-|c-)/i;
 
-export function isLequeColor(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
-  if (LEQUE_RE.test((p && p.name) || '')) return true;
-  return LEQUE_CODE_RE.test(((p && p.code) || '').trim());
+export function isLequeColor(
+  p: Pick<Product, 'name' | 'code' | 'category'> | null | undefined,
+): boolean {
+  if (!p) return false;
+  // Fonte da verdade: cor de tintometria tem category='cores' no banco —
+  // cobre TODOS os prefixos (s-/c-/sw-/tm-/ral-/x-/pt-/...), inclusive os
+  // novos grupos. Antes só os 3 prefixos legados eram pegos e o resto
+  // (~2.3k cores) vazava pro catálogo como "Outros".
+  if ((p.category || '').toLowerCase() === 'cores') return true;
+  if (LEQUE_RE.test(p.name || '')) return true;
+  return LEQUE_CODE_RE.test((p.code || '').trim());
 }
 
 // Produtos complementares — catalisadores e endurecedores que não aparecem no
