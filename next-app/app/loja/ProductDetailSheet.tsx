@@ -64,11 +64,13 @@ function extractColorLabel(c: LequeColor, brand: 'suvinil' | 'coral' | 'sherwin'
   return rest.trim();
 }
 
-// Código pra exibição: tira o prefixo técnico "sw-" usado só pra rotear o
-// leque Sherwin (ex: "sw-p-150" → "P-150"). Suvinil/Coral passam intactos.
+// Código pra exibição: tira o prefixo técnico de roteamento do leque
+// ("sw-" do Sherwin, "c-" do Coral) usado só pra filtrar por marca.
+// Ex: "sw-p-150" → "P-150"; "c-c-00bb 06/017" → "C-00BB 06/017".
+// Suvinil ("s-...") passa intacto (não casa o prefixo).
 function displayCode(code: string | null | undefined): string {
   const c = (code ?? '').trim();
-  return c.replace(/^sw-/i, '').toUpperCase();
+  return c.replace(/^(?:sw|c)-/i, '').toUpperCase();
 }
 
 function categoryEmoji(cat: string | null | undefined): string {
