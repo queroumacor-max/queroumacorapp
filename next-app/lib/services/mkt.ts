@@ -641,6 +641,12 @@ export async function fetchProducts(filter: ProductFilter = {}): Promise<Product
     const q = sb
       .from('products')
       .select(PRODUCT_LIST_COLS, opts)
+      // Exclui cor de leque (category='cores') NO SERVIDOR. Antes elas vinham
+      // no fetch e eram filtradas no cliente — mas como são ~15-20k linhas,
+      // estouravam o teto de 10 páginas e empurravam os produtos reais de
+      // tinta (Metalatex/Novacor…) pra fora do catálogo. `category.is.null`
+      // preserva produtos sem categoria definida.
+      .or('category.is.null,category.neq.cores')
       .order('name')
       .range(from, to);
     return filter.signal
