@@ -729,11 +729,6 @@ const COLOR_DICT = [
   ['gelo','#eef0ea'],['perola','#ece7dd'],
 ];
 const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
-const dictHex = (name) => {
-  const n = ' ' + String(name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'') + ' ';
-  for(const [k,hex] of COLOR_DICT){ if(n.includes(k)) return hex; }
-  return null;
-};
 const resolveColorHex = (p) => {
   const ch = p && p.color_hex ? String(p.color_hex).trim() : '';
   if(ch && !_PLACEHOLDER_HEX.test(ch.replace('#',''))) return ch;
@@ -771,7 +766,6 @@ const ProdutosList = () => {
   const [showForm, setShowForm] = useState(false);
   const [menuFilter, setMenuFilter] = useState('all');
   const [busca, setBusca] = useState('');
-  const [aiBusy, setAiBusy] = useState('');
   const [form, setForm] = useState({ name:'', code:'', category:'tintas', volume:'18L', price:'', color_hex:'#c0622d', color_gradient:'', image_url:'', stock:0, badge:'', description:'', line:'Linha Premium', rendimento:'~10m²/L', demaos:'2', secagem:'2h', active:true });
 
   const loadProducts = async () => {
@@ -798,43 +792,6 @@ const ProdutosList = () => {
   };
 
   useEffect(() => { loadProducts(); }, []);
-
-  const fillColorsAI = async () => {
-    if(aiBusy) return;
-    const pend = products.filter(p => !p.color_gradient && (!p.color_hex || _PLACEHOLDER_HEX.test(String(p.color_hex).replace('#',''))));
-    if(pend.length === 0){ alert('Todos os produtos já têm cor definida.'); return; }
-    if(!confirm(pend.length + ' produto(s) sem cor. Preencher com IA (distingue tons como Vermelho Ferrari/Goiaba/Malagueta) e salvar no banco?')) return;
-    let ok = 0, fail = 0, dic = 0;
-    const save = async (id, hex) => {
-      const { error } = await supa.from('products').update({ color_hex: hex }).eq('id', id);
-      if(error) fail++; else ok++;
-    };
-    // Fase 1 — IA em lotes (ela diferencia variações de tom da mesma cor base)
-    const BATCH = 40;
-    const aiResolved = {};
-    for(let i=0; i<pend.length; i+=BATCH){
-      const slice = pend.slice(i, i+BATCH).map(p => ({ id:p.id, name:p.name, code:p.code }));
-      setAiBusy('IA: ' + Math.min(i+BATCH, pend.length) + '/' + pend.length + '...');
-      try {
-        const r = await fetch('/api/resolve-color', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ items: slice })
-        });
-        const data = await r.json();
-        if(data && data.colors){ for(const it of slice){ const hex = data.colors[it.id]; if(hex) aiResolved[it.id] = hex; } }
-      } catch(e){ /* cai para o dicionário abaixo */ }
-    }
-    // Fase 2 — grava: IA quando houver; senão dicionário como rede de segurança
-    setAiBusy('Salvando...');
-    for(const p of pend){
-      const hex = aiResolved[p.id] || dictHex(p.name);
-      if(hex){ if(!aiResolved[p.id]) dic++; await save(p.id, hex); }
-      else fail++;
-    }
-    setAiBusy('');
-    alert('Concluído. Cores salvas: ' + ok + ' (IA: ' + (ok - dic) + ', dicionário: ' + dic + ')' + (fail ? (' · sem cor: ' + fail) : ''));
-    loadProducts();
-  };
 
   const saveProduct = async () => {
     try {
@@ -886,8 +843,6 @@ const ProdutosList = () => {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
         <div style={{ fontWeight:700, color:C.ink, fontSize:18 }}>🎨 Produtos / Tintas</div>
         <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-          {aiBusy && <span style={{ fontSize:12, color:C.muted }}>{aiBusy}</span>}
-          <button onClick={fillColorsAI} disabled={!!aiBusy} style={{ background:aiBusy?C.border:'transparent', color:C.ink, border:'1px solid '+C.p1, borderRadius:10, padding:'8px 16px', fontSize:13, fontWeight:700, cursor:aiBusy?'default':'pointer' }}>🎨 Preencher cores (IA)</button>
           <button onClick={()=>{ setEditing(null); setForm({ name:'', code:'', category:'tintas', volume:'18L', price:'', color_hex:'#c0622d', color_gradient:'', image_url:'', stock:0, badge:'', description:'', line:'Linha Premium', rendimento:'~10m²/L', demaos:'2', secagem:'2h', active:true }); setShowForm(true); }} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'8px 20px', fontSize:13, fontWeight:700, cursor:'pointer' }}>+ Novo Produto</button>
         </div>
       </div>

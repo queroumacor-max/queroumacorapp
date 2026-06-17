@@ -1540,13 +1540,6 @@ const PintoresList = ({
 // Movido para escopo de módulo: nunca muda e era recriado a cada render.
 const COLOR_DICT = [['branco neve', '#fbfbf7'], ['branco gelo', '#eef0ea'], ['branco fosco', '#f4f3ee'], ['off white', '#efece1'], ['branco', '#f6f5f0'], ['preto fosco', '#1c1c1c'], ['preto', '#1a1a1a'], ['cinza chumbo', '#4b4f54'], ['cinza grafite', '#3a3d40'], ['grafite', '#3a3d40'], ['cinza claro', '#c7c9c8'], ['cinza escuro', '#5a5d5f'], ['cinza concreto', '#9a9b96'], ['concreto', '#9a9b96'], ['cinza', '#9b9d9c'], ['prata', '#c5c7c9'], ['aluminio', '#b8bcc0'], ['azul claro', '#9ec7e8'], ['azul bebe', '#bcd9ee'], ['azul royal', '#1f4ea1'], ['azul marinho', '#1b2a4a'], ['azul petroleo', '#1f5560'], ['azul turquesa', '#2bb6c4'], ['turquesa', '#2bb6c4'], ['azul', '#2f6fb0'], ['verde musgo', '#5a6b3b'], ['verde limao', '#bcd64a'], ['verde agua', '#bfe3d8'], ['verde bandeira', '#1e7a3d'], ['verde oliva', '#6b6b3a'], ['verde', '#2e8b57'], ['amarelo ouro', '#e0a526'], ['amarelo canario', '#f5d427'], ['amarelo', '#f2c531'], ['ouro', '#caa233'], ['dourado', '#caa233'], ['vermelho', '#c0392b'], ['vinho', '#5e1f24'], ['bordo', '#5e1f24'], ['carmim', '#9b1c2e'], ['laranja', '#e67e22'], ['terracota', '#b5562e'], ['tijolo', '#9c4a2f'], ['salmao', '#f0a78f'], ['rosa', '#e79bb3'], ['pink', '#e84d8a'], ['magenta', '#c0337a'], ['roxo', '#6b3fa0'], ['lilas', '#b9a5d6'], ['violeta', '#7a4fb0'], ['marrom', '#6b4226'], ['cafe', '#4b3621'], ['chocolate', '#4b2e1e'], ['caramelo', '#a9743b'], ['tabaco', '#7a5230'], ['imbuia', '#5a3a22'], ['mogno', '#6e3326'], ['cedro', '#8a5a33'], ['castanho', '#5d3a22'], ['bege', '#d8c6a8'], ['areia', '#d6c5a0'], ['palha', '#e3d5ad'], ['creme', '#efe6cf'], ['nude', '#e3c9b3'], ['camurca', '#c9a878'], ['marfim', '#efe7d2'], ['gelo', '#eef0ea'], ['perola', '#ece7dd']];
 const _PLACEHOLDER_HEX = /^#?(c0622d|cccccc|ddd|dddddd|e8e2d9)$/i;
-const dictHex = name => {
-  const n = ' ' + String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') + ' ';
-  for (const [k, hex] of COLOR_DICT) {
-    if (n.includes(k)) return hex;
-  }
-  return null;
-};
 const resolveColorHex = p => {
   const ch = p && p.color_hex ? String(p.color_hex).trim() : '';
   if (ch && !_PLACEHOLDER_HEX.test(ch.replace('#', ''))) return ch;
@@ -1616,7 +1609,6 @@ const ProdutosList = () => {
   const [showForm, setShowForm] = useState(false);
   const [menuFilter, setMenuFilter] = useState('all');
   const [busca, setBusca] = useState('');
-  const [aiBusy, setAiBusy] = useState('');
   const [form, setForm] = useState({
     name: '',
     code: '',
@@ -1665,67 +1657,6 @@ const ProdutosList = () => {
   useEffect(() => {
     loadProducts();
   }, []);
-  const fillColorsAI = async () => {
-    if (aiBusy) return;
-    const pend = products.filter(p => !p.color_gradient && (!p.color_hex || _PLACEHOLDER_HEX.test(String(p.color_hex).replace('#', ''))));
-    if (pend.length === 0) {
-      alert('Todos os produtos já têm cor definida.');
-      return;
-    }
-    if (!confirm(pend.length + ' produto(s) sem cor. Preencher com IA (distingue tons como Vermelho Ferrari/Goiaba/Malagueta) e salvar no banco?')) return;
-    let ok = 0,
-      fail = 0,
-      dic = 0;
-    const save = async (id, hex) => {
-      const {
-        error
-      } = await supa.from('products').update({
-        color_hex: hex
-      }).eq('id', id);
-      if (error) fail++;else ok++;
-    };
-    // Fase 1 — IA em lotes (ela diferencia variações de tom da mesma cor base)
-    const BATCH = 40;
-    const aiResolved = {};
-    for (let i = 0; i < pend.length; i += BATCH) {
-      const slice = pend.slice(i, i + BATCH).map(p => ({
-        id: p.id,
-        name: p.name,
-        code: p.code
-      }));
-      setAiBusy('IA: ' + Math.min(i + BATCH, pend.length) + '/' + pend.length + '...');
-      try {
-        const r = await fetch('/api/resolve-color', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            items: slice
-          })
-        });
-        const data = await r.json();
-        if (data && data.colors) {
-          for (const it of slice) {
-            const hex = data.colors[it.id];
-            if (hex) aiResolved[it.id] = hex;
-          }
-        }
-      } catch (e) {/* cai para o dicionário abaixo */}
-    }
-    // Fase 2 — grava: IA quando houver; senão dicionário como rede de segurança
-    setAiBusy('Salvando...');
-    for (const p of pend) {
-      const hex = aiResolved[p.id] || dictHex(p.name);
-      if (hex) {
-        if (!aiResolved[p.id]) dic++;
-        await save(p.id, hex);
-      } else fail++;
-    }
-    setAiBusy('');
-    alert('Concluído. Cores salvas: ' + ok + ' (IA: ' + (ok - dic) + ', dicionário: ' + dic + ')' + (fail ? ' · sem cor: ' + fail : ''));
-    loadProducts();
-  };
   const saveProduct = async () => {
     try {
       const productData = {
@@ -1845,25 +1776,7 @@ const ProdutosList = () => {
       gap: 10,
       alignItems: 'center'
     }
-  }, aiBusy && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12,
-      color: C.muted
-    }
-  }, aiBusy), /*#__PURE__*/React.createElement("button", {
-    onClick: fillColorsAI,
-    disabled: !!aiBusy,
-    style: {
-      background: aiBusy ? C.border : 'transparent',
-      color: C.ink,
-      border: '1px solid ' + C.p1,
-      borderRadius: 10,
-      padding: '8px 16px',
-      fontSize: 13,
-      fontWeight: 700,
-      cursor: aiBusy ? 'default' : 'pointer'
-    }
-  }, "\uD83C\uDFA8 Preencher cores (IA)"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       setEditing(null);
       setForm({
