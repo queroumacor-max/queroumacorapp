@@ -87,6 +87,28 @@ export function ProductsList() {
   const [paintTier, setPaintTier] = useState<PaintTier | null>(null);
   // Sub-filtro de tipo dentro de Tintas Automotivas (null = todas).
   const [autoTier, setAutoTier] = useState<AutoTier | null>(null);
+  // Tela inicial da loja: grid de ícones de categoria (true) vs lista de
+  // produtos de uma categoria (false). Clicar num ícone entra na categoria;
+  // o botão "Categorias" volta pro grid. Busca ativa sempre mostra produtos.
+  const [showGrid, setShowGrid] = useState(true);
+
+  // Entra numa categoria a partir do grid de ícones.
+  function openCategory(value: ProductCategoryFilter) {
+    setCategory(value);
+    setShowGrid(false);
+    setSelectedLine(null);
+    setPaintTier(null);
+    setAutoTier(null);
+  }
+  // Volta pro grid de categorias (tela inicial).
+  function backToGrid() {
+    setShowGrid(true);
+    setCategory('todos');
+    setSelectedLine(null);
+    setPaintTier(null);
+    setAutoTier(null);
+    setSearch('');
+  }
 
   // Agrupa os products do filter atual por `line` (pula campo vazio: "Outros").
   // Computa antes do early-return pra useMemo manter ordem estável de hooks.
@@ -204,6 +226,9 @@ export function ProductsList() {
     return out;
   }, [all, byCategory]);
 
+  // Tela inicial = grid de ícones. Busca ativa força a lista de produtos.
+  const gridVisible = showGrid && !search.trim();
+
   return (
     <>
       {/* mkt-header dark — sticky com logo + cart + tabs + busca */}
@@ -270,9 +295,9 @@ export function ProductsList() {
           </Link>
         </div>
 
-        {/* Dropdown de categoria (substitui as tabs horizontais scrolláveis).
-            Vanilla usa tabs mas em telas estreitas isso vira scroll horizontal
-            que estoura o layout. Select nativo é mais compacto e acessível. */}
+        {/* Dropdown de categoria — escondido na tela inicial (grid de ícones);
+            aparece ao entrar numa categoria pra trocar rápido. */}
+        {!gridVisible ? (
         <div className="relative" style={{ paddingBottom: 14 }}>
           <select
             value={category}
@@ -319,6 +344,7 @@ export function ProductsList() {
             </svg>
           </span>
         </div>
+        ) : null}
 
         {/* Sub-filtro de tier — só aparece quando categoria = Tintas e sem busca ativa */}
         {category === 'tintas' && !search.trim() ? (
@@ -460,6 +486,30 @@ export function ProductsList() {
 
       {/* mkt-body — cards */}
       <div className="px-3 pt-3">
+        {/* Voltar pro grid de categorias (só dentro de uma categoria/busca). */}
+        {!gridVisible && !loading && !error && all.length > 0 ? (
+          <button
+            type="button"
+            onClick={backToGrid}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[color:var(--color-p1)] mb-3"
+            aria-label="Voltar pras categorias"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Categorias
+          </button>
+        ) : null}
         {loading ? (
           <div className="space-y-3" aria-label="Carregando produtos">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -481,6 +531,36 @@ export function ProductsList() {
               O catálogo ainda está vazio. Volte em breve.
             </p>
           </div>
+        ) : gridVisible ? (
+          // Tela inicial: grid de ícones de categoria preenchendo a tela.
+          // Click num ícone entra na categoria (openCategory).
+          <ul className="grid grid-cols-2 gap-3 pb-4" aria-label="Categorias da loja">
+            {tabs.map((tab) => {
+              const sp = tab.label.indexOf(' ');
+              const emoji = sp > 0 ? tab.label.slice(0, sp) : '📦';
+              const text = sp > 0 ? tab.label.slice(sp + 1) : tab.label;
+              return (
+                <li key={tab.value}>
+                  <button
+                    type="button"
+                    onClick={() => openCategory(tab.value)}
+                    className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
+                    style={{ padding: '22px 12px', minHeight: 128 }}
+                  >
+                    <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
+                      {emoji}
+                    </span>
+                    <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
+                      {text}
+                    </span>
+                    <span className="text-xs text-[color:var(--color-muted)]">
+                      {tab.count} {tab.count === 1 ? 'item' : 'itens'}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         ) : filtered.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
             <p className="text-sm text-[color:var(--color-muted)] mb-3">
@@ -488,10 +568,7 @@ export function ProductsList() {
             </p>
             <button
               type="button"
-              onClick={() => {
-                setCategory('todos');
-                setSearch('');
-              }}
+              onClick={backToGrid}
               className="text-xs font-semibold text-[color:var(--color-p1)]"
             >
               Limpar filtros
