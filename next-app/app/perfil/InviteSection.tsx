@@ -35,11 +35,17 @@ export function InviteSection() {
           return;
         } catch (e) {
           if ((e as Error).name === 'AbortError') return;
+          // outros erros: cai pro fallback de copiar abaixo
         }
       }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      // Fallback garantido (desktop / sem Web Share): copia e avisa. Se o
+      // clipboard também não rolar, mostra o link no toast pra copiar à mão —
+      // nunca fica sem feedback (Bug #23 / padrão #9).
+      try {
         await navigator.clipboard.writeText(`${text} ${url}`);
         showToast('Link copiado! Manda pro amigo no WhatsApp.', 'success');
+      } catch {
+        showToast(url, 'info');
       }
     } finally {
       setBusy(false);

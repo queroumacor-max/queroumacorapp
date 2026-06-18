@@ -239,13 +239,13 @@ export function ProfileHeader() {
                   // continua pro clipboard fallback
                 }
               }
-              if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                try {
-                  await navigator.clipboard.writeText(url);
-                  showToast('Link copiado!', 'success');
-                } catch {
-                  showToast('Erro ao copiar', 'error');
-                }
+              // Fallback garantido: copia; se clipboard indisponível/falhar,
+              // mostra o link no toast pra copiar à mão (nunca sem feedback).
+              try {
+                await navigator.clipboard.writeText(url);
+                showToast('Link copiado!', 'success');
+              } catch {
+                showToast(url, 'info');
               }
             }}
             className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"
