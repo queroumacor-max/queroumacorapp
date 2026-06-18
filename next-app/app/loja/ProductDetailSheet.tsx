@@ -5,7 +5,8 @@
 //   - descrição (opcional);
 //   - 3 info-cards: Rendimento / Demãos / Secagem (cream bg);
 //   - preço grande laranja + qty picker (- N +);
-//   - botão "+ Adicionar ao Carrinho · R$NN,NN" full-width laranja.
+//   - botão "+ Selecionar item" full-width laranja (compliance Apple
+//     3.1.3e: produto físico vendido fora do app, loja fecha a venda).
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -179,7 +180,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     if (!requireAuth('comprar')) return; // visitante: abre cadastro
     const productToAdd = activeGroupProduct ?? product;
     onAdd(productToAdd, qty, selectedVariant);
-    showToast('Adicionado ao carrinho!', 'success');
+    showToast('Item selecionado!', 'success');
     onClose();
     setQty(1);
   }
@@ -242,7 +243,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       sort_order: 0,
     };
     onAdd(syntheticProduct, qty, syntheticVariant);
-    showToast('Adicionado ao carrinho!', 'success');
+    showToast('Item selecionado!', 'success');
     onClose();
     setQty(1);
   }
@@ -467,7 +468,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       onClick={() => {
                         if (!requireAuth('comprar')) return;
                         onAdd(c, 1, null);
-                        showToast(`${c.name} adicionado!`, 'success');
+                        showToast(`${c.name} selecionado!`, 'success');
                       }}
                       style={{
                         padding: '6px 12px',
@@ -481,7 +482,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                         flexShrink: 0,
                       }}
                     >
-                      + Carrinho
+                      Selecionar
                     </button>
                   </div>
                 ))}
@@ -611,8 +612,22 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: outOfStock ? 'none' : '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {outOfStock ? 'Sem estoque' : '+ Adicionar ao Carrinho'}
+            {outOfStock ? 'Sem estoque' : '+ Selecionar item'}
           </button>
+          {!outOfStock ? (
+            <p
+              style={{
+                fontSize: 12,
+                color: 'var(--color-muted)',
+                lineHeight: 1.5,
+                marginTop: 10,
+                textAlign: 'center',
+              }}
+            >
+              A loja Cali Colors entrará em contato para confirmar
+              disponibilidade e valores do seu pedido.
+            </p>
+          ) : null}
         </>
       ) : (
         /* ─── Cores personalizadas (tintometria) ─── */
@@ -961,8 +976,20 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               boxShadow: '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            + Adicionar ao Carrinho
+            + Selecionar item
           </button>
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--color-muted)',
+              lineHeight: 1.5,
+              marginTop: 10,
+              textAlign: 'center',
+            }}
+          >
+            A loja Cali Colors entrará em contato para confirmar
+            disponibilidade e valores do seu pedido.
+          </p>
         </>
       )}
 

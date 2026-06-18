@@ -110,10 +110,10 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           aria-label={
             outOfStock
               ? `${product.name} sem estoque`
-              : `Adicionar ${product.name} ao carrinho`
+              : `Selecionar ${product.name}`
           }
         >
-          {outOfStock ? 'Sem estoque' : isAdding ? '...' : '+ Carrinho'}
+          {outOfStock ? 'Sem estoque' : isAdding ? '...' : 'Selecionar'}
         </button>
       ) : null}
     </article>

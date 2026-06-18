@@ -296,7 +296,7 @@ export function ProductsList() {
           </div>
           <Link
             href="/loja/carrinho"
-            aria-label="Carrinho"
+            aria-label="Minha lista de pedido"
             className="relative flex items-center justify-center"
             style={{
               width: 44,
@@ -728,7 +728,7 @@ export function ProductsList() {
                 <li key={p.id}>
                   <ProductCard
                     product={p}
-                    // Click no row OU no "+ Carrinho" abre o detail sheet
+                    // Click no row OU no "Selecionar" abre o detail sheet
                     // pra escolher quantidade (vanilla openProductDetail).
                     onAdd={(prod) => setDetailProduct(prod)}
                     onOpen={(prod) => setDetailProduct(prod)}

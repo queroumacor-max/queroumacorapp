@@ -187,14 +187,19 @@ export function ProductDetail({ id }: { id: string }) {
         disabled={isMutating || product.active === false}
         className="w-full py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        + Adicionar ao Carrinho · {totalLabel}
+        + Selecionar item · {totalLabel}
       </button>
+
+      <p className="text-xs text-[color:var(--color-muted)] text-center leading-relaxed">
+        A loja Cali Colors entrará em contato para confirmar disponibilidade e
+        valores do seu pedido.
+      </p>
 
       <Link
         href="/loja/carrinho"
         className="block text-center text-xs font-semibold text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
       >
-        Ver carrinho →
+        Ver minha lista →
       </Link>
     </div>
   );

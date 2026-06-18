@@ -33,7 +33,7 @@ export default function CamisetasPage() {
           href="/loja/carrinho"
           className="px-4 py-2 bg-[color:var(--color-ink)] text-white rounded-xl text-sm font-semibold whitespace-nowrap"
         >
-          🛒 Carrinho
+          🛒 Minha Lista
         </Link>
       </header>
       <ShirtCustomizer />

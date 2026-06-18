@@ -119,9 +119,9 @@ export function CartView() {
         <div className="text-5xl mb-3" aria-hidden="true">
           🛒
         </div>
-        <h2 className="font-semibold mb-2">Entre pra ver o seu carrinho</h2>
+        <h2 className="font-semibold mb-2">Entre pra ver sua lista de pedido</h2>
         <p className="text-sm text-[color:var(--color-muted)] mb-4">
-          Faça login pra salvar e finalizar suas compras.
+          Faça login pra salvar e enviar sua lista.
         </p>
         <Link
           href="/login"
@@ -171,9 +171,9 @@ export function CartView() {
           <div className="text-5xl mb-3" aria-hidden="true">
             🛒
           </div>
-          <h2 className="font-semibold mb-2">Carrinho vazio</h2>
+          <h2 className="font-semibold mb-2">Lista vazia</h2>
           <p className="text-sm text-[color:var(--color-muted)] mb-4">
-            Adicione produtos pra começar.
+            Selecione produtos pra começar.
           </p>
           <Link
             href="/loja"
@@ -188,6 +188,11 @@ export function CartView() {
 
   return (
     <div>
+      <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-900">
+        Ao enviar sua lista, a equipe da Cali Colors entrará em contato via
+        WhatsApp para confirmar os itens e valores. A compra não é finalizada
+        automaticamente.
+      </div>
       {mutationError ? (
         <div
           role="alert"
@@ -263,7 +268,7 @@ export function CartView() {
         disabled={isCheckingOut || items.length === 0}
         className="w-full py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        {isCheckingOut ? 'Criando pedido…' : 'Finalizar compra'}
+        {isCheckingOut ? 'Enviando lista…' : 'Enviar Lista'}
       </button>
     </div>
   );
