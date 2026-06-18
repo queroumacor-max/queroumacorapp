@@ -74,7 +74,16 @@ export function SignupFlow() {
     const ref = readPendingReferrer();
     setSubmitting(true);
     try {
-      if (!draft.userType || !draft.name || !draft.tag || !draft.email || !draft.phone) {
+      // WhatsApp é obrigatório só pros profissionais (canal de leads);
+      // pro Cliente é opcional (Apple 5.1.1).
+      const phoneRequired = draft.userType !== 'cliente';
+      if (
+        !draft.userType ||
+        !draft.name ||
+        !draft.tag ||
+        !draft.email ||
+        (phoneRequired && !draft.phone)
+      ) {
         setServerError('Volte e preencha os passos anteriores.');
         return;
       }
@@ -83,7 +92,7 @@ export function SignupFlow() {
         name: draft.name,
         tag: draft.tag,
         email: draft.email,
-        phone: draft.phone,
+        phone: draft.phone || '',
         password: data.password,
         birthDate: draft.birthDate || null,
         city: draft.city || null,
@@ -162,6 +171,7 @@ export function SignupFlow() {
       )}
       {step === 2 && (
         <SignupStep2
+          userType={draft.userType}
           initial={{
             name: draft.name,
             tag: draft.tag,

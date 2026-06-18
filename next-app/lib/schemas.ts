@@ -107,6 +107,14 @@ export const phoneSchema = z
     return d;
   });
 
+// Telefone opcional: vazio → '' ; preenchido → normaliza/valida como
+// phoneSchema. Usado no signup de Cliente (Apple 5.1.1 — não exigir telefone
+// quando não é estritamente necessário pra conta).
+export const phoneOptionalSchema = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim() : v),
+  z.literal('').or(phoneSchema),
+);
+
 export const cepSchema = z
   .string({ invalid_type_error: 'CEP inválido' })
   .trim()

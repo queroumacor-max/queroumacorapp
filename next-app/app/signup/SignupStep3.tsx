@@ -48,6 +48,8 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
   // zod (literal(true)) já barra o submit, mas desabilitar o botão deixa o
   // requisito visível e impede o clique antes do aceite.
   const consented = watch('consent') === true;
+  const passwordValue = watch('password') ?? '';
+  const strength = scorePassword(passwordValue);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -77,6 +79,25 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
           className="w-full px-4 py-3 text-base bg-[color:var(--color-bg)] border-2 border-transparent focus:border-[color:var(--color-p1)] rounded-xl outline-none transition-colors"
           aria-invalid={errors.password ? 'true' : 'false'}
         />
+        {passwordValue.length > 0 && (
+          <div className="mt-2" aria-live="polite">
+            <div className="flex gap-1" aria-hidden="true">
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className="h-1.5 flex-1 rounded-full transition-colors"
+                  style={{
+                    background:
+                      i < strength.level ? strength.color : 'var(--color-border)',
+                  }}
+                />
+              ))}
+            </div>
+            <p className="text-xs mt-1" style={{ color: strength.color }}>
+              Senha {strength.label}
+            </p>
+          </div>
+        )}
         {errors.password && (
           <p className="text-sm text-[color:var(--color-danger)] mt-1">
             {errors.password.message}
@@ -142,4 +163,31 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
       </div>
     </form>
   );
+}
+
+// Mede a força da senha pra dar feedback visual (UX — HIG/qualidade).
+// Não altera a regra de validação (mínimo 8 chars segue no schema); é só
+// indicador. level 1..4 → quantos segmentos acender.
+function scorePassword(pw: string): {
+  level: 0 | 1 | 2 | 3 | 4;
+  label: string;
+  color: string;
+} {
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  // mapeia 0..5 → 1..4 segmentos
+  const level = (pw.length === 0 ? 0 : Math.min(4, Math.max(1, score))) as
+    | 0
+    | 1
+    | 2
+    | 3
+    | 4;
+  if (level <= 1) return { level, label: 'fraca', color: 'var(--color-danger)' };
+  if (level === 2) return { level, label: 'razoável', color: '#d97706' };
+  if (level === 3) return { level, label: 'boa', color: '#ca8a04' };
+  return { level, label: 'forte', color: '#16a34a' };
 }

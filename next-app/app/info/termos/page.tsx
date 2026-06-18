@@ -101,30 +101,25 @@ export default function TermosPage() {
         domicílio do consumidor para dirimir eventuais conflitos.
       </LegalP>
 
-      <LegalH>13. Plano PRO e Cancelamento</LegalH>
+      <LegalH>13. Plano PRO</LegalH>
       <LegalP>
-        O Plano PRO é uma assinatura paga e recorrente, renovada
-        automaticamente ao fim de cada ciclo de cobrança até que você cancele.
-        O valor e a periodicidade vigentes são exibidos na tela de assinatura
-        antes da contratação.
+        O Plano PRO é ativado <b>exclusivamente pela troca de pontos</b>
+        acumulados no aplicativo (por exemplo, por indicações e pelo uso do
+        app). <b>Não há cobrança nem pagamento dentro do aplicativo</b> para
+        ativar o PRO: você troca a quantidade de pontos indicada por um período
+        de acesso PRO, e a ativação é imediata.
       </LegalP>
       <LegalP>
-        Você pode cancelar a assinatura a qualquer momento. O cancelamento
-        passa a ter efeito ao <b>fim do ciclo de cobrança já pago</b> — você
-        mantém o acesso aos recursos PRO até essa data e não é cobrado nos
-        ciclos seguintes. <b>Não há reembolso proporcional</b> dos dias não
-        utilizados do período já pago, salvo nas hipóteses previstas no Código
-        de Defesa do Consumidor (por exemplo, direito de arrependimento em até
-        7 dias da contratação, nos termos do Art. 49 do CDC).
+        O acesso PRO obtido por troca de pontos vale pelo período concedido e
+        não é renovado automaticamente — para manter o PRO, basta realizar uma
+        nova troca de pontos quando o período terminar. Por não envolver
+        pagamento em dinheiro, não há cobrança recorrente, fatura nem reembolso
+        associados ao Plano PRO.
       </LegalP>
       <LegalP>
-        Quando a assinatura for contratada pela App Store (Apple) ou pela
-        Google Play, a gestão do cancelamento e de eventuais reembolsos é feita
-        pela respectiva loja, conforme as políticas dela. Em caso de cobrança
-        indevida, falha técnica ou qualquer dúvida sobre a assinatura, entre em
-        contato com o suporte da Cali Colors pelo WhatsApp{' '}
-        <b>(11) 95976-5031</b> ou pelo e-mail <b>loja@calicolors.com.br</b> que
-        providenciaremos a solução.
+        Em caso de dúvida sobre pontos ou sobre o Plano PRO, entre em contato
+        com o suporte da Cali Colors pelo WhatsApp <b>(11) 95976-5031</b> ou
+        pelo e-mail <b>loja@calicolors.com.br</b>.
       </LegalP>
     </InfoSubPage>
   );

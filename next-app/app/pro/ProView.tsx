@@ -12,13 +12,12 @@ interface Feature {
   label: string;
 }
 
-// Contato da Cali Colors pra ativação manual do PRO (sem pagamento no app).
+// Contato da Cali Colors — só pra DÚVIDAS sobre o PRO (a ativação é via pontos).
 const STORE_PHONE_DISPLAY = '(11) 95976-5031';
 const STORE_WHATSAPP = 'https://wa.me/5511959765031';
-const PRO_WHATSAPP_LINK =
-  STORE_WHATSAPP +
-  '?text=' +
-  encodeURIComponent('Olá! Quero ativar o plano PRO no QueroUmaCor.');
+
+// Custo da troca pontos → PRO (espelha REDEEM_COST em PontosView/points.ts).
+const PRO_POINTS_COST = 1000;
 
 const FEATURES: readonly Feature[] = [
   { icon: '📥', label: 'Pedidos de orçamento ilimitados' },
@@ -35,9 +34,9 @@ export function ProView() {
   const { profile } = useProfile();
   const isPro = !!profile?.is_pro;
 
-  // Por enquanto NÃO há pagamento do PRO dentro do app: a ativação é manual.
-  // O cliente entra em contato com a loja física Cali Colors (telefone/
-  // WhatsApp) e a equipe habilita a licença PRO no perfil dele.
+  // NÃO há pagamento do PRO dentro do app. A ÚNICA forma de ativar o PRO é
+  // trocando pontos pelo plano (RPC redeem_pro_with_points, instantâneo). Os
+  // pontos são ganhos convidando amigos e usando o app.
 
   return (
     <div className="px-3.5 pt-4 pb-10">
@@ -68,7 +67,8 @@ export function ProView() {
         </div>
       ) : null}
 
-      {/* Card preço */}
+      {/* Card de troca por pontos (substitui o preço — não há pagamento no app:
+          o PRO é ativado SÓ trocando pontos pelo plano). */}
       <div
         className="text-center text-white"
         style={{
@@ -80,16 +80,17 @@ export function ProView() {
       >
         <div
           style={{
-            fontSize: 36,
+            fontSize: 34,
             fontWeight: 800,
             fontFamily: 'var(--font-display)',
             lineHeight: 1,
           }}
         >
-          R$39<span style={{ fontSize: 16, fontWeight: 400 }}>/mês</span>
+          {PRO_POINTS_COST} pontos
+          <span style={{ fontSize: 16, fontWeight: 400 }}> = 1 mês PRO</span>
         </div>
         <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
-          Cancele quando quiser
+          Junte pontos e troque pelo plano PRO
         </div>
       </div>
 
@@ -114,9 +115,8 @@ export function ProView() {
         ))}
       </div>
 
-      {/* Ativação do PRO — feita pela loja física (sem pagamento no app).
-          Por enquanto não há checkout online: o cliente fala com a Cali
-          Colors pelo telefone/WhatsApp e a equipe habilita a licença PRO. */}
+      {/* Ativação do PRO — EXCLUSIVAMENTE pela troca de pontos (sem pagamento
+          no app). O botão leva pra /pontos, onde a troca é atômica via RPC. */}
       {isPro ? (
         <div
           className="w-full text-center text-white font-bold"
@@ -153,22 +153,13 @@ export function ProView() {
               margin: '0 0 14px',
             }}
           >
-            Para ativar o plano PRO, entre em contato com a loja física{' '}
-            <b>Cali Colors</b> pelo telefone{' '}
-            <a
-              href={STORE_WHATSAPP}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--color-p1)', fontWeight: 700 }}
-            >
-              {STORE_PHONE_DISPLAY}
-            </a>
-            . A equipe habilita a sua licença PRO no seu perfil.
+            O plano PRO é ativado <b>apenas trocando seus pontos</b> pelo plano —
+            não há pagamento dentro do app. Junte pontos convidando amigos e
+            usando o app, e troque <b>{PRO_POINTS_COST} pontos por 1 mês de PRO</b>.
+            A ativação é instantânea.
           </p>
-          <a
-            href={PRO_WHATSAPP_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/pontos"
             className="block w-full text-center text-white font-bold"
             style={{
               padding: 16,
@@ -179,29 +170,10 @@ export function ProView() {
               boxShadow: '0 6px 20px rgba(255,107,53,.35)',
             }}
           >
-            💬 Falar com a loja pelo WhatsApp
-          </a>
+            🎁 Trocar pontos por PRO
+          </Link>
         </div>
       )}
-
-      {/* Atalho pra trocar 100 pts por 1 mês PRO */}
-      {!isPro ? (
-        <Link
-          href="/pontos"
-          className="block w-full text-center font-bold"
-          style={{
-            padding: 14,
-            background: 'transparent',
-            border: '1.5px solid var(--color-border)',
-            borderRadius: 14,
-            fontSize: 14,
-            color: 'var(--color-ink)',
-            textDecoration: 'none',
-          }}
-        >
-          🎁 Trocar 100 pontos por 1 mês PRO
-        </Link>
-      ) : null}
 
       <p
         className="text-center"
@@ -226,7 +198,7 @@ export function ProView() {
         >
           Privacidade
         </Link>
-        . A ativação e a renovação do PRO são feitas pela loja Cali Colors.
+        . A ativação do PRO é feita exclusivamente pela troca de pontos.
       </p>
 
       {/* Dúvidas sobre o PRO — canal de atendimento da loja. */}
@@ -257,8 +229,8 @@ export function ProView() {
             margin: 0,
           }}
         >
-          A ativação, a renovação e o cancelamento do plano PRO são tratados
-          diretamente com a loja Cali Colors. Fale com a gente pelo WhatsApp{' '}
+          O PRO é ativado pela troca de pontos, direto no app. Para dúvidas
+          sobre pontos ou sobre o plano, fale com a gente pelo WhatsApp{' '}
           <a
             href={STORE_WHATSAPP}
             target="_blank"

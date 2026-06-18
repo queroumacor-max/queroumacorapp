@@ -2,12 +2,13 @@
 // SignupStep2 — dados básicos do cadastro. Espelha o `#signup-step2` do
 // vanilla (index.html linha 380+): nome + foto de perfil + tag + email +
 // WhatsApp + data de nascimento + cidade + estado. Senha fica no Step 3.
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { emailSchema, tagSchema, phoneSchema, requiredField, birthDateSchema, MIN_AGE } from '@/lib/schemas';
+import { emailSchema, tagSchema, phoneSchema, phoneOptionalSchema, requiredField, birthDateSchema, calculateAge, MIN_AGE } from '@/lib/schemas';
 import { useTagAvailability } from '@/lib/hooks/useTagAvailability';
+import type { UserRole } from '@/lib/types';
 
 // 27 UFs brasileiras (vanilla index.html linha 430+).
 const UFS: ReadonlyArray<{ value: string; label: string }> = [
@@ -49,37 +50,48 @@ const maxBirthISO = (() => {
   return d.toISOString().slice(0, 10);
 })();
 
-const schema = z.object({
-  name: requiredField('seu nome').refine((v) => !v.includes('@'), {
-    message: 'Não use o email como nome',
-  }),
-  tag: tagSchema,
-  email: emailSchema,
-  phone: phoneSchema,
-  // birthDate é obrigatório (LGPD-K + Apple 1.6 + Google Family Policy).
-  // birthDateSchema bloqueia menores de MIN_AGE (18 anos).
-  birthDate: birthDateSchema,
-  city: z.string().trim().max(80, 'Cidade muito longa').optional().default(''),
-  state: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .refine((v) => v === '' || UFS.some((u) => u.value === v), {
-      message: 'UF inválida',
-    })
-    .optional()
-    .default(''),
-});
+// Schema parametrizado pelo tipo de usuário: pro Cliente o WhatsApp é
+// OPCIONAL (Apple 5.1.1 — não exigir telefone quando não é estritamente
+// necessário pra conta); pros profissionais segue obrigatório (é o canal de
+// contato de orçamentos/leads).
+function makeSchema(phoneRequired: boolean) {
+  return z.object({
+    name: requiredField('seu nome').refine((v) => !v.includes('@'), {
+      message: 'Não use o email como nome',
+    }),
+    tag: tagSchema,
+    email: emailSchema,
+    phone: phoneRequired ? phoneSchema : phoneOptionalSchema,
+    // birthDate é obrigatório (LGPD-K + Apple 1.6 + Google Family Policy).
+    // birthDateSchema bloqueia menores de MIN_AGE (18 anos).
+    birthDate: birthDateSchema,
+    city: z.string().trim().max(80, 'Cidade muito longa').optional().default(''),
+    state: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .refine((v) => v === '' || UFS.some((u) => u.value === v), {
+        message: 'UF inválida',
+      })
+      .optional()
+      .default(''),
+  });
+}
 
-export type Step2Data = z.infer<typeof schema> & { avatarFile?: File | null };
+export type Step2Data = z.infer<ReturnType<typeof makeSchema>> & { avatarFile?: File | null };
 
 interface Props {
+  /** Categoria escolhida no Step 1. Define se o WhatsApp é obrigatório. */
+  userType?: UserRole;
   initial?: Partial<Step2Data>;
   onNext: (data: Step2Data) => void;
   onBack: () => void;
 }
 
-export function SignupStep2({ initial, onNext, onBack }: Props) {
+export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
+  const isCliente = userType === 'cliente';
+  const schema = useMemo(() => makeSchema(!isCliente), [isCliente]);
+
   const [avatarFile, setAvatarFile] = useState<File | null>(initial?.avatarFile ?? null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
@@ -103,6 +115,13 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
 
   const tagValue = watch('tag');
   const tagStatus = useTagAvailability(tagValue);
+
+  // Validação de idade em tempo real (Apple 5.1.1 / Google Family): assim que
+  // o usuário escolhe uma data, já avisamos se é menor de MIN_AGE — sem
+  // esperar o submit. birthTooYoung também desabilita o "Continuar".
+  const birthValue = watch('birthDate');
+  const birthAge = birthValue ? calculateAge(birthValue) : -1;
+  const birthTooYoung = birthAge >= 0 && birthAge < MIN_AGE;
 
   function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -150,7 +169,7 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
         <label
           className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]"
         >
-          Foto de perfil
+          Foto de perfil <span className="font-normal text-[color:var(--color-muted)]">(opcional)</span>
         </label>
         <div className="flex items-center gap-3">
           <div
@@ -187,7 +206,7 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           </label>
         </div>
         <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          Aparece no seu story e perfil
+          Opcional — aparece no seu story e perfil. Você pode adicionar depois.
         </p>
       </div>
 
@@ -242,7 +261,11 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
         />
       </Field>
 
-      <Field id="phone" label="WhatsApp" error={errors.phone?.message}>
+      <Field
+        id="phone"
+        label={isCliente ? 'WhatsApp (opcional)' : 'WhatsApp'}
+        error={errors.phone?.message}
+      >
         <input
           id="phone"
           type="tel"
@@ -254,7 +277,9 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           aria-invalid={errors.phone ? 'true' : 'false'}
         />
         <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          Usado para contato sobre orçamentos e suporte.
+          {isCliente
+            ? 'Opcional. Se informar, usamos só para contato sobre orçamentos e suporte.'
+            : 'Usado para contato sobre orçamentos e suporte.'}
         </p>
       </Field>
 
@@ -269,9 +294,15 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           className={inputClass}
           aria-invalid={errors.birthDate ? 'true' : 'false'}
         />
-        <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          É necessário ter {MIN_AGE} anos ou mais para usar o app.
-        </p>
+        {birthTooYoung ? (
+          <p className="text-sm text-[color:var(--color-danger)] mt-1" role="alert">
+            Você precisa ter {MIN_AGE} anos ou mais para usar o app.
+          </p>
+        ) : (
+          <p className="text-xs text-[color:var(--color-muted)] mt-1">
+            É necessário ter {MIN_AGE} anos ou mais para usar o app.
+          </p>
+        )}
       </Field>
 
       <Field id="city" label="Cidade" error={errors.city?.message}>
@@ -313,7 +344,7 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
         </button>
         <button
           type="submit"
-          disabled={isSubmitting || tagStatus === 'taken' || tagStatus === 'checking'}
+          disabled={isSubmitting || tagStatus === 'taken' || tagStatus === 'checking' || birthTooYoung}
           className="flex-1 py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           Continuar →
