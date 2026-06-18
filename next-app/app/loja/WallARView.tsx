@@ -90,6 +90,9 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const [pickedColor, setPickedColor] = useState<string | null>(null);
   const [matches, setMatches] = useState<ColorMatch[]>([]);
   const [matchOpen, setMatchOpen] = useState(false);
+  // Rationale antes do prompt de câmera (Google Play). camStarted=false →
+  // mostra a justificativa; só pede a câmera após o "Ativar".
+  const [camStarted, setCamStarted] = useState(false);
   const { nearest, ready: catalogReady, loading: catalogLoading } = useColorMatch();
 
   // Refs pra acessar dentro do RAF sem re-trigger.
@@ -102,7 +105,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
 
   // ─── inicialização: câmera + (se modo ai) modelo ────────────────────────
   useEffect(() => {
-    if (!open) return;
+    if (!open || !camStarted) return;
     let cancelled = false;
     let localStream: MediaStream | null = null;
 
@@ -206,7 +209,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       }
       streamRef.current = null;
     };
-  }, [open]);
+  }, [open, camStarted]);
 
   // ─── carrega MediaPipe sob demanda quando entra em modo IA ──────────────
   useEffect(() => {
@@ -531,6 +534,47 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   }, [productName]);
 
   if (!open) return null;
+
+  // Rationale antes de pedir a câmera (Google Play / transparência).
+  if (!camStarted) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Permissão de câmera"
+        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      >
+        <div className="bg-[color:var(--color-white)] rounded-2xl max-w-sm w-full p-5 text-center">
+          <div style={{ fontSize: 40 }} aria-hidden="true">📷</div>
+          <h2 className="text-lg font-bold text-[color:var(--color-ink)] mt-1 mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+            Usar a câmera
+          </h2>
+          <p className="text-sm text-[color:var(--color-muted)] mb-4 leading-relaxed">
+            Precisamos da câmera para <b>simular a tinta na sua parede em tempo
+            real</b>. A imagem fica só no seu aparelho — nada é enviado ou
+            gravado sem você tocar em capturar.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl text-sm font-bold border border-[color:var(--color-border)] text-[color:var(--color-ink)]"
+            >
+              Agora não
+            </button>
+            <button
+              type="button"
+              onClick={() => setCamStarted(true)}
+              className="flex-1 py-3 rounded-xl text-sm font-bold text-white"
+              style={{ background: 'var(--color-p1)' }}
+            >
+              Ativar câmera
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const showLoadingOverlay = status !== 'ready' && status !== 'loading-model';
   const aiModeNotReady = mode === 'ai' && (!segmenterRef.current || status === 'loading-model');

@@ -153,44 +153,59 @@ export function FeedView() {
           congelado (paridade UX com IG / vanilla queroumacor). */}
       <div className="sticky top-0 z-20">
         <FeedStories />
-        <div
-          className="flex gap-2 px-3 py-3 overflow-x-auto bg-white border-b border-[color:var(--color-border)] hide-scrollbar"
-          role="tablist"
-          aria-label="Filtrar por categoria"
-        >
-          {/* 📍 Perto de você — filtra por usuários da mesma cidade/UF */}
-          <button
-            type="button"
-            onClick={() => { void enableNearby(); }}
-            className={
-              'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
-              (nearby
-                ? 'bg-[color:var(--color-p1)] text-white border-[color:var(--color-p1)]'
-                : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
-            }
-            aria-pressed={nearby}
+        {/* Filtros em UMA linha com scroll horizontal. A barra é escondida
+            (hide-scrollbar), então um fade na borda direita sinaliza que há
+            mais chips pra deslizar — sem quebrar em 2 linhas nem cortar. */}
+        <div className="relative bg-white border-b border-[color:var(--color-border)]">
+          <div
+            className="flex gap-2 px-3 py-3 overflow-x-auto hide-scrollbar"
+            role="tablist"
+            aria-label="Filtrar por categoria"
           >
-            📍 Perto de você
-          </button>
-          {FILTER_BUTTONS.map((f) => {
-            const active = !nearby && roleFilter === f.value;
-            return (
-              <button
-                key={f.value || 'all'}
-                type="button"
-                onClick={() => { setNearby(false); setRoleFilter(f.value); }}
-                className={
-                  'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
-                  (active
-                    ? 'bg-[color:var(--color-ink)] text-white border-[color:var(--color-ink)]'
-                    : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
-                }
-                aria-pressed={active}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+            {/* 📍 Perto de você — filtra por usuários da mesma cidade/UF */}
+            <button
+              type="button"
+              onClick={() => { void enableNearby(); }}
+              className={
+                'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
+                (nearby
+                  ? 'bg-[color:var(--color-p1)] text-white border-[color:var(--color-p1)]'
+                  : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
+              }
+              aria-pressed={nearby}
+            >
+              📍 Perto de você
+            </button>
+            {FILTER_BUTTONS.map((f) => {
+              const active = !nearby && roleFilter === f.value;
+              return (
+                <button
+                  key={f.value || 'all'}
+                  type="button"
+                  onClick={() => { setNearby(false); setRoleFilter(f.value); }}
+                  className={
+                    'px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors flex-shrink-0 ' +
+                    (active
+                      ? 'bg-[color:var(--color-ink)] text-white border-[color:var(--color-ink)]'
+                      : 'bg-white text-[color:var(--color-ink)] border-[color:var(--color-border)]')
+                  }
+                  aria-pressed={active}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* Fade-hint na direita (pista de scroll). pointer-events-none pra
+              não bloquear toque nos chips embaixo. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 right-0 h-full w-8"
+            style={{
+              background:
+                'linear-gradient(to right, transparent, var(--color-white))',
+            }}
+          />
         </div>
       </div>
 

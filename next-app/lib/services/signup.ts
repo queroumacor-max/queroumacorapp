@@ -109,6 +109,13 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
         tag: input.tag,
         phone: input.phone,
         user_type: input.userType,
+        // city/state também no metadata: assim a trigger handle_new_user pode
+        // gravá-los já no INSERT (SECURITY DEFINER, sem depender de sessão/RLS).
+        // O UPDATE pós-signup abaixo segue como fallback. Corrige o bug de
+        // "cidade em branco" quando o UPDATE roda sem sessão ativa.
+        city: input.city ?? '',
+        state: (input.state ?? '').toUpperCase(),
+        birth_date: input.birthDate ?? '',
       },
     },
   });
