@@ -9,7 +9,6 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import Link from 'next/link';
 import { strongPasswordSchema } from '@/lib/schemas';
 
 const schema = z.object({
@@ -43,11 +42,11 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
     },
   });
 
-  // Botão "Criar conta" só habilita quando o checkbox de aceite está
-  // marcado (requisito LGPD: consentimento explícito + ativo). A validação
-  // zod (literal(true)) já barra o submit, mas desabilitar o botão deixa o
-  // requisito visível e impede o clique antes do aceite.
-  const consented = watch('consent') === true;
+  // O botão NÃO é desabilitado pelo estado do checkbox (antes
+  // `disabled={!consented}` ficava travado quando o aceite/senha vinham de
+  // autofill/preenchimento programático que não dispara eventos do RHF). O
+  // consentimento segue OBRIGATÓRIO via zod (`literal(true)`): sem aceite, o
+  // submit é barrado e mostramos a mensagem de erro do consent. Idem senha.
   const passwordValue = watch('password') ?? '';
   const strength = scorePassword(passwordValue);
 
@@ -113,19 +112,25 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
         />
         <span className="text-[color:var(--color-ink)]">
           Li e concordo com os{' '}
-          <Link
+          {/* Abre em nova aba pra não perder o preenchimento do cadastro
+              (navegar na mesma aba reseta o fluxo multi-step). */}
+          <a
             href="/info/termos"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[color:var(--color-p1)] underline font-semibold"
           >
             Termos de Uso
-          </Link>{' '}
+          </a>{' '}
           e a{' '}
-          <Link
+          <a
             href="/info/privacidade"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[color:var(--color-p1)] underline font-semibold"
           >
             Política de Privacidade
-          </Link>
+          </a>
           . Estou ciente do tratamento dos meus dados conforme a LGPD.
         </span>
       </label>
@@ -155,7 +160,7 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
         </button>
         <button
           type="submit"
-          disabled={submitting || !consented}
+          disabled={submitting}
           className="flex-1 py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           {submitting ? 'Criando…' : 'Criar conta'}

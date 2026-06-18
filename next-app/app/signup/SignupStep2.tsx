@@ -2,7 +2,7 @@
 // SignupStep2 — dados básicos do cadastro. Espelha o `#signup-step2` do
 // vanilla (index.html linha 380+): nome + foto de perfil + tag + email +
 // WhatsApp + data de nascimento + cidade + estado. Senha fica no Step 3.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -94,6 +94,7 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
 
   const [avatarFile, setAvatarFile] = useState<File | null>(initial?.avatarFile ?? null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
 
   const {
     register,
@@ -113,6 +114,16 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
     },
   });
 
+  // Restaura o preview da foto ao voltar pro passo 2 com um arquivo já
+  // escolhido (BUG fix: antes a foto era preservada mas o thumbnail sumia).
+  useEffect(() => {
+    if (avatarFile && !avatarPreview) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setAvatarPreview(String(ev.target?.result ?? ''));
+      reader.readAsDataURL(avatarFile);
+    }
+  }, [avatarFile, avatarPreview]);
+
   const tagValue = watch('tag');
   const tagStatus = useTagAvailability(tagValue);
 
@@ -129,6 +140,7 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
     if (!file.type.startsWith('image/')) return;
     if (file.size > 5 * 1024 * 1024) return;
     setAvatarFile(file);
+    setAvatarError(false);
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(String(ev.target?.result ?? ''));
     reader.readAsDataURL(file);
@@ -136,6 +148,11 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
 
   function onSubmit(data: Step2Data) {
     if (tagStatus === 'taken') return;
+    // Foto de perfil obrigatória (decisão de produto 2026-06-18).
+    if (!avatarFile) {
+      setAvatarError(true);
+      return;
+    }
     onNext({ ...data, avatarFile });
   }
 
@@ -163,20 +180,22 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
         />
       </Field>
 
-      {/* Foto de perfil — opcional. Upload acontece em handleStep3
+      {/* Foto de perfil — obrigatória. Upload acontece em handleStep3
           (lib/services/signup uploadAvatar + UPDATE em profiles). */}
       <div>
         <label
           className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]"
         >
-          Foto de perfil <span className="font-normal text-[color:var(--color-muted)]">(opcional)</span>
+          Foto de perfil
         </label>
         <div className="flex items-center gap-3">
           <div
             className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
             style={{
               background: 'var(--color-border)',
-              border: '2px solid var(--color-border)',
+              border: avatarError
+                ? '2px solid var(--color-danger)'
+                : '2px solid var(--color-border)',
             }}
           >
             {avatarPreview ? (
@@ -205,9 +224,15 @@ export function SignupStep2({ userType, initial, onNext, onBack }: Props) {
             />
           </label>
         </div>
-        <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          Opcional — aparece no seu story e perfil. Você pode adicionar depois.
-        </p>
+        {avatarError ? (
+          <p className="text-sm text-[color:var(--color-danger)] mt-1" role="alert">
+            Escolha uma foto de perfil para continuar.
+          </p>
+        ) : (
+          <p className="text-xs text-[color:var(--color-muted)] mt-1">
+            Aparece no seu story e perfil.
+          </p>
+        )}
       </div>
 
       <Field id="tag" label="Sua tag única" error={errors.tag?.message}>

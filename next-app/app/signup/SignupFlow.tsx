@@ -177,6 +177,12 @@ export function SignupFlow() {
             tag: draft.tag,
             email: draft.email,
             phone: draft.phone,
+            // BUG fix: preservar também data/cidade/estado/foto ao voltar do
+            // passo 3 (antes só name/tag/email/phone eram repassados).
+            birthDate: draft.birthDate,
+            city: draft.city,
+            state: draft.state,
+            avatarFile: draft.avatarFile,
           }}
           onNext={handleStep2}
           onBack={() => setStep(1)}
