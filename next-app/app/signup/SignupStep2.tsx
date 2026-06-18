@@ -57,7 +57,7 @@ const schema = z.object({
   email: emailSchema,
   phone: phoneSchema,
   // birthDate é obrigatório (LGPD-K + Apple 1.6 + Google Family Policy).
-  // birthDateSchema bloqueia <16 (definido em MIN_AGE).
+  // birthDateSchema bloqueia menores de MIN_AGE (18 anos).
   birthDate: birthDateSchema,
   city: z.string().trim().max(80, 'Cidade muito longa').optional().default(''),
   state: z
@@ -253,6 +253,9 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           className={inputClass}
           aria-invalid={errors.phone ? 'true' : 'false'}
         />
+        <p className="text-xs text-[color:var(--color-muted)] mt-1">
+          Usado para contato sobre orçamentos e suporte.
+        </p>
       </Field>
 
       <Field id="birthDate" label="Data de nascimento" error={errors.birthDate?.message}>
@@ -267,7 +270,7 @@ export function SignupStep2({ initial, onNext, onBack }: Props) {
           aria-invalid={errors.birthDate ? 'true' : 'false'}
         />
         <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          É necessário ter pelo menos {MIN_AGE} anos para usar o app.
+          É necessário ter {MIN_AGE} anos ou mais para usar o app.
         </p>
       </Field>
 

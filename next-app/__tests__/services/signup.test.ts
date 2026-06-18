@@ -267,16 +267,16 @@ describe('signUp', () => {
 
   // ── Age gate (LGPD-K + Apple 1.6 + Google Family Policy) ──────────────────
 
-  it('birthDate de menor de 16 anos → ValidationError', async () => {
+  it('birthDate de menor de 18 anos → ValidationError', async () => {
     const client = makeFakeClient({
       tables: { profiles_public: { selectResult: { data: [], error: null } } },
       signUp: { data: { user: { id: 'user-new' } } },
     });
     __setSupabaseForTests(client);
 
-    // 14 anos atrás
+    // 17 anos atrás (boundary: ainda menor de 18)
     const d = new Date();
-    d.setFullYear(d.getFullYear() - 14);
+    d.setFullYear(d.getFullYear() - 17);
     const tooYoung = d.toISOString().slice(0, 10);
 
     await expect(
@@ -296,16 +296,16 @@ describe('signUp', () => {
     expect(authMock.mock.calls.length).toBe(0);
   });
 
-  it('birthDate de exatamente 16 anos → aceita', async () => {
+  it('birthDate de exatamente 18 anos → aceita', async () => {
     const client = makeFakeClient({
       tables: { profiles_public: { selectResult: { data: [], error: null } } },
       signUp: { data: { user: { id: 'user-ok' } } },
     });
     __setSupabaseForTests(client);
 
-    // 16 anos atrás (ontem pra garantir que já completou)
+    // 18 anos atrás (ontem pra garantir que já completou)
     const d = new Date();
-    d.setFullYear(d.getFullYear() - 16);
+    d.setFullYear(d.getFullYear() - 18);
     d.setDate(d.getDate() - 1);
     const okAge = d.toISOString().slice(0, 10);
 

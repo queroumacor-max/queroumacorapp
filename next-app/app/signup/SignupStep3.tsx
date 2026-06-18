@@ -32,6 +32,7 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<Step3Data>({
     resolver: zodResolver(schema),
@@ -41,6 +42,12 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
       // o usuário marcar; manter undefined força a validação.
     },
   });
+
+  // Botão "Criar conta" só habilita quando o checkbox de aceite está
+  // marcado (requisito LGPD: consentimento explícito + ativo). A validação
+  // zod (literal(true)) já barra o submit, mas desabilitar o botão deixa o
+  // requisito visível e impede o clique antes do aceite.
+  const consented = watch('consent') === true;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -127,7 +134,7 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
         </button>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !consented}
           className="flex-1 py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           {submitting ? 'Criando…' : 'Criar conta'}

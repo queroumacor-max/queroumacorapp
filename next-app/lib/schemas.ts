@@ -279,14 +279,13 @@ export const dateBRSchema = z
 
 // ─── age gate (LGPD-K + Apple 1.6 + Google Family Policy) ───────────────────
 
-// Idade mínima do app: 16 anos.
-// - <13 cai em COPPA (US) e LGPD-K Art. 14 §1º (consentimento parental
-//   específico).
-// - 13-15 ainda é menor em LGPD-K e exige base legal explícita; Google
-//   Family Policy aplica analytics-restriction se aceitar essa faixa
-//   (Sentry deixa de ser legal).
-// 16+ é a faixa segura pra app social brasileiro com UGC + chat aberto.
-export const MIN_AGE = 16;
+// Idade mínima do app: 18 anos.
+// Alinhado com os Termos de Uso e a Política de Privacidade, que declaram
+// o app destinado a maiores de 18 anos (consistência legal — antes o gate
+// era 16 e divergia dos documentos). 18+ também simplifica a base legal
+// LGPD (sem consentimento parental Art. 14) e atende Apple 1.6 / Google
+// Family Policy pra app social com UGC + chat aberto.
+export const MIN_AGE = 18;
 
 /** Calcula idade em anos cheios a partir de data ISO `YYYY-MM-DD`.
  *  Retorna -1 quando inválida. */

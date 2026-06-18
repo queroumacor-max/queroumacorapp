@@ -187,6 +187,71 @@ export function ProView() {
         </Link>
         . Cobrança recorrente, cancele a qualquer momento.
       </p>
+
+      {/* Política de cancelamento/reembolso (CDC + regras das app stores).
+          Texto claro sobre quando o cancelamento tem efeito, ausência de
+          reembolso proporcional e como pedir ajuda. Replica o item 13 dos
+          Termos de Uso pra ficar visível no ponto da compra. */}
+      <div
+        style={{
+          marginTop: 20,
+          padding: '14px 16px',
+          background: 'var(--color-bg)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 14,
+        }}
+      >
+        <div
+          className="font-bold"
+          style={{
+            fontSize: 13,
+            color: 'var(--color-ink)',
+            marginBottom: 6,
+          }}
+        >
+          Cancelamento e reembolso
+        </div>
+        <p
+          style={{
+            fontSize: 12,
+            color: 'var(--color-muted)',
+            lineHeight: 1.6,
+            margin: 0,
+          }}
+        >
+          A assinatura PRO é recorrente e renova automaticamente a cada ciclo.
+          Você pode cancelar quando quiser: o cancelamento passa a valer no{' '}
+          <b>fim do ciclo já pago</b>, e você continua com acesso PRO até lá.
+          Não há reembolso proporcional dos dias não usados do período vigente.
+          Em compras feitas pela App Store (Apple) ou Google Play, o
+          cancelamento e eventuais reembolsos seguem as regras e os canais da
+          respectiva loja. Em caso de cobrança indevida ou problema técnico,
+          fale com a gente pelo WhatsApp{' '}
+          <a
+            href="https://wa.me/5511959765031"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--color-p1)' }}
+          >
+            (11) 95976-5031
+          </a>{' '}
+          ou pelo e-mail{' '}
+          <a
+            href="mailto:loja@calicolors.com.br"
+            style={{ color: 'var(--color-p1)' }}
+          >
+            loja@calicolors.com.br
+          </a>{' '}
+          que resolvemos. Veja também o item 13 dos{' '}
+          <Link
+            href="/info/termos"
+            style={{ color: 'var(--color-p1)', textDecoration: 'underline' }}
+          >
+            Termos de Uso
+          </Link>
+          .
+        </p>
+      </div>
     </div>
   );
 }
