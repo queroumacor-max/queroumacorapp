@@ -87,8 +87,7 @@ export function InviteSection() {
               lineHeight: 1.5,
             }}
           >
-            Cadastro é por convite. Compartilha seu perfil — o link já libera
-            a criação de conta automaticamente, sem código nenhum.
+            Convide alguém e ganhe pontos para trocar por PRO.
           </div>
         </div>
       </div>
