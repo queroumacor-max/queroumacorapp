@@ -101,14 +101,14 @@ export function TopNav({ proStatus }: TopNavProps) {
           </Link>
         ) : (
           <>
-        <button
-          type="button"
+        <Link
+          href="/pro"
           className="flex items-center text-xs font-extrabold px-3 py-1.5 rounded-full bg-white/15 text-white tracking-widest cursor-pointer border-none"
           style={{ fontFamily: 'var(--font-display)' }}
           aria-label="Ver plano PRO"
         >
           {badge}
-        </button>
+        </Link>
 
         <Link
           href="/chat"

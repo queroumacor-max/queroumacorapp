@@ -11,6 +11,10 @@ export function TrendingGrid() {
     queryKey: ['trending-posts', 7],
     queryFn: () => fetchTrendingPosts(30, 7),
     staleTime: 5 * 60_000,
+    // Falha rápido (1 tentativa) em vez dos 3 retries default — evita o
+    // skeleton "infinito" de ~7s quando a RPC erra; o fallback do service
+    // já cobre o caso comum (posts recentes).
+    retry: 1,
   });
 
   if (query.isLoading) return <ListSkeleton count={3} itemHeight={120} />;

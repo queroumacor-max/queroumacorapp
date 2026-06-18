@@ -30,6 +30,31 @@ export async function fetchTrendingPosts(
     p_limit: limit,
     p_window_days: windowDays,
   });
-  if (error) throw new NetworkError(error.message || 'Falha ao buscar trending', error);
-  return Array.isArray(data) ? (data as TrendingPost[]) : [];
+  if (!error) {
+    return Array.isArray(data) ? (data as TrendingPost[]) : [];
+  }
+  // Fallback: se a RPC falhar (função ausente/erro no servidor), em vez de
+  // deixar a /explore travada em skeleton/erro, mostra os posts mais RECENTES
+  // com mídia da janela. score=0 (sem ranking real), mas a tela funciona —
+  // mesma filosofia do fallback do feed.
+  try {
+    const since = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+    const { data: posts, error: fbErr } = await sb
+      .from('posts')
+      .select(
+        'id, user_id, caption, media_url, media_type, media_width, media_height, created_at',
+      )
+      .or('status.eq.approved,status.is.null')
+      .is('deleted_at', null)
+      .not('media_url', 'is', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (fbErr) throw fbErr;
+    return (posts ?? []).map(
+      (p) => ({ ...(p as Record<string, unknown>), score: 0 } as unknown as TrendingPost),
+    );
+  } catch {
+    throw new NetworkError(error.message || 'Falha ao buscar trending', error);
+  }
 }
