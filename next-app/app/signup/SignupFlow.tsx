@@ -10,7 +10,7 @@
 //  Step 1 → role selector
 //  Step 2 → name/tag/email/phone
 //  Step 3 → senha + termos (sem invite code)
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signUp } from '@/lib/services/signup';
@@ -41,13 +41,10 @@ export function SignupFlow() {
   const [draft, setDraft] = useState<DraftSignup>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Referral (opcional): lê do localStorage (gravado pelo ReferralCapture
-  // quando o link com ?ref=<userId> pousa em qualquer rota). Se vazio, o
-  // cadastro segue normalmente — só não credita bônus de indicação.
-  const [referrerId, setReferrerId] = useState<string | null>(null);
-  useEffect(() => {
-    setReferrerId(readPendingReferrer());
-  }, []);
+  // Referral (opcional): lido sob demanda via readPendingReferrer() no
+  // submit (gravado pelo ReferralCapture quando o link com ?ref=<userId>
+  // pousa em qualquer rota). Se vazio, o cadastro segue normalmente — só
+  // não credita bônus de indicação.
 
   function handleStep1(data: Step1Data) {
     setDraft((d) => ({ ...d, userType: data.userType }));
