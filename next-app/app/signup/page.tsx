@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <AuthScreen tagline="Cadastro apenas por convite.">
+    <AuthScreen tagline="Crie sua conta gratuita.">
       <SignupFlow />
     </AuthScreen>
   );

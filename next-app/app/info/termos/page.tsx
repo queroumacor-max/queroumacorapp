@@ -37,8 +37,8 @@ export default function TermosPage() {
       <LegalH>3. Cadastro e conta</LegalH>
       <LegalP>
         Você deve fornecer informações verdadeiras e mantê-las atualizadas. A
-        conta é pessoal e intransferível, e o cadastro é feito por convite.
-        Você é responsável por manter a sua senha em sigilo. O uso é destinado
+        conta é pessoal e intransferível. Você é responsável por manter a sua
+        senha em sigilo. O uso é destinado
         a maiores de 18 anos.
       </LegalP>
 
