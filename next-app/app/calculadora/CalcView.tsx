@@ -393,7 +393,8 @@ export function CalcView() {
             {result.units.map(pluralUnit).join('  +  ')}
           </div>
           <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
-            pra cobrir ~{Math.ceil(result.areaM2)} m² em 2 a 3 demãos
+            pra cobrir ~{Math.ceil(result.areaM2)} m² · {demaos} {demaos === 1 ? 'demão' : 'demãos'}
+            {fator !== 1 ? ` · superfície ${fator}×` : ''}
           </div>
           <div style={{ fontSize: 10.5, marginTop: 12, opacity: 0.85, lineHeight: 1.45 }}>
             Esse cálculo pode variar conforme a qualidade da tinta, o substrato e

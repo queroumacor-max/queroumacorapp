@@ -215,6 +215,13 @@ export function Composer({ embedded, onPublishSuccess }: ComposerProps = {}) {
     setValidationError(null);
     publish.reset();
 
+    // Mídia obrigatória pra publicar (post/story/portfólio são visuais). Sem
+    // foto/vídeo, dá feedback claro em vez de o clique não fazer nada (BUG10).
+    if (files.length === 0) {
+      setValidationError('Selecione uma foto ou vídeo para publicar.');
+      return;
+    }
+
     // mediaType final: 'story' se aba story, senão image|video conforme files.
     const mediaType: CreatePostMediaType =
       postType === 'story'
