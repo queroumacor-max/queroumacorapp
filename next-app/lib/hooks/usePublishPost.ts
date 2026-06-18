@@ -21,7 +21,7 @@ import {
   type CreatePostMediaType,
   type CreatePostResult,
 } from '@/lib/services/posts';
-import { AuthenticationError } from '@/lib/errors';
+import { AuthenticationError, ValidationError } from '@/lib/errors';
 
 export interface PublishPostInput {
   files: File[];                 // já validados pelo componente
@@ -52,6 +52,13 @@ export function usePublishPost(): UsePublishPostResult {
       if (emailVerified === false) {
         throw new AuthenticationError(
           'Confirme seu email antes de publicar (link enviado no cadastro).',
+        );
+      }
+      // Mídia obrigatória (defesa em profundidade — a UI já barra no Composer,
+      // mas garantimos aqui pra NUNCA criar post só-texto no feed). BUG15.
+      if (!input.files || input.files.length === 0) {
+        throw new ValidationError(
+          'Selecione pelo menos uma foto ou vídeo para publicar.',
         );
       }
       // Upload sequencial (não paralelo) pra mostrar progresso previsível
