@@ -120,7 +120,6 @@ export function EditProfileForm() {
     handleSubmit,
     reset,
     watch,
-    setValue,
     formState: { errors, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -601,9 +600,6 @@ export function EditProfileForm() {
               autoComplete="address-level1"
               placeholder="SP"
               {...register('state')}
-              onChange={(e) => {
-                setValue('state', e.target.value.toUpperCase(), { shouldValidate: true, shouldDirty: true });
-              }}
               className={inputClass + ' uppercase'}
               aria-invalid={errors.state ? 'true' : 'false'}
             />
