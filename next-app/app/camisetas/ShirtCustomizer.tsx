@@ -470,7 +470,7 @@ export function ShirtCustomizer() {
               fontSize: 11,
             }}
           >
-            × Cali Colors
+            + Cali Colors
           </span>
         </div>
       </div>

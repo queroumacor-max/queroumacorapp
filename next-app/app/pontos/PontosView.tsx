@@ -106,7 +106,15 @@ export function PontosView() {
   }
 
   async function handleRedeem(kind: RedeemKind) {
-    if (!canRedeem || redeeming) return;
+    if (redeeming) return;
+    // Saldo insuficiente: feedback claro em vez de não responder (BUG25).
+    if (!canRedeem) {
+      const faltam = Math.max(0, REDEEM_COST - balance);
+      setFeedback(
+        `Você tem ${balance} pts. Faltam ${faltam} pts para resgatar (${REDEEM_COST} pts).`,
+      );
+      return;
+    }
     const opt = OPTIONS.find((o) => o.kind === kind)!;
     const ok = await dialog.confirm(
       `Trocar ${REDEEM_COST} pts por ${opt.title}?`,
@@ -169,20 +177,25 @@ export function PontosView() {
       <div className="flex flex-col gap-2 mb-3">
         {OPTIONS.map((opt) => {
           const isBusy = redeeming === opt.kind;
-          const disabled = !canRedeem || !!redeeming;
+          // Só desabilita de fato enquanto um resgate está em andamento. Sem
+          // saldo, o botão fica DIMMED mas clicável — o clique dá feedback
+          // ("faltam X pontos") em vez de não responder (BUG25).
+          const insufficient = !canRedeem;
+          const disabled = !!redeeming;
           return (
             <button
               key={opt.kind}
               type="button"
               onClick={() => handleRedeem(opt.kind)}
               disabled={disabled}
+              aria-disabled={insufficient}
               className="flex items-center gap-3 text-left bg-white"
               style={{
                 padding: '12px 14px',
                 borderRadius: 14,
                 border: '1.5px solid var(--color-border)',
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: disabled ? 0.55 : 1,
+                opacity: disabled || insufficient ? 0.55 : 1,
                 boxShadow: canRedeem
                   ? '0 2px 8px rgba(0,0,0,.05)'
                   : 'none',
