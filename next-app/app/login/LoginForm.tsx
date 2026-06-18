@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 const schema = z.object({
   email: emailSchema,
@@ -204,6 +205,14 @@ export function LoginForm() {
       >
         {isSubmitting ? 'Entrando…' : 'Entrar'}
       </button>
+
+      {/* Divisor "ou" + login social via Google (Supabase OAuth). */}
+      <div className="flex items-center gap-3 pt-1" aria-hidden="true">
+        <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+        <span className="text-xs text-[color:var(--color-muted)]">ou</span>
+        <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+      </div>
+      <GoogleSignInButton />
 
       {/* Vanilla aplica `color:inherit` inline no botão "Cadastre-se grátis",
           o que neutraliza o `var(--p1)` do CSS `.auth-footer-link` — fica

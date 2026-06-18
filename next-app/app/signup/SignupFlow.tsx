@@ -18,6 +18,7 @@ import { signUp } from '@/lib/services/signup';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import type { UserRole } from '@/lib/types';
 import { readPendingReferrer, clearPendingReferrer } from '@/components/ReferralCapture';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { SignupStep1, type Step1Data } from './SignupStep1';
 import { SignupStep2, type Step2Data } from './SignupStep2';
 import { SignupStep3, type Step3Data } from './SignupStep3';
@@ -202,6 +203,18 @@ export function SignupFlow() {
           onSubmit={handleStep3}
           onBack={() => setStep(2)}
         />
+      )}
+      {/* Cadastro social via Google (Supabase OAuth). Só liberado quando há
+          convite válido — mantém o cadastro invite-only mesmo no fluxo OAuth. */}
+      {hasInvite && (
+        <>
+          <div className="flex items-center gap-3 pt-6 pb-2" aria-hidden="true">
+            <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+            <span className="text-xs text-[color:var(--color-muted)]">ou</span>
+            <span className="flex-1 h-px bg-[color:var(--color-border)]" />
+          </div>
+          <GoogleSignInButton label="Cadastrar com Google" />
+        </>
       )}
       <p className="text-center text-sm text-[color:var(--color-muted)] pt-6">
         Já tem conta?{' '}
