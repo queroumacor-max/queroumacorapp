@@ -156,10 +156,14 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
   // Cast: a RPC `get_feed_v2` foi criada manualmente no DB (Wave 16) e ainda
   // não está no schema TS gerado. Quando rodar `supabase gen types`, dá
   // pra remover o cast.
-  const rpcAny = sb.rpc as unknown as (
+  // `.bind(sb)` é OBRIGATÓRIO: atribuir `sb.rpc` a uma variável solta perde o
+  // `this`, e o supabase-js acessa `this.rest` dentro de rpc() → estoura
+  // `Cannot read properties of undefined (reading 'rest')` e o feed caía
+  // sempre no fallback legacy. Bindar no client preserva o receiver.
+  const rpcAny = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => { abortSignal?: (s: AbortSignal) => unknown };
+  ) => { abortSignal?: (s: AbortSignal) => unknown }).bind(sb);
   const builder = rpcAny('get_feed_v2', {
     p_limit: limit,
     p_cursor: cursor,

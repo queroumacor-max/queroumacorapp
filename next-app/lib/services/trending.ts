@@ -21,10 +21,11 @@ export async function fetchTrendingPosts(
   windowDays = 7,
 ): Promise<TrendingPost[]> {
   const sb = getSupabase();
-  const rpcAny = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpcAny = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { data, error } = await rpcAny('get_trending_posts', {
     p_limit: limit,
     p_window_days: windowDays,

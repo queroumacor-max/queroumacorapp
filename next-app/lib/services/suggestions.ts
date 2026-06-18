@@ -20,10 +20,11 @@ export interface SuggestionRow {
 
 export async function fetchSuggestions(limit = 10): Promise<SuggestionRow[]> {
   const sb = getSupabase();
-  const rpcAny = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpcAny = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { data, error } = await rpcAny('suggest_to_follow', { p_limit: limit });
   if (error) throw new NetworkError(error.message || 'Falha ao buscar sugestões', error);
   return Array.isArray(data) ? (data as SuggestionRow[]) : [];
