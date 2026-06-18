@@ -12,6 +12,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { DB } from '@/lib/db';
+import { showToast } from '@/lib/toast';
 
 export interface UseFollowResult {
   isFollowing: boolean;
@@ -57,8 +58,11 @@ export function useFollow(targetId: string): UseFollowResult {
       qc.invalidateQueries({ queryKey: ['profile', targetId] });
       return { previous };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx) qc.setQueryData(key, ctx.previous);
+      // Antes o erro era silencioso (rollback sem aviso) → parecia "o botão
+      // não faz nada". Agora avisa se o seguir falhar.
+      showToast(err?.message || 'Não foi possível seguir agora. Tente de novo.', 'error');
     },
     onSettled: () => {
       // Refetch garante consistência com o banco (em caso de race com

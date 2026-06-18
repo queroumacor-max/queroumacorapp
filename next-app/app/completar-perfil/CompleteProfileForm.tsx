@@ -13,8 +13,16 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { checkTagAvailability } from '@/lib/services/signup';
-import { tagSchema } from '@/lib/schemas';
+import { tagSchema, calculateAge, MIN_AGE } from '@/lib/schemas';
 import type { UserRole } from '@/lib/types';
+
+// Limite superior do date picker: hoje − MIN_AGE anos (UX; a validação real é
+// no submit via calculateAge).
+const MAX_BIRTH_ISO = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE);
+  return d.toISOString().slice(0, 10);
+})();
 
 interface RoleOption {
   value: UserRole;
@@ -47,6 +55,7 @@ export function CompleteProfileForm() {
   const [tag, setTag] = useState('');
   const [city, setCity] = useState('');
   const [uf, setUf] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checkingTag, setCheckingTag] = useState(false);
 
@@ -100,6 +109,18 @@ export function CompleteProfileForm() {
     }
     const normalizedTag = parsed.data;
 
+    // Age gate 18+ (Apple 1.6 / Google Family) — o cadastro por email já exige;
+    // o login social precisa exigir aqui também, senão dá pra burlar a idade.
+    if (!birthDate) {
+      setError('Informe sua data de nascimento.');
+      return;
+    }
+    const age = calculateAge(birthDate);
+    if (age < MIN_AGE) {
+      setError(`Você precisa ter ${MIN_AGE} anos ou mais para usar o app.`);
+      return;
+    }
+
     setCheckingTag(true);
     const available = await checkTagAvailability(normalizedTag);
     setCheckingTag(false);
@@ -113,6 +134,7 @@ export function CompleteProfileForm() {
         user_type: category,
         name: nm,
         tag: normalizedTag,
+        birth_date: birthDate,
         ...(city.trim() ? { city: city.trim() } : {}),
         ...(uf.trim() ? { state: uf.trim().toUpperCase() } : {}),
         // Aproveita o avatar do provedor se o perfil ainda não tem um.
@@ -223,6 +245,26 @@ export function CompleteProfileForm() {
         </div>
         <p className="text-xs text-[color:var(--color-muted)] mt-1">
           Letras minúsculas, números e _ (3 a 24 caracteres). Não pode ser alterado depois.
+        </p>
+      </div>
+
+      {/* Data de nascimento (obrigatória — age gate 18+, igual ao cadastro
+          por email). Sem isso, o login social burlava a verificação de idade. */}
+      <div>
+        <label htmlFor="cp-birth" className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]">
+          Data de nascimento
+        </label>
+        <input
+          id="cp-birth"
+          type="date"
+          value={birthDate}
+          max={MAX_BIRTH_ISO}
+          min="1920-01-01"
+          onChange={(e) => setBirthDate(e.target.value)}
+          className="w-full px-4 py-3 text-base bg-white border-[1.5px] border-[color:var(--color-border)] focus:border-[color:var(--color-p1)] rounded-xl outline-none transition-colors"
+        />
+        <p className="text-xs text-[color:var(--color-muted)] mt-1">
+          É necessário ter {MIN_AGE} anos ou mais para usar o app.
         </p>
       </div>
 

@@ -43,6 +43,9 @@ export interface ProfilePatch {
   phone?: string;
   city?: string;
   state?: string;
+  /** Data de nascimento (ISO YYYY-MM-DD). Coletada no signup e no onboarding
+   *  pós-OAuth (/completar-perfil) pro age gate 18+. */
+  birth_date?: string | null;
   address?: string | null;
   specialties?: string | null;
   avatar_url?: string | null;
