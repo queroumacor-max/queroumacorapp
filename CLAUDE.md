@@ -422,14 +422,20 @@
   `next-app/lib/services/adminReports.ts`. Migration em
   `/migrations/2026-06-09-admin-reports-policies.sql`. Não pedir pra
   rodar de novo.
-- **S13 (Modo escuro) — REVERTIDO. App é sempre tema CLARO (commit
-  `d0d0e7d`, 2026-06-10).** O dark mode foi removido por decisão de
-  produto: não existe mais `ThemeToggle` nem `lib/hooks/useTheme.ts`
-  (deletados), nem variante `:root[data-theme="dark"]` no `globals.css`.
-  O inline script no `<head>` do `layout.tsx` agora **força**
-  `data-theme="light"` em todo load e limpa a chave legada
-  `localStorage.theme` de quem tinha ativado dark. NÃO reintroduzir
-  toggle de tema sem o usuário pedir.
+- **S13 (Modo escuro) — REINTRODUZIDO como OPT-IN (2026-06-18, a pedido
+  do usuário).** Foi revertido em 2026-06-10 (commit `d0d0e7d`) e voltou
+  agora. App continua **claro por padrão**; o escuro só liga quando o
+  usuário ativa o `ThemeToggle` (`components/ThemeToggle.tsx`, renderizado
+  no `ProfileFooter`). Hook `lib/hooks/useTheme.ts` (recriado) grava
+  `localStorage.theme`; o script inline no `<head>` do `layout.tsx` lê a
+  chave antes do paint e seta `data-theme` (`dark` só se salvo
+  explicitamente — NÃO seguimos `prefers-color-scheme`). Os tokens dark
+  vivem em `:root[data-theme='dark']` no `globals.css` (Tailwind v4 compila
+  `bg-white`/cores arbitrárias pra `var(--color-*)`, então sobrescrever os
+  tokens cobre quase tudo). `--color-ink-fixed` NÃO inverte (TopNav/
+  BottomNav/ProfileHeader seguem escuros com texto branco fixo). Pendência
+  conhecida menor: 3 badges em `/admin/*` usam `bg-gray-100 text-gray-700`
+  (pílula clara em página escura, mas texto escuro = legível; admin-only).
 - **SQL Wave 19 (2026-06-09) — policy admin pra `feature_interest` —
   JÁ EXECUTADO no Supabase.** O2 do BACKLOG. Adiciona
   `feature_interest_select_admin` (SELECT TO authenticated USING

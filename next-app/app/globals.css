@@ -37,9 +37,39 @@ body {
   color: var(--color-ink);
 }
 
-/* Dark mode foi removido (decisão de produto). App sempre claro.
-   var(--color-ink-fixed) ainda existe — usado em fundos permanentemente
-   escuros (TopNav, BottomNav, ProfileHeader). */
+/* ─── Modo escuro (opt-in) ──────────────────────────────────────────────────
+   Claro é o padrão; o dark só liga quando o usuário escolhe (ThemeToggle grava
+   localStorage.theme='dark' e o script no <head> seta data-theme antes do
+   paint). Como o Tailwind v4 compila as utilities de cor pra var(--color-*),
+   sobrescrever os tokens aqui já reflete em bg-white, text/bg arbitrários
+   (bg-[color:var(--color-*)]) e em todos os style inline que usam os tokens.
+
+   Cuidado com contraste (pedido explícito — sem branco-no-branco nem
+   preto-no-preto):
+   - --color-bg é o fundo da página (mais escuro);
+   - --color-white é a SUPERFÍCIE de cards (um degrau MAIS CLARO que o bg, pra
+     o card se destacar do fundo);
+   - --color-ink (texto principal) vira creme claro → alto contraste sobre as
+     superfícies escuras;
+   - --color-ink-fixed NÃO muda: TopNav/BottomNav/ProfileHeader já são escuros
+     com texto branco fixo, então mantê-lo escuro preserva a legibilidade. */
+:root[data-theme='dark'] {
+  --color-ink: #ece8e1;        /* texto principal — creme claro */
+  --color-ink2: #cfd6e4;
+  --color-cream: #262b38;      /* accent sutil (chips) — acima da superfície */
+  --color-muted: #a59f95;      /* texto secundário legível sobre escuro */
+  --color-bg: #14161d;         /* fundo da página */
+  --color-white: #1e2230;      /* superfície de cards (mais clara que o bg) */
+  --color-border: #2f3545;     /* bordas visíveis sobre as superfícies */
+  /* --color-ink-fixed permanece escuro de propósito (ver comentário no @theme).
+     Brand colors (p1..p5/success/danger) seguem iguais — funcionam no escuro. */
+}
+
+/* color-scheme avisa o user-agent (form controls, scrollbars nativas,
+   date picker) pra usarem a variante escura quando o tema está em dark. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
 
 /* Esconde barras de rolagem em todo o app — vanilla usa
    `.scroll::-webkit-scrollbar{display:none}` no #scroll-area. Aqui

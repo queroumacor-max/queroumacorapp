@@ -77,15 +77,13 @@ export default function RootLayout({
             <link rel="dns-prefetch" href={`https://${SUPABASE_HOST}`} />
           </>
         ) : null}
-        {/* Tema fixo claro — dark mode removido por decisão de produto
-            (v2 — 2026-06-10 force-rebuild bump pra invalidar CDN cache).
-            Limpa a chave legada `theme` do localStorage de quem tinha
-            ativado dark, garantindo light pra todo mundo na próxima
-            visita. data-theme="light" explícito pro CSS (mesmo que não
-            haja mais variante :root[data-theme="dark"]). */}
+        {/* Tema: claro por padrão, escuro opcional (opt-in pelo usuário via
+            ThemeToggle). Lê localStorage.theme antes do paint pra evitar flash.
+            Só ativa dark se a preferência salva for explicitamente 'dark' —
+            não seguimos prefers-color-scheme pra manter o claro como default. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{localStorage.removeItem('theme');}catch(e){}document.documentElement.setAttribute('data-theme','light');})();`,
+            __html: `(function(){try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`,
           }}
         />
       </head>
