@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 22 de maio de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 18 de junho de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -99,6 +99,32 @@ export default function TermosPage() {
       <LegalP>
         Estes termos são regidos pelas leis brasileiras. Fica eleito o foro do
         domicílio do consumidor para dirimir eventuais conflitos.
+      </LegalP>
+
+      <LegalH>13. Plano PRO e Cancelamento</LegalH>
+      <LegalP>
+        O Plano PRO é uma assinatura paga e recorrente, renovada
+        automaticamente ao fim de cada ciclo de cobrança até que você cancele.
+        O valor e a periodicidade vigentes são exibidos na tela de assinatura
+        antes da contratação.
+      </LegalP>
+      <LegalP>
+        Você pode cancelar a assinatura a qualquer momento. O cancelamento
+        passa a ter efeito ao <b>fim do ciclo de cobrança já pago</b> — você
+        mantém o acesso aos recursos PRO até essa data e não é cobrado nos
+        ciclos seguintes. <b>Não há reembolso proporcional</b> dos dias não
+        utilizados do período já pago, salvo nas hipóteses previstas no Código
+        de Defesa do Consumidor (por exemplo, direito de arrependimento em até
+        7 dias da contratação, nos termos do Art. 49 do CDC).
+      </LegalP>
+      <LegalP>
+        Quando a assinatura for contratada pela App Store (Apple) ou pela
+        Google Play, a gestão do cancelamento e de eventuais reembolsos é feita
+        pela respectiva loja, conforme as políticas dela. Em caso de cobrança
+        indevida, falha técnica ou qualquer dúvida sobre a assinatura, entre em
+        contato com o suporte da Cali Colors pelo WhatsApp{' '}
+        <b>(11) 95976-5031</b> ou pelo e-mail <b>loja@calicolors.com.br</b> que
+        providenciaremos a solução.
       </LegalP>
     </InfoSubPage>
   );
