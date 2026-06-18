@@ -36,6 +36,11 @@ interface AuthContextValue {
    *  banner de "Confirme seu email". */
   emailVerified: boolean | null;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  /** Login/cadastro com Google (Supabase OAuth). Redireciona o browser pro
+   *  Google e volta pra `/feed`; o client detecta a sessão na URL de retorno
+   *  (detectSessionInUrl) e o onAuthStateChange acende o estado. Retorna
+   *  `{ error }` só se a inicialização do fluxo falhar (antes do redirect). */
+  signInWithGoogle: () => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   /** Reenvio do email de confirmação (Supabase resend). Retorna mensagem
    *  amigável de erro ou undefined em sucesso. */
@@ -85,6 +90,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? { error: error.message } : {};
   }, []);
 
+  const signInWithGoogle = useCallback(async (): Promise<{ error?: string }> => {
+    try {
+      const sb = getSupabase();
+      // redirectTo baseado no origin atual → funciona em produção e nos
+      // previews (*.pages.dev). Precisa estar na allowlist de Redirect URLs
+      // do Supabase (Auth → URL Configuration).
+      const redirectTo =
+        typeof window !== 'undefined' ? `${window.location.origin}/feed` : undefined;
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: redirectTo ? { redirectTo } : undefined,
+      });
+      // Em sucesso o supabase-js navega o browser pro Google (não retorna aqui).
+      return error ? { error: error.message } : {};
+    } catch (e) {
+      return {
+        error: e instanceof Error ? e.message : 'Falha ao conectar com o Google',
+      };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     // CRIT-4: limpa o cookie httpOnly `sb-session-token` (gravado no login
     // por /api/auth/set-session-cookie) pra que o guard server-side de
@@ -125,8 +151,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // useMemo evita re-render dos consumers quando o pai re-renderiza sem
   // mudança real no value — só refaz quando algum field muda de identidade.
   const value = useMemo<AuthContextValue>(
-    () => ({ user, session, loading, emailVerified, signIn, signOut, resendVerification }),
-    [user, session, loading, emailVerified, signIn, signOut, resendVerification],
+    () => ({
+      user,
+      session,
+      loading,
+      emailVerified,
+      signIn,
+      signInWithGoogle,
+      signOut,
+      resendVerification,
+    }),
+    [user, session, loading, emailVerified, signIn, signInWithGoogle, signOut, resendVerification],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

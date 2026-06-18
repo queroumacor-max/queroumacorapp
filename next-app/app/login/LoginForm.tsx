@@ -15,6 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { getSupabase } from '@/lib/supabase';
 
 const schema = z.object({
@@ -205,24 +206,19 @@ export function LoginForm() {
         {isSubmitting ? 'Entrando…' : 'Entrar'}
       </button>
 
-      {/* Vanilla aplica `color:inherit` inline no botão "Cadastre-se grátis",
-          o que neutraliza o `var(--p1)` do CSS `.auth-footer-link` — fica
-          cinza igual o texto ao redor. Replicamos esse comportamento. */}
-      <p className="text-center text-sm text-[color:var(--color-muted)] pt-2">
-        Não tem conta?{' '}
-        <Link href="/signup" className="font-bold hover:underline" style={{ color: 'inherit' }}>
-          Cadastre-se grátis
-        </Link>
-      </p>
-
-      {/* Modo visitante — entra direto no feed sem conta. Cliente pode
-          navegar feed/loja/perfis; ao tentar interagir, o AuthGate abre o
-          cadastro. Escape hatch quando o app abre direto no /login (PWA). */}
+      {/* Divisor entre login por senha e as alternativas (Google / visitante). */}
       <div className="flex items-center gap-3 pt-2" aria-hidden="true">
         <span className="flex-1 h-px bg-[color:var(--color-border)]" />
         <span className="text-xs text-[color:var(--color-muted)]">ou</span>
         <span className="flex-1 h-px bg-[color:var(--color-border)]" />
       </div>
+
+      {/* Login social — Google OAuth via Supabase. */}
+      <GoogleSignInButton />
+
+      {/* Modo visitante — entra direto no feed sem conta. Cliente pode
+          navegar feed/loja/perfis; ao tentar interagir, o AuthGate abre o
+          cadastro. Escape hatch quando o app abre direto no /login (PWA). */}
       <Link
         href="/feed"
         className="block w-full text-center font-bold text-base text-[color:var(--color-ink)] bg-white border-[1.5px] border-[color:var(--color-border)] hover:border-[color:var(--color-ink)] transition-colors"
@@ -232,6 +228,15 @@ export function LoginForm() {
       </Link>
       <p className="text-center text-xs text-[color:var(--color-muted)]">
         Veja publicações e a loja. Pra interagir, é só criar a conta.
+      </p>
+
+      {/* Cadastro. Vanilla aplica `color:inherit` inline no link — neutraliza
+          o `var(--p1)` e fica cinza igual o texto ao redor. Replicado. */}
+      <p className="text-center text-sm text-[color:var(--color-muted)] pt-2">
+        Não tem conta?{' '}
+        <Link href="/signup" className="font-bold hover:underline" style={{ color: 'inherit' }}>
+          Cadastre-se grátis
+        </Link>
       </p>
     </form>
   );
