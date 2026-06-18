@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { AiConsentGate } from '@/components/AiConsentGate';
 import { useFe } from '@/lib/hooks/useFe';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
@@ -168,6 +169,7 @@ export function FeChat() {
       onPointerDownCapture={fireGreeting}
       onKeyDownCapture={fireGreeting}
     >
+      <AiConsentGate assistantName="o Fê" />
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
           Chat com o Fê

@@ -59,11 +59,14 @@ async function maybeAutoReply(
     }
     if (!_autoReplyCfg.active || !_autoReplyCfg.template) return;
     _autoRepliedConvs.add(msg.conversation_id);
+    // Transparência (Apple Guideline): a mensagem é enviada automaticamente
+    // (não foi digitada na hora), então sinalizamos pro destinatário com um
+    // prefixo claro. Mantém type 'text' pra não quebrar o render.
     await sb.from('messages').insert({
       sender_id: userId,
       receiver_id: msg.sender_id,
       conversation_id: msg.conversation_id,
-      content: _autoReplyCfg.template,
+      content: `🤖 Resposta automática:\n${_autoReplyCfg.template}`,
       type: 'text',
     });
   } catch (e) {

@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { AiConsentGate } from '@/components/AiConsentGate';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useAlice } from '@/lib/hooks/useAlice';
 import { ChatMessage, TypingIndicator, type AvatarConfig } from '../seu-ze/ChatMessage';
@@ -174,6 +175,7 @@ export function AliceChat() {
       onPointerDownCapture={fireGreeting}
       onKeyDownCapture={fireGreeting}
     >
+      <AiConsentGate assistantName="a Alice" />
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
           Chat com a Alice

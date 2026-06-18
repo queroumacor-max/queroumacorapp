@@ -160,6 +160,18 @@ export function AutoRespostaSheet({ open, onClose }: AutoRespostaSheetProps) {
       >
         Configure mensagens automáticas para novos orçamentos e follow-ups.
       </p>
+      <p
+        className="text-center"
+        style={{
+          fontSize: 11,
+          color: 'var(--color-muted)',
+          marginBottom: 14,
+          marginTop: -8,
+        }}
+      >
+        🤖 Para transparência, mensagens enviadas automaticamente aparecem para
+        o destinatário com a etiqueta &quot;Resposta automática&quot;.
+      </p>
 
       {loading ? (
         <p className="text-center text-sm text-[color:var(--color-muted)] py-4">
