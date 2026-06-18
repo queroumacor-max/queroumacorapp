@@ -4,6 +4,7 @@
 // pra volume médio. Quando virar gargalo, índice GIN trigram em caption.
 
 import type { Metadata } from 'next';
+import { AppShell } from '@/components/AppShell';
 import { HashtagFeed } from './HashtagFeed';
 
 // Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
@@ -25,11 +26,13 @@ export default async function HashtagPage({
 }: { params: Promise<Params> }) {
   const { tag } = await params;
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }}>
-        #{decodeURIComponent(tag)}
-      </h1>
-      <HashtagFeed tag={decodeURIComponent(tag)} />
-    </main>
+    <AppShell>
+      <div className="p-4">
+        <h1 className="text-2xl font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+          #{decodeURIComponent(tag)}
+        </h1>
+        <HashtagFeed tag={decodeURIComponent(tag)} />
+      </div>
+    </AppShell>
   );
 }
