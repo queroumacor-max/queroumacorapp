@@ -17,8 +17,8 @@ export default function AjudaPage() {
         a="É um aplicativo que conecta clientes a profissionais de pintura — pintores residenciais e comerciais, grafiteiros e muralistas, pintores automotivos e funileiros. Você encontra profissionais perto de você, vê portfólios, pede orçamentos e conversa pelo chat."
       />
       <FaqItem
-        q="Por que o cadastro é por convite?"
-        a="Para manter uma comunidade de qualidade e segura, o cadastro é feito por convite. Você pode entrar usando um código de convite ou abrindo o link de perfil de alguém que já usa o app."
+        q="Como faço meu cadastro?"
+        a="O cadastro é gratuito e aberto a todos. Basta abrir a tela de cadastro, escolher se você é cliente ou profissional, preencher seus dados e pronto. Se você chegou pelo link de perfil de alguém que já usa o app, essa pessoa ganha um bônus de indicação — mas isso é opcional."
       />
       <FaqItem
         q="Como peço um orçamento?"
