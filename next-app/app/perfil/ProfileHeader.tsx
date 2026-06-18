@@ -338,7 +338,7 @@ export function ProfileHeader() {
                   Ative o Plano PRO
                 </div>
                 <div className="text-xs text-white/75 mt-0.5">
-                  Destaque-se e receba mais clientes · R$ 39/mês
+                  Destaque-se e receba mais clientes · troque pontos por PRO
                 </div>
               </div>
               <div className="text-xl text-white/60">›</div>
