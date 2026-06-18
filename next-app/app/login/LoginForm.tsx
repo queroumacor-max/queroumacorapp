@@ -15,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
-import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { SocialAuthButtons } from '@/components/SocialAuthButtons';
 import { getSupabase } from '@/lib/supabase';
 
 const schema = z.object({
@@ -213,8 +213,8 @@ export function LoginForm() {
         <span className="flex-1 h-px bg-[color:var(--color-border)]" />
       </div>
 
-      {/* Login social — Google OAuth via Supabase. */}
-      <GoogleSignInButton />
+      {/* Login social — Google + Apple OAuth via Supabase. */}
+      <SocialAuthButtons context="login" />
 
       {/* Modo visitante — entra direto no feed sem conta. Cliente pode
           navegar feed/loja/perfis; ao tentar interagir, o AuthGate abre o

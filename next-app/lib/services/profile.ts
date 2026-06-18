@@ -23,7 +23,7 @@
 
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
-import type { Profile, UserRole } from '@/lib/types';
+import type { Profile, UserRole, UserType } from '@/lib/types';
 
 // (getProfile usa SELECT * defensivamente — não dependemos de uma lista
 // explícita de colunas, então uma migration pendente não quebra a UI.)
@@ -34,6 +34,11 @@ import type { Profile, UserRole } from '@/lib/types';
 export interface ProfilePatch {
   name?: string;
   tag?: string;
+  // Categoria da conta. Usado pelo onboarding pós-OAuth (/completar-perfil),
+  // onde o usuário escolhe a categoria depois de logar com Google/Apple. O
+  // trigger trg_sync_role_from_user_type no banco preenche `role` a partir
+  // daqui (nunca sobrescreve role='admin'). NÃO exposto no /perfil/editar.
+  user_type?: UserType | null;
   bio?: string | null;
   phone?: string;
   city?: string;

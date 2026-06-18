@@ -17,7 +17,7 @@ import { signUp } from '@/lib/services/signup';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import type { UserRole } from '@/lib/types';
 import { readPendingReferrer, clearPendingReferrer } from '@/components/ReferralCapture';
-import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { SocialAuthButtons } from '@/components/SocialAuthButtons';
 import { SignupStep1, type Step1Data } from './SignupStep1';
 import { SignupStep2, type Step2Data } from './SignupStep2';
 import { SignupStep3, type Step3Data } from './SignupStep3';
@@ -148,10 +148,10 @@ export function SignupFlow() {
       <StepDots current={step} />
       {step === 1 && (
         <>
-          {/* Cadastro rápido com Google (OAuth). Cria a conta direto; o
-              perfil (categoria, @tag, cidade) pode ser completado depois em
-              /perfil/editar. Quem prefere o fluxo completo segue abaixo. */}
-          <GoogleSignInButton label="Cadastrar com Google" />
+          {/* Cadastro rápido com Google/Apple (OAuth). Cria a conta direto e
+              volta pra /completar-perfil pra escolher categoria + @tag. Quem
+              prefere o fluxo completo por email/senha segue abaixo. */}
+          <SocialAuthButtons context="signup" />
           <div className="flex items-center gap-3 py-4" aria-hidden="true">
             <span className="flex-1 h-px bg-[color:var(--color-border)]" />
             <span className="text-xs text-[color:var(--color-muted)]">ou</span>

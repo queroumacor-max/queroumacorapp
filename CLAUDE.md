@@ -1,5 +1,22 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Login social Google + Apple (2026-06-18).** OAuth via Supabase.
+  `AuthProvider.signInWithGoogle()`/`signInWithApple()` chamam
+  `supabase.auth.signInWithOAuth({ provider })` com
+  `redirectTo=${origin}/completar-perfil`. Botões reutilizáveis em
+  `components/SocialAuthButtons.tsx` (Google branco + Apple preto),
+  renderizados no `/login` (LoginForm, abaixo do "Entrar") e `/signup`
+  (SignupFlow, topo do passo 1). **Provider Google e Apple já habilitados
+  no painel Supabase** (Client ID/Secret + redirect URLs) — não pedir pra
+  configurar. **Onboarding pós-OAuth**: `/completar-perfil` (page +
+  `CompleteProfileForm`) é o landing do `redirectTo` — se o perfil já tem
+  categoria (`user_type`/`role`) + `@tag`, manda pro `/feed`; senão pede
+  categoria + nome + @tag (cidade/UF opcionais) e grava via
+  `useProfile.update`. `ProfilePatch` ganhou `user_type` (o trigger
+  `trg_sync_role_from_user_type` preenche `role`). O `/perfil/editar` NÃO
+  serve pra isso (tag é readonly lá e não tem seletor de categoria).
+  Lembrete: no Supabase, as Redirect URLs precisam cobrir
+  `/completar-perfil` (recomendado wildcard `…/**` + preview pages.dev).
 - **Compliance Apple 3.1.3(e) — loja sem pagamento no app (2026-06-18).**
   A loja Cali Colors NÃO processa pagamento dentro do app: o cliente só
   monta a "Lista de Pedido" e a loja fecha a venda fora do app (WhatsApp).
