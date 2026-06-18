@@ -26,6 +26,10 @@ interface AppShellProps {
    *  99% dos casos). Antes tinha default 'GRÁTIS' que sobrescrevia a
    *  derivação e o badge ficava travado em GRÁTIS pra todo mundo. */
   proStatus?: 'GRÁTIS' | 'PRO' | 'ADMIN';
+  /** Quando false, NÃO exige login (renderiza o chrome pra todo mundo). Usado
+   *  nas páginas públicas que ainda querem TopNav+BottomNav (ex.: /info/*
+   *  legais, acessíveis deslogado p/ revisão das lojas). Default true. */
+  requireAuth?: boolean;
 }
 
 export function AppShell({
@@ -33,25 +37,26 @@ export function AppShell({
   hideTopNav = false,
   hideBottomNav = false,
   proStatus,
+  requireAuth = true,
 }: AppShellProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Acesso sem conta REMOVIDO: o app exige login. Toda tela embrulhada em
-  // AppShell é privada — visitante deslogado é mandado pro /login (com ?next
-  // pra voltar pra onde tentou ir após logar). Páginas públicas (/login,
-  // /signup, /, /info/*, /delete-account) não usam AppShell, então não caem
-  // aqui. Espera o auth resolver (loading) antes de redirecionar.
+  // Acesso sem conta REMOVIDO: telas privadas (requireAuth=true) exigem login —
+  // visitante deslogado é mandado pro /login (com ?next pra voltar após logar).
+  // Páginas públicas (/login, /signup, /, /completar-perfil) não usam AppShell;
+  // as /info/* usam AppShell com requireAuth=false (chrome sem gate).
   useEffect(() => {
+    if (!requireAuth) return;
     if (loading || user) return;
     const next = pathname && pathname !== '/' ? `?next=${encodeURIComponent(pathname)}` : '';
     router.replace(`/login${next}`);
-  }, [loading, user, pathname, router]);
+  }, [requireAuth, loading, user, pathname, router]);
 
   // Enquanto resolve auth ou enquanto o redirect dispara, não renderiza o
   // conteúdo privado (evita flash de tela protegida pra deslogado).
-  if (loading || !user) {
+  if (requireAuth && (loading || !user)) {
     return (
       <div className="min-h-screen flex items-center justify-center p-8">
         <div className="text-[color:var(--color-muted)] text-sm">Carregando…</div>

@@ -3,6 +3,7 @@
 // continuidade visual. Cada sub-rota renderiza seu conteúdo dentro.
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { AppShell } from '@/components/AppShell';
 
 export function InfoSubPage({
   title,
@@ -11,8 +12,11 @@ export function InfoSubPage({
   title: string;
   children: ReactNode;
 }) {
+  // requireAuth=false: páginas legais precisam abrir deslogado (links do
+  // rodapé do /login + revisão Apple/Google), mas ainda ganham TopNav +
+  // BottomNav globais. A barra de voltar abaixo fica sticky dentro do scroll.
   return (
-    <main className="min-h-screen bg-[color:var(--color-bg)] pb-24">
+    <AppShell requireAuth={false}>
       <header className="bg-white border-b border-[color:var(--color-border)] px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
         <Link
           href="/info"
@@ -36,7 +40,7 @@ export function InfoSubPage({
           {children}
         </article>
       </div>
-    </main>
+    </AppShell>
   );
 }
 

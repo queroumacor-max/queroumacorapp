@@ -11,6 +11,7 @@
 //    como `supportWhatsApp()` / `supportEmail()` fazem via window.open/location.
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { AppShell } from '@/components/AppShell';
 import { DeleteAccountSection } from './DeleteAccountSection';
 
 export const metadata: Metadata = {
@@ -116,9 +117,11 @@ const ITEMS: InfoItem[] = [
 ];
 
 export default function InfoPage() {
+  // requireAuth=false: acessível deslogado (links do rodapé do login), mas com
+  // TopNav + BottomNav globais como o resto do app.
   return (
-    <main className="min-h-screen bg-[color:var(--color-bg)] pb-24">
-      <header className="bg-white border-b border-[color:var(--color-border)] px-4 py-4 flex items-center gap-3">
+    <AppShell requireAuth={false}>
+      <header className="bg-white border-b border-[color:var(--color-border)] px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
         <Link
           href="/"
           aria-label="Voltar"
@@ -145,7 +148,7 @@ export default function InfoPage() {
           QueroUmaCor • Versão 1.0
         </p>
       </div>
-    </main>
+    </AppShell>
   );
 }
 
