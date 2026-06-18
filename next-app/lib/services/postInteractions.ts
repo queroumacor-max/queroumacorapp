@@ -402,8 +402,30 @@ export async function reportPost(
   reason: ReportReason | string,
   targetUserId?: string | null,
 ): Promise<void> {
-  if (!reporterId) throw new ValidationError('reporterId obrigatório');
   if (!postId) throw new ValidationError('postId obrigatório');
+  await reportContent(reporterId, reason, { postId, targetUserId });
+}
+
+/**
+ * Denúncia genérica (Apple Guideline 1.2 — UGC). A tabela `reports` tem
+ * `post_id` e `target_user_id` ambos nullable, então o mesmo insert cobre:
+ *  - post:   { postId, targetUserId? }
+ *  - perfil: { targetUserId }                (post_id null)
+ *  - avaliação: { targetUserId } + reason prefixado com "[avaliação <id>]"
+ *    (a tabela não tem review_id; o id vai no texto pra o admin localizar).
+ * Exige pelo menos um alvo (postId ou targetUserId).
+ */
+export async function reportContent(
+  reporterId: string,
+  reason: ReportReason | string,
+  opts: { postId?: string | null; targetUserId?: string | null },
+): Promise<void> {
+  if (!reporterId) throw new ValidationError('reporterId obrigatório');
+  const postId = opts.postId ?? null;
+  const targetUserId = opts.targetUserId ?? null;
+  if (!postId && !targetUserId) {
+    throw new ValidationError('Informe o alvo da denúncia');
+  }
   const trimmedReason = (reason || '').trim();
   if (!trimmedReason) throw new ValidationError('Motivo obrigatório');
 
@@ -411,7 +433,7 @@ export async function reportPost(
   const { error } = await sb.from('reports').insert({
     reporter_id: reporterId,
     post_id: postId,
-    target_user_id: targetUserId ?? null,
+    target_user_id: targetUserId,
     reason: trimmedReason,
   });
   if (error) throw new NetworkError(error.message, error);

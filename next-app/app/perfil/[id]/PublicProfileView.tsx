@@ -16,6 +16,10 @@ import { Avatar } from '@/components/Avatar';
 import { ProfileLinks } from '@/components/ProfileLinks';
 import { OrcamentoSheet } from '@/components/OrcamentoSheet';
 import { useAuthGate } from '@/components/AuthGate';
+import { ReportModal } from '@/components/ReportModal';
+import { useDialog } from '@/components/Dialog';
+import { useBlockMutations } from '@/lib/hooks/useBlocks';
+import { showToast } from '@/lib/toast';
 import { DB } from '@/lib/db';
 import { getSupabase } from '@/lib/supabase';
 import { useFollowing, followingQueryKey } from '@/lib/hooks/useFollowing';
@@ -71,6 +75,12 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   const [reviews, setReviews] = useState<PainterReview[]>([]);
   const [orcOpen, setOrcOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Denúncia (Apple Guideline 1.2): modal do perfil + qual review está sendo
+  // denunciada (id da review ou null).
+  const [reportProfileOpen, setReportProfileOpen] = useState(false);
+  const [reportReviewId, setReportReviewId] = useState<string | null>(null);
+  const dialog = useDialog();
+  const blockMut = useBlockMutations();
   const router = useRouter();
   // Override otimista local. Quando null, deriva do followingIds; quando
   // toggle dispara, seta pra true/false imediato (sem esperar refetch);
@@ -178,6 +188,31 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   }, [profile?.id]);
 
   const isOwn = !!user && !!profile && user.id === profile.id;
+
+  // Denunciar perfil (Apple Guideline 1.2). Visitante: abre cadastro.
+  function handleReportProfile() {
+    if (!requireAuth('denunciar')) return;
+    setReportProfileOpen(true);
+  }
+
+  // Bloquear usuário a partir do perfil público (Apple Guideline 1.2).
+  // Visitante: abre cadastro. Confirma antes; ao bloquear, sai do perfil.
+  async function handleBlock() {
+    if (!requireAuth('bloquear')) return;
+    if (!user || !profile || isOwn) return;
+    const ok = await dialog.confirm(
+      `Bloquear ${name}? Você não vai mais ver posts, perfil nem mensagens dessa pessoa.`,
+      { title: 'Bloquear', okLabel: 'Bloquear', danger: true },
+    );
+    if (!ok) return;
+    try {
+      await blockMut.block(profile.id);
+      showToast('Usuário bloqueado.', 'success');
+      router.push('/feed');
+    } catch {
+      showToast('Não foi possível bloquear agora.', 'error');
+    }
+  }
 
   async function toggleFollow() {
     if (!requireAuth('seguir')) return; // visitante: abre cadastro
@@ -457,6 +492,29 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
             ) : null}
           </div>
         ) : null}
+
+        {/* Denunciar / Bloquear (Apple Guideline 1.2 — UGC). Discretos, no
+            rodapé do header. Visitante cai no cadastro via requireAuth. */}
+        {!isOwn ? (
+          <div className="mt-3 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={handleReportProfile}
+              className="text-xs font-semibold text-white/70 hover:text-white underline-offset-2 hover:underline"
+            >
+              ⚠️ Denunciar
+            </button>
+            <span className="text-white/30" aria-hidden="true">•</span>
+            <button
+              type="button"
+              onClick={handleBlock}
+              disabled={blockMut.isBlocking}
+              className="text-xs font-semibold text-white/70 hover:text-white underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              🚫 Bloquear
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="px-3.5 pt-4 pb-2">
@@ -532,7 +590,14 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
 
       {/* Avaliações do pintor (via RPC get_painter_reviews) */}
       {!loading && isProfessional && reviews.length > 0 ? (
-        <ReviewsSection reviews={reviews} />
+        <ReviewsSection
+          reviews={reviews}
+          canReport={!isOwn}
+          onReport={(reviewId) => {
+            if (!requireAuth('denunciar')) return;
+            setReportReviewId(reviewId);
+          }}
+        />
       ) : null}
 
       {isProfessional && profile?.id ? (
@@ -542,6 +607,31 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
           painterId={profile.id}
           painterName={name}
           postId={null}
+        />
+      ) : null}
+
+      {/* Denúncia de perfil (Apple Guideline 1.2) */}
+      {profile?.id ? (
+        <ReportModal
+          isOpen={reportProfileOpen}
+          kind="profile"
+          targetUserId={profile.id}
+          onClose={() => setReportProfileOpen(false)}
+          onReported={() => showToast('Denúncia enviada. Obrigado!', 'success')}
+          onError={(m) => showToast(m, 'error')}
+        />
+      ) : null}
+
+      {/* Denúncia de avaliação específica */}
+      {profile?.id ? (
+        <ReportModal
+          isOpen={reportReviewId !== null}
+          kind="review"
+          reviewId={reportReviewId}
+          targetUserId={profile.id}
+          onClose={() => setReportReviewId(null)}
+          onReported={() => showToast('Denúncia enviada. Obrigado!', 'success')}
+          onError={(m) => showToast(m, 'error')}
         />
       ) : null}
     </>
@@ -601,7 +691,15 @@ function FormacaoSection({ quals, courses }: { quals: Qualification[]; courses: 
   );
 }
 
-function ReviewsSection({ reviews }: { reviews: PainterReview[] }) {
+function ReviewsSection({
+  reviews,
+  canReport,
+  onReport,
+}: {
+  reviews: PainterReview[];
+  canReport: boolean;
+  onReport: (reviewId: string) => void;
+}) {
   return (
     <div className="px-3.5 pt-2 pb-6">
       <div className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
@@ -641,6 +739,17 @@ function ReviewsSection({ reviews }: { reviews: PainterReview[] }) {
                     {cr}
                   </span>
                 ))}
+              </div>
+            ) : null}
+            {canReport ? (
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => onReport(r.id)}
+                  className="text-[11px] font-semibold text-[color:var(--color-muted)] hover:text-[color:var(--color-danger)]"
+                >
+                  ⚠️ Denunciar avaliação
+                </button>
               </div>
             ) : null}
           </div>

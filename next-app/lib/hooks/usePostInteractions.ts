@@ -29,6 +29,7 @@ import {
   fetchSaved,
   hasLiked,
   reportPost as reportPostSvc,
+  reportContent as reportContentSvc,
   softDeleteComment as softDeleteCommentSvc,
   toggleLike as toggleLikeSvc,
   toggleSave as toggleSaveSvc,
@@ -407,6 +408,41 @@ export function useReportPost(): UseReportPostResult {
   return {
     report: (postId, reason, targetUserId) =>
       mut.mutateAsync({ postId, reason, targetUserId }),
+    isReporting: mut.isPending,
+    error: mut.error ?? null,
+  };
+}
+
+// ─── useReportContent (genérico: post / perfil / avaliação) ──────────────────
+
+export interface UseReportContentResult {
+  report: (
+    reason: ReportReason | string,
+    opts: { postId?: string | null; targetUserId?: string | null },
+  ) => Promise<void>;
+  isReporting: boolean;
+  error: Error | null;
+}
+
+/**
+ * Versão genérica do useReportPost — aceita alvo post OU perfil OU avaliação
+ * (Apple Guideline 1.2). Usado pelo ReportModal generalizado.
+ */
+export function useReportContent(): UseReportContentResult {
+  const { user } = useAuth();
+  const userId = user?.id ?? '';
+
+  const mut = useMutation<
+    void,
+    Error,
+    { reason: ReportReason | string; postId?: string | null; targetUserId?: string | null }
+  >({
+    mutationFn: ({ reason, postId, targetUserId }) =>
+      reportContentSvc(userId, reason, { postId, targetUserId }),
+  });
+
+  return {
+    report: (reason, opts) => mut.mutateAsync({ reason, ...opts }),
     isReporting: mut.isPending,
     error: mut.error ?? null,
   };

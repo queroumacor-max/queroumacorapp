@@ -11,19 +11,34 @@
 'use client';
 
 import { useState, useCallback, type FormEvent } from 'react';
-import { useReportPost } from '@/lib/hooks/usePostInteractions';
+import { useReportContent } from '@/lib/hooks/usePostInteractions';
 import type { ReportReason } from '@/lib/services/postInteractions';
+
+/** O que está sendo denunciado — muda o título e o que vai pro banco. */
+export type ReportKind = 'post' | 'profile' | 'review';
 
 export interface ReportModalProps {
   isOpen: boolean;
-  postId: string;
+  /** Tipo do alvo. Default 'post' (compat). */
+  kind?: ReportKind;
+  /** Obrigatório quando kind==='post'. */
+  postId?: string | null;
+  /** Dono do conteúdo. Obrigatório p/ 'profile' e 'review'. */
   targetUserId?: string | null;
+  /** Quando kind==='review', id da avaliação (vai no motivo p/ moderação). */
+  reviewId?: string | null;
   onClose: () => void;
   /** Callback opcional pra toast/feedback de sucesso. */
   onReported?: () => void;
   /** Callback opcional pra toast de erro. Default: silencioso. */
   onError?: (msg: string) => void;
 }
+
+const TITLES: Record<ReportKind, string> = {
+  post: 'Denunciar post',
+  profile: 'Denunciar perfil',
+  review: 'Denunciar avaliação',
+};
 
 // Opções fixas — mesmas categorias usadas pelo vanilla. Adicionar/remover
 // aqui é seguro: a coluna `reason` no banco é text livre.
@@ -37,24 +52,34 @@ const REASONS: ReadonlyArray<{ value: ReportReason; label: string }> = [
 
 export function ReportModal({
   isOpen,
+  kind = 'post',
   postId,
   targetUserId,
+  reviewId,
   onClose,
   onReported,
   onError,
 }: ReportModalProps) {
   const [reason, setReason] = useState<ReportReason>(REASONS[0].value);
   const [details, setDetails] = useState('');
-  const { report, isReporting } = useReportPost();
+  const { report, isReporting } = useReportContent();
 
   const submit = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
       if (isReporting) return;
       const trimmed = details.trim();
-      const fullReason = trimmed ? `${reason}: ${trimmed}` : reason;
+      let fullReason = trimmed ? `${reason}: ${trimmed}` : reason;
+      // Avaliação não tem coluna própria na tabela reports — prefixa o id no
+      // motivo pra o admin localizar a review na fila de moderação.
+      if (kind === 'review' && reviewId) {
+        fullReason = `[avaliação ${reviewId}] ${fullReason}`;
+      }
       try {
-        await report(postId, fullReason, targetUserId ?? null);
+        await report(fullReason, {
+          postId: kind === 'post' ? postId ?? null : null,
+          targetUserId: targetUserId ?? null,
+        });
         // Reset interno e fecha. O caller chama onReported pra mostrar toast.
         setDetails('');
         setReason(REASONS[0].value);
@@ -65,7 +90,7 @@ export function ReportModal({
         onError?.(msg);
       }
     },
-    [postId, reason, details, targetUserId, isReporting, report, onReported, onError, onClose],
+    [kind, postId, reviewId, reason, details, targetUserId, isReporting, report, onReported, onError, onClose],
   );
 
   if (!isOpen) return null;
@@ -87,7 +112,7 @@ export function ReportModal({
           id="report-modal-title"
           className="text-lg font-bold text-[color:var(--color-ink,#222)] mb-3"
         >
-          Denunciar post
+          {TITLES[kind]}
         </h2>
         <form onSubmit={submit}>
           <fieldset className="mb-4" disabled={isReporting}>
