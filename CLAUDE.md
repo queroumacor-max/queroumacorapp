@@ -38,15 +38,18 @@
     no repo intactos (não deletados) pra retomar depois se decidirem.
   - `MP_ACCESS_TOKEN` ainda é usado por `/api/checkout` (PRO web) e
     `/api/mp-webhook` — NÃO remover a env.
-- **Modo visitante (guest) — LIVE (2026-06-15).** Cliente navega feed/loja/
-  perfis sem login; ao interagir (curtir/comentar/seguir/mensagem/orçar/comprar)
-  o `AuthGate` (`next-app/components/AuthGate.tsx`) abre cadastro. Raiz `/`
-  redireciona todo mundo pro `/feed`. Botão "Explore o app sem cadastro" no
-  `/login` → `/feed`. TopNav mostra pill "Entrar" pro visitante. **SQL
-  `2026-06-15-loja-anon-read.sql` JÁ EXECUTADO no Supabase** — policy
-  `"products public read"` + `"product_variants public read"` (SELECT TO
-  anon, authenticated USING true) pra a loja abrir pro visitante (anon lia
-  zero produtos antes). Não pedir pra rodar de novo.
+- **Modo visitante (guest) — REMOVIDO (2026-06-18, a pedido do usuário).**
+  O app voltou a EXIGIR login. O guard fica no `AppShell` (`components/
+  AppShell.tsx`): se `!loading && !user`, `router.replace('/login?next=…')`
+  e não renderiza o conteúdo privado. Toda tela embrulhada em AppShell é
+  privada; páginas públicas (`/login`, `/signup`, `/`, `/info/*`,
+  `/delete-account`, `/completar-perfil`) NÃO usam AppShell, então seguem
+  acessíveis. Raiz `/` agora manda logado→`/feed`, deslogado→`/login`. O
+  botão "Explore o app sem cadastro" já tinha sido removido do `/login`. O
+  `AuthGate` continua no repo mas fica inerte dentro do AppShell (user
+  sempre presente) — não removido. As policies anon-read da loja
+  (`2026-06-15-loja-anon-read.sql`) seguem no banco, inofensivas (sem anon
+  agora); não precisa reverter.
 - **Badge de chat não lido (TopNav) — fix LIVE (2026-06-15).**
   `useUnreadMessageCount` revalida tb no INSERT de `notifications` (mesmo
   evento que acende o sininho, comprovadamente entregue) + refetchOnWindowFocus

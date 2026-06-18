@@ -7,6 +7,9 @@
 // Páginas de auth (/login, /signup, /) NÃO usam AppShell.
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from './AuthProvider';
 import { TopNav } from './TopNav';
 import { BottomNav } from './BottomNav';
 import { RealtimeBindings } from './RealtimeBindings';
@@ -31,6 +34,31 @@ export function AppShell({
   hideBottomNav = false,
   proStatus,
 }: AppShellProps) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Acesso sem conta REMOVIDO: o app exige login. Toda tela embrulhada em
+  // AppShell é privada — visitante deslogado é mandado pro /login (com ?next
+  // pra voltar pra onde tentou ir após logar). Páginas públicas (/login,
+  // /signup, /, /info/*, /delete-account) não usam AppShell, então não caem
+  // aqui. Espera o auth resolver (loading) antes de redirecionar.
+  useEffect(() => {
+    if (loading || user) return;
+    const next = pathname && pathname !== '/' ? `?next=${encodeURIComponent(pathname)}` : '';
+    router.replace(`/login${next}`);
+  }, [loading, user, pathname, router]);
+
+  // Enquanto resolve auth ou enquanto o redirect dispara, não renderiza o
+  // conteúdo privado (evita flash de tela protegida pra deslogado).
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <div className="text-[color:var(--color-muted)] text-sm">Carregando…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col w-full max-w-[430px] mx-auto h-screen bg-[color:var(--color-bg)] relative overflow-hidden" style={{ minHeight: '100dvh' }}>
       <RealtimeBindings />

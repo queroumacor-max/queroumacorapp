@@ -1,7 +1,7 @@
 'use client';
-// HomePage — redireciona direto pro /feed (logado OU visitante). Modo
-// visitante: o cliente navega feed/loja/perfis sem login; pra interagir, o
-// AuthGate abre o cadastro. Antes deslogado caía em /login (gate forçado).
+// HomePage — porta de entrada. Acesso sem conta foi REMOVIDO: logado vai pro
+// /feed; deslogado vai pro /login. (Antes mandava todo mundo pro /feed em
+// modo visitante.)
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -9,12 +9,12 @@ import { useAuth } from '@/components/AuthProvider';
 
 export default function HomePage() {
   const router = useRouter();
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
-    router.replace('/feed');
-  }, [loading, router]);
+    router.replace(user ? '/feed' : '/login');
+  }, [loading, user, router]);
 
   // Placeholder discreto enquanto auth resolve + redirect dispara
   // (50-200ms na primeira visita).
