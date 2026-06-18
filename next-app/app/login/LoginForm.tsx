@@ -216,20 +216,6 @@ export function LoginForm() {
       {/* Login social — Google + Apple OAuth via Supabase. */}
       <SocialAuthButtons context="login" />
 
-      {/* Modo visitante — entra direto no feed sem conta. Cliente pode
-          navegar feed/loja/perfis; ao tentar interagir, o AuthGate abre o
-          cadastro. Escape hatch quando o app abre direto no /login (PWA). */}
-      <Link
-        href="/feed"
-        className="block w-full text-center font-bold text-base text-[color:var(--color-ink)] bg-white border-[1.5px] border-[color:var(--color-border)] hover:border-[color:var(--color-ink)] transition-colors"
-        style={{ padding: 15, borderRadius: 14 }}
-      >
-        Explore o app sem cadastro
-      </Link>
-      <p className="text-center text-xs text-[color:var(--color-muted)]">
-        Veja publicações e a loja. Pra interagir, é só criar a conta.
-      </p>
-
       {/* Cadastro. Vanilla aplica `color:inherit` inline no link — neutraliza
           o `var(--p1)` e fica cinza igual o texto ao redor. Replicado. */}
       <p className="text-center text-sm text-[color:var(--color-muted)] pt-2">
