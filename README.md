@@ -1,6 +1,6 @@
 # QueroUmaCor
 
-PWA brasileira que conecta clientes a pintores, grafiteiros e profissionais automotivos. Cadastro por convite, orçamentos por foto, chat em tempo real, loja de tintas Cali Colors e gateway de assinatura PRO.
+PWA brasileira que conecta clientes a pintores, grafiteiros e profissionais automotivos. Cadastro gratuito e aberto, orçamentos por foto, chat em tempo real, loja de tintas Cali Colors e gateway de assinatura PRO.
 
 ## Stack
 
