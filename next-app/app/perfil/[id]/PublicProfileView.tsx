@@ -447,14 +447,24 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
           <button
             type="button"
             onClick={() => {
-              if (typeof navigator !== 'undefined' && navigator.share && profile?.tag) {
-                // ?ref=<userId> usa o id do PERFIL VISTO (o dono dessa página)
-                // como referrer — quem clicar e se cadastrar fica indicado por ele.
-                const refQ = profile?.id ? `?ref=${encodeURIComponent(profile.id)}` : '';
-                void navigator.share({
-                  title: name,
-                  url: `${window.location.origin}/perfil/${profile.tag}${refQ}`,
-                });
+              if (typeof window === 'undefined' || !profile?.tag) return;
+              // ?ref=<userId> usa o id do PERFIL VISTO (o dono dessa página)
+              // como referrer — quem clicar e se cadastrar fica indicado por ele.
+              const refQ = profile?.id ? `?ref=${encodeURIComponent(profile.id)}` : '';
+              const url = `${window.location.origin}/perfil/${profile.tag}${refQ}`;
+              const nav = navigator as Navigator;
+              if (nav.share) {
+                void nav.share({ title: name, url }).catch(() => {});
+                return;
+              }
+              // Fallback (desktop / sem Web Share): copia o link e avisa.
+              if (nav.clipboard?.writeText) {
+                void nav.clipboard
+                  .writeText(url)
+                  .then(() => showToast('Link do perfil copiado!', 'success'))
+                  .catch(() => showToast(url, 'info'));
+              } else {
+                showToast(url, 'info');
               }
             }}
             className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"

@@ -48,7 +48,10 @@ export function EditRaioForm() {
     try {
       await update({ service_radius: unlimited ? null : km });
       setSubmitSuccess(true);
-      setTouched(false);
+      // NÃO resetar `touched` aqui: o efeito de hidratação re-rodava e
+      // sobrescrevia o slider com um snapshot antigo do profile (BUG: voltava
+      // pra 25km/sem-limite após salvar). Mantendo touched=true, o valor que o
+      // usuário salvou permanece na tela; o reload re-hidrata do dado fresco.
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : 'Erro ao salvar');
     }

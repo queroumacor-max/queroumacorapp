@@ -1,6 +1,7 @@
 // AiConsentGate — overlay de consentimento mostrado na primeira vez que o
 // usuário abre um assistente de IA (Seu Zé, Alice, Senna, Fê). Bloqueia a
-// interação até o aceite; "Agora não" volta pra tela anterior. Depois de
+// interação até o aceite; "Agora não" sai pro /feed (router.back() voltava
+// pra rota anterior — às vezes o carrinho/loja, comportamento errado). Depois de
 // aceitar uma vez, não aparece mais (persistido em localStorage via
 // useAiConsent). Apple Guideline 5.1.1 / transparência LGPD.
 'use client';
@@ -60,7 +61,7 @@ export function AiConsentGate({ assistantName = 'o assistente' }: { assistantNam
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/feed')}
             className="px-4 py-2.5 text-sm font-semibold text-[color:var(--color-ink)] rounded-xl border border-[color:var(--color-border)]"
           >
             Agora não
