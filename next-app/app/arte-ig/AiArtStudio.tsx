@@ -118,6 +118,16 @@ export function AiArtStudio() {
   );
 
   const handleGenerate = useCallback(() => {
+    // Feedback explícito quando falta foto (antes o botão ficava disabled e o
+    // tap não respondia — BUG31).
+    if (!photo1) {
+      showToast('Selecione uma foto antes de gerar a arte.', 'info');
+      return;
+    }
+    if (needsTwo && !photo2) {
+      showToast('O estilo Antes/Depois precisa de 2 fotos.', 'info');
+      return;
+    }
     ai.generate({
       style,
       aspect,
@@ -129,7 +139,7 @@ export function AiArtStudio() {
       bizName: profile?.name || profile?.business_name || '',
       hint: hint.trim(),
     });
-  }, [ai, style, aspect, photo1, photo2, hint, profile]);
+  }, [ai, style, aspect, photo1, photo2, hint, profile, needsTwo]);
 
   const handlePost = useCallback(
     (caption: string, finalImageDataUrl: string) => {
@@ -375,8 +385,10 @@ export function AiArtStudio() {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={ai.isGenerating || !photo1 || (needsTwo && !photo2)}
+            disabled={ai.isGenerating}
+            aria-disabled={!photo1 || (needsTwo && !photo2)}
             className="w-full px-4 py-3 bg-gradient-to-br from-[#8338ec] to-[color:var(--color-p1)] text-white rounded-xl text-base font-bold disabled:opacity-60"
+            style={{ opacity: !photo1 || (needsTwo && !photo2) ? 0.6 : undefined }}
           >
             {ai.isGenerating ? '✨ Seu Zé tá pintando...' : '✨ Gerar arte com Seu Zé'}
           </button>

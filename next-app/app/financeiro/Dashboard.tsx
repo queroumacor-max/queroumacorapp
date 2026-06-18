@@ -24,6 +24,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useDialog } from '@/components/Dialog';
 import { useFinanceiro } from '@/lib/hooks/useFinanceiro';
 import { fmtBRL, escapeHtml } from '@/lib/utils';
 import { EntryForm } from './EntryForm';
@@ -33,7 +34,10 @@ import type { Job } from '@/lib/types';
 
 // Formata "R$ 1.234,56" — espelha o output do vanilla
 // (`'R$ '+n.toLocaleString('pt-BR')`). fmtBRL já devolve "1.234,56".
+// fmtBRL retorna '' pra n<0 (é formatador de não-negativo), então tratamos
+// o sinal aqui: negativo vira "−R$ 150,00" (antes saía "R$ " sem número — BUG28).
 function brl(n: number): string {
+  if (Number.isFinite(n) && n < 0) return '−R$ ' + fmtBRL(Math.abs(n));
   return 'R$ ' + fmtBRL(n);
 }
 
@@ -247,11 +251,22 @@ export function Dashboard() {
     analyzeError,
     resetAnalysis,
   } = useFinanceiro();
+  const dialog = useDialog();
   const [formOpen, setFormOpen] = useState(false);
   const [costEntryId, setCostEntryId] = useState<string | null>(null);
   const costEntry = costEntryId
     ? entries.find((e) => e.id === costEntryId)
     : null;
+
+  // Apagar com confirmação (BUG29 — antes o × deletava na hora, risco de
+  // deleção acidental).
+  async function handleDelete(id: string) {
+    const ok = await dialog.confirm(
+      'Apagar este lançamento? Essa ação não pode ser desfeita.',
+      { title: 'Apagar lançamento', okLabel: 'Apagar', danger: true },
+    );
+    if (ok) remove(id);
+  }
 
   if (authLoading) {
     return <Skeleton />;
@@ -352,7 +367,7 @@ export function Dashboard() {
             <EntryRow
               key={e.id}
               entry={e}
-              onDelete={remove}
+              onDelete={handleDelete}
               isRemoving={isRemoving}
               onLaunchCost={() => setCostEntryId(e.id)}
             />
