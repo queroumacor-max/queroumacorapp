@@ -117,9 +117,43 @@ export default function PrivacidadePage() {
       <LegalH>6. Inteligência artificial</LegalH>
       <LegalP>
         Alguns recursos usam o Seu Zé (nossa IA), como a sugestão de cores e o
-        assistente do chat. Os dados enviados a esses recursos são utilizados
-        apenas para gerar a resposta solicitada.
+        assistente do chat. Sobre o tratamento dos dados nesses recursos:
       </LegalP>
+      <ul
+        style={{
+          fontSize: 13.5,
+          lineHeight: 1.7,
+          color: 'var(--color-ink)',
+          margin: '6px 0 10px',
+          paddingLeft: 20,
+        }}
+      >
+        <li>
+          Os comandos e textos que você envia (prompts) são transmitidos à{' '}
+          <b>OpenAI</b> e à <b>Google</b> apenas para gerar a resposta
+          solicitada em tempo real.
+        </li>
+        <li>
+          Esses dados <b>não são usados para treinar modelos proprietários do
+          QueroUmaCor</b>.
+        </li>
+        <li>
+          <b>Não envie dados sensíveis ao assistente</b>, como CPF, senhas ou
+          dados bancários.
+        </li>
+        <li>
+          Os prompts podem ser armazenados por até <b>30 dias</b> para fins de
+          segurança e moderação, sendo deletados após esse prazo.
+        </li>
+        <li>
+          O conteúdo gerado por IA é de <b>responsabilidade do usuário</b> que o
+          solicitou e utiliza.
+        </li>
+        <li>
+          A propriedade do conteúdo gerado pertence ao usuário, nos termos das
+          políticas dos provedores (OpenAI e Google).
+        </li>
+      </ul>
 
       <LegalH>7. Armazenamento e segurança</LegalH>
       <LegalP>
@@ -130,9 +164,84 @@ export default function PrivacidadePage() {
 
       <LegalH>8. Retenção dos dados</LegalH>
       <LegalP>
-        Mantemos os seus dados enquanto a sua conta estiver ativa. Após a
-        exclusão da conta, os dados são apagados ou anonimizados, exceto quando
-        a guarda for exigida por lei.
+        Mantemos os seus dados pelo tempo necessário para as finalidades
+        descritas nesta política e para o cumprimento de obrigações legais. Os
+        prazos de retenção variam conforme o tipo de dado:
+      </LegalP>
+      <div style={{ overflowX: 'auto', margin: '6px 0 10px' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: 13,
+            color: 'var(--color-ink)',
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  borderBottom: '2px solid var(--color-border)',
+                  fontWeight: 700,
+                }}
+              >
+                Tipo de dado
+              </th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  borderBottom: '2px solid var(--color-border)',
+                  fontWeight: 700,
+                }}
+              >
+                Prazo de retenção
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['Conta ativa', 'Indefinido (enquanto a conta existir)'],
+              [
+                'Após exclusão de conta',
+                'Anonimização imediata; arquivos deletados em até 30 dias',
+              ],
+              ['Logs de acesso e segurança', '180 dias'],
+              ['Dados financeiros', '5 anos (CDC, art. 12)'],
+              ['Dados fiscais', 'Mínimo de 5 anos'],
+              ['Mensagens e orçamentos', '2 anos após o encerramento'],
+              ['Backups', '90 dias após a exclusão'],
+            ].map(([tipo, prazo]) => (
+              <tr key={tipo}>
+                <td
+                  style={{
+                    padding: '8px 10px',
+                    borderBottom: '1px solid var(--color-border)',
+                    fontWeight: 600,
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {tipo}
+                </td>
+                <td
+                  style={{
+                    padding: '8px 10px',
+                    borderBottom: '1px solid var(--color-border)',
+                    verticalAlign: 'top',
+                  }}
+                >
+                  {prazo}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <LegalP>
+        Após esses prazos, os dados são permanentemente deletados ou
+        anonimizados, salvo quando a guarda for exigida por lei.
       </LegalP>
 
       <LegalH>9. Seus direitos</LegalH>

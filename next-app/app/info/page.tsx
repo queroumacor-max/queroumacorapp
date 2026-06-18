@@ -75,6 +75,36 @@ const ITEMS: InfoItem[] = [
     actions: [{ label: 'Ler', href: '/info/termos' }],
   },
   {
+    icon: '🧑‍🔧',
+    title: 'Termos de Uso — Profissional',
+    body: 'Regras e responsabilidades específicas de quem presta serviços na plataforma.',
+    actions: [{ label: 'Ler', href: '/info/termos-profissional' }],
+  },
+  {
+    icon: '🙋',
+    title: 'Termos de Uso — Cliente',
+    body: 'Regras e direitos de quem contrata serviços na plataforma.',
+    actions: [{ label: 'Ler', href: '/info/termos-cliente' }],
+  },
+  {
+    icon: '🛡️',
+    title: 'Política Anti-Fraude',
+    body: 'Condutas proibidas, uso aceitável e consequências para quem descumpre.',
+    actions: [{ label: 'Ler', href: '/info/antifraude' }],
+  },
+  {
+    icon: '©️',
+    title: 'Direitos Autorais',
+    body: 'Titularidade do conteúdo, canal DMCA e uso da marca QueroUmaCor.',
+    actions: [{ label: 'Ler', href: '/info/copyright' }],
+  },
+  {
+    icon: '⚖️',
+    title: 'Como Resolver Disputas',
+    body: 'Passo a passo para resolver problemas entre clientes e profissionais.',
+    actions: [{ label: 'Ler', href: '/info/disputas' }],
+  },
+  {
     icon: 'ℹ️',
     title: 'Sobre o QueroUmaCor',
     body: 'Conectamos clientes aos melhores profissionais de pintura — pintores, grafiteiros, muralistas, pintores automotivos e funileiros.',

@@ -3,6 +3,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -226,6 +227,20 @@ export function AvaliarView() {
           className="w-full px-3 py-2 text-sm rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-white)] text-[color:var(--color-ink)] resize-y"
         />
       </div>
+
+      {/* Aviso anti-fraude */}
+      <p className="text-xs text-[color:var(--color-muted)] mb-4 leading-relaxed">
+        Ao avaliar, você confirma que a experiência é real e baseada neste
+        serviço. Avaliações falsas ou combinadas serão removidas.{' '}
+        <Link
+          href="/info/antifraude"
+          className="underline hover:opacity-80"
+          style={{ color: 'var(--color-p1)' }}
+        >
+          Política Anti-Fraude
+        </Link>
+        .
+      </p>
 
       {/* Submit */}
       <button
