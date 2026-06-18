@@ -61,10 +61,23 @@ export function MessageComposer({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={busy || disabled}
-          className="flex-shrink-0 w-10 h-10 rounded-full bg-[color:var(--color-bg,#f5f5f5)] border border-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-lg disabled:opacity-40"
-          aria-label="Anexar arquivo"
+          className="flex-shrink-0 w-10 h-10 rounded-full bg-[color:var(--color-bg,#f5f5f5)] border border-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-lg disabled:opacity-40 active:scale-95 active:bg-[color:var(--color-border,#e5e5e5)] transition-transform"
+          aria-label={uploading ? 'Enviando anexo…' : 'Anexar arquivo'}
+          aria-busy={uploading}
         >
-          📎
+          {uploading ? (
+            // Spinner durante o upload — feedback visual claro (BUG12).
+            <span
+              className="inline-block w-4 h-4 rounded-full animate-spin"
+              style={{
+                border: '2px solid var(--color-border, #e5e5e5)',
+                borderTopColor: 'var(--color-p1, #ff6a00)',
+              }}
+              aria-hidden="true"
+            />
+          ) : (
+            '📎'
+          )}
         </button>
         <input
           ref={fileInputRef}
