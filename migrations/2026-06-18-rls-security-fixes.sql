@@ -49,15 +49,21 @@ END $$;
 -- ITEM 2 — remover "OR true" de políticas (drift do banco vivo)
 -- =====================================================================
 
--- posts: a definição correta (sem "OR true") é a mesma do repo em
--- migrations/2026-05-31-soft-delete.sql. O banco vivo ganhou um "OR true"
--- no fim que torna QUALQUER post legível por qualquer um. Recriamos.
+-- posts: remove o "OR true" (que torna QUALQUER post — inclusive deletado e
+-- de terceiros em moderação — legível por qualquer um). IMPORTANTE: inclui
+-- `status IS NULL` no predicado. Posts legados pré-moderação têm status NULL
+-- e TODOS os caminhos de leitura do app os tratam como públicos
+-- (next-app/lib/db.ts: `status.eq.approved,status.is.null`; RPC get_feed_v2:
+-- `p.status = 'approved' OR p.status IS NULL`). Sem o `OR status IS NULL`,
+-- esses posts antigos sumiriam do público — regressão. A def do repo em
+-- 2026-05-31-soft-delete.sql tem o mesmo gap latente; esta versão corrige.
 DROP POLICY IF EXISTS "View posts active" ON public.posts;
 CREATE POLICY "View posts active" ON public.posts
   FOR SELECT USING (
     deleted_at IS NULL
     AND (
       status = 'approved'
+      OR status IS NULL
       OR user_id = auth.uid()
       OR public.is_portal_admin()
     )
