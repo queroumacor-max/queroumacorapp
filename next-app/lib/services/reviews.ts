@@ -129,10 +129,11 @@ export async function submitReview(input: SubmitReviewInput): Promise<void> {
     throw new ValidationError('rating deve ser 1-5');
   }
   const sb = getSupabase();
-  const rpc = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpc = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { error } = await rpc('submit_review', {
     p_quote_id: input.quoteId,
     p_painter_id: null,

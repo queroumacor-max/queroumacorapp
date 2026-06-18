@@ -6,20 +6,22 @@ import { NetworkError } from '@/lib/errors';
 
 export async function boostPost(postId: string, days = 7): Promise<void> {
   const sb = getSupabase();
-  const rpcAny = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpcAny = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { error } = await rpcAny('boost_post', { p_post_id: postId, p_days: days });
   if (error) throw new NetworkError(error.message || 'Falha ao destacar post', error);
 }
 
 export async function unboostPost(postId: string): Promise<void> {
   const sb = getSupabase();
-  const rpcAny = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpcAny = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { error } = await rpcAny('unboost_post', { p_post_id: postId });
   if (error) throw new NetworkError(error.message || 'Falha ao remover destaque', error);
 }

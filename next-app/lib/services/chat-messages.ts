@@ -156,10 +156,11 @@ export async function undoDeleteMessage(
 export async function markConversationRead(convId: string): Promise<number> {
   if (!convId) return 0;
   const sb = getSupabase();
-  const rpc = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpc = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>).bind(sb);
   const { data, error } = await rpc('mark_conversation_read', { p_conv_id: convId });
   if (error) throw new NetworkError(error.message, error);
   return data ?? 0;
@@ -172,10 +173,11 @@ export async function markConversationRead(convId: string): Promise<number> {
  */
 export async function fetchUnreadMessageCount(): Promise<number> {
   const sb = getSupabase();
-  const rpc = sb.rpc as unknown as (
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpc = (sb.rpc as unknown as (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: number | null; error: { message: string } | null }>).bind(sb);
   const { data, error } = await rpc('unread_message_count', {});
   if (error) throw new NetworkError(error.message, error);
   return data ?? 0;

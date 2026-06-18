@@ -69,7 +69,8 @@ export async function listBlocked(blockerId: string): Promise<BlockedRow[]> {
 /** Devolve uuid[] dos blocked do user logado (via RPC list_blocked_ids). */
 export async function listBlockedIds(): Promise<string[]> {
   const sb = getSupabase();
-  const rpcAny = sb.rpc as unknown as (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  // `.bind(sb)`: preserva o `this` do client (sb.rpc solto estoura em this.rest).
+  const rpcAny = (sb.rpc as unknown as (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>).bind(sb);
   const { data, error } = await rpcAny('list_blocked_ids');
   if (error) return []; // degradação graciosa: prefere não filtrar a quebrar
   return Array.isArray(data) ? (data as string[]) : [];
