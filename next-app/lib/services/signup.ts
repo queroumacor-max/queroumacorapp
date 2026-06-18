@@ -32,7 +32,7 @@ export interface SignupData {
   avatarUrl?: string | null;
   /** Referrer (?ref=<userId> capturado pelo ReferralCapture). OBRIGATÓRIO
    *  no fluxo novo de invite-only. Cria linha em `referrals`
-   *  (status=completed, bonus_points=1) + seta profiles.invited_by.
+   *  (status=completed, bonus_points=10) + seta profiles.invited_by.
    *  Quando vazio/igual ao próprio user, ignorado e cadastro falha
    *  (caller deve validar antes — bloqueia o submit).
    */
@@ -166,7 +166,7 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
         referrer_id: input.referrerId,
         referred_id: data.user.id,
         status: 'completed',
-        bonus_points: 1,
+        bonus_points: 10, // 10 pts por indicação (ver ProView REFERRAL_POINTS)
       });
     } catch {
       /* silent — perfil já tem invited_by, admin pode reconciliar */

@@ -18,6 +18,9 @@ const STORE_WHATSAPP = 'https://wa.me/5511959765031';
 
 // Custo da troca pontos → PRO (espelha REDEEM_COST em PontosView/points.ts).
 const PRO_POINTS_COST = 1000;
+// Pontos creditados por indicação que se cadastra (espelha bonus_points no
+// signup + trigger award_referral_points no banco).
+const REFERRAL_POINTS = 10;
 
 const FEATURES: readonly Feature[] = [
   { icon: '📥', label: 'Pedidos de orçamento ilimitados' },
@@ -91,6 +94,17 @@ export function ProView() {
         </div>
         <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
           Junte pontos e troque pelo plano PRO
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            marginTop: 10,
+            paddingTop: 10,
+            borderTop: '1px solid rgba(255,255,255,.25)',
+          }}
+        >
+          🎁 A cada indicação que entra no app, você ganha {REFERRAL_POINTS} pontos
         </div>
       </div>
 
