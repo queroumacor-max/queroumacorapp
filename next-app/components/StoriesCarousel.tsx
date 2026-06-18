@@ -28,7 +28,11 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
   const { profile } = useProfile();
   const [viewerOpenAt, setViewerOpenAt] = useState<number | null>(null);
 
-  const items = useMemo(() => groups, [groups]);
+  // Só grupos com story ATIVO (24h) entram no carrossel — assim TODO avatar
+  // abre o StoryViewer ao clicar. Antes mostrávamos também seguidos sem story
+  // (anel cinza) que linkavam pro /perfil; isso fazia o clique num avatar
+  // parecer "story quebrado" (ia pro perfil em vez de abrir o viewer — BUG13).
+  const items = useMemo(() => groups.filter((g) => g.stories.length > 0), [groups]);
   // O usuário já tem story próprio publicado? Se sim, vira o 1º grupo;
   // senão, mostramos o "Seu story" com avatar do profile (em vez do ícone
   // person padrão) — UX igual Instagram: foto do user sempre visível.
@@ -79,20 +83,14 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
         )}
 
         {/* Stories de seguidos — pula o próprio (já tá como "Seu story").
-            Grupos sem story (followingId que não publicou) viram bolinha
-            cinza com link pro perfil em vez de abrir o viewer. */}
+            Todos têm story ativo (items já filtrado), então o clique sempre
+            abre o viewer no índice do grupo. */}
         {items.map((g, idx) =>
           g.user_id === user?.id ? null : (
             <StoryAvatar
               key={g.user_id}
               group={g}
-              onClick={() => {
-                if (g.stories.length === 0) {
-                  window.location.href = `/perfil/${g.user_id}`;
-                } else {
-                  setViewerOpenAt(idx);
-                }
-              }}
+              onClick={() => setViewerOpenAt(idx)}
             />
           )
         )}

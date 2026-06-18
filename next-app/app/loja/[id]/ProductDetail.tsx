@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useProduct } from '@/lib/hooks/useProducts';
 import { useCart } from '@/lib/hooks/useCart';
 import { productBg, resolveColorHex } from '@/lib/services/mkt';
+import { showToast } from '@/lib/toast';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -183,7 +184,12 @@ export function ProductDetail({ id }: { id: string }) {
 
       <button
         type="button"
-        onClick={() => add({ product, qty })}
+        onClick={() => {
+          // add é otimista (mutate) — o ponto laranja já atualiza na hora;
+          // o toast dá a confirmação visível que faltava (BUG14).
+          add({ product, qty });
+          showToast('Item adicionado à sua lista!', 'success');
+        }}
         disabled={isMutating || product.active === false}
         className="w-full py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
