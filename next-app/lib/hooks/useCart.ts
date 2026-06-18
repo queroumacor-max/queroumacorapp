@@ -9,10 +9,10 @@
 //     `onMutate` aplica a mudança no cache imediatamente, `onError` faz
 //     rollback pro snapshot anterior. Isso mata o latency-perception de
 //     "esperar o servidor pra ver o item no carrinho".
-//   - Checkout (submit) dispara submitOrder e devolve { orderId, total }
-//     pro caller decidir o que fazer (chamar /api/mp-checkout-loja e
-//     redirecionar). O hook não toca window.location porque (a) facilita
-//     teste e (b) UI controla a UX de loading/redirect.
+//   - Checkout (submit) dispara submitOrder e devolve { orderId, total }.
+//     A loja NÃO processa pagamento no app (compliance Apple 3.1.3e): o
+//     pedido fica gravado com status 'pending' e a Cali Colors fecha a venda
+//     via WhatsApp. O CartView só esvazia a lista e mostra a confirmação.
 
 'use client';
 
@@ -189,10 +189,10 @@ export function useCart(): UseCartResult {
 
   // Checkout — não é otimista (não dá pra "fingir" criação do pedido).
   // NÃO limpa o carrinho aqui: a limpeza é decisão do CartView e só deve
-  // acontecer quando o checkout chega num estado terminal de sucesso
-  // (redirect pro MP ou fallback "loja entrará em contato"). Se o passo do
-  // pagamento falhar, o carrinho precisa sobreviver pra o usuário tentar de
-  // novo (e o submitOrder faz dedupe pra não duplicar o pedido pending).
+  // acontecer após o pedido ser gravado com sucesso (a loja fecha a venda
+  // fora do app, via WhatsApp). Se o submitOrder falhar, o carrinho precisa
+  // sobreviver pra o usuário tentar de novo (e o submitOrder faz dedupe pra
+  // não duplicar o pedido pending).
   const checkoutMutation = useMutation<OrderSubmitResult, Error, string | undefined>({
     mutationFn: async (address) => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];

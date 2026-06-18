@@ -13,8 +13,8 @@ import { AppShell } from '@/components/AppShell';
 import { CartView } from './CartView';
 
 export const metadata: Metadata = {
-  title: 'Carrinho | Loja Cali Colors',
-  description: 'Revise seus itens e finalize a compra.',
+  title: 'Minha Lista de Pedido | Loja Cali Colors',
+  description: 'Revise seus itens e envie sua lista para a Cali Colors.',
 };
 
 export default function CarrinhoPage() {
@@ -25,10 +25,10 @@ export default function CarrinhoPage() {
           className="text-3xl font-bold mb-2"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Carrinho
+          Minha Lista de Pedido
         </h1>
         <p className="text-sm text-[color:var(--color-muted)] mb-6">
-          Revise antes de finalizar a compra
+          Revise os itens antes de enviar sua lista
         </p>
         <CartView />
       </div>
