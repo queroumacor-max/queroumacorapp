@@ -1,11 +1,11 @@
-// CartView — client component que renderiza o carrinho + total + botão de
-// checkout. Espelha o conteúdo do `cart-modal` do vanilla.
+// CartView — client component que renderiza a lista de pedido + total + botão
+// de envio. Espelha o conteúdo do `cart-modal` do vanilla.
 //
-// Checkout: dispara submitOrder via useCart.checkout(), pega o orderId
-// e POSTa em /api/mp-checkout-loja pra gerar o init_point do Mercado Pago,
-// e finalmente faz `window.location.href = init_point` (vanilla parity).
-// Em caso de fallback 503 (MP indisponível), mostra mensagem orientando
-// o usuário a aguardar contato da loja.
+// Compliance Apple 3.1.3(e): a loja NÃO processa pagamentos no app. "Enviar
+// Lista" só registra o pedido no Supabase (submitOrder grava a order com
+// status 'pending') e mostra mensagem de sucesso — a equipe da Cali Colors
+// entra em contato via WhatsApp pra confirmar itens/valores e fechar a venda.
+// NÃO há checkout do Mercado Pago nem redirect pra URL externa de pagamento.
 
 'use client';
 
@@ -34,7 +34,7 @@ function SkeletonItem() {
 }
 
 export function CartView() {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     items,
     total,
@@ -50,55 +50,32 @@ export function CartView() {
     checkoutError,
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [address, setAddress] = useState('');
 
-  async function handleCheckout() {
+  // Envio da lista — só registra o pedido no Supabase (submitOrder grava a
+  // order com status 'pending') e mostra a mensagem de sucesso. SEM checkout
+  // do Mercado Pago e SEM redirect pra pagamento (compliance Apple 3.1.3e):
+  // a loja fecha a venda fora do app, via WhatsApp.
+  async function handleSendList() {
     setCheckoutMsg(null);
     if (address.trim().length < 10) {
       setCheckoutMsg('Informe o endereço de entrega (rua, número, bairro, cidade e CEP).');
       return;
     }
     try {
-      const { orderId } = await checkout(address);
-      // 2ª fase: chama /api/mp-checkout-loja pra obter o init_point. O
-      // endpoint EXIGE accessToken (valida o JWT do user); sem ele retornava
-      // 401 "Sessão inválida" silenciosamente e o checkout nunca chegava no MP.
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        setCheckoutMsg('Sessão expirada — entre novamente para finalizar.');
-        return;
-      }
-      const res = await fetch('/api/mp-checkout-loja', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, accessToken }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | { init_point?: string; error?: string }
-        | null;
-      if (!res.ok || !data || !data.init_point) {
-        if (res.status === 503) {
-          // Pagamento online indisponível, mas o pedido foi gravado → esvazia
-          // o carrinho e avisa que a loja fará o follow-up.
-          await clearCart().catch(() => {});
-          setCheckoutMsg(
-            'Pedido recebido! A loja entrará em contato (pagamento online em breve).'
-          );
-          return;
-        }
-        // Falha real: mantém o carrinho pra o usuário tentar de novo (o
-        // submitOrder faz dedupe, então não cria pedido duplicado).
-        setCheckoutMsg(
-          (data && data.error) || `Erro ${res.status}: tente de novo.`
-        );
-        return;
-      }
-      // Sucesso: pedido com link de pagamento → esvazia o carrinho e redireciona.
+      await checkout(address);
+      // Pedido gravado → esvazia a lista e confirma.
       await clearCart().catch(() => {});
-      window.location.href = data.init_point;
-    } catch (err) {
+      setSent(true);
       setCheckoutMsg(
-        (err as Error).message || 'Não foi possível finalizar a compra.'
+        'Pedido enviado! A equipe da Cali Colors entrará em contato via WhatsApp em breve.'
+      );
+    } catch (err) {
+      // Falha real: mantém a lista pra o usuário tentar de novo (o submitOrder
+      // faz dedupe, então não cria pedido duplicado).
+      setCheckoutMsg(
+        (err as Error).message || 'Não foi possível enviar a lista. Tente de novo.'
       );
     }
   }
@@ -162,18 +139,26 @@ export function CartView() {
         {checkoutMsg ? (
           <div
             role="alert"
-            className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800"
+            className={
+              sent
+                ? 'mb-4 p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800'
+                : 'mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800'
+            }
           >
             {checkoutMsg}
           </div>
         ) : null}
         <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
           <div className="text-5xl mb-3" aria-hidden="true">
-            🛒
+            {sent ? '✅' : '🛒'}
           </div>
-          <h2 className="font-semibold mb-2">Lista vazia</h2>
+          <h2 className="font-semibold mb-2">
+            {sent ? 'Pedido enviado!' : 'Lista vazia'}
+          </h2>
           <p className="text-sm text-[color:var(--color-muted)] mb-4">
-            Selecione produtos pra começar.
+            {sent
+              ? 'A equipe da Cali Colors entrará em contato via WhatsApp em breve.'
+              : 'Selecione produtos pra começar.'}
           </p>
           <Link
             href="/loja"
@@ -264,7 +249,7 @@ export function CartView() {
 
       <button
         type="button"
-        onClick={handleCheckout}
+        onClick={handleSendList}
         disabled={isCheckingOut || items.length === 0}
         className="w-full py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >

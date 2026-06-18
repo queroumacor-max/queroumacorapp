@@ -897,47 +897,6 @@ paths:
         '429': { description: Rate limited. }
         '503': { description: GEMINI_API_KEY / service role not set. }
 
-  /mp-checkout-loja:
-    post:
-      tags: [payments]
-      summary: Create a Mercado Pago Checkout Pro preference for a store order.
-      description: |
-        Looks up the order, validates ownership and `pending` status, re-prices
-        items from `products` (anti-tampering — client-side price is ignored),
-        and creates a one-shot MP preference. Returns init_point + orderId.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [orderId, accessToken]
-              properties:
-                orderId: { type: string }
-                accessToken: { type: string }
-      responses:
-        '200':
-          description: Init point.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  init_point: { type: string, format: uri }
-                  orderId: { type: string }
-                  preference_id:
-                    type: string
-                    nullable: true
-        '400': { description: Missing orderId / empty cart / invalid product. }
-        '401': { description: Missing or invalid accessToken. }
-        '403': { description: Order belongs to another user. }
-        '404': { description: Order not found. }
-        '409': { description: Order is not in `pending` status. }
-        '500': { description: Internal error. }
-        '502': { description: Mercado Pago or product lookup failed. }
-        '503': { description: MP_ACCESS_TOKEN or service role missing. }
-        '504': { description: Mercado Pago timeout (15s). }
-
   /mp-webhook:
     post:
       tags: [payments]

@@ -1,5 +1,26 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **Compliance Apple 3.1.3(e) — loja sem pagamento no app (2026-06-18).**
+  A loja Cali Colors NÃO processa pagamento dentro do app: o cliente só
+  monta a "Lista de Pedido" e a loja fecha a venda fora do app (WhatsApp).
+  - **Removido o fluxo Mercado Pago da LOJA** (físicos): deletados
+    `next-app/app/api/mp-checkout-loja/route.ts`,
+    `next-app/lib/api/_services/mp-checkout-loja.ts` e o teste. `CartView`
+    agora só chama `useCart.checkout()` → `submitOrder` (grava order
+    `status='pending'` no Supabase), esvazia a lista e mostra "Pedido
+    enviado! A equipe da Cali Colors entrará em contato via WhatsApp em
+    breve.". Sem redirect pra URL externa de pagamento. Botões/títulos:
+    "Selecionar" / "+ Selecionar item" / "Minha Lista de Pedido" /
+    "Enviar Lista". Não havia rota de retorno (`?compra=` apontava pra `/`).
+  - **PRO mantido, MAS sem checkout no app (por enquanto).** `ProView`
+    (`next-app/app/pro/ProView.tsx`) não chama mais `startProCheckout` —
+    mostra nota "Para ativar o plano PRO, entre em contato com a loja
+    física Cali Colors pelo telefone (11) 95976-5031" + botão WhatsApp.
+    Ativação é MANUAL (a loja seta `profiles.is_pro` no perfil). O
+    `billing-platform.ts` + `/api/checkout` + `/api/mp-webhook` continuam
+    no repo intactos (não deletados) pra retomar depois se decidirem.
+  - `MP_ACCESS_TOKEN` ainda é usado por `/api/checkout` (PRO web) e
+    `/api/mp-webhook` — NÃO remover a env.
 - **Modo visitante (guest) — LIVE (2026-06-15).** Cliente navega feed/loja/
   perfis sem login; ao interagir (curtir/comentar/seguir/mensagem/orçar/comprar)
   o `AuthGate` (`next-app/components/AuthGate.tsx`) abre cadastro. Raiz `/`

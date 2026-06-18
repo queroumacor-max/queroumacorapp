@@ -5,15 +5,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { showToast } from '@/lib/toast';
-import { startProCheckout } from '@/lib/services/billing-platform';
 
 interface Feature {
   icon: string;
   label: string;
 }
+
+// Contato da Cali Colors pra ativação manual do PRO (sem pagamento no app).
+const STORE_PHONE_DISPLAY = '(11) 95976-5031';
+const STORE_WHATSAPP = 'https://wa.me/5511959765031';
+const PRO_WHATSAPP_LINK =
+  STORE_WHATSAPP +
+  '?text=' +
+  encodeURIComponent('Olá! Quero ativar o plano PRO no QueroUmaCor.');
 
 const FEATURES: readonly Feature[] = [
   { icon: '📥', label: 'Pedidos de orçamento ilimitados' },
@@ -27,22 +32,12 @@ const FEATURES: readonly Feature[] = [
 ];
 
 export function ProView() {
-  const { user } = useAuth();
   const { profile } = useProfile();
   const isPro = !!profile?.is_pro;
 
-  async function handleCheckout() {
-    // Roteia pelo provider correto da plataforma: web → Mercado Pago,
-    // iOS wrapper → Apple StoreKit IAP, Android wrapper → Google Play
-    // Billing. Detalhes em `lib/services/billing-platform.ts` +
-    // `docs/BILLING_STRATEGY.md`. Compliance Apple 3.1.1 / Google Play
-    // 2024 exige IAP/Play Billing pra digital content.
-    if (!user) {
-      showToast('Faça login pra continuar', 'info');
-      return;
-    }
-    await startProCheckout(user.id);
-  }
+  // Por enquanto NÃO há pagamento do PRO dentro do app: a ativação é manual.
+  // O cliente entra em contato com a loja física Cali Colors (telefone/
+  // WhatsApp) e a equipe habilita a licença PRO no perfil dele.
 
   return (
     <div className="px-3.5 pt-4 pb-10">
@@ -119,29 +114,75 @@ export function ProView() {
         ))}
       </div>
 
-      {/* CTA principal */}
-      <button
-        type="button"
-        onClick={handleCheckout}
-        disabled={isPro}
-        className="w-full text-white font-bold"
-        style={{
-          padding: 16,
-          background: isPro
-            ? 'var(--color-muted)'
-            : 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
-          borderRadius: 14,
-          fontSize: 16,
-          border: 'none',
-          cursor: isPro ? 'not-allowed' : 'pointer',
-          marginBottom: 12,
-          boxShadow: isPro
-            ? 'none'
-            : '0 6px 20px rgba(255,107,53,.35)',
-        }}
-      >
-        {isPro ? 'Você já é PRO' : 'Assinar Agora'}
-      </button>
+      {/* Ativação do PRO — feita pela loja física (sem pagamento no app).
+          Por enquanto não há checkout online: o cliente fala com a Cali
+          Colors pelo telefone/WhatsApp e a equipe habilita a licença PRO. */}
+      {isPro ? (
+        <div
+          className="w-full text-center text-white font-bold"
+          style={{
+            padding: 16,
+            background: 'var(--color-muted)',
+            borderRadius: 14,
+            fontSize: 16,
+          }}
+        >
+          Você já é PRO
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: '16px 16px',
+            background: 'var(--color-bg)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 14,
+            marginBottom: 12,
+          }}
+        >
+          <div
+            className="font-bold"
+            style={{ fontSize: 14, color: 'var(--color-ink)', marginBottom: 6 }}
+          >
+            Como ativar o PRO
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--color-muted)',
+              lineHeight: 1.6,
+              margin: '0 0 14px',
+            }}
+          >
+            Para ativar o plano PRO, entre em contato com a loja física{' '}
+            <b>Cali Colors</b> pelo telefone{' '}
+            <a
+              href={STORE_WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--color-p1)', fontWeight: 700 }}
+            >
+              {STORE_PHONE_DISPLAY}
+            </a>
+            . A equipe habilita a sua licença PRO no seu perfil.
+          </p>
+          <a
+            href={PRO_WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full text-center text-white font-bold"
+            style={{
+              padding: 16,
+              background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+              borderRadius: 14,
+              fontSize: 16,
+              textDecoration: 'none',
+              boxShadow: '0 6px 20px rgba(255,107,53,.35)',
+            }}
+          >
+            💬 Falar com a loja pelo WhatsApp
+          </a>
+        </div>
+      )}
 
       {/* Atalho pra trocar 100 pts por 1 mês PRO */}
       {!isPro ? (
@@ -171,7 +212,7 @@ export function ProView() {
           lineHeight: 1.5,
         }}
       >
-        Ao assinar, você concorda com os{' '}
+        Ao ativar o PRO, você concorda com os{' '}
         <Link
           href="/info/termos"
           style={{ color: 'var(--color-p1)', textDecoration: 'underline' }}
@@ -185,13 +226,10 @@ export function ProView() {
         >
           Privacidade
         </Link>
-        . Cobrança recorrente, cancele a qualquer momento.
+        . A ativação e a renovação do PRO são feitas pela loja Cali Colors.
       </p>
 
-      {/* Política de cancelamento/reembolso (CDC + regras das app stores).
-          Texto claro sobre quando o cancelamento tem efeito, ausência de
-          reembolso proporcional e como pedir ajuda. Replica o item 13 dos
-          Termos de Uso pra ficar visível no ponto da compra. */}
+      {/* Dúvidas sobre o PRO — canal de atendimento da loja. */}
       <div
         style={{
           marginTop: 20,
@@ -209,7 +247,7 @@ export function ProView() {
             marginBottom: 6,
           }}
         >
-          Cancelamento e reembolso
+          Dúvidas sobre o PRO
         </div>
         <p
           style={{
@@ -219,21 +257,15 @@ export function ProView() {
             margin: 0,
           }}
         >
-          A assinatura PRO é recorrente e renova automaticamente a cada ciclo.
-          Você pode cancelar quando quiser: o cancelamento passa a valer no{' '}
-          <b>fim do ciclo já pago</b>, e você continua com acesso PRO até lá.
-          Não há reembolso proporcional dos dias não usados do período vigente.
-          Em compras feitas pela App Store (Apple) ou Google Play, o
-          cancelamento e eventuais reembolsos seguem as regras e os canais da
-          respectiva loja. Em caso de cobrança indevida ou problema técnico,
-          fale com a gente pelo WhatsApp{' '}
+          A ativação, a renovação e o cancelamento do plano PRO são tratados
+          diretamente com a loja Cali Colors. Fale com a gente pelo WhatsApp{' '}
           <a
-            href="https://wa.me/5511959765031"
+            href={STORE_WHATSAPP}
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--color-p1)' }}
           >
-            (11) 95976-5031
+            {STORE_PHONE_DISPLAY}
           </a>{' '}
           ou pelo e-mail{' '}
           <a
@@ -241,8 +273,8 @@ export function ProView() {
             style={{ color: 'var(--color-p1)' }}
           >
             loja@calicolors.com.br
-          </a>{' '}
-          que resolvemos. Veja também o item 13 dos{' '}
+          </a>
+          . Veja também o item 13 dos{' '}
           <Link
             href="/info/termos"
             style={{ color: 'var(--color-p1)', textDecoration: 'underline' }}

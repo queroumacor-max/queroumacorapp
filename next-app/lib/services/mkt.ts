@@ -10,10 +10,10 @@
 //   - `resolveColorHex` + `COLOR_DICT` → exportados como puros pra serem
 //     usados tanto pelo ProductCard quanto por testes determinísticos.
 //   - `mktClassify` → função pura, exportada pra filtros de UI + testes.
-//   - `submitOrder` (vanilla `submitCartOrder`) → 2 fases: cria order +
-//     chama /api/mp-checkout-loja. O service só faz o INSERT no Supabase
-//     e devolve o orderId; chamar o endpoint MP fica no hook pra que
-//     window.location.href seja decisão da UI, não do service.
+//   - `submitOrder` (vanilla `submitCartOrder`) → faz só o INSERT do pedido
+//     no Supabase (status 'pending') e devolve o orderId. A loja NÃO
+//     processa pagamento no app (compliance Apple 3.1.3e): a Cali Colors
+//     fecha a venda fora do app, via WhatsApp.
 //
 // Tipos INLINE (spec: NÃO tocar em lib/types.ts).
 
@@ -930,13 +930,13 @@ export async function saveCart(userId: string, items: CartItem[]): Promise<void>
   }
 }
 
-// ─── pedido: cria order no Supabase + dispara checkout ────────────────────
+// ─── pedido: cria order no Supabase (sem pagamento no app) ─────────────────
 
 /**
  * Cria uma order em status 'pending' a partir dos items do carrinho. Retorna
- * `{ orderId, total }`. Espelha a 1ª metade de `submitCartOrder()` do vanilla
- * (modules/mkt.js linhas 252-260) — a parte de chamar /api/mp-checkout-loja
- * fica no hook pra que `window.location.href` seja decisão da UI.
+ * `{ orderId, total }`. A loja NÃO processa pagamento no app (compliance
+ * Apple 3.1.3e): o pedido fica registrado e a Cali Colors fecha a venda
+ * fora do app, via WhatsApp.
  *
  * `address` é opcional — schema atual (supabase_init.sql linha 425) não tem
  * coluna shipping_address. O param fica aceito pra quando essa coluna for
@@ -969,8 +969,8 @@ export async function submitOrder(
 
   // Dedupe (BUG 3): se já existe um pedido `pending` recente (< 1h) com
   // exatamente os mesmos itens, reusa o id em vez de criar uma duplicata.
-  // Cenário: o usuário clica "Finalizar compra" várias vezes quando o passo
-  // do Mercado Pago não redireciona, acumulando pedidos pendentes órfãos.
+  // Cenário: o usuário clica "Enviar Lista" várias vezes, acumulando
+  // pedidos pendentes órfãos.
   // UPDATE de orders é admin-only no RLS, então só lemos/reusamos (o user
   // pode SELECT os próprios pedidos via policy "Users can view own orders").
   const sig = cartSignature(items);
