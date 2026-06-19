@@ -4,6 +4,7 @@
 
 import type { Metadata } from 'next';
 import { ChatConversation } from './ChatConversation';
+import { AppShell } from '@/components/AppShell';
 
 // Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
 // edge runtime (Node runtime não está disponível em CF Pages Functions).
@@ -22,9 +23,13 @@ export default async function ConversationPage({ params }: PageProps) {
   // Next 15 codifica path params na URL, então decodificamos aqui pra que o
   // hook receba o convId real (que pode conter ':' do prefix 3way: ou '_').
   const decoded = decodeURIComponent(convId);
+  // Embrulhado em AppShell pra manter TopNav (topo) + BottomNav (rodapé) em
+  // todas as telas, inclusive a conversa — antes a conversa renderizava um
+  // <main> solto e o chrome global sumia. O header próprio da conversa
+  // (voltar + perfil do interlocutor) fica como barra secundária dentro.
   return (
-    <main className="min-h-screen flex flex-col bg-white max-w-2xl mx-auto">
+    <AppShell>
       <ChatConversation convId={decoded} />
-    </main>
+    </AppShell>
   );
 }

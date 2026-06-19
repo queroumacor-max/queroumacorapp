@@ -288,9 +288,10 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     : peerName || (otherId ? 'Conversa' : 'Carregando...');
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="flex items-center gap-3 p-3 border-b border-[color:var(--color-border,#e5e5e5)] bg-white">
+    <div className="flex flex-col h-full bg-white">
+      {/* Header próprio da conversa — barra secundária abaixo da TopNav
+          global. Sticky pra continuar visível ao rolar as mensagens. */}
+      <header className="flex items-center gap-3 p-3 border-b border-[color:var(--color-border,#e5e5e5)] bg-white sticky top-0 z-10">
         <Link
           href="/chat"
           className="px-2 py-1 text-lg"
