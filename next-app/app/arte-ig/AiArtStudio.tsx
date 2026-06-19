@@ -329,9 +329,9 @@ export function AiArtStudio() {
               <button
                 type="button"
                 onClick={handleGenerateCaption}
-                disabled={genCaptionLoading || !photo1}
+                disabled={genCaptionLoading}
                 className="text-xs font-bold text-[color:var(--color-p1)] disabled:opacity-50"
-                style={{ background: 'none', border: 'none', cursor: photo1 ? 'pointer' : 'not-allowed' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: photo1 ? 1 : 0.6 }}
               >
                 {genCaptionLoading ? '✨ Gerando…' : '✨ Gerar com IA'}
               </button>
