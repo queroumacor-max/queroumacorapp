@@ -21,7 +21,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { canSeeProFeature } from '@/lib/policies';
+import { showToast } from '@/lib/toast';
 import { useAgenda } from '@/lib/hooks/useAgenda';
 import { AgendaDay } from './AgendaDay';
 import { JobFormModal } from './JobFormModal';
@@ -227,6 +231,21 @@ export function AgendaCalendar() {
   // Modal local (não Context) — state controlado aqui, JobFormModal recebe
   // open/onClose como props. Mesmo padrão de Dialog em React.
   const [modalOpen, setModalOpen] = useState(false);
+  const router = useRouter();
+  const policyUser = usePolicyUser();
+
+  // Gate PRO client-side pro "Otimizar dia" (BUG30): antes só o servidor
+  // barrava (403), então o free user clicava e via erro/nada. Agora, sem PRO,
+  // mostramos o upsell e mandamos pro /pro (igual Orçamento IA / Reativar).
+  // O gate server-side (gateProAI em /api/agenda-order) continua como defesa.
+  function handleOptimize() {
+    if (!canSeeProFeature(policyUser)) {
+      showToast('Otimizar dia é um recurso PRO. Troque seus pontos pelo plano PRO.', 'info');
+      router.push('/pro');
+      return;
+    }
+    optimize();
+  }
 
   if (authLoading) {
     return <CalendarSkeleton />;
@@ -321,7 +340,7 @@ export function AgendaCalendar() {
         jobs={jobsForDay}
         onUpdateStatus={(jobId, status) => updateStatus({ jobId, status })}
         isUpdatingStatus={isUpdatingStatus}
-        onOptimize={() => optimize()}
+        onOptimize={handleOptimize}
         isOptimizing={isOptimizing}
         optimizeError={optimizeError}
         optimizeResult={optimizeResult}
