@@ -3,6 +3,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useNotes } from '@/lib/hooks/useNotes';
 import { useAudioRecording } from '@/lib/hooks/useAudioRecording';
 import { transcribeAudio } from '@/lib/services/audioStt';
@@ -33,6 +34,7 @@ export function NotesView() {
   const [editBody, setEditBody] = useState('');
   const policyUser = usePolicyUser();
   const isPro = canSeeProFeature(policyUser);
+  const router = useRouter();
 
   function startEdit(id: string, body: string) {
     setEditingId(id);
@@ -81,7 +83,11 @@ export function NotesView() {
 
   function handleMicClick() {
     if (!isPro) {
-      showToast('Recurso PRO — assine para liberar', 'info');
+      // Mesmo padrão dos outros gates PRO (ex.: Otimizar dia da Agenda):
+      // avisa e manda pro /pro pra trocar pontos pelo plano (BUG52). Antes
+      // só mostrava um toast — parecia que o botão "não fazia nada".
+      showToast('Gravar e transcrever áudio é um recurso PRO. Troque seus pontos pelo plano PRO.', 'info');
+      router.push('/pro');
       return;
     }
     if (rec.recording) {
