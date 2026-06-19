@@ -24,6 +24,32 @@ import {
 const REDEEM_COST = 1000;
 const SUPPORT_WA = '5511959765031';
 
+// Mapa de tradução dos identificadores técnicos de `points.source` pra rótulo
+// PT-BR amigável no histórico (BUG38). Antes a tela mostrava o valor cru do
+// banco (ex.: "quote_request"). Fallback: se o source não estiver mapeado,
+// usa "Crédito"/"Débito" conforme o tipo.
+const SOURCE_LABELS: Record<string, string> = {
+  referral: 'Indicação de amigo',
+  invite: 'Indicação de amigo',
+  signup: 'Bônus de cadastro',
+  signUp: 'Bônus de cadastro',
+  welcome: 'Bônus de boas-vindas',
+  quote_request: 'Pedido de orçamento',
+  quote_completed: 'Orçamento concluído',
+  order_paid: 'Compra na loja',
+  purchase: 'Compra na loja',
+  cashback: 'Cashback',
+  review: 'Avaliação recebida',
+  redeem: 'Resgate',
+  pro_redeem: 'Resgate de plano PRO',
+  spent: 'Resgate',
+};
+
+function sourceLabel(p: PointEntry): string {
+  if (p.source && SOURCE_LABELS[p.source]) return SOURCE_LABELS[p.source];
+  return p.type === 'earned' ? 'Crédito' : 'Débito';
+}
+
 type RedeemKind = 'pro' | 'tshirt' | 'cashback';
 
 interface RedeemOption {
@@ -116,9 +142,14 @@ export function PontosView() {
       return;
     }
     const opt = OPTIONS.find((o) => o.kind === kind)!;
+    // Modal de confirmação mostrando saldo atual, custo e saldo restante
+    // (BUG37) — antes só dizia "Trocar X pts por Y?" sem contexto de saldo.
     const ok = await dialog.confirm(
-      `Trocar ${REDEEM_COST} pts por ${opt.title}?`,
-      { title: 'Resgatar pontos', okLabel: 'Trocar' },
+      `${opt.emoji} ${opt.title}\n\n` +
+        `Saldo atual: ${balance} pts\n` +
+        `Custo do resgate: ${REDEEM_COST} pts\n` +
+        `Saldo após o resgate: ${balance - REDEEM_COST} pts`,
+      { title: 'Confirmar resgate', okLabel: 'Resgatar' },
     );
     if (!ok) return;
     if (kind === 'pro') {
@@ -333,7 +364,7 @@ export function PontosView() {
                 fontSize: 12,
               }}
             >
-              <span>{p.source || (p.type === 'earned' ? 'Crédito' : 'Débito')}</span>
+              <span>{sourceLabel(p)}</span>
               <span
                 style={{
                   color: p.type === 'earned' ? 'var(--color-p3)' : 'var(--color-p1)',

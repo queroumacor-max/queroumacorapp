@@ -15,23 +15,36 @@ const SEARCH_MIN_QUERY_LENGTH = 2;
  *  - Exclui IDs em excludeIds (normalmente: o próprio user + quem já tem
  *    conversa ativa pra evitar duplicação).
  *
- * Estratégia: pega top 200 de profiles_public e filtra no client (mesma
- * lógica do vanilla — RPC não existe ainda; full-text search seria upgrade
- * futuro). Caller faz debounce do textbox via useSearchUsers hook.
+ * Estratégia: filtra no SERVIDOR via ILIKE em name + tag (BUG39). Antes
+ * pegávamos só os primeiros 200 de profiles_public (sem ordenação nem
+ * filtro) e casávamos no client — com milhares de perfis, o usuário
+ * procurado quase nunca estava nesse recorte arbitrário, então a busca
+ * "não encontrava ninguém". Agora o Postgres faz o match de substring
+ * (case-insensitive) sobre a tabela toda e devolve só os relevantes.
+ * Caller faz debounce do textbox via useSearchUsers hook.
  */
 export async function searchUsers(
   query: string,
   excludeIds: string[] = [],
   options?: { signal?: AbortSignal },
 ): Promise<UserMini[]> {
-  const q = (query ?? '').replace('@', '').trim().toLowerCase();
+  // Remove @ inicial e caracteres que quebram a sintaxe do filtro `or` do
+  // PostgREST (vírgula separa condições, parênteses agrupam) e os curingas
+  // do ILIKE (% e _). ILIKE já é case-insensitive, mas mantemos lowercase.
+  const q = (query ?? '')
+    .replace('@', '')
+    .replace(/[,()%_*\\]/g, ' ')
+    .trim()
+    .toLowerCase();
   if (q.length < SEARCH_MIN_QUERY_LENGTH) return [];
 
   const sb = getSupabase();
+  const pattern = `%${q}%`;
   const builder = sb
     .from('profiles_public')
     .select('id, name, tag, avatar_url, role, user_type')
-    .limit(200);
+    .or(`name.ilike.${pattern},tag.ilike.${pattern}`)
+    .limit(50);
   const builderFinal = options?.signal
     ? (builder as unknown as { abortSignal: (s: AbortSignal) => typeof builder }).abortSignal(options.signal)
     : builder;
@@ -45,9 +58,6 @@ export async function searchUsers(
     if (!id || excludeSet.has(id)) continue;
     const name = String(raw.name ?? '');
     const tag = (raw.tag as string | null) ?? null;
-    const n = name.toLowerCase();
-    const t = (tag ?? '').toLowerCase();
-    if (!n.includes(q) && !t.includes(q)) continue;
     const role =
       (raw.role as string | null) ?? (raw.user_type as string | null) ?? null;
     filtered.push({
