@@ -84,7 +84,7 @@ export function MessageComposer({
           type="file"
           accept={acceptAttr}
           onChange={handlePickFile}
-          className="hidden"
+          className="sr-only"
           aria-label="Selecionar arquivo para enviar"
         />
 

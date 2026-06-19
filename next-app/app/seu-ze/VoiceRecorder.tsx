@@ -33,11 +33,15 @@ export function VoiceRecorder({
   }
 
   const busy = isTranscribing;
+  // Label persona-agnóstico e explícito que é gravação de voz (BUG42). Antes
+  // o idle era "Falar com o Seu Zé" — errado na tela da Alice e confundível
+  // com um botão de navegação. O estado gravando já avisa que vai enviar ao
+  // parar ("Parar e enviar" = pausa intencional do usuário).
   const label = isTranscribing
     ? 'Transcrevendo…'
     : isRecording
-      ? 'Parar e enviar'
-      : 'Falar com o Seu Zé';
+      ? 'Parar gravação e enviar mensagem'
+      : 'Gravar mensagem de voz';
 
   return (
     <div className="flex flex-col items-stretch gap-1">

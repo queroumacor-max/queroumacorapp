@@ -166,6 +166,13 @@ export function EditProfileForm() {
     key: 'profile_edit',
     values: watchedValues as FormData,
     onRestore: (restored) => {
+      // Não restaura rascunho por cima do perfil já carregado do servidor:
+      // numa tela de EDIÇÃO o servidor é a fonte de verdade. Restaurar só
+      // quando o perfil ainda não chegou (offline/lento). Antes, com o
+      // perfil em cache (React Query quente), o efeito de popular rodava
+      // primeiro e o restore do draft (possivelmente vazio/antigo) apagava
+      // Nome e Cidade já preenchidos (BUG45).
+      if (profile) return;
       reset(restored);
     },
   });
@@ -404,7 +411,7 @@ export function EditProfileForm() {
             id="avatar-input"
             type="file"
             accept="image/*"
-            className="hidden"
+            className="sr-only"
             onChange={handleAvatarChange}
           />
           <p className="text-xs text-[color:var(--color-muted)] mt-1">

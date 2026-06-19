@@ -301,82 +301,93 @@ export function ChatConversation({ convId }: ChatConversationProps) {
         {is3way ? (
           // Avatares empilhados pro chat 3-way (pintor + Cali Colors).
           // Vanilla chat.js linha 947+: CC (loja) à esquerda, outro user à
-          // direita, com overlap de ~10px.
-          <div
-            className="relative flex-shrink-0"
-            style={{ width: 52, height: 40 }}
-            aria-hidden="true"
+          // direita, com overlap de ~10px. Sem link de perfil (é um grupo).
+          <>
+            <div
+              className="relative flex-shrink-0"
+              style={{ width: 52, height: 40 }}
+              aria-hidden="true"
+            >
+              <span
+                className="absolute flex items-center justify-center"
+                style={{
+                  left: 0,
+                  top: 0,
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: 'var(--color-ink)',
+                  border: '2px solid #fff',
+                  zIndex: 2,
+                  color: 'var(--color-p1)',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                CC
+              </span>
+              <span
+                className="absolute overflow-hidden bg-[color:var(--color-border)] flex items-center justify-center text-xs font-bold"
+                style={{
+                  left: 20,
+                  top: 0,
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  border: '2px solid #fff',
+                  zIndex: 1,
+                }}
+              >
+                {convMeta?.avatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={convMeta.avatarUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  (convMeta?.name ?? '?').charAt(0).toUpperCase()
+                )}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{headerName}</div>
+              <div className="text-xs text-[color:var(--color-muted,#666)] truncate">
+                3 participantes · Chat 3-way ativo
+              </div>
+            </div>
+          </>
+        ) : (
+          // 1:1 — avatar + nome viram link pro perfil do interlocutor (BUG41).
+          <Link
+            href={otherId ? `/perfil/${encodeURIComponent(otherId)}` : '#'}
+            className="flex items-center gap-3 flex-1 min-w-0"
+            aria-label={`Ver perfil de ${peerName ?? 'usuário'}`}
           >
             <span
-              className="absolute flex items-center justify-center"
-              style={{
-                left: 0,
-                top: 0,
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: 'var(--color-ink)',
-                border: '2px solid #fff',
-                zIndex: 2,
-                color: 'var(--color-p1)',
-                fontFamily: 'var(--font-display)',
-                fontSize: 12,
-                fontWeight: 800,
-              }}
+              className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0"
+              aria-hidden="true"
             >
-              CC
-            </span>
-            <span
-              className="absolute overflow-hidden bg-[color:var(--color-border)] flex items-center justify-center text-xs font-bold"
-              style={{
-                left: 20,
-                top: 0,
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                border: '2px solid #fff',
-                zIndex: 1,
-              }}
-            >
-              {convMeta?.avatarUrl ? (
+              {peerAvatar ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src={convMeta.avatarUrl}
+                  src={peerAvatar}
                   alt=""
                   className="w-full h-full object-cover"
                 />
               ) : (
-                (convMeta?.name ?? '?').charAt(0).toUpperCase()
+                (peerName ?? '?').charAt(0).toUpperCase()
               )}
             </span>
-          </div>
-        ) : (
-          <span
-            className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0"
-            aria-hidden="true"
-          >
-            {peerAvatar ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={peerAvatar}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              (peerName ?? '?').charAt(0).toUpperCase()
-            )}
-          </span>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm truncate">{headerName}</div>
+              <div className="text-xs text-[color:var(--color-muted,#666)] truncate">
+                {peerTag ? '@' + peerTag : ''}
+              </div>
+            </div>
+          </Link>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{headerName}</div>
-          <div className="text-xs text-[color:var(--color-muted,#666)] truncate">
-            {is3way
-              ? '3 participantes · Chat 3-way ativo'
-              : peerTag
-                ? '@' + peerTag
-                : ''}
-          </div>
-        </div>
       </header>
 
       {/* Banner pra adicionar Cali Colors (3-way) — só pra pintor em

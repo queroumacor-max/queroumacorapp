@@ -111,6 +111,21 @@ export function ProductsList() {
   // produtos de uma categoria (false). Clicar num ícone entra na categoria;
   // o botão "Categorias" volta pro grid. Busca ativa sempre mostra produtos.
   const [showGrid, setShowGrid] = useState(true);
+  // Dropdown de categoria — custom (botão + lista) em vez de <select> nativo
+  // (BUG43): o select nativo abre um overlay do SO que não respondia/abria de
+  // forma confiável em alguns contextos (PWA/iOS/testes automatizados).
+  const [catMenuOpen, setCatMenuOpen] = useState(false);
+  const catMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!catMenuOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (catMenuRef.current && !catMenuRef.current.contains(e.target as Node)) {
+        setCatMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [catMenuOpen]);
 
   // Entra numa categoria a partir do grid de ícones.
   function openCategory(value: ProductCategoryFilter) {
@@ -249,6 +264,12 @@ export function ProductsList() {
   // Tela inicial = grid de ícones. Busca ativa força a lista de produtos.
   const gridVisible = showGrid && !search.trim();
 
+  // Rótulo da categoria atual pro botão do dropdown custom (BUG43).
+  const currentCatLabel = useMemo(() => {
+    const t = tabs.find((x) => x.value === category);
+    return t ? `${t.label} (${t.count})` : 'Categoria';
+  }, [tabs, category]);
+
   // Contagem por tier pra mostrar no tile (e esconder tier vazio).
   const paintTierCounts = useMemo(() => {
     const m: Record<PaintTier, number> = {
@@ -340,17 +361,19 @@ export function ProductsList() {
           </Link>
         </div>
 
-        {/* Dropdown de categoria — escondido na tela inicial (grid de ícones);
-            aparece ao entrar numa categoria pra trocar rápido. */}
+        {/* Dropdown de categoria (custom) — escondido na tela inicial (grid de
+            ícones); aparece ao entrar numa categoria pra trocar rápido. */}
         {!gridVisible ? (
-        <div className="relative" style={{ paddingBottom: 14 }}>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as ProductCategoryFilter)}
+        <div className="relative" style={{ paddingBottom: 14 }} ref={catMenuRef}>
+          <button
+            type="button"
+            onClick={() => setCatMenuOpen((o) => !o)}
+            aria-haspopup="listbox"
+            aria-expanded={catMenuOpen}
             aria-label="Filtrar por categoria"
-            className="w-full text-white outline-none appearance-none"
+            className="w-full text-white outline-none flex items-center justify-between gap-2"
             style={{
-              padding: '12px 40px 12px 16px',
+              padding: '12px 16px',
               borderRadius: 26,
               border: '1.5px solid rgba(255,255,255,.14)',
               background: 'rgba(255,255,255,.07)',
@@ -359,35 +382,66 @@ export function ProductsList() {
               cursor: 'pointer',
             }}
           >
-            {tabs.map((tab) => (
-              <option
-                key={tab.value}
-                value={tab.value}
-                style={{ color: 'var(--color-ink)' }}
-              >
-                {tab.label} ({tab.count})
-              </option>
-            ))}
-          </select>
-          {/* Chevron decorativo (select nativo não estiliza o arrow padrão). */}
-          <span
-            aria-hidden="true"
-            className="absolute pointer-events-none"
-            style={{ right: 14, top: 12 }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="var(--color-p1)"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <span className="truncate">{currentCatLabel}</span>
+            <span
+              aria-hidden="true"
+              className="flex-shrink-0"
+              style={{ transform: catMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
             >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </span>
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="var(--color-p1)"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </button>
+          {catMenuOpen ? (
+            <ul
+              role="listbox"
+              aria-label="Categorias"
+              className="absolute left-0 right-0 z-30 overflow-y-auto bg-white shadow-xl"
+              style={{
+                top: 'calc(100% - 6px)',
+                maxHeight: '60vh',
+                borderRadius: 16,
+                border: '1px solid var(--color-border)',
+                padding: 6,
+              }}
+            >
+              {tabs.map((tab) => {
+                const active = tab.value === category;
+                return (
+                  <li key={tab.value} role="option" aria-selected={active}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategory(tab.value);
+                        setCatMenuOpen(false);
+                      }}
+                      className="w-full text-left rounded-xl"
+                      style={{
+                        padding: '11px 12px',
+                        fontSize: 14,
+                        fontWeight: active ? 700 : 500,
+                        color: active ? 'var(--color-p1)' : 'var(--color-ink)',
+                        background: active ? 'rgba(255,107,53,.08)' : 'transparent',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
         ) : null}
 
