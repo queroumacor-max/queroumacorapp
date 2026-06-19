@@ -37,23 +37,25 @@ export function useFollow(targetId: string): UseFollowResult {
 
   const isFollowing = query.data ?? false;
 
-  const mutation = useMutation<void, Error, void, { previous: boolean }>({
-    mutationFn: async () => {
+  const mutation = useMutation<void, Error, boolean, { previous: boolean }>({
+    mutationFn: async (wasFollowing: boolean) => {
       if (!userId) throw new Error('Não autenticado');
       if (userId === targetId) throw new Error('Não pode seguir a si mesmo');
-      const cur = qc.getQueryData<boolean>(key) ?? false;
-      const result = cur
+      // Usa o estado capturado no clique (NÃO lê do cache, que o onMutate já
+      // flipou otimisticamente — antes isso fazia o "Seguir" chamar unfollow
+      // e o follow nunca salvar, BUG32).
+      const result = wasFollowing
         ? await DB.follows.unfollow(userId, targetId)
         : await DB.follows.follow(userId, targetId);
       if (!result.ok) {
         throw new Error(result.message || 'Falha ao atualizar follow');
       }
     },
-    onMutate: async () => {
+    onMutate: async (wasFollowing: boolean) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<boolean>(key) ?? false;
       // Flip otimista — botão responde na hora.
-      qc.setQueryData<boolean>(key, !previous);
+      qc.setQueryData<boolean>(key, !wasFollowing);
       // Invalida contadores (a UI lê de profile.followers_count ou similar).
       qc.invalidateQueries({ queryKey: ['profile', targetId] });
       return { previous };
@@ -82,7 +84,7 @@ export function useFollow(targetId: string): UseFollowResult {
   return {
     isFollowing,
     isLoading: query.isLoading,
-    toggle: () => mutation.mutate(),
+    toggle: () => mutation.mutate(isFollowing),
     isToggling: mutation.isPending,
     error: mutation.error ?? null,
   };

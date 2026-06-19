@@ -222,14 +222,16 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
     // Optimistic override: dispara o estado novo já. Reset pra null
     // depois da invalidate — cache passa a ser a única fonte de verdade.
     setOptimisticFollow(!prev);
-    setStats((s) => ({ ...s, followers: s.followers + (prev ? -1 : 1) }));
+    // Math.max(0, …): o contador nunca pode ficar negativo (BUG34 — unfollow
+    // levava "seguidores" a -1 quando o count base estava em 0/stale).
+    setStats((s) => ({ ...s, followers: Math.max(0, s.followers + (prev ? -1 : 1)) }));
     const r = prev
       ? await DB.follows.unfollow(user.id, profile.id)
       : await DB.follows.follow(user.id, profile.id);
     if (!r.ok) {
       // Rollback: limpa override pra cache dominar de novo.
       setOptimisticFollow(null);
-      setStats((s) => ({ ...s, followers: s.followers + (prev ? 1 : -1) }));
+      setStats((s) => ({ ...s, followers: Math.max(0, s.followers + (prev ? 1 : -1)) }));
     } else {
       // Sucesso: invalida cache → quando refetch volta, optimistic vira
       // null e o derive isFollowing usa o cache fresco.

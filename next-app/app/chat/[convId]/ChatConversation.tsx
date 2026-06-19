@@ -18,7 +18,7 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import {
@@ -101,6 +101,32 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     () => conversations.find((c) => c.convId === convId),
     [conversations, convId],
   );
+
+  // Fallback do header pra conversa NOVA (sem histórico → não está no cache de
+  // useConversations → convMeta undefined). Sem isso o header ficava preso em
+  // "Carregando…" e o avatar em "?" (BUG33). Busca o peer direto.
+  const { data: peerProfile } = useQuery<
+    { name: string | null; avatar_url: string | null; tag: string | null } | null,
+    Error
+  >({
+    queryKey: ['chat-peer', otherId],
+    queryFn: async () => {
+      const sb = getSupabase();
+      const { data } = await sb
+        .from('profiles_public')
+        .select('name, avatar_url, tag')
+        .eq('id', otherId as string)
+        .maybeSingle();
+      return (data as { name: string | null; avatar_url: string | null; tag: string | null } | null) ?? null;
+    },
+    enabled: !convMeta && !!otherId && !is3way,
+    staleTime: 5 * 60_000,
+  });
+  // Nome/avatar/tag resolvidos: convMeta (cache da lista) tem prioridade;
+  // senão usa o peer buscado direto.
+  const peerName = convMeta?.name ?? peerProfile?.name ?? peerProfile?.tag ?? null;
+  const peerAvatar = convMeta?.avatarUrl ?? peerProfile?.avatar_url ?? null;
+  const peerTag = convMeta?.tag ?? peerProfile?.tag ?? null;
 
   // Mensagens da conversa.
   const { messages, loading, error } = useMessages(convId);
@@ -255,11 +281,11 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     );
   }
 
-  const headerName = convMeta
-    ? is3way
-      ? (convMeta.name || 'Conversa') + ' + Cali Colors'
-      : (convMeta.name || 'Conversa')
-    : 'Carregando...';
+  // Usa peerName (convMeta OU peer buscado direto). Só fica "Carregando…" se
+  // nem o otherId resolveu ainda (auth carregando) — não mais preso em conv nova.
+  const headerName = is3way
+    ? (peerName || 'Conversa') + ' + Cali Colors'
+    : peerName || (otherId ? 'Conversa' : 'Carregando...');
 
   return (
     <div className="flex flex-col h-screen">
@@ -329,15 +355,15 @@ export function ChatConversation({ convId }: ChatConversationProps) {
             className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0"
             aria-hidden="true"
           >
-            {convMeta?.avatarUrl ? (
+            {peerAvatar ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
-                src={convMeta.avatarUrl}
+                src={peerAvatar}
                 alt=""
                 className="w-full h-full object-cover"
               />
             ) : (
-              (convMeta?.name ?? '?').charAt(0).toUpperCase()
+              (peerName ?? '?').charAt(0).toUpperCase()
             )}
           </span>
         )}
@@ -346,8 +372,8 @@ export function ChatConversation({ convId }: ChatConversationProps) {
           <div className="text-xs text-[color:var(--color-muted,#666)] truncate">
             {is3way
               ? '3 participantes · Chat 3-way ativo'
-              : convMeta?.tag
-                ? '@' + convMeta.tag
+              : peerTag
+                ? '@' + peerTag
                 : ''}
           </div>
         </div>
