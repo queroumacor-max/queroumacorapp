@@ -41,9 +41,7 @@ export async function fetchTrendingPosts(
     const since = new Date(Date.now() - windowDays * 86_400_000).toISOString();
     const { data: posts, error: fbErr } = await sb
       .from('posts')
-      .select(
-        'id, user_id, caption, media_url, media_type, media_width, media_height, created_at',
-      )
+      .select('id, user_id, caption, media_url, media_type, created_at')
       .or('status.eq.approved,status.is.null')
       .is('deleted_at', null)
       .not('media_url', 'is', null)
@@ -51,8 +49,8 @@ export async function fetchTrendingPosts(
       .order('created_at', { ascending: false })
       .limit(limit);
     if (fbErr) throw fbErr;
-    return (posts ?? []).map(
-      (p) => ({ ...(p as Record<string, unknown>), score: 0 } as unknown as TrendingPost),
+    return ((posts ?? []) as unknown as Array<Record<string, unknown>>).map(
+      (p) => ({ ...p, media_width: null, media_height: null, score: 0 } as unknown as TrendingPost),
     );
   } catch {
     throw new NetworkError(error.message || 'Falha ao buscar trending', error);
