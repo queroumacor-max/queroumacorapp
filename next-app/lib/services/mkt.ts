@@ -1025,13 +1025,14 @@ export async function submitOrder(
     }
   }
 
+  // Insere sem delivery_address pra não quebrar se a coluna ainda não existe
+  // no banco (migration pendente). Tenta UPDATE logo depois com o endereço.
   const row = {
     user_id: userId,
     items: items as unknown as Json,
     total,
     status: 'pending',
     created_at: new Date().toISOString(),
-    delivery_address: address || null,
   };
   const { data, error } = await sb
     .from('orders')
@@ -1046,6 +1047,17 @@ export async function submitOrder(
   if (!orderId) {
     throw new NetworkError('Pedido criado sem ID (Supabase retornou vazio).');
   }
+
+  // Tenta gravar o endereço — ignora silenciosamente se a coluna ainda não
+  // existe no banco (migration 2026-06-20-orders-delivery-address.sql pendente).
+  if (address) {
+    await sb
+      .from('orders')
+      .update({ delivery_address: address } as never)
+      .eq('id', orderId)
+      .catch(() => {});
+  }
+
   return { orderId, total };
 }
 
