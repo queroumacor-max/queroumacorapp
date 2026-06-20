@@ -369,6 +369,7 @@ export type Database = {
           installments: number | null;
           receipt_url: string | null;
           created_at: string | null;
+          delivery_address: string | null;
         };
         Insert: {
           id?: string;
@@ -385,6 +386,7 @@ export type Database = {
           installments?: number | null;
           receipt_url?: string | null;
           created_at?: string | null;
+          delivery_address?: string | null;
         };
         Update: {
           id?: string;
@@ -401,6 +403,7 @@ export type Database = {
           installments?: number | null;
           receipt_url?: string | null;
           created_at?: string | null;
+          delivery_address?: string | null;
         };
         Relationships: [];
       };

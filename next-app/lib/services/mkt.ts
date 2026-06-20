@@ -969,7 +969,7 @@ function cartSignature(items: CartItem[]): string {
 export async function submitOrder(
   userId: string,
   items: CartItem[],
-  _address?: string | null
+  address?: string | null
 ): Promise<OrderSubmitResult> {
   if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
@@ -1012,6 +1012,7 @@ export async function submitOrder(
     total,
     status: 'pending',
     created_at: new Date().toISOString(),
+    delivery_address: address || null,
   };
   const { data, error } = await sb
     .from('orders')

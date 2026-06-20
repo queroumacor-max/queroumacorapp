@@ -45,6 +45,17 @@ export function CartView() {
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [cep, setCep] = useState('');
+  const [rua, setRua] = useState('');
+  const [numero, setNumero] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [estado, setEstado] = useState('');
+
+  // Monta a string de endereço a partir dos campos (todos opcionais).
+  function buildAddress(): string | null {
+    const parts = [rua.trim(), numero.trim(), cep.trim(), cidade.trim(), estado.trim()].filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+  }
 
   // Envio da lista — só registra o pedido no Supabase (submitOrder grava a
   // order com status 'pending') e mostra a mensagem de sucesso. SEM checkout
@@ -53,7 +64,7 @@ export function CartView() {
   async function handleSendList() {
     setCheckoutMsg(null);
     try {
-      await checkout();
+      await checkout(buildAddress() ?? undefined);
       // Pedido gravado → esvazia a lista e confirma.
       await clearCart().catch(() => {});
       setSent(true);
@@ -204,6 +215,77 @@ export function CartView() {
           </li>
         ))}
       </ul>
+
+      <div className="bg-white rounded-xl p-4 border border-[color:var(--color-border)] mb-4 space-y-3">
+        <p className="text-sm font-semibold">Endereço de entrega <span className="font-normal text-[color:var(--color-muted)]">(opcional)</span></p>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label htmlFor="addr-cep" className="block text-xs text-[color:var(--color-muted)] mb-1">CEP</label>
+            <input
+              id="addr-cep"
+              type="text"
+              inputMode="numeric"
+              placeholder="00000-000"
+              value={cep}
+              onChange={(e) => setCep(e.target.value)}
+              disabled={isCheckingOut}
+              maxLength={9}
+              className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="addr-rua" className="block text-xs text-[color:var(--color-muted)] mb-1">Rua / Avenida</label>
+          <input
+            id="addr-rua"
+            type="text"
+            placeholder="Ex.: Rua das Flores"
+            value={rua}
+            onChange={(e) => setRua(e.target.value)}
+            disabled={isCheckingOut}
+            className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+          />
+        </div>
+        <div>
+          <label htmlFor="addr-numero" className="block text-xs text-[color:var(--color-muted)] mb-1">Número / Complemento</label>
+          <input
+            id="addr-numero"
+            type="text"
+            placeholder="Ex.: 123, Apto 4"
+            value={numero}
+            onChange={(e) => setNumero(e.target.value)}
+            disabled={isCheckingOut}
+            className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+          />
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label htmlFor="addr-cidade" className="block text-xs text-[color:var(--color-muted)] mb-1">Cidade</label>
+            <input
+              id="addr-cidade"
+              type="text"
+              placeholder="Ex.: Guarulhos"
+              value={cidade}
+              onChange={(e) => setCidade(e.target.value)}
+              disabled={isCheckingOut}
+              className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+            />
+          </div>
+          <div className="w-20">
+            <label htmlFor="addr-estado" className="block text-xs text-[color:var(--color-muted)] mb-1">Estado</label>
+            <input
+              id="addr-estado"
+              type="text"
+              placeholder="SP"
+              value={estado}
+              onChange={(e) => setEstado(e.target.value.toUpperCase())}
+              disabled={isCheckingOut}
+              maxLength={2}
+              className="w-full px-3 py-2 rounded-lg border border-[color:var(--color-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
+            />
+          </div>
+        </div>
+      </div>
 
       <button
         type="button"
