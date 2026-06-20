@@ -969,7 +969,7 @@ function cartSignature(items: CartItem[]): string {
 export async function submitOrder(
   userId: string,
   items: CartItem[],
-  address?: string | null
+  _address?: string | null
 ): Promise<OrderSubmitResult> {
   if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
@@ -1006,15 +1006,12 @@ export async function submitOrder(
     }
   }
 
-  // `shipping_address` (text) é coluna nova — pode não estar nos types gerados
-  // do Supabase ainda, daí o cast (mesmo padrão de outras colunas tardias).
   const row = {
     user_id: userId,
-    items: items as unknown as Json, // jsonb column — mesmo padrão de saveCart
+    items: items as unknown as Json,
     total,
     status: 'pending',
     created_at: new Date().toISOString(),
-    shipping_address: address && address.trim() ? address.trim() : null,
   };
   const { data, error } = await sb
     .from('orders')

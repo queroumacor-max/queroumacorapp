@@ -15,11 +15,6 @@ import { useAuth } from '@/components/AuthProvider';
 import { useCart } from '@/lib/hooks/useCart';
 import { CartItem } from '@/components/CartItem';
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 function SkeletonItem() {
   return (
     <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[color:var(--color-border)] animate-pulse">
@@ -37,7 +32,6 @@ export function CartView() {
   const { user, loading: authLoading } = useAuth();
   const {
     items,
-    total,
     loading,
     error,
     remove,
@@ -51,7 +45,6 @@ export function CartView() {
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const [address, setAddress] = useState('');
 
   // Envio da lista — só registra o pedido no Supabase (submitOrder grava a
   // order com status 'pending') e mostra a mensagem de sucesso. SEM checkout
@@ -59,12 +52,8 @@ export function CartView() {
   // a loja fecha a venda fora do app, via WhatsApp.
   async function handleSendList() {
     setCheckoutMsg(null);
-    if (address.trim().length < 10) {
-      setCheckoutMsg('Informe o endereço de entrega (rua, número, bairro, cidade e CEP).');
-      return;
-    }
     try {
-      await checkout(address);
+      await checkout();
       // Pedido gravado → esvazia a lista e confirma.
       await clearCart().catch(() => {});
       setSent(true);
@@ -215,37 +204,6 @@ export function CartView() {
           </li>
         ))}
       </ul>
-
-      <div className="flex items-center justify-between bg-white rounded-xl p-4 border border-[color:var(--color-border)] mb-4">
-        <span className="text-sm font-semibold">Total</span>
-        <span
-          className="text-xl font-bold"
-          style={{ color: 'var(--color-p1)', fontFamily: 'var(--font-display)' }}
-        >
-          {BRL.format(total)}
-        </span>
-      </div>
-
-      <div className="bg-white rounded-xl p-4 border border-[color:var(--color-border)] mb-4">
-        <label
-          htmlFor="shipping-address"
-          className="block text-sm font-semibold mb-2"
-        >
-          Endereço de entrega
-        </label>
-        <textarea
-          id="shipping-address"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          disabled={isCheckingOut}
-          rows={3}
-          placeholder="Rua, número, bairro, cidade/UF, CEP e complemento"
-          className="w-full p-3 rounded-lg border border-[color:var(--color-border)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[color:var(--color-p1)]"
-        />
-        <p className="text-xs text-[color:var(--color-muted)] mt-1">
-          Pra onde devemos enviar o pedido.
-        </p>
-      </div>
 
       <button
         type="button"
