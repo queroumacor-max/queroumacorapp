@@ -71,12 +71,15 @@ export function useProducts(): UseProductsResult {
   // base não — relevante porque o agrupamento percorre todos os items.
   const byCategory = useMemo<Record<string, Product[]>>(() => {
     const groups: Record<string, Product[]> = {};
+    // Produtos de uso misto que aparecem em tintas imob. E tintas automotivas.
+    const dupAutoCode = new Set(['1593']);
     for (const p of all) {
       const k = mktClassify(p);
       (groups[k] = groups[k] || []).push(p);
-      // Wash Primer aparece tanto em Tintas Imobiliárias (tintas) quanto em
-      // Tintas Automotivas (tintas_auto) — produto de uso misto.
-      if (k === 'tintas' && (p.name || '').toLowerCase().includes('wash primer')) {
+      if (k === 'tintas' && (
+        (p.name || '').toLowerCase().includes('wash primer') ||
+        dupAutoCode.has(String(p.code || '').trim())
+      )) {
         (groups['tintas_auto'] = groups['tintas_auto'] || []).push(p);
       }
     }
