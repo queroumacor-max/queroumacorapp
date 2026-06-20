@@ -296,13 +296,15 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   const n = ' ' + String((p && p.name) || '').toLowerCase() + ' ';
   const code = String((p && p.code) || '').toLowerCase().trim();
   // Overrides por código (prioridade máxima)
-  if (['803', '804', '805', '1205', '1206'].includes(code)) return 'arte_urbana';
-  if (['1222', '1227', '1989', '1962', '1244', '2109', '2110'].includes(code)) return 'pintura';
-  if (['1661', '1927', '2005', '1765', '1913', '1680', '2032'].includes(code)) return 'tintas_auto';
-  if (['1974', '1975', '1814'].includes(code)) return 'estetica_automotiva';
+  if (['803', '804', '805', '1205', '1206', '1856', '1735'].includes(code)) return 'arte_urbana';
+  if (['1222', '1227', '1989', '1962', '1244', '2109', '2110',
+       '1602', '1246', '1247', '1248', '1967', '1763', '1312', '1311'].includes(code)) return 'pintura';
+  if (['1661', '1927', '2005', '1765', '1913', '1680', '2032', '1911'].includes(code)) return 'tintas_auto';
+  if (['1974', '1975', '1814', '1681',
+       '2030', '2029', '2028', '2027', '2026', '1976'].includes(code)) return 'estetica_automotiva';
   if (['1860', '1987'].includes(code)) return 'epi';
   if (['2061', '2117', '1303', '1577', '1293', '1289', '1240', '1241'].includes(code)) return 'ferramentas';
-  if (code === '2128') return 'equipamentos';
+  if (['2128', '2127', '2052'].includes(code)) return 'equipamentos';
   if (['1828', '2144'].includes(code)) return 'texturas';
   // 1593 e 1778 → tintas imob. (1593 duplicado em tintas_auto via byCategory)
   if (['1593', '1778'].includes(code)) return 'tintas';
