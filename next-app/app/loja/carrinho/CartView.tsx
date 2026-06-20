@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useCart } from '@/lib/hooks/useCart';
 import { CartItem } from '@/components/CartItem';
@@ -29,6 +30,7 @@ function SkeletonItem() {
 }
 
 export function CartView() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const {
     items,
@@ -44,36 +46,24 @@ export function CartView() {
     checkoutError,
   } = useCart();
   const [checkoutMsg, setCheckoutMsg] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
   const [cep, setCep] = useState('');
   const [rua, setRua] = useState('');
   const [numero, setNumero] = useState('');
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
 
-  // Monta a string de endereço a partir dos campos (todos opcionais).
   function buildAddress(): string | null {
     const parts = [rua.trim(), numero.trim(), cep.trim(), cidade.trim(), estado.trim()].filter(Boolean);
     return parts.length ? parts.join(', ') : null;
   }
 
-  // Envio da lista — só registra o pedido no Supabase (submitOrder grava a
-  // order com status 'pending') e mostra a mensagem de sucesso. SEM checkout
-  // do Mercado Pago e SEM redirect pra pagamento (compliance Apple 3.1.3e):
-  // a loja fecha a venda fora do app, via WhatsApp.
   async function handleSendList() {
     setCheckoutMsg(null);
     try {
-      await checkout(buildAddress() ?? undefined);
-      // Pedido gravado → esvazia a lista e confirma.
+      const result = await checkout(buildAddress() ?? undefined);
       await clearCart().catch(() => {});
-      setSent(true);
-      setCheckoutMsg(
-        'Pedido enviado! A equipe da Cali Colors entrará em contato via WhatsApp em breve.'
-      );
+      router.push(`/loja/pedido-confirmado/${result.orderId}`);
     } catch (err) {
-      // Falha real: mantém a lista pra o usuário tentar de novo (o submitOrder
-      // faz dedupe, então não cria pedido duplicado).
       setCheckoutMsg(
         (err as Error).message || 'Não foi possível enviar a lista. Tente de novo.'
       );
@@ -137,33 +127,15 @@ export function CartView() {
     return (
       <div>
         {checkoutMsg ? (
-          <div
-            role="alert"
-            className={
-              sent
-                ? 'mb-4 p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800'
-                : 'mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800'
-            }
-          >
+          <div role="alert" className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
             {checkoutMsg}
           </div>
         ) : null}
         <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <div className="text-5xl mb-3" aria-hidden="true">
-            {sent ? '✅' : '🛒'}
-          </div>
-          <h2 className="font-semibold mb-2">
-            {sent ? 'Pedido enviado!' : 'Lista vazia'}
-          </h2>
-          <p className="text-sm text-[color:var(--color-muted)] mb-4">
-            {sent
-              ? 'A equipe da Cali Colors entrará em contato via WhatsApp em breve.'
-              : 'Selecione produtos pra começar.'}
-          </p>
-          <Link
-            href="/loja"
-            className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-          >
+          <div className="text-5xl mb-3" aria-hidden="true">🛒</div>
+          <h2 className="font-semibold mb-2">Lista vazia</h2>
+          <p className="text-sm text-[color:var(--color-muted)] mb-4">Selecione produtos pra começar.</p>
+          <Link href="/loja" className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold">
             Ver loja
           </Link>
         </div>
