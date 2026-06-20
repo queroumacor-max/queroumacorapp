@@ -40,7 +40,6 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
   const emoji = categoryEmoji(product.category);
   const hasColor = !!(product.color_gradient || resolveColorHex(product));
   const inactive = product.active === false;
-  const outOfStock = product.stock != null && product.stock <= 0;
 
   return (
     <article
@@ -102,18 +101,13 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            if (outOfStock) return;
             onAdd(product);
           }}
-          disabled={isAdding || inactive || outOfStock}
+          disabled={isAdding || inactive}
           className="px-3 py-2 text-xs font-semibold bg-[color:var(--color-ink)] text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex-shrink-0"
-          aria-label={
-            outOfStock
-              ? `${product.name} sem estoque`
-              : `Selecionar ${product.name}`
-          }
+          aria-label={`Selecionar ${product.name}`}
         >
-          {outOfStock ? 'Sem estoque' : isAdding ? '...' : 'Selecionar'}
+          {isAdding ? '...' : 'Selecionar'}
         </button>
       ) : null}
     </article>

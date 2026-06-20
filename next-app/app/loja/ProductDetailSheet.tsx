@@ -168,15 +168,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const activeGroupProduct = selectedGroupVariant?.product ?? null;
   const hasGroupVariants = !!(product?._groupVariants && product._groupVariants.length > 1);
 
-  // Esgotado: grupo variant manda quando disponível; senão Wave 25; senão base.
-  const outOfStock = activeGroupProduct
-    ? !!(activeGroupProduct.stock != null && activeGroupProduct.stock <= 0)
-    : selectedVariant
-      ? selectedVariant.stock != null && selectedVariant.stock <= 0
-      : !!product && product.stock != null && product.stock <= 0;
-
   function handleAdd() {
-    if (!product || outOfStock) return;
+    if (!product) return;
     if (!requireAuth('comprar')) return; // visitante: abre cadastro
     const productToAdd = activeGroupProduct ?? product;
     onAdd(productToAdd, qty, selectedVariant);
@@ -508,7 +501,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               <div role="radiogroup" aria-label="Tamanho" className="flex flex-wrap gap-2">
                 {product._groupVariants!.map((gv) => {
                   const active = selectedGroupVariant?.product.id === gv.product.id;
-                  const outStock = gv.product.stock != null && gv.product.stock <= 0;
                   return (
                     <button
                       key={gv.product.id}
@@ -516,27 +508,20 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                       role="radio"
                       aria-checked={active}
                       onClick={() => setSelectedGroupVariant(gv)}
-                      disabled={outStock}
                       className="text-left"
                       style={{
                         flex: '1 1 calc(33.333% - 8px)',
                         minWidth: 88,
                         padding: '10px 12px',
                         background: active ? 'var(--color-p1)' : 'var(--color-cream)',
-                        color: active ? '#fff' : outStock ? 'var(--color-muted)' : 'var(--color-ink)',
+                        color: active ? '#fff' : 'var(--color-ink)',
                         border: `2px solid ${active ? 'var(--color-p1)' : 'var(--color-border)'}`,
                         borderRadius: 12,
-                        cursor: outStock ? 'not-allowed' : 'pointer',
-                        opacity: outStock ? 0.6 : 1,
+                        cursor: 'pointer',
                         transition: 'background .15s, border-color .15s',
                       }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{gv.sizeLabel}</div>
-                      {outStock ? (
-                        <div style={{ fontSize: 10, color: active ? 'rgba(255,255,255,.8)' : '#ef4444', marginTop: 2 }}>
-                          Sem estoque
-                        </div>
-                      ) : null}
                     </button>
                   );
                 })}
@@ -599,35 +584,31 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
           <button
             type="button"
             onClick={handleAdd}
-            disabled={outOfStock}
             className="w-full text-white font-bold"
             style={{
               padding: 14,
-              background: outOfStock ? 'var(--color-muted)' : 'var(--color-p1)',
+              background: 'var(--color-p1)',
               borderRadius: 14,
               fontSize: 15,
               border: 'none',
-              cursor: outOfStock ? 'not-allowed' : 'pointer',
-              opacity: outOfStock ? 0.7 : 1,
-              boxShadow: outOfStock ? 'none' : '0 4px 12px rgba(255,107,53,.3)',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(255,107,53,.3)',
             }}
           >
-            {outOfStock ? 'Sem estoque' : '+ Selecionar item'}
+            + Selecionar item
           </button>
-          {!outOfStock ? (
-            <p
-              style={{
-                fontSize: 12,
-                color: 'var(--color-muted)',
-                lineHeight: 1.5,
-                marginTop: 10,
-                textAlign: 'center',
-              }}
-            >
-              A loja Cali Colors entrará em contato para confirmar
-              disponibilidade e valores do seu pedido.
-            </p>
-          ) : null}
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--color-muted)',
+              lineHeight: 1.5,
+              marginTop: 10,
+              textAlign: 'center',
+            }}
+          >
+            A loja Cali Colors entrará em contato para confirmar
+            disponibilidade e valores do seu pedido.
+          </p>
         </>
       ) : (
         /* ─── Cores personalizadas (tintometria) ─── */
