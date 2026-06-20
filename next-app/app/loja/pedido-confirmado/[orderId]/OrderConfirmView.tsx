@@ -44,29 +44,74 @@ function buildWhatsAppText(order: OrderData): string {
 
 export function OrderConfirmView({ orderId }: { orderId: string }) {
   const [order, setOrder] = useState<OrderData | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editItems, setEditItems] = useState<CartItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const sb = getSupabase();
     sb.from('orders')
-      .select('id, items, created_at, delivery_address')
+      .select('id, items, created_at, status, delivery_address')
       .eq('id', orderId)
       .single()
       .then(({ data, error: err }) => {
         if (err || !data) {
           setError('Não foi possível carregar o pedido.');
         } else {
-          setOrder({
+          const parsed: OrderData = {
             id: data.id,
             items: Array.isArray(data.items) ? (data.items as CartItem[]) : [],
             created_at: data.created_at ?? new Date().toISOString(),
             delivery_address: (data as Record<string, unknown>).delivery_address as string | null,
-          });
+          };
+          setOrder(parsed);
+          setStatus(data.status ?? 'pending');
+          setEditItems(parsed.items.map((it) => ({ ...it })));
         }
         setLoading(false);
       });
   }, [orderId]);
+
+  function changeQty(idx: number, delta: number) {
+    setEditItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const next = Math.max(1, (it.qty || 1) + delta);
+        return { ...it, qty: next };
+      })
+    );
+  }
+
+  function removeItem(idx: number) {
+    setEditItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function saveEdit() {
+    if (!order) return;
+    if (editItems.length === 0) {
+      setSaveMsg('Adicione pelo menos 1 item antes de salvar.');
+      return;
+    }
+    setSaving(true);
+    setSaveMsg(null);
+    const sb = getSupabase();
+    const { error: err } = await sb
+      .from('orders')
+      .update({ items: editItems as unknown as never } as never)
+      .eq('id', order.id);
+    if (err) {
+      setSaveMsg('Não foi possível salvar. Tente de novo.');
+    } else {
+      setOrder({ ...order, items: editItems });
+      setEditing(false);
+      setSaveMsg('Pedido atualizado com sucesso!');
+    }
+    setSaving(false);
+  }
 
   function handlePrint() {
     window.print();
@@ -101,7 +146,9 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
     );
   }
 
-  const itemCount = order.items.reduce((s, i) => s + (i.qty || 1), 0);
+  const isPending = !status || status === 'pending' || status === 'pendente';
+  const displayItems = editing ? editItems : order.items;
+  const itemCount = displayItems.reduce((s, i) => s + (i.qty || 1), 0);
 
   return (
     <>
@@ -115,14 +162,23 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
       `}</style>
 
       <div id="order-print-root">
-        {/* Cabeçalho de confirmação */}
+        {/* Cabeçalho */}
         <div className="flex flex-col items-center text-center mb-6 no-print">
-          <div className="text-5xl mb-2">✅</div>
-          <h2 className="text-lg font-bold mb-1">Lista enviada com sucesso!</h2>
+          <div className="text-5xl mb-2">{isPending ? '⏳' : '✅'}</div>
+          <h2 className="text-lg font-bold mb-1">
+            {isPending ? 'Pedido pendente' : 'Pedido confirmado'}
+          </h2>
           <p className="text-sm text-[color:var(--color-muted)]">
             A equipe da Cali Colors entrará em contato via WhatsApp em breve.
           </p>
         </div>
+
+        {/* Aviso de salvamento */}
+        {saveMsg ? (
+          <div className={`mb-4 p-3 rounded-xl text-sm no-print ${saveMsg.includes('sucesso') ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+            {saveMsg}
+          </div>
+        ) : null}
 
         {/* Cabeçalho do PDF */}
         <div className="hidden print:block mb-4 text-center">
@@ -134,14 +190,25 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
         <div className="bg-white rounded-xl border border-[color:var(--color-border)] p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-semibold">
-              Itens do pedido ({itemCount} {itemCount === 1 ? 'unidade' : 'unidades'})
+              Itens ({itemCount} {itemCount === 1 ? 'unidade' : 'unidades'})
             </span>
-            <span className="text-xs text-[color:var(--color-muted)]">
-              {formatDate(order.created_at)}
-            </span>
+            {isPending && !editing ? (
+              <button
+                type="button"
+                onClick={() => { setEditing(true); setSaveMsg(null); }}
+                className="no-print text-xs font-semibold text-[color:var(--color-p1)] border border-[color:var(--color-p1)] px-3 py-1 rounded-full"
+              >
+                Editar pedido
+              </button>
+            ) : null}
+            {editing ? (
+              <span className="text-xs text-[color:var(--color-muted)]">Modo edição</span>
+            ) : (
+              <span className="text-xs text-[color:var(--color-muted)]">{formatDate(order.created_at)}</span>
+            )}
           </div>
           <ul className="divide-y divide-[color:var(--color-border)]">
-            {order.items.map((item, idx) => (
+            {displayItems.map((item, idx) => (
               <li key={`${item.id}-${idx}`} className="py-2 flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{item.name}</div>
@@ -149,12 +216,37 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
                     <div className="text-xs text-[color:var(--color-muted)]">{item.volume}</div>
                   ) : null}
                 </div>
-                <span className="text-sm font-semibold whitespace-nowrap">
-                  Qtd: {item.qty || 1}
-                </span>
+                {editing ? (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" onClick={() => changeQty(idx, -1)}
+                      className="w-7 h-7 rounded-full bg-[color:var(--color-bg)] text-sm font-bold">−</button>
+                    <span className="text-sm font-semibold w-5 text-center">{item.qty || 1}</span>
+                    <button type="button" onClick={() => changeQty(idx, 1)}
+                      className="w-7 h-7 rounded-full bg-[color:var(--color-bg)] text-sm font-bold">+</button>
+                    <button type="button" onClick={() => removeItem(idx)}
+                      className="w-7 h-7 rounded-full text-red-400 hover:bg-red-50 text-base font-bold ml-1">×</button>
+                  </div>
+                ) : (
+                  <span className="text-sm font-semibold whitespace-nowrap">Qtd: {item.qty || 1}</span>
+                )}
               </li>
             ))}
           </ul>
+
+          {/* Botões salvar/cancelar edição */}
+          {editing ? (
+            <div className="flex gap-2 mt-4 no-print">
+              <button type="button" onClick={() => { setEditing(false); setEditItems(order.items.map(it => ({...it}))); setSaveMsg(null); }}
+                disabled={saving}
+                className="flex-1 py-2 rounded-xl border border-[color:var(--color-border)] text-sm font-semibold disabled:opacity-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={saveEdit} disabled={saving}
+                className="flex-1 py-2 rounded-xl bg-[color:var(--color-p1)] text-white text-sm font-semibold disabled:opacity-50">
+                {saving ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {/* Endereço (se informado) */}

@@ -16,6 +16,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import type { Order, OrderStatus } from '@/lib/types';
 
 // Formatador BRL ao nível de módulo — Intl.NumberFormat é caro de instanciar
@@ -111,8 +112,9 @@ export function OrderCard({ order }: OrderCardProps) {
   const tracking = order.tracking_code?.trim();
 
   return (
+    <Link href={`/loja/pedido-confirmado/${order.id}`} className="block">
     <article
-      className="bg-white rounded-xl border border-[color:var(--color-border)] p-4 flex flex-col gap-3"
+      className="bg-white rounded-xl border border-[color:var(--color-border)] p-4 flex flex-col gap-3 hover:border-[color:var(--color-p1)] transition-colors"
       data-status={order.status || 'pending'}
     >
       <header className="flex items-center gap-3">
@@ -154,15 +156,17 @@ export function OrderCard({ order }: OrderCardProps) {
       </div>
 
       {tracking ? (
-        <a
-          href={`https://rastreamento.correios.com.br/app/index.php?objetos=${encodeURIComponent(tracking)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-semibold text-[color:var(--color-p1)] underline self-start"
-        >
+        <span className="text-xs font-semibold text-[color:var(--color-p1)] underline self-start">
           Rastrear: {tracking}
-        </a>
+        </span>
       ) : null}
+
+      <div className="flex items-center justify-end">
+        <span className="text-xs text-[color:var(--color-p1)] font-semibold">
+          Ver detalhes →
+        </span>
+      </div>
     </article>
+    </Link>
   );
 }
