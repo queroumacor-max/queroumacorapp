@@ -305,9 +305,9 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1005', '1006', '1007', '1008', '1009', '1012', '1013', '1014', '1092'].includes(code)) return 'arte_urbana';
   if (['1222', '1227', '1989', '1962', '1244', '2109', '2110',
        '1602', '1246', '1247', '1248', '1967', '1763', '1312', '1311',
-       '1603', '2157', '1609', '1608', '1514', '1454', '1585', '1515', '1455'].includes(code)) return 'pintura';
+       '1603', '2157', '1609', '1608', '1514', '1454', '1585', '1515', '1455',
+       '1746'].includes(code)) return 'pintura';
   if (['1661', '1927', '2005', '1765', '1913', '1680', '2032', '1911',
-       '1385', '1432', '1196',
        '1995', '1689', '1844', '1835', '1690', '1782'].includes(code)) return 'tintas_auto';
   if (['1974', '1975', '1814', '1681',
        '2030', '2029', '2028', '2027', '2026', '1976',
@@ -327,7 +327,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '378', '316', '320', '314', '312',
        '1760', '1771', '1759', '773', '770', '764', '766', '780', '782', '768',
        '776', '772', '778', '263', '188', '191', '112', '110', '1851', '1620',
-       '1593', '1778'].includes(code)) return 'madeiras_metais';
+       '1593', '1778', '1385', '1432'].includes(code)) return 'madeiras_metais';
   // tintas imob. (complementos + tintas): 1593 duplicado em tintas_auto via byCategory
   if (['1593', '1778',
        '1859', '1129', '1130', '1201', '1384', '1996', '1718', '1820',
@@ -339,7 +339,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1192', '1615', '1614', '1613', '1477', '1193',
        '391', '394', '403', '406', '409', '412', '415', '418', '421', '424', '427',
        '429', '431', '433', '435', '437', '439', '441', '443',
-       '2094'].includes(code)) return 'tintas';
+       '2094', '1196'].includes(code)) return 'tintas';
   // Overrides por nome (prioridade sobre keyword loop)
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
@@ -422,7 +422,7 @@ const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextu
 // Códigos ocultados individualmente (sem renomear/reclassificar).
 const HIDDEN_CODES = new Set(['1795', '1628', '1898', '2089',
   '638', '637', '641', '645', '644', '639', '642', '646', '643', '640',
-  '652', '655']);
+  '652', '655', '1697']);
 
 export function isMktHidden(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
   if (HIDDEN_CODES.has(String((p && p.code) || '').trim())) return true;
@@ -586,7 +586,7 @@ export function paintTierClassify(
   if (['1770', '1199', '1754', '1827', '2155', '1756', '1769', '1757', '1758',
        '1722', '1730', '287', '193', '219', '207', '1137',
        '1497', '1495', '1493', '1492', '1494', '1496',
-       '1192', '1615', '1614', '1613', '1477', '1193',
+       '1192', '1615', '1614', '1613', '1477', '1193', '1196',
        '391', '394', '397', '400', '403', '406', '409', '412', '415', '418', '421', '424', '427',
        '429', '431', '433', '435', '437', '439', '441', '443'].includes(code)) return 'premium';
   if (['2094', '651', '654'].includes(code)) return 'standard';
@@ -609,7 +609,8 @@ export function autoTierClassify(
 ): AutoTier {
   if (!p) return 'tinta';
   const code = String(p.code || '').trim();
-  if (['1927', '1593', '1680', '2032'].includes(code)) return 'complementos';
+  if (['1911'].includes(code)) return 'primer';
+  if (['1927', '1593', '1680', '2032', '1995', '1844'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
