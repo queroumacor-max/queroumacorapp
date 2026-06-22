@@ -189,6 +189,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     if (!product) return;
     if (!requireAuth('comprar')) return; // visitante: abre cadastro
     const productToAdd = activeGroupProduct ?? effectiveProduct;
+    if (!productToAdd) return;
     onAdd(productToAdd, qty, selectedVariant);
     showToast('Item selecionado!', 'success');
     onClose();
