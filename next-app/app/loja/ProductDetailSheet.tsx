@@ -130,7 +130,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const { data: companions } = useQuery({
     queryKey: ['companions', product?.id],
     queryFn: () => fetchCompanionsForProduct(product!),
-    enabled: !!product,
+    enabled: !!product && !product._colorVariants,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -208,8 +208,9 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // (b) caem numa categoria pintável. Sem isso o botão aparecia em
   // adaptador de tomada, pincel etc. e tingia nada visível.
   const arEligible = !!solidHex && AR_PAINTABLE.has(productCat);
-  // Aba de cores personalizadas só aparece pra tintas não-econômicas sem agrupamento de cor.
-  const showColorTabs = productCat === 'tintas' && paintTierClassify(effectiveProduct) !== 'economica' && !product._colorVariants;
+  // Aba de cores personalizadas só aparece pra tintas não-econômicas, não-primer e sem agrupamento de cor.
+  const paintTier = productCat === 'tintas' ? paintTierClassify(effectiveProduct) : null;
+  const showColorTabs = productCat === 'tintas' && paintTier !== 'economica' && paintTier !== 'primer' && !product._colorVariants;
   // Preço derivado pra tintometria: usado no addItem quando user confirma cor.
   const basePrice = Number(product.price || 0);
   const customPrice =

@@ -476,6 +476,7 @@ const COMPANION_SKIP = new Set([
   'um', 'uma', 'uns', 'umas', 'ou', 'e', 'a', 'o', 'as', 'os',
   'tinta', 'esmalte', 'verniz', 'primer', 'seladora', 'fundo', 'base',
   'cor', 'acrilica', 'acrilico', 'latex', 'pva', 'stand', 'lata', 'galao',
+  'fosco', 'brilhante', 'acetinado', 'metalico', 'metalica', 'efeito',
 ]);
 
 /**
