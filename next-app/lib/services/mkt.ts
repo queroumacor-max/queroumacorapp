@@ -308,15 +308,16 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1746'].includes(code)) return 'pintura';
   if (['1661', '1927', '2005', '1765', '1913', '1680', '2032', '1911',
        '1995', '1689', '1844', '1835', '1690', '1782', '1681',
-       '1632', '1836'].includes(code)) return 'tintas_auto';
+       '1632', '1836', '2061'].includes(code)) return 'tintas_auto';
   if (['1974', '1975', '1814',
        '2030', '2029', '2028', '2027', '2026', '1976',
        '1950', '2069', '2070', '2071'].includes(code)) return 'estetica_automotiva';
   if (['1860', '1987', '1968', '1806', '1544'].includes(code)) return 'epi';
-  if (['2061', '2117', '1303', '1577', '1293', '1289', '1240', '1241',
+  if (['2117', '1303', '1577', '1293', '1289', '1240', '1241',
        '1576', '1595',
        '2152', '1383', '1382', '1604', '1319', '1426', '1391'].includes(code)) return 'ferramentas';
-  if (['2128', '2127', '2052', '1980', '1981'].includes(code)) return 'equipamentos';
+  if (['2128', '2127', '2052', '1980', '1981',
+       '2037', '1287', '1448', '1573', '1446', '1929', '1288'].includes(code)) return 'equipamentos';
   if (['1817', '1717', '1731', '1720', '1732', '1719', '1611',
        '8', '9', '10'].includes(code)) return 'texturas';
   if (['2099', '1984'].includes(code)) return 'outros';
@@ -612,7 +613,7 @@ export function autoTierClassify(
   if (!p) return 'tinta';
   const code = String(p.code || '').trim();
   if (['1911'].includes(code)) return 'primer';
-  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681', '1632', '1836'].includes(code)) return 'complementos';
+  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681', '1632', '1836', '2061'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
