@@ -309,7 +309,8 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1603', '2157', '1609', '1608', '1514', '1454', '1585', '1515', '1455',
        '1746'].includes(code)) return 'pintura';
   if (['1661', '1927', '2005', '1765', '1913', '1680', '2032', '1911',
-       '1995', '1689', '1844', '1835', '1690', '1782', '1681'].includes(code)) return 'tintas_auto';
+       '1995', '1689', '1844', '1835', '1690', '1782', '1681',
+       '1632', '1836'].includes(code)) return 'tintas_auto';
   if (['1974', '1975', '1814',
        '2030', '2029', '2028', '2027', '2026', '1976',
        '1950', '2069', '2070', '2071'].includes(code)) return 'estetica_automotiva';
@@ -330,7 +331,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '378', '316', '320', '314', '312',
        '1760', '1771', '1759', '773', '770', '764', '766', '780', '782', '768',
        '776', '772', '778', '263', '188', '191', '112', '110', '1851', '1620',
-       '1593', '1778', '1385', '1432', '1828', '2144'].includes(code)) return 'madeiras_metais';
+       '1593', '1778', '1385', '1432', '1828', '2144', '1431'].includes(code)) return 'madeiras_metais';
   // tintas imob. (complementos + tintas): 1593 duplicado em tintas_auto via byCategory
   if (['1593', '1778',
        '1859', '1129', '1130', '1201', '1384', '1996', '1718', '1820',
@@ -342,7 +343,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1192', '1615', '1614', '1613', '1477', '1193',
        '391', '394', '403', '406', '409', '412', '415', '418', '421', '424', '427',
        '429', '431', '433', '435', '437', '439', '441', '443',
-       '2094', '1196'].includes(code)) return 'tintas';
+       '2094', '1196', '1861'].includes(code)) return 'tintas';
   // Overrides por nome (prioridade sobre keyword loop)
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
@@ -595,7 +596,7 @@ export function paintTierClassify(
   if (['2094'].includes(code)) return 'standard';
   if (['1859', '1129', '1130', '1201', '1384', '1996', '1718', '203', '1820',
        '100', '102', '1322', '2137', '1800', '2072', '1729', '1716', '388',
-       '205', '186', '185'].includes(code)) return 'complementos';
+       '205', '186', '185', '1861'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/metalatex elastic|metalatex eco|super secagem|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
@@ -613,7 +614,7 @@ export function autoTierClassify(
   if (!p) return 'tinta';
   const code = String(p.code || '').trim();
   if (['1911'].includes(code)) return 'primer';
-  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681'].includes(code)) return 'complementos';
+  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681', '1632', '1836'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
