@@ -301,14 +301,15 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '963', '965', '994',
        '997', '998', '999', '1000', '1001', '1002', '1003',
        '1005', '1006', '1007', '1008', '1009', '1012', '1013', '1014', '1092',
-       '1389', '1388', '1390', '1387'].includes(code)) return 'arte_urbana';
+       '1389', '1388', '1390', '1387',
+       '1020', '1021', '1025', '1026'].includes(code)) return 'arte_urbana';
   if (['1222', '1227', '1989', '1962', '1244', '2109', '2110',
        '1602', '1246', '1247', '1248', '1967', '1763', '1312', '1311',
        '1603', '2157', '1609', '1608', '1514', '1454', '1585', '1515', '1455',
        '1746'].includes(code)) return 'pintura';
   if (['1661', '1927', '2005', '1765', '1913', '1680', '2032', '1911',
        '1995', '1689', '1844', '1835', '1690', '1782', '1681',
-       '1632', '1836', '2061'].includes(code)) return 'tintas_auto';
+       '1632', '1836', '2061', '2156'].includes(code)) return 'tintas_auto';
   if (['1974', '1975', '1814',
        '2030', '2029', '2028', '2027', '2026', '1976',
        '1950', '2069', '2070', '2071'].includes(code)) return 'estetica_automotiva';
@@ -317,7 +318,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
        '1576', '1595',
        '2152', '1383', '1382', '1604', '1319', '1426', '1391'].includes(code)) return 'ferramentas';
   if (['2128', '2127', '2052', '1980', '1981',
-       '2037', '1287', '1448', '1573', '1446', '1929', '1288'].includes(code)) return 'equipamentos';
+       '2037', '1287', '1448', '1573', '1446', '1929', '1288', '1445'].includes(code)) return 'equipamentos';
   if (['1817', '1717', '1731', '1720', '1732', '1719', '1611',
        '8', '9', '10'].includes(code)) return 'texturas';
   if (['2099', '1984'].includes(code)) return 'outros';
@@ -613,7 +614,7 @@ export function autoTierClassify(
   if (!p) return 'tinta';
   const code = String(p.code || '').trim();
   if (['1911'].includes(code)) return 'primer';
-  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681', '1632', '1836', '2061'].includes(code)) return 'complementos';
+  if (['1927', '1593', '1680', '2032', '1995', '1844', '1681', '1632', '1836', '2061', '2156'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|fundo automotiv|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/\bverniz\b|clear coat|\bclear\b/.test(txt)) return 'verniz';
