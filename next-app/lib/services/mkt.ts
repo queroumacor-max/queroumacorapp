@@ -100,7 +100,6 @@ export type MktCategory =
   | 'texturas'
   | 'epoxi'
   | 'solventes'
-  | 'adesivos'
   | 'ferramentas'
   | 'pintura'
   | 'eletrica'
@@ -276,8 +275,7 @@ export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'texturas', label: '🧱 Texturas & Massas', kw: ['textura', 'grafiato', 'massa corrida', 'massa acrilic', 'massa pva', 'reboco', 'chapisco'] },
   { key: 'epoxi', label: '⚗️ Epóxi & Poliuretano', kw: ['epoxi', 'epóxi', 'poliuretano', ' pu '] },
   { key: 'solventes', label: '💧 Solventes & Aditivos', kw: ['thinner', 'solvente', 'diluente', 'aguarras', 'aguarrás', 'acelerador', 'secante', 'catalisador', 'endurecedor', 'aditivo', 'redutor', 'removedor'] },
-  { key: 'adesivos', label: '🧪 Adesivos & Colas', kw: ['adesivo', 'cola', 'silicone', 'vedante', 'veda calha', 'rejunte', 'massa epox', 'durepoxi'] },
-  { key: 'ferramentas', label: '🧰 Ferramentas', kw: ['alicate', 'tesoura', 'chave', 'martelo', 'abre trinca', 'espatula', 'espátula', 'desempenadeira', 'colher de pedreiro', 'trena', 'serra', 'furadeira', 'broca', 'lixadeira', 'estilete', 'formao', 'formão', 'grosa', 'lima', 'torques'] },
+{ key: 'ferramentas', label: '🧰 Ferramentas', kw: ['alicate', 'tesoura', 'chave', 'martelo', 'abre trinca', 'espatula', 'espátula', 'desempenadeira', 'colher de pedreiro', 'trena', 'serra', 'furadeira', 'broca', 'lixadeira', 'estilete', 'formao', 'formão', 'grosa', 'lima', 'torques'] },
   { key: 'pintura', label: '🖌️ Acessórios de Pintura', kw: ['rolo', 'pincel', 'trincha', 'bandeja', 'fita crepe', 'fita', 'lixa', 'cabo extensor', 'extensor', 'gaiola', 'luva', 'mascara', 'máscara', 'respirador', 'oculos', 'óculos', 'lona', 'plastico', 'plástico', 'crepe'] },
   { key: 'eletrica', label: '🔌 Elétrica', kw: ['tomada', 'adaptador', 'extens', 'lampada', 'lâmpada', 'disjuntor', 'filtro de linha', 'benjamim', 'fio ', 'interruptor'] },
   { key: 'equipamentos', label: '⚙️ Máquinas', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
