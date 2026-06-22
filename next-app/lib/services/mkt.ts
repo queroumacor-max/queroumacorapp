@@ -318,15 +318,18 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (['2128', '2127', '2052', '1980', '1981'].includes(code)) return 'equipamentos';
   if (['1828', '2144', '1817', '1717', '1731', '1720', '1732', '1719'].includes(code)) return 'texturas';
   if (['1269', '1268'].includes(code)) return 'solventes';
+  // madeiras & metais por código (prioridade sobre tintas)
+  if (['1773', '1783', '1767', '1819', '1781', '147', '179', '183', '104',
+       '1766', '1784', '1768'].includes(code)) return 'madeiras_metais';
   // tintas imob. (complementos + tintas): 1593 duplicado em tintas_auto via byCategory
   if (['1593', '1778',
-       '1859', '1129', '1130', '1201', '1384', '1996', '1781', '1718', '1820',
-       '102', '2137', '1800', '2072', '1729', '1716', '202', '1197',
-       '1773', '1783', '1767', '1819', '1770',
+       '1859', '1129', '1130', '1201', '1384', '1996', '1718', '1820',
+       '102', '2137', '1800', '2072', '1729', '1716', '202', '1197', '203', '100', '1322',
+       '1770',
        '1199', '1754', '1827', '2155', '1756', '1769', '1757', '1758',
-       '1722', '1730', '1627', '1618',
+       '1722', '1730', '1627', '1618', '287', '193', '219', '207', '1137',
        '1497', '1495', '1493', '1492', '1494', '1496',
-       '1766', '1784', '1768'].includes(code)) return 'tintas';
+       '2094'].includes(code)) return 'tintas';
   // Overrides por nome (prioridade sobre keyword loop)
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
@@ -568,8 +571,14 @@ export function paintTierClassify(
 ): PaintTier {
   if (!p) return 'economica';
   const code = String(p.code || '').trim();
-  if (['205'].includes(code)) return 'premium';
-  if (['1593', '1778'].includes(code)) return 'complementos';
+  if (['205',
+       '1770', '1199', '1754', '1827', '2155', '1756', '1769', '1757', '1758',
+       '1722', '1730', '287', '193', '219', '207', '1137',
+       '1497', '1495', '1493', '1492', '1494', '1496'].includes(code)) return 'premium';
+  if (['2094'].includes(code)) return 'standard';
+  if (['1593', '1778',
+       '1859', '1129', '1130', '1201', '1384', '1996', '1718', '203', '1820',
+       '100', '102', '1322', '2137', '1800', '2072', '1729', '1716'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
   if (/metalatex elastic|metalatex eco|super secagem|sherwin|linha premium|cor e proteção|cor e protecao/.test(txt)) return 'premium';
