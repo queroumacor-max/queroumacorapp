@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { OrderConfirmView } from './OrderConfirmView';
 
+export const runtime = 'edge';
 export const metadata: Metadata = { title: 'Pedido Confirmado — Cali Colors' };
 
 export default async function OrderConfirmPage({
