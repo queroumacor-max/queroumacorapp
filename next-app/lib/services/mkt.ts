@@ -420,7 +420,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
 const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextura|antip[ií]cha[cç]|hs785|ultrabase|^lazzumix|^lm|^mixing\s+fleet/i;
 
 // Códigos ocultados individualmente (sem renomear/reclassificar).
-const HIDDEN_CODES = new Set(['1795', '1628', '1898', '2089', '651', '654',
+const HIDDEN_CODES = new Set(['1795', '1628', '1898', '2089',
   '638', '637', '641', '645', '644', '639', '642', '646', '643', '640']);
 
 export function isMktHidden(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
@@ -588,7 +588,7 @@ export function paintTierClassify(
        '1192', '1615', '1614', '1613', '1477', '1193',
        '391', '394', '403', '406', '409', '412', '415', '418', '421', '424', '427',
        '429', '431', '433', '435', '437', '439', '441', '443'].includes(code)) return 'premium';
-  if (['2094'].includes(code)) return 'standard';
+  if (['2094', '651', '654'].includes(code)) return 'standard';
   if (['1859', '1129', '1130', '1201', '1384', '1996', '1718', '203', '1820',
        '100', '102', '1322', '2137', '1800', '2072', '1729', '1716', '388',
        '205', '186', '185'].includes(code)) return 'complementos';
