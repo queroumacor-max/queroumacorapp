@@ -64,7 +64,7 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
         } else {
           const parsed: OrderData = {
             id: data.id,
-            items: Array.isArray(data.items) ? (data.items as CartItem[]) : [],
+            items: Array.isArray(data.items) ? (data.items as unknown as CartItem[]) : [],
             created_at: data.created_at ?? new Date().toISOString(),
             delivery_address: (data as Record<string, unknown>).delivery_address as string | null,
           };
