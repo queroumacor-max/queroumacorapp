@@ -102,7 +102,6 @@ export type MktCategory =
   | 'solventes'
   | 'ferramentas'
   | 'pintura'
-  | 'eletrica'
   | 'equipamentos'
   | 'estetica_automotiva'
   | 'epi'
@@ -277,8 +276,7 @@ export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'solventes', label: '💧 Solventes & Aditivos', kw: ['thinner', 'solvente', 'diluente', 'aguarras', 'aguarrás', 'acelerador', 'secante', 'catalisador', 'endurecedor', 'aditivo', 'redutor', 'removedor'] },
 { key: 'ferramentas', label: '🧰 Ferramentas', kw: ['alicate', 'tesoura', 'chave', 'martelo', 'abre trinca', 'espatula', 'espátula', 'desempenadeira', 'colher de pedreiro', 'trena', 'serra', 'furadeira', 'broca', 'lixadeira', 'estilete', 'formao', 'formão', 'grosa', 'lima', 'torques'] },
   { key: 'pintura', label: '🖌️ Acessórios de Pintura', kw: ['rolo', 'pincel', 'trincha', 'bandeja', 'fita crepe', 'fita', 'lixa', 'cabo extensor', 'extensor', 'gaiola', 'luva', 'mascara', 'máscara', 'respirador', 'oculos', 'óculos', 'lona', 'plastico', 'plástico', 'crepe'] },
-  { key: 'eletrica', label: '🔌 Elétrica', kw: ['tomada', 'adaptador', 'extens', 'lampada', 'lâmpada', 'disjuntor', 'filtro de linha', 'benjamim', 'fio ', 'interruptor'] },
-  { key: 'equipamentos', label: '⚙️ Máquinas', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
+{ key: 'equipamentos', label: '⚙️ Máquinas', kw: ['aerografo', 'aerógrafo', 'compressor', 'pistola', 'maquina', 'máquina', 'pulverizador', 'airless'] },
   { key: 'estetica_automotiva', label: '🚗 Estética Automotiva', kw: ['vonixx', 'polidor', 'polimento', 'cera automotiva', 'cristalizacao', 'cristalização', 'revitalizador', 'renovador automotiv', 'shampoo automotiv', 'limpa vidro', 'desengraxante automotiv', 'pretinho', 'silicon automotiv', 'autoshine', 'autodetailing', 'auto detailing'] },
   { key: 'epi', label: '🦺 EPI', kw: ['epi ', 'equipamento de proteção', 'proteção individual', 'capacete', 'bota de segurança', 'avental proteção', 'abafador', 'protetor auricular'] },
 ];
