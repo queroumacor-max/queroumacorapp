@@ -1061,11 +1061,14 @@ export async function submitOrder(
   // Tenta gravar o endereço — ignora silenciosamente se a coluna ainda não
   // existe no banco (migration 2026-06-20-orders-delivery-address.sql pendente).
   if (address) {
-    await sb
-      .from('orders')
-      .update({ delivery_address: address } as never)
-      .eq('id', orderId)
-      .catch(() => {});
+    try {
+      await sb
+        .from('orders')
+        .update({ delivery_address: address } as never)
+        .eq('id', orderId);
+    } catch {
+      // silently ignore — delivery_address column may not exist yet
+    }
   }
 
   return { orderId, total };
