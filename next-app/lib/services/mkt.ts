@@ -561,6 +561,7 @@ export function paintTierClassify(
 ): PaintTier {
   if (!p) return 'economica';
   const code = String(p.code || '').trim();
+  if (['205'].includes(code)) return 'premium';
   if (['1593', '1778'].includes(code)) return 'complementos';
   const txt = (p.name || '').toLowerCase();
   if (/\bprimer\b|fundo preparador|wash primer|kp\d|fundo epox|fundo pva|fundo nivelador|\bseladora?\b/.test(txt)) return 'primer';
