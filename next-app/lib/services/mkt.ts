@@ -631,6 +631,40 @@ export function autoTierClassify(
   return 'tinta';
 }
 
+// Sub-tier da categoria Arte Urbana & Spray.
+export type SprayTier = 'arte_urbana' | 'cap' | 'posca' | 'texturizados' | 'uso_geral' | 'outros';
+
+export function sprayTierClassify(
+  p: Pick<Product, 'name' | 'code'> | null | undefined,
+): SprayTier {
+  if (!p) return 'outros';
+  const code = String(p.code || '').trim();
+  const n = ' ' + (p.name || '').toLowerCase() + ' ';
+  if (['1020', '1021', '1025', '1026'].includes(code)) return 'cap';
+  if (n.includes('posca')) return 'posca';
+  if (/ cap | bico |nozzle|válvula|valvula/.test(n)) return 'cap';
+  if (/texturiz|hammertone|wrinkle|craquele/.test(n)) return 'texturizados';
+  if (/colorgin|graffiti|graffit|montana|arte urbana/.test(n)) return 'arte_urbana';
+  if (/primer|fundo|multiuso|multi-uso|multi uso|clear|verniz/.test(n)) return 'uso_geral';
+  return 'outros';
+}
+
+// Sub-tier da categoria Madeiras & Metais.
+export type MadTier = 'primer' | 'esmalte_sintetico' | 'esmalte_agua' | 'verniz_stain' | 'complementos';
+
+export function madTierClassify(
+  p: Pick<Product, 'name' | 'code'> | null | undefined,
+): MadTier {
+  if (!p) return 'complementos';
+  const n = ' ' + (p.name || '').toLowerCase() + ' ';
+  if (/anti[- ]?ferrugem|antiferrugem|anticorrosiv|ferrox|galvan|primário metálico|primario metalico/.test(n)) return 'primer';
+  if (n.includes('fundo') && (n.includes('metal') || n.includes('madeira'))) return 'primer';
+  if (n.includes('verniz') || n.includes('stain') || n.includes('lasur') || n.includes('impregnante')) return 'verniz_stain';
+  if (n.includes('esmalte') && (n.includes('base agua') || n.includes('base água') || n.includes('acril') || n.includes('aquo'))) return 'esmalte_agua';
+  if (n.includes('esmalte')) return 'esmalte_sintetico';
+  return 'complementos';
+}
+
 // ─── agrupamento por nome base ────────────────────────────────────────────
 // Produtos que diferem apenas pelo sufixo de tamanho são agrupados num único
 // card no catálogo; o seletor de tamanho aparece dentro do detalhe do produto.

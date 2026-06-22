@@ -20,9 +20,13 @@ import {
   MKT_MENUS,
   autoTierClassify,
   paintTierClassify,
+  sprayTierClassify,
+  madTierClassify,
   type AutoTier,
   type MktCategory,
   type PaintTier,
+  type SprayTier,
+  type MadTier,
 } from '@/lib/services/mkt';
 import {
   useProducts,
@@ -78,6 +82,25 @@ const AUTO_TIER_TILES: ReadonlyArray<{ tier: AutoTier; emoji: string; label: str
   { tier: 'verniz', emoji: '✨', label: 'Verniz' },
   { tier: 'complementos', emoji: '➕', label: 'Complementos' },
   { tier: 'solventes', emoji: '💧', label: 'Solventes' },
+];
+
+// Tiles dos sub-filtros da categoria Arte Urbana & Spray.
+const SPRAY_TIER_TILES: ReadonlyArray<{ tier: SprayTier; emoji: string; label: string }> = [
+  { tier: 'arte_urbana', emoji: '🎨', label: 'Arte Urbana' },
+  { tier: 'cap', emoji: '🔩', label: 'Cap' },
+  { tier: 'posca', emoji: '✏️', label: 'Posca' },
+  { tier: 'texturizados', emoji: '🌊', label: 'Texturizados' },
+  { tier: 'uso_geral', emoji: '🖌️', label: 'Uso Geral' },
+  { tier: 'outros', emoji: '📦', label: 'Outros' },
+];
+
+// Tiles dos sub-filtros da categoria Madeiras & Metais.
+const MAD_TIER_TILES: ReadonlyArray<{ tier: MadTier; emoji: string; label: string }> = [
+  { tier: 'primer', emoji: '🛡️', label: 'Fundos & Primer' },
+  { tier: 'esmalte_sintetico', emoji: '🔶', label: 'Esmalte Sintético' },
+  { tier: 'esmalte_agua', emoji: '💧', label: 'Esmalte Base Água' },
+  { tier: 'verniz_stain', emoji: '🌲', label: 'Verniz/Stain' },
+  { tier: 'complementos', emoji: '➕', label: 'Complementos' },
 ];
 
 function Pagination({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
@@ -171,6 +194,10 @@ export function ProductsList() {
   const [paintTier, setPaintTier] = useState<PaintTier | null>(null);
   // Sub-filtro de tipo dentro de Tintas Automotivas (null = todas).
   const [autoTier, setAutoTier] = useState<AutoTier | null>(null);
+  // Sub-filtro de tipo dentro de Arte Urbana & Spray (null = todas).
+  const [sprayTier, setSprayTier] = useState<SprayTier | null>(null);
+  // Sub-filtro de tipo dentro de Madeiras & Metais (null = todas).
+  const [madTier, setMadTier] = useState<MadTier | null>(null);
   // Tela inicial da loja: grid de ícones de categoria (true) vs lista de
   // produtos de uma categoria (false). Clicar num ícone entra na categoria;
   // o botão "Categorias" volta pro grid. Busca ativa sempre mostra produtos.
@@ -198,6 +225,8 @@ export function ProductsList() {
     setSelectedLine(null);
     setPaintTier(null);
     setAutoTier(null);
+    setSprayTier(null);
+    setMadTier(null);
   }
   // Volta pro grid de categorias (tela inicial).
   function backToGrid() {
@@ -206,6 +235,8 @@ export function ProductsList() {
     setSelectedLine(null);
     setPaintTier(null);
     setAutoTier(null);
+    setSprayTier(null);
+    setMadTier(null);
     setSearch('');
   }
 
@@ -245,8 +276,14 @@ export function ProductsList() {
     if (category === 'tintas_auto' && autoTier !== null) {
       rows = rows.filter((p) => autoTierClassify(p) === autoTier);
     }
+    if (category === 'arte_urbana' && sprayTier !== null) {
+      rows = rows.filter((p) => sprayTierClassify(p) === sprayTier);
+    }
+    if (category === 'madeiras_metais' && madTier !== null) {
+      rows = rows.filter((p) => madTierClassify(p) === madTier);
+    }
     return rows;
-  }, [drillEligible, selectedLine, filtered, category, paintTier, autoTier]);
+  }, [drillEligible, selectedLine, filtered, category, paintTier, autoTier, sprayTier, madTier]);
 
   // Paginação clássica — página atual (1-indexed).
   const [page, setPage] = useState(1);
@@ -255,7 +292,7 @@ export function ProductsList() {
   // Volta pra página 1 sempre que o filtro muda.
   useEffect(() => {
     setPage(1);
-  }, [category, selectedLine, paintTier, autoTier, search]);
+  }, [category, selectedLine, paintTier, autoTier, sprayTier, madTier, search]);
 
   const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -281,6 +318,8 @@ export function ProductsList() {
   useEffect(() => {
     if (category !== 'tintas') setPaintTier(null);
     if (category !== 'tintas_auto') setAutoTier(null);
+    if (category !== 'arte_urbana') setSprayTier(null);
+    if (category !== 'madeiras_metais') setMadTier(null);
   }, [category]);
 
   function handleAddFromSheet(
@@ -335,6 +374,20 @@ export function ProductsList() {
     for (const p of byCategory['tintas_auto'] ?? []) m[autoTierClassify(p)]++;
     return m;
   }, [byCategory]);
+  const sprayTierCounts = useMemo(() => {
+    const m: Record<SprayTier, number> = {
+      arte_urbana: 0, cap: 0, posca: 0, texturizados: 0, uso_geral: 0, outros: 0,
+    };
+    for (const p of byCategory['arte_urbana'] ?? []) m[sprayTierClassify(p)]++;
+    return m;
+  }, [byCategory]);
+  const madTierCounts = useMemo(() => {
+    const m: Record<MadTier, number> = {
+      primer: 0, esmalte_sintetico: 0, esmalte_agua: 0, verniz_stain: 0, complementos: 0,
+    };
+    for (const p of byCategory['madeiras_metais'] ?? []) m[madTierClassify(p)]++;
+    return m;
+  }, [byCategory]);
 
   // Dentro de Tintas / Tintas Automotivas, sem tier escolhido e sem busca,
   // mostramos um grid de ícones dos tiers (em vez da lista direto).
@@ -344,6 +397,12 @@ export function ProductsList() {
   const autoTierGridVisible =
     !gridVisible && category === 'tintas_auto' && autoTier === null && !search.trim()
     && (byCategory['tintas_auto']?.length ?? 0) > 0;
+  const sprayTierGridVisible =
+    !gridVisible && category === 'arte_urbana' && sprayTier === null && !search.trim()
+    && (byCategory['arte_urbana']?.length ?? 0) > 0;
+  const madTierGridVisible =
+    !gridVisible && category === 'madeiras_metais' && madTier === null && !search.trim()
+    && (byCategory['madeiras_metais']?.length ?? 0) > 0;
 
   return (
     <>
@@ -596,6 +655,107 @@ export function ProductsList() {
           </div>
         ) : null}
 
+        {/* Sub-filtro de tipo (chips) — Arte Urbana & Spray. */}
+        {category === 'arte_urbana' && !search.trim() && sprayTier !== null ? (
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              paddingBottom: 12,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {([null, 'arte_urbana', 'cap', 'posca', 'texturizados', 'uso_geral', 'outros'] as const).map((tier) => {
+              const active = sprayTier === tier;
+              const labels: Record<string, string> = {
+                arte_urbana: 'Arte Urbana',
+                cap: 'Cap',
+                posca: 'Posca',
+                texturizados: 'Texturizados',
+                uso_geral: 'Uso Geral',
+                outros: 'Outros',
+              };
+              const label = tier === null ? 'Todas' : labels[tier]!;
+              return (
+                <button
+                  key={tier ?? 'todas'}
+                  type="button"
+                  onClick={() => setSprayTier(tier)}
+                  className="font-semibold"
+                  style={{
+                    flexShrink: 0,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    whiteSpace: 'nowrap',
+                    background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
+                    color: active ? '#fff' : 'rgba(255,255,255,.6)',
+                    border: active
+                      ? '1.5px solid var(--color-p1)'
+                      : '1.5px solid rgba(255,255,255,.14)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Sub-filtro de tipo (chips) — Madeiras & Metais. */}
+        {category === 'madeiras_metais' && !search.trim() && madTier !== null ? (
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              paddingBottom: 12,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {([null, 'primer', 'esmalte_sintetico', 'esmalte_agua', 'verniz_stain', 'complementos'] as const).map((tier) => {
+              const active = madTier === tier;
+              const labels: Record<string, string> = {
+                primer: 'Fundos & Primer',
+                esmalte_sintetico: 'Esmalte Sintético',
+                esmalte_agua: 'Esmalte Base Água',
+                verniz_stain: 'Verniz/Stain',
+                complementos: 'Complementos',
+              };
+              const label = tier === null ? 'Todas' : labels[tier]!;
+              return (
+                <button
+                  key={tier ?? 'todas'}
+                  type="button"
+                  onClick={() => setMadTier(tier)}
+                  className="font-semibold"
+                  style={{
+                    flexShrink: 0,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    whiteSpace: 'nowrap',
+                    background: active ? 'var(--color-p1)' : 'rgba(255,255,255,.07)',
+                    color: active ? '#fff' : 'rgba(255,255,255,.6)',
+                    border: active
+                      ? '1.5px solid var(--color-p1)'
+                      : '1.5px solid rgba(255,255,255,.14)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {/* Busca — input estilo vanilla (dark com ícone laranja absoluto) */}
         <div className="relative" role="search" style={{ paddingBottom: 14 }}>
           <span
@@ -711,46 +871,54 @@ export function ProductsList() {
               );
             })}
           </ul>
-        ) : paintTierGridVisible || autoTierGridVisible ? (
-          // Dentro de Tintas: grid de ícones dos tiers (Fundos, Econômica, …).
+        ) : paintTierGridVisible || autoTierGridVisible || sprayTierGridVisible || madTierGridVisible ? (
+          // Dentro de Tintas/Automotivas/Arte Urbana/Madeiras: grid de ícones dos tiers.
           // Click num tile filtra os produtos daquele tier.
-          <ul className="grid grid-cols-2 gap-3 pb-4" aria-label="Tipos de tinta">
-            {(paintTierGridVisible ? PAINT_TIER_TILES : AUTO_TIER_TILES)
-              .filter((t) =>
-                ((paintTierGridVisible ? paintTierCounts : autoTierCounts) as Record<string, number>)[
-                  t.tier
-                ] > 0,
-              )
-              .map((t) => {
-                const count = (
-                  (paintTierGridVisible ? paintTierCounts : autoTierCounts) as Record<string, number>
-                )[t.tier];
-                return (
-                  <li key={t.tier}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        paintTierGridVisible
-                          ? setPaintTier(t.tier as PaintTier)
-                          : setAutoTier(t.tier as AutoTier)
-                      }
-                      className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
-                      style={{ padding: '22px 12px', minHeight: 128 }}
-                    >
-                      <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
-                        {t.emoji}
-                      </span>
-                      <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
-                        {t.label}
-                      </span>
-                      <span className="text-xs text-[color:var(--color-muted)]">
-                        {count} {count === 1 ? 'item' : 'itens'}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-          </ul>
+          (() => {
+            const activeTiles = paintTierGridVisible ? PAINT_TIER_TILES
+              : autoTierGridVisible ? AUTO_TIER_TILES
+              : sprayTierGridVisible ? SPRAY_TIER_TILES
+              : MAD_TIER_TILES;
+            const activeCounts = paintTierGridVisible ? paintTierCounts
+              : autoTierGridVisible ? autoTierCounts
+              : sprayTierGridVisible ? sprayTierCounts
+              : madTierCounts;
+            function handleTileClick(tier: string) {
+              if (paintTierGridVisible) setPaintTier(tier as PaintTier);
+              else if (autoTierGridVisible) setAutoTier(tier as AutoTier);
+              else if (sprayTierGridVisible) setSprayTier(tier as SprayTier);
+              else setMadTier(tier as MadTier);
+            }
+            return (
+              <ul className="grid grid-cols-2 gap-3 pb-4" aria-label="Tipos de produto">
+                {activeTiles
+                  .filter((t) => (activeCounts as Record<string, number>)[t.tier] > 0)
+                  .map((t) => {
+                    const count = (activeCounts as Record<string, number>)[t.tier];
+                    return (
+                      <li key={t.tier}>
+                        <button
+                          type="button"
+                          onClick={() => handleTileClick(t.tier)}
+                          className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
+                          style={{ padding: '22px 12px', minHeight: 128 }}
+                        >
+                          <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
+                            {t.emoji}
+                          </span>
+                          <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
+                            {t.label}
+                          </span>
+                          <span className="text-xs text-[color:var(--color-muted)]">
+                            {count} {count === 1 ? 'item' : 'itens'}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            );
+          })()
         ) : filtered.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
             <p className="text-sm text-[color:var(--color-muted)] mb-3">
