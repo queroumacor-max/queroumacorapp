@@ -20,6 +20,7 @@ import {
   paintTierClassify,
   productBg,
   resolveColorHex,
+  type ColorVariant,
   type GroupVariant,
   type LequeColor,
   type MktCategory,
@@ -110,6 +111,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const [lequeSearch, setLequeSearch] = useState('');
   // Seletor de variante de tamanho gerado automaticamente por agrupamento de nomes.
   const [selectedGroupVariant, setSelectedGroupVariant] = useState<GroupVariant | null>(null);
+  // Seletor de cor de fábrica (ex: Kemtone Fosco).
+  const [selectedColorVariant, setSelectedColorVariant] = useState<ColorVariant | null>(null);
 
   // Busca as cores do leque da marca selecionada (só quando aba personalizadas aberta).
   const { data: lequeColors, isLoading: lequeLoading } = useQuery({
@@ -152,9 +155,20 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     setSelectedLequeColor(null);
     setLequeSearch('');
     setQty(1);
+    const firstColor = product?._colorVariants?.[0] ?? null;
+    setSelectedColorVariant(firstColor);
     // Auto-seleciona a primeira variante de grupo (menor preço).
-    setSelectedGroupVariant(product?._groupVariants?.[0] ?? null);
+    const srcProduct = firstColor?.product ?? product;
+    setSelectedGroupVariant(srcProduct?._groupVariants?.[0] ?? null);
   }, [product?.id]);
+
+  // Ao trocar de cor, reseta seleção de tamanho.
+  useEffect(() => {
+    if (selectedColorVariant) {
+      setSelectedGroupVariant(selectedColorVariant.product._groupVariants?.[0] ?? null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColorVariant?.product.id]);
 
   // Reseta cor selecionada e busca ao trocar de marca.
   useEffect(() => {
@@ -165,14 +179,16 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
+  // Produto efetivo: cor selecionada (Kemtone) ou o produto diretamente.
+  const effectiveProduct = selectedColorVariant?.product ?? product;
   // Produto ativo: grupo variant (auto-agrupamento) tem prioridade.
   const activeGroupProduct = selectedGroupVariant?.product ?? null;
-  const hasGroupVariants = !!(product?._groupVariants && product._groupVariants.length > 1);
+  const hasGroupVariants = !!(effectiveProduct?._groupVariants && effectiveProduct._groupVariants.length > 1);
 
   function handleAdd() {
     if (!product) return;
     if (!requireAuth('comprar')) return; // visitante: abre cadastro
-    const productToAdd = activeGroupProduct ?? product;
+    const productToAdd = activeGroupProduct ?? effectiveProduct;
     onAdd(productToAdd, qty, selectedVariant);
     showToast('Item selecionado!', 'success');
     onClose();
@@ -184,16 +200,16 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     return null;
   }
 
-  const bg = productBg(product);
-  const solidHex = resolveColorHex(product);
-  const hasColor = !!(product.color_gradient || solidHex);
-  const productCat = mktClassify(product);
+  const bg = productBg(effectiveProduct);
+  const solidHex = resolveColorHex(effectiveProduct);
+  const hasColor = !!(effectiveProduct.color_gradient || solidHex);
+  const productCat = mktClassify(effectiveProduct);
   // AR só aparece pra produtos que (a) tem cor sólida resolvível E
   // (b) caem numa categoria pintável. Sem isso o botão aparecia em
   // adaptador de tomada, pincel etc. e tingia nada visível.
   const arEligible = !!solidHex && AR_PAINTABLE.has(productCat);
-  // Aba de cores personalizadas só aparece pra tintas não-econômicas.
-  const showColorTabs = productCat === 'tintas' && paintTierClassify(product) !== 'economica';
+  // Aba de cores personalizadas só aparece pra tintas não-econômicas sem agrupamento de cor.
+  const showColorTabs = productCat === 'tintas' && paintTierClassify(effectiveProduct) !== 'economica' && !product._colorVariants;
   // Preço derivado pra tintometria: usado no addItem quando user confirma cor.
   const basePrice = Number(product.price || 0);
   const customPrice =
@@ -255,7 +271,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       <div
         style={{
           height: 140,
-          background: product.image_url ? '#f5f5f5' : bg,
+          background: effectiveProduct.image_url ? '#f5f5f5' : bg,
           borderRadius: 14,
           display: 'flex',
           alignItems: 'center',
@@ -265,10 +281,10 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
           overflow: 'hidden',
         }}
       >
-        {product.image_url ? (
+        {effectiveProduct.image_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={product.image_url}
+            src={effectiveProduct.image_url}
             alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
@@ -290,8 +306,14 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
       >
         {product.name}
       </div>
+      {/* Cor selecionada (Kemtone) */}
+      {product._colorVariants && selectedColorVariant ? (
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-p1)', marginTop: 2 }}>
+          {selectedColorVariant.colorName}
+        </div>
+      ) : null}
       {/* Código + linha */}
-      {(product.code || product.line) ? (
+      {(effectiveProduct.code || product.line) ? (
         <div
           style={{
             fontSize: 12,
@@ -300,8 +322,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
             marginBottom: 12,
           }}
         >
-          {product.code ? `Cód. ${product.code}` : ''}
-          {product.code && product.line ? ' · ' : ''}
+          {effectiveProduct.code ? `Cód. ${effectiveProduct.code}` : ''}
+          {effectiveProduct.code && product.line ? ' · ' : ''}
           {product.line ?? ''}
         </div>
       ) : (
@@ -348,6 +370,42 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
 
       {colorTab === 'fabrica' || !showColorTabs ? (
         <>
+          {/* Seletor de cor de fábrica (ex: Kemtone Fosco) */}
+          {product._colorVariants ? (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+                Cor
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {product._colorVariants.map((cv) => {
+                  const active = selectedColorVariant?.product.id === cv.product.id;
+                  const hex = cv.product.color_hex ?? '#cccccc';
+                  return (
+                    <button
+                      key={cv.product.id}
+                      type="button"
+                      onClick={() => setSelectedColorVariant(cv)}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                    >
+                      <div style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        background: hex,
+                        border: active ? '3px solid var(--color-p1)' : '2px solid var(--color-border)',
+                        boxSizing: 'border-box',
+                        boxShadow: active ? '0 0 0 2px var(--color-p1)' : 'none',
+                      }} />
+                      <span style={{ fontSize: 9, color: active ? 'var(--color-p1)' : 'var(--color-muted)', fontWeight: active ? 700 : 400, textAlign: 'center', maxWidth: 44, lineHeight: 1.2 }}>
+                        {cv.colorName}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {/* Descrição opcional */}
           {product.description ? (
             <div
@@ -500,7 +558,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                 Tamanho
               </div>
               <div role="radiogroup" aria-label="Tamanho" className="flex flex-wrap gap-2">
-                {product._groupVariants!.map((gv) => {
+                {effectiveProduct._groupVariants!.map((gv) => {
                   const active = selectedGroupVariant?.product.id === gv.product.id;
                   return (
                     <button

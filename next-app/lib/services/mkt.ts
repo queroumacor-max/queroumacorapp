@@ -51,11 +51,19 @@ export interface Product {
   // Campo virtual (não vem do banco): produtos agrupados pelo mesmo nome
   // base, diferindo apenas pelo sufixo de tamanho (18L, 3,6L, 900ml…).
   _groupVariants?: GroupVariant[];
+  // Campo virtual: cores de fábrica agrupadas (ex: Kemtone Fosco).
+  _colorVariants?: ColorVariant[];
 }
 
 // Variante de tamanho gerada automaticamente pelo agrupamento de nomes.
 export interface GroupVariant {
   sizeLabel: string;
+  product: Product;
+}
+
+// Variante de cor de fábrica (ex: Kemtone Fosco cores).
+export interface ColorVariant {
+  colorName: string;
   product: Product;
 }
 
@@ -346,6 +354,7 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('vonixx') || n.includes('arominha')) return 'estetica_automotiva';
   if (n.includes('lubrificante') || n.includes('desengripante') || n.includes('poliestes')) return 'epoxi';
   if (n.includes('nc esm') || n.includes('nc acr') || n.includes('nc lat')) return 'tintas';
+  if (n.includes('kemtone')) return 'tintas';
   if (n.includes('metalatex') || n.includes('novacor') || n.includes('kemtone')) return 'tintas';
   // Tinta auto PU (poliuretano industrial) → epoxi
   if (n.includes('tinta') && n.includes('auto') && n.includes(' pu ')) return 'epoxi';
@@ -673,6 +682,27 @@ export function groupProductsByName(products: Product[]): Product[] {
     result.push(rep);
   }
 
+  // Secondary grouping: unify all KEMTONE FOSCO color variants into one card.
+  const KEMTONE_RE = /^KEMTONE\s+FOSCO\s+/i;
+  const kemtone: Product[] = [];
+  const rest: Product[] = [];
+  for (const p of result) {
+    if (KEMTONE_RE.test(p.name)) kemtone.push(p);
+    else rest.push(p);
+  }
+  if (kemtone.length > 0) {
+    const colorVariants: ColorVariant[] = kemtone
+      .map((p) => ({ colorName: p.name.replace(KEMTONE_RE, '').trim(), product: p }))
+      .sort((a, b) => a.colorName.localeCompare(b.colorName, 'pt'));
+    const rep: Product = {
+      ...colorVariants[0].product,
+      name: 'KEMTONE FOSCO',
+      _groupVariants: undefined,
+      _colorVariants: colorVariants,
+    };
+    rest.push(rep);
+    return rest;
+  }
   return result;
 }
 
