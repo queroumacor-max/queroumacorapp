@@ -342,6 +342,9 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('barniz')) return 'tintas_auto';
   // Vernizes automotivos (PU / poliuretano / lazzudur / códigos HG / HT)
   if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
+  // Trinchas sempre em Acessórios de Pintura — antes das regras de madeiras_metais
+  // pois "Trincha para Verniz/Esmalte" seria interceptada pelo verniz/esmalte override
+  if (n.includes('trincha')) return 'pintura';
   // Anti ferrugem / anticorrosivo → madeiras & metais
   if (n.includes('anti ferrugem') || n.includes('anti-ferrugem') || n.includes('antiferrugem') || n.includes('anticorrosiv')) return 'madeiras_metais';
   // Esmalte sintético (para madeira e metal) — não-automotivo → madeiras & metais
