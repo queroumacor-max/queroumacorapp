@@ -342,12 +342,15 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('barniz')) return 'tintas_auto';
   // Vernizes automotivos (PU / poliuretano / lazzudur / códigos HG / HT)
   if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
-  // Esmalte anti ferrugem / anticorrosivo → madeiras & metais
-  if (n.includes('anti ferrugem') || n.includes('antiferrugem') || n.includes('anticorrosiv')) return 'madeiras_metais';
-  // stain, lasur, impregnante (madeira/metal) — overrides específicos antes do loop
-  if (n.includes(' stain ') || n.includes(' lasur ') || n.includes('impregnante')) return 'madeiras_metais';
+  // Anti ferrugem / anticorrosivo → madeiras & metais
+  if (n.includes('anti ferrugem') || n.includes('anti-ferrugem') || n.includes('antiferrugem') || n.includes('anticorrosiv')) return 'madeiras_metais';
+  // Esmalte sintético (para madeira e metal) — não-automotivo → madeiras & metais
+  if ((n.includes('esmalte sintet') || n.includes('esmalte sintét') || n.includes('esmalte brilhante') || n.includes('esmalte fosco') || n.includes('esmalte acetinado') || n.includes('esmalte metalico') || n.includes('esmalte metálico')) && !n.includes('automotiv')) return 'madeiras_metais';
+  // Verniz (não-automotivo, não-PU) → madeiras & metais
+  if (n.includes('verniz') && !n.includes('automotiv') && !n.includes(' pu ') && !n.includes('poliuretano') && !n.includes('lazzudur') && !n.includes(' hg ') && !n.includes(' ht ') && !n.includes('barniz')) return 'madeiras_metais';
+  // Outros produtos de madeira/metal
+  if (n.includes('stain') || n.includes('lasur') || n.includes('impregnante')) return 'madeiras_metais';
   if (n.includes('fundo ferrox') || n.includes('fundo galvan') || n.includes('fundo para metal') || n.includes('primário metálico') || n.includes('primario metalico')) return 'madeiras_metais';
-  if (n.includes('verniz naval') || n.includes('verniz madeira') || n.includes('verniz piso') || n.includes('verniz para madeira')) return 'madeiras_metais';
   // Base poliester → tintas automotivas
   if (n.startsWith(' base poliester')) return 'tintas_auto';
   // Batida pedra → tintas automotivas (complementos)
