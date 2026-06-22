@@ -196,7 +196,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     setQty(1);
   }
 
-  if (!product) {
+  if (!product || !effectiveProduct) {
     // Sheet fechado — não renderiza nada.
     return null;
   }
