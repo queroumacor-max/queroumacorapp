@@ -421,7 +421,8 @@ const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextu
 
 // Códigos ocultados individualmente (sem renomear/reclassificar).
 const HIDDEN_CODES = new Set(['1795', '1628', '1898', '2089',
-  '638', '637', '641', '645', '644', '639', '642', '646', '643', '640']);
+  '638', '637', '641', '645', '644', '639', '642', '646', '643', '640',
+  '652', '655']);
 
 export function isMktHidden(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
   if (HIDDEN_CODES.has(String((p && p.code) || '').trim())) return true;
