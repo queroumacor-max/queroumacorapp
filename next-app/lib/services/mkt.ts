@@ -313,14 +313,15 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (['1974', '1975', '1814',
        '2030', '2029', '2028', '2027', '2026', '1976',
        '1950', '2069', '2070', '2071'].includes(code)) return 'estetica_automotiva';
-  if (['1860', '1987', '1968'].includes(code)) return 'epi';
+  if (['1860', '1987', '1968', '1806', '1544'].includes(code)) return 'epi';
   if (['2061', '2117', '1303', '1577', '1293', '1289', '1240', '1241',
        '1576', '1595',
        '2152', '1383', '1382', '1604', '1319', '1426', '1391'].includes(code)) return 'ferramentas';
   if (['2128', '2127', '2052', '1980', '1981'].includes(code)) return 'equipamentos';
   if (['1817', '1717', '1731', '1720', '1732', '1719', '1611',
        '8', '9', '10'].includes(code)) return 'texturas';
-  if (['1269', '1268'].includes(code)) return 'solventes';
+  if (['2099', '1984'].includes(code)) return 'outros';
+  if (['1269', '1268', '1617', '1265', '1264', '1263', '2107', '1918', '1687'].includes(code)) return 'solventes';
   // madeiras & metais por código (prioridade sobre tintas)
   if (['1773', '1783', '1767', '1819', '1781', '147', '179', '183', '104',
        '1766', '1784', '1768',
@@ -424,7 +425,7 @@ const MKT_HIDDEN = /\bbase\s+(vy|z|xy|w|ly|e|f)\b|seladora?\s+acr[íi]l.*\btextu
 // Códigos ocultados individualmente (sem renomear/reclassificar).
 const HIDDEN_CODES = new Set(['1795', '1628', '1898', '2089',
   '638', '637', '641', '645', '644', '639', '642', '646', '643', '640',
-  '652', '655', '1697', '1964']);
+  '652', '655', '1697', '1964', '651', '654']);
 
 export function isMktHidden(p: Pick<Product, 'name' | 'code'> | null | undefined): boolean {
   if (HIDDEN_CODES.has(String((p && p.code) || '').trim())) return true;
@@ -591,7 +592,7 @@ export function paintTierClassify(
        '1192', '1615', '1614', '1613', '1477', '1193', '1196',
        '391', '394', '397', '400', '403', '406', '409', '412', '415', '418', '421', '424', '427',
        '429', '431', '433', '435', '437', '439', '441', '443'].includes(code)) return 'premium';
-  if (['2094', '651', '654'].includes(code)) return 'standard';
+  if (['2094'].includes(code)) return 'standard';
   if (['1859', '1129', '1130', '1201', '1384', '1996', '1718', '203', '1820',
        '100', '102', '1322', '2137', '1800', '2072', '1729', '1716', '388',
        '205', '186', '185'].includes(code)) return 'complementos';
