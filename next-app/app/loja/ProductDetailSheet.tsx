@@ -17,6 +17,7 @@ import {
   fetchCompanionsForProduct,
   fetchLequeColors,
   mktClassify,
+  paintTierClassify,
   productBg,
   resolveColorHex,
   type GroupVariant,
@@ -191,8 +192,8 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   // (b) caem numa categoria pintável. Sem isso o botão aparecia em
   // adaptador de tomada, pincel etc. e tingia nada visível.
   const arEligible = !!solidHex && AR_PAINTABLE.has(productCat);
-  // Aba de cores personalizadas só aparece pra tintas.
-  const showColorTabs = productCat === 'tintas';
+  // Aba de cores personalizadas só aparece pra tintas não-econômicas.
+  const showColorTabs = productCat === 'tintas' && paintTierClassify(product) !== 'economica';
   // Preço derivado pra tintometria: usado no addItem quando user confirma cor.
   const basePrice = Number(product.price || 0);
   const customPrice =
