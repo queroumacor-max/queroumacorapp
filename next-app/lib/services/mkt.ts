@@ -94,6 +94,7 @@ export interface CartItem {
 // Categoria do menu lateral — espelha MKT_MENUS keys do vanilla.
 export type MktCategory =
   | 'arte_urbana'
+  | 'madeiras_metais'
   | 'tintas'
   | 'tintas_auto'
   | 'texturas'
@@ -269,6 +270,7 @@ export function productBg(p: Product | null | undefined): string {
 
 export const MKT_MENUS: ReadonlyArray<MktMenuEntry> = [
   { key: 'arte_urbana', label: '🎨 Arte Urbana & Spray', kw: ['arte urbana', 'colorgin', 'spray', 'aerossol', 'aerosol', 'grafit', 'graffit'] },
+  { key: 'madeiras_metais', label: '🪵 Madeiras & Metais', kw: ['stain', 'lasur', 'impregnante', 'anticorrosiv', 'ferrox', 'galvaniz', 'verniz naval', 'verniz piso', 'verniz madeira', 'oleo de linhaca', 'óleo de linhaça', 'proteção para madeira', 'protecao para madeira', 'preservativo de madeira', 'esmalte para madeira', 'esmalte para metal', 'tinta para madeira', 'tinta para metal', 'fundo para metal', 'verniz para madeira'] },
   { key: 'tintas', label: '🪣 Tintas Imobiliárias', kw: ['tinta', 'esmalte', 'latex', 'látex', 'acrilic', 'acrílic', 'verniz', 'primer', 'seladora', 'fundo preparador', 'base coat', 'suvinil', 'coral', 'sherwin'] },
   { key: 'tintas_auto', label: '🚘 Tintas Automotivas', kw: ['automotiv', 'automotiva', 'esmalte automotiv', 'tinta automotiv', 'basecoat', 'base coat auto', 'clear coat', 'primer automotiv'] },
   { key: 'texturas', label: '🧱 Texturas & Massas', kw: ['textura', 'grafiato', 'massa corrida', 'massa acrilic', 'massa pva', 'reboco', 'chapisco'] },
@@ -340,8 +342,11 @@ export function mktClassify(p: Pick<Product, 'name' | 'code'> | null | undefined
   if (n.includes('barniz')) return 'tintas_auto';
   // Vernizes automotivos (PU / poliuretano / lazzudur / códigos HG / HT)
   if (n.includes('verniz') && (n.includes(' pu ') || n.includes('poliuretano') || n.includes('lazzudur') || n.includes(' hg ') || n.includes(' ht '))) return 'tintas_auto';
-  // Esmalte anti ferrugem → arte urbana & spray
-  if (n.includes('anti ferrugem') || n.includes('antiferrugem')) return 'arte_urbana';
+  // Esmalte anti ferrugem / anticorrosivo → madeiras & metais
+  if (n.includes('anti ferrugem') || n.includes('antiferrugem') || n.includes('anticorrosiv')) return 'madeiras_metais';
+  // Verniz não-automotivo + esmalte sintético → madeiras & metais
+  if (n.includes('verniz') && !n.includes('automotiv') && !n.includes(' pu ') && !n.includes('poliuretano') && !n.includes('lazzudur') && !n.includes(' hg ') && !n.includes(' ht ') && !n.includes('barniz')) return 'madeiras_metais';
+  if ((n.includes('esmalte sintetic') || n.includes('esmalte sintético') || n.includes('esmalte brilhante') || n.includes('esmalte fosco') || n.includes('esmalte acetinado')) && !n.includes('automotiv')) return 'madeiras_metais';
   // Base poliester → tintas automotivas
   if (n.startsWith(' base poliester')) return 'tintas_auto';
   // Batida pedra → tintas automotivas (complementos)
