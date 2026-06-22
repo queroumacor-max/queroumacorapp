@@ -16,6 +16,7 @@ import {
   readBody,
   ServiceError,
   serviceErrorResponse,
+  enforceRateLimit,
 } from '@/lib/api/security';
 import { errorResponse } from '@/lib/api/errors';
 
@@ -33,6 +34,8 @@ import { logAuditEvent } from '@/lib/api/audit';
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  const limited = await enforceRateLimit(request, { endpoint: 'upload-style-ref', limit: 20 });
+  if (limited) return limited;
   if (!process.env.ADMIN_EMAILS) {
     return jsonResponse({ error: 'ADMIN_EMAILS não configurado' }, 503);
   }

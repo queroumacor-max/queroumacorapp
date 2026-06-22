@@ -7,6 +7,7 @@ import {
   ServiceError,
   jsonResponse,
   serviceErrorResponse,
+  enforceRateLimit,
 } from '@/lib/api/security';
 import { createProCheckout } from '@/lib/api/_services/checkout';
 import { checkoutSchema, formatZodError } from '@/lib/api/schemas/checkout';
@@ -14,6 +15,8 @@ import { checkoutSchema, formatZodError } from '@/lib/api/schemas/checkout';
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  const limited = await enforceRateLimit(request, { endpoint: 'checkout', limit: 10 });
+  if (limited) return limited;
   let raw: unknown;
   try {
     raw = await request.json();

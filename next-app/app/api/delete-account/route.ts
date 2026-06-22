@@ -15,12 +15,15 @@
 // Não throws em erros não-fatais — preserva resposta 200 pra cliente.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError } from '@/lib/api/security';
+import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  // Ação destrutiva e rara — limite baixo por IP antes de validar token.
+  const limited = await enforceRateLimit(request, { endpoint: 'delete-account', limit: 5 });
+  if (limited) return limited;
   let body: { accessToken?: string };
   try {
     body = (await request.json()) as { accessToken?: string };

@@ -6,10 +6,14 @@
 // chave) por baixo.
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/api/security';
 
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
+  // Proxy pra geocoder externo (quota/custo) — limita abuso por IP.
+  const limited = await enforceRateLimit(request, { endpoint: 'reverse-geocode', limit: 30 });
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const lat = Number(searchParams.get('lat'));
   const lng = Number(searchParams.get('lng'));

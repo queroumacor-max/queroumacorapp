@@ -13,6 +13,7 @@
 //   - DELETE limpa o cookie (chamado pelo AuthProvider em signOut).
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { enforceRateLimit } from '@/lib/api/security';
 
 // Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
 export const runtime = 'edge';
@@ -59,6 +60,9 @@ async function validateToken(token: string): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Valida JWT contra o Supabase — limita brute-force de token por IP.
+  const limited = await enforceRateLimit(request, { endpoint: 'set-session-cookie', limit: 20 });
+  if (limited) return limited;
   let body: { accessToken?: unknown } | null = null;
   try {
     body = (await request.json()) as { accessToken?: unknown };

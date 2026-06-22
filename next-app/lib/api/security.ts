@@ -284,6 +284,51 @@ export function rateLimitResponse(rl: RateLimitResult): NextResponse {
 }
 
 /**
+ * Extrai o IP do cliente dos headers de borda. Prioriza `CF-Connecting-IP`
+ * (Cloudflare Pages, onde o app roda) e cai pra `X-Forwarded-For` /
+ * `X-Real-IP`. 'unknown' quando nenhum header está presente (checkRateLimit
+ * ainda funciona com qualquer string como chave).
+ */
+export function getClientIp(request: NextRequest | Request): string {
+  const h = request.headers;
+  const cf = h.get('cf-connecting-ip');
+  if (cf) return cf.trim();
+  const xff = h.get('x-forwarded-for');
+  if (xff) {
+    const first = xff.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  const xreal = h.get('x-real-ip');
+  if (xreal) return xreal.trim();
+  return 'unknown';
+}
+
+/**
+ * Rate limit GLOBAL por request, reaproveitando a RPC `check_rate_limit`.
+ *
+ * Chave: `userId` autenticado quando o controller já resolveu auth (mais
+ * justo entre usuários atrás do mesmo NAT/IP); senão IP de borda. FAIL-OPEN
+ * igual `checkRateLimit` (sem service key / Supabase fora → libera, pra não
+ * derrubar rota legítima num blip — a defesa real fica no Cloudflare edge).
+ *
+ * Uso no topo do handler:
+ *   const limited = await enforceRateLimit(request, { endpoint: 'cidades', limit: 60 });
+ *   if (limited) return limited;
+ *
+ * @returns NextResponse 429 se estourou, ou `null` se liberado.
+ */
+export async function enforceRateLimit(
+  request: NextRequest | Request,
+  opts: { endpoint: string; limit?: number; userId?: string | null }
+): Promise<NextResponse | null> {
+  const { endpoint, limit = 60, userId } = opts;
+  const key = userId ? `u:${userId}` : `ip:${getClientIp(request)}`;
+  const rl = await checkRateLimit({ userId: key, endpoint, limit });
+  if (!rl.allowed) return rateLimitResponse(rl);
+  return null;
+}
+
+/**
  * Consulta `profiles.is_pro` + `pro_expires_at` via service_role.
  * FAIL-OPEN quando userId vazio (anônimo — gateProAI já barra). FAIL-CLOSED
  * em produção quando service key ausente (CRIT-5: env quebrada em prod não

@@ -40,6 +40,7 @@ import {
   jsonResponse,
   requireAuthStrict,
   serviceErrorResponse,
+  enforceRateLimit,
 } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 
@@ -56,6 +57,9 @@ interface VerifyBody {
 }
 
 export async function POST(request: NextRequest) {
+  // Endpoint de ativação PRO — limita tentativas de forjar token por IP.
+  const limited = await enforceRateLimit(request, { endpoint: 'play-billing-verify', limit: 10 });
+  if (limited) return limited;
   let body: VerifyBody;
   try {
     body = (await request.json()) as VerifyBody;

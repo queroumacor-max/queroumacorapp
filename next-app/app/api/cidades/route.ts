@@ -20,7 +20,7 @@
 // X-Cache: HIT=KV, MISS=KV vazio (populou), BYPASS=sem cache de app.
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { ServiceError, serviceErrorResponse } from '@/lib/api/security';
+import { ServiceError, serviceErrorResponse, enforceRateLimit } from '@/lib/api/security';
 
 export const runtime = 'edge';
 
@@ -38,6 +38,8 @@ interface IbgeMunicipio {
 }
 
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(request, { endpoint: 'cidades', limit: 60 });
+  if (limited) return limited;
   try {
     const ufRaw = request.nextUrl.searchParams.get('uf') || '';
     const uf = ufRaw.trim().toUpperCase();
