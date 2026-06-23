@@ -86,6 +86,10 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   const qc = useQueryClient();
   const name = displayName(post.profile);
   const handle = post.profile.tag ? '@' + post.profile.tag : '';
+  // Byline inline da legenda: prefere @tag (igual aos comentários, que usam
+  // authorTag || name). Antes a legenda usava `name` e os comentários usavam
+  // @tag — um aparecia com @ e o outro não. Agora os dois batem.
+  const captionByline = handle || name;
   const timeAgo = getTimeAgo(post.created_at);
   // Link pro perfil do autor (tag quando tem, senão o id) + área de atuação.
   const profileHref = post.profile.tag
@@ -545,7 +549,7 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
 
       {post.caption ? (
         <div style={{ fontSize: 13.5, padding: '0 14px 6px', lineHeight: 1.5 }}>
-          <b style={{ fontWeight: 600 }}>{name}</b> {renderRichText(post.caption)}
+          <b style={{ fontWeight: 600 }}>{captionByline}</b> {renderRichText(post.caption)}
         </div>
       ) : null}
 
