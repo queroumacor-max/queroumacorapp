@@ -263,7 +263,12 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
     );
   }
 
-  const name = profile?.name || (profile?.tag ? '@' + profile.tag : 'Usuário');
+  // Nunca exibe email cru como nome (signup às vezes copia o email pro
+  // campo name). Se parecer email, usa a parte local; senão @tag/"Usuário".
+  const rawName = (profile?.name || '').trim();
+  const name = rawName.includes('@')
+    ? rawName.split('@')[0]?.trim() || (profile?.tag ? '@' + profile.tag : 'Usuário')
+    : rawName || (profile?.tag ? '@' + profile.tag : 'Usuário');
   const role = profile?.role;
   const city = profile?.city;
   const state = profile?.state;

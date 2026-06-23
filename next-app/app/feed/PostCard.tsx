@@ -62,11 +62,18 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 function displayName(profile: FeedPost['profile']): string {
-  let name = profile.name || (profile.tag ? '@' + profile.tag : 'Usuário');
-  if (name.includes('@') && !profile.tag) {
-    name = name.split('@')[0] || 'Usuário';
+  const raw = (profile.name || '').trim();
+  // Nunca exibir email cru como nome. Quando `profile.name` é um email
+  // (caso clássico de signup que copiou o email pro campo name), usamos a
+  // parte local ("fabio01.guerra@gmail.com" → "fabio01.guerra"). Antes só
+  // tratávamos isso quando NÃO havia tag, então quem tinha @tag via o email
+  // completo no título. Se não sobrar nada, cai pra @tag ou "Usuário".
+  if (raw.includes('@')) {
+    const local = raw.split('@')[0]?.trim();
+    if (local) return local;
+    return profile.tag ? '@' + profile.tag : 'Usuário';
   }
-  return name;
+  return raw || (profile.tag ? '@' + profile.tag : 'Usuário');
 }
 
 function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
