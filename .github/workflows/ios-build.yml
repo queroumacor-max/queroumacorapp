@@ -15,21 +15,17 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # 1. Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Node setup
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 3. Install npm dependencies (includes @capacitor/cli, typescript, etc.)
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
@@ -43,17 +39,12 @@ jobs:
             ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
           ruby -i -e 'c=STDIN.read; c.sub!(/post_install do \|installer\|/, "post_install do |installer|\n  installer.pods_project.targets.each { |t| t.build_configurations.each { |bc| bc.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"; bc.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\" } }"); print c' ios/App/Podfile
 
-      # 5. Install CocoaPods
       - name: Install CocoaPods
         run: |
           ln -sf next-app/node_modules node_modules
           cd ios/App
           pod install --repo-update
-          # Patch Pods project to use Automatic signing (prevents provisioning profile errors)
-          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
-          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
 
-      # 6. Import Apple Distribution Certificate
       - name: Import signing certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
@@ -69,7 +60,6 @@ jobs:
             -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-      # 7. Install provisioning profile
       - name: Install provisioning profile
         env:
           PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
@@ -85,12 +75,18 @@ jobs:
           echo "Profile UUID: $PP_UUID"
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
 
-      # 8. Set build number
       - name: Set CFBundleVersion
         run: |
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.event.inputs.build_number }}" ios/App/App/Info.plist
 
-      # 9. Archive
+      - name: Configure App signing in project
+        run: |
+          PBXPROJ=ios/App/App.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' $PBXPROJ
+          sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = ${{ secrets.APPLE_TEAM_ID }};/g' $PBXPROJ
+          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' $PBXPROJ
+          sed -i '' 's/CODE_SIGN_IDENTITY = "";/CODE_SIGN_IDENTITY = "iPhone Distribution";/g' $PBXPROJ
+
       - name: Archive (xcodebuild)
         run: |
           xcodebuild archive \
@@ -98,14 +94,10 @@ jobs:
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="iPhone Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}" \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}" \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
-      # 10. Export IPA
       - name: Export IPA
         run: |
           cat > $RUNNER_TEMP/ExportOptions.plist << 'PLISTEOF'
@@ -129,7 +121,6 @@ jobs:
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
             -exportPath $RUNNER_TEMP/export
 
-      # 11. Upload to App Store Connect
       - name: Upload to App Store Connect
         env:
           APP_STORE_CONNECT_USERNAME: ${{ secrets.APP_STORE_CONNECT_USERNAME }}
@@ -142,7 +133,6 @@ jobs:
             -p "$APP_STORE_CONNECT_PASSWORD" \
             --output-format xml
 
-      # Cleanup
       - name: Cleanup keychain
         if: always()
         run: |
