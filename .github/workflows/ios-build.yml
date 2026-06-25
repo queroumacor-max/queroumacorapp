@@ -25,40 +25,41 @@ jobs:
 
       - name: Install npm dependencies
         run: npm install --prefix next-app
-
-      - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
+
+      - name: Add Capacitor iOS platform
         run: |
-          rm -rf ios
-          ./next-app/node_modules/.bin/cap add ios
-          git checkout HEAD -- \
-            ios/App/App/Info.plist \
-            ios/App/App/PrivacyInfo.xcprivacy \
-            ios/App/App/AppDelegate.swift \
-            ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
-          ruby -i -e 'c=STDIN.read; c.sub!(/post_install do \|installer\|/, "post_install do |installer|\n  installer.pods_project.targets.each { |t| t.build_configurations.each { |bc| bc.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"; bc.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\" } }"); print c' ios/App/Podfile
+          npx --prefix next-app cap add ios || true
+          # Restore curated iOS files
+          git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       - name: Install CocoaPods
         run: |
-          ln -sf next-app/node_modules node_modules
           cd ios/App
-          pod install --repo-update
+          # Inject CODE_SIGNING_ALLOWED=NO into existing post_install block
+          ruby -i -e '
+            content = STDIN.read
+            content.sub!(/post_install do \|installer\|/) { |m|
+              m + "\n  installer.pods_project.targets.each do |t|\n    t.build_configurations.each do |c|\n      c.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      c.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n    end\n  end"
+            }
+            print content
+          ' Podfile
+          pod install
 
       - name: Import signing certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          echo "$CERTIFICATE_BASE64" | base64 -d > $RUNNER_TEMP/cert.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security create-keychain -p "" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security import $RUNNER_TEMP/cert.p12 -P "$CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+          security unlock-keychain -p "" $KEYCHAIN_PATH
+          echo "$CERTIFICATE_BASE64" | base64 -d > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
 
       - name: Install provisioning profile
         env:
@@ -84,10 +85,37 @@ jobs:
           PP_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          PBXPROJ=ios/App/App.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' $PBXPROJ
-          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' $PBXPROJ
-          perl -i -pe "s|CODE_SIGN_STYLE = Manual;|CODE_SIGN_STYLE = Manual;\nCODE_SIGN_IDENTITY = \"iPhone Distribution\";\nDEVELOPMENT_TEAM = $ENV{TEAM_ID};\nPROVISIONING_PROFILE_SPECIFIER = \"\$ENV{PP_NAME}\";|g" $PBXPROJ
+          python3 << 'PYEOF'
+          import re, os, sys
+
+          pbxproj = 'ios/App/App.xcodeproj/project.pbxproj'
+          with open(pbxproj, 'r') as f:
+              content = f.read()
+
+          team_id = os.environ['TEAM_ID']
+          pp_name = os.environ['PP_NAME']
+
+          # Change Automatic to Manual signing
+          content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
+
+          # Remove any pre-existing signing entries to avoid duplicates
+          content = re.sub(r'[ \t]*PROVISIONING_PROFILE_SPECIFIER = [^;]*;\n', '', content)
+          content = re.sub(r'[ \t]*CODE_SIGN_IDENTITY[^=]*= [^;]*;\n', '', content)
+          content = re.sub(r'[ \t]*DEVELOPMENT_TEAM = [^;]*;\n', '', content)
+
+          # Insert signing entries after each CODE_SIGN_STYLE = Manual;
+          signing_block = (
+              'CODE_SIGN_STYLE = Manual;\n'
+              '\t\t\t\tCODE_SIGN_IDENTITY = "iPhone Distribution";\n'
+              f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
+              f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{pp_name}";'
+          )
+          content = content.replace('CODE_SIGN_STYLE = Manual;', signing_block)
+
+          with open(pbxproj, 'w') as f:
+              f.write(content)
+          print('pbxproj patched successfully')
+          PYEOF
 
       - name: Archive (xcodebuild)
         run: |
@@ -106,7 +134,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store-connect</string>
+            <string>app-store</string>
             <key>teamID</key>
             <string>${{ secrets.APPLE_TEAM_ID }}</string>
             <key>uploadBitcode</key>
@@ -135,5 +163,4 @@ jobs:
 
       - name: Cleanup keychain
         if: always()
-        run: |
-          security delete-keychain $RUNNER_TEMP/build.keychain 2>/dev/null || true
+        run: security delete-keychain $RUNNER_TEMP/build.keychain || true
