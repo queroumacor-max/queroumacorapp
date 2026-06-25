@@ -19,17 +19,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Node setup (Capacitor CLI)
+      # 2. Node setup
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: next-app/package-lock.json
 
-      # 3. Install Capacitor deps from next-app/package.json
+      # 3. Install npm dependencies (includes @capacitor/cli, @capacitor/ios)
       - name: Install npm dependencies
-        run: npm ci --prefix next-app
+        run: npm install --prefix next-app
 
       # 4. cap add ios generates ios/ scaffold; then restore curated files
       - name: Add Capacitor iOS platform
