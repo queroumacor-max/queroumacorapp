@@ -29,7 +29,7 @@ jobs:
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios + patch existing post_install
+      # 4. cap add ios
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
@@ -49,6 +49,9 @@ jobs:
           ln -sf next-app/node_modules node_modules
           cd ios/App
           pod install --repo-update
+          # Patch Pods project to use Automatic signing (prevents provisioning profile errors)
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
 
       # 6. Import Apple Distribution Certificate
       - name: Import signing certificate
