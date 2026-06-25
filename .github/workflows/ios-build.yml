@@ -31,20 +31,11 @@ jobs:
       - name: Add Capacitor iOS platform
         run: |
           npx --prefix next-app cap add ios || true
-          # Restore curated iOS files
           git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       - name: Install CocoaPods
         run: |
           cd ios/App
-          # Inject CODE_SIGNING_ALLOWED=NO into existing post_install block
-          ruby -i -e '
-            content = STDIN.read
-            content.sub!(/post_install do \|installer\|/) { |m|
-              m + "\n  installer.pods_project.targets.each do |t|\n    t.build_configurations.each do |c|\n      c.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      c.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n    end\n  end"
-            }
-            print content
-          ' Podfile
           pod install
 
       - name: Import signing certificate
@@ -84,46 +75,20 @@ jobs:
         env:
           PP_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          python3 << 'PYEOF'
-          import re, os, sys
-
-          pbxproj = 'ios/App/App.xcodeproj/project.pbxproj'
-          with open(pbxproj, 'r') as f:
-              content = f.read()
-
-          team_id = os.environ['TEAM_ID']
-          pp_name = os.environ['PP_NAME']
-
-          # Change Automatic to Manual signing
-          content = content.replace('CODE_SIGN_STYLE = Automatic;', 'CODE_SIGN_STYLE = Manual;')
-
-          # Remove any pre-existing signing entries to avoid duplicates
-          content = re.sub(r'[ \t]*PROVISIONING_PROFILE_SPECIFIER = [^;]*;\n', '', content)
-          content = re.sub(r'[ \t]*CODE_SIGN_IDENTITY[^=]*= [^;]*;\n', '', content)
-          content = re.sub(r'[ \t]*DEVELOPMENT_TEAM = [^;]*;\n', '', content)
-
-          # Insert signing entries after each CODE_SIGN_STYLE = Manual;
-          signing_block = (
-              'CODE_SIGN_STYLE = Manual;\n'
-              '\t\t\t\tCODE_SIGN_IDENTITY = "iPhone Distribution";\n'
-              f'\t\t\t\tDEVELOPMENT_TEAM = {team_id};\n'
-              f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{pp_name}";'
-          )
-          content = content.replace('CODE_SIGN_STYLE = Manual;', signing_block)
-
-          with open(pbxproj, 'w') as f:
-              f.write(content)
-          print('pbxproj patched successfully')
-          PYEOF
+        run: python3 scripts/patch_pbxproj.py
 
       - name: Archive (xcodebuild)
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild archive \
             -workspace ios/App/App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            DEVELOPMENT_TEAM=$TEAM_ID \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       - name: Export IPA
