@@ -25,11 +25,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: next-app/package-lock.json
 
       # 3. Install Capacitor deps from root package.json
       - name: Install npm dependencies
-        run: npm ci
+        run: npm ci --prefix next-app
 
       # 4. npx cap add ios gera ios/App/App.xcworkspace + Pods scaffold
       #    Depois restaura arquivos curados do repo
