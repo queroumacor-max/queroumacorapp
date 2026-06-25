@@ -29,7 +29,8 @@ jobs:
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios - remove existing ios/ first, use NODE_PATH for TypeScript
+      # 4. cap add ios - root package.json satisfies Capacitor's npm check
+      #    NODE_PATH lets TypeScript be found from next-app/node_modules
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
@@ -43,8 +44,11 @@ jobs:
             ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       # 5. Install CocoaPods
+      #    The Podfile references ../../node_modules/@capacitor/ios/...
+      #    We symlink next-app/node_modules to root node_modules so Podfile resolves correctly
       - name: Install CocoaPods
         run: |
+          ln -sf next-app/node_modules node_modules
           cd ios/App
           pod install --repo-update
 
