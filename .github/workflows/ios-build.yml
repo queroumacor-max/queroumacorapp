@@ -83,9 +83,7 @@ jobs:
         run: |
           PBXPROJ=ios/App/App.xcodeproj/project.pbxproj
           sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' $PBXPROJ
-          sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = ${{ secrets.APPLE_TEAM_ID }};/g' $PBXPROJ
           sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' $PBXPROJ
-          sed -i '' 's/CODE_SIGN_IDENTITY = "";/CODE_SIGN_IDENTITY = "iPhone Distribution";/g' $PBXPROJ
 
       - name: Archive (xcodebuild)
         run: |
@@ -94,8 +92,9 @@ jobs:
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       - name: Export IPA
