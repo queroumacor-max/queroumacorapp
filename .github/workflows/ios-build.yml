@@ -25,12 +25,14 @@ jobs:
         with:
           node-version: '20'
 
-      # 3. Install npm dependencies (includes @capacitor/cli, @capacitor/ios)
+      # 3. Install npm dependencies (includes @capacitor/cli, typescript, etc.)
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios generates ios/ scaffold; then restore curated files
+      # 4. cap add ios - use NODE_PATH so TypeScript is found from next-app/node_modules
       - name: Add Capacitor iOS platform
+        env:
+          NODE_PATH: ./next-app/node_modules
         run: |
           ./next-app/node_modules/.bin/cap add ios
           git checkout HEAD -- \
