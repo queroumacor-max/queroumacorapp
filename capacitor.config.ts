@@ -9,7 +9,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * webview is restricted to the queroumacor.com.br domain family.
  *
  * Pre-publish checklist:
- *   - Bundle ID `com.calicolors.queroumacor` must be registered in
+ *   - Bundle ID `br.com.queroumacor.app` must be registered in
  *     Apple Developer (Identifiers) and Google Play Console.
  *   - `npx cap add ios` / `npx cap add android` must be run on a host
  *     with Xcode (iOS) or Android Studio (Android) — the resulting
@@ -21,7 +21,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * See docs/IOS_BUILD.md for the full step-by-step build flow.
  */
 const config: CapacitorConfig = {
-  appId: 'com.calicolors.queroumacor',
+  appId: 'br.com.queroumacor.app',
   appName: 'QueroUmaCor',
   // PWA hosted — no local web assets are bundled. The webDir below is a
   // placeholder required by the CLI; the `server.url` setting below makes
