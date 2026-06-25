@@ -29,7 +29,7 @@ jobs:
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios + patch Podfile
+      # 4. cap add ios + patch existing post_install
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
@@ -41,7 +41,7 @@ jobs:
             ios/App/App/PrivacyInfo.xcprivacy \
             ios/App/App/AppDelegate.swift \
             ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
-          printf '\npost_install do |installer|\n  installer.pods_project.targets.each do |target|\n    target.build_configurations.each do |config|\n      config.build_settings["CODE_SIGNING_ALLOWED"] = "NO"\n      config.build_settings["CODE_SIGNING_REQUIRED"] = "NO"\n    end\n  end\nend\n' >> ios/App/Podfile
+          ruby -i -e 'c=STDIN.read; c.sub!(/post_install do \|installer\|/, "post_install do |installer|\n  installer.pods_project.targets.each { |t| t.build_configurations.each { |bc| bc.build_settings[\"CODE_SIGNING_ALLOWED\"] = \"NO\"; bc.build_settings[\"CODE_SIGNING_REQUIRED\"] = \"NO\" } }"); print c' ios/App/Podfile
 
       # 5. Install CocoaPods
       - name: Install CocoaPods
