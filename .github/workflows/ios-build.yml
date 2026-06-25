@@ -27,15 +27,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: next-app/package-lock.json
 
-      # 3. Install Capacitor deps from root package.json
+      # 3. Install Capacitor deps from next-app/package.json
       - name: Install npm dependencies
         run: npm ci --prefix next-app
 
-      # 4. npx cap add ios gera ios/App/App.xcworkspace + Pods scaffold
-      #    Depois restaura arquivos curados do repo
+      # 4. cap add ios generates ios/ scaffold; then restore curated files
       - name: Add Capacitor iOS platform
         run: |
-          npx cap add ios
+          ./next-app/node_modules/.bin/cap add ios
           git checkout HEAD -- \
             ios/App/App/Info.plist \
             ios/App/App/PrivacyInfo.xcprivacy \
