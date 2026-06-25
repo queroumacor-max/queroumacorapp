@@ -29,8 +29,7 @@ jobs:
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios - root package.json satisfies Capacitor's npm check
-      #    NODE_PATH lets TypeScript be found from next-app/node_modules
+      # 4. cap add ios
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
@@ -44,8 +43,6 @@ jobs:
             ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       # 5. Install CocoaPods
-      #    The Podfile references ../../node_modules/@capacitor/ios/...
-      #    We symlink next-app/node_modules to root node_modules so Podfile resolves correctly
       - name: Install CocoaPods
         run: |
           ln -sf next-app/node_modules node_modules
@@ -60,7 +57,7 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/cert.p12
+          echo "$CERTIFICATE_BASE64" | base64 -d > $RUNNER_TEMP/cert.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
@@ -76,9 +73,15 @@ jobs:
           PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
           PP_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > $PP_PATH
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 -d > $PP_PATH
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          PP_UUID=$(security cms -D -i $PP_PATH 2>/dev/null | plutil -extract UUID xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          if [ -z "$PP_UUID" ]; then
+            echo "ERROR: Could not extract UUID from provisioning profile"
+            exit 1
+          fi
+          echo "Profile UUID: $PP_UUID"
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
 
       # 8. Set build number
       - name: Set CFBundleVersion
@@ -88,6 +91,7 @@ jobs:
             ios/App/App/Info.plist
 
       # 9. xcodebuild archive
+      #    CODE_SIGN_STYLE=Manual only for App target; Pods use Automatic (no profiles)
       - name: Archive (xcodebuild)
         run: |
           xcodebuild archive \
@@ -99,7 +103,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       # 10. Export IPA
       - name: Export IPA
