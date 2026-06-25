@@ -24,13 +24,13 @@ jobs:
           node-version: '20'
 
       - name: Install npm dependencies
-        run: npm install --prefix next-app
-        env:
-          NODE_PATH: ./next-app/node_modules
+        run: |
+          npm install
+          npm install --prefix next-app
 
       - name: Add Capacitor iOS platform
         run: |
-          npx --prefix next-app cap add ios || true
+          npx cap add ios || true
           git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       - name: Install CocoaPods
