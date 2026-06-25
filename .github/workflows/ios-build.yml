@@ -29,11 +29,12 @@ jobs:
       - name: Install npm dependencies
         run: npm install --prefix next-app
 
-      # 4. cap add ios - use NODE_PATH so TypeScript is found from next-app/node_modules
+      # 4. cap add ios - remove existing ios/ first, use NODE_PATH for TypeScript
       - name: Add Capacitor iOS platform
         env:
           NODE_PATH: ./next-app/node_modules
         run: |
+          rm -rf ios
           ./next-app/node_modules/.bin/cap add ios
           git checkout HEAD -- \
             ios/App/App/Info.plist \
