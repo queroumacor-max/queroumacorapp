@@ -83,7 +83,6 @@ jobs:
       - name: Archive (xcodebuild)
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PP_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           xcodebuild archive \
             -workspace ios/App/App.xcworkspace \
@@ -93,13 +92,13 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
             DEVELOPMENT_TEAM=$TEAM_ID \
-            PROVISIONING_PROFILE_SPECIFIER="$PP_NAME" \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       - name: Export IPA
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          echo "PP_UUID from env: $PP_UUID"
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
