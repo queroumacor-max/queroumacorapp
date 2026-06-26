@@ -130,14 +130,14 @@ jobs:
 
       - name: Upload to App Store Connect
         env:
-          APP_STORE_CONNECT_USERNAME: ${{ secrets.APP_STORE_CONNECT_USERNAME }}
-          APP_STORE_CONNECT_PASSWORD: ${{ secrets.APP_STORE_CONNECT_PASSWORD }}
+          ASC_USERNAME: ${{ secrets.APP_STORE_CONNECT_USERNAME }}
+          ASC_PASSWORD: ${{ secrets.APP_STORE_CONNECT_APP_SPECIFIC_PASSWORD }}
         run: |
           xcrun altool --upload-app \
             -f $RUNNER_TEMP/export/App.ipa \
             -t ios \
-            -u "$APP_STORE_CONNECT_USERNAME" \
-            -p "$APP_STORE_CONNECT_PASSWORD" \
+            -u "$ASC_USERNAME" \
+            -p "$ASC_PASSWORD" \
             --output-format xml
 
       - name: Cleanup keychain
