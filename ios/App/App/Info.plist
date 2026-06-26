@@ -66,20 +66,12 @@
 		<string>remote-notification</string>
 	</array>
 
-	<!--
-	WKAppBoundDomains — pairs with capacitor.config.ts
-	`limitsNavigationsToAppBoundDomains: true`. The WKWebView is
-	only allowed to navigate within these domains.
-	-->
 	<key>WKAppBoundDomains</key>
 	<array>
 		<string>queroumacor.com.br</string>
 		<string>www.queroumacor.com.br</string>
 	</array>
 
-	<!--
-	Usage descriptions (UI permission prompts).
-	-->
 	<key>NSCameraUsageDescription</key>
 	<string>O QueroUmaCor usa a câmera para você fotografar seus trabalhos do portfólio e projetar artes na parede com AR Grafite.</string>
 
@@ -98,9 +90,6 @@
 	<key>NSUserTrackingUsageDescription</key>
 	<string>O QueroUmaCor não realiza rastreamento entre apps. Este aviso está aqui apenas para conformidade do sistema.</string>
 
-	<!--
-	URL scheme for OAuth callback
-	-->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -113,9 +102,6 @@
 		</dict>
 	</array>
 
-	<!--
-	App Transport Security: enforce HTTPS everywhere.
-	-->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
