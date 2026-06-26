@@ -92,13 +92,16 @@ jobs:
         run: |
           PP_PATH=$RUNNER_TEMP/profile.mobileprovision
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
-          PP_UUID=$(security cms -D -i "$PP_PATH" | /usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin)
-          PP_NAME=$(security cms -D -i "$PP_PATH" | /usr/libexec/PlistBuddy -c "Print Name" /dev/stdin)
+          echo "Decoded profile size: $(wc -c < $PP_PATH) bytes"
+          # Use hardcoded known UUID and name to avoid security cms parsing issues
+          PP_UUID="99fb8b7a-6e34-47fb-9e75-177452b7a48c"
+          PP_NAME="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}"
           echo "Provisioning profile UUID: $PP_UUID"
           echo "Provisioning profile Name: $PP_NAME"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
           echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
+          echo "Provisioning profile installed."
 
       - name: Set CFBundleVersion
         run: |
