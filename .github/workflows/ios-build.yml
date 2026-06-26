@@ -53,6 +53,8 @@ jobs:
           security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
+          echo "Installed certificate:"
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
 
       - name: Install provisioning profile
         env:
@@ -92,14 +94,17 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
             DEVELOPMENT_TEAM=$TEAM_ID \
-            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain" \
+            -allowProvisioningUpdates
 
       - name: Export IPA
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "PP_UUID from env: $PP_UUID"
-          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          echo "PP_UUID: $PP_UUID"
+          /usr/libexec/PlistBuddy -c "Print" $RUNNER_TEMP/QueroUmaCor.xcarchive/Info.plist 2>/dev/null | head -30 || echo "No Info.plist in xcarchive"
+          ls $RUNNER_TEMP/QueroUmaCor.xcarchive/Products/Applications/ 2>/dev/null || echo "No Products dir"
+          cat > $RUNNER_TEMP/ExportOptions.plist << ENDOFPLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -110,8 +115,6 @@ jobs:
             <string>$TEAM_ID</string>
             <key>signingStyle</key>
             <string>manual</string>
-            <key>signingCertificate</key>
-            <string>iPhone Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>br.com.queroumacor.app</key>
@@ -123,14 +126,15 @@ jobs:
             <false/>
           </dict>
           </plist>
-          EOF
+          ENDOFPLIST
           echo "=== ExportOptions.plist ==="
           cat $RUNNER_TEMP/ExportOptions.plist
           echo "=========================="
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/export
+            -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates
 
       - name: Upload to App Store Connect
         env:
