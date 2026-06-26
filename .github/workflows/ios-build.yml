@@ -35,6 +35,36 @@ jobs:
           npx cap sync ios
           git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
+      - name: Generate App Icons
+        run: |
+          ICON_SRC="icon-512.png"
+          ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          echo "Generating app icons from $ICON_SRC..."
+          sips -z 40 40   "$ICON_SRC" --out "$ICON_DIR/AppIcon-20@2x.png"
+          sips -z 60 60   "$ICON_SRC" --out "$ICON_DIR/AppIcon-20@3x.png"
+          sips -z 58 58   "$ICON_SRC" --out "$ICON_DIR/AppIcon-29@2x.png"
+          sips -z 87 87   "$ICON_SRC" --out "$ICON_DIR/AppIcon-29@3x.png"
+          sips -z 80 80   "$ICON_SRC" --out "$ICON_DIR/AppIcon-40@2x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/AppIcon-40@3x.png"
+          sips -z 120 120 "$ICON_SRC" --out "$ICON_DIR/AppIcon-60@2x.png"
+          sips -z 180 180 "$ICON_SRC" --out "$ICON_DIR/AppIcon-60@3x.png"
+          sips -z 20 20   "$ICON_SRC" --out "$ICON_DIR/AppIcon-20.png"
+          sips -z 40 40   "$ICON_SRC" --out "$ICON_DIR/AppIcon-20@2x-ipad.png"
+          sips -z 29 29   "$ICON_SRC" --out "$ICON_DIR/AppIcon-29.png"
+          sips -z 58 58   "$ICON_SRC" --out "$ICON_DIR/AppIcon-29@2x-ipad.png"
+          sips -z 40 40   "$ICON_SRC" --out "$ICON_DIR/AppIcon-40.png"
+          sips -z 80 80   "$ICON_SRC" --out "$ICON_DIR/AppIcon-40@2x-ipad.png"
+          sips -z 76 76   "$ICON_SRC" --out "$ICON_DIR/AppIcon-76.png"
+          sips -z 152 152 "$ICON_SRC" --out "$ICON_DIR/AppIcon-76@2x.png"
+          sips -z 167 167 "$ICON_SRC" --out "$ICON_DIR/AppIcon-83.5@2x.png"
+          sips -z 1024 1024 "$ICON_SRC" --out "$ICON_DIR/AppIcon-1024.png"
+          echo "App icons generated successfully."
+          ls -la "$ICON_DIR/"
+          # Add CFBundleIconName to Info.plist if not already present
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" ios/App/App/Info.plist 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIconName AppIcon" ios/App/App/Info.plist
+          echo "CFBundleIconName set to AppIcon"
+
       - name: Install CocoaPods
         run: |
           cd ios/App
@@ -46,30 +76,28 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          security create-keychain -p "" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "" $KEYCHAIN_PATH
-          echo "$CERTIFICATE_BASE64" | base64 -D > $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
-          echo "Installed certificate:"
-          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 16)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning
 
       - name: Install provisioning profile
         env:
           PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
         run: |
           PP_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo "$PROVISIONING_PROFILE_BASE64" | base64 -D > $PP_PATH
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PP_PATH"
+          PP_UUID=$(security cms -D -i "$PP_PATH" | /usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin)
+          PP_NAME=$(security cms -D -i "$PP_PATH" | /usr/libexec/PlistBuddy -c "Print Name" /dev/stdin)
+          echo "Provisioning profile UUID: $PP_UUID"
+          echo "Provisioning profile Name: $PP_NAME"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          PP_UUID=$(security cms -D -i $PP_PATH 2>/dev/null | plutil -extract UUID xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
-          if [ -z "$PP_UUID" ]; then
-            echo "ERROR: Could not extract UUID from provisioning profile"
-            exit 1
-          fi
-          echo "Profile UUID: $PP_UUID"
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
           echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
 
       - name: Set CFBundleVersion
@@ -94,16 +122,11 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
             DEVELOPMENT_TEAM=$TEAM_ID \
-            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain" \
-            -allowProvisioningUpdates
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       - name: Export IPA
-        env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "PP_UUID: $PP_UUID"
-          /usr/libexec/PlistBuddy -c "Print" $RUNNER_TEMP/QueroUmaCor.xcarchive/Info.plist 2>/dev/null | head -30 || echo "No Info.plist in xcarchive"
-          ls $RUNNER_TEMP/QueroUmaCor.xcarchive/Products/Applications/ 2>/dev/null || echo "No Products dir"
+          PP_UUID_VAL="$PP_UUID"
           cat > $RUNNER_TEMP/ExportOptions.plist << ENDOFPLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -111,25 +134,20 @@ jobs:
           <dict>
             <key>method</key>
             <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>$TEAM_ID</string>
             <key>signingStyle</key>
             <string>manual</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_TEAM_ID }}</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>br.com.queroumacor.app</key>
-              <string>$PP_UUID</string>
+              <string>$PP_UUID_VAL</string>
             </dict>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>compileBitcode</key>
-            <false/>
           </dict>
           </plist>
           ENDOFPLIST
-          echo "=== ExportOptions.plist ==="
+          echo "PP_UUID from env: $PP_UUID_VAL"
           cat $RUNNER_TEMP/ExportOptions.plist
-          echo "=========================="
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
