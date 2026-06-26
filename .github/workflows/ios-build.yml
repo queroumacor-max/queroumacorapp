@@ -30,7 +30,8 @@ jobs:
 
       - name: Add Capacitor iOS platform
         run: |
-          npx cap add ios || true
+          rm -rf ios
+          npx cap add ios
           git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       - name: Install CocoaPods
