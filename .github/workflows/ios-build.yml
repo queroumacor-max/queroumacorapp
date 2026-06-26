@@ -32,6 +32,7 @@ jobs:
         run: |
           rm -rf ios
           npx cap add ios
+          npx cap sync ios
           git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
 
       - name: Install CocoaPods
@@ -49,10 +50,7 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "" $KEYCHAIN_PATH
           echo "$CERTIFICATE_BASE64" | base64 -D > $RUNNER_TEMP/cert.p12
-          # Try import with password, fall back to no password
-          if ! security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign 2>/dev/null; then
-            security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -T /usr/bin/codesign
-          fi
+          security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
 
