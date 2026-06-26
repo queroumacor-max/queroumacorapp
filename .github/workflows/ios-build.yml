@@ -68,6 +68,7 @@ jobs:
           fi
           echo "Profile UUID: $PP_UUID"
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PP_UUID}.mobileprovision
+          echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
 
       - name: Set CFBundleVersion
         run: |
@@ -82,6 +83,7 @@ jobs:
       - name: Archive (xcodebuild)
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PP_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           xcodebuild archive \
             -workspace ios/App/App.xcworkspace \
@@ -91,12 +93,12 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
             DEVELOPMENT_TEAM=$TEAM_ID \
+            PROVISIONING_PROFILE_SPECIFIER="$PP_NAME" \
             OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain"
 
       - name: Export IPA
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PP_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
         run: |
           cat > $RUNNER_TEMP/ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -114,7 +116,7 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>br.com.queroumacor.app</key>
-              <string>$PP_NAME</string>
+              <string>$PP_UUID</string>
             </dict>
             <key>uploadBitcode</key>
             <false/>
@@ -123,6 +125,9 @@ jobs:
           </dict>
           </plist>
           EOF
+          echo "=== ExportOptions.plist ==="
+          cat $RUNNER_TEMP/ExportOptions.plist
+          echo "=========================="
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/QueroUmaCor.xcarchive \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
