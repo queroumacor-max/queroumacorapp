@@ -7,7 +7,7 @@ jobs:
   screenshots:
     name: Take iOS Screenshots
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -15,15 +15,22 @@ jobs:
 
       - name: Boot simulator
         run: |
-          xcrun simctl list devices available | head -40
-          SIM_ID=$(xcrun simctl list devices available | grep 'iPhone 16 Plus' | head -1 | awk -F'[()]' '{print $2}')
+          echo "=== Available simulators ==="
+          xcrun simctl list devices available | grep -E 'iPhone (15 Plus|15 Pro Max|16 Plus|16 Pro Max|14 Plus|14 Pro Max)'
+          # Try to get a large-screen iPhone (generates 1290x2796 screenshots - accepted as 6.5")
+          SIM_ID=$(xcrun simctl list devices available | grep -E 'iPhone (16 Plus|15 Plus|14 Plus)' | grep -v unavailable | head -1 | awk -F'[()]' '{print $2}')
           if [ -z "$SIM_ID" ]; then
-            SIM_ID=$(xcrun simctl list devices available | grep 'iPhone' | grep -v 'unavailable' | head -1 | awk -F'[()]' '{print $2}')
+            SIM_ID=$(xcrun simctl list devices available | grep -E 'iPhone (16 Pro Max|15 Pro Max|14 Pro Max)' | grep -v unavailable | head -1 | awk -F'[()]' '{print $2}')
+          fi
+          if [ -z "$SIM_ID" ]; then
+            SIM_ID=$(xcrun simctl list devices available | grep 'iPhone' | grep -v unavailable | head -1 | awk -F'[()]' '{print $2}')
           fi
           echo "SIM_ID=$SIM_ID" >> $GITHUB_ENV
           echo "Using simulator: $SIM_ID"
           xcrun simctl boot "$SIM_ID" || true
-          sleep 10
+          # Open Simulator.app so the display actually renders (prevents black screenshots)
+          open -a Simulator
+          sleep 20
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -65,16 +72,26 @@ jobs:
           xcrun simctl install booted "$APP_PATH"
           BUNDLE_ID=$(defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null || echo 'br.com.queroumacor.app')
           echo "Bundle ID: $BUNDLE_ID"
+          # Launch app and wait longer for WebView to fully render
           xcrun simctl launch booted "$BUNDLE_ID"
-          sleep 10
+          echo "Waiting 45s for app to fully load..."
+          sleep 45
           mkdir -p screenshots
           xcrun simctl io booted screenshot screenshots/01-home.png
-          sleep 5
+          echo "Screenshot 1 taken"
+          sleep 8
           xcrun simctl io booted screenshot screenshots/02-screen2.png
-          sleep 5
+          echo "Screenshot 2 taken"
+          sleep 8
           xcrun simctl io booted screenshot screenshots/03-screen3.png
+          echo "Screenshot 3 taken"
           echo "Screenshots captured:"
           ls -la screenshots/
+          # Show dimensions
+          for f in screenshots/*.png; do
+            echo "Dimensions of $f:"
+            sips -g pixelWidth -g pixelHeight "$f"
+          done
 
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v4
