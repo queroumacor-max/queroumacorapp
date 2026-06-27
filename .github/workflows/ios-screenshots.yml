@@ -3,83 +3,82 @@ name: iOS Screenshots via Simulator
 on:
   workflow_dispatch:
 
-  jobs:
-    screenshots:
-        name: Take iOS Screenshots
-            runs-on: macos-26
-                timeout-minutes: 30
+jobs:
+  screenshots:
+    name: Take iOS Screenshots
+    runs-on: macos-26
+    timeout-minutes: 30
 
-                    steps:
-                          - name: Checkout repository
-                                  uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-                                        - name: Boot iPhone 16 Plus simulator
-                                                run: |
-                                                          xcrun simctl list devices available | head -40
-                                                                    SIM_ID=$(xcrun simctl list devices available | grep 'iPhone 16 Plus' | head -1 | awk -F'[()]' '{print $2}')
-                                                                              if [ -z "$SIM_ID" ]; then
-                                                                                          SIM_ID=$(xcrun simctl list devices available | grep 'iPhone' | grep -v 'unavailable' | head -1 | awk -F'[()]' '{print $2}')
-                                                                                                    fi
-                                                                                                              echo "SIM_ID=$SIM_ID" >> $GITHUB_ENV
-                                                                                                                        echo "Using simulator: $SIM_ID"
-                                                                                                                                  xcrun simctl boot "$SIM_ID" || true
-                                                                                                                                            sleep 5
-                                                                                                                                            
-                                                                                                                                                  - name: Setup Node.js
-                                                                                                                                                          uses: actions/setup-node@v4
-                                                                                                                                                                  with:
-                                                                                                                                                                            node-version: '20'
-                                                                                                                                                                            
-                                                                                                                                                                                  - name: Install deps and build Next.js
-                                                                                                                                                                                          run: |
-                                                                                                                                                                                                    npm install
-                                                                                                                                                                                                              npm install --prefix next-app
-                                                                                                                                                                                                              
-                                                                                                                                                                                                                    - name: Add Capacitor iOS and build for simulator
-                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                      rm -rf ios
-                                                                                                                                                                                                                                                npx cap add ios
-                                                                                                                                                                                                                                                          npx cap sync ios
-                                                                                                                                                                                                                                                                    git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift
-                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                          - name: Install CocoaPods
-                                                                                                                                                                                                                                                                                  run: cd ios/App && pod install
-                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                        - name: Build app for simulator
-                                                                                                                                                                                                                                                                                                run: |
-                                                                                                                                                                                                                                                                                                          xcodebuild build \
-                                                                                                                                                                                                                                                                                                                      -workspace ios/App/App.xcworkspace \
-                                                                                                                                                                                                                                                                                                                                  -scheme App \
-                                                                                                                                                                                                                                                                                                                                              -configuration Debug \
-                                                                                                                                                                                                                                                                                                                                                          -sdk iphonesimulator \
-                                                                                                                                                                                                                                                                                                                                                                      -destination "id=$SIM_ID" \
-                                                                                                                                                                                                                                                                                                                                                                                  ONLY_ACTIVE_ARCH=YES \
-                                                                                                                                                                                                                                                                                                                                                                                              CODE_SIGN_IDENTITY="" \
-                                                                                                                                                                                                                                                                                                                                                                                                          CODE_SIGNING_REQUIRED=NO \
-                                                                                                                                                                                                                                                                                                                                                                                                                      SWIFT_SUPPRESS_WARNINGS=YES \
-                                                                                                                                                                                                                                                                                                                                                                                                                                  BUILD_DIR=$RUNNER_TEMP/sim-build
-                                                                                                                                                                                                                                                                                                                                                                                                                                  
-                                                                                                                                                                                                                                                                                                                                                                                                                                        - name: Install app on simulator and take screenshots
-                                                                                                                                                                                                                                                                                                                                                                                                                                                run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                                          APP_PATH=$(find $RUNNER_TEMP/sim-build -name '*.app' -path '*/Debug-iphonesimulator/*' | head -1)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    echo "App path: $APP_PATH"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                              xcrun simctl install booted "$APP_PATH"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        BUNDLE_ID=$(defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null || echo 'br.com.queroumacor.app')
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  echo "Bundle ID: $BUNDLE_ID"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            xcrun simctl launch booted "$BUNDLE_ID"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      sleep 8
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                mkdir -p screenshots
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          xcrun simctl io booted screenshot screenshots/01-home.png
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    sleep 4
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              xcrun simctl io booted screenshot screenshots/02-screen2.png
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        sleep 4
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  xcrun simctl io booted screenshot screenshots/03-screen3.png
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            echo "Screenshots captured:"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ls -la screenshots/
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            - name: Upload screenshots as artifact
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    uses: actions/upload-artifact@v4
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            with:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      name: ios-screenshots
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                path: screenshots/
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          if-no-files-found: error
+      - name: Boot simulator
+        run: |
+          xcrun simctl list devices available | head -40
+          SIM_ID=$(xcrun simctl list devices available | grep 'iPhone 16 Plus' | head -1 | awk -F'[()]' '{print $2}')
+          if [ -z "$SIM_ID" ]; then
+            SIM_ID=$(xcrun simctl list devices available | grep 'iPhone' | grep -v 'unavailable' | head -1 | awk -F'[()]' '{print $2}')
+          fi
+          echo "SIM_ID=$SIM_ID" >> $GITHUB_ENV
+          echo "Using simulator: $SIM_ID"
+          xcrun simctl boot "$SIM_ID" || true
+          sleep 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: |
+          npm install
+          npm install --prefix next-app
+
+      - name: Add Capacitor iOS
+        run: |
+          rm -rf ios
+          npx cap add ios
+          npx cap sync ios
+          git checkout HEAD -- ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App/AppDelegate.swift
+
+      - name: Install CocoaPods
+        run: cd ios/App && pod install
+
+      - name: Build app for simulator
+        run: |
+          xcodebuild build \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=$SIM_ID" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR=$RUNNER_TEMP/sim-build
+
+      - name: Install app and take screenshots
+        run: |
+          APP_PATH=$(find $RUNNER_TEMP/sim-build -name '*.app' -path '*/Debug-iphonesimulator/*' | head -1)
+          echo "App path: $APP_PATH"
+          xcrun simctl install booted "$APP_PATH"
+          BUNDLE_ID=$(defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null || echo 'br.com.queroumacor.app')
+          echo "Bundle ID: $BUNDLE_ID"
+          xcrun simctl launch booted "$BUNDLE_ID"
+          sleep 10
+          mkdir -p screenshots
+          xcrun simctl io booted screenshot screenshots/01-home.png
+          sleep 5
+          xcrun simctl io booted screenshot screenshots/02-screen2.png
+          sleep 5
+          xcrun simctl io booted screenshot screenshots/03-screen3.png
+          echo "Screenshots captured:"
+          ls -la screenshots/
+
+      - name: Upload screenshots as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: screenshots/
+          if-no-files-found: error
