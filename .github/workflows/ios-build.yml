@@ -11,7 +11,7 @@ on:
 jobs:
   build-ios:
     name: Build & Upload iOS
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 60
 
     steps:
@@ -58,7 +58,13 @@ jobs:
           sips -z 152 152 "$ICON_SRC" --out "$ICON_DIR/AppIcon-76@2x.png"
           sips -z 167 167 "$ICON_SRC" --out "$ICON_DIR/AppIcon-83.5@2x.png"
           sips -z 1024 1024 "$ICON_SRC" --out "$ICON_DIR/AppIcon-1024.png"
-          echo "App icons generated successfully."
+          echo "App icons generated. Stripping alpha channels..."
+                  for f in "$ICON_DIR"/*.png; do
+                            sips -s format jpeg "$f" --out "${f%.png}.jpg" 2>/dev/null && \
+                                      sips -s format png "${f%.png}.jpg" --out "$f" 2>/dev/null && \
+                                                rm "${f%.png}.jpg"
+                                                        done
+                                                                echo "Alpha channels stripped successfully."
           ls -la "$ICON_DIR/"
           # Add CFBundleIconName to Info.plist if not already present
           /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" ios/App/App/Info.plist 2>/dev/null || \
