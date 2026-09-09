@@ -3,7 +3,7 @@
 - **PORTAL: TELA "USO DO APP" (2026-09-09, pedido do usuário: "dashboard
   em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
   venda, teve mais curtidas, convidou mais gente, pediu material na loja,
-  camisa, uso das IAs, fez orçamentos"). Portal v=20260909k. SQL
+  camisa, uso das IAs, fez orçamentos"). Portal v=20260909l. SQL
   `/migrations/2026-09-09-ai-usage-feature-check.sql` — PENDENTE até o
   usuário rodar (uma linha; conferência na
   `2026-09-05-conferencia-pendencias.sql`). A tela funciona sem ele; só as
@@ -78,7 +78,9 @@
     `buscaDeLead(q)` — consulta que é só número (com ou sem máscara) casa
     pelos dígitos do telefone; texto segue em nome/segmento/categoria/
     bairro/@. "Rua 402" NÃO vira busca de telefone (endereço com número
-    traria lead errado). Portal v=20260909k.
+    traria lead errado). Consulta com DDI 55 também é tentada sem ele — a
+    base guarda o telefone como veio da planilha, com ou sem +55 (Codex
+    no #294). Portal v=20260909l.
   - Busca com 250ms de atraso; ordenação por texto com `Intl.Collator`
     (o `localeCompare` monta um collator por comparação — segundos por
     ordenação em 61 mil linhas). Testes em `__tests__/portalLeadsJanela

@@ -4474,14 +4474,18 @@ function emendarLeads(lista, mudados) {
 // de telefone tbm?"). Texto casa em nome/segmento/categoria/bairro/@ig;
 // consulta que e SO numero (com ou sem mascara: "98545-5530", "(11) 9…")
 // casa pelos DIGITOS do telefone — "402" dentro de "Rua X, 402" NAO vira
-// busca de telefone, senao endereco com numero traria lead errado.
+// busca de telefone, senao endereco com numero traria lead errado. A base
+// guarda o telefone como veio da planilha (com ou sem +55), entao consulta
+// com DDI 55 tambem e tentada SEM ele (Codex no #294).
 const buscaDeLead = (q) => {
   const texto = String(q || '').trim().toLowerCase();
   if (!texto) return () => true;
   const soNumero = /^[\d\s()+\-.]+$/.test(texto);
   const digitos = texto.replace(/\D/g, '');
+  const variantes = [digitos];
+  if (/^55\d{10,11}$/.test(digitos)) variantes.push(digitos.slice(2));
   return (l) => {
-    if (soNumero && digitos.length >= 3) return (l.phone || '').replace(/\D/g, '').includes(digitos);
+    if (soNumero && digitos.length >= 3) { const d = (l.phone || '').replace(/\D/g, ''); return variantes.some(v => d.includes(v)); }
     return (l.name||'').toLowerCase().includes(texto) || (l.segment||'').toLowerCase().includes(texto)
       || (l.category||'').toLowerCase().includes(texto) || (l.neighborhood||'').toLowerCase().includes(texto)
       || (l.instagram||'').toLowerCase().includes(texto);

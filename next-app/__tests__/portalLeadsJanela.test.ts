@@ -150,6 +150,7 @@ describe('buscaDeLead (busca do topo)', () => {
   const leads: Lead[] = [
     { id: 'a', name: 'Fk.FUNILARIA', phone: '11 98545-5530', address: 'Rua Ministro Edgard Costa, 402', segment: 'AUTOMOTIVO', category: 'Funilaria/Auto' },
     { id: 'b', name: 'LEMA ENGENHARIA', phone: '(19) 3294-1721', neighborhood: 'Centro', instagram: '@lema.eng' },
+    { id: 'c', name: 'Com DDI', phone: '+55 21 99876-5432' },
   ];
   const acha = (q: string) => leads.filter(buscaDeLead(q)).map(l => l.id);
   it('número, com ou sem máscara, casa pelos dígitos do telefone', () => {
@@ -160,12 +161,19 @@ describe('buscaDeLead (busca do topo)', () => {
     expect(acha('3294')).toEqual(['b']);
     expect(acha('0000')).toEqual([]);
   });
+  it('DDI 55 na consulta ou no cadastro não impede o casamento (Codex #294)', () => {
+    expect(acha('+55 11 98545-5530')).toEqual(['a']);   // gravado sem 55
+    expect(acha('5511985455530')).toEqual(['a']);
+    expect(acha('21 99876-5432')).toEqual(['c']);        // gravado com +55
+    expect(acha('+55 21 99876-5432')).toEqual(['c']);
+    expect(acha('5555')).toEqual([]);                    // curto demais pra virar DDI
+  });
   it('texto segue casando nome, segmento, categoria, bairro e @ — e não o telefone', () => {
     expect(acha('funil')).toEqual(['a']);
     expect(acha('centro')).toEqual(['b']);
     expect(acha('lema.eng')).toEqual(['b']);
     expect(acha('Rua 402')).toEqual([]);   // mistura texto+número não vira busca de telefone
-    expect(acha('')).toEqual(['a', 'b']);
+    expect(acha('')).toEqual(['a', 'b', 'c']);
   });
   it('a tela usa o predicado e o placeholder anuncia telefone', () => {
     expect(fonte).toContain('out = out.filter(buscaDeLead(buscaDeb));');
