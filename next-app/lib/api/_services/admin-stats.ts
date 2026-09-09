@@ -45,6 +45,7 @@ export interface PessoaDoRelatorio {
   curtidas: number;       // recebidas nos posts dela
   comentarios: number;    // recebidos nos posts dela
   comentou: number;       // que ela escreveu
+  curtiu: number;         // curtidas que ela deu
   seguidores: number;
   indicacoes: number;
   pedidos: number;        // pedidos na loja (orders)
@@ -87,12 +88,16 @@ export async function buscarTabela(args: {
   tabela: string;
   select: string;
   filtros?: string[];
+  /** Ordem ESTÁVEL e única pra paginar (default `id`): sem `order` o
+   *  Postgres não garante a mesma sequência entre uma página e a outra, e
+   *  páginas paralelas repetiriam/pulariam linhas. */
+  order?: string;
   maxPaginas?: number;
   fetchImpl?: typeof fetch;
 }): Promise<{ rows: Linha[]; truncado: boolean }> {
   const f = args.fetchImpl || fetch;
   const maxPaginas = args.maxPaginas ?? MAX_PAGINAS;
-  const qs = [`select=${encodeURIComponent(args.select)}`].concat(args.filtros || []).join('&');
+  const qs = [`select=${encodeURIComponent(args.select)}`].concat(args.filtros || [], [`order=${args.order || 'id'}`]).join('&');
   const url = `${args.supaUrl}/rest/v1/${args.tabela}?${qs}`;
   const headers = { apikey: args.serviceKey, Authorization: `Bearer ${args.serviceKey}`, Prefer: 'count=exact' };
   const pagina = async (n: number): Promise<{ rows: Linha[]; total: number | null }> => {
@@ -156,7 +161,7 @@ export function montarRelatorio(d: DadosBrutos, opts: { desde?: string | null; t
     let p = pessoas.get(k);
     if (!p) {
       p = { id: k, nome: '(sem perfil)', tag: null, avatar: null, papel: null, cidade: null, fotos: 0, videos: 0, venda: 0,
-        curtidas: 0, comentarios: 0, comentou: 0, seguidores: 0, indicacoes: 0, pedidos: 0, itensPedidos: 0, camisetas: 0,
+        curtidas: 0, comentarios: 0, comentou: 0, curtiu: 0, seguidores: 0, indicacoes: 0, pedidos: 0, itensPedidos: 0, camisetas: 0,
         logos: 0, ia: 0, iaPorFeature: {}, orcamentosFeitos: 0, orcamentosPedidos: 0, avaliacoes: 0, notaMedia: null,
         ultimaAtividade: null, atividade: 0 };
       pessoas.set(k, p);
@@ -173,14 +178,22 @@ export function montarRelatorio(d: DadosBrutos, opts: { desde?: string | null; t
     p.cidade = str(pr.city);
   }
   // Posts: fotos × vídeos × à venda; guarda o autor de cada post pras
-  // curtidas/comentários RECEBIDOS.
+  // curtidas/comentários RECEBIDOS. Os posts chegam SEM corte de período
+  // (a curtida de hoje pode ser num post do ano passado, e sem o dono ela
+  // não teria a quem ser creditada); o corte vale só pra CONTAR o post.
+  const desdeTs = opts.desde ? Date.parse(opts.desde) : NaN;
+  const noPeriodo = (v: unknown) => Number.isNaN(desdeTs) || Date.parse(String(v || '')) >= desdeTs;
   const autorDoPost = new Map<string, string>();
   for (const po of d.posts) {
     if (po.deleted_at) continue;
     const p = pessoa(po.user_id);
     if (!p) continue;
     if (str(po.id)) autorDoPost.set(String(po.id), p.id);
-    if (ehVideo(po.media_url, po.media_type)) p.videos++; else p.fotos++;
+    if (!noPeriodo(po.created_at)) continue;
+    // Carrossel (Wave 57): `media_urls` traz TODAS as fotos; a primeira
+    // segue em `media_url`. Post antigo só tem a primeira.
+    const fotosDoPost = Array.isArray(po.media_urls) && po.media_urls.length ? po.media_urls.length : 1;
+    if (ehVideo(po.media_url, po.media_type)) p.videos++; else p.fotos += fotosDoPost;
     if (po.for_sale === true) p.venda++;
     p.ultimaAtividade = maisRecente(p.ultimaAtividade, po.created_at);
   }
@@ -188,7 +201,7 @@ export function montarRelatorio(d: DadosBrutos, opts: { desde?: string | null; t
     const autor = autorDoPost.get(String(l.post_id));
     if (autor) { const p = pessoa(autor); if (p) p.curtidas++; }
     const quem = pessoa(l.user_id);
-    if (quem) quem.ultimaAtividade = maisRecente(quem.ultimaAtividade, l.created_at);
+    if (quem) { quem.curtiu++; quem.ultimaAtividade = maisRecente(quem.ultimaAtividade, l.created_at); }
   }
   for (const c of d.comments) {
     if (c.deleted_at) continue;
@@ -250,7 +263,7 @@ export function montarRelatorio(d: DadosBrutos, opts: { desde?: string | null; t
     p.notaMedia = p.avaliacoes && soma !== undefined ? Math.round((soma / p.avaliacoes) * 10) / 10 : null;
     // Peso de cada gesto: publicar e orçar valem mais que curtir/comentar;
     // pedido na loja é o que a Cali Colors mais quer ver.
-    p.atividade = p.fotos * 3 + p.videos * 4 + p.venda * 2 + p.comentou + p.indicacoes * 5
+    p.atividade = p.fotos * 3 + p.videos * 4 + p.venda * 2 + p.comentou + p.curtiu + p.indicacoes * 5
       + p.pedidos * 6 + p.camisetas * 3 + p.logos * 2 + p.ia + p.orcamentosFeitos * 4 + p.orcamentosPedidos * 3;
   }
   const lista = [...pessoas.values()].sort((a, b) => b.atividade - a.atividade || a.nome.localeCompare(b.nome));
@@ -296,7 +309,8 @@ export async function gerarRelatorioDeUso(args: {
   const base = { supaUrl: args.supaUrl, serviceKey: args.serviceKey, fetchImpl: args.fetchImpl };
   const tabelas: Array<[keyof DadosBrutos, string, string, string[]]> = [
     ['profiles', 'profiles', 'id,name,business_name,tag,username,avatar_url,role,user_type,city', []],
-    ['posts', 'posts', 'id,user_id,media_url,media_type,for_sale,created_at,deleted_at', periodo('created_at')],
+    // Posts SEM período de propósito: ver comentário em montarRelatorio.
+    ['posts', 'posts', 'id,user_id,media_url,media_urls,media_type,for_sale,created_at,deleted_at', []],
     ['likes', 'likes', 'post_id,user_id,created_at', periodo('created_at')],
     ['comments', 'comments', 'post_id,user_id,created_at,deleted_at', periodo('created_at')],
     ['referrals', 'referrals', 'referrer_id,created_at', periodo('created_at')],

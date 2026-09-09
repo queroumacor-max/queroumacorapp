@@ -35,6 +35,10 @@ function arquivosTs(dir: string, out: string[] = []): string[] {
 }
 
 describe('a tela está registrada e chama a rota com service role', () => {
+  it('resposta de um período que já mudou não entra na tela', () => {
+    expect(fonte).toContain('const meu = ++pedidoRef.current;');
+    expect(fonte).toContain('if (!atual()) return;\n      setRel(j);');
+  });
   it('página "Uso do app" na seção DADOS, e a rota existe', () => {
     expect(fonte).toContain("{ id:'uso', icon:'📊', label:'Uso do app', section:'DADOS', component:<UsoDoApp /> }");
     expect(fonte).toContain("fetch('/api/admin/stats'");

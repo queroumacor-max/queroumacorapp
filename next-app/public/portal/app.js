@@ -15089,7 +15089,7 @@ const desdeDoPeriodo = (periodo, agora) => {
   return new Date((agora || Date.now()) - dias * 86400000).toISOString();
 };
 const csvDoUso = pessoas => {
-  const cols = [['Nome', 'nome'], ['@tag', 'tag'], ['Papel', 'papel'], ['Cidade', 'cidade'], ['Fotos', 'fotos'], ['Vídeos', 'videos'], ['À venda', 'venda'], ['Curtidas recebidas', 'curtidas'], ['Comentários recebidos', 'comentarios'], ['Comentou', 'comentou'], ['Seguidores', 'seguidores'], ['Indicações', 'indicacoes'], ['Pedidos loja', 'pedidos'], ['Itens pedidos', 'itensPedidos'], ['Camisetas', 'camisetas'], ['Logos', 'logos'], ['Chamadas IA', 'ia'], ['Orçamentos feitos', 'orcamentosFeitos'], ['Orçamentos pedidos', 'orcamentosPedidos'], ['Avaliações', 'avaliacoes'], ['Nota média', 'notaMedia'], ['Última atividade', 'ultimaAtividade'], ['Atividade (pts)', 'atividade']];
+  const cols = [['Nome', 'nome'], ['@tag', 'tag'], ['Papel', 'papel'], ['Cidade', 'cidade'], ['Fotos', 'fotos'], ['Vídeos', 'videos'], ['À venda', 'venda'], ['Curtidas recebidas', 'curtidas'], ['Comentários recebidos', 'comentarios'], ['Comentou', 'comentou'], ['Curtiu', 'curtiu'], ['Seguidores', 'seguidores'], ['Indicações', 'indicacoes'], ['Pedidos loja', 'pedidos'], ['Itens pedidos', 'itensPedidos'], ['Camisetas', 'camisetas'], ['Logos', 'logos'], ['Chamadas IA', 'ia'], ['Orçamentos feitos', 'orcamentosFeitos'], ['Orçamentos pedidos', 'orcamentosPedidos'], ['Avaliações', 'avaliacoes'], ['Nota média', 'notaMedia'], ['Última atividade', 'ultimaAtividade'], ['Atividade (pts)', 'atividade']];
   const linhas = [cols.map(c => c[0])].concat(pessoas.map(p => cols.map(c => p[c[1]] == null ? '' : p[c[1]])));
   return '\uFEFF' + linhas.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
 };
@@ -15114,7 +15114,12 @@ const UsoDoApp = () => {
   const [soAtivos, setSoAtivos] = useState(true);
   const [ordem, setOrdem] = useState('atividade');
   const [limite, setLimite] = useState(100);
+  // Trocar o período com um pedido em voo: só a resposta do ÚLTIMO pedido
+  // entra na tela (o mais largo demora mais e chegaria depois, por cima).
+  const pedidoRef = React.useRef(0);
   const carregar = async per => {
+    const meu = ++pedidoRef.current;
+    const atual = () => meu === pedidoRef.current;
     setLoading(true);
     setErro('');
     try {
@@ -15139,11 +15144,13 @@ const UsoDoApp = () => {
         j = await r.json();
       } catch (_) {}
       if (!r.ok || !j.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      if (!atual()) return;
       setRel(j);
     } catch (e) {
+      if (!atual()) return;
       setErro(e && e.message ? e.message : String(e));
     }
-    setLoading(false);
+    if (atual()) setLoading(false);
   };
   useEffect(() => {
     carregar(periodo);
@@ -15272,7 +15279,7 @@ const UsoDoApp = () => {
       userSelect: 'none'
     }
   }, rot, ordem === campo ? ' ▼' : '');
-  const colunas = [['fotos', 'Fotos'], ['videos', 'Vídeos'], ['venda', 'À venda'], ['curtidas', 'Curtidas'], ['comentarios', 'Coment.'], ['seguidores', 'Seg.'], ['indicacoes', 'Indic.'], ['pedidos', 'Pedidos'], ['camisetas', 'Camisetas'], ['logos', 'Logos'], ['ia', 'IA'], ['orcamentosFeitos', 'Orç. feitos'], ['orcamentosPedidos', 'Orç. pedidos'], ['avaliacoes', 'Aval.'], ['atividade', 'Pts']];
+  const colunas = [['fotos', 'Fotos'], ['videos', 'Vídeos'], ['venda', 'À venda'], ['curtidas', 'Curtidas'], ['comentarios', 'Coment.'], ['curtiu', 'Curtiu'], ['seguidores', 'Seg.'], ['indicacoes', 'Indic.'], ['pedidos', 'Pedidos'], ['camisetas', 'Camisetas'], ['logos', 'Logos'], ['ia', 'IA'], ['orcamentosFeitos', 'Orç. feitos'], ['orcamentosPedidos', 'Orç. pedidos'], ['avaliacoes', 'Aval.'], ['atividade', 'Pts']];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',

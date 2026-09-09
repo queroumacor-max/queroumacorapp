@@ -26,6 +26,8 @@ describe('montarRelatorio', () => {
     expect(ana.comentarios).toBe(1);
     expect(bia.fotos).toBe(0);            // post apagado não conta
     expect(bia.comentou).toBe(1);
+    expect(bia.curtiu).toBe(3);           // curtida DADA conta como atividade
+    expect(bia.atividade).toBeGreaterThan(0);
     expect(ana.ultimaAtividade).toBe('2026-09-03T00:00:00Z');
     expect(r.rankings.fotos[0]).toMatchObject({ id: 'a', nome: 'Ana', n: 1 });
     expect(r.rankings.curtidas[0].n).toBe(2);
@@ -73,6 +75,31 @@ describe('montarRelatorio', () => {
     expect(r.totais.ativas).toBe(2);
   });
 
+  it('carrossel conta TODAS as fotos (media_urls), post antigo conta uma', () => {
+    const d = vazio();
+    d.posts = [
+      { id: 'p1', user_id: 'a', media_url: 'x/1.jpg', media_urls: ['x/1.jpg', 'x/2.jpg', 'x/3.jpg'] },
+      { id: 'p2', user_id: 'a', media_url: 'x/9.jpg', media_urls: null },
+      { id: 'p3', user_id: 'a', media_url: 'x/v.mp4', media_urls: ['x/v.mp4'] },
+    ];
+    const r = montarRelatorio(d);
+    expect(r.pessoas[0].fotos).toBe(4);
+    expect(r.pessoas[0].videos).toBe(1);
+  });
+  it('com período: post antigo não conta, mas a curtida de hoje nele é creditada ao dono', () => {
+    const d = vazio();
+    d.profiles = [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bia' }];
+    d.posts = [{ id: 'velho', user_id: 'a', media_url: 'x/1.jpg', created_at: '2025-01-01T00:00:00Z' }];
+    d.likes = [{ post_id: 'velho', user_id: 'b', created_at: '2026-09-08T00:00:00Z' }];
+    d.comments = [{ post_id: 'velho', user_id: 'b', created_at: '2026-09-08T00:00:00Z' }];
+    const r = montarRelatorio(d, { desde: '2026-09-01T00:00:00Z' });
+    const ana = r.pessoas.find(p => p.id === 'a')!;
+    expect(ana.fotos).toBe(0);
+    expect(ana.curtidas).toBe(1);
+    expect(ana.comentarios).toBe(1);
+    expect(r.totais.fotos).toBe(0);
+    expect(r.rankings.curtidas[0]).toMatchObject({ id: 'a', n: 1 });
+  });
   it('quem aparece nas tabelas sem perfil entra como "(sem perfil)" e não derruba nada', () => {
     const d = vazio();
     d.posts = [{ id: 'p1', user_id: 'fantasma', media_url: 'a.jpg' }];
@@ -119,7 +146,8 @@ describe('buscarTabela', () => {
     expect(r.truncado).toBe(false);
     expect(chamadas).toEqual(['0-999', '1000-1999', '2000-2999']);
     const url = (fetchImpl as unknown as { mock: { calls: [string][] } }).mock.calls[0][0];
-    expect(url).toBe('https://x.supabase.co/rest/v1/likes?select=post_id&created_at=gte.2026');
+    // `order=id` sempre: paginação sem ordem estável repete/pula linha.
+    expect(url).toBe('https://x.supabase.co/rest/v1/likes?select=post_id&created_at=gte.2026&order=id');
   });
   it('marca truncado quando passa do teto de páginas', async () => {
     const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
@@ -157,7 +185,8 @@ describe('POST /api/admin/stats', () => {
         return Promise.resolve(new Response(JSON.stringify({ id: 'c', email: tok.includes('boss') ? 'boss@x.com' : 'zé@x.com' }), { status: 200 }));
       }
       if (url.includes('/rpc/check_rate_limit')) return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
-      if (url.includes('/rest/v1/posts')) { desdeVisto = url; return Promise.resolve(new Response(JSON.stringify([{ id: 'p', user_id: 'c', media_url: 'a.jpg' }]), { status: 200, headers: { 'content-range': '0-0/1' } })); }
+      if (url.includes('/rest/v1/likes')) desdeVisto = url;
+      if (url.includes('/rest/v1/posts')) { expect(url).not.toContain('created_at=gte'); return Promise.resolve(new Response(JSON.stringify([{ id: 'p', user_id: 'c', media_url: 'a.jpg', created_at: '2026-09-01T00:00:00Z' }]), { status: 200, headers: { 'content-range': '0-0/1' } })); }
       if (url.includes('/rest/v1/profiles')) return Promise.resolve(new Response(JSON.stringify([{ id: 'c', name: 'Chefe' }]), { status: 200, headers: { 'content-range': '0-0/1' } }));
       return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-range': '*/0' } }));
     });

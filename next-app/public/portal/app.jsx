@@ -7812,7 +7812,7 @@ const desdeDoPeriodo = (periodo, agora) => {
 };
 const csvDoUso = (pessoas) => {
   const cols = [['Nome','nome'],['@tag','tag'],['Papel','papel'],['Cidade','cidade'],['Fotos','fotos'],['Vídeos','videos'],
-    ['À venda','venda'],['Curtidas recebidas','curtidas'],['Comentários recebidos','comentarios'],['Comentou','comentou'],
+    ['À venda','venda'],['Curtidas recebidas','curtidas'],['Comentários recebidos','comentarios'],['Comentou','comentou'],['Curtiu','curtiu'],
     ['Seguidores','seguidores'],['Indicações','indicacoes'],['Pedidos loja','pedidos'],['Itens pedidos','itensPedidos'],
     ['Camisetas','camisetas'],['Logos','logos'],['Chamadas IA','ia'],['Orçamentos feitos','orcamentosFeitos'],
     ['Orçamentos pedidos','orcamentosPedidos'],['Avaliações','avaliacoes'],['Nota média','notaMedia'],
@@ -7834,8 +7834,13 @@ const UsoDoApp = () => {
   const [soAtivos, setSoAtivos] = useState(true);
   const [ordem, setOrdem] = useState('atividade');
   const [limite, setLimite] = useState(100);
+  // Trocar o período com um pedido em voo: só a resposta do ÚLTIMO pedido
+  // entra na tela (o mais largo demora mais e chegaria depois, por cima).
+  const pedidoRef = React.useRef(0);
 
   const carregar = async (per) => {
+    const meu = ++pedidoRef.current;
+    const atual = () => meu === pedidoRef.current;
     setLoading(true); setErro('');
     try {
       const { data: { session } } = await supa.auth.getSession();
@@ -7847,11 +7852,13 @@ const UsoDoApp = () => {
       let j = {};
       try { j = await r.json(); } catch (_) {}
       if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      if (!atual()) return;
       setRel(j);
     } catch (e) {
+      if (!atual()) return;
       setErro(e && e.message ? e.message : String(e));
     }
-    setLoading(false);
+    if (atual()) setLoading(false);
   };
   useEffect(() => { carregar(periodo); }, [periodo]);
 
@@ -7894,7 +7901,7 @@ const UsoDoApp = () => {
       {rot}{ordem === campo ? ' ▼' : ''}
     </th>
   );
-  const colunas = [['fotos','Fotos'],['videos','Vídeos'],['venda','À venda'],['curtidas','Curtidas'],['comentarios','Coment.'],['seguidores','Seg.'],
+  const colunas = [['fotos','Fotos'],['videos','Vídeos'],['venda','À venda'],['curtidas','Curtidas'],['comentarios','Coment.'],['curtiu','Curtiu'],['seguidores','Seg.'],
     ['indicacoes','Indic.'],['pedidos','Pedidos'],['camisetas','Camisetas'],['logos','Logos'],['ia','IA'],['orcamentosFeitos','Orç. feitos'],
     ['orcamentosPedidos','Orç. pedidos'],['avaliacoes','Aval.'],['atividade','Pts']];
 

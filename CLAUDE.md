@@ -3,7 +3,7 @@
 - **PORTAL: TELA "USO DO APP" (2026-09-09, pedido do usuário: "dashboard
   em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
   venda, teve mais curtidas, convidou mais gente, pediu material na loja,
-  camisa, uso das IAs, fez orçamentos"). Portal v=20260909i. SQL
+  camisa, uso das IAs, fez orçamentos"). Portal v=20260909j. SQL
   `/migrations/2026-09-09-ai-usage-feature-check.sql` — PENDENTE até o
   usuário rodar (uma linha; conferência na
   `2026-09-05-conferencia-pendencias.sql`). A tela funciona sem ele; só as
