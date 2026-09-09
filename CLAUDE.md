@@ -1,5 +1,15 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **MODAL DE ABORDAGEM ESPELHADO (2026-09-09, pedido do usuário: "espelha
+  o modal para o botão ficar do lado direito de enviar"). Portal
+  v=20260909f, SEM SQL.** Prévia à ESQUERDA, campos + Enviar à DIREITA, no
+  `EnvioDeTemplate` (unitário + aba WhatsApp) e no lote. Feito com
+  `flexDirection:'row-reverse'`, NÃO trocando a ordem do DOM: os campos
+  seguem primeiro pro Tab, e em tela estreita o `wrap` continua empilhando
+  campos em cima da prévia — trocar o DOM traria de volta o problema de
+  08/09 (prévia empurrando o Enviar pra baixo da dobra). Teste em
+  `portalAbordagemEntrega.test.ts`.
+
 - **IMPORTADOR DE LEADS ACEITA EXCEL DIRETO (.xlsx/.xls/.xlsm/.ods)
   (2026-09-09, pedido do usuário). Portal v=20260909e, SEM SQL.** O portal
   não tem bundler, então o SheetJS (xlsx 0.18.5, Apache-2.0, ~880 KB) vive
