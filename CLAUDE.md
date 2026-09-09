@@ -2,7 +2,8 @@
 
 - **LEAD "CONTACTADO" SÓ COM CONFIRMAÇÃO DA META (2026-09-09, pedido do
   usuário). SQL `/migrations/2026-09-09-leads-abordagem-entrega.sql` —
-  PENDENTE até o usuário rodar (uma instrução por vez); linha na
+  JÁ EXECUTADO no Supabase (2026-09-09, informado pelo usuário: "rodei o
+  SQL"). Não pedir pra rodar de novo. Linha na
   `2026-09-05-conferencia-pendencias.sql`. O código TOLERA a coluna ausente
   e a tela de Leads mostra o aviso enquanto o SQL não roda.**
   - **O INCIDENTE:** uma leva de abordagens saiu do portal, a API aceitou
