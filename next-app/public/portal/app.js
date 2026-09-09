@@ -147,7 +147,9 @@ const productsService = {
 const PAGINA_SUPA = 1000;
 async function buscarTudo(montarQuery) {
   const tudo = [];
-  for (let de = 0; de < 50000; de += PAGINA_SUPA) {
+  // Sem teto: o teto de 50 mil que existia aqui parava em silencio na pagina
+  // 50 — com 61 mil leads, a tela mostrava 50 mil e ninguem sabia.
+  for (let de = 0;; de += PAGINA_SUPA) {
     const r = await montarQuery().range(de, de + PAGINA_SUPA - 1);
     if (r.error) throw r.error;
     const lote = r.data || [];
@@ -156,10 +158,125 @@ async function buscarTudo(montarQuery) {
   }
   return tudo;
 }
+
+// [teste:paginas-inicio]
+// LISTA GRANDE, EM PARALELO E PROGRESSIVA (2026-09-09). Com 61 mil leads o
+// `buscarTudo` (uma pagina de cada vez, esperando a anterior) levava
+// minutos, e a tela ficava em "Carregando" ate a ULTIMA chegar. Aqui a
+// primeira pagina pede `count:'exact'` pra saber quantas faltam, as demais
+// saem PAGINAS_PARALELO de cada vez, e cada lote e guardado na SUA posicao
+// (`paginas[n]`) — as respostas chegam fora de ordem e o `juntar` devolve
+// a ordem da consulta. `aoChegar(parcial, total)` roda a cada lote, com a
+// lista ja em ordem, pra tela pintar antes do fim. `cancelado()` = a tela
+// fechou; os trabalhadores param sem estourar erro.
+// `montarQuery(extra)` recebe as opcoes do select ({count:'exact'} na
+// primeira pagina, {} nas outras) e devolve a consulta ORDENADA por chave
+// unica — paginar por `created_at` sozinho repete/pula linha quando um
+// lote de importacao inteiro tem o mesmo carimbo.
+const PAGINAS_PARALELO = 4;
+async function buscarEmPaginas(montarQuery, opts) {
+  opts = opts || {};
+  const cancelado = opts.cancelado || (() => false);
+  const primeira = await montarQuery({
+    count: 'exact'
+  }).range(0, PAGINA_SUPA - 1);
+  if (primeira.error) throw primeira.error;
+  const paginas = [primeira.data || []];
+  const juntar = () => {
+    const out = [];
+    for (const lote of paginas) if (lote) out.push.apply(out, lote);
+    return out;
+  };
+  // Sem `count` (PostgREST nao respondeu), o total e desconhecido: segue em
+  // serie ate vir pagina curta, que e o que o `buscarTudo` sempre fez.
+  if (typeof primeira.count !== 'number') {
+    if (opts.aoChegar) opts.aoChegar(juntar(), null);
+    for (let n = 1; paginas[n - 1].length === PAGINA_SUPA && !cancelado(); n++) {
+      const r = await montarQuery({}).range(n * PAGINA_SUPA, (n + 1) * PAGINA_SUPA - 1);
+      if (r.error) throw r.error;
+      paginas[n] = r.data || [];
+      if (opts.aoChegar) opts.aoChegar(juntar(), null);
+    }
+    return juntar();
+  }
+  const total = primeira.count;
+  if (opts.aoChegar) opts.aoChegar(juntar(), total);
+  const faltando = [];
+  for (let n = 1; n * PAGINA_SUPA < total; n++) faltando.push(n);
+  let cursor = 0;
+  const trabalhador = async () => {
+    while (cursor < faltando.length && !cancelado()) {
+      const n = faltando[cursor++];
+      const r = await montarQuery({}).range(n * PAGINA_SUPA, (n + 1) * PAGINA_SUPA - 1);
+      if (r.error) throw r.error;
+      paginas[n] = r.data || [];
+      if (opts.aoChegar) opts.aoChegar(juntar(), total);
+    }
+  };
+  const ts = [];
+  for (let i = 0; i < Math.min(PAGINAS_PARALELO, faltando.length); i++) ts.push(trabalhador());
+  await Promise.all(ts);
+  return juntar();
+}
+
+// Chama `f` no maximo uma vez a cada `ms`, sempre com os ULTIMOS argumentos
+// (a chamada que ficou presa sai quando o intervalo vence). Serve pra nao
+// remontar a tela a cada lote que chega — 60 lotes = 60 refiltragens de
+// dezenas de milhares de linhas.
+function comIntervalo(f, ms) {
+  let ultimo = 0,
+    timer = null,
+    args = null;
+  const g = function () {
+    args = arguments;
+    const falta = ms - (Date.now() - ultimo);
+    if (falta <= 0) {
+      ultimo = Date.now();
+      f.apply(null, args);
+      return;
+    }
+    if (!timer) timer = setTimeout(() => {
+      timer = null;
+      ultimo = Date.now();
+      f.apply(null, args);
+    }, falta);
+  };
+  g.agora = function () {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (args) {
+      ultimo = Date.now();
+      f.apply(null, args);
+    }
+  };
+  g.cancelar = function () {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    args = null;
+  };
+  return g;
+}
+// [teste:paginas-fim]
+
 const leadsService = {
-  list: () => buscarTudo(() => supa.from('leads').select('*').order('created_at', {
+  // `opts.aoChegar(parcial, total)` — ver buscarEmPaginas. A ordem tem a
+  // chave `id` como desempate de proposito (ver comentario la em cima).
+  list: opts => buscarEmPaginas(extra => supa.from('leads').select('*', extra).order('created_at', {
     ascending: false
-  })),
+  }).order('id'), opts),
+  // So os leads cuja abordagem mexeu desde `desdeIso`: e o que o poll e o
+  // pos-envio precisam — recarregar 61 mil linhas pra ver 30 mudarem nao.
+  recentes: async desdeIso => {
+    const r = await supa.from('leads').select('*').gte('abordagem_at', desdeIso).order('abordagem_at', {
+      ascending: false
+    }).limit(PAGINA_SUPA);
+    if (r.error) throw r.error;
+    return r.data || [];
+  },
   updateStatus: async (id, status) => {
     const r = await supa.from('leads').update({
       status
@@ -8335,6 +8452,39 @@ const LEAD_PRIO_COLORS = {
   media: C.p7,
   baixa: C.muted
 };
+
+// [teste:leads-janela-inicio]
+const LEADS_JANELA = 100; // linhas montadas por vez na tabela
+// Lead que pode receber template: telefone valido, sem opt-out, nao fixo.
+const leadAbordavel = l => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
+// Emenda `mudados` na `lista` por id: linha conhecida recebe os campos
+// novos (por cima, sem perder os outros), linha desconhecida entra no
+// comeco. Devolve a MESMA lista se nada mudou, pra nao remontar a tela.
+function emendarLeads(lista, mudados) {
+  if (!mudados || !mudados.length) return lista;
+  const porId = new Map();
+  mudados.forEach(m => {
+    if (m && m.id) porId.set(m.id, m);
+  });
+  if (!porId.size) return lista;
+  let mudou = false;
+  const out = lista.map(l => {
+    const m = porId.get(l.id);
+    if (!m) return l;
+    porId.delete(l.id);
+    const juntos = Object.assign({}, l, m);
+    if (Object.keys(juntos).every(k => juntos[k] === l[k])) return l;
+    mudou = true;
+    return juntos;
+  });
+  if (porId.size) {
+    mudou = true;
+    out.unshift(...porId.values());
+  }
+  return mudou ? out : lista;
+}
+// [teste:leads-janela-fim]
+let _leadsCache = null;
 const Leads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -8362,7 +8512,28 @@ const Leads = () => {
   // lote. So lead abordavel (telefone valido e sem opt-out) entra.
   const [sel, setSel] = useState(() => new Set());
   const [abordarLote, setAbordarLote] = useState(null); // leads da janela em lote
-
+  // CARGA PROGRESSIVA + JANELA (2026-09-09, relato do usuario: "tem 60k+
+  // leads, a pagina nao carrega"). `totalBanco` e o count da 1a pagina;
+  // `carregandoResto` fica true enquanto as outras chegam; `limite` e
+  // quantas linhas da lista filtrada estao MONTADAS na tabela (cresce
+  // rolando); `buscaDeb` e a busca com atraso, pra nao refiltrar 61 mil
+  // linhas a cada tecla.
+  const [totalBanco, setTotalBanco] = useState(null);
+  const [carregandoResto, setCarregandoResto] = useState(false);
+  const [erroCarga, setErroCarga] = useState('');
+  const [limite, setLimite] = useState(LEADS_JANELA);
+  const [buscaDeb, setBuscaDeb] = useState('');
+  const vivoRef = React.useRef(true);
+  useEffect(() => {
+    vivoRef.current = true;
+    return () => {
+      vivoRef.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaDeb(busca), 250);
+    return () => clearTimeout(t);
+  }, [busca]);
   const removeDuplicates = async allLeads => {
     const seen = {};
     const dupeIds = [];
@@ -8386,15 +8557,66 @@ const Leads = () => {
     }
     return dupeIds.length;
   };
-  const fetchLeads = async () => {
-    try {
-      const rows = await leadsService.list();
-      setLeads(rows);
-    } catch (e) {
-      console.error('fetchLeads error:', e);
-      setLeads([]);
+
+  // Carga completa: a primeira pagina pinta a tela (e tira o "Carregando"),
+  // o resto chega em paralelo e entra na lista a cada ~600ms. `force`
+  // ignora o cache em memoria (botao ↻ e pos-importacao).
+  const fetchLeads = async force => {
+    if (!force && _leadsCache) {
+      setLeads(_leadsCache);
+      setTotalBanco(_leadsCache.length);
+      setLoading(false);
+      mesclarRecentes();
+      return;
     }
-    setLoading(false);
+    setErroCarga('');
+    const publicar = comIntervalo((parcial, total) => {
+      if (!vivoRef.current) return;
+      setLeads(parcial);
+      setTotalBanco(typeof total === 'number' ? total : parcial.length);
+      setLoading(false);
+      setCarregandoResto(true);
+    }, 600);
+    try {
+      const rows = await leadsService.list({
+        aoChegar: publicar,
+        cancelado: () => !vivoRef.current
+      });
+      publicar.cancelar();
+      if (vivoRef.current) {
+        _leadsCache = rows;
+        setLeads(rows);
+        setTotalBanco(rows.length);
+      }
+    } catch (e) {
+      publicar.cancelar();
+      console.error('fetchLeads error:', e);
+      if (vivoRef.current) setErroCarga(e && e.message ? e.message : String(e));
+    }
+    if (vivoRef.current) {
+      setLoading(false);
+      setCarregandoResto(false);
+    }
+  };
+
+  // Traz so os leads cuja abordagem mudou nas ultimas horas e EMENDA na
+  // lista (por id). E o que o poll de 20s e o pos-envio usam: o webhook
+  // muda `abordagem_status`/`status` de poucos leads por vez, e recarregar
+  // 61 mil linhas pra ver isso deixava a tela em "Carregando" de novo.
+  // Coluna ausente (SQL de 2026-09-09 nao rodou) → 42703 → nada a emendar.
+  const mesclarRecentes = async () => {
+    try {
+      const desde = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+      const recentes = await leadsService.recentes(desde);
+      if (!vivoRef.current || !recentes.length) return;
+      setLeads(prev => {
+        const n = emendarLeads(prev, recentes);
+        _leadsCache = n;
+        return n;
+      });
+    } catch (e) {
+      console.warn('leads.recentes:', e && e.message ? e.message : e);
+    }
   };
   useEffect(() => {
     fetchLeads();
@@ -8411,7 +8633,7 @@ const Leads = () => {
   }, [leads]);
   useEffect(() => {
     if (!temPendente) return;
-    const t = setInterval(fetchLeads, 20000);
+    const t = setInterval(mesclarRecentes, 20000);
     return () => clearInterval(t);
   }, [temPendente]);
   // A coluna nao veio no select('*') = o SQL de 2026-09-09 ainda nao rodou.
@@ -8429,7 +8651,15 @@ const Leads = () => {
   const updateStatus = async (id, newStatus) => {
     try {
       await leadsService.updateStatus(id, newStatus);
-      fetchLeads();
+      // Emenda a linha em vez de recarregar a lista inteira.
+      setLeads(prev => {
+        const n = emendarLeads(prev, [{
+          id,
+          status: newStatus
+        }]);
+        _leadsCache = n;
+        return n;
+      });
     } catch (e) {
       // 23514 = CHECK em leads.status que nao conhece o valor novo. A tabela
       // nasceu fora do repo, entao nao da pra saber daqui se ha CHECK; o
@@ -8445,8 +8675,8 @@ const Leads = () => {
   // Filters + sort — pesado quando há muitos leads. Memoizado por estado de filtro/busca/lista.
   const filtered = React.useMemo(() => {
     let out = leads;
-    if (busca) {
-      const q = busca.toLowerCase();
+    if (buscaDeb) {
+      const q = buscaDeb.toLowerCase();
       out = out.filter(l => (l.name || '').toLowerCase().includes(q) || (l.segment || '').toLowerCase().includes(q) || (l.category || '').toLowerCase().includes(q) || (l.neighborhood || '').toLowerCase().includes(q) || (l.instagram || '').toLowerCase().includes(q));
     }
     if (filtroStatus !== 'Todos') out = out.filter(l => l.status === filtroStatus.toLowerCase());
@@ -8469,12 +8699,15 @@ const Leads = () => {
     // Ordenacao: numero compara como numero, o resto como texto (pt-BR).
     const dir = sortDir === 'asc' ? 1 : -1;
     const numerica = sortCol === 'rating' || sortCol === 'review_count';
+    // Intl.Collator, nao localeCompare: com 61 mil linhas o localeCompare
+    // (que monta um collator por comparacao) levava segundos por ordenacao.
+    const cmp = numerica ? null : new Intl.Collator('pt-BR').compare;
     out = [...out].sort((a, b) => {
       if (numerica) return ((Number(a[sortCol]) || 0) - (Number(b[sortCol]) || 0)) * dir;
-      return String(a[sortCol] || '').localeCompare(String(b[sortCol] || ''), 'pt-BR') * dir;
+      return cmp(String(a[sortCol] || ''), String(b[sortCol] || '')) * dir;
     });
     return out;
-  }, [leads, busca, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
+  }, [leads, buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
   const cidades = React.useMemo(() => {
     const c = {};
     leads.forEach(l => {
@@ -8535,7 +8768,10 @@ const Leads = () => {
       total: leads.length
     };
     LEADS_STATUS.forEach(s => {
-      sc[s] = leads.filter(l => l.status === s).length;
+      sc[s] = 0;
+    });
+    leads.forEach(l => {
+      if (l.status in sc) sc[l.status]++;
     });
     return sc;
   }, [leads]);
@@ -8571,15 +8807,49 @@ const Leads = () => {
     const msg = encodeURIComponent('Olá ' + (name || '') + '! Somos da Cali Colors — QueroUmaCor. Gostaríamos de apresentar nossa plataforma para você. Podemos conversar?');
     window.open('https://wa.me/' + alvo + '?text=' + msg, '_blank', 'noopener,noreferrer');
   };
-  if (loading) return /*#__PURE__*/React.createElement("div", {
+  const abordavel = leadAbordavel;
+  const abordaveisNaTela = React.useMemo(() => filtered.filter(abordavel), [filtered]);
+  const todosMarcados = abordaveisNaTela.length > 0 && abordaveisNaTela.every(l => sel.has(l.id));
+  const selecionados = React.useMemo(() => leads.filter(l => sel.has(l.id) && abordavel(l)), [leads, sel]);
+  // JANELA: so `limite` linhas da lista filtrada viram <tr>. Com 61 mil a
+  // tabela inteira travava o navegador (e era a 2a causa da tela nao
+  // carregar, depois do fetch em serie). Trocou filtro/ordem → volta pro
+  // comeco; lote novo chegando NAO volta (a pessoa pode estar rolando).
+  useEffect(() => {
+    setLimite(LEADS_JANELA);
+  }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
+  const visiveis = React.useMemo(() => filtered.length > limite ? filtered.slice(0, limite) : filtered, [filtered, limite]);
+  const sentinelaRef = React.useRef(null);
+  useEffect(() => {
+    const el = sentinelaRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(entradas => {
+      if (entradas.some(e => e.isIntersecting)) setLimite(l => l + LEADS_JANELA);
+    }, {
+      rootMargin: '800px'
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visiveis.length, filtered.length]);
+  if (loading && leads.length === 0) return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 20,
       color: C.muted
     }
-  }, "Carregando leads...");
-  const abordavel = l => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
-  const abordaveisNaTela = filtered.filter(abordavel);
-  const todosMarcados = abordaveisNaTela.length > 0 && abordaveisNaTela.every(l => sel.has(l.id));
+  }, erroCarga ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#b00020'
+    }
+  }, "Erro ao carregar leads: ", erroCarga, " ", /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setLoading(true);
+      fetchLeads(true);
+    },
+    style: {
+      marginLeft: 8,
+      cursor: 'pointer'
+    }
+  }, "Tentar de novo")) : 'Carregando leads...');
   const alternarTodos = () => setSel(prev => {
     const n = new Set(prev);
     if (todosMarcados) filtered.forEach(l => n.delete(l.id));else abordaveisNaTela.forEach(l => n.add(l.id));
@@ -8590,7 +8860,6 @@ const Leads = () => {
     if (n.has(id)) n.delete(id);else n.add(id);
     return n;
   });
-  const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));
   const segIcons = LEAD_SEG_ICONS;
   const catIcons = LEAD_CAT_ICONS;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -8622,7 +8891,32 @@ const Leads = () => {
       color: C.muted,
       fontSize: 12
     }
-  }, "leads")), /*#__PURE__*/React.createElement("div", {
+  }, "leads"), carregandoResto && totalBanco && totalBanco > leads.length ? /*#__PURE__*/React.createElement("span", {
+    title: "A lista pinta com a primeira pagina e o resto chega em seguida",
+    style: {
+      color: C.muted,
+      fontSize: 11,
+      marginLeft: 4
+    }
+  }, "\u23F3 carregando ", leads.length.toLocaleString('pt-BR'), " de ", totalBanco.toLocaleString('pt-BR'), "\u2026") : null, /*#__PURE__*/React.createElement("button", {
+    onClick: () => fetchLeads(true),
+    disabled: carregandoResto,
+    title: "Recarregar a lista do banco",
+    style: {
+      marginLeft: 6,
+      background: 'none',
+      border: 'none',
+      cursor: carregandoResto ? 'default' : 'pointer',
+      color: C.muted,
+      fontSize: 13,
+      padding: 0
+    }
+  }, "\u21BB")), erroCarga ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#b00020',
+      fontSize: 12
+    }
+  }, "Parte da lista nao carregou: ", erroCarga) : null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.white,
       borderRadius: 20,
@@ -9047,7 +9341,7 @@ const Leads = () => {
       color: C.muted,
       textAlign: 'center'
     }
-  }, "Nenhum lead encontrado.")), filtered.map((l, i) => {
+  }, "Nenhum lead encontrado.")), visiveis.map((l, i) => {
     const sc = statusColor(l.status);
     const pc = prioColor(l.priority);
     const segColor = segColors[(l.segment || '').toUpperCase()] || C.muted;
@@ -9266,20 +9560,41 @@ const Leads = () => {
         color: C.muted
       }
     }, "\u2014")));
-  })))), /*#__PURE__*/React.createElement(ImportarPlanilhaModal, {
+  }), filtered.length > visiveis.length ? /*#__PURE__*/React.createElement("tr", {
+    ref: sentinelaRef
+  }, /*#__PURE__*/React.createElement("td", {
+    colSpan: 11,
+    style: {
+      padding: '14px 10px',
+      color: C.muted,
+      textAlign: 'center',
+      fontSize: 12
+    }
+  }, "Mostrando ", visiveis.length.toLocaleString('pt-BR'), " de ", filtered.length.toLocaleString('pt-BR'), " \u2014 role pra ver mais ou", ' ', /*#__PURE__*/React.createElement("button", {
+    onClick: () => setLimite(l => l + LEADS_JANELA * 5),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 6,
+      padding: '2px 8px',
+      cursor: 'pointer',
+      fontSize: 12,
+      color: C.ink
+    }
+  }, "carregar mais ", LEADS_JANELA * 5))) : null))), /*#__PURE__*/React.createElement(ImportarPlanilhaModal, {
     open: importOpen,
     onClose: () => setImportOpen(false),
-    onPronto: fetchLeads,
+    onPronto: () => fetchLeads(true),
     existingLeads: leads
   }), abordar ? /*#__PURE__*/React.createElement(AbordagemModal, {
     lead: abordar,
     onClose: () => setAbordar(null),
-    onSent: () => fetchLeads()
+    onSent: () => mesclarRecentes()
   }) : null, abordarLote ? /*#__PURE__*/React.createElement(AbordagemLoteModal, {
     leads: abordarLote,
     onClose: () => setAbordarLote(null),
     onSent: () => {
-      fetchLeads();
+      mesclarRecentes();
       setSel(new Set());
     }
   }) : null);
