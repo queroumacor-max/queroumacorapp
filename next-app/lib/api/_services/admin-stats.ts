@@ -307,7 +307,9 @@ export async function gerarRelatorioDeUso(args: {
   const desde = args.desde && !Number.isNaN(Date.parse(args.desde)) ? new Date(args.desde).toISOString() : null;
   const periodo = (col: string) => (desde ? [`${col}=gte.${encodeURIComponent(desde)}`] : []);
   const base = { supaUrl: args.supaUrl, serviceKey: args.serviceKey, fetchImpl: args.fetchImpl };
-  const tabelas: Array<[keyof DadosBrutos, string, string, string[]]> = [
+  // 5º item = ordem de paginação quando a tabela NÃO tem `id` (a `follows`
+  // viva é chave composta: `order=id` voltava 42703 e a métrica saía zerada).
+  const tabelas: Array<[keyof DadosBrutos, string, string, string[], string?]> = [
     ['profiles', 'profiles', 'id,name,business_name,tag,username,avatar_url,role,user_type,city', []],
     // Posts SEM período de propósito: ver comentário em montarRelatorio.
     ['posts', 'posts', 'id,user_id,media_url,media_urls,media_type,for_sale,created_at,deleted_at', []],
@@ -319,14 +321,14 @@ export async function gerarRelatorioDeUso(args: {
     ['aiUsage', 'ai_usage', 'user_id,feature,cost_units,used_at', periodo('used_at')],
     ['quotes', 'quotes', 'painter_id,client_id,created_at,deleted_at', periodo('created_at')],
     ['reviews', 'reviews', 'painter_id,reviewer_id,rating,created_at', periodo('created_at')],
-    ['follows', 'follows', 'following_id', []],
+    ['follows', 'follows', 'follower_id,following_id', [], 'follower_id,following_id'],
   ];
   const dados = { profiles: [], posts: [], likes: [], comments: [], referrals: [], orders: [], logos: [], aiUsage: [], quotes: [], reviews: [], follows: [] } as DadosBrutos;
   const truncado: string[] = [];
   const falhas: string[] = [];
-  await Promise.all(tabelas.map(async ([chave, tabela, select, filtros]) => {
+  await Promise.all(tabelas.map(async ([chave, tabela, select, filtros, order]) => {
     try {
-      const r = await buscarTabela({ ...base, tabela, select, filtros });
+      const r = await buscarTabela({ ...base, tabela, select, filtros, order });
       dados[chave] = r.rows;
       if (r.truncado) truncado.push(tabela);
     } catch (e) {

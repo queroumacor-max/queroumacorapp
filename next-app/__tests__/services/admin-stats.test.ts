@@ -178,7 +178,11 @@ describe('POST /api/admin/stats', () => {
   afterEach(() => { globalThis.fetch = originalFetch; process.env = { ...originalEnv }; });
 
   it('não-admin leva 403; admin recebe o relatório com o período', async () => {
+    // URLs registradas AQUI e afirmadas DEPOIS da chamada: um `expect` dentro
+    // do fetch mockado seria engolido pelo catch por tabela do serviço.
     let desdeVisto = '';
+    let urlFollows = '';
+    let urlPosts = '';
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         const tok = String((init!.headers as Record<string, string>).Authorization);
@@ -186,7 +190,8 @@ describe('POST /api/admin/stats', () => {
       }
       if (url.includes('/rpc/check_rate_limit')) return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
       if (url.includes('/rest/v1/likes')) desdeVisto = url;
-      if (url.includes('/rest/v1/posts')) { expect(url).not.toContain('created_at=gte'); return Promise.resolve(new Response(JSON.stringify([{ id: 'p', user_id: 'c', media_url: 'a.jpg', created_at: '2026-09-01T00:00:00Z' }]), { status: 200, headers: { 'content-range': '0-0/1' } })); }
+      if (url.includes('/rest/v1/follows')) urlFollows = url;
+      if (url.includes('/rest/v1/posts')) { urlPosts = url; return Promise.resolve(new Response(JSON.stringify([{ id: 'p', user_id: 'c', media_url: 'a.jpg', created_at: '2026-09-01T00:00:00Z' }]), { status: 200, headers: { 'content-range': '0-0/1' } })); }
       if (url.includes('/rest/v1/profiles')) return Promise.resolve(new Response(JSON.stringify([{ id: 'c', name: 'Chefe' }]), { status: 200, headers: { 'content-range': '0-0/1' } }));
       return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-range': '*/0' } }));
     });
@@ -199,6 +204,12 @@ describe('POST /api/admin/stats', () => {
     expect(body.ok).toBe(true);
     expect(body.desde).toBe('2026-08-01T00:00:00.000Z');
     expect(desdeVisto).toContain('created_at=gte.2026-08-01T00%3A00%3A00.000Z');
+    // posts vêm SEM corte de período (dono do post fora do período).
+    expect(urlPosts).toContain('/rest/v1/posts?');
+    expect(urlPosts).not.toContain('created_at=gte');
+    // `follows` não tem `id` no banco vivo (chave composta): pagina pelo par.
+    expect(urlFollows).toContain('order=follower_id,following_id');
+    expect(body.truncado).toEqual([]);
     expect(body.pessoas[0]).toMatchObject({ id: 'c', nome: 'Chefe', fotos: 1 });
     expect(body.rankings.fotos[0].n).toBe(1);
   });
