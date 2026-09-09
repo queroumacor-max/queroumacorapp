@@ -3566,12 +3566,16 @@ const EnvioDeTemplate = ({ waId, nomeContato, dadosContato, enviando, estagio, o
     onEnviar(pacoteDeTemplate(tpl, vars, valores));
   };
 
-  // DUAS COLUNAS (2026-09-08): campos a esquerda, previa a direita. Em
-  // coluna unica a previa do v2 (texto + 4 botoes) empurrava o botao de
-  // enviar pra baixo da dobra e o modal precisava rolar; lado a lado, tudo
-  // cabe. Em tela estreita o flex-wrap empilha de novo.
+  // DUAS COLUNAS (2026-09-08): em coluna unica a previa do v2 (texto + 4
+  // botoes) empurrava o botao de enviar pra baixo da dobra; lado a lado,
+  // tudo cabe. ESPELHADO em 2026-09-09 (pedido do usuario): previa a
+  // ESQUERDA, campos + Enviar a DIREITA — o botao fica do lado do Cancelar
+  // do rodape. E `row-reverse`, nao troca de ordem no DOM, de proposito:
+  // os campos seguem primeiro pro Tab, e em tela estreita o wrap continua
+  // empilhando campos EM CIMA da previa (senao a previa voltaria a empurrar
+  // o Enviar pra baixo da dobra — o problema de 08/09 de volta).
   return (
-    <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'flex-start' }}>
+    <div style={{ display:'flex', flexDirection:'row-reverse', gap:16, flexWrap:'wrap', alignItems:'flex-start' }}>
       <div style={{ flex:'1 1 300px', minWidth:0 }}>
         <SeletorDeTemplate lista={lista} tpl={tpl} onEscolher={trocar} />
         <AvisoListaEmbutida erroLista={erroLista} recarregando={recarregando} tentarDeNovo={tentarDeNovo} />
@@ -4210,7 +4214,8 @@ const AbordagemLoteModal = ({ leads, onClose, onSent }) => {
         </div>
 
         <div style={{ padding:20, overflowY:'auto', flex:1 }}>
-          <div style={{ display:'flex', gap:16, flexWrap:'wrap', alignItems:'flex-start' }}>
+          {/* Espelhado como o unitario (2026-09-09): previa a esquerda, lista a direita. */}
+          <div style={{ display:'flex', flexDirection:'row-reverse', gap:16, flexWrap:'wrap', alignItems:'flex-start' }}>
             <div style={{ flex:'1 1 360px', minWidth:0 }}>
               <SeletorDeTemplate lista={lista} tpl={tpl} onEscolher={(n)=>{ if(!rodando) escolher(n); }} />
               <AvisoListaEmbutida erroLista={erroLista} recarregando={recarregando} tentarDeNovo={tentarDeNovo} />

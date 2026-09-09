@@ -163,3 +163,14 @@ describe('rotuloDeTipo (bolha e prévia da lista)', () => {
     expect(fonte).toContain('const especial = rotuloDeTipo(m);\n  if(especial) return especial;');
   });
 });
+
+// ── Modal espelhado: prévia à esquerda, campos + Enviar à direita (2026-09-09)
+describe('EnvioDeTemplate espelhado', () => {
+  it('usa row-reverse (não troca a ordem do DOM: Tab e empilhamento estreito seguem campos-primeiro)', () => {
+    const i = fonte.indexOf('const EnvioDeTemplate = ');
+    const trecho = fonte.slice(i, fonte.indexOf('// ── Abordagem: o que a Meta confirmou', i));
+    expect(trecho).toContain("flexDirection:'row-reverse', gap:16, flexWrap:'wrap'");
+    // Campos continuam sendo o PRIMEIRO filho no DOM.
+    expect(trecho.indexOf('<SeletorDeTemplate')).toBeLessThan(trecho.indexOf('<PreviaDeTemplate'));
+  });
+});

@@ -6822,13 +6822,18 @@ const EnvioDeTemplate = ({
     onEnviar(pacoteDeTemplate(tpl, vars, valores));
   };
 
-  // DUAS COLUNAS (2026-09-08): campos a esquerda, previa a direita. Em
-  // coluna unica a previa do v2 (texto + 4 botoes) empurrava o botao de
-  // enviar pra baixo da dobra e o modal precisava rolar; lado a lado, tudo
-  // cabe. Em tela estreita o flex-wrap empilha de novo.
+  // DUAS COLUNAS (2026-09-08): em coluna unica a previa do v2 (texto + 4
+  // botoes) empurrava o botao de enviar pra baixo da dobra; lado a lado,
+  // tudo cabe. ESPELHADO em 2026-09-09 (pedido do usuario): previa a
+  // ESQUERDA, campos + Enviar a DIREITA — o botao fica do lado do Cancelar
+  // do rodape. E `row-reverse`, nao troca de ordem no DOM, de proposito:
+  // os campos seguem primeiro pro Tab, e em tela estreita o wrap continua
+  // empilhando campos EM CIMA da previa (senao a previa voltaria a empurrar
+  // o Enviar pra baixo da dobra — o problema de 08/09 de volta).
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
+      flexDirection: 'row-reverse',
       gap: 16,
       flexWrap: 'wrap',
       alignItems: 'flex-start'
@@ -8007,6 +8012,7 @@ const AbordagemLoteModal = ({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
+      flexDirection: 'row-reverse',
       gap: 16,
       flexWrap: 'wrap',
       alignItems: 'flex-start'
