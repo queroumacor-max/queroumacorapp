@@ -270,13 +270,11 @@ const leadsService = {
   }).order('id'), opts),
   // So os leads cuja abordagem mexeu desde `desdeIso`: e o que o poll e o
   // pos-envio precisam — recarregar 61 mil linhas pra ver 30 mudarem nao.
-  recentes: async desdeIso => {
-    const r = await supa.from('leads').select('*').gte('abordagem_at', desdeIso).order('abordagem_at', {
-      ascending: false
-    }).limit(PAGINA_SUPA);
-    if (r.error) throw r.error;
-    return r.data || [];
-  },
+  // Paginado (sem teto): um lote de abordagem pode passar de mil leads em
+  // seis horas, e um `limit(1000)` deixaria os mais antigos sem o status.
+  recentes: desdeIso => buscarEmPaginas(extra => supa.from('leads').select('*', extra).gte('abordagem_at', desdeIso).order('abordagem_at', {
+    ascending: false
+  }).order('id')),
   updateStatus: async (id, status) => {
     const r = await supa.from('leads').update({
       status
@@ -8454,7 +8452,27 @@ const LEAD_PRIO_COLORS = {
 };
 
 // [teste:leads-janela-inicio]
-const LEADS_JANELA = 100; // linhas montadas por vez na tabela
+const LEADS_JANELA = 100; // linhas que a sentinela acrescenta por vez
+const LEADS_BLOCO = 500; // TETO de linhas montadas de uma vez
+// Fatia da lista filtrada que vira <tr>: o bloco `bloco` (de LEADS_BLOCO) e,
+// dentro dele, `limite` linhas — a sentinela cresce `limite` ate o teto do
+// bloco; dai em diante so "proximo bloco", que DESMONTA o anterior. Sem
+// isso a janela era um prefixo que so crescia: rolar a lista inteira
+// montava as 61 mil linhas de novo (achado do Codex no #291).
+function janelaDeLeads(total, bloco, limite) {
+  const nBlocos = Math.max(1, Math.ceil(total / LEADS_BLOCO));
+  const b = Math.min(Math.max(0, bloco), nBlocos - 1);
+  const de = b * LEADS_BLOCO;
+  const fimBloco = Math.min(total, de + LEADS_BLOCO);
+  const ate = Math.min(fimBloco, de + Math.max(1, limite));
+  return {
+    de,
+    ate,
+    bloco: b,
+    nBlocos,
+    fimDoBloco: ate >= fimBloco
+  };
+}
 // Lead que pode receber template: telefone valido, sem opt-out, nao fixo.
 const leadAbordavel = l => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
 // Emenda `mudados` na `lista` por id: linha conhecida recebe os campos
@@ -8522,6 +8540,7 @@ const Leads = () => {
   const [carregandoResto, setCarregandoResto] = useState(false);
   const [erroCarga, setErroCarga] = useState('');
   const [limite, setLimite] = useState(LEADS_JANELA);
+  const [bloco, setBloco] = useState(0);
   const [buscaDeb, setBuscaDeb] = useState('');
   const vivoRef = React.useRef(true);
   useEffect(() => {
@@ -8817,20 +8836,65 @@ const Leads = () => {
   // comeco; lote novo chegando NAO volta (a pessoa pode estar rolando).
   useEffect(() => {
     setLimite(LEADS_JANELA);
+    setBloco(0);
   }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
-  const visiveis = React.useMemo(() => filtered.length > limite ? filtered.slice(0, limite) : filtered, [filtered, limite]);
+  const janela = React.useMemo(() => janelaDeLeads(filtered.length, bloco, limite), [filtered.length, bloco, limite]);
+  const visiveis = React.useMemo(() => filtered.slice(janela.de, janela.ate), [filtered, janela.de, janela.ate]);
+  const tabelaRef = React.useRef(null);
+  const irParaBloco = n => {
+    setBloco(n);
+    setLimite(LEADS_JANELA);
+    if (tabelaRef.current && tabelaRef.current.scrollIntoView) tabelaRef.current.scrollIntoView({
+      block: 'start'
+    });
+  };
   const sentinelaRef = React.useRef(null);
   useEffect(() => {
     const el = sentinelaRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
     const io = new IntersectionObserver(entradas => {
-      if (entradas.some(e => e.isIntersecting)) setLimite(l => l + LEADS_JANELA);
+      if (entradas.some(e => e.isIntersecting)) setLimite(l => Math.min(LEADS_BLOCO, l + LEADS_JANELA));
     }, {
       rootMargin: '800px'
     });
     io.observe(el);
     return () => io.disconnect();
-  }, [visiveis.length, filtered.length]);
+  }, [visiveis.length, filtered.length, janela.fimDoBloco]);
+  const NavBlocos = () => janela.nBlocos > 1 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      fontSize: 12,
+      color: C.muted
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    disabled: janela.bloco === 0,
+    onClick: () => irParaBloco(janela.bloco - 1),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 6,
+      padding: '2px 8px',
+      cursor: janela.bloco === 0 ? 'default' : 'pointer',
+      fontSize: 12,
+      color: janela.bloco === 0 ? C.border : C.ink
+    }
+  }, "\u2039 ", LEADS_BLOCO, " anteriores"), /*#__PURE__*/React.createElement("span", null, "bloco ", janela.bloco + 1, " de ", janela.nBlocos), /*#__PURE__*/React.createElement("button", {
+    disabled: janela.bloco >= janela.nBlocos - 1,
+    onClick: () => irParaBloco(janela.bloco + 1),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 6,
+      padding: '2px 8px',
+      cursor: janela.bloco >= janela.nBlocos - 1 ? 'default' : 'pointer',
+      fontSize: 12,
+      color: janela.bloco >= janela.nBlocos - 1 ? C.border : C.ink
+    }
+  }, "pr\xF3ximos ", LEADS_BLOCO, " \u203A")) : null;
   if (loading && leads.length === 0) return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 20,
@@ -9218,7 +9282,12 @@ const Leads = () => {
       overflowX: 'auto',
       boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
     }
-  }, /*#__PURE__*/React.createElement("table", {
+  }, janela.bloco > 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 0'
+    }
+  }, /*#__PURE__*/React.createElement(NavBlocos, null)) : null, /*#__PURE__*/React.createElement("table", {
+    ref: tabelaRef,
     style: {
       width: '100%',
       borderCollapse: 'collapse',
@@ -9561,7 +9630,7 @@ const Leads = () => {
       }
     }, "\u2014")));
   }), filtered.length > visiveis.length ? /*#__PURE__*/React.createElement("tr", {
-    ref: sentinelaRef
+    ref: janela.fimDoBloco ? null : sentinelaRef
   }, /*#__PURE__*/React.createElement("td", {
     colSpan: 11,
     style: {
@@ -9570,8 +9639,12 @@ const Leads = () => {
       textAlign: 'center',
       fontSize: 12
     }
-  }, "Mostrando ", visiveis.length.toLocaleString('pt-BR'), " de ", filtered.length.toLocaleString('pt-BR'), " \u2014 role pra ver mais ou", ' ', /*#__PURE__*/React.createElement("button", {
-    onClick: () => setLimite(l => l + LEADS_JANELA * 5),
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: janela.nBlocos > 1 ? 8 : 0
+    }
+  }, "Mostrando ", (janela.de + 1).toLocaleString('pt-BR'), "\u2013", janela.ate.toLocaleString('pt-BR'), " de ", filtered.length.toLocaleString('pt-BR'), janela.fimDoBloco ? '' : ' — role pra ver mais', janela.fimDoBloco ? null : /*#__PURE__*/React.createElement("span", null, " ou ", /*#__PURE__*/React.createElement("button", {
+    onClick: () => setLimite(LEADS_BLOCO),
     style: {
       background: 'none',
       border: '1px solid ' + C.border,
@@ -9581,7 +9654,7 @@ const Leads = () => {
       fontSize: 12,
       color: C.ink
     }
-  }, "carregar mais ", LEADS_JANELA * 5))) : null))), /*#__PURE__*/React.createElement(ImportarPlanilhaModal, {
+  }, "mostrar o bloco inteiro (", LEADS_BLOCO, ")"))), /*#__PURE__*/React.createElement(NavBlocos, null))) : null))), /*#__PURE__*/React.createElement(ImportarPlanilhaModal, {
     open: importOpen,
     onClose: () => setImportOpen(false),
     onPronto: () => fetchLeads(true),

@@ -164,11 +164,11 @@ const leadsService = {
   ),
   // So os leads cuja abordagem mexeu desde `desdeIso`: e o que o poll e o
   // pos-envio precisam — recarregar 61 mil linhas pra ver 30 mudarem nao.
-  recentes: async (desdeIso) => {
-    const r = await supa.from('leads').select('*').gte('abordagem_at', desdeIso).order('abordagem_at', { ascending:false }).limit(PAGINA_SUPA);
-    if (r.error) throw r.error;
-    return r.data || [];
-  },
+  // Paginado (sem teto): um lote de abordagem pode passar de mil leads em
+  // seis horas, e um `limit(1000)` deixaria os mais antigos sem o status.
+  recentes: (desdeIso) => buscarEmPaginas(
+    (extra) => supa.from('leads').select('*', extra).gte('abordagem_at', desdeIso).order('abordagem_at', { ascending:false }).order('id')
+  ),
   updateStatus: async (id, status) => { const r = await supa.from('leads').update({status}).eq('id', id); if (r.error) throw r.error; },
   remove: async (id) => { const r = await supa.from('leads').delete().eq('id', id); if (r.error) throw r.error; },
   insertBatch: async (rows) => { const r = await supa.from('leads').insert(rows); if (r.error) throw r.error; return r.data; }
@@ -4432,7 +4432,21 @@ const ThLead = ({ rot, campo, ativo, ctx, children }) => {
 const LEAD_PRIO_COLORS = { alta: C.p6, media: C.p7, baixa: C.muted };
 
 // [teste:leads-janela-inicio]
-const LEADS_JANELA = 100;   // linhas montadas por vez na tabela
+const LEADS_JANELA = 100;   // linhas que a sentinela acrescenta por vez
+const LEADS_BLOCO = 500;    // TETO de linhas montadas de uma vez
+// Fatia da lista filtrada que vira <tr>: o bloco `bloco` (de LEADS_BLOCO) e,
+// dentro dele, `limite` linhas — a sentinela cresce `limite` ate o teto do
+// bloco; dai em diante so "proximo bloco", que DESMONTA o anterior. Sem
+// isso a janela era um prefixo que so crescia: rolar a lista inteira
+// montava as 61 mil linhas de novo (achado do Codex no #291).
+function janelaDeLeads(total, bloco, limite) {
+  const nBlocos = Math.max(1, Math.ceil(total / LEADS_BLOCO));
+  const b = Math.min(Math.max(0, bloco), nBlocos - 1);
+  const de = b * LEADS_BLOCO;
+  const fimBloco = Math.min(total, de + LEADS_BLOCO);
+  const ate = Math.min(fimBloco, de + Math.max(1, limite));
+  return { de, ate, bloco: b, nBlocos, fimDoBloco: ate >= fimBloco };
+}
 // Lead que pode receber template: telefone valido, sem opt-out, nao fixo.
 const leadAbordavel = (l) => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
 // Emenda `mudados` na `lista` por id: linha conhecida recebe os campos
@@ -4496,6 +4510,7 @@ const Leads = () => {
   const [carregandoResto, setCarregandoResto] = useState(false);
   const [erroCarga, setErroCarga] = useState('');
   const [limite, setLimite] = useState(LEADS_JANELA);
+  const [bloco, setBloco] = useState(0);
   const [buscaDeb, setBuscaDeb] = useState('');
   const vivoRef = React.useRef(true);
   useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
@@ -4718,18 +4733,31 @@ const Leads = () => {
   // tabela inteira travava o navegador (e era a 2a causa da tela nao
   // carregar, depois do fetch em serie). Trocou filtro/ordem → volta pro
   // comeco; lote novo chegando NAO volta (a pessoa pode estar rolando).
-  useEffect(() => { setLimite(LEADS_JANELA); }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
-  const visiveis = React.useMemo(() => filtered.length > limite ? filtered.slice(0, limite) : filtered, [filtered, limite]);
+  useEffect(() => { setLimite(LEADS_JANELA); setBloco(0); }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
+  const janela = React.useMemo(() => janelaDeLeads(filtered.length, bloco, limite), [filtered.length, bloco, limite]);
+  const visiveis = React.useMemo(() => filtered.slice(janela.de, janela.ate), [filtered, janela.de, janela.ate]);
+  const tabelaRef = React.useRef(null);
+  const irParaBloco = (n) => {
+    setBloco(n); setLimite(LEADS_JANELA);
+    if (tabelaRef.current && tabelaRef.current.scrollIntoView) tabelaRef.current.scrollIntoView({ block:'start' });
+  };
   const sentinelaRef = React.useRef(null);
   useEffect(() => {
     const el = sentinelaRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
     const io = new IntersectionObserver(entradas => {
-      if (entradas.some(e => e.isIntersecting)) setLimite(l => l + LEADS_JANELA);
+      if (entradas.some(e => e.isIntersecting)) setLimite(l => Math.min(LEADS_BLOCO, l + LEADS_JANELA));
     }, { rootMargin: '800px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [visiveis.length, filtered.length]);
+  }, [visiveis.length, filtered.length, janela.fimDoBloco]);
+  const NavBlocos = () => janela.nBlocos > 1 ? (
+    <div style={{ display:'flex', gap:8, alignItems:'center', justifyContent:'center', flexWrap:'wrap', fontSize:12, color:C.muted }}>
+      <button disabled={janela.bloco === 0} onClick={()=>irParaBloco(janela.bloco - 1)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor: janela.bloco === 0 ? 'default' : 'pointer', fontSize:12, color: janela.bloco === 0 ? C.border : C.ink }}>‹ {LEADS_BLOCO} anteriores</button>
+      <span>bloco {janela.bloco + 1} de {janela.nBlocos}</span>
+      <button disabled={janela.bloco >= janela.nBlocos - 1} onClick={()=>irParaBloco(janela.bloco + 1)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor: janela.bloco >= janela.nBlocos - 1 ? 'default' : 'pointer', fontSize:12, color: janela.bloco >= janela.nBlocos - 1 ? C.border : C.ink }}>próximos {LEADS_BLOCO} ›</button>
+    </div>
+  ) : null;
 
   if (loading && leads.length === 0) return (
     <div style={{ padding: 20, color: C.muted }}>
@@ -4860,7 +4888,8 @@ const Leads = () => {
 
       {/* TABLE */}
       <div style={{ background:C.white, borderRadius:14, padding:4, overflowX:'auto', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, color:C.ink }}>
+        {janela.bloco > 0 ? <div style={{ padding:'8px 0' }}><NavBlocos /></div> : null}
+        <table ref={tabelaRef} style={{ width:'100%', borderCollapse:'collapse', fontSize:13, color:C.ink }}>
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
               <th style={{ padding:'12px 4px 12px 10px', width:26 }}>
@@ -4991,10 +5020,14 @@ const Leads = () => {
               );
             })}
             {filtered.length > visiveis.length ? (
-              <tr ref={sentinelaRef}>
+              <tr ref={janela.fimDoBloco ? null : sentinelaRef}>
                 <td colSpan={11} style={{ padding:'14px 10px', color:C.muted, textAlign:'center', fontSize:12 }}>
-                  Mostrando {visiveis.length.toLocaleString('pt-BR')} de {filtered.length.toLocaleString('pt-BR')} — role pra ver mais ou{' '}
-                  <button onClick={()=>setLimite(l => l + LEADS_JANELA * 5)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor:'pointer', fontSize:12, color:C.ink }}>carregar mais {LEADS_JANELA * 5}</button>
+                  <div style={{ marginBottom: janela.nBlocos > 1 ? 8 : 0 }}>
+                    Mostrando {(janela.de + 1).toLocaleString('pt-BR')}–{janela.ate.toLocaleString('pt-BR')} de {filtered.length.toLocaleString('pt-BR')}
+                    {janela.fimDoBloco ? '' : ' — role pra ver mais'}
+                    {janela.fimDoBloco ? null : <span> ou <button onClick={()=>setLimite(LEADS_BLOCO)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor:'pointer', fontSize:12, color:C.ink }}>mostrar o bloco inteiro ({LEADS_BLOCO})</button></span>}
+                  </div>
+                  <NavBlocos />
                 </td>
               </tr>
             ) : null}
