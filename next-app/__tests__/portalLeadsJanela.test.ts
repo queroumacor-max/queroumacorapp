@@ -22,6 +22,7 @@ let PAGINA_SUPA: number;
 let emendarLeads: (lista: Lead[], mudados: Lead[]) => Lead[];
 let LEADS_JANELA: number;
 let LEADS_BLOCO: number;
+let buscaDeLead: (q: string) => (l: Lead) => boolean;
 let janelaDeLeads: (total: number, bloco: number, limite: number) => { de: number; ate: number; bloco: number; nBlocos: number; fimDoBloco: boolean };
 
 function bloco(nome: string) {
@@ -37,8 +38,8 @@ beforeAll(() => {
   ({ buscarEmPaginas, comIntervalo, PAGINA_SUPA } = new Function(
     `const PAGINA_SUPA = 1000; ${bloco('paginas')}; return { buscarEmPaginas, comIntervalo, PAGINA_SUPA };`,
   )());
-  ({ emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads } = new Function(
-    `const normalizeLeadPhone = (p) => p; ${bloco('leads-janela')}; return { emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads };`,
+  ({ emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads, buscaDeLead } = new Function(
+    `const normalizeLeadPhone = (p) => p; ${bloco('leads-janela')}; return { emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads, buscaDeLead };`,
   )());
 });
 
@@ -142,6 +143,33 @@ describe('emendarLeads', () => {
     const out = emendarLeads(base, [{ id: 'c', status: 'novo' }]);
     expect(out.length).toBe(3);
     expect(out[0].id).toBe('c');
+  });
+});
+
+describe('buscaDeLead (busca do topo)', () => {
+  const leads: Lead[] = [
+    { id: 'a', name: 'Fk.FUNILARIA', phone: '11 98545-5530', address: 'Rua Ministro Edgard Costa, 402', segment: 'AUTOMOTIVO', category: 'Funilaria/Auto' },
+    { id: 'b', name: 'LEMA ENGENHARIA', phone: '(19) 3294-1721', neighborhood: 'Centro', instagram: '@lema.eng' },
+  ];
+  const acha = (q: string) => leads.filter(buscaDeLead(q)).map(l => l.id);
+  it('número, com ou sem máscara, casa pelos dígitos do telefone', () => {
+    expect(acha('98545')).toEqual(['a']);
+    expect(acha('98545-5530')).toEqual(['a']);
+    expect(acha('(11) 98545 5530')).toEqual(['a']);
+    expect(acha('11985455530')).toEqual(['a']);
+    expect(acha('3294')).toEqual(['b']);
+    expect(acha('0000')).toEqual([]);
+  });
+  it('texto segue casando nome, segmento, categoria, bairro e @ — e não o telefone', () => {
+    expect(acha('funil')).toEqual(['a']);
+    expect(acha('centro')).toEqual(['b']);
+    expect(acha('lema.eng')).toEqual(['b']);
+    expect(acha('Rua 402')).toEqual([]);   // mistura texto+número não vira busca de telefone
+    expect(acha('')).toEqual(['a', 'b']);
+  });
+  it('a tela usa o predicado e o placeholder anuncia telefone', () => {
+    expect(fonte).toContain('out = out.filter(buscaDeLead(buscaDeb));');
+    expect(fonte).toContain('placeholder="Buscar por nome, telefone, segmento, bairro ou @..."');
   });
 });
 

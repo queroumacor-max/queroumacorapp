@@ -8501,6 +8501,21 @@ function emendarLeads(lista, mudados) {
   }
   return mudou ? out : lista;
 }
+// BUSCA DO TOPO (2026-09-09, pedido do usuario: "da para buscar pelo numero
+// de telefone tbm?"). Texto casa em nome/segmento/categoria/bairro/@ig;
+// consulta que e SO numero (com ou sem mascara: "98545-5530", "(11) 9…")
+// casa pelos DIGITOS do telefone — "402" dentro de "Rua X, 402" NAO vira
+// busca de telefone, senao endereco com numero traria lead errado.
+const buscaDeLead = q => {
+  const texto = String(q || '').trim().toLowerCase();
+  if (!texto) return () => true;
+  const soNumero = /^[\d\s()+\-.]+$/.test(texto);
+  const digitos = texto.replace(/\D/g, '');
+  return l => {
+    if (soNumero && digitos.length >= 3) return (l.phone || '').replace(/\D/g, '').includes(digitos);
+    return (l.name || '').toLowerCase().includes(texto) || (l.segment || '').toLowerCase().includes(texto) || (l.category || '').toLowerCase().includes(texto) || (l.neighborhood || '').toLowerCase().includes(texto) || (l.instagram || '').toLowerCase().includes(texto);
+  };
+};
 // [teste:leads-janela-fim]
 let _leadsCache = null;
 const Leads = () => {
@@ -8695,8 +8710,7 @@ const Leads = () => {
   const filtered = React.useMemo(() => {
     let out = leads;
     if (buscaDeb) {
-      const q = buscaDeb.toLowerCase();
-      out = out.filter(l => (l.name || '').toLowerCase().includes(q) || (l.segment || '').toLowerCase().includes(q) || (l.category || '').toLowerCase().includes(q) || (l.neighborhood || '').toLowerCase().includes(q) || (l.instagram || '').toLowerCase().includes(q));
+      out = out.filter(buscaDeLead(buscaDeb));
     }
     if (filtroStatus !== 'Todos') out = out.filter(l => l.status === filtroStatus.toLowerCase());
     if (filtroSegmento !== 'TODOS') out = out.filter(l => (l.segment || '').toUpperCase() === filtroSegmento);
@@ -9045,7 +9059,7 @@ const Leads = () => {
   }, /*#__PURE__*/React.createElement("input", {
     value: busca,
     onChange: e => setBusca(e.target.value),
-    placeholder: "Buscar por nome, segmento, bairro...",
+    placeholder: "Buscar por nome, telefone, segmento, bairro ou @...",
     style: {
       width: '100%',
       padding: '10px 14px 10px 36px',
