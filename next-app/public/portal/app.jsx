@@ -6228,6 +6228,8 @@ const AJUDA_WHATSAPP = [
     d:'Faz a varredura DE VERDADE, enviando as mensagens. No dia a dia não precisa: o sistema já roda sozinho de hora em hora. Serve só pra antecipar.' },
   { t:'Última varredura (linha de baixo)',
     d:'Quando rodou pela última vez, quantas conversas foram analisadas e o que saiu de cada tipo.' },
+  { t:'● Não lidas (em cima da lista de conversas)',
+    d:'Filtra a lista pra mostrar só as conversas em que o cliente mandou mensagem depois da última vez que alguém abriu a conversa. O número é de CONVERSAS, não de mensagens. Resposta da IA não conta como lida — só abrir a conversa. Clique de novo pra ver todas.' },
   { t:'🧠 Prompt da IA',
     d:'O texto de instruções que a IA lê antes de cada resposta: quem ela é e como conversa. Dá pra editar e salvar; "Restaurar padrão" volta ao texto do sistema. A trava de preço, o horário, o teto diário e o PARE são de código e continuam valendo seja qual for o texto.' },
 ];
@@ -6428,6 +6430,41 @@ const restanteDaJanela = (msgs) => {
 
 // [teste:janela-fim]
 
+// ── Coluna de conversas: nao lidas + filtro "Nao lidas" (2026-09-09) ────
+// [teste:wa-lista-inicio] — mesmo contrato do bloco da janela: SO JS PURO
+// entre os marcadores (o teste avalia com `new Function`), e nao mexer nos
+// marcadores. Avaliado por __tests__/portalWhatsAppNaoLidas.test.ts.
+//
+// "Nao lida" = mensagem RECEBIDA depois da ultima vez que o operador abriu
+// a conversa (whatsapp_ai_state.last_read_at). A resposta da IA nao zera
+// nada — ela nao substitui alguem ler. Conversa nunca aberta conta tudo
+// que chegou.
+const contarNaoLidas = (msgs, desde) => {
+  const marca = desde ? new Date(desde).getTime() : 0;
+  let n = 0;
+  for(const m of (msgs || [])){
+    if(m.direction !== 'in') continue;
+    if(!marca || new Date(m.created_at).getTime() > marca) n++;
+  }
+  return n;
+};
+
+// Filtro da coluna. `busca` casa numero (so digitos) ou nome; `soNaoLidas`
+// deixa so quem tem mensagem de cliente que ninguem abriu. Os dois se
+// combinam (a busca procura DENTRO das nao lidas). `manter` e a conversa
+// ABERTA: abrir marca como lida, e sem isso ela sumiria da lista no mesmo
+// clique que a abriu — continua na tela enquanto estiver aberta.
+const filtrarConversas = (convs, { busca, soNaoLidas, manter, nomeDe, naoLidas }) => {
+  const q = String(busca || '').trim().toLowerCase();
+  const digitos = q.replace(/\D/g, '');
+  return (convs || []).filter(c => {
+    if(soNaoLidas && c.waId !== manter && !(naoLidas(c) > 0)) return false;
+    if(!q) return true;
+    return (digitos !== '' && c.waId.includes(digitos)) || nomeDe(c).toLowerCase().includes(q);
+  });
+};
+// [teste:wa-lista-fim]
+
 // ── Status de entrega (Wave 58) ─────────────────────────────────────────
 // A Meta avisa por webhook o que aconteceu com cada mensagem que a loja
 // mandou. Sem isso, "nao chegou" era adivinhacao: nao dava pra separar
@@ -6576,6 +6613,7 @@ const WhatsAppTab = () => {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState('');
   const [busca, setBusca] = useState('');
+  const [soNaoLidas, setSoNaoLidas] = useState(false); // filtro "Nao lidas" da coluna
   const endRef = React.useRef(null);
 
   // Carrega a lista viva de templates JA na abertura da aba, nao so quando
@@ -6902,10 +6940,7 @@ const WhatsAppTab = () => {
   // NAO LIDAS: mensagens RECEBIDAS depois da ultima vez que o operador
   // abriu a conversa. A resposta da IA nao zera nada — ela nao substitui
   // alguem ler. Conversa nunca aberta conta tudo que chegou.
-  const naoLidas = (c) => {
-    const desde = readAt[c.waId];
-    return c.msgs.filter(m => m.direction === 'in' && (!desde || new Date(m.created_at) > new Date(desde))).length;
-  };
+  const naoLidas = (c) => contarNaoLidas(c.msgs, readAt[c.waId]);
 
   // Marca lida ate agora. Otimista na tela; o banco guarda pra valer
   // (assim a marca vale em qualquer computador, nao so neste navegador).
@@ -6967,11 +7002,10 @@ const WhatsAppTab = () => {
     return lead ? (lead.category || 'Lead') : null;
   };
 
-  const convsFiltradas = convs.filter(c => {
-    if(!busca.trim()) return true;
-    const q = busca.toLowerCase();
-    return c.waId.includes(q.replace(/\D/g, '') || '§') || nomeDe(c).toLowerCase().includes(q);
-  });
+  // Quantas CONVERSAS tem mensagem nova (nao quantas mensagens) — e o que
+  // o botao "Nao lidas" mostra e o que o operador precisa atender.
+  const conversasNaoLidas = convs.reduce((n, c) => n + (naoLidas(c) > 0 ? 1 : 0), 0);
+  const convsFiltradas = filtrarConversas(convs, { busca, soNaoLidas, manter: openWa, nomeDe, naoLidas });
 
   const aberta = convs.find(c => c.waId === openWa);
   const thread = aberta ? [...aberta.msgs].sort((a,b) => new Date(a.created_at) - new Date(b.created_at)) : [];
@@ -7188,11 +7222,28 @@ const WhatsAppTab = () => {
       <div style={{ background:'#fff', borderRadius:16, boxShadow:'0 2px 12px rgba(26,26,46,.06)', overflow:'hidden', display:'flex', height:'calc(100vh - 230px)', minHeight:420 }}>
         {/* Coluna de conversas */}
         <div style={{ width:320, minWidth:260, borderRight:'1px solid '+C.border, display:'flex', flexDirection:'column' }}>
-          <div style={{ padding:12, borderBottom:'1px solid '+C.border, display:'flex', gap:8 }}>
-            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar numero ou nome…"
-              style={{ flex:1, padding:'8px 12px', borderRadius:10, border:'1.5px solid '+C.border, fontSize:13, outline:'none' }} />
-            <button onClick={novaConversa} title="Nova conversa"
-              style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'0 14px', fontWeight:700, fontSize:18, cursor:'pointer' }}>+</button>
+          <div style={{ padding:12, borderBottom:'1px solid '+C.border, display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar numero ou nome…"
+                style={{ flex:1, minWidth:0, padding:'8px 12px', borderRadius:10, border:'1.5px solid '+C.border, fontSize:13, outline:'none' }} />
+              <button onClick={novaConversa} title="Nova conversa"
+                style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'0 14px', fontWeight:700, fontSize:18, cursor:'pointer', flexShrink:0 }}>+</button>
+            </div>
+            {/* Filtro "Nao lidas" (2026-09-09, pedido do usuario): so conversas
+                com mensagem de cliente que ninguem abriu. Clicar de novo volta
+                pra todas. A conversa aberta continua na lista (ver
+                filtrarConversas). */}
+            <button onClick={()=>setSoNaoLidas(v => !v)} aria-pressed={soNaoLidas}
+              title={soNaoLidas ? 'Mostrando so conversas com mensagem nova de cliente. Clique pra ver todas.' : 'Mostrar so conversas com mensagem nova de cliente'}
+              style={{ alignSelf:'flex-start', display:'inline-flex', alignItems:'center', gap:6,
+                background: soNaoLidas ? C.p1 : '#fff', color: soNaoLidas ? '#fff' : C.ink,
+                border:'1.5px solid '+(soNaoLidas ? C.p1 : C.border), borderRadius:999, padding:'4px 12px',
+                fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              <span aria-hidden="true">{soNaoLidas ? '✓' : '●'}</span>
+              Não lidas
+              <span style={{ background: soNaoLidas ? 'rgba(255,255,255,.25)' : C.cream, color: soNaoLidas ? '#fff' : C.p1,
+                borderRadius:10, padding:'0 7px', fontSize:11, fontWeight:800, lineHeight:'16px' }}>{conversasNaoLidas}</span>
+            </button>
           </div>
           <div style={{ flex:1, overflowY:'auto' }}>
             {loading ? (
@@ -7201,7 +7252,11 @@ const WhatsAppTab = () => {
               <div style={{ padding:20, color:C.muted, fontSize:13 }}>
                 {convs.length === 0
                   ? 'Nenhuma conversa ainda. Mensagens recebidas no +55 11 92072-5935 aparecem aqui.'
-                  : 'Nada encontrado na busca.'}
+                  : soNaoLidas && !busca.trim()
+                    ? 'Nenhuma conversa com mensagem nova de cliente. Tudo lido. 👏'
+                    : soNaoLidas
+                      ? 'Nada encontrado entre as não lidas.'
+                      : 'Nada encontrado na busca.'}
               </div>
             ) : convsFiltradas.map(c => (
               <div key={c.waId} onClick={() => abrirConversa(c.waId)}

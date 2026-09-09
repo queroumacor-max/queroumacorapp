@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP: BOTÃO "NÃO LIDAS" NA COLUNA DE CONVERSAS (2026-09-09, pedido
+  do usuário: "botão de unread para ao clicar filtrar conversas que têm msg
+  nova de cliente"). Portal v=20260909m, SEM SQL.** Pílula "● Não lidas (N)"
+  embaixo da busca; ligada, a lista mostra só conversas com mensagem
+  RECEBIDA depois do `whatsapp_ai_state.last_read_at` (a mesma regra do
+  badge que já existia). **N é de CONVERSAS, não de mensagens.** A busca
+  procura DENTRO das não lidas. **A conversa ABERTA fica na lista** mesmo
+  depois de marcada como lida (`manter` em `filtrarConversas`) — abrir
+  zera o contador, e sem isso ela sumiria no mesmo clique que a abriu.
+  Puras `contarNaoLidas`/`filtrarConversas` entre `[teste:wa-lista-inicio]`
+  /`-fim` (só JS, sem JSX), testadas em `__tests__/portalWhatsAppNaoLidas
+  .test.ts`, que também trava que `naoLidas`/`convsFiltradas` da aba
+  passam por elas. Item novo em `AJUDA_WHATSAPP`.
+
 - **PORTAL: TELA "USO DO APP" (2026-09-09, pedido do usuário: "dashboard
   em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
   venda, teve mais curtidas, convidou mais gente, pediu material na loja,
