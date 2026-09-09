@@ -41,7 +41,9 @@ import {
   sendWhatsAppText,
   verifyMetaSignature,
   filtroSoAvanca,
+  parseEchoMessages,
   persistStatusDoLead,
+  TIPOS_SEM_CONVERSA,
   vincularAbordagemAoLead,
 } from '../../lib/api/_services/whatsapp';
 import { ServiceError } from '../../lib/api/security';
@@ -633,6 +635,9 @@ describe('parseInboundMessages', () => {
         filename: null,
         // Idem pro rótulo de botão (2026-09-06): mensagem de texto não tem.
         replyPayload: null,
+        // Recebida comum: não é eco do celular nem reação/edição (2026-09-09).
+        echo: false,
+        refMessageId: null,
       },
     ]);
   });
@@ -997,5 +1002,104 @@ describe('abordagem de lead — persistStatusDoLead (webhook)', () => {
     expect(await persistStatusDoLead(st('sent'))).toBe('falhou');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('down')));
     expect(await persistStatusDoLead(st('sent'))).toBe('falhou');
+  });
+});
+
+// ─── Ecos do celular, reação, edição, unsupported (2026-09-09) ──────────────
+//
+// O relato: "não está aparecendo as mensagens respondidas pelo celular, e
+// reaction e edits". Três causas: o eco do aparelho vem em OUTRO campo do
+// webhook (`smb_message_echoes`) e era ignorado; reação e edição não têm
+// `text.body`, então o corpo saía vazio e o portal mostrava só o tipo.
+
+function envelope(field: string, value: Record<string, unknown>) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: '1320667299892030',
+        changes: [
+          {
+            field,
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { phone_number_id: '1220273824510260' },
+              ...value,
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('ecos do celular (smb_message_echoes)', () => {
+  const esperado = { wabaId: '1320667299892030', phoneNumberId: '1220273824510260' };
+
+  it('classifyWebhookPayload: eco do NOSSO número → processar (antes: ignorar)', () => {
+    const env = envelope('smb_message_echoes', {
+      message_echoes: [{ from: '5511959765031', to: '5511988887777', id: 'wamid.eco', timestamp: '1757100000', type: 'text', text: { body: 'Valorizamos muito o tempo' } }],
+    });
+    expect(classifyWebhookPayload(env, esperado)).toBe('processar');
+  });
+
+  it('classifyWebhookPayload: eco de OUTRO número → rejeitar', () => {
+    const env = envelope('smb_message_echoes', { message_echoes: [] });
+    (env.entry[0].changes[0].value as { metadata: { phone_number_id: string } }).metadata.phone_number_id = '999';
+    expect(classifyWebhookPayload(env, esperado)).toBe('rejeitar');
+  });
+
+  it('parseEchoMessages: a contraparte é o `to`, com echo=true', () => {
+    const env = envelope('smb_message_echoes', {
+      message_echoes: [{ from: '5511959765031', to: '5511988887777', id: 'wamid.eco', timestamp: '1757100000', type: 'text', text: { body: 'Valorizamos muito o tempo' } }],
+    });
+    const [m] = parseEchoMessages(env);
+    expect(m).toMatchObject({ from: '5511988887777', echo: true, type: 'text', text: 'Valorizamos muito o tempo', messageId: 'wamid.eco' });
+    // O parser de recebidas NÃO lê os ecos — senão a mesma mensagem
+    // entraria duas vezes, uma como 'in'.
+    expect(parseInboundMessages(env)).toEqual([]);
+  });
+
+  it('mensagem recebida comum tem echo=false', () => {
+    const env = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.in', timestamp: '1', type: 'text', text: { body: 'oi' } }],
+    });
+    expect(parseInboundMessages(env)[0]).toMatchObject({ echo: false, from: '5511988887777' });
+  });
+});
+
+describe('parseInboundMessages: reação, edição e unsupported', () => {
+  it('reação: o emoji vira o corpo e o wamid alvo fica em refMessageId', () => {
+    const env = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.r', timestamp: '1', type: 'reaction', reaction: { message_id: 'wamid.alvo', emoji: '👍' } }],
+    });
+    expect(parseInboundMessages(env)[0]).toMatchObject({ type: 'reaction', text: '👍', refMessageId: 'wamid.alvo' });
+  });
+  it('reação removida (emoji vazio) → corpo vazio, não "[reaction]"', () => {
+    const env = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.r', timestamp: '1', type: 'reaction', reaction: { message_id: 'wamid.alvo', emoji: '' } }],
+    });
+    expect(parseInboundMessages(env)[0].text).toBe('');
+  });
+  it('edição: lê o texto novo de edit.text.body ou de text.body', () => {
+    const a = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.e', timestamp: '1', type: 'edit', edit: { message_id: 'wamid.alvo', text: { body: 'próprio para área externa também?' } } }],
+    });
+    expect(parseInboundMessages(a)[0]).toMatchObject({ type: 'edit', text: 'próprio para área externa também?', refMessageId: 'wamid.alvo' });
+    const b = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.e', timestamp: '1', type: 'edit', text: { body: 'texto editado' } }],
+    });
+    expect(parseInboundMessages(b)[0].text).toBe('texto editado');
+  });
+  it('unsupported: corpo vazio e tipo preservado (o portal explica)', () => {
+    const env = envelope('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.u', timestamp: '1', type: 'unsupported', errors: [{ code: 131051, title: 'Message type unknown' }] }],
+    });
+    expect(parseInboundMessages(env)[0]).toMatchObject({ type: 'unsupported', text: '' });
+  });
+  it('TIPOS_SEM_CONVERSA cobre os três (a IA não responde a um 👍)', () => {
+    for (const t of ['reaction', 'edit', 'unsupported']) expect(TIPOS_SEM_CONVERSA.has(t)).toBe(true);
+    expect(TIPOS_SEM_CONVERSA.has('text')).toBe(false);
+    expect(TIPOS_SEM_CONVERSA.has('button')).toBe(false);
   });
 });

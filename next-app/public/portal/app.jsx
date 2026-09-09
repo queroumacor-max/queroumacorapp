@@ -6148,10 +6148,26 @@ const StatusEntrega = ({ m }) => {
   );
 };
 
+// Tipos que a Cloud API entrega SEM texto (2026-09-09): reacao, edicao e
+// "unsupported" (enquete, contato, mensagem temporaria — a API nao repassa
+// o conteudo, so avisa). Antes a bolha mostrava "[reaction]" seco.
+// [teste:rotulo-tipo-inicio]
+const rotuloDeTipo = (m) => {
+  const tipo = m && m.type;
+  const corpo = String((m && m.body) || '').trim();
+  if(tipo === 'reaction') return corpo ? corpo + ' reagiu a uma mensagem' : 'removeu a reação';
+  if(tipo === 'edit') return corpo ? '✏️ editou: ' + corpo : '✏️ editou uma mensagem';
+  if(tipo === 'unsupported') return '📵 Mensagem de um tipo que o WhatsApp não repassa pra API (enquete, contato, temporária…) — veja no celular da loja';
+  return null;
+};
+// [teste:rotulo-tipo-fim]
+
 // Previa na lista de conversas: audio mostra a transcricao em vez de
 // "[audio]" — da pra saber do que a conversa trata sem abrir.
 const previewMsg = (m) => {
   if(!m) return '';
+  const especial = rotuloDeTipo(m);
+  if(especial) return especial;
   if(m.transcript) return '🎤 ' + m.transcript;
   if(m.type === 'image') return '📷 ' + (m.body && m.body !== '[imagem]' ? m.body : 'Foto');
   if(m.type === 'audio') return '🎤 Áudio';
@@ -6184,6 +6200,8 @@ const BolhaConteudo = ({ m, url }) => {
       </span>
     );
   }
+  const especial = rotuloDeTipo(m);
+  if(especial) return <span style={{ opacity:.8, fontStyle:'italic' }}>{especial}</span>;
   if(tipo === 'text' || !m.media_url) {
     return <span>{legenda || '[' + tipo + ']'}</span>;
   }

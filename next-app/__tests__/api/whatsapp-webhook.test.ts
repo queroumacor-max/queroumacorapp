@@ -313,3 +313,56 @@ describe('POST /api/whatsapp/webhook — status → lead', () => {
     expect(fetchSpy.mock.calls.some(([u]) => String(u).includes('/rest/v1/leads?id=eq.lead-1'))).toBe(true);
   });
 });
+
+// ─── Eco do celular vira 'out' com origem 'celular'; reação não acorda a IA ──
+describe('POST /api/whatsapp/webhook — ecos e tipos sem conversa', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = 'service-key-teste';
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    vi.unstubAllGlobals();
+  });
+
+  function envelopeCom(field: string, value: Record<string, unknown>) {
+    return {
+      object: 'whatsapp_business_account',
+      entry: [{ id: WABA, changes: [{ field, value: { messaging_product: 'whatsapp', metadata: { phone_number_id: PHONE }, ...value } }] }],
+    };
+  }
+
+  it('smb_message_echoes → grava direction=out, origin=celular, sem IA', async () => {
+    const fetchSpy = vi.fn(async (_url: string) => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const res = await chamarPost(pedido(envelopeCom('smb_message_echoes', {
+      message_echoes: [{ from: PHONE, to: '5511988887777', id: 'wamid.eco', timestamp: '1757100000', type: 'text', text: { body: 'Valorizamos muito o tempo de entrega' } }],
+    })));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true });
+    await vi.waitFor(() => {
+      const grava = fetchSpy.mock.calls.find(([u]) => String(u).includes('/rest/v1/whatsapp_messages'));
+      expect(grava).toBeTruthy();
+      const row = JSON.parse(((grava as unknown as [string, RequestInit])[1].body as string));
+      expect(row).toMatchObject({ direction: 'out', origin: 'celular', wa_id: '5511988887777', message_id: 'wamid.eco', body: 'Valorizamos muito o tempo de entrega' });
+    });
+    expect(autoReplyMock).not.toHaveBeenCalled();
+  });
+
+  it('reação → grava com o emoji e NÃO chama o atendimento automático', async () => {
+    const fetchSpy = vi.fn(async (_url: string) => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const res = await chamarPost(pedido(envelopeCom('messages', {
+      messages: [{ from: '5511988887777', id: 'wamid.r', timestamp: '1757100000', type: 'reaction', reaction: { message_id: 'wamid.x', emoji: '👍' } }],
+    })));
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      const grava = fetchSpy.mock.calls.find(([u]) => String(u).includes('/rest/v1/whatsapp_messages'));
+      expect(grava).toBeTruthy();
+      expect(JSON.parse(((grava as unknown as [string, RequestInit])[1].body as string))).toMatchObject({ direction: 'in', type: 'reaction', body: '👍' });
+    });
+    expect(autoReplyMock).not.toHaveBeenCalled();
+  });
+});

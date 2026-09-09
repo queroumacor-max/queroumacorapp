@@ -1,5 +1,32 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP: RESPOSTA PELO CELULAR, REAÇÃO E EDIÇÃO APARECEM NA CONVERSA
+  (2026-09-09, relato do usuário: "não está aparecendo as mensagens
+  respondidas pelo celular, e reaction e edits"). Portal v=20260909d, SEM
+  SQL.** Três causas distintas:
+  - **Eco do celular vinha em OUTRO campo.** Em Coexistence, o que a loja
+    manda pelo app do WhatsApp chega no webhook como `field=
+    'smb_message_echoes'` com `value.message_echoes[]` (a contraparte é o
+    `to`; o `from` é o próprio número da loja). `classifyWebhookPayload` só
+    processava `messages` e respondia "ignorado" pro resto — a resposta dada
+    no aparelho nunca existia no portal e a conversa parecia abandonada.
+    `parseEchoMessages` lê esse campo; o webhook grava como `direction='out'`
+    + `origin='celular'` (o chip 📱 já lia isso) e NUNCA chama a IA pra eco.
+    O wamid UNIQUE descarta o eco do que saiu pelo portal/IA.
+    **Incerteza declarada:** depende de o Dualhook repassar esse campo; se a
+    resposta do celular seguir sem aparecer, é assinatura do lado deles.
+  - **`[reaction]`/`[edit]`/`[unsupported]` secos:** o parser só lia
+    `text.body`. `textoDeReacaoOuEdicao` pega `reaction.emoji` (vazio =
+    removeu a reação) e o texto novo de `edit.text.body`/`text.body`
+    (formato da edição não é documentado pela Meta — best-effort, com
+    `refMessageId` pro wamid alvo). `TIPOS_SEM_CONVERSA` (reaction, edit,
+    unsupported, system) grava no histórico mas NÃO acorda a IA —
+    responder a um 👍 com parágrafo seria loop de constrangimento.
+  - **Portal:** `rotuloDeTipo` (bolha + prévia da lista): "👍 reagiu a uma
+    mensagem", "✏️ editou: …", e pra `unsupported` a explicação (enquete,
+    contato, temporária — a API não repassa o conteúdo; ver no celular da
+    loja). Testado em `portalAbordagemEntrega.test.ts`.
+
 - **LEADS: STATUS "FIXO (SEM WHATSAPP)" (2026-09-09, pedido do usuário).
   Portal v=20260909c, SQL só se houver CHECK.** Boa parte dos 90 "não
   entregue" do incidente era telefone fixo — template nunca chega, mas o
