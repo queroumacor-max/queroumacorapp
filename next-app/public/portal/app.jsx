@@ -4470,6 +4470,27 @@ function emendarLeads(lista, mudados) {
   if (porId.size) { mudou = true; out.unshift(...porId.values()); }
   return mudou ? out : lista;
 }
+// BUSCA DO TOPO (2026-09-09, pedido do usuario: "da para buscar pelo numero
+// de telefone tbm?"). Texto casa em nome/segmento/categoria/bairro/@ig;
+// consulta que e SO numero (com ou sem mascara: "98545-5530", "(11) 9…")
+// casa pelos DIGITOS do telefone — "402" dentro de "Rua X, 402" NAO vira
+// busca de telefone, senao endereco com numero traria lead errado. A base
+// guarda o telefone como veio da planilha (com ou sem +55), entao consulta
+// com DDI 55 tambem e tentada SEM ele (Codex no #294).
+const buscaDeLead = (q) => {
+  const texto = String(q || '').trim().toLowerCase();
+  if (!texto) return () => true;
+  const soNumero = /^[\d\s()+\-.]+$/.test(texto);
+  const digitos = texto.replace(/\D/g, '');
+  const variantes = [digitos];
+  if (/^55\d{10,11}$/.test(digitos)) variantes.push(digitos.slice(2));
+  return (l) => {
+    if (soNumero && digitos.length >= 3) { const d = (l.phone || '').replace(/\D/g, ''); return variantes.some(v => d.includes(v)); }
+    return (l.name||'').toLowerCase().includes(texto) || (l.segment||'').toLowerCase().includes(texto)
+      || (l.category||'').toLowerCase().includes(texto) || (l.neighborhood||'').toLowerCase().includes(texto)
+      || (l.instagram||'').toLowerCase().includes(texto);
+  };
+};
 // [teste:leads-janela-fim]
 let _leadsCache = null;
 
@@ -4632,8 +4653,7 @@ const Leads = () => {
   const filtered = React.useMemo(() => {
     let out = leads;
     if (buscaDeb) {
-      const q = buscaDeb.toLowerCase();
-      out = out.filter(l => (l.name||'').toLowerCase().includes(q) || (l.segment||'').toLowerCase().includes(q) || (l.category||'').toLowerCase().includes(q) || (l.neighborhood||'').toLowerCase().includes(q) || (l.instagram||'').toLowerCase().includes(q));
+      out = out.filter(buscaDeLead(buscaDeb));
     }
     if (filtroStatus !== 'Todos') out = out.filter(l => l.status === filtroStatus.toLowerCase());
     if (filtroSegmento !== 'TODOS') out = out.filter(l => (l.segment||'').toUpperCase() === filtroSegmento);
@@ -4803,7 +4823,7 @@ const Leads = () => {
       <div style={{ background:C.white, borderRadius:14, padding:16, marginBottom:16, boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
         <div style={{ display:'flex', gap:12, marginBottom:14, alignItems:'center' }}>
           <div style={{ flex:1, position:'relative' }}>
-            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por nome, segmento, bairro..." style={{ width:'100%', padding:'10px 14px 10px 36px', borderRadius:10, border:'1px solid '+C.border, background:C.bg, color:C.ink, fontSize:13, outline:'none', fontFamily:'DM Sans,sans-serif' }} />
+            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por nome, telefone, segmento, bairro ou @..." style={{ width:'100%', padding:'10px 14px 10px 36px', borderRadius:10, border:'1px solid '+C.border, background:C.bg, color:C.ink, fontSize:13, outline:'none', fontFamily:'DM Sans,sans-serif' }} />
             <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:14, color:C.muted }}>🔍</span>
           </div>
           <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, background:C.bg, color:C.ink, fontSize:12, outline:'none', cursor:'pointer' }}>
