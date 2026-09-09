@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **IMPORTADOR DE LEADS ACEITA EXCEL DIRETO (.xlsx/.xls/.xlsm/.ods)
+  (2026-09-09, pedido do usuário). Portal v=20260909e, SEM SQL.** O portal
+  não tem bundler, então o SheetJS (xlsx 0.18.5, Apache-2.0, ~880 KB) vive
+  VENDORADO em `public/portal/xlsx.full.min.js`, como o React, e é carregado
+  por `<script>` dinâmico com SRI **só quando a pessoa escolhe um Excel**
+  (`carregarXlsx`) — a tela de leads não paga isso no boot. O CSV segue no
+  parser nosso (separador `;`/`,` + windows-1252). Só a PRIMEIRA aba é lida.
+  - **Célula numérica vira `String(v)`**, nunca o texto formatado do Excel:
+    telefone em coluna estreita sai "1.19877E+10" no `w` da célula, e o
+    `raw:true` + conversão própria evita isso.
+  - **Trocou o arquivo vendorado? Trocar `XLSX_SRI` no `app.jsx`.** Hash
+    errado = o navegador recusa o script em silêncio e a tela diz "não
+    consegui carregar o leitor de Excel". `__tests__/portalImportarExcel
+    .test.ts` confere o hash contra o arquivo real no CI.
+
 - **WHATSAPP: RESPOSTA PELO CELULAR, REAÇÃO E EDIÇÃO APARECEM NA CONVERSA
   (2026-09-09, relato do usuário: "não está aparecendo as mensagens
   respondidas pelo celular, e reaction e edits"). Portal v=20260909d, SEM
