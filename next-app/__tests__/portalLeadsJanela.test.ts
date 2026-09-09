@@ -21,6 +21,8 @@ let comIntervalo: (f: (...a: unknown[]) => void, ms: number) => ((...a: unknown[
 let PAGINA_SUPA: number;
 let emendarLeads: (lista: Lead[], mudados: Lead[]) => Lead[];
 let LEADS_JANELA: number;
+let LEADS_BLOCO: number;
+let janelaDeLeads: (total: number, bloco: number, limite: number) => { de: number; ate: number; bloco: number; nBlocos: number; fimDoBloco: boolean };
 
 function bloco(nome: string) {
   const inicio = fonte.indexOf(`// [teste:${nome}-inicio]`);
@@ -35,8 +37,8 @@ beforeAll(() => {
   ({ buscarEmPaginas, comIntervalo, PAGINA_SUPA } = new Function(
     `const PAGINA_SUPA = 1000; ${bloco('paginas')}; return { buscarEmPaginas, comIntervalo, PAGINA_SUPA };`,
   )());
-  ({ emendarLeads, LEADS_JANELA } = new Function(
-    `const normalizeLeadPhone = (p) => p; ${bloco('leads-janela')}; return { emendarLeads, LEADS_JANELA };`,
+  ({ emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads } = new Function(
+    `const normalizeLeadPhone = (p) => p; ${bloco('leads-janela')}; return { emendarLeads, LEADS_JANELA, LEADS_BLOCO, janelaDeLeads };`,
   )());
 });
 
@@ -148,7 +150,28 @@ describe('a tela de Leads', () => {
     expect(LEADS_JANELA).toBeGreaterThan(0);
     expect(fonte).toContain('{visiveis.map((l, i) => {');
     expect(fonte).not.toContain('{filtered.map((l, i) => {');
-    expect(fonte).toContain('<tr ref={sentinelaRef}>');
+    expect(fonte).toContain('<tr ref={janela.fimDoBloco ? null : sentinelaRef}>');
+    expect(fonte).toContain('const visiveis = React.useMemo(() => filtered.slice(janela.de, janela.ate), [filtered, janela.de, janela.ate]);');
+    // A sentinela nunca passa do teto do bloco.
+    expect(fonte).toContain('setLimite(l => Math.min(LEADS_BLOCO, l + LEADS_JANELA))');
+  });
+  it('janelaDeLeads: o DOM nunca passa de LEADS_BLOCO linhas, e o bloco seguinte DESMONTA o anterior (Codex #291)', () => {
+    expect(LEADS_BLOCO).toBeGreaterThanOrEqual(LEADS_JANELA);
+    const total = 61617;
+    expect(janelaDeLeads(total, 0, 100)).toEqual({ de: 0, ate: 100, bloco: 0, nBlocos: 124, fimDoBloco: false });
+    expect(janelaDeLeads(total, 0, 500)).toMatchObject({ de: 0, ate: 500, fimDoBloco: true });
+    // limite acima do teto não vaza pro bloco seguinte
+    expect(janelaDeLeads(total, 0, 5000)).toMatchObject({ de: 0, ate: 500, fimDoBloco: true });
+    expect(janelaDeLeads(total, 3, 100)).toMatchObject({ de: 1500, ate: 1600, fimDoBloco: false });
+    const ultimo = janelaDeLeads(total, 123, 500);
+    expect(ultimo).toMatchObject({ de: 61500, ate: 61617, fimDoBloco: true });
+    // bloco fora do alcance (filtro encolheu a lista) volta pro último válido
+    expect(janelaDeLeads(120, 9, 100)).toMatchObject({ de: 0, ate: 100, bloco: 0, nBlocos: 1 });
+    expect(janelaDeLeads(0, 0, 100)).toMatchObject({ de: 0, ate: 0, nBlocos: 1, fimDoBloco: true });
+  });
+  it('o poll/pós-envio pagina os recentes sem teto de 1000 (Codex #291)', () => {
+    expect(fonte).toContain("recentes: (desdeIso) => buscarEmPaginas(");
+    expect(fonte).not.toContain(".gte('abordagem_at', desdeIso).order('abordagem_at', { ascending:false }).limit(PAGINA_SUPA)");
   });
   it('pinta com a primeira página e mostra o progresso; o poll e o pós-envio emendam em vez de recarregar', () => {
     expect(fonte).toContain('if (loading && leads.length === 0) return');

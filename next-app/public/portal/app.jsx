@@ -164,11 +164,11 @@ const leadsService = {
   ),
   // So os leads cuja abordagem mexeu desde `desdeIso`: e o que o poll e o
   // pos-envio precisam — recarregar 61 mil linhas pra ver 30 mudarem nao.
-  recentes: async (desdeIso) => {
-    const r = await supa.from('leads').select('*').gte('abordagem_at', desdeIso).order('abordagem_at', { ascending:false }).limit(PAGINA_SUPA);
-    if (r.error) throw r.error;
-    return r.data || [];
-  },
+  // Paginado (sem teto): um lote de abordagem pode passar de mil leads em
+  // seis horas, e um `limit(1000)` deixaria os mais antigos sem o status.
+  recentes: (desdeIso) => buscarEmPaginas(
+    (extra) => supa.from('leads').select('*', extra).gte('abordagem_at', desdeIso).order('abordagem_at', { ascending:false }).order('id')
+  ),
   updateStatus: async (id, status) => { const r = await supa.from('leads').update({status}).eq('id', id); if (r.error) throw r.error; },
   remove: async (id) => { const r = await supa.from('leads').delete().eq('id', id); if (r.error) throw r.error; },
   insertBatch: async (rows) => { const r = await supa.from('leads').insert(rows); if (r.error) throw r.error; return r.data; }
@@ -4432,7 +4432,21 @@ const ThLead = ({ rot, campo, ativo, ctx, children }) => {
 const LEAD_PRIO_COLORS = { alta: C.p6, media: C.p7, baixa: C.muted };
 
 // [teste:leads-janela-inicio]
-const LEADS_JANELA = 100;   // linhas montadas por vez na tabela
+const LEADS_JANELA = 100;   // linhas que a sentinela acrescenta por vez
+const LEADS_BLOCO = 500;    // TETO de linhas montadas de uma vez
+// Fatia da lista filtrada que vira <tr>: o bloco `bloco` (de LEADS_BLOCO) e,
+// dentro dele, `limite` linhas — a sentinela cresce `limite` ate o teto do
+// bloco; dai em diante so "proximo bloco", que DESMONTA o anterior. Sem
+// isso a janela era um prefixo que so crescia: rolar a lista inteira
+// montava as 61 mil linhas de novo (achado do Codex no #291).
+function janelaDeLeads(total, bloco, limite) {
+  const nBlocos = Math.max(1, Math.ceil(total / LEADS_BLOCO));
+  const b = Math.min(Math.max(0, bloco), nBlocos - 1);
+  const de = b * LEADS_BLOCO;
+  const fimBloco = Math.min(total, de + LEADS_BLOCO);
+  const ate = Math.min(fimBloco, de + Math.max(1, limite));
+  return { de, ate, bloco: b, nBlocos, fimDoBloco: ate >= fimBloco };
+}
 // Lead que pode receber template: telefone valido, sem opt-out, nao fixo.
 const leadAbordavel = (l) => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
 // Emenda `mudados` na `lista` por id: linha conhecida recebe os campos
@@ -4496,6 +4510,7 @@ const Leads = () => {
   const [carregandoResto, setCarregandoResto] = useState(false);
   const [erroCarga, setErroCarga] = useState('');
   const [limite, setLimite] = useState(LEADS_JANELA);
+  const [bloco, setBloco] = useState(0);
   const [buscaDeb, setBuscaDeb] = useState('');
   const vivoRef = React.useRef(true);
   useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
@@ -4718,18 +4733,31 @@ const Leads = () => {
   // tabela inteira travava o navegador (e era a 2a causa da tela nao
   // carregar, depois do fetch em serie). Trocou filtro/ordem → volta pro
   // comeco; lote novo chegando NAO volta (a pessoa pode estar rolando).
-  useEffect(() => { setLimite(LEADS_JANELA); }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
-  const visiveis = React.useMemo(() => filtered.length > limite ? filtered.slice(0, limite) : filtered, [filtered, limite]);
+  useEffect(() => { setLimite(LEADS_JANELA); setBloco(0); }, [buscaDeb, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
+  const janela = React.useMemo(() => janelaDeLeads(filtered.length, bloco, limite), [filtered.length, bloco, limite]);
+  const visiveis = React.useMemo(() => filtered.slice(janela.de, janela.ate), [filtered, janela.de, janela.ate]);
+  const tabelaRef = React.useRef(null);
+  const irParaBloco = (n) => {
+    setBloco(n); setLimite(LEADS_JANELA);
+    if (tabelaRef.current && tabelaRef.current.scrollIntoView) tabelaRef.current.scrollIntoView({ block:'start' });
+  };
   const sentinelaRef = React.useRef(null);
   useEffect(() => {
     const el = sentinelaRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
     const io = new IntersectionObserver(entradas => {
-      if (entradas.some(e => e.isIntersecting)) setLimite(l => l + LEADS_JANELA);
+      if (entradas.some(e => e.isIntersecting)) setLimite(l => Math.min(LEADS_BLOCO, l + LEADS_JANELA));
     }, { rootMargin: '800px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [visiveis.length, filtered.length]);
+  }, [visiveis.length, filtered.length, janela.fimDoBloco]);
+  const NavBlocos = () => janela.nBlocos > 1 ? (
+    <div style={{ display:'flex', gap:8, alignItems:'center', justifyContent:'center', flexWrap:'wrap', fontSize:12, color:C.muted }}>
+      <button disabled={janela.bloco === 0} onClick={()=>irParaBloco(janela.bloco - 1)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor: janela.bloco === 0 ? 'default' : 'pointer', fontSize:12, color: janela.bloco === 0 ? C.border : C.ink }}>‹ {LEADS_BLOCO} anteriores</button>
+      <span>bloco {janela.bloco + 1} de {janela.nBlocos}</span>
+      <button disabled={janela.bloco >= janela.nBlocos - 1} onClick={()=>irParaBloco(janela.bloco + 1)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor: janela.bloco >= janela.nBlocos - 1 ? 'default' : 'pointer', fontSize:12, color: janela.bloco >= janela.nBlocos - 1 ? C.border : C.ink }}>próximos {LEADS_BLOCO} ›</button>
+    </div>
+  ) : null;
 
   if (loading && leads.length === 0) return (
     <div style={{ padding: 20, color: C.muted }}>
@@ -4860,7 +4888,8 @@ const Leads = () => {
 
       {/* TABLE */}
       <div style={{ background:C.white, borderRadius:14, padding:4, overflowX:'auto', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, color:C.ink }}>
+        {janela.bloco > 0 ? <div style={{ padding:'8px 0' }}><NavBlocos /></div> : null}
+        <table ref={tabelaRef} style={{ width:'100%', borderCollapse:'collapse', fontSize:13, color:C.ink }}>
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
               <th style={{ padding:'12px 4px 12px 10px', width:26 }}>
@@ -4991,10 +5020,14 @@ const Leads = () => {
               );
             })}
             {filtered.length > visiveis.length ? (
-              <tr ref={sentinelaRef}>
+              <tr ref={janela.fimDoBloco ? null : sentinelaRef}>
                 <td colSpan={11} style={{ padding:'14px 10px', color:C.muted, textAlign:'center', fontSize:12 }}>
-                  Mostrando {visiveis.length.toLocaleString('pt-BR')} de {filtered.length.toLocaleString('pt-BR')} — role pra ver mais ou{' '}
-                  <button onClick={()=>setLimite(l => l + LEADS_JANELA * 5)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor:'pointer', fontSize:12, color:C.ink }}>carregar mais {LEADS_JANELA * 5}</button>
+                  <div style={{ marginBottom: janela.nBlocos > 1 ? 8 : 0 }}>
+                    Mostrando {(janela.de + 1).toLocaleString('pt-BR')}–{janela.ate.toLocaleString('pt-BR')} de {filtered.length.toLocaleString('pt-BR')}
+                    {janela.fimDoBloco ? '' : ' — role pra ver mais'}
+                    {janela.fimDoBloco ? null : <span> ou <button onClick={()=>setLimite(LEADS_BLOCO)} style={{ background:'none', border:'1px solid '+C.border, borderRadius:6, padding:'2px 8px', cursor:'pointer', fontSize:12, color:C.ink }}>mostrar o bloco inteiro ({LEADS_BLOCO})</button></span>}
+                  </div>
+                  <NavBlocos />
                 </td>
               </tr>
             ) : null}
@@ -7727,6 +7760,272 @@ const CardEdicaoPortal = ({ ed, aberta, onAbrir, onProgresso, onMudou }) => {
   );
 };
 
+// ============================================================
+// USO DO APP (2026-09-09, pedido do usuario: "tela de estatistica/relatorio
+// mostrando dashboard em relacao ao uso do app: quem postou mais fotos,
+// videos, colocou a venda, teve mais curtidas, convidou mais gente, pediu
+// material na loja, camisa, uso das IAs, fez orcamentos").
+// Quem AGREGA e o servidor (`POST /api/admin/stats`, service role):
+// `ai_usage`, `referrals` e `points` tem RLS "cada um ve o seu", entao a
+// consulta direta daqui mostraria so as linhas do proprio admin. A tela so
+// desenha o que a rota devolve.
+// ============================================================
+// [teste:uso-inicio]
+// Nome que o operador entende pra cada `feature` de ai_usage. Feature nova
+// gravada por rota nova = linha nova aqui (o teste varre app/api).
+const IA_FEATURE_ROTULOS = {
+  alice: '🎨 Alice', fe: '🧑‍🎨 Fê', senna: '🏎️ Senna', chat_ai: '👷 Seu Zé (chat)',
+  alice_tts: '🔊 Alice (voz)', tts: '🔊 Voz (TTS)', transcribe: '🎙️ Transcrição de áudio',
+  caption: '✍️ Legenda de post', generate_logo: '🖼️ Gerar logo', ig_art: '📸 Arte pra IG',
+  area_from_photo: '📐 Área pela foto', pricing_suggest: '💰 Sugestão de preço',
+  fin_analysis: '📊 Análise financeira', crm_draft: '📇 Texto do CRM', agenda_order: '📅 Agenda',
+  resolve_color: '🎯 Achar cor', receipt_ocr: '🧾 Ler nota fiscal', moderate: '🛡️ Moderação (foto)',
+  moderate_video: '🛡️ Moderação (vídeo)'
+};
+const rotuloDeFeature = (f) => IA_FEATURE_ROTULOS[f] || f;
+// As personas gravam 'alice'/'fe'/'senna' — nomes FORA do CHECK original da
+// ai_usage. Sem o SQL de 2026-09-09 o INSERT delas falha em silencio.
+const IA_PERSONAS = ['alice', 'fe', 'senna'];
+// Categorias do podio: campo do relatorio + rotulo + como ler o numero.
+const CATEGORIAS_DE_USO = [
+  { campo:'atividade',         icone:'🔥', rotulo:'Mais ativos',                unidade:'pts',        dica:'Pontuação que soma tudo abaixo (publicar, orçar e pedir valem mais que curtir).' },
+  { campo:'fotos',             icone:'📷', rotulo:'Mais fotos publicadas',      unidade:'fotos' },
+  { campo:'videos',            icone:'🎬', rotulo:'Mais vídeos publicados',     unidade:'vídeos' },
+  { campo:'venda',             icone:'🏷️', rotulo:'Mais itens à venda',         unidade:'itens' },
+  { campo:'curtidas',          icone:'❤️', rotulo:'Mais curtidas recebidas',    unidade:'curtidas' },
+  { campo:'comentarios',       icone:'💬', rotulo:'Mais comentários recebidos', unidade:'coment.' },
+  { campo:'seguidores',        icone:'👥', rotulo:'Mais seguidores',            unidade:'seg.' },
+  { campo:'indicacoes',        icone:'🔗', rotulo:'Mais indicações',            unidade:'convites', dica:'Cadastros que entraram pelo link de indicação da pessoa.' },
+  { campo:'pedidos',           icone:'🛒', rotulo:'Mais pedidos na loja',       unidade:'pedidos' },
+  { campo:'camisetas',         icone:'👕', rotulo:'Mais camisetas pedidas',     unidade:'pedidos',  dica:'Pedidos da loja com a camiseta personalizada no carrinho.' },
+  { campo:'logos',             icone:'🖼️', rotulo:'Mais logos (Seu Zé/upload)', unidade:'logos' },
+  { campo:'ia',                icone:'🤖', rotulo:'Mais uso de IA',             unidade:'chamadas', dica:'A tabela registra CHAMADAS, não minutos — é a medida de uso que existe.' },
+  { campo:'orcamentosFeitos',  icone:'🧾', rotulo:'Mais orçamentos feitos',     unidade:'orç.',     dica:'Como profissional (o pintor que montou o orçamento).' },
+  { campo:'orcamentosPedidos', icone:'📩', rotulo:'Mais orçamentos pedidos',    unidade:'orç.',     dica:'Como cliente (quem pediu).' },
+  { campo:'avaliacoes',        icone:'⭐', rotulo:'Mais avaliações recebidas',  unidade:'aval.' }
+];
+// Inicio do periodo escolhido, em ISO. 'tudo' = sem corte.
+const desdeDoPeriodo = (periodo, agora) => {
+  const dias = { '7d':7, '30d':30, '90d':90, '365d':365 }[periodo];
+  if (!dias) return null;
+  return new Date((agora || Date.now()) - dias * 86400000).toISOString();
+};
+const csvDoUso = (pessoas) => {
+  const cols = [['Nome','nome'],['@tag','tag'],['Papel','papel'],['Cidade','cidade'],['Fotos','fotos'],['Vídeos','videos'],
+    ['À venda','venda'],['Curtidas recebidas','curtidas'],['Comentários recebidos','comentarios'],['Comentou','comentou'],['Curtiu','curtiu'],
+    ['Seguidores','seguidores'],['Indicações','indicacoes'],['Pedidos loja','pedidos'],['Itens pedidos','itensPedidos'],
+    ['Camisetas','camisetas'],['Logos','logos'],['Chamadas IA','ia'],['Orçamentos feitos','orcamentosFeitos'],
+    ['Orçamentos pedidos','orcamentosPedidos'],['Avaliações','avaliacoes'],['Nota média','notaMedia'],
+    ['Última atividade','ultimaAtividade'],['Atividade (pts)','atividade']];
+  const linhas = [cols.map(c => c[0])].concat(pessoas.map(p => cols.map(c => p[c[1]] == null ? '' : p[c[1]])));
+  return '\uFEFF' + linhas.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
+};
+// [teste:uso-fim]
+
+const PAPEL_ROTULOS = { pintor:'Pintor', grafiteiro:'Grafiteiro', funileiro:'Funileiro', automotivo:'Automotivo',
+  arquiteto:'Arquiteto', engenheiro:'Engenheiro', cliente:'Cliente', admin:'Admin' };
+
+const UsoDoApp = () => {
+  const [periodo, setPeriodo] = useState('30d');
+  const [rel, setRel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [busca, setBusca] = useState('');
+  const [soAtivos, setSoAtivos] = useState(true);
+  const [ordem, setOrdem] = useState('atividade');
+  const [limite, setLimite] = useState(100);
+  // Trocar o período com um pedido em voo: só a resposta do ÚLTIMO pedido
+  // entra na tela (o mais largo demora mais e chegaria depois, por cima).
+  const pedidoRef = React.useRef(0);
+
+  const carregar = async (per) => {
+    const meu = ++pedidoRef.current;
+    const atual = () => meu === pedidoRef.current;
+    setLoading(true); setErro('');
+    try {
+      const { data: { session } } = await supa.auth.getSession();
+      if (!session) throw new Error('Sessão expirada. Entre novamente.');
+      const r = await fetch('/api/admin/stats', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ accessToken: session.access_token, desde: desdeDoPeriodo(per || periodo) })
+      });
+      let j = {};
+      try { j = await r.json(); } catch (_) {}
+      if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      if (!atual()) return;
+      setRel(j);
+    } catch (e) {
+      if (!atual()) return;
+      setErro(e && e.message ? e.message : String(e));
+    }
+    if (atual()) setLoading(false);
+  };
+  useEffect(() => { carregar(periodo); }, [periodo]);
+
+  const pessoas = React.useMemo(() => {
+    if (!rel) return [];
+    let out = rel.pessoas;
+    if (soAtivos) out = out.filter(p => p.atividade > 0);
+    if (busca.trim()) { const q = busca.trim().toLowerCase(); out = out.filter(p => (p.nome||'').toLowerCase().includes(q) || (p.tag||'').toLowerCase().includes(q) || (p.cidade||'').toLowerCase().includes(q)); }
+    const cmp = new Intl.Collator('pt-BR').compare;
+    return [...out].sort((a, b) => ordem === 'nome' ? cmp(a.nome, b.nome) : ((Number(b[ordem])||0) - (Number(a[ordem])||0)) || cmp(a.nome, b.nome));
+  }, [rel, soAtivos, busca, ordem]);
+  useEffect(() => { setLimite(100); }, [soAtivos, busca, ordem, rel]);
+
+  const semPersonas = rel && !rel.iaPorFeature.some(f => IA_PERSONAS.includes(f.feature));
+  const maxIa = rel && rel.iaPorFeature.length ? rel.iaPorFeature[0].chamadas : 1;
+
+  const exportar = () => {
+    const blob = new Blob([csvDoUso(pessoas)], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'uso_do_app_' + periodo + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const Pessoa = ({ p, n, unidade, pos }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', borderBottom:'1px solid '+C.border }}>
+      <span style={{ width:20, textAlign:'center', fontSize: pos < 3 ? 15 : 11, color:C.muted }}>{['🥇','🥈','🥉'][pos] || (pos + 1) + 'º'}</span>
+      {p.avatar ? <img src={p.avatar} alt="" style={{ width:26, height:26, borderRadius:'50%', objectFit:'cover' }} />
+        : <div style={{ width:26, height:26, borderRadius:'50%', background:C.p1+'22', color:C.p1, fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{(p.nome||'?').charAt(0).toUpperCase()}</div>}
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:12, fontWeight:600, color:C.ink, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.nome}</div>
+        <div style={{ fontSize:10, color:C.muted, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.tag ? '@' + p.tag : ''}{p.papel ? (p.tag ? ' · ' : '') + (PAPEL_ROTULOS[p.papel] || p.papel) : ''}</div>
+      </div>
+      <div style={{ fontSize:13, fontWeight:700, color:C.ink, whiteSpace:'nowrap' }}>{Number(n).toLocaleString('pt-BR')} <span style={{ fontSize:10, color:C.muted, fontWeight:500 }}>{unidade}</span></div>
+    </div>
+  );
+
+  const Th = ({ campo, rot, title }) => (
+    <th onClick={()=>setOrdem(campo)} title={title || 'Ordenar por ' + rot}
+      style={{ padding:'8px 8px', fontSize:10, color: ordem === campo ? C.p1 : C.muted, textTransform:'uppercase', letterSpacing:0.5, cursor:'pointer', whiteSpace:'nowrap', textAlign: campo === 'nome' ? 'left' : 'right', userSelect:'none' }}>
+      {rot}{ordem === campo ? ' ▼' : ''}
+    </th>
+  );
+  const colunas = [['fotos','Fotos'],['videos','Vídeos'],['venda','À venda'],['curtidas','Curtidas'],['comentarios','Coment.'],['curtiu','Curtiu'],['seguidores','Seg.'],
+    ['indicacoes','Indic.'],['pedidos','Pedidos'],['camisetas','Camisetas'],['logos','Logos'],['ia','IA'],['orcamentosFeitos','Orç. feitos'],
+    ['orcamentosPedidos','Orç. pedidos'],['avaliacoes','Aval.'],['atividade','Pts']];
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:16 }}>
+        <div style={{ fontWeight:700, fontSize:16, color:C.ink }}>📊 Uso do app</div>
+        <select value={periodo} onChange={e=>setPeriodo(e.target.value)} style={{ padding:'8px 10px', borderRadius:10, border:'1px solid '+C.border, background:C.white, color:C.ink, fontSize:12, cursor:'pointer' }}>
+          <option value="7d">Últimos 7 dias</option>
+          <option value="30d">Últimos 30 dias</option>
+          <option value="90d">Últimos 90 dias</option>
+          <option value="365d">Últimos 12 meses</option>
+          <option value="tudo">Desde o início</option>
+        </select>
+        <button onClick={()=>carregar()} disabled={loading} style={{ padding:'8px 12px', borderRadius:10, border:'1px solid '+C.border, background:C.white, color:C.ink, fontSize:12, cursor:'pointer' }}>↻ Atualizar</button>
+        <button onClick={exportar} disabled={!rel} style={{ padding:'8px 12px', borderRadius:10, border:'1px solid '+C.border, background:C.white, color:C.ink, fontSize:12, cursor:'pointer' }}>⬇ CSV</button>
+        {rel ? <span style={{ fontSize:11, color:C.muted }}>gerado {new Date(rel.geradoEm).toLocaleString()} · perfis, seguidores e a base de contagem não dependem do período; o resto conta só o que aconteceu no período.</span> : null}
+      </div>
+      {erro ? <div style={{ padding:12, background:'#fdecea', border:'1px solid #f5c2c0', borderRadius:10, color:'#b00020', fontSize:12, marginBottom:12 }}>Não consegui montar o relatório: {erro}</div> : null}
+      {loading && !rel ? <div style={{ padding:20, color:C.muted }}>Contando o uso do app…</div> : null}
+      {rel ? (
+        <div style={{ opacity: loading ? 0.6 : 1 }}>
+          {rel.truncado && rel.truncado.length ? (
+            <div style={{ padding:'8px 12px', background:'#fff4e0', border:'1px solid #f0b35a', borderRadius:10, fontSize:12, color:'#7a4b00', marginBottom:12 }}>
+              ⚠ Parte dos dados ficou de fora: {rel.truncado.join(', ')}. Os números dessas tabelas estão incompletos.
+            </div>
+          ) : null}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:12, marginBottom:20 }}>
+            <KPICard title="Pessoas ativas" value={rel.totais.ativas.toLocaleString('pt-BR')} sub={'de ' + rel.totais.pessoas.toLocaleString('pt-BR') + ' perfis'} trend="" color={C.p3} />
+            <KPICard title="Fotos" value={rel.totais.fotos.toLocaleString('pt-BR')} sub="publicadas" trend="" color={C.p1} />
+            <KPICard title="Vídeos" value={rel.totais.videos.toLocaleString('pt-BR')} sub="publicados" trend="" color={C.p1} />
+            <KPICard title="À venda" value={rel.totais.venda.toLocaleString('pt-BR')} sub="itens marcados" trend="" color={C.p7} />
+            <KPICard title="Curtidas" value={rel.totais.curtidas.toLocaleString('pt-BR')} sub={rel.totais.comentarios.toLocaleString('pt-BR') + ' comentários'} trend="" color={C.p5} />
+            <KPICard title="Indicações" value={rel.totais.indicacoes.toLocaleString('pt-BR')} sub="cadastros indicados" trend="" color={C.p6} />
+            <KPICard title="Pedidos loja" value={rel.totais.pedidos.toLocaleString('pt-BR')} sub={rel.totais.camisetas.toLocaleString('pt-BR') + ' com camiseta'} trend="" color={C.p6} />
+            <KPICard title="Chamadas de IA" value={rel.totais.ia.toLocaleString('pt-BR')} sub={rel.totais.logos.toLocaleString('pt-BR') + ' logos gerados'} trend="" color={C.p3} />
+            <KPICard title="Orçamentos" value={rel.totais.orcamentos.toLocaleString('pt-BR')} sub={rel.totais.avaliacoes.toLocaleString('pt-BR') + ' avaliações'} trend="" color={C.p1} />
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:14, marginBottom:20 }}>
+            {CATEGORIAS_DE_USO.map(cat => {
+              const lista = rel.rankings[cat.campo] || [];
+              return (
+                <div key={cat.campo} style={{ background:C.white, borderRadius:14, padding:'12px 14px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:6, display:'flex', alignItems:'center', gap:6 }} title={cat.dica || ''}>
+                    <span>{cat.icone}</span> {cat.rotulo}{cat.dica ? <span style={{ fontSize:10, color:C.muted, fontWeight:400 }}>ⓘ</span> : null}
+                  </div>
+                  {lista.length === 0 ? <div style={{ fontSize:12, color:C.muted, padding:'6px 0' }}>Ninguém no período.</div>
+                    : lista.slice(0, 5).map((p, i) => <Pessoa key={p.id} p={p} n={p.n} unidade={cat.unidade} pos={i} />)}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ background:C.white, borderRadius:14, padding:'12px 14px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', marginBottom:20 }}>
+            <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:4 }}>🤖 Uso das IAs por ferramenta</div>
+            <div style={{ fontSize:11, color:C.muted, marginBottom:10 }}>
+              A tabela <code>ai_usage</code> registra <b>chamadas</b> (cada mensagem, legenda, transcrição…), não minutos — é a medida de uso que existe. "Pessoas" = quantas usaram pelo menos uma vez no período.
+            </div>
+            {semPersonas ? (
+              <div style={{ padding:'8px 12px', background:'#fff4e0', border:'1px solid #f0b35a', borderRadius:10, fontSize:12, color:'#7a4b00', marginBottom:10 }}>
+                Alice, Fê e Senna não aparecem. Se alguém usou elas no período, é o CHECK antigo da <code>ai_usage</code> recusando o registro em silêncio — rode <code>/migrations/2026-09-09-ai-usage-feature-check.sql</code> no Supabase; a partir daí o uso das personas passa a contar (o que já aconteceu antes não tem como recuperar).
+              </div>
+            ) : null}
+            {rel.iaPorFeature.length === 0 ? <div style={{ fontSize:12, color:C.muted }}>Nenhuma chamada de IA no período.</div> : null}
+            {rel.iaPorFeature.map(f => (
+              <div key={f.feature} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+                <div style={{ width:190, fontSize:12, color:C.ink, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={f.feature}>{rotuloDeFeature(f.feature)}</div>
+                <div style={{ flex:1, background:C.border, borderRadius:4, height:10 }}>
+                  <div style={{ width: Math.max(2, Math.round(f.chamadas / maxIa * 100)) + '%', background:C.p1, height:10, borderRadius:4 }}></div>
+                </div>
+                <div style={{ width:150, fontSize:12, color:C.ink, textAlign:'right' }}><b>{f.chamadas.toLocaleString('pt-BR')}</b> chamadas · {f.pessoas} {f.pessoas === 1 ? 'pessoa' : 'pessoas'}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:C.white, borderRadius:14, padding:'12px 14px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:10 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:C.ink }}>👤 Por pessoa ({pessoas.length.toLocaleString('pt-BR')})</div>
+              <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar nome, @tag ou cidade…" style={{ padding:'7px 10px', borderRadius:8, border:'1px solid '+C.border, fontSize:12, minWidth:220 }} />
+              <label style={{ fontSize:12, color:C.muted, display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}>
+                <input type="checkbox" checked={soAtivos} onChange={e=>setSoAtivos(e.target.checked)} /> só quem fez algo no período
+              </label>
+              <span style={{ fontSize:11, color:C.muted }}>clique no título da coluna pra ordenar</span>
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead><tr style={{ borderBottom:'2px solid '+C.border }}>
+                  <Th campo="nome" rot="Nome" />
+                  {colunas.map(([campo, rot]) => <Th key={campo} campo={campo} rot={rot} />)}
+                  <th style={{ padding:'8px', fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:0.5, whiteSpace:'nowrap', textAlign:'right' }}>Última atividade</th>
+                </tr></thead>
+                <tbody>
+                  {pessoas.length === 0 ? <tr><td colSpan={colunas.length + 2} style={{ padding:'20px 8px', color:C.muted, textAlign:'center' }}>Ninguém bate com o filtro.</td></tr> : null}
+                  {pessoas.slice(0, limite).map(p => (
+                    <tr key={p.id} style={{ borderBottom:'1px solid '+C.border }}>
+                      <td style={{ padding:'7px 8px', whiteSpace:'nowrap' }}>
+                        <div style={{ fontWeight:600, color:C.ink }}>{p.nome}</div>
+                        <div style={{ fontSize:10, color:C.muted }}>{p.tag ? '@' + p.tag : ''}{p.papel ? (p.tag ? ' · ' : '') + (PAPEL_ROTULOS[p.papel] || p.papel) : ''}{p.cidade ? ' · ' + p.cidade : ''}</div>
+                      </td>
+                      {colunas.map(([campo]) => (
+                        <td key={campo} style={{ padding:'7px 8px', textAlign:'right', color: p[campo] ? C.ink : C.border, fontWeight: campo === 'atividade' ? 700 : 400 }}
+                          title={campo === 'ia' && p.iaPorFeature ? Object.entries(p.iaPorFeature).map(([f, n]) => rotuloDeFeature(f) + ': ' + n).join('\n') : (campo === 'avaliacoes' && p.notaMedia != null ? 'nota média ' + p.notaMedia : '')}>
+                          {p[campo] ? Number(p[campo]).toLocaleString('pt-BR') : '–'}
+                        </td>
+                      ))}
+                      <td style={{ padding:'7px 8px', textAlign:'right', color:C.muted, whiteSpace:'nowrap' }}>{p.ultimaAtividade ? new Date(p.ultimaAtividade).toLocaleDateString() : '–'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {pessoas.length > limite ? (
+              <div style={{ textAlign:'center', padding:10 }}>
+                <button onClick={()=>setLimite(l => l + 200)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid '+C.border, background:C.white, fontSize:12, cursor:'pointer', color:C.ink }}>Mostrar mais ({(pessoas.length - limite).toLocaleString('pt-BR')} restantes)</button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -7747,6 +8046,7 @@ const PAGES_DEF = [
   { id:'click-rua', icon:'📖', label:'Revista Click Rua', section:'LOJA', component:<ClickRua /> },
   { id:'marketing', icon:'📣', label:'Marketing / Ads', section:'LOJA', component:<MarketingPage /> },
   { id:'moderacao', icon:'🛡️', label:'Moderação', section:'PRINCIPAL', component:<Moderacao /> },
+  { id:'uso', icon:'📊', label:'Uso do app', section:'DADOS', component:<UsoDoApp /> },
   { id:'analytics', icon:'📈', label:'Analytics', section:'DADOS', component:<Analytics /> },
   { id:'indicacoes', icon:'🔗', label:'Indicações', section:'DADOS', component:<Indicacoes /> },
   { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesTab /> },

@@ -77,3 +77,6 @@ SELECT 'whatsapp_ai_config.prompt existe' AS item, EXISTS (SELECT 1 FROM informa
 -- sozinho (a confirmacao da Meta nao tem onde pousar) e o portal mostra o
 -- aviso laranja na tela de Leads.
 SELECT 'leads.abordagem_status existe' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='leads' AND column_name='abordagem_status') AS ok;
+
+-- 2026-09-09 (ai_usage sem CHECK de feature — personas passam a contar):
+SELECT 'ai_usage sem CHECK em feature (2026-09-09)' AS item, NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ai_usage'::regclass AND contype = 'c' AND conname = 'ai_usage_feature_check') AS ok;
