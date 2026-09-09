@@ -1,7 +1,7 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
 - **LEADS: STATUS "FIXO (SEM WHATSAPP)" (2026-09-09, pedido do usuário).
-  Portal v=20260909b, SQL só se houver CHECK.** Boa parte dos 90 "não
+  Portal v=20260909c, SQL só se houver CHECK.** Boa parte dos 90 "não
   entregue" do incidente era telefone fixo — template nunca chega, mas o
   lead não é "perdido" (pode valer por outro canal). `LEADS_STATUS` virou a
   lista ÚNICA (select da linha, filtro do topo, filtro do cabeçalho,

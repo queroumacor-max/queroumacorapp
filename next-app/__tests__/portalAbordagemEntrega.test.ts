@@ -121,3 +121,17 @@ describe("status 'fixo'", () => {
     expect(fonte).toContain("l.status !== 'fixo' && !!normalizeLeadPhone(l.phone)");
   });
 });
+
+// Achado do review (2026-09-09): lead marcado no lote e DEPOIS mudado pra
+// 'fixo' continuava em `sel` e recebia o template. A seleção efetiva passa
+// por `abordavel` de novo, e o modal do lote rejeita 'fixo' sozinho.
+describe("lead 'fixo' não passa pelo lote nem por seleção antiga", () => {
+  it('a seleção efetiva reaplica abordavel e a barra conta por ela', () => {
+    expect(fonte).toContain('const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));');
+    expect(fonte).toContain('{selecionados.length > 0 ? (');
+    expect(fonte).not.toContain('{sel.size > 0 ? (');
+  });
+  it('o modal do lote rejeita fixo por conta própria', () => {
+    expect(fonte).toContain("l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)'");
+  });
+});

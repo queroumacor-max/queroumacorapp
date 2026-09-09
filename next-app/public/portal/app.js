@@ -7750,7 +7750,7 @@ const linhaDoLote = l => {
     2: cidadeDoLead(l) || '',
     3: ramoDoLead(l) || ''
   };
-  const motivo = l.opted_out_at ? 'pediu pra não receber' : !alvo ? 'sem número válido' : null;
+  const motivo = l.opted_out_at ? 'pediu pra não receber' : l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)' : !alvo ? 'sem número válido' : null;
   return {
     lead: l,
     alvo,
@@ -8516,7 +8516,7 @@ const Leads = () => {
     if (n.has(id)) n.delete(id);else n.add(id);
     return n;
   });
-  const selecionados = leads.filter(l => sel.has(l.id));
+  const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));
   const segIcons = LEAD_SEG_ICONS;
   const catIcons = LEAD_CAT_ICONS;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -8800,7 +8800,7 @@ const Leads = () => {
       color: '#7a4b00',
       lineHeight: 1.5
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "Falta rodar o SQL do status de entrega"), " (", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-leads-abordagem-entrega.sql"), "). Sem ele o servidor nao consegue amarrar cada envio ao lead, e ", /*#__PURE__*/React.createElement("strong", null, "nenhum lead vira \"contactado\" sozinho"), " \u2014 a confirmacao da Meta nao tem onde pousar.") : null, sel.size > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, "Falta rodar o SQL do status de entrega"), " (", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-leads-abordagem-entrega.sql"), "). Sem ele o servidor nao consegue amarrar cada envio ao lead, e ", /*#__PURE__*/React.createElement("strong", null, "nenhum lead vira \"contactado\" sozinho"), " \u2014 a confirmacao da Meta nao tem onde pousar.") : null, selecionados.length > 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12,
       display: 'flex',
@@ -8818,7 +8818,7 @@ const Leads = () => {
       fontWeight: 700,
       color: C.ink
     }
-  }, sel.size, " ", sel.size === 1 ? 'lead selecionado' : 'leads selecionados'), /*#__PURE__*/React.createElement("button", {
+  }, selecionados.length, " ", selecionados.length === 1 ? 'lead selecionado' : 'leads selecionados'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setAbordarLote(selecionados),
     style: {
       background: '#25D366',
@@ -8831,7 +8831,7 @@ const Leads = () => {
       fontWeight: 700,
       whiteSpace: 'nowrap'
     }
-  }, "\uD83D\uDCAC Abordar ", sel.size, " ", sel.size === 1 ? 'selecionado' : 'selecionados'), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDCAC Abordar ", selecionados.length, " ", selecionados.length === 1 ? 'selecionado' : 'selecionados'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setSel(new Set()),
     style: {
       background: 'none',

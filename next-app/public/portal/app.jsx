@@ -4077,7 +4077,9 @@ const AbordagemModal = ({ lead, onClose, onSent }) => {
 const linhaDoLote = (l) => {
   const alvo = normalizeLeadPhone(l.phone);
   const valores = { 1: nomeCompleto(l.name) || '', 2: cidadeDoLead(l) || '', 3: ramoDoLead(l) || '' };
-  const motivo = l.opted_out_at ? 'pediu pra não receber' : !alvo ? 'sem número válido' : null;
+  const motivo = l.opted_out_at ? 'pediu pra não receber'
+    : l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)'
+    : !alvo ? 'sem número válido' : null;
   return { lead: l, alvo, valores, motivo };
 };
 
@@ -4492,7 +4494,7 @@ const Leads = () => {
     return n;
   });
   const alternar = (id) => setSel(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; });
-  const selecionados = leads.filter(l => sel.has(l.id));
+  const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));
 
   const segIcons = LEAD_SEG_ICONS;
   const catIcons = LEAD_CAT_ICONS;
@@ -4584,15 +4586,15 @@ const Leads = () => {
             Sem ele o servidor nao consegue amarrar cada envio ao lead, e <strong>nenhum lead vira "contactado" sozinho</strong> — a confirmacao da Meta nao tem onde pousar.
           </div>
         ) : null}
-        {sel.size > 0 ? (
+        {selecionados.length > 0 ? (
           <div style={{ marginTop:12, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap',
             padding:'10px 12px', background:C.p1+'14', border:'1px solid '+C.p1, borderRadius:10 }}>
             <span style={{ fontSize:12, fontWeight:700, color:C.ink }}>
-              {sel.size} {sel.size === 1 ? 'lead selecionado' : 'leads selecionados'}
+              {selecionados.length} {selecionados.length === 1 ? 'lead selecionado' : 'leads selecionados'}
             </span>
             <button onClick={()=>setAbordarLote(selecionados)}
               style={{ background:'#25D366', color:'#fff', border:'none', borderRadius:8, padding:'7px 14px', cursor:'pointer', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>
-              💬 Abordar {sel.size} {sel.size === 1 ? 'selecionado' : 'selecionados'}
+              💬 Abordar {selecionados.length} {selecionados.length === 1 ? 'selecionado' : 'selecionados'}
             </button>
             <button onClick={()=>setSel(new Set())}
               style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, color:C.muted }}>
