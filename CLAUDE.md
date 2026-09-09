@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LEADS: STATUS "FIXO (SEM WHATSAPP)" (2026-09-09, pedido do usuário).
+  Portal v=20260909b, SQL só se houver CHECK.** Boa parte dos 90 "não
+  entregue" do incidente era telefone fixo — template nunca chega, mas o
+  lead não é "perdido" (pode valer por outro canal). `LEADS_STATUS` virou a
+  lista ÚNICA (select da linha, filtro do topo, filtro do cabeçalho,
+  contagens); o teste proíbe lista escrita à mão voltar. Lead `fixo` sai da
+  seleção em lote; o "Abordar" unitário segue (fixo pode ter WhatsApp
+  Business). **A tabela `leads` nasceu fora do repo e não dá pra saber
+  daqui se `status` tem CHECK**: `/migrations/2026-09-09-leads-status-fixo
+  .sql` é conferência (lista os CHECKs) + ALTER comentado; o portal traduz
+  o 23514 apontando pra esse arquivo. Não é pendência enquanto o erro não
+  aparecer.
+
 - **LEAD "CONTACTADO" SÓ COM CONFIRMAÇÃO DA META (2026-09-09, pedido do
   usuário). SQL `/migrations/2026-09-09-leads-abordagem-entrega.sql` —
   JÁ EXECUTADO no Supabase (2026-09-09, informado pelo usuário: "rodei o

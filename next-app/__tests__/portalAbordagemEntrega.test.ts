@@ -103,3 +103,21 @@ describe('abordagemPendente (quando a lista se atualiza sozinha)', () => {
     expect(abordagemPendente({ abordagem_status: 'accepted' }, agora)).toBe(false);
   });
 });
+
+// ── Status 'fixo' (2026-09-09) ──────────────────────────────────────────────
+// Telefone fixo sem WhatsApp: a abordagem por template nunca chega. A lista
+// de status é UMA (`LEADS_STATUS`) e alimenta o select da linha, o filtro
+// do topo, o do cabeçalho e as contagens — status novo entra ali e em
+// nenhum outro lugar.
+describe("status 'fixo'", () => {
+  it('existe na lista única e tem rótulo', () => {
+    expect(fonte).toContain("const LEADS_STATUS = ['novo','contactado','qualificado','convertido','perdido','fixo'];");
+    expect(fonte).toContain("fixo: 'Fixo (sem WhatsApp)'");
+    // Nenhuma lista de status escrita à mão sobrou.
+    expect(fonte).not.toContain("['novo','contactado','qualificado','convertido','perdido']");
+    expect(fonte).not.toContain('<option value="perdido">Perdido</option>');
+  });
+  it('lead fixo sai da seleção em lote', () => {
+    expect(fonte).toContain("l.status !== 'fixo' && !!normalizeLeadPhone(l.phone)");
+  });
+});
