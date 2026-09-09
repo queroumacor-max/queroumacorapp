@@ -24,6 +24,11 @@ export const whatsappSendSchema = z
       .optional(),
     languageCode: z.string().min(2).max(15).optional().default('pt_BR'),
     components: z.array(z.record(z.string(), z.unknown())).max(10).optional(),
+    // Lead que está sendo abordado (portal). Com ele a rota amarra o wamid
+    // ao lead, e é por esse vínculo que o status de entrega do webhook
+    // chega até a tela de Leads (2026-09-09). Opcional: a aba WhatsApp e o
+    // follow-up mandam sem lead.
+    leadId: z.string().uuid().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'text' && !data.body) {

@@ -29,6 +29,7 @@ import {
   persistWhatsAppMessage,
   sendWhatsAppTemplate,
   sendWhatsAppText,
+  vincularAbordagemAoLead,
   type TemplateComponent,
 } from '@/lib/api/_services/whatsapp';
 // A Evolution API foi APOSENTADA (2026-09-05) e as secrets EVOLUTION_* saíram
@@ -161,6 +162,14 @@ async function handle(request: NextRequest): Promise<Response> {
     // a mensagem já entregue ao cliente e o operador achando que falhou.
     // Agora correm em paralelo e com teto próprio.
     const bookkeeping = Promise.allSettled([
+      // Abordagem de lead (2026-09-09): amarra o wamid ao lead AGORA, antes
+      // de responder. É por esse vínculo que o `sent`/`failed` do webhook
+      // acha o lead — e o webhook pode chegar segundos depois desta
+      // resposta, então o vínculo não pode ficar por conta do portal.
+      // NÃO marca `contactado`: só a confirmação da Meta faz isso.
+      input.leadId
+        ? vincularAbordagemAoLead({ leadId: input.leadId, messageId: result.messageId })
+        : Promise.resolve(false),
       persistWhatsAppMessage({
         direction: 'out',
         // Fallback do wa_id respeita DDI estrangeiro (ver
@@ -190,6 +199,7 @@ async function handle(request: NextRequest): Promise<Response> {
           template: input.template || null,
           bodyPreview: (input.body || '').slice(0, 80),
           messageId: result.messageId,
+          leadId: input.leadId || null,
         },
         request,
       }),

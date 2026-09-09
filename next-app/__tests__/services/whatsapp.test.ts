@@ -40,6 +40,9 @@ import {
   sendWhatsAppTemplate,
   sendWhatsAppText,
   verifyMetaSignature,
+  filtroSoAvanca,
+  persistStatusDoLead,
+  vincularAbordagemAoLead,
 } from '../../lib/api/_services/whatsapp';
 import { ServiceError } from '../../lib/api/security';
 
@@ -820,5 +823,179 @@ describe('parseInboundMessages: resposta por botão', () => {
   it('botão sem rótulo não inventa texto', () => {
     const [m] = parseInboundMessages(envelope({ type: 'button', button: { payload: 'X' } }));
     expect(m.text).toBe('');
+  });
+});
+
+// ─── Abordagem de lead: confirmação da Meta gravada NO LEAD (2026-09-09) ───
+//
+// O incidente: a API aceitava, o portal marcava `contactado`, e o `failed`
+// que a Meta mandava depois não desfazia nada. Estes testes travam o novo
+// contrato: a rota amarra o wamid ao lead sem tocar no funil; o webhook
+// grava o status e só ele muda `novo` → `contactado` (ou desfaz, no failed).
+
+function stubFetchSequencia(respostas: Array<{ status: number; json: unknown }>) {
+  const spy = vi.fn();
+  for (const r of respostas) {
+    spy.mockResolvedValueOnce(
+      new Response(JSON.stringify(r.json), {
+        status: r.status,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+  }
+  vi.stubGlobal('fetch', spy);
+  return spy;
+}
+
+describe('abordagem de lead — filtroSoAvanca', () => {
+  it('sent só passa por quem está nulo ou accepted', () => {
+    expect(filtroSoAvanca('sent')).toBe(
+      'or=(abordagem_status.is.null,abordagem_status.not.in.(sent,delivered,read,failed))'
+    );
+  });
+  it('failed vence tudo menos outro failed', () => {
+    expect(filtroSoAvanca('failed')).toBe(
+      'or=(abordagem_status.is.null,abordagem_status.not.in.(failed))'
+    );
+  });
+});
+
+describe('abordagem de lead — vincularAbordagemAoLead (rota de envio)', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+  const SERVICE_KEY = 'service-key-teste';
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = SERVICE_KEY;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    vi.restoreAllMocks();
+  });
+
+  it('PATCH no lead com o wamid e accepted — e NUNCA mexe em status', async () => {
+    const spy = stubFetchOnce(200, {});
+    const ok = await vincularAbordagemAoLead({
+      leadId: '0b0f4a1e-1111-4222-8333-444455556666',
+      messageId: 'wamid.abc',
+    });
+    expect(ok).toBe(true);
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${SUPA_URL}/rest/v1/leads?id=eq.0b0f4a1e-1111-4222-8333-444455556666`);
+    expect(init.method).toBe('PATCH');
+    const row = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(row).toMatchObject({
+      abordagem_message_id: 'wamid.abc',
+      abordagem_status: 'accepted',
+      abordagem_error: null,
+    });
+    // A regra inteira do incidente cabe nesta linha: aceito pela API não é
+    // contactado.
+    expect(row).not.toHaveProperty('status');
+  });
+
+  it('tolera a coluna ausente (400/42703) → false, sem lançar', async () => {
+    stubFetchOnce(400, { code: '42703', message: 'column "abordagem_status" does not exist' });
+    expect(await vincularAbordagemAoLead({ leadId: 'x', messageId: 'wamid.1' })).toBe(false);
+  });
+
+  it('sem leadId ou sem wamid → false sem chamar a rede', async () => {
+    const spy = stubFetchOnce(200, {});
+    expect(await vincularAbordagemAoLead({ leadId: '', messageId: 'wamid.1' })).toBe(false);
+    expect(await vincularAbordagemAoLead({ leadId: 'x', messageId: '' })).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('abordagem de lead — persistStatusDoLead (webhook)', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+  const SERVICE_KEY = 'service-key-teste';
+  const st = (status: 'sent' | 'delivered' | 'read' | 'failed', erro: string | null = null) => ({
+    messageId: 'wamid.abc',
+    status,
+    timestamp: '1757100000',
+    recipientId: '5511988887777',
+    erro,
+    erroCodigo: erro ? 131026 : null,
+    erroTitulo: erro ? 'Message undeliverable' : null,
+  });
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = SERVICE_KEY;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    vi.restoreAllMocks();
+  });
+
+  it('sent num lead novo → grava o status E vira contactado', async () => {
+    const spy = stubFetchSequencia([
+      { status: 200, json: [{ id: 'lead-1', status: 'novo' }] },
+      { status: 200, json: {} },
+    ]);
+    expect(await persistStatusDoLead(st('sent'))).toBe('contactado');
+    const [url1, init1] = spy.mock.calls[0] as [string, RequestInit];
+    expect(url1).toContain('/rest/v1/leads?abordagem_message_id=eq.wamid.abc');
+    expect(url1).toContain('abordagem_status.not.in.(sent,delivered,read,failed)');
+    expect(url1).toContain('select=id,status');
+    expect(JSON.parse(init1.body as string)).toMatchObject({
+      abordagem_status: 'sent',
+      abordagem_error: null,
+      abordagem_at: new Date(1757100000 * 1000).toISOString(),
+    });
+    const [url2, init2] = spy.mock.calls[1] as [string, RequestInit];
+    expect(url2).toContain('/rest/v1/leads?id=eq.lead-1');
+    expect(url2).toContain('status.eq.novo');
+    expect(JSON.parse(init2.body as string)).toEqual({ status: 'contactado' });
+  });
+
+  it('delivered num lead já contactado → só atualiza o status (sem 2º PATCH)', async () => {
+    const spy = stubFetchSequencia([{ status: 200, json: [{ id: 'lead-1', status: 'contactado' }] }]);
+    expect(await persistStatusDoLead(st('delivered'))).toBe('atualizado');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('sent num lead que o operador já moveu pra qualificado → não atropela', async () => {
+    const spy = stubFetchSequencia([{ status: 200, json: [{ id: 'lead-1', status: 'qualificado' }] }]);
+    expect(await persistStatusDoLead(st('sent'))).toBe('atualizado');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('failed num lead contactado → grava o motivo e DESFAZ o contactado', async () => {
+    const spy = stubFetchSequencia([
+      { status: 200, json: [{ id: 'lead-1', status: 'contactado' }] },
+      { status: 200, json: {} },
+    ]);
+    expect(
+      await persistStatusDoLead(st('failed', '131026 · Message undeliverable · Message Undeliverable.'))
+    ).toBe('desfeito');
+    expect(JSON.parse((spy.mock.calls[0] as [string, RequestInit])[1].body as string)).toMatchObject({
+      abordagem_status: 'failed',
+      abordagem_error: '131026 · Message undeliverable · Message Undeliverable.',
+    });
+    const [url2, init2] = spy.mock.calls[1] as [string, RequestInit];
+    expect(url2).toContain('status=eq.contactado');
+    expect(JSON.parse(init2.body as string)).toEqual({ status: 'novo' });
+  });
+
+  it('failed num lead que já era qualificado → registra, mas o funil fica', async () => {
+    const spy = stubFetchSequencia([{ status: 200, json: [{ id: 'lead-1', status: 'qualificado' }] }]);
+    expect(await persistStatusDoLead(st('failed', 'x'))).toBe('atualizado');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('nenhum lead com esse wamid → sem-lead (pra rota tentar de novo)', async () => {
+    stubFetchSequencia([{ status: 200, json: [] }]);
+    expect(await persistStatusDoLead(st('sent'))).toBe('sem-lead');
+  });
+
+  it('coluna ausente / REST 400 → falhou, sem lançar', async () => {
+    stubFetchSequencia([{ status: 400, json: { code: '42703' } }]);
+    expect(await persistStatusDoLead(st('sent'))).toBe('falhou');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('down')));
+    expect(await persistStatusDoLead(st('sent'))).toBe('falhou');
   });
 });

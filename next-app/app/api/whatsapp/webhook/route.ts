@@ -51,6 +51,7 @@ import {
   classifyWebhookPayload,
   parseInboundMessages,
   parseStatusUpdates,
+  persistStatusDoLead,
   persistStatusEntrega,
   persistWhatsAppMessage,
   statusAvanca,
@@ -246,6 +247,30 @@ async function processarStatus(lista: AtualizacaoDeStatus[]): Promise<void> {
       );
     }
     await persistStatusEntrega(st);
+    await levarStatusAoLead(st);
+  }
+}
+
+// Folga pro vínculo wamid→lead da rota de envio pousar. A Meta pode mandar
+// o `sent` antes de a rota terminar a escrituração (os dois correm em
+// paralelo, em máquinas diferentes); sem esta segunda chance o lead ficaria
+// `novo` pra sempre com a mensagem entregue.
+const ESPERA_VINCULO_MS = 1500;
+
+/**
+ * Leva o aviso até o lead (2026-09-09): é o que faz `contactado` na tela de
+ * Leads significar "a Meta confirmou", e `failed` desfazer a marcação.
+ * Best-effort como o resto; 'sem-lead' é normal (mensagem que não era
+ * abordagem) — só tentamos de novo uma vez, pela corrida acima.
+ */
+async function levarStatusAoLead(st: AtualizacaoDeStatus): Promise<void> {
+  let r = await persistStatusDoLead(st);
+  if (r === 'sem-lead') {
+    await new Promise((resolve) => setTimeout(resolve, ESPERA_VINCULO_MS));
+    r = await persistStatusDoLead(st);
+  }
+  if (r === 'contactado' || r === 'desfeito') {
+    console.log(`[whatsapp-lead] ${r} msg=${st.messageId} status=${st.status}`);
   }
 }
 
