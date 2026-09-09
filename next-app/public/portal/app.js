@@ -5134,6 +5134,66 @@ const chaveTelefone = t => {
 // "@fulano", "instagram.com/fulano/" ou "fulano" → "fulano" (minusculo).
 const normalizarIg = t => String(t || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@+/, '').replace(/[\/?#\s].*$/, '').toLowerCase().slice(0, 80);
 const urlDoIg = h => 'https://instagram.com/' + encodeURIComponent(normalizarIg(h));
+
+// ── Excel direto (.xls/.xlsx) — 2026-09-09, pedido do usuario ─────────────
+// O portal nao tem bundler, entao o SheetJS (xlsx 0.18.5, Apache-2.0) vive
+// VENDORADO em /portal/xlsx.full.min.js, igual ao React, e e carregado SO
+// quando a pessoa escolhe um .xls/.xlsx — sao ~880 KB que a tela de leads
+// nao precisa pagar em todo boot. A tag entra com SRI (o hash abaixo e do
+// arquivo commitado; __tests__/portalImportarExcel.test.ts confere) e
+// crossorigin, como as demais. O CSV continua passando pelo parser nosso.
+// [teste:xlsx-inicio]
+const XLSX_SRC = '/portal/xlsx.full.min.js?v=0.18.5';
+const XLSX_SRI = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+const EXTENSOES_EXCEL = /\.(xlsx|xlsm|xls|ods)$/i;
+const ehArquivoExcel = nome => EXTENSOES_EXCEL.test(String(nome || ''));
+// Celula → texto. Numero inteiro vira String(v) (nunca "1.19877E+10", que e
+// o que o texto FORMATADO do Excel devolve pra telefone em coluna
+// estreita); float fica como esta; o resto passa por String.
+const celulaParaTexto = v => {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') return Number.isFinite(v) ? String(v) : '';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v);
+};
+// Matriz da PRIMEIRA aba, sem linha totalmente vazia — mesmo formato do
+// parseCSV, entao o resto do importador nao sabe de onde veio.
+const matrizDaPlanilha = (XLSX, buf) => {
+  const wb = XLSX.read(new Uint8Array(buf), {
+    type: 'array',
+    codepage: 1252,
+    cellDates: false
+  });
+  const nome = wb.SheetNames && wb.SheetNames[0];
+  if (!nome) return [];
+  const ws = wb.Sheets[nome];
+  const linhas = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    raw: true,
+    defval: ''
+  });
+  return linhas.map(l => (l || []).map(celulaParaTexto)).filter(l => l.some(v => String(v).trim() !== ''));
+};
+// [teste:xlsx-fim]
+let _xlsxPromise = null;
+const carregarXlsx = () => {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (_xlsxPromise) return _xlsxPromise;
+  _xlsxPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = XLSX_SRC;
+    s.integrity = XLSX_SRI;
+    s.crossOrigin = 'anonymous';
+    s.async = true;
+    s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('leitor de Excel não inicializou'));
+    s.onerror = () => {
+      _xlsxPromise = null;
+      reject(new Error('não consegui carregar o leitor de Excel (/portal/xlsx.full.min.js)'));
+    };
+    document.head.appendChild(s);
+  });
+  return _xlsxPromise;
+};
 const ImportarPlanilhaModal = ({
   open,
   onClose,
@@ -5166,9 +5226,17 @@ const ImportarPlanilhaModal = ({
     if (!file) return;
     try {
       const buf = await file.arrayBuffer();
-      const texto = decodificar(buf).replace(/^﻿/, '');
-      const sep = detectarSeparador(texto.split('\n')[0] || '');
-      const m = parseCSV(texto, sep);
+      let m;
+      if (ehArquivoExcel(file.name)) {
+        setProgresso('Carregando leitor de Excel…');
+        const XLSX = await carregarXlsx();
+        setProgresso('');
+        m = matrizDaPlanilha(XLSX, buf);
+      } else {
+        const texto = decodificar(buf).replace(/^﻿/, '');
+        const sep = detectarSeparador(texto.split('\n')[0] || '');
+        m = parseCSV(texto, sep);
+      }
       if (m.length < 2) {
         setErro('A planilha precisa ter o cabecalho e ao menos uma linha.');
         return;
@@ -5397,9 +5465,9 @@ const ImportarPlanilhaModal = ({
       lineHeight: 1.6,
       marginBottom: 14
     }
-  }, "No Excel: ", /*#__PURE__*/React.createElement("strong", null, "Arquivo \u2192 Salvar como \u2192 CSV"), ". Depois escolha o arquivo aqui. A primeira linha tem que ser o cabe\xE7alho (Nome, Telefone, Categoria\u2026)."), /*#__PURE__*/React.createElement("input", {
+  }, "Aceita ", /*#__PURE__*/React.createElement("strong", null, "Excel direto (.xlsx, .xls)"), " ou CSV. S\xF3 a primeira aba \xE9 lida, e a primeira linha tem que ser o cabe\xE7alho (Nome, Telefone, Categoria\u2026)."), /*#__PURE__*/React.createElement("input", {
     type: "file",
-    accept: ".csv,.txt,text/csv",
+    accept: ".csv,.txt,.xlsx,.xlsm,.xls,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     onChange: e => lerArquivo(e.target.files && e.target.files[0]),
     style: {
       display: 'block',
