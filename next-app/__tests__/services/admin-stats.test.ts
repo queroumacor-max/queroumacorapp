@@ -186,6 +186,8 @@ describe('POST /api/admin/stats', () => {
       }
       if (url.includes('/rpc/check_rate_limit')) return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
       if (url.includes('/rest/v1/likes')) desdeVisto = url;
+      // `follows` não tem `id` no banco vivo (chave composta): pagina pelo par.
+      if (url.includes('/rest/v1/follows')) expect(url).toContain('order=follower_id,following_id');
       if (url.includes('/rest/v1/posts')) { expect(url).not.toContain('created_at=gte'); return Promise.resolve(new Response(JSON.stringify([{ id: 'p', user_id: 'c', media_url: 'a.jpg', created_at: '2026-09-01T00:00:00Z' }]), { status: 200, headers: { 'content-range': '0-0/1' } })); }
       if (url.includes('/rest/v1/profiles')) return Promise.resolve(new Response(JSON.stringify([{ id: 'c', name: 'Chefe' }]), { status: 200, headers: { 'content-range': '0-0/1' } }));
       return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-range': '*/0' } }));
