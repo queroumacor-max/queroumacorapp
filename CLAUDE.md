@@ -10,8 +10,10 @@
   Business). **A tabela `leads` nasceu fora do repo e não dá pra saber
   daqui se `status` tem CHECK**: `/migrations/2026-09-09-leads-status-fixo
   .sql` é conferência (lista os CHECKs) + ALTER comentado; o portal traduz
-  o 23514 apontando pra esse arquivo. Não é pendência enquanto o erro não
-  aparecer.
+  o 23514 apontando pra esse arquivo. **CONFERIDO NO BANCO (2026-09-09):
+  a consulta de `pg_constraint` voltou ZERO linhas — `leads` não tem CHECK
+  nenhum.** O ALTER comentado não é pendência; o arquivo fica como
+  conferência.
 
 - **LEAD "CONTACTADO" SÓ COM CONFIRMAÇÃO DA META (2026-09-09, pedido do
   usuário). SQL `/migrations/2026-09-09-leads-abordagem-entrega.sql` —
