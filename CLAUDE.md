@@ -1,5 +1,50 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **PORTAL: TELA "USO DO APP" (2026-09-09, pedido do usuário: "dashboard
+  em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
+  venda, teve mais curtidas, convidou mais gente, pediu material na loja,
+  camisa, uso das IAs, fez orçamentos"). Portal v=20260909h. SQL
+  `/migrations/2026-09-09-ai-usage-feature-check.sql` — PENDENTE até o
+  usuário rodar (uma linha; conferência na
+  `2026-09-05-conferencia-pendencias.sql`). A tela funciona sem ele; só as
+  personas ficam sem contagem.**
+  - **Quem agrega é o SERVIDOR**: `POST /api/admin/stats` (edge, service
+    role, admin da allowlist, rate limit 30/min) → `lib/api/_services/
+    admin-stats.ts`. Motivo: `ai_usage`, `referrals` e `points` têm RLS
+    "cada um vê o seu" — consulta direta do portal mostraria só as linhas
+    do próprio admin e o ranking sairia vazio parecendo "ninguém usa" (é o
+    caso da aba Indicações, que lê `referrals` direto). `buscarTabela`
+    pagina pelo `Range` (PostgREST corta em 1000 mesmo com service role),
+    4 páginas em paralelo, teto de 40 mil linhas por tabela com aviso
+    `truncado`; tabela quebrada sai zerada e nomeada, não derruba o resto.
+    `montarRelatorio` é pura e testada (`__tests__/services/admin-stats
+    .test.ts`).
+  - **O que conta e de onde:** fotos/vídeos/à venda de `posts`
+    (`isVideoPost` replicado: extensão OU `media_type`); curtidas e
+    comentários RECEBIDOS pelo dono do post; seguidores de `follows`;
+    indicações = `referrals.referrer_id`; pedidos = `orders`, e **camiseta
+    = item do carrinho com id `shirt-…`** (é assim que o `ShirtCustomizer`
+    põe a camiseta no pedido — não existe tabela de camisetas); logos =
+    `brand_logos`; IA = `ai_usage` por `feature` (soma `cost_units`);
+    orçamentos feitos (`painter_id`) × pedidos (`client_id`); avaliações
+    recebidas (`reviews.painter_id`, denormalizado em 06/2026).
+  - **"Tempo de uso das IAs" não existe como dado**: a `ai_usage` registra
+    CHAMADAS, não minutos. A tela diz isso em vez de inventar uma conta.
+  - **AS PERSONAS NUNCA FORAM REGISTRADAS.** O CHECK original da
+    `ai_usage.feature` (Wave 7) lista 14 nomes, e as rotas de Alice/Fê/
+    Senna (+ `alice_tts`, `receipt_ocr`) gravam outros — o INSERT volta
+    23514 e `recordAiUsageViaRest` só faz `console.warn`. O SQL derruba o
+    CHECK (a lista de features passa a ser a do código); o histórico
+    anterior não tem como recuperar. A tela mostra o aviso enquanto nenhuma
+    persona aparecer no período. `__tests__/portalUsoDoApp.test.ts` varre
+    `app/api` e exige rótulo (`IA_FEATURE_ROTULOS`) pra toda feature
+    gravada — feature nova sem rótulo não passa.
+  - Tela: período (7/30/90/365 dias/tudo — perfis e seguidores não
+    dependem dele), KPIs, pódio top 5 por categoria (`CATEGORIAS_DE_USO`,
+    travado contra os rankings do serviço), IA por ferramenta, tabela por
+    pessoa ordenável (só quem fez algo, por padrão) e CSV. A aba Analytics
+    antiga continua.
+
 - **LEADS: A TELA CARREGA COM 61 MIL LINHAS (2026-09-09, relato do
   usuário: "creio que pq tem 60k+ leads, a pagina nao carrega"). Portal
   v=20260909g, SEM SQL.** Três causas empilhadas, as três corrigidas:

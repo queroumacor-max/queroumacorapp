@@ -14882,6 +14882,743 @@ const CardEdicaoPortal = ({
     }
   }, "Tirar do ar") : null) : null));
 };
+
+// ============================================================
+// USO DO APP (2026-09-09, pedido do usuario: "tela de estatistica/relatorio
+// mostrando dashboard em relacao ao uso do app: quem postou mais fotos,
+// videos, colocou a venda, teve mais curtidas, convidou mais gente, pediu
+// material na loja, camisa, uso das IAs, fez orcamentos").
+// Quem AGREGA e o servidor (`POST /api/admin/stats`, service role):
+// `ai_usage`, `referrals` e `points` tem RLS "cada um ve o seu", entao a
+// consulta direta daqui mostraria so as linhas do proprio admin. A tela so
+// desenha o que a rota devolve.
+// ============================================================
+// [teste:uso-inicio]
+// Nome que o operador entende pra cada `feature` de ai_usage. Feature nova
+// gravada por rota nova = linha nova aqui (o teste varre app/api).
+const IA_FEATURE_ROTULOS = {
+  alice: '🎨 Alice',
+  fe: '🧑‍🎨 Fê',
+  senna: '🏎️ Senna',
+  chat_ai: '👷 Seu Zé (chat)',
+  alice_tts: '🔊 Alice (voz)',
+  tts: '🔊 Voz (TTS)',
+  transcribe: '🎙️ Transcrição de áudio',
+  caption: '✍️ Legenda de post',
+  generate_logo: '🖼️ Gerar logo',
+  ig_art: '📸 Arte pra IG',
+  area_from_photo: '📐 Área pela foto',
+  pricing_suggest: '💰 Sugestão de preço',
+  fin_analysis: '📊 Análise financeira',
+  crm_draft: '📇 Texto do CRM',
+  agenda_order: '📅 Agenda',
+  resolve_color: '🎯 Achar cor',
+  receipt_ocr: '🧾 Ler nota fiscal',
+  moderate: '🛡️ Moderação (foto)',
+  moderate_video: '🛡️ Moderação (vídeo)'
+};
+const rotuloDeFeature = f => IA_FEATURE_ROTULOS[f] || f;
+// As personas gravam 'alice'/'fe'/'senna' — nomes FORA do CHECK original da
+// ai_usage. Sem o SQL de 2026-09-09 o INSERT delas falha em silencio.
+const IA_PERSONAS = ['alice', 'fe', 'senna'];
+// Categorias do podio: campo do relatorio + rotulo + como ler o numero.
+const CATEGORIAS_DE_USO = [{
+  campo: 'atividade',
+  icone: '🔥',
+  rotulo: 'Mais ativos',
+  unidade: 'pts',
+  dica: 'Pontuação que soma tudo abaixo (publicar, orçar e pedir valem mais que curtir).'
+}, {
+  campo: 'fotos',
+  icone: '📷',
+  rotulo: 'Mais fotos publicadas',
+  unidade: 'fotos'
+}, {
+  campo: 'videos',
+  icone: '🎬',
+  rotulo: 'Mais vídeos publicados',
+  unidade: 'vídeos'
+}, {
+  campo: 'venda',
+  icone: '🏷️',
+  rotulo: 'Mais itens à venda',
+  unidade: 'itens'
+}, {
+  campo: 'curtidas',
+  icone: '❤️',
+  rotulo: 'Mais curtidas recebidas',
+  unidade: 'curtidas'
+}, {
+  campo: 'comentarios',
+  icone: '💬',
+  rotulo: 'Mais comentários recebidos',
+  unidade: 'coment.'
+}, {
+  campo: 'seguidores',
+  icone: '👥',
+  rotulo: 'Mais seguidores',
+  unidade: 'seg.'
+}, {
+  campo: 'indicacoes',
+  icone: '🔗',
+  rotulo: 'Mais indicações',
+  unidade: 'convites',
+  dica: 'Cadastros que entraram pelo link de indicação da pessoa.'
+}, {
+  campo: 'pedidos',
+  icone: '🛒',
+  rotulo: 'Mais pedidos na loja',
+  unidade: 'pedidos'
+}, {
+  campo: 'camisetas',
+  icone: '👕',
+  rotulo: 'Mais camisetas pedidas',
+  unidade: 'pedidos',
+  dica: 'Pedidos da loja com a camiseta personalizada no carrinho.'
+}, {
+  campo: 'logos',
+  icone: '🖼️',
+  rotulo: 'Mais logos (Seu Zé/upload)',
+  unidade: 'logos'
+}, {
+  campo: 'ia',
+  icone: '🤖',
+  rotulo: 'Mais uso de IA',
+  unidade: 'chamadas',
+  dica: 'A tabela registra CHAMADAS, não minutos — é a medida de uso que existe.'
+}, {
+  campo: 'orcamentosFeitos',
+  icone: '🧾',
+  rotulo: 'Mais orçamentos feitos',
+  unidade: 'orç.',
+  dica: 'Como profissional (o pintor que montou o orçamento).'
+}, {
+  campo: 'orcamentosPedidos',
+  icone: '📩',
+  rotulo: 'Mais orçamentos pedidos',
+  unidade: 'orç.',
+  dica: 'Como cliente (quem pediu).'
+}, {
+  campo: 'avaliacoes',
+  icone: '⭐',
+  rotulo: 'Mais avaliações recebidas',
+  unidade: 'aval.'
+}];
+// Inicio do periodo escolhido, em ISO. 'tudo' = sem corte.
+const desdeDoPeriodo = (periodo, agora) => {
+  const dias = {
+    '7d': 7,
+    '30d': 30,
+    '90d': 90,
+    '365d': 365
+  }[periodo];
+  if (!dias) return null;
+  return new Date((agora || Date.now()) - dias * 86400000).toISOString();
+};
+const csvDoUso = pessoas => {
+  const cols = [['Nome', 'nome'], ['@tag', 'tag'], ['Papel', 'papel'], ['Cidade', 'cidade'], ['Fotos', 'fotos'], ['Vídeos', 'videos'], ['À venda', 'venda'], ['Curtidas recebidas', 'curtidas'], ['Comentários recebidos', 'comentarios'], ['Comentou', 'comentou'], ['Seguidores', 'seguidores'], ['Indicações', 'indicacoes'], ['Pedidos loja', 'pedidos'], ['Itens pedidos', 'itensPedidos'], ['Camisetas', 'camisetas'], ['Logos', 'logos'], ['Chamadas IA', 'ia'], ['Orçamentos feitos', 'orcamentosFeitos'], ['Orçamentos pedidos', 'orcamentosPedidos'], ['Avaliações', 'avaliacoes'], ['Nota média', 'notaMedia'], ['Última atividade', 'ultimaAtividade'], ['Atividade (pts)', 'atividade']];
+  const linhas = [cols.map(c => c[0])].concat(pessoas.map(p => cols.map(c => p[c[1]] == null ? '' : p[c[1]])));
+  return '\uFEFF' + linhas.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
+};
+// [teste:uso-fim]
+
+const PAPEL_ROTULOS = {
+  pintor: 'Pintor',
+  grafiteiro: 'Grafiteiro',
+  funileiro: 'Funileiro',
+  automotivo: 'Automotivo',
+  arquiteto: 'Arquiteto',
+  engenheiro: 'Engenheiro',
+  cliente: 'Cliente',
+  admin: 'Admin'
+};
+const UsoDoApp = () => {
+  const [periodo, setPeriodo] = useState('30d');
+  const [rel, setRel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [busca, setBusca] = useState('');
+  const [soAtivos, setSoAtivos] = useState(true);
+  const [ordem, setOrdem] = useState('atividade');
+  const [limite, setLimite] = useState(100);
+  const carregar = async per => {
+    setLoading(true);
+    setErro('');
+    try {
+      const {
+        data: {
+          session
+        }
+      } = await supa.auth.getSession();
+      if (!session) throw new Error('Sessão expirada. Entre novamente.');
+      const r = await fetch('/api/admin/stats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          accessToken: session.access_token,
+          desde: desdeDoPeriodo(per || periodo)
+        })
+      });
+      let j = {};
+      try {
+        j = await r.json();
+      } catch (_) {}
+      if (!r.ok || !j.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      setRel(j);
+    } catch (e) {
+      setErro(e && e.message ? e.message : String(e));
+    }
+    setLoading(false);
+  };
+  useEffect(() => {
+    carregar(periodo);
+  }, [periodo]);
+  const pessoas = React.useMemo(() => {
+    if (!rel) return [];
+    let out = rel.pessoas;
+    if (soAtivos) out = out.filter(p => p.atividade > 0);
+    if (busca.trim()) {
+      const q = busca.trim().toLowerCase();
+      out = out.filter(p => (p.nome || '').toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q) || (p.cidade || '').toLowerCase().includes(q));
+    }
+    const cmp = new Intl.Collator('pt-BR').compare;
+    return [...out].sort((a, b) => ordem === 'nome' ? cmp(a.nome, b.nome) : (Number(b[ordem]) || 0) - (Number(a[ordem]) || 0) || cmp(a.nome, b.nome));
+  }, [rel, soAtivos, busca, ordem]);
+  useEffect(() => {
+    setLimite(100);
+  }, [soAtivos, busca, ordem, rel]);
+  const semPersonas = rel && !rel.iaPorFeature.some(f => IA_PERSONAS.includes(f.feature));
+  const maxIa = rel && rel.iaPorFeature.length ? rel.iaPorFeature[0].chamadas : 1;
+  const exportar = () => {
+    const blob = new Blob([csvDoUso(pessoas)], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'uso_do_app_' + periodo + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const Pessoa = ({
+    p,
+    n,
+    unidade,
+    pos
+  }) => /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '5px 0',
+      borderBottom: '1px solid ' + C.border
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 20,
+      textAlign: 'center',
+      fontSize: pos < 3 ? 15 : 11,
+      color: C.muted
+    }
+  }, ['🥇', '🥈', '🥉'][pos] || pos + 1 + 'º'), p.avatar ? /*#__PURE__*/React.createElement("img", {
+    src: p.avatar,
+    alt: "",
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: '50%',
+      objectFit: 'cover'
+    }
+  }) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: '50%',
+      background: C.p1 + '22',
+      color: C.p1,
+      fontSize: 11,
+      fontWeight: 700,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }
+  }, (p.nome || '?').charAt(0).toUpperCase()), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: C.ink,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    }
+  }, p.nome), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    }
+  }, p.tag ? '@' + p.tag : '', p.papel ? (p.tag ? ' · ' : '') + (PAPEL_ROTULOS[p.papel] || p.papel) : '')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: C.ink,
+      whiteSpace: 'nowrap'
+    }
+  }, Number(n).toLocaleString('pt-BR'), " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      fontWeight: 500
+    }
+  }, unidade)));
+  const Th = ({
+    campo,
+    rot,
+    title
+  }) => /*#__PURE__*/React.createElement("th", {
+    onClick: () => setOrdem(campo),
+    title: title || 'Ordenar por ' + rot,
+    style: {
+      padding: '8px 8px',
+      fontSize: 10,
+      color: ordem === campo ? C.p1 : C.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      textAlign: campo === 'nome' ? 'left' : 'right',
+      userSelect: 'none'
+    }
+  }, rot, ordem === campo ? ' ▼' : '');
+  const colunas = [['fotos', 'Fotos'], ['videos', 'Vídeos'], ['venda', 'À venda'], ['curtidas', 'Curtidas'], ['comentarios', 'Coment.'], ['seguidores', 'Seg.'], ['indicacoes', 'Indic.'], ['pedidos', 'Pedidos'], ['camisetas', 'Camisetas'], ['logos', 'Logos'], ['ia', 'IA'], ['orcamentosFeitos', 'Orç. feitos'], ['orcamentosPedidos', 'Orç. pedidos'], ['avaliacoes', 'Aval.'], ['atividade', 'Pts']];
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 16,
+      color: C.ink
+    }
+  }, "\uD83D\uDCCA Uso do app"), /*#__PURE__*/React.createElement("select", {
+    value: periodo,
+    onChange: e => setPeriodo(e.target.value),
+    style: {
+      padding: '8px 10px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      background: C.white,
+      color: C.ink,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "7d"
+  }, "\xDAltimos 7 dias"), /*#__PURE__*/React.createElement("option", {
+    value: "30d"
+  }, "\xDAltimos 30 dias"), /*#__PURE__*/React.createElement("option", {
+    value: "90d"
+  }, "\xDAltimos 90 dias"), /*#__PURE__*/React.createElement("option", {
+    value: "365d"
+  }, "\xDAltimos 12 meses"), /*#__PURE__*/React.createElement("option", {
+    value: "tudo"
+  }, "Desde o in\xEDcio")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => carregar(),
+    disabled: loading,
+    style: {
+      padding: '8px 12px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      background: C.white,
+      color: C.ink,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\u21BB Atualizar"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportar,
+    disabled: !rel,
+    style: {
+      padding: '8px 12px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      background: C.white,
+      color: C.ink,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\u2B07 CSV"), rel ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, "gerado ", new Date(rel.geradoEm).toLocaleString(), " \xB7 perfis, seguidores e a base de contagem n\xE3o dependem do per\xEDodo; o resto conta s\xF3 o que aconteceu no per\xEDodo.") : null), erro ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 12,
+      background: '#fdecea',
+      border: '1px solid #f5c2c0',
+      borderRadius: 10,
+      color: '#b00020',
+      fontSize: 12,
+      marginBottom: 12
+    }
+  }, "N\xE3o consegui montar o relat\xF3rio: ", erro) : null, loading && !rel ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 20,
+      color: C.muted
+    }
+  }, "Contando o uso do app\u2026") : null, rel ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      opacity: loading ? 0.6 : 1
+    }
+  }, rel.truncado && rel.truncado.length ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 12px',
+      background: '#fff4e0',
+      border: '1px solid #f0b35a',
+      borderRadius: 10,
+      fontSize: 12,
+      color: '#7a4b00',
+      marginBottom: 12
+    }
+  }, "\u26A0 Parte dos dados ficou de fora: ", rel.truncado.join(', '), ". Os n\xFAmeros dessas tabelas est\xE3o incompletos.") : null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+      gap: 12,
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement(KPICard, {
+    title: "Pessoas ativas",
+    value: rel.totais.ativas.toLocaleString('pt-BR'),
+    sub: 'de ' + rel.totais.pessoas.toLocaleString('pt-BR') + ' perfis',
+    trend: "",
+    color: C.p3
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Fotos",
+    value: rel.totais.fotos.toLocaleString('pt-BR'),
+    sub: "publicadas",
+    trend: "",
+    color: C.p1
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "V\xEDdeos",
+    value: rel.totais.videos.toLocaleString('pt-BR'),
+    sub: "publicados",
+    trend: "",
+    color: C.p1
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "\xC0 venda",
+    value: rel.totais.venda.toLocaleString('pt-BR'),
+    sub: "itens marcados",
+    trend: "",
+    color: C.p7
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Curtidas",
+    value: rel.totais.curtidas.toLocaleString('pt-BR'),
+    sub: rel.totais.comentarios.toLocaleString('pt-BR') + ' comentários',
+    trend: "",
+    color: C.p5
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Indica\xE7\xF5es",
+    value: rel.totais.indicacoes.toLocaleString('pt-BR'),
+    sub: "cadastros indicados",
+    trend: "",
+    color: C.p6
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Pedidos loja",
+    value: rel.totais.pedidos.toLocaleString('pt-BR'),
+    sub: rel.totais.camisetas.toLocaleString('pt-BR') + ' com camiseta',
+    trend: "",
+    color: C.p6
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Chamadas de IA",
+    value: rel.totais.ia.toLocaleString('pt-BR'),
+    sub: rel.totais.logos.toLocaleString('pt-BR') + ' logos gerados',
+    trend: "",
+    color: C.p3
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Or\xE7amentos",
+    value: rel.totais.orcamentos.toLocaleString('pt-BR'),
+    sub: rel.totais.avaliacoes.toLocaleString('pt-BR') + ' avaliações',
+    trend: "",
+    color: C.p1
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+      gap: 14,
+      marginBottom: 20
+    }
+  }, CATEGORIAS_DE_USO.map(cat => {
+    const lista = rel.rankings[cat.campo] || [];
+    return /*#__PURE__*/React.createElement("div", {
+      key: cat.campo,
+      style: {
+        background: C.white,
+        borderRadius: 14,
+        padding: '12px 14px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 13,
+        color: C.ink,
+        marginBottom: 6,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6
+      },
+      title: cat.dica || ''
+    }, /*#__PURE__*/React.createElement("span", null, cat.icone), " ", cat.rotulo, cat.dica ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: C.muted,
+        fontWeight: 400
+      }
+    }, "\u24D8") : null), lista.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.muted,
+        padding: '6px 0'
+      }
+    }, "Ningu\xE9m no per\xEDodo.") : lista.slice(0, 5).map((p, i) => /*#__PURE__*/React.createElement(Pessoa, {
+      key: p.id,
+      p: p,
+      n: p.n,
+      unidade: cat.unidade,
+      pos: i
+    })));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      borderRadius: 14,
+      padding: '12px 14px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink,
+      marginBottom: 4
+    }
+  }, "\uD83E\uDD16 Uso das IAs por ferramenta"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginBottom: 10
+    }
+  }, "A tabela ", /*#__PURE__*/React.createElement("code", null, "ai_usage"), " registra ", /*#__PURE__*/React.createElement("b", null, "chamadas"), " (cada mensagem, legenda, transcri\xE7\xE3o\u2026), n\xE3o minutos \u2014 \xE9 a medida de uso que existe. \"Pessoas\" = quantas usaram pelo menos uma vez no per\xEDodo."), semPersonas ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 12px',
+      background: '#fff4e0',
+      border: '1px solid #f0b35a',
+      borderRadius: 10,
+      fontSize: 12,
+      color: '#7a4b00',
+      marginBottom: 10
+    }
+  }, "Alice, F\xEA e Senna n\xE3o aparecem. Se algu\xE9m usou elas no per\xEDodo, \xE9 o CHECK antigo da ", /*#__PURE__*/React.createElement("code", null, "ai_usage"), " recusando o registro em sil\xEAncio \u2014 rode ", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-ai-usage-feature-check.sql"), " no Supabase; a partir da\xED o uso das personas passa a contar (o que j\xE1 aconteceu antes n\xE3o tem como recuperar).") : null, rel.iaPorFeature.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "Nenhuma chamada de IA no per\xEDodo.") : null, rel.iaPorFeature.map(f => /*#__PURE__*/React.createElement("div", {
+    key: f.feature,
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 190,
+      fontSize: 12,
+      color: C.ink,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    },
+    title: f.feature
+  }, rotuloDeFeature(f.feature)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      background: C.border,
+      borderRadius: 4,
+      height: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: Math.max(2, Math.round(f.chamadas / maxIa * 100)) + '%',
+      background: C.p1,
+      height: 10,
+      borderRadius: 4
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 150,
+      fontSize: 12,
+      color: C.ink,
+      textAlign: 'right'
+    }
+  }, /*#__PURE__*/React.createElement("b", null, f.chamadas.toLocaleString('pt-BR')), " chamadas \xB7 ", f.pessoas, " ", f.pessoas === 1 ? 'pessoa' : 'pessoas')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      borderRadius: 14,
+      padding: '12px 14px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink
+    }
+  }, "\uD83D\uDC64 Por pessoa (", pessoas.length.toLocaleString('pt-BR'), ")"), /*#__PURE__*/React.createElement("input", {
+    value: busca,
+    onChange: e => setBusca(e.target.value),
+    placeholder: "Buscar nome, @tag ou cidade\u2026",
+    style: {
+      padding: '7px 10px',
+      borderRadius: 8,
+      border: '1px solid ' + C.border,
+      fontSize: 12,
+      minWidth: 220
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: soAtivos,
+    onChange: e => setSoAtivos(e.target.checked)
+  }), " s\xF3 quem fez algo no per\xEDodo"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, "clique no t\xEDtulo da coluna pra ordenar")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      borderBottom: '2px solid ' + C.border
+    }
+  }, /*#__PURE__*/React.createElement(Th, {
+    campo: "nome",
+    rot: "Nome"
+  }), colunas.map(([campo, rot]) => /*#__PURE__*/React.createElement(Th, {
+    key: campo,
+    campo: campo,
+    rot: rot
+  })), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '8px',
+      fontSize: 10,
+      color: C.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      whiteSpace: 'nowrap',
+      textAlign: 'right'
+    }
+  }, "\xDAltima atividade"))), /*#__PURE__*/React.createElement("tbody", null, pessoas.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: colunas.length + 2,
+    style: {
+      padding: '20px 8px',
+      color: C.muted,
+      textAlign: 'center'
+    }
+  }, "Ningu\xE9m bate com o filtro.")) : null, pessoas.slice(0, limite).map(p => /*#__PURE__*/React.createElement("tr", {
+    key: p.id,
+    style: {
+      borderBottom: '1px solid ' + C.border
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '7px 8px',
+      whiteSpace: 'nowrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600,
+      color: C.ink
+    }
+  }, p.nome), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted
+    }
+  }, p.tag ? '@' + p.tag : '', p.papel ? (p.tag ? ' · ' : '') + (PAPEL_ROTULOS[p.papel] || p.papel) : '', p.cidade ? ' · ' + p.cidade : '')), colunas.map(([campo]) => /*#__PURE__*/React.createElement("td", {
+    key: campo,
+    style: {
+      padding: '7px 8px',
+      textAlign: 'right',
+      color: p[campo] ? C.ink : C.border,
+      fontWeight: campo === 'atividade' ? 700 : 400
+    },
+    title: campo === 'ia' && p.iaPorFeature ? Object.entries(p.iaPorFeature).map(([f, n]) => rotuloDeFeature(f) + ': ' + n).join('\n') : campo === 'avaliacoes' && p.notaMedia != null ? 'nota média ' + p.notaMedia : ''
+  }, p[campo] ? Number(p[campo]).toLocaleString('pt-BR') : '–')), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '7px 8px',
+      textAlign: 'right',
+      color: C.muted,
+      whiteSpace: 'nowrap'
+    }
+  }, p.ultimaAtividade ? new Date(p.ultimaAtividade).toLocaleDateString() : '–')))))), pessoas.length > limite ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setLimite(l => l + 200),
+    style: {
+      padding: '6px 14px',
+      borderRadius: 8,
+      border: '1px solid ' + C.border,
+      background: C.white,
+      fontSize: 12,
+      cursor: 'pointer',
+      color: C.ink
+    }
+  }, "Mostrar mais (", (pessoas.length - limite).toLocaleString('pt-BR'), " restantes)")) : null)) : null);
+};
 const PAGES_DEF = [{
   id: 'dashboard',
   icon: '📊',
@@ -15030,6 +15767,12 @@ const PAGES_DEF = [{
   label: 'Moderação',
   section: 'PRINCIPAL',
   component: /*#__PURE__*/React.createElement(Moderacao, null)
+}, {
+  id: 'uso',
+  icon: '📊',
+  label: 'Uso do app',
+  section: 'DADOS',
+  component: /*#__PURE__*/React.createElement(UsoDoApp, null)
 }, {
   id: 'analytics',
   icon: '📈',
