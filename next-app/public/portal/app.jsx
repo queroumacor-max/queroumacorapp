@@ -44,7 +44,13 @@ const REFERRALS_STATUS_LABELS = { completed: 'Completa', pending: 'Pendente', ca
 const ORDERS_STATUS_COLORS = { pending: '#ffd166', processing: '#ff6b35', shipped: '#2ec4b6', completed: '#06d6a0', canceled: '#e63946', paid: '#06d6a0', amount_mismatch: '#e63946', refunded: '#8338ec' };
 const ORDERS_STATUS_LABELS = { pending: 'Aguardando', processing: 'Em andamento', shipped: 'Enviado', completed: 'Concluido', canceled: 'Cancelado', paid: 'Pago', amount_mismatch: 'Divergencia valor', refunded: 'Reembolsado' };
 
-const LEADS_STATUS_LABELS = { novo: 'Novo', contactado: 'Contactado', qualificado: 'Qualificado', convertido: 'Convertido', perdido: 'Perdido' };
+// 'fixo' (2026-09-09, pedido do usuario): telefone fixo, sem WhatsApp — a
+// abordagem por template nunca vai chegar (foi boa parte dos 90 "nao
+// entregue" do incidente). Nao e "perdido": o lead pode valer por outro
+// canal. Lead 'fixo' sai da selecao em lote; o botao Abordar unitario
+// segue, porque o numero pode ter WhatsApp Business mesmo sendo fixo.
+const LEADS_STATUS = ['novo','contactado','qualificado','convertido','perdido','fixo'];
+const LEADS_STATUS_LABELS = { novo: 'Novo', contactado: 'Contactado', qualificado: 'Qualificado', convertido: 'Convertido', perdido: 'Perdido', fixo: 'Fixo (sem WhatsApp)' };
 
 // ============================================================
 // Services CRUD — wrappers de supabase com erro via throw.
@@ -2656,7 +2662,7 @@ const ImportarPlanilhaModal = ({ open, onClose, onPronto, existingLeads }) => {
 const LEAD_SEG_COLORS = { AUTOMOTIVO: '#e63946', GRAFFITI: '#8338ec', RESIDENCIAL: '#ff6b35', COMERCIAL: '#2ec4b6' };
 const LEAD_SEG_ICONS = { AUTOMOTIVO: '🚗', GRAFFITI: '🎨', 'GRAFFITI/ARTE': '🎨', RESIDENCIAL: '🏠', COMERCIAL: '🏢' };
 const LEAD_CAT_ICONS = { 'Funilaria/Auto': '🚗', 'Graffiti/Arte': '🎨', 'Pintor': '🖌', 'Reformas': '🔧', 'Construtoras': '🏗', 'Imobiliárias': '🏢', 'Arquitetura': '✏', 'Materiais': '🧱', 'Condomínios': '🏘', 'Academias': '💪', 'Bares': '🍺', 'Limpeza': '🧹', 'Marmoraria': '💎', 'Engenharia': '📐' };
-const LEAD_STATUS_COLORS = { novo: C.p3, contactado: C.p7, qualificado: C.p6, convertido: C.p1, perdido: C.p4 };
+const LEAD_STATUS_COLORS = { novo: C.p3, contactado: C.p7, qualificado: C.p6, convertido: C.p1, perdido: C.p4, fixo: C.muted };
 
 // ══ ABORDAGEM DE LEAD POR WHATSAPP ═══════════════════════════════════════
 // Mensagem personalizada por SEGMENTO, com produtos do NOSSO catalogo.
@@ -4071,7 +4077,9 @@ const AbordagemModal = ({ lead, onClose, onSent }) => {
 const linhaDoLote = (l) => {
   const alvo = normalizeLeadPhone(l.phone);
   const valores = { 1: nomeCompleto(l.name) || '', 2: cidadeDoLead(l) || '', 3: ramoDoLead(l) || '' };
-  const motivo = l.opted_out_at ? 'pediu pra não receber' : !alvo ? 'sem número válido' : null;
+  const motivo = l.opted_out_at ? 'pediu pra não receber'
+    : l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)'
+    : !alvo ? 'sem número válido' : null;
   return { lead: l, alvo, valores, motivo };
 };
 
@@ -4364,7 +4372,15 @@ const Leads = () => {
     try {
       await leadsService.updateStatus(id, newStatus);
       fetchLeads();
-    } catch (e) { alert('Erro ao atualizar status: ' + (e.message || e)); }
+    } catch (e) {
+      // 23514 = CHECK em leads.status que nao conhece o valor novo. A tabela
+      // nasceu fora do repo, entao nao da pra saber daqui se ha CHECK; o
+      // erro diz o que rodar em vez de so "erro".
+      const msg = String((e && e.message) || e);
+      alert(/23514|check constraint/i.test(msg)
+        ? 'O banco recusou o status "' + newStatus + '": leads.status tem um CHECK sem esse valor. Rode /migrations/2026-09-09-leads-status-fixo.sql no Supabase e tente de novo.\n\n' + msg
+        : 'Erro ao atualizar status: ' + msg);
+    }
   };
 
   const statusColor = (s) => LEAD_STATUS_COLORS[s] || C.muted;
@@ -4437,7 +4453,7 @@ const Leads = () => {
 
   const statusCounts = React.useMemo(() => {
     const sc = { total: leads.length };
-    ['novo','contactado','qualificado','convertido','perdido'].forEach(s => {
+    LEADS_STATUS.forEach(s => {
       sc[s] = leads.filter(l => l.status === s).length;
     });
     return sc;
@@ -4468,7 +4484,7 @@ const Leads = () => {
 
   if (loading) return <div style={{ padding: 20, color: C.muted }}>Carregando leads...</div>;
 
-  const abordavel = (l) => !!l.phone && !l.opted_out_at && !!normalizeLeadPhone(l.phone);
+  const abordavel = (l) => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
   const abordaveisNaTela = filtered.filter(abordavel);
   const todosMarcados = abordaveisNaTela.length > 0 && abordaveisNaTela.every(l => sel.has(l.id));
   const alternarTodos = () => setSel(prev => {
@@ -4478,7 +4494,7 @@ const Leads = () => {
     return n;
   });
   const alternar = (id) => setSel(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; });
-  const selecionados = leads.filter(l => sel.has(l.id));
+  const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));
 
   const segIcons = LEAD_SEG_ICONS;
   const catIcons = LEAD_CAT_ICONS;
@@ -4510,11 +4526,7 @@ const Leads = () => {
           </div>
           <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)} style={{ padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, background:C.bg, color:C.ink, fontSize:12, outline:'none', cursor:'pointer' }}>
             <option value="Todos">Todos status</option>
-            <option value="Novo">Novo</option>
-            <option value="Contactado">Contactado</option>
-            <option value="Qualificado">Qualificado</option>
-            <option value="Convertido">Convertido</option>
-            <option value="Perdido">Perdido</option>
+            {LEADS_STATUS.map(k => <option key={k} value={k.charAt(0).toUpperCase()+k.slice(1)}>{LEADS_STATUS_LABELS[k]}</option>)}
           </select>
           {/* A ordenacao saiu daqui e foi pro cabecalho da tabela, onde a
               coluna esta. No lugar, o que faltava: sair de um filtro. */}
@@ -4574,15 +4586,15 @@ const Leads = () => {
             Sem ele o servidor nao consegue amarrar cada envio ao lead, e <strong>nenhum lead vira "contactado" sozinho</strong> — a confirmacao da Meta nao tem onde pousar.
           </div>
         ) : null}
-        {sel.size > 0 ? (
+        {selecionados.length > 0 ? (
           <div style={{ marginTop:12, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap',
             padding:'10px 12px', background:C.p1+'14', border:'1px solid '+C.p1, borderRadius:10 }}>
             <span style={{ fontSize:12, fontWeight:700, color:C.ink }}>
-              {sel.size} {sel.size === 1 ? 'lead selecionado' : 'leads selecionados'}
+              {selecionados.length} {selecionados.length === 1 ? 'lead selecionado' : 'leads selecionados'}
             </span>
             <button onClick={()=>setAbordarLote(selecionados)}
               style={{ background:'#25D366', color:'#fff', border:'none', borderRadius:8, padding:'7px 14px', cursor:'pointer', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>
-              💬 Abordar {sel.size} {sel.size === 1 ? 'selecionado' : 'selecionados'}
+              💬 Abordar {selecionados.length} {selecionados.length === 1 ? 'selecionado' : 'selecionados'}
             </button>
             <button onClick={()=>setSel(new Set())}
               style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, color:C.muted }}>
@@ -4638,7 +4650,7 @@ const Leads = () => {
               <ThLead rot="STATUS" campo="status" ativo={filtroStatus!=='Todos'} ctx={thCtx}>
                 <OpcoesFiltro valor={filtroStatus} onPick={setFiltroStatus} fechar={()=>setMenuCol(null)}
                   opcoes={[['Todos','Todos', statusCounts.total]].concat(
-                    ['novo','contactado','qualificado','convertido','perdido'].map(k =>
+                    LEADS_STATUS.map(k =>
                       [k.charAt(0).toUpperCase()+k.slice(1), LEADS_STATUS_LABELS[k], statusCounts[k]]))} />
               </ThLead>
               <ThLead rot="AÇÃO" ctx={thCtx} />
@@ -4658,7 +4670,7 @@ const Leads = () => {
                   <td style={{ padding:'12px 4px 12px 10px' }}>
                     <input type="checkbox" checked={sel.has(l.id)} onChange={()=>alternar(l.id)}
                       disabled={!abordavel(l)}
-                      title={abordavel(l) ? 'Marcar pra abordar em lote' : (l.opted_out_at ? 'Pediu pra não receber' : 'Sem telefone válido')}
+                      title={abordavel(l) ? 'Marcar pra abordar em lote' : (l.opted_out_at ? 'Pediu pra não receber' : l.status === 'fixo' ? 'Marcado como fixo (sem WhatsApp)' : 'Sem telefone válido')}
                       style={{ cursor: abordavel(l) ? 'pointer' : 'not-allowed', width:15, height:15 }} />
                   </td>
                   <td style={{ padding:'12px 10px' }}>
@@ -4692,11 +4704,7 @@ const Leads = () => {
                   </td>
                   <td style={{ padding:'12px 10px' }}>
                     <select value={l.status||'novo'} onChange={e=>updateStatus(l.id, e.target.value)} style={{ padding:'4px 8px', borderRadius:6, border:'1px solid '+C.border, background:C.bg, color:C.ink, fontSize:11, outline:'none', cursor:'pointer' }}>
-                      <option value="novo">Novo</option>
-                      <option value="contactado">Contactado</option>
-                      <option value="qualificado">Qualificado</option>
-                      <option value="convertido">Convertido</option>
-                      <option value="perdido">Perdido</option>
+                      {LEADS_STATUS.map(k => <option key={k} value={k}>{LEADS_STATUS_LABELS[k]}</option>)}
                     </select>
                     <AbordagemBadge lead={l} />
                   </td>

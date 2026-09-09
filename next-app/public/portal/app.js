@@ -105,12 +105,20 @@ const ORDERS_STATUS_LABELS = {
   amount_mismatch: 'Divergencia valor',
   refunded: 'Reembolsado'
 };
+
+// 'fixo' (2026-09-09, pedido do usuario): telefone fixo, sem WhatsApp — a
+// abordagem por template nunca vai chegar (foi boa parte dos 90 "nao
+// entregue" do incidente). Nao e "perdido": o lead pode valer por outro
+// canal. Lead 'fixo' sai da selecao em lote; o botao Abordar unitario
+// segue, porque o numero pode ter WhatsApp Business mesmo sendo fixo.
+const LEADS_STATUS = ['novo', 'contactado', 'qualificado', 'convertido', 'perdido', 'fixo'];
 const LEADS_STATUS_LABELS = {
   novo: 'Novo',
   contactado: 'Contactado',
   qualificado: 'Qualificado',
   convertido: 'Convertido',
-  perdido: 'Perdido'
+  perdido: 'Perdido',
+  fixo: 'Fixo (sem WhatsApp)'
 };
 
 // ============================================================
@@ -5653,7 +5661,8 @@ const LEAD_STATUS_COLORS = {
   contactado: C.p7,
   qualificado: C.p6,
   convertido: C.p1,
-  perdido: C.p4
+  perdido: C.p4,
+  fixo: C.muted
 };
 
 // ══ ABORDAGEM DE LEAD POR WHATSAPP ═══════════════════════════════════════
@@ -7741,7 +7750,7 @@ const linhaDoLote = l => {
     2: cidadeDoLead(l) || '',
     3: ramoDoLead(l) || ''
   };
-  const motivo = l.opted_out_at ? 'pediu pra não receber' : !alvo ? 'sem número válido' : null;
+  const motivo = l.opted_out_at ? 'pediu pra não receber' : l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)' : !alvo ? 'sem número válido' : null;
   return {
     lead: l,
     alvo,
@@ -8348,7 +8357,11 @@ const Leads = () => {
       await leadsService.updateStatus(id, newStatus);
       fetchLeads();
     } catch (e) {
-      alert('Erro ao atualizar status: ' + (e.message || e));
+      // 23514 = CHECK em leads.status que nao conhece o valor novo. A tabela
+      // nasceu fora do repo, entao nao da pra saber daqui se ha CHECK; o
+      // erro diz o que rodar em vez de so "erro".
+      const msg = String(e && e.message || e);
+      alert(/23514|check constraint/i.test(msg) ? 'O banco recusou o status "' + newStatus + '": leads.status tem um CHECK sem esse valor. Rode /migrations/2026-09-09-leads-status-fixo.sql no Supabase e tente de novo.\n\n' + msg : 'Erro ao atualizar status: ' + msg);
     }
   };
   const statusColor = s => LEAD_STATUS_COLORS[s] || C.muted;
@@ -8447,7 +8460,7 @@ const Leads = () => {
     const sc = {
       total: leads.length
     };
-    ['novo', 'contactado', 'qualificado', 'convertido', 'perdido'].forEach(s => {
+    LEADS_STATUS.forEach(s => {
       sc[s] = leads.filter(l => l.status === s).length;
     });
     return sc;
@@ -8490,7 +8503,7 @@ const Leads = () => {
       color: C.muted
     }
   }, "Carregando leads...");
-  const abordavel = l => !!l.phone && !l.opted_out_at && !!normalizeLeadPhone(l.phone);
+  const abordavel = l => !!l.phone && !l.opted_out_at && l.status !== 'fixo' && !!normalizeLeadPhone(l.phone);
   const abordaveisNaTela = filtered.filter(abordavel);
   const todosMarcados = abordaveisNaTela.length > 0 && abordaveisNaTela.every(l => sel.has(l.id));
   const alternarTodos = () => setSel(prev => {
@@ -8503,7 +8516,7 @@ const Leads = () => {
     if (n.has(id)) n.delete(id);else n.add(id);
     return n;
   });
-  const selecionados = leads.filter(l => sel.has(l.id));
+  const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));
   const segIcons = LEAD_SEG_ICONS;
   const catIcons = LEAD_CAT_ICONS;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -8636,17 +8649,10 @@ const Leads = () => {
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: "Todos"
-  }, "Todos status"), /*#__PURE__*/React.createElement("option", {
-    value: "Novo"
-  }, "Novo"), /*#__PURE__*/React.createElement("option", {
-    value: "Contactado"
-  }, "Contactado"), /*#__PURE__*/React.createElement("option", {
-    value: "Qualificado"
-  }, "Qualificado"), /*#__PURE__*/React.createElement("option", {
-    value: "Convertido"
-  }, "Convertido"), /*#__PURE__*/React.createElement("option", {
-    value: "Perdido"
-  }, "Perdido")), filtrosAtivos > 0 ? /*#__PURE__*/React.createElement("button", {
+  }, "Todos status"), LEADS_STATUS.map(k => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k.charAt(0).toUpperCase() + k.slice(1)
+  }, LEADS_STATUS_LABELS[k]))), filtrosAtivos > 0 ? /*#__PURE__*/React.createElement("button", {
     onClick: limparFiltros,
     title: "Voltar a ver todos os leads",
     style: {
@@ -8794,7 +8800,7 @@ const Leads = () => {
       color: '#7a4b00',
       lineHeight: 1.5
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "Falta rodar o SQL do status de entrega"), " (", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-leads-abordagem-entrega.sql"), "). Sem ele o servidor nao consegue amarrar cada envio ao lead, e ", /*#__PURE__*/React.createElement("strong", null, "nenhum lead vira \"contactado\" sozinho"), " \u2014 a confirmacao da Meta nao tem onde pousar.") : null, sel.size > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, "Falta rodar o SQL do status de entrega"), " (", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-leads-abordagem-entrega.sql"), "). Sem ele o servidor nao consegue amarrar cada envio ao lead, e ", /*#__PURE__*/React.createElement("strong", null, "nenhum lead vira \"contactado\" sozinho"), " \u2014 a confirmacao da Meta nao tem onde pousar.") : null, selecionados.length > 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12,
       display: 'flex',
@@ -8812,7 +8818,7 @@ const Leads = () => {
       fontWeight: 700,
       color: C.ink
     }
-  }, sel.size, " ", sel.size === 1 ? 'lead selecionado' : 'leads selecionados'), /*#__PURE__*/React.createElement("button", {
+  }, selecionados.length, " ", selecionados.length === 1 ? 'lead selecionado' : 'leads selecionados'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setAbordarLote(selecionados),
     style: {
       background: '#25D366',
@@ -8825,7 +8831,7 @@ const Leads = () => {
       fontWeight: 700,
       whiteSpace: 'nowrap'
     }
-  }, "\uD83D\uDCAC Abordar ", sel.size, " ", sel.size === 1 ? 'selecionado' : 'selecionados'), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDCAC Abordar ", selecionados.length, " ", selecionados.length === 1 ? 'selecionado' : 'selecionados'), /*#__PURE__*/React.createElement("button", {
     onClick: () => setSel(new Set()),
     style: {
       background: 'none',
@@ -8956,7 +8962,7 @@ const Leads = () => {
     valor: filtroStatus,
     onPick: setFiltroStatus,
     fechar: () => setMenuCol(null),
-    opcoes: [['Todos', 'Todos', statusCounts.total]].concat(['novo', 'contactado', 'qualificado', 'convertido', 'perdido'].map(k => [k.charAt(0).toUpperCase() + k.slice(1), LEADS_STATUS_LABELS[k], statusCounts[k]]))
+    opcoes: [['Todos', 'Todos', statusCounts.total]].concat(LEADS_STATUS.map(k => [k.charAt(0).toUpperCase() + k.slice(1), LEADS_STATUS_LABELS[k], statusCounts[k]]))
   })), /*#__PURE__*/React.createElement(ThLead, {
     rot: "A\xC7\xC3O",
     ctx: thCtx
@@ -8990,7 +8996,7 @@ const Leads = () => {
       checked: sel.has(l.id),
       onChange: () => alternar(l.id),
       disabled: !abordavel(l),
-      title: abordavel(l) ? 'Marcar pra abordar em lote' : l.opted_out_at ? 'Pediu pra não receber' : 'Sem telefone válido',
+      title: abordavel(l) ? 'Marcar pra abordar em lote' : l.opted_out_at ? 'Pediu pra não receber' : l.status === 'fixo' ? 'Marcado como fixo (sem WhatsApp)' : 'Sem telefone válido',
       style: {
         cursor: abordavel(l) ? 'pointer' : 'not-allowed',
         width: 15,
@@ -9114,17 +9120,10 @@ const Leads = () => {
         outline: 'none',
         cursor: 'pointer'
       }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: "novo"
-    }, "Novo"), /*#__PURE__*/React.createElement("option", {
-      value: "contactado"
-    }, "Contactado"), /*#__PURE__*/React.createElement("option", {
-      value: "qualificado"
-    }, "Qualificado"), /*#__PURE__*/React.createElement("option", {
-      value: "convertido"
-    }, "Convertido"), /*#__PURE__*/React.createElement("option", {
-      value: "perdido"
-    }, "Perdido")), /*#__PURE__*/React.createElement(AbordagemBadge, {
+    }, LEADS_STATUS.map(k => /*#__PURE__*/React.createElement("option", {
+      key: k,
+      value: k
+    }, LEADS_STATUS_LABELS[k]))), /*#__PURE__*/React.createElement(AbordagemBadge, {
       lead: l
     })), /*#__PURE__*/React.createElement("td", {
       style: {

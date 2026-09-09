@@ -103,3 +103,35 @@ describe('abordagemPendente (quando a lista se atualiza sozinha)', () => {
     expect(abordagemPendente({ abordagem_status: 'accepted' }, agora)).toBe(false);
   });
 });
+
+// ── Status 'fixo' (2026-09-09) ──────────────────────────────────────────────
+// Telefone fixo sem WhatsApp: a abordagem por template nunca chega. A lista
+// de status é UMA (`LEADS_STATUS`) e alimenta o select da linha, o filtro
+// do topo, o do cabeçalho e as contagens — status novo entra ali e em
+// nenhum outro lugar.
+describe("status 'fixo'", () => {
+  it('existe na lista única e tem rótulo', () => {
+    expect(fonte).toContain("const LEADS_STATUS = ['novo','contactado','qualificado','convertido','perdido','fixo'];");
+    expect(fonte).toContain("fixo: 'Fixo (sem WhatsApp)'");
+    // Nenhuma lista de status escrita à mão sobrou.
+    expect(fonte).not.toContain("['novo','contactado','qualificado','convertido','perdido']");
+    expect(fonte).not.toContain('<option value="perdido">Perdido</option>');
+  });
+  it('lead fixo sai da seleção em lote', () => {
+    expect(fonte).toContain("l.status !== 'fixo' && !!normalizeLeadPhone(l.phone)");
+  });
+});
+
+// Achado do review (2026-09-09): lead marcado no lote e DEPOIS mudado pra
+// 'fixo' continuava em `sel` e recebia o template. A seleção efetiva passa
+// por `abordavel` de novo, e o modal do lote rejeita 'fixo' sozinho.
+describe("lead 'fixo' não passa pelo lote nem por seleção antiga", () => {
+  it('a seleção efetiva reaplica abordavel e a barra conta por ela', () => {
+    expect(fonte).toContain('const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));');
+    expect(fonte).toContain('{selecionados.length > 0 ? (');
+    expect(fonte).not.toContain('{sel.size > 0 ? (');
+  });
+  it('o modal do lote rejeita fixo por conta própria', () => {
+    expect(fonte).toContain("l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)'");
+  });
+});
