@@ -72,3 +72,8 @@ SELECT 'leads.opted_out_at existe' AS item, EXISTS (SELECT 1 FROM information_sc
 -- whatsapp_ai_config.prompt (2026-09-08): sem ela o botao "Prompt da IA"
 -- do portal nao salva (a tela mostra o SQL) e a IA segue no padrao do codigo.
 SELECT 'whatsapp_ai_config.prompt existe' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='whatsapp_ai_config' AND column_name='prompt') AS ok;
+
+-- leads.abordagem_status (2026-09-09): sem ela nenhum lead vira "contactado"
+-- sozinho (a confirmacao da Meta nao tem onde pousar) e o portal mostra o
+-- aviso laranja na tela de Leads.
+SELECT 'leads.abordagem_status existe' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='leads' AND column_name='abordagem_status') AS ok;

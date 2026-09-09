@@ -614,6 +614,193 @@ export async function persistStatusEntrega(
   }
 }
 
+// ─── Abordagem de lead: o que a Meta confirmou, gravado NO LEAD ─────────────
+//
+// INCIDENTE (2026-09-09): uma leva de abordagens saiu do portal, a API
+// aceitou todas (200 com wamid), o portal marcou cada lead como
+// `contactado` — e minutos depois a Meta devolveu `failed` 131026 (Message
+// undeliverable) pra boa parte delas. A tela de Leads dizia "contactado" pra
+// gente que nunca recebeu nada, e não havia como separar quem recebeu de
+// quem deu erro sem abrir conversa por conversa.
+//
+// A causa: "a API aceitou" e "a mensagem chegou" são momentos diferentes, e
+// o portal tratava o primeiro como o segundo. A confirmação de verdade é o
+// aviso de status que a Meta manda DEPOIS, no webhook (sent/delivered/read/
+// failed) — e esse aviso pousava só em `whatsapp_messages`, longe do lead.
+//
+// Agora o lead carrega a própria abordagem:
+//   abordagem_message_id  wamid do último envio (é por ele que o status acha o lead)
+//   abordagem_status      'accepted' (API aceitou, sem confirmação ainda) |
+//                         'sent' | 'delivered' | 'read' | 'failed'
+//   abordagem_error       motivo da Meta, só em 'failed'
+//   abordagem_at          quando o último status chegou
+//
+// E `leads.status` só vira `contactado` quando a Meta confirma (sent ou
+// melhor); `failed` que chega depois desfaz o `contactado`. Quem escreve é
+// o SERVIDOR (rota de envio + webhook), não o portal: o webhook precisa
+// achar o lead pelo wamid, e o wamid só existe depois do envio.
+//
+// Tudo best-effort e TOLERANTE À COLUNA AUSENTE (mesma regra de
+// `persistStatusEntrega`): se o SQL de 2026-09-09 ainda não rodou, o PATCH
+// volta 42703/400, a função devolve false e o envio segue funcionando —
+// só sem o vínculo. Recurso novo não derruba o que já funciona.
+
+export type StatusDeAbordagem = 'accepted' | StatusEntrega;
+
+/** Ordem dos status do lead: só andamos pra frente (`failed` é desfecho). */
+const PESO_ABORDAGEM: Record<StatusDeAbordagem, number> = {
+  accepted: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 4,
+};
+
+/**
+ * Filtro PostgREST que deixa passar só a linha cujo status atual é MENOR
+ * que `novo` (ou nulo). Serve pra um `sent` atrasado não desfazer um
+ * `delivered` — a Meta entrega fora de ordem e reenvia.
+ */
+export function filtroSoAvanca(novo: StatusDeAbordagem): string {
+  const maiores = (Object.keys(PESO_ABORDAGEM) as StatusDeAbordagem[]).filter(
+    (s) => PESO_ABORDAGEM[s] >= PESO_ABORDAGEM[novo]
+  );
+  return `or=(abordagem_status.is.null,abordagem_status.not.in.(${maiores.join(',')}))`;
+}
+
+function cabecalhosServiceRole(serviceKey: string, prefer: string) {
+  return {
+    apikey: serviceKey,
+    Authorization: `Bearer ${serviceKey}`,
+    'Content-Type': 'application/json',
+    Prefer: prefer,
+  };
+}
+
+/**
+ * Rota de envio: amarra o wamid ao lead assim que a API aceita. Sem isto o
+ * status que chega no webhook não tem como saber de qual lead é.
+ *
+ * NÃO mexe em `leads.status`: aceito pela API ainda não é contato — foi
+ * exatamente essa confusão que gerou o incidente.
+ */
+export async function vincularAbordagemAoLead(input: {
+  leadId: string;
+  messageId: string;
+}): Promise<boolean> {
+  try {
+    const url = getSupabaseUrl();
+    const serviceKey = getServiceKey();
+    if (!url || !serviceKey || !input.leadId || !input.messageId) return false;
+    const res = await fetch(
+      `${url.replace(/\/$/, '')}/rest/v1/leads?id=eq.${encodeURIComponent(input.leadId)}`,
+      {
+        method: 'PATCH',
+        headers: cabecalhosServiceRole(serviceKey, 'return=minimal'),
+        body: JSON.stringify({
+          abordagem_message_id: input.messageId,
+          abordagem_status: 'accepted',
+          abordagem_error: null,
+          abordagem_at: new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(PERSIST_TIMEOUT_MS),
+      }
+    );
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => '');
+      console.warn(
+        `[whatsapp-lead] vínculo falhou (${res.status}) lead=${input.leadId}: ${corpo.slice(0, 200)}`
+      );
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export type ResultadoStatusDoLead =
+  | 'sem-lead'
+  | 'atualizado'
+  | 'contactado'
+  | 'desfeito'
+  | 'falhou';
+
+/**
+ * Webhook: leva o aviso de entrega até o lead dono do wamid e decide o
+ * funil.
+ *
+ *   sent/delivered/read  → grava o status; lead `novo` vira `contactado`.
+ *   failed               → grava status + motivo; lead `contactado` VOLTA a
+ *                          `novo` (ele nunca recebeu). Qualificado/convertido
+ *                          /perdido não são tocados — são decisão de gente.
+ *
+ * Devolve 'sem-lead' quando nenhuma linha tem esse wamid: mensagem que não
+ * era abordagem de lead (aba WhatsApp, IA, follow-up), ou o vínculo da rota
+ * de envio ainda não pousou — o chamador pode tentar de novo.
+ */
+export async function persistStatusDoLead(
+  st: AtualizacaoDeStatus
+): Promise<ResultadoStatusDoLead> {
+  try {
+    const url = getSupabaseUrl();
+    const serviceKey = getServiceKey();
+    if (!url || !serviceKey || !st.messageId) return 'falhou';
+    const base = `${url.replace(/\/$/, '')}/rest/v1/leads`;
+
+    let quando: string | null = null;
+    if (st.timestamp && /^\d+$/.test(st.timestamp)) {
+      const d = new Date(Number(st.timestamp) * 1000);
+      if (!Number.isNaN(d.getTime())) quando = d.toISOString();
+    }
+
+    const res = await fetch(
+      `${base}?abordagem_message_id=eq.${encodeURIComponent(st.messageId)}` +
+        `&${filtroSoAvanca(st.status)}&select=id,status`,
+      {
+        method: 'PATCH',
+        headers: cabecalhosServiceRole(serviceKey, 'return=representation'),
+        body: JSON.stringify({
+          abordagem_status: st.status,
+          abordagem_error: st.status === 'failed' ? st.erro || 'falha sem detalhe' : null,
+          abordagem_at: quando || new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(PERSIST_TIMEOUT_MS),
+      }
+    );
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => '');
+      console.warn(
+        `[whatsapp-lead] status falhou (${res.status}) msg=${st.messageId}: ${corpo.slice(0, 200)}`
+      );
+      return 'falhou';
+    }
+    const linhas = (await res.json().catch(() => [])) as Array<{ id: string; status: string | null }>;
+    if (!Array.isArray(linhas) || linhas.length === 0) return 'sem-lead';
+
+    // Só o funil muda com condição: `status=eq.` no filtro garante que um
+    // operador que já moveu o lead pra qualificado não é atropelado.
+    const de = st.status === 'failed' ? 'contactado' : 'novo';
+    const para = st.status === 'failed' ? 'novo' : 'contactado';
+    const alvo = linhas.find((l) => (l.status || 'novo') === de);
+    if (!alvo) return 'atualizado';
+    const flip = await fetch(
+      `${base}?id=eq.${encodeURIComponent(alvo.id)}` +
+        (de === 'novo' ? `&or=(status.is.null,status.eq.novo)` : `&status=eq.${de}`),
+      {
+        method: 'PATCH',
+        headers: cabecalhosServiceRole(serviceKey, 'return=minimal'),
+        body: JSON.stringify({ status: para }),
+        signal: AbortSignal.timeout(PERSIST_TIMEOUT_MS),
+      }
+    );
+    if (!flip.ok) return 'atualizado';
+    return para === 'contactado' ? 'contactado' : 'desfeito';
+  } catch {
+    return 'falhou';
+  }
+}
+
 // ─── Webhook: verificação de assinatura ─────────────────────────────────────
 
 /**

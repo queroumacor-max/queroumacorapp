@@ -1,5 +1,57 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LEAD "CONTACTADO" SÓ COM CONFIRMAÇÃO DA META (2026-09-09, pedido do
+  usuário). SQL `/migrations/2026-09-09-leads-abordagem-entrega.sql` —
+  PENDENTE até o usuário rodar (uma instrução por vez); linha na
+  `2026-09-05-conferencia-pendencias.sql`. O código TOLERA a coluna ausente
+  e a tela de Leads mostra o aviso enquanto o SQL não roda.**
+  - **O INCIDENTE:** uma leva de abordagens saiu do portal, a API aceitou
+    todas (200 + wamid), `enviarTemplateDaLoja` marcou cada lead como
+    `contactado` — e minutos depois a Meta devolveu `failed` 131026 (Message
+    undeliverable) pra boa parte. O `failed` pousava só em
+    `whatsapp_messages` (Wave 58); a tela de Leads seguia dizendo
+    "contactado" pra quem nunca recebeu nada. **"A API aceitou" e "a
+    mensagem chegou" são momentos diferentes** — o portal tratava o primeiro
+    como o segundo.
+  - **Agora o lead carrega a própria abordagem:** `abordagem_message_id`
+    (wamid), `abordagem_status` ('accepted' | 'sent' | 'delivered' | 'read'
+    | 'failed'), `abordagem_error`, `abordagem_at`. Quem escreve é o
+    SERVIDOR: a rota `/api/whatsapp/send` recebe `leadId` (portal manda nos
+    três caminhos: unitário, lote e aba WhatsApp quando o número casa com
+    um lead) e grava wamid + 'accepted' (`vincularAbordagemAoLead`) SEM
+    tocar em `status`; o webhook (`persistStatusDoLead`, chamado depois de
+    `persistStatusEntrega`) acha o lead pelo wamid, grava o status e decide
+    o funil: sent/delivered/read → `novo` vira `contactado`; `failed` →
+    `contactado` VOLTA a `novo` com o motivo. Qualificado/convertido/perdido
+    nunca são tocados. O status só anda pra frente (`filtroSoAvanca` no
+    PATCH — a Meta entrega fora de ordem).
+  - **Corrida conhecida e tratada:** o `sent` pode chegar antes de a rota
+    terminar a escrituração (o vínculo é gravado em paralelo com a
+    resposta). O webhook tenta o lead de novo uma vez após 1,5s
+    (`ESPERA_VINCULO_MS`); sem isso o lead ficaria `novo` pra sempre com a
+    mensagem entregue.
+  - **O portal só grava sozinho a RECUSA da API** (401/422/400: não há
+    wamid nem webhook) como `abordagem_status='failed'` com o motivo.
+  - **Portal (v=20260909a):** badge embaixo do select de status (⏳
+    aguardando / ✓ enviada / ✓✓ entregue / ✓✓ lida / ⚠ não entregue +
+    "131026 · Message undeliverable"), select **"Entrega"** ao lado de
+    Categoria (Não entregue / Entregue / Enviada / Aguardando / Sem
+    abordagem, com contagem), CSV com as três colunas, e a lista se
+    atualiza sozinha a cada 20s enquanto houver `accepted` com menos de 15
+    min (`abordagemPendente`). O lote diz "N aceitos pela API" em vez de
+    "enviados". Helpers puros entre `[teste:abordagem-inicio]`/`-fim`,
+    testados em `__tests__/portalAbordagemEntrega.test.ts` (que também
+    proíbe o portal voltar a escrever `status:'contactado'` no envio).
+  - **O SQL faz o BACKFILL do incidente:** a última mensagem que o PORTAL
+    mandou pra cada telefone (8 últimos dígitos) vira a abordagem do lead
+    (sem status gravado = 'accepted'), e `contactado` + `failed` volta pra
+    `novo`. A consulta no fim do arquivo mostra a contagem por
+    status × entrega. Quem está `contactado` sem confirmação nenhuma fica
+    como está, marcado "⏳ aguardando" — não dá pra afirmar nem que chegou
+    nem que falhou.
+  - **REGRA: escrita de funil que depende de entrega externa é do
+    servidor, no evento de confirmação — nunca do cliente, na aceitação.**
+
 - **IA DO WHATSAPP: prompt EDITÁVEL no portal + não fala do QueroUmaCor +
   entende a abordagem (2026-09-08, três pedidos do usuário). SQL
   `/migrations/2026-09-08-whatsapp-ai-prompt.sql` (uma linha:

@@ -6877,10 +6877,149 @@ const EnvioDeTemplate = ({
   })));
 };
 
+// ── Abordagem: o que a Meta confirmou, gravado no LEAD (2026-09-09) ──────
+// INCIDENTE: uma leva de abordagens saiu, a API aceitou todas, o portal
+// marcou cada lead como `contactado` — e minutos depois a Meta devolveu
+// `failed` 131026 (Message undeliverable) pra boa parte. A tela de Leads
+// dizia "contactado" pra quem nunca recebeu nada.
+//
+// "A API aceitou" e "a mensagem chegou" sao momentos diferentes. A
+// confirmacao de verdade e o aviso de status do webhook (sent/delivered/
+// read/failed), que chega DEPOIS — e quem escreve `contactado` agora e o
+// SERVIDOR, quando esse aviso chega (persistStatusDoLead). O portal so
+// manda o `leadId` pra rota amarrar o wamid ao lead, e mostra o que o lead
+// carrega: abordagem_status ('accepted' | 'sent' | 'delivered' | 'read' |
+// 'failed'), abordagem_error e abordagem_at.
+//
+// [teste:abordagem-inicio]
+const ABORDAGEM_ROTULOS = {
+  accepted: {
+    rotulo: '⏳ aguardando confirmação',
+    cor: '#b8860b',
+    titulo: 'A API aceitou a mensagem; a Meta ainda não confirmou o envio. Se ficar assim por muito tempo, o aviso pode ter se perdido — confira a conversa.'
+  },
+  sent: {
+    rotulo: '✓ enviada',
+    cor: '#2e7d32',
+    titulo: 'A Meta confirmou o envio (ainda não entregue no aparelho).'
+  },
+  delivered: {
+    rotulo: '✓✓ entregue',
+    cor: '#2e7d32',
+    titulo: 'Entregue no aparelho da pessoa.'
+  },
+  read: {
+    rotulo: '✓✓ lida',
+    cor: '#1565c0',
+    titulo: 'A pessoa abriu a mensagem.'
+  },
+  failed: {
+    rotulo: '⚠ não entregue',
+    cor: '#b3261e',
+    titulo: 'A Meta não conseguiu entregar. O motivo está ao lado.'
+  }
+};
+// Grupos do filtro "Entrega" da tela de Leads. Uma chave por resposta que a
+// loja quer: "quem deu erro?", "quem recebeu?", "quem esta pendurado?".
+const ABORDAGEM_GRUPOS = {
+  Todas: () => true,
+  falhou: l => l.abordagem_status === 'failed',
+  entregue: l => l.abordagem_status === 'delivered' || l.abordagem_status === 'read',
+  enviada: l => l.abordagem_status === 'sent' || l.abordagem_status === 'delivered' || l.abordagem_status === 'read',
+  aguardando: l => l.abordagem_status === 'accepted',
+  semAbordagem: l => !l.abordagem_status
+};
+const ABORDAGEM_GRUPO_ROTULOS = {
+  Todas: 'Qualquer entrega',
+  falhou: '⚠ Não entregue',
+  entregue: '✓✓ Entregue/lida',
+  enviada: '✓ Enviada (ou melhor)',
+  aguardando: '⏳ Aguardando confirmação',
+  semAbordagem: 'Sem abordagem'
+};
+// Descreve a abordagem de um lead pra tela: null quando nunca foi abordado
+// (ou o SQL ainda nao rodou — a coluna nem vem). O erro da Meta entra
+// resumido (codigo · titulo) na propria linha, porque e a unica informacao
+// acionavel; o texto inteiro fica no title.
+const descreverAbordagem = l => {
+  const st = l && l.abordagem_status;
+  const base = ABORDAGEM_ROTULOS[st];
+  if (!base) return null;
+  const erro = st === 'failed' ? String(l.abordagem_error || '').trim() : '';
+  // "131026 · Message undeliverable · Message Undeliverable." -> so as
+  // duas primeiras partes; a terceira costuma repetir a segunda.
+  const partes = erro.split(' · ').map(x => x.trim()).filter(Boolean);
+  const resumo = partes.length > 1 && partes[1].toLowerCase() === (partes[2] || '').replace(/\.$/, '').toLowerCase() ? partes.slice(0, 2).join(' · ') : partes.slice(0, 3).join(' · ');
+  let quando = '';
+  if (l.abordagem_at) {
+    const d = new Date(l.abordagem_at);
+    if (!isNaN(d)) quando = d.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+  return {
+    status: st,
+    rotulo: base.rotulo,
+    cor: base.cor,
+    erro: resumo || (st === 'failed' ? 'a Meta não detalhou' : ''),
+    titulo: base.titulo + (erro ? '\n' + erro : '') + (quando ? '\n' + quando : ''),
+    quando
+  };
+};
+// Aceito ha pouco e sem confirmacao = a tela ainda pode mudar sozinha;
+// e o que decide se a lista de Leads fica se atualizando.
+const ABORDAGEM_JANELA_PENDENTE_MS = 15 * 60 * 1000;
+const abordagemPendente = (l, agora) => {
+  if (!l || l.abordagem_status !== 'accepted' || !l.abordagem_at) return false;
+  const t = new Date(l.abordagem_at).getTime();
+  return !isNaN(t) && agora - t < ABORDAGEM_JANELA_PENDENTE_MS;
+};
+// [teste:abordagem-fim]
+
+const AbordagemBadge = ({
+  lead
+}) => {
+  const d = descreverAbordagem(lead);
+  if (!d) return null;
+  return /*#__PURE__*/React.createElement("div", {
+    title: d.titulo,
+    style: {
+      fontSize: 10.5,
+      marginTop: 4,
+      color: d.cor,
+      lineHeight: 1.3,
+      maxWidth: 150
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      whiteSpace: 'nowrap'
+    }
+  }, d.rotulo), d.erro ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: d.cor,
+      opacity: .9,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }
+  }, d.erro) : null);
+};
+
 // Envio de UM template pelo numero da loja. Compartilhado pelo modal
-// unitario e pelo lote — devolve { ok:true } ou { ok:false, erro }, nunca
-// lanca. Enviou -> marca o lead como contactado (best-effort: a mensagem
-// ja saiu, e falhar o UPDATE nao pode virar "falhou o envio" na tela).
+// unitario e pelo lote — devolve { ok:true, messageId } ou { ok:false,
+// erro }, nunca lanca.
+//
+// NAO marca o lead como contactado (2026-09-09). Marcava — e foi o
+// incidente: "a API aceitou" virava "contactado" na tela, e o `failed`
+// que a Meta manda depois nao desfazia nada. Agora a rota recebe o
+// `leadId`, amarra o wamid ao lead, e o webhook decide o funil quando a
+// confirmacao chega. O que o portal grava sozinho e so a RECUSA da API
+// (401/422/400…): ai nao existe wamid nem webhook, e o lead precisa mostrar
+// que a tentativa falhou.
 const enviarTemplateDaLoja = async ({
   alvo,
   pacote,
@@ -6915,7 +7054,8 @@ const enviarTemplateDaLoja = async ({
         template: pacote.template,
         languageCode: pacote.idioma,
         components: pacote.components,
-        body: pacote.registro
+        body: pacote.registro,
+        leadId: leadId || undefined
       })
     });
   } catch (_) {
@@ -6934,20 +7074,27 @@ const enviarTemplateDaLoja = async ({
   } catch (_) {}
   if (!r.ok || !res.ok) {
     const snippet = res.error ? '' : (raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+    const erro = res.error || 'Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')';
+    if (leadId) {
+      // Recusa da API: fica registrada no lead, com o motivo. Best-effort
+      // e tolerante a coluna ausente — o erro que importa e o do envio.
+      try {
+        await supa.from('leads').update({
+          abordagem_status: 'failed',
+          abordagem_error: String(erro).slice(0, 300),
+          abordagem_at: new Date().toISOString(),
+          abordagem_message_id: null
+        }).eq('id', leadId);
+      } catch (_) {}
+    }
     return {
       ok: false,
-      erro: res.error || 'Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')'
+      erro
     };
   }
-  if (leadId) {
-    try {
-      await supa.from('leads').update({
-        status: 'contactado'
-      }).eq('id', leadId);
-    } catch (_) {}
-  }
   return {
-    ok: true
+    ok: true,
+    messageId: res.messageId || null
   };
 };
 
@@ -7693,7 +7840,7 @@ const AbordagemLoteModal = ({
         color: C.p6,
         fontWeight: 800
       },
-      title: "enviado"
+      title: "aceito pela API \u2014 a confirmacao da Meta chega na tabela de Leads"
     }, "\u2713");
     if (e && e.fase === 'erro') return /*#__PURE__*/React.createElement("span", {
       style: {
@@ -7913,7 +8060,7 @@ const AbordagemLoteModal = ({
       fontSize: 11,
       color: C.muted
     }
-  }, rodando ? 'Enviando… ' : '', enviados + falhas > 0 ? enviados + ' enviado' + (enviados === 1 ? '' : 's') + (falhas ? ' · ' + falhas + ' com falha' : '') : 'Envia pelo número oficial da loja · um por vez'), /*#__PURE__*/React.createElement("div", {
+  }, rodando ? 'Enviando… ' : '', enviados + falhas > 0 ? enviados + ' aceito' + (enviados === 1 ? '' : 's') + ' pela API' + (falhas ? ' · ' + falhas + ' com falha' : '') + ' · a confirmação de entrega aparece na coluna Status' : 'Envia pelo número oficial da loja · um por vez · "contactado" só depois que a Meta confirmar'), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: 8
@@ -8123,6 +8270,9 @@ const Leads = () => {
   const [fPrio, setFPrio] = useState('Todas');
   const [fRating, setFRating] = useState(0);
   const [fCidade, setFCidade] = useState('Todas');
+  // Filtro "Entrega" (2026-09-09): responde "quem deu erro / quem recebeu"
+  // pelo status que a Meta confirmou (abordagem_status), nao pelo funil.
+  const [fEntrega, setFEntrega] = useState('Todas');
   const [importOpen, setImportOpen] = useState(false);
   const [abordar, setAbordar] = useState(null); // lead da janela de abordagem
   // SELECAO MULTIPLA (2026-09-08): ids marcados na tabela pra abordar em
@@ -8166,6 +8316,33 @@ const Leads = () => {
   useEffect(() => {
     fetchLeads();
   }, []);
+
+  // Enquanto houver abordagem aceita e ainda sem confirmacao da Meta, a
+  // lista se atualiza sozinha: o `sent`/`failed` chega pelo webhook segundos
+  // (ou minutos) depois do envio, e e o SERVIDOR que muda o status. Sem isto
+  // o operador fecharia o modal vendo "aguardando" e so descobriria o
+  // resultado recarregando a pagina.
+  const temPendente = React.useMemo(() => {
+    const agora = Date.now();
+    return leads.some(l => abordagemPendente(l, agora));
+  }, [leads]);
+  useEffect(() => {
+    if (!temPendente) return;
+    const t = setInterval(fetchLeads, 20000);
+    return () => clearInterval(t);
+  }, [temPendente]);
+  // A coluna nao veio no select('*') = o SQL de 2026-09-09 ainda nao rodou.
+  // Sem ela o servidor nao consegue amarrar o envio ao lead, e NENHUM lead
+  // vira contactado sozinho — a tela avisa em vez de parecer que a Meta
+  // nunca confirma nada.
+  const semColunaAbordagem = leads.length > 0 && !('abordagem_status' in leads[0]);
+  const contagemEntrega = React.useMemo(() => {
+    const c = {};
+    Object.keys(ABORDAGEM_GRUPOS).forEach(k => {
+      c[k] = leads.filter(ABORDAGEM_GRUPOS[k]).length;
+    });
+    return c;
+  }, [leads]);
   const updateStatus = async (id, newStatus) => {
     try {
       await leadsService.updateStatus(id, newStatus);
@@ -8200,6 +8377,7 @@ const Leads = () => {
     if (fPrio !== 'Todas') out = out.filter(l => (l.priority || 'media') === fPrio);
     if (fRating > 0) out = out.filter(l => Number(l.rating || 0) >= fRating);
     if (fCidade !== 'Todas') out = out.filter(l => (l.city || '—') === fCidade);
+    if (fEntrega !== 'Todas' && ABORDAGEM_GRUPOS[fEntrega]) out = out.filter(ABORDAGEM_GRUPOS[fEntrega]);
 
     // Ordenacao: numero compara como numero, o resto como texto (pt-BR).
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -8209,7 +8387,7 @@ const Leads = () => {
       return String(a[sortCol] || '').localeCompare(String(b[sortCol] || ''), 'pt-BR') * dir;
     });
     return out;
-  }, [leads, busca, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade]);
+  }, [leads, busca, filtroStatus, filtroSegmento, filtroCategoria, sortCol, sortDir, fNome, fTel, fPrio, fRating, fCidade, fEntrega]);
   const cidades = React.useMemo(() => {
     const c = {};
     leads.forEach(l => {
@@ -8218,7 +8396,7 @@ const Leads = () => {
     });
     return c;
   }, [leads]);
-  const filtrosAtivos = (busca ? 1 : 0) + (filtroStatus !== 'Todos' ? 1 : 0) + (filtroSegmento !== 'TODOS' ? 1 : 0) + (filtroCategoria !== 'Todas' ? 1 : 0) + (fNome ? 1 : 0) + (fTel ? 1 : 0) + (fPrio !== 'Todas' ? 1 : 0) + (fRating > 0 ? 1 : 0) + (fCidade !== 'Todas' ? 1 : 0);
+  const filtrosAtivos = (busca ? 1 : 0) + (filtroStatus !== 'Todos' ? 1 : 0) + (filtroSegmento !== 'TODOS' ? 1 : 0) + (filtroCategoria !== 'Todas' ? 1 : 0) + (fNome ? 1 : 0) + (fTel ? 1 : 0) + (fPrio !== 'Todas' ? 1 : 0) + (fRating > 0 ? 1 : 0) + (fCidade !== 'Todas' ? 1 : 0) + (fEntrega !== 'Todas' ? 1 : 0);
   // Clique no titulo ordena; clique de novo inverte. Coluna nova comeca
   // decrescente quando e numero (nota/avaliacoes) e crescente em texto.
   const ordenarPor = campo => {
@@ -8244,6 +8422,7 @@ const Leads = () => {
     setFPrio('Todas');
     setFRating(0);
     setFCidade('Todas');
+    setFEntrega('Todas');
     setMenuCol(null);
   };
 
@@ -8276,8 +8455,11 @@ const Leads = () => {
   const sortedSegments = React.useMemo(() => Object.entries(segments).sort((a, b) => b[1] - a[1]), [segments]);
   const sortedCategories = React.useMemo(() => Object.entries(categories).sort((a, b) => b[1] - a[1]), [categories]);
   const exportCSV = () => {
-    const header = ['#', 'Nome', 'Cidade', 'Bairro', 'Endereco', 'Segmento', 'Categoria', 'Rating', 'Reviews', 'Telefone', 'Prioridade', 'Status'];
-    const rows = filtered.map((l, i) => [i + 1, l.name || '', l.city || '', l.neighborhood || '', l.address || '', l.segment || '', l.category || '', l.rating || '', l.review_count || '', l.phone || '', l.priority || '', l.status || '']);
+    const header = ['#', 'Nome', 'Cidade', 'Bairro', 'Endereco', 'Segmento', 'Categoria', 'Rating', 'Reviews', 'Telefone', 'Prioridade', 'Status', 'Entrega', 'Erro da entrega', 'Entrega em'];
+    const rows = filtered.map((l, i) => {
+      const d = descreverAbordagem(l);
+      return [i + 1, l.name || '', l.city || '', l.neighborhood || '', l.address || '', l.segment || '', l.category || '', l.rating || '', l.review_count || '', l.phone || '', l.priority || '', l.status || '', d ? d.rotulo : '', d ? d.erro : '', d ? d.quando : ''];
+    });
     const csv = [header, ...rows].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], {
       type: 'text/csv;charset=utf-8;'
@@ -8573,7 +8755,46 @@ const Leads = () => {
   }, "Todas as categorias (", leads.length, ")"), sortedCategories.map(([cat, count]) => /*#__PURE__*/React.createElement("option", {
     key: cat,
     value: cat
-  }, (catIcons[cat] ? catIcons[cat] + ' ' : '') + cat + ' (' + count + ')'))))), sel.size > 0 ? /*#__PURE__*/React.createElement("div", {
+  }, (catIcons[cat] ? catIcons[cat] + ' ' : '') + cat + ' (' + count + ')')))), /*#__PURE__*/React.createElement("label", {
+    title: "O que a Meta confirmou sobre a ultima abordagem de cada lead",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.ink
+    }
+  }, "Entrega", /*#__PURE__*/React.createElement("select", {
+    value: fEntrega,
+    onChange: e => setFEntrega(e.target.value),
+    style: {
+      padding: '8px 10px',
+      borderRadius: 10,
+      border: '1.5px solid ' + (fEntrega !== 'Todas' ? C.p1 : C.border),
+      background: '#fff',
+      color: C.ink,
+      fontSize: 13,
+      fontWeight: 500,
+      outline: 'none',
+      cursor: 'pointer',
+      minWidth: 200
+    }
+  }, Object.keys(ABORDAGEM_GRUPOS).map(k => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, ABORDAGEM_GRUPO_ROTULOS[k] + ' (' + (contagemEntrega[k] || 0) + ')'))))), semColunaAbordagem ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      padding: '10px 12px',
+      background: '#fff4e0',
+      border: '1px solid #f0b35a',
+      borderRadius: 10,
+      fontSize: 12,
+      color: '#7a4b00',
+      lineHeight: 1.5
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "Falta rodar o SQL do status de entrega"), " (", /*#__PURE__*/React.createElement("code", null, "/migrations/2026-09-09-leads-abordagem-entrega.sql"), "). Sem ele o servidor nao consegue amarrar cada envio ao lead, e ", /*#__PURE__*/React.createElement("strong", null, "nenhum lead vira \"contactado\" sozinho"), " \u2014 a confirmacao da Meta nao tem onde pousar.") : null, sel.size > 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12,
       display: 'flex',
@@ -8903,7 +9124,9 @@ const Leads = () => {
       value: "convertido"
     }, "Convertido"), /*#__PURE__*/React.createElement("option", {
       value: "perdido"
-    }, "Perdido"))), /*#__PURE__*/React.createElement("td", {
+    }, "Perdido")), /*#__PURE__*/React.createElement(AbordagemBadge, {
+      lead: l
+    })), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '12px 10px'
       }
@@ -12864,7 +13087,10 @@ const WhatsAppTab = () => {
           template: pacote.template,
           languageCode: pacote.idioma,
           components: pacote.components,
-          body: pacote.registro
+          body: pacote.registro,
+          // Numero que casa com um lead: a confirmacao da Meta vai pro lead
+          // tambem (mesmo caminho da aba Leads).
+          leadId: leadDoContatoAberto ? leadDoContatoAberto.id : undefined
         })
       });
       let raw = '';

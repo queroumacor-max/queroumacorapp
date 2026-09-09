@@ -220,3 +220,96 @@ describe('POST /api/whatsapp/webhook', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ─── Status de entrega chega até o LEAD (2026-09-09) ────────────────────────
+//
+// O incidente: `failed` 131026 pousava em whatsapp_messages e o lead seguia
+// "contactado". Aqui o contrato no nível da rota: o envelope de status
+// dispara o PATCH no lead pelo wamid, e o `sent` num lead `novo` vira
+// `contactado`. Se o vínculo ainda não pousou (corrida com a rota de envio),
+// a rota tenta de novo uma vez.
+describe('POST /api/whatsapp/webhook — status → lead', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+
+  function envelopeDeStatus(status: string) {
+    return {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: WABA,
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { phone_number_id: PHONE },
+                statuses: [
+                  { id: 'wamid.lead', status, timestamp: '1757100000', recipient_id: '5511988887777' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  function resposta(status: number, json: unknown) {
+    return new Response(JSON.stringify(json), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = 'service-key-teste';
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    vi.unstubAllGlobals();
+  });
+
+  it('sent → PATCH no lead pelo wamid e novo vira contactado', async () => {
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url.includes('/rest/v1/whatsapp_messages')) return resposta(204, {});
+      if (url.includes('/rest/v1/leads?abordagem_message_id=eq.wamid.lead')) {
+        return resposta(200, [{ id: 'lead-1', status: 'novo' }]);
+      }
+      if (url.includes('/rest/v1/leads?id=eq.lead-1')) return resposta(204, {});
+      return resposta(404, {});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const res = await chamarPost(pedido(envelopeDeStatus('sent')));
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      const flip = fetchSpy.mock.calls.find(([u]) => String(u).includes('/rest/v1/leads?id=eq.lead-1'));
+      expect(flip).toBeTruthy();
+      expect(JSON.parse((flip as unknown as [string, RequestInit])[1].body as string)).toEqual({ status: 'contactado' });
+    });
+  });
+
+  it('vínculo ainda não pousou → tenta o lead de novo uma vez', async () => {
+    vi.useFakeTimers();
+    let vezes = 0;
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url.includes('/rest/v1/whatsapp_messages')) return resposta(204, {});
+      if (url.includes('/rest/v1/leads?abordagem_message_id=eq.wamid.lead')) {
+        vezes += 1;
+        return resposta(200, vezes === 1 ? [] : [{ id: 'lead-1', status: 'novo' }]);
+      }
+      if (url.includes('/rest/v1/leads?id=eq.lead-1')) return resposta(204, {});
+      return resposta(404, {});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const res = await chamarPost(pedido(envelopeDeStatus('delivered')));
+    expect(res.status).toBe(200);
+    await vi.advanceTimersByTimeAsync(5000);
+    vi.useRealTimers();
+    expect(vezes).toBe(2);
+    expect(fetchSpy.mock.calls.some(([u]) => String(u).includes('/rest/v1/leads?id=eq.lead-1'))).toBe(true);
+  });
+});
