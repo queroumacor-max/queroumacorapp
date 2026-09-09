@@ -1,5 +1,36 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LEADS: A TELA CARREGA COM 61 MIL LINHAS (2026-09-09, relato do
+  usuário: "creio que pq tem 60k+ leads, a pagina nao carrega"). Portal
+  v=20260909g, SEM SQL.** Três causas empilhadas, as três corrigidas:
+  - **`buscarTudo` paginava em SÉRIE e tinha teto de 50.000** — parava em
+    silêncio na página 50 (o teto saiu; ele segue existindo, sem teto, pras
+    listas menores). `buscarEmPaginas` (marcadores `[teste:paginas-*]`):
+    1ª página com `count:'exact'`, as outras 4 em paralelo, cada lote na
+    SUA posição (`paginas[n]`), `aoChegar(parcial,total)` a cada lote e
+    `cancelado()` pra parar quando a tela fecha. **A consulta ordena por
+    `created_at` E `id`**: lote de importação inteiro tem o mesmo carimbo,
+    e paginar por `created_at` sozinho repete/pula linha entre páginas.
+  - **A tela esperava a ÚLTIMA página.** Agora a 1ª pinta e tira o
+    "Carregando"; o resto entra a cada ~600ms (`comIntervalo`, senão 60
+    lotes = 60 refiltragens de 61 mil) com "⏳ carregando N de M" no KPI.
+    Cache em memória (`_leadsCache`) + botão ↻; importação recarrega.
+  - **Um `<tr>` por lead travava o navegador.** Janela de `LEADS_JANELA`
+    (100) linhas da lista filtrada, sentinela por IntersectionObserver e
+    "Mostrando X de Y". Mesma receita do catálogo de produtos.
+  - **Recarga total virou EMENDA** (`emendarLeads`, por id, devolve a
+    MESMA lista se nada mudou): `updateStatus` emenda a linha, e o poll de
+    20s + pós-envio usam `leadsService.recentes` (leads com `abordagem_at`
+    nas últimas 6h) em vez de baixar tudo de novo — o webhook escreve
+    `abordagem_at` a cada status, então a janela pega o que muda.
+  - Busca com 250ms de atraso; ordenação por texto com `Intl.Collator`
+    (o `localeCompare` monta um collator por comparação — segundos por
+    ordenação em 61 mil linhas). Testes em `__tests__/portalLeadsJanela
+    .test.ts`; o teste de abordagem já cobria `selecionados`.
+  - **Custo conhecido:** segue `select('*')` (o aviso `semColunaAbordagem`
+    depende de ver as colunas), então a carga completa baixa dezenas de
+    MB — só que agora em paralelo e sem travar a tela.
+
 - **MODAL DE ABORDAGEM ESPELHADO (2026-09-09, pedido do usuário: "espelha
   o modal para o botão ficar do lado direito de enviar"). Portal
   v=20260909f, SEM SQL.** Prévia à ESQUERDA, campos + Enviar à DIREITA, no

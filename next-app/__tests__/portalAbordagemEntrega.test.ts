@@ -127,7 +127,7 @@ describe("status 'fixo'", () => {
 // por `abordavel` de novo, e o modal do lote rejeita 'fixo' sozinho.
 describe("lead 'fixo' não passa pelo lote nem por seleção antiga", () => {
   it('a seleção efetiva reaplica abordavel e a barra conta por ela', () => {
-    expect(fonte).toContain('const selecionados = leads.filter(l => sel.has(l.id) && abordavel(l));');
+    expect(fonte).toContain('const selecionados = React.useMemo(() => leads.filter(l => sel.has(l.id) && abordavel(l)), [leads, sel]);');
     expect(fonte).toContain('{selecionados.length > 0 ? (');
     expect(fonte).not.toContain('{sel.size > 0 ? (');
   });
