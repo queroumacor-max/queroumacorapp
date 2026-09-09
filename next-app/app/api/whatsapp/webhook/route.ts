@@ -50,11 +50,13 @@ import {
   getWebhookAuthMode,
   classifyWebhookPayload,
   parseInboundMessages,
+  parseEchoMessages,
   parseStatusUpdates,
   persistStatusDoLead,
   persistStatusEntrega,
   persistWhatsAppMessage,
   statusAvanca,
+  TIPOS_SEM_CONVERSA,
   type AtualizacaoDeStatus,
   resumirEnvelope,
   type InboundWhatsAppMessage,
@@ -178,13 +180,18 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
   const persisted = await Promise.all(
     messages.map((msg, i) =>
       persistWhatsAppMessage({
-        direction: 'in',
+        // Eco do celular (2026-09-09): a loja respondeu pelo app do
+        // aparelho. Entra como 'out' com origem 'celular' — é o que o chip
+        // 📱 da lista de conversas lê. Sem isto a resposta dada no celular
+        // não existia no portal e a conversa parecia abandonada.
+        direction: msg.echo ? 'out' : 'in',
         waId: msg.from,
-        profileName: msg.profileName,
+        profileName: msg.echo ? undefined : msg.profileName,
         messageId: msg.messageId,
         type: msg.type,
         body: msg.text,
         waTimestamp: msg.timestamp,
+        ...(msg.echo ? { origin: 'celular' as const } : {}),
         mediaUrl: midias[i]?.path,
         mediaMime: midias[i]?.mime,
         transcript: midias[i]?.transcript,
@@ -206,6 +213,9 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
   for (const msg of messages) {
     const texto = (msg.text || '').trim();
     if (!texto) continue;
+    // Eco do celular é a LOJA falando; reação/edição não é a pessoa
+    // falando. Nenhum dos dois acorda a IA.
+    if (msg.echo || TIPOS_SEM_CONVERSA.has(msg.type)) continue;
     try {
       const r = await maybeAutoReply({ waId: msg.from, text: texto });
       console.log(`[whatsapp-webhook] ia ${msg.from}: ${r.acted ? '✓' : '·'} ${r.why}`);
@@ -344,7 +354,9 @@ export async function POST(request: NextRequest) {
   // trabalho de fundo; o que custa (Supabase) é que vai pro waitUntil.
   let messages: InboundWhatsAppMessage[] = [];
   try {
-    messages = parseInboundMessages(payload);
+    // Recebidas + ecos do que a loja mandou pelo celular, no mesmo lote: o
+    // processamento é o mesmo (mídia, gravação), só muda direção/origem.
+    messages = [...parseInboundMessages(payload), ...parseEchoMessages(payload)];
   } catch (e) {
     console.error(
       'whatsapp-webhook: falha ao ler o payload (200 mesmo assim):',

@@ -918,7 +918,11 @@ export function classifyWebhookPayload(
     if (!Array.isArray(changes) || changes.length === 0) return 'rejeitar';
     for (const change of changes as Array<Record<string, unknown>>) {
       if (!change || typeof change !== 'object') return 'rejeitar';
-      if (change.field !== 'messages') continue; // evento de outro tipo
+      // `smb_message_echoes` (2026-09-09): em Coexistence, o que a loja
+      // manda PELO APP DO CELULAR chega neste campo, não em `messages`.
+      // Antes caía em "ignorar" e a resposta dada no aparelho nunca
+      // aparecia no portal — a conversa parecia sem resposta.
+      if (change.field !== 'messages' && change.field !== ECHO_FIELD) continue;
       const value = change.value as { metadata?: { phone_number_id?: unknown } } | undefined;
       if (String(value?.metadata?.phone_number_id ?? '') !== expected.phoneNumberId) {
         return 'rejeitar';
@@ -942,8 +946,28 @@ export function isExpectedWebhookPayload(
 
 // ─── Webhook: parse do payload de entrada ───────────────────────────────────
 
+/** Campo do webhook com as mensagens que a loja mandou pelo APP do celular. */
+export const ECHO_FIELD = 'smb_message_echoes';
+
+/**
+ * Tipos que NÃO são a pessoa falando: reação, edição, mensagem que a API
+ * não repassa e avisos de sistema. Gravam no histórico (o operador precisa
+ * ver), mas não podem acordar a IA — responder a um 👍 com um parágrafo
+ * seria loop de constrangimento.
+ */
+export const TIPOS_SEM_CONVERSA = new Set(['reaction', 'edit', 'unsupported', 'system']);
+
 export interface InboundWhatsAppMessage {
+  /**
+   * O NÚMERO DA PESSOA (contraparte). Em mensagem recebida é o `from` da
+   * Meta; em eco do celular (`smb_message_echoes`) é o `to` — o `from` ali
+   * é o próprio número da loja, que não serve de chave de conversa.
+   */
   from: string;
+  /** true quando veio de `smb_message_echoes`: a loja mandou pelo aparelho. */
+  echo: boolean;
+  /** Reação/edição: o wamid da mensagem a que se refere, quando a Meta manda. */
+  refMessageId: string | null;
   messageId: string;
   timestamp: string;
   type: string;
@@ -1007,7 +1031,60 @@ function textoDeBotao(msg: Record<string, unknown>): { texto: string; payload: s
  * (`value.statuses[]`) são ignorados aqui — caller decide se loga.
  */
 export function parseInboundMessages(payload: unknown): InboundWhatsAppMessage[] {
+  return lerMensagens(payload, 'messages');
+}
+
+/**
+ * Mensagens que a loja mandou PELO CELULAR (`smb_message_echoes`). Mesmo
+ * formato das recebidas, com duas diferenças: vêm em `value.message_echoes`
+ * e a contraparte é o `to`. Quem mandou pelo portal ou pela IA também pode
+ * ecoar aqui — o wamid é UNIQUE em `whatsapp_messages`, então a segunda
+ * cópia é descartada na gravação.
+ */
+export function parseEchoMessages(payload: unknown): InboundWhatsAppMessage[] {
+  return lerMensagens(payload, 'message_echoes');
+}
+
+/**
+ * Reação e edição não têm `text.body`; o conteúdo vem em `reaction.emoji`
+ * e (pelo que a Meta/Dualhook entregam) em `edit`/`text`. Sem isto o corpo
+ * saía vazio e o portal mostrava "[reaction]" / "[edit]" secos.
+ */
+function textoDeReacaoOuEdicao(
+  msg: Record<string, unknown>,
+  tipo: string
+): { texto: string; ref: string | null } | null {
+  if (tipo === 'reaction') {
+    const r = msg.reaction as { emoji?: unknown; message_id?: unknown } | undefined;
+    return {
+      // Emoji vazio = a pessoa REMOVEU a reação; fica registrado como tal.
+      texto: typeof r?.emoji === 'string' && r.emoji ? r.emoji : '',
+      ref: typeof r?.message_id === 'string' ? r.message_id : null,
+    };
+  }
+  if (tipo === 'edit') {
+    const e = msg.edit as
+      | { message_id?: unknown; text?: { body?: unknown }; body?: unknown }
+      | undefined;
+    const texto =
+      typeof e?.text?.body === 'string'
+        ? e.text.body
+        : typeof e?.body === 'string'
+          ? e.body
+          : typeof (msg.text as { body?: unknown } | undefined)?.body === 'string'
+            ? (msg.text as { body: string }).body
+            : '';
+    return { texto, ref: typeof e?.message_id === 'string' ? e.message_id : null };
+  }
+  return null;
+}
+
+function lerMensagens(
+  payload: unknown,
+  lista: 'messages' | 'message_echoes'
+): InboundWhatsAppMessage[] {
   const out: InboundWhatsAppMessage[] = [];
+  const eco = lista === 'message_echoes';
   const entries = (payload as { entry?: unknown[] })?.entry;
   if (!Array.isArray(entries)) return out;
   for (const entry of entries) {
@@ -1015,15 +1092,22 @@ export function parseInboundMessages(payload: unknown): InboundWhatsAppMessage[]
     if (!Array.isArray(changes)) continue;
     for (const change of changes) {
       const value = (change as { value?: Record<string, unknown> })?.value;
-      const messages = value?.messages;
+      const messages = value?.[lista];
       if (!Array.isArray(messages)) continue;
       const contacts = Array.isArray(value?.contacts)
         ? (value.contacts as Array<{ wa_id?: string; profile?: { name?: string } }>)
         : [];
       for (const msg of messages as Array<Record<string, unknown>>) {
-        const from = typeof msg.from === 'string' ? msg.from : '';
+        const from = eco
+          ? typeof msg.to === 'string'
+            ? msg.to
+            : ''
+          : typeof msg.from === 'string'
+            ? msg.from
+            : '';
         const contact = contacts.find((c) => c.wa_id === from) || contacts[0];
         const tipo = typeof msg.type === 'string' ? msg.type : 'unknown';
+        const especial = textoDeReacaoOuEdicao(msg, tipo);
         // O objeto da mídia vem numa chave com o NOME DO TIPO
         // (`audio`, `image`, `sticker`, `video`, `document`) — não numa
         // chave fixa. Legenda de foto/vídeo vem em `caption`, e é ela que
@@ -1032,14 +1116,17 @@ export function parseInboundMessages(payload: unknown): InboundWhatsAppMessage[]
           | { id?: unknown; mime_type?: unknown; caption?: unknown; filename?: unknown }
           | undefined;
         const botao = textoDeBotao(msg);
-        const texto =
-          typeof (msg.text as { body?: unknown } | undefined)?.body === 'string'
+        const texto = especial
+          ? especial.texto
+          : typeof (msg.text as { body?: unknown } | undefined)?.body === 'string'
             ? (msg.text as { body: string }).body
             : typeof midia?.caption === 'string'
               ? midia.caption
               : botao.texto;
         out.push({
           from,
+          echo: eco,
+          refMessageId: especial?.ref ?? null,
           messageId: typeof msg.id === 'string' ? msg.id : '',
           timestamp: typeof msg.timestamp === 'string' ? msg.timestamp : '',
           type: tipo,

@@ -135,3 +135,31 @@ describe("lead 'fixo' não passa pelo lote nem por seleção antiga", () => {
     expect(fonte).toContain("l.status === 'fixo' ? 'marcado como fixo (sem WhatsApp)'");
   });
 });
+
+// ── Rótulos de reação / edição / unsupported na conversa (2026-09-09) ──────
+describe('rotuloDeTipo (bolha e prévia da lista)', () => {
+  let rotuloDeTipo: (m: Record<string, unknown>) => string | null;
+  beforeAll(() => {
+    const i = fonte.indexOf('// [teste:rotulo-tipo-inicio]');
+    const f = fonte.indexOf('// [teste:rotulo-tipo-fim]');
+    expect(i).toBeGreaterThan(0);
+    expect(f).toBeGreaterThan(i);
+    ({ rotuloDeTipo } = new Function(`${fonte.slice(i, f)}; return { rotuloDeTipo };`)());
+  });
+  it('reação mostra o emoji; sem emoji é remoção', () => {
+    expect(rotuloDeTipo({ type: 'reaction', body: '👍' })).toBe('👍 reagiu a uma mensagem');
+    expect(rotuloDeTipo({ type: 'reaction', body: '' })).toBe('removeu a reação');
+  });
+  it('edição mostra o texto novo quando veio', () => {
+    expect(rotuloDeTipo({ type: 'edit', body: 'área externa?' })).toBe('✏️ editou: área externa?');
+    expect(rotuloDeTipo({ type: 'edit' })).toBe('✏️ editou uma mensagem');
+  });
+  it('unsupported explica e manda olhar o celular; texto comum devolve null', () => {
+    expect(rotuloDeTipo({ type: 'unsupported' })).toContain('veja no celular');
+    expect(rotuloDeTipo({ type: 'text', body: 'oi' })).toBeNull();
+  });
+  it('a bolha e a prévia passam pelo rótulo', () => {
+    expect(fonte).toContain('const especial = rotuloDeTipo(m);\n  if(especial) return <span');
+    expect(fonte).toContain('const especial = rotuloDeTipo(m);\n  if(especial) return especial;');
+  });
+});
