@@ -9,7 +9,6 @@
 
 import { type NextRequest } from 'next/server';
 import {
-  ensureAdminEmail,
   getToken,
   getTokenFromForm,
   jsonResponse,
@@ -27,7 +26,7 @@ import { errorResponse } from '@/lib/api/errors';
 // pra acomodar a inflação base64 sem rejeitar uploads legítimos).
 const MAX_MULTIPART_BYTES = 4 * 1024 * 1024;
 const MAX_JSON_BYTES = 6 * 1024 * 1024;
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { uploadStyleRef } from '@/lib/api/_services/upload-style-ref';
 import { logAuditEvent } from '@/lib/api/audit';
 // No edge do Cloudflare a env-var só existe dentro do request handler —
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { callerId, email } = await verifyAdminToken(token);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
     const result = await uploadStyleRef({ styleKey, photoDataUrl, file });
     // Audit-log: upload de style-ref muda bucket público; rastreamos quem subiu o quê.
     await logAuditEvent({

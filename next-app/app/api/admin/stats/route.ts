@@ -5,7 +5,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   checkRateLimit,
-  ensureAdminEmail,
   getServiceKey,
   getSupabaseUrl,
   getToken,
@@ -15,7 +14,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { gerarRelatorioDeUso } from '@/lib/api/_services/admin-stats';
 import { getRuntimeEnv } from '@/lib/api/env';
 
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = getToken(request, body);
     const { callerId, email } = await verifyAdminToken(token);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
     const rl = await checkRateLimit({ userId: callerId || email, endpoint: 'admin-stats', limit: 30 });
     if (!rl.allowed) return rateLimitResponse(rl);
     const desde = typeof body.desde === 'string' ? body.desde : null;

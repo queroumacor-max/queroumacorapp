@@ -78,6 +78,9 @@ discordarem, RLS ganha.
 - **Endpoints admin têm gate duplo.** `ADMIN_EMAILS` env var no backend +
   `_isAdmin` setado via `GET /api/admin-moderate?action=check` no
   cliente. Cliente só esconde UI; decisão real é server-side.
+  *(2026-09-10: o backend passou a aceitar também `profiles.portal_access`
+  / `role='admin'`, lidos com a chave de serviço — o "Promover" do portal
+  basta; a allowlist segue como porta de emergência.)*
 
 ### Negative
 
