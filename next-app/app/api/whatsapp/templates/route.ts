@@ -23,12 +23,11 @@ import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import {
   getToken,
-  ensureAdminEmail,
   jsonResponse,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import {
   DUALHOOK_API_BASE,
   GRAPH_API_VERSION,
@@ -55,7 +54,7 @@ export async function GET(request: NextRequest) {
     const token = getToken(request, {});
     const { callerId, email } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     return jsonResponse({ error: 'não autorizado' }, 401);

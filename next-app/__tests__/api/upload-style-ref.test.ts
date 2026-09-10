@@ -48,6 +48,11 @@ describe('POST /api/upload-style-ref', () => {
           new Response(JSON.stringify({ id: 'x', email: 'rando@x.com' }), { status: 200 })
         );
       }
+      // Fora da allowlist a rota ainda pergunta ao banco se a conta foi
+      // PROMOVIDA no portal (2026-09-10); perfil sem portal_access = 403.
+      if (url.includes('/rest/v1/profiles')) {
+        return Promise.resolve(new Response(JSON.stringify([{ portal_access: false, role: 'cliente' }]), { status: 200 }));
+      }
       return Promise.resolve(new Response('', { status: 200 }));
     });
     const { POST } = await import('@/app/api/upload-style-ref/route');

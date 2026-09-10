@@ -4,16 +4,14 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   checkRateLimit,
-  ensureAdminEmail,
   getServiceKey,
   getToken,
-  isAdminEmail,
   jsonResponse,
   rateLimitResponse,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin, isPortalAdminUser } from '@/lib/api/_services/_admin-helpers';
 import { moderateAction, type ModerateAction } from '@/lib/api/_services/admin-moderate';
 import { logAuditEvent } from '@/lib/api/audit';
 // No edge do Cloudflare a env-var só existe dentro do request handler —
@@ -38,8 +36,8 @@ export async function POST(request: NextRequest) {
     const token = getToken(request, body);
     const { callerId, email } = await verifyAdminToken(token);
     // Modo "check": só verifica se o caller é admin, sem aplicar nada
-    if (action === 'check') return jsonResponse({ admin: isAdminEmail(email) });
-    ensureAdminEmail(email);
+    if (action === 'check') return jsonResponse({ admin: await isPortalAdminUser({ callerId, email }) });
+    await ensurePortalAdmin({ callerId, email });
     const rl = await checkRateLimit({
       userId: callerId || email,
       endpoint: 'admin-moderate',

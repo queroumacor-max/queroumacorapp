@@ -16,14 +16,13 @@ import { type NextRequest } from 'next/server';
 import {
   checkRateLimit,
   getToken,
-  ensureAdminEmail,
   jsonResponse,
   rateLimitResponse,
   readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import {
   isWhatsAppConfigured,
   persistWhatsAppMessage,
@@ -123,7 +122,7 @@ async function handle(request: NextRequest): Promise<Response> {
     const token = getToken(request, body);
     const { callerId, email } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
 
     const rl = await checkRateLimit({
       userId: callerId || email,

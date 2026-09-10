@@ -4,7 +4,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   checkRateLimit,
-  ensureAdminEmail,
   getServiceKey,
   getToken,
   jsonResponse,
@@ -13,7 +12,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { listErrors } from '@/lib/api/_services/admin-errors-list';
 // No edge do Cloudflare a env-var só existe dentro do request handler —
 // `process.env` volta vazio aqui. Ver lib/api/env.ts.
@@ -35,7 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const token = getToken(request, body as { accessToken?: unknown });
     const { callerId, email } = await verifyAdminToken(token);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
     const rl = await checkRateLimit({
       userId: callerId || email,
       endpoint: 'admin-errors-list',

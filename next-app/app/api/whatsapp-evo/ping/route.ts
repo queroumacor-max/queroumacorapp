@@ -12,12 +12,11 @@ import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import {
   getToken,
-  ensureAdminEmail,
   jsonResponse,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { DEFAULT_EVOLUTION_INSTANCE } from '@/lib/api/_services/whatsapp-evo';
 
 export const runtime = 'edge';
@@ -56,7 +55,7 @@ export async function GET(request: NextRequest) {
     const token = getToken(request, {});
     const { callerId, email } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
 
     const rawUrl = getRuntimeEnv('EVOLUTION_API_URL') || '';
     const apiKey = getRuntimeEnv('EVOLUTION_API_KEY') || '';

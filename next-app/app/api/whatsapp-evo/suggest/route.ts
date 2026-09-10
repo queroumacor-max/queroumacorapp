@@ -14,14 +14,13 @@ import {
   getServiceKey,
   getSupabaseUrl,
   getToken,
-  ensureAdminEmail,
   jsonResponse,
   rateLimitResponse,
   readBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { generateAiReply, isAiConfigured, type ConversationTurn } from '@/lib/api/_services/whatsapp-ai';
 
 export const runtime = 'edge';
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest) {
     const token = getToken(request, body);
     const { callerId, email } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
-    ensureAdminEmail(email);
+    await ensurePortalAdmin({ callerId, email });
 
     const rl = await checkRateLimit({ userId: callerId, endpoint: 'wa-suggest', limit: 60 });
     if (!rl.allowed) return rateLimitResponse(rl);

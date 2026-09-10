@@ -36,8 +36,10 @@ Depois de setar as envs, **refazer o deploy** (envs só valem em build novo).
 
 ### `POST /api/whatsapp/send` — envio (só admin)
 
-Auth igual ao `/api/admin/users`: token Supabase de um email em
-`ADMIN_EMAILS` (header `Authorization: Bearer …` ou `accessToken` no body).
+Auth igual ao `/api/admin/users`: token Supabase (header `Authorization:
+Bearer …` ou `accessToken` no body) de uma conta admin — e-mail em
+`ADMIN_EMAILS` OU perfil promovido no portal (`profiles.portal_access`),
+ver `ensurePortalAdmin` (2026-09-10).
 Rate limit 30/min. Grava trilha em `audit_log` (`action='whatsapp.send'`,
 só preview do corpo — LGPD data minimization).
 

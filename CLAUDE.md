@@ -1,5 +1,25 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **ROTAS ADMIN ACEITAM QUEM FOI PROMOVIDO NO PORTAL (2026-09-10, decisão
+  do usuário: "habilite pelo promover"). SEM SQL.** O relato: João estava
+  promovido no portal e levava 403 ao responder WhatsApp ("não está na
+  lista ADMIN_EMAILS"). Eram DUAS travas: o "Promover" grava
+  `profiles.portal_access` (libera telas + RLS), e TODA rota de servidor
+  (`whatsapp/send`, `suggest`, `templates`, `ai-prompt`, `followup`,
+  `ping`, `admin/users`, `admin/stats`, `admin/errors-list`,
+  `admin/moderate`, `upload-style-ref`) exigia o e-mail em `ADMIN_EMAILS`.
+  Agora `ensurePortalAdmin({callerId, email})` em `_admin-helpers.ts` —
+  allowlist OU `portal_access=true` OU `role='admin'`, lidos com a chave de
+  serviço (mesma regra do guard RSC `isPortalAdmin` em `auth-server.ts`,
+  que já era assim). Cache de 60s por caller no isolate (revogar leva até
+  1 min pra valer na rota; o portal fecha na hora pela RLS). Banco fora →
+  502, não 403; sem chave de serviço → só a allowlist. **`ADMIN_EMAILS`
+  continua como porta de emergência** — não remover a env.
+  `__tests__/api/admin-portal-access.test.ts` varre `app/api` e proíbe
+  rota voltar a chamar `ensureAdminEmail`/`isAdminEmail` direto. Ações de
+  ESCRITA de `admin/users` seguem exigindo `portal_access` ativo do caller
+  (`ensureCallerHasPortalAccess`) — quem só está na allowlist lê.
+
 - **WHATSAPP: BOTÃO "NÃO LIDAS" NA COLUNA DE CONVERSAS (2026-09-09, pedido
   do usuário: "botão de unread para ao clicar filtrar conversas que têm msg
   nova de cliente"). Portal v=20260909m, SEM SQL.** Pílula "● Não lidas (N)"
