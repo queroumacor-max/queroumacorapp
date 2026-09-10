@@ -17,6 +17,11 @@ interface Conv { waId: string; msgs: Msg[] }
 let fonte = '';
 let bloco = '';
 let contarNaoLidas: (msgs: Msg[] | null | undefined, desde?: string | null) => number;
+interface Linha { id: string; direction: 'in' | 'out'; wa_id: string; body?: string | null; created_at: string; delivery_status?: string | null }
+let mesclarMensagens: (atual: Linha[], chegadas: Linha[] | null) => Linha[];
+let sufixoDoTelefone: (tel: unknown) => string | null;
+let pedacos: <T>(l: T[], n: number) => T[][];
+let WA_DIAS_LISTA: number;
 let filtrarConversas: (
   convs: Conv[],
   o: { busca?: string; soNaoLidas?: boolean; manter?: string | null;
@@ -30,8 +35,8 @@ beforeAll(() => {
   expect(ini).toBeGreaterThan(0);
   expect(fim).toBeGreaterThan(ini);
   bloco = fonte.slice(ini, fim);
-  ({ contarNaoLidas, filtrarConversas } = new Function(
-    `${bloco}; return { contarNaoLidas, filtrarConversas };`
+  ({ contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA } = new Function(
+    `${bloco}; return { contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA };`
   )());
 });
 
@@ -120,5 +125,76 @@ describe('a aba WhatsApp usa as funções puras (não uma cópia)', () => {
     expect(fonte).toContain("setSoNaoLidas(v => !v)");
     expect(fonte).toContain('const conversasNaoLidas = convs.reduce((n, c) => n + (naoLidas(c) > 0 ? 1 : 0), 0);');
     expect(fonte).toContain("t:'● Não lidas (em cima da lista de conversas)'");
+  });
+});
+
+// ── A lista deixou de ser "as últimas 500 mensagens" (2026-09-09) ────────
+
+const linha = (id: string, o: Partial<Linha> = {}): Linha => ({
+  id, direction: 'out', wa_id: '5511999990001', body: 'oi', created_at: '2026-09-09T10:00:00Z', ...o,
+});
+
+describe('mesclarMensagens', () => {
+  it('devolve o MESMO array quando nada mudou (o poll não repinta à toa)', () => {
+    const atual = [linha('a'), linha('b')];
+    expect(mesclarMensagens(atual, [linha('a'), linha('b')])).toBe(atual);
+    expect(mesclarMensagens(atual, [])).toBe(atual);
+    expect(mesclarMensagens(atual, null)).toBe(atual);
+  });
+  it('acrescenta linha nova e ordena da mais recente pra mais antiga', () => {
+    const atual = [linha('a', { created_at: '2026-09-09T10:00:00Z' })];
+    const out = mesclarMensagens(atual, [linha('b', { created_at: '2026-09-09T11:00:00Z' }), linha('c', { created_at: '2026-09-09T09:00:00Z' })]);
+    expect(out.map(m => m.id)).toEqual(['b', 'a', 'c']);
+  });
+  it('linha com o mesmo id e status de entrega diferente é ATUALIZAÇÃO (o ✓✓ chega depois)', () => {
+    const atual = [linha('a', { delivery_status: 'sent' })];
+    const out = mesclarMensagens(atual, [linha('a', { delivery_status: 'read' })]);
+    expect(out).not.toBe(atual);
+    expect(out[0].delivery_status).toBe('read');
+  });
+  it('o eco local do envio some quando a linha real do banco chega', () => {
+    const atual = [linha('local-123', { body: 'bom dia' }), linha('x', { direction: 'in', body: 'oi' })];
+    const out = mesclarMensagens(atual, [linha('m-real', { body: 'bom dia' })]);
+    expect(out.map(m => m.id).sort()).toEqual(['m-real', 'x']);
+  });
+  it('eco local de OUTRA conversa ou outro corpo fica (ainda não confirmado)', () => {
+    const atual = [linha('local-1', { body: 'bom dia' }), linha('local-2', { body: 'boa tarde', wa_id: '5511999990002' })];
+    const out = mesclarMensagens(atual, [linha('m-real', { body: 'bom dia' })]);
+    expect(out.map(m => m.id).sort()).toEqual(['local-2', 'm-real']);
+  });
+});
+
+describe('sufixoDoTelefone / pedacos', () => {
+  it('8 últimos dígitos, com máscara, DDI ou nono dígito', () => {
+    expect(sufixoDoTelefone('(11) 97996-4954')).toBe('79964954');
+    expect(sufixoDoTelefone('+55 11 97996-4954')).toBe('79964954');
+    expect(sufixoDoTelefone('5511979964954')).toBe('79964954');
+    expect(sufixoDoTelefone('1234567')).toBeNull();
+    expect(sufixoDoTelefone(null)).toBeNull();
+  });
+  it('pedacos divide sem perder nem repetir', () => {
+    expect(pedacos([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+    expect(pedacos([], 3)).toEqual([]);
+  });
+});
+
+describe('a aba WhatsApp não tem mais teto de 500 mensagens', () => {
+  it('a lista e o histórico da conversa passam por buscarMensagens (paginado)', () => {
+    expect(fonte).not.toMatch(/from\('whatsapp_messages'\)[\s\S]{0,200}\.limit\(500\)/);
+    expect(fonte).toContain("aoChegar: entregar, cancelado: () => !vivoRef.current");
+    expect(fonte).toContain(".select(cols, extra).eq('wa_id', alvo)");
+    expect(fonte).toContain('setMsgs(prev => mesclarMensagens(prev, parcial))');
+    expect(fonte).toContain('setMsgs(prev => mesclarMensagens(prev, [payload.new]))');
+    expect(WA_DIAS_LISTA).toBeGreaterThanOrEqual(30);
+  });
+  it('o nome do lead vem pelo telefone da conversa, não pelos 3000 primeiros da tabela', () => {
+    expect(fonte).not.toContain("from('leads').select('id, name, phone, category, segment, city, status').not('phone','is',null).limit(3000)");
+    expect(fonte).toContain("'phone.ilike.*' + f");
+    expect(fonte).toContain('resolverLeads(novos)');
+  });
+  it('o badge do menu e a marca de leitura não têm teto de linhas', () => {
+    expect(fonte).not.toContain(".eq('direction','in').gte('created_at', desde).limit(3000)");
+    expect(fonte).not.toContain("select('wa_id, last_read_at').limit(3000)");
+    expect(fonte).not.toContain("select('wa_id, enabled, last_why, last_at, last_read_at').limit(2000)");
   });
 });
