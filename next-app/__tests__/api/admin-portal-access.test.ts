@@ -79,6 +79,15 @@ describe('ensurePortalAdmin', () => {
     perfil(null, 500);
     await expect(ensurePortalAdmin({ callerId: 'u6', email: 'x@y.com' })).rejects.toMatchObject({ status: 502 });
   });
+  it('fetch rejeitou (rede fora / timeout) → 502 com ServiceError, não erro cru', async () => {
+    fetchMock.mockRejectedValueOnce(Object.assign(new Error('timeout'), { name: 'TimeoutError' }));
+    const err = await ensurePortalAdmin({ callerId: 'u9', email: 'x@y.com' }).catch((e) => e);
+    expect(err).toBeInstanceOf(ServiceError);
+    expect(err.status).toBe(502);
+    expect(err.message).toContain('tempo esgotado');
+    fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+    await expect(ensurePortalAdmin({ callerId: 'u10', email: 'x@y.com' })).rejects.toMatchObject({ status: 502 });
+  });
   it('sem chave de serviço configurada, cai na allowlist sozinha', async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     await expect(ensurePortalAdmin({ callerId: 'u7', email: 'x@y.com' })).rejects.toMatchObject({ status: 403 });

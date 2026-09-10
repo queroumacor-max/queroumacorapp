@@ -42,14 +42,25 @@ async function lerFlagsDoPerfil(callerId: string): Promise<{ portal_access?: boo
   const serviceKey = getServiceKey();
   const url = getSupabaseUrl();
   if (!serviceKey || !url) return null;
-  const res = await fetch(
-    `${url}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access,role`,
-    {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
-    },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `${url}/rest/v1/profiles?id=eq.${encodeURIComponent(callerId)}&select=portal_access,role`,
+      {
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+      },
+    );
+  } catch (e) {
+    // Rede fora ou os 10s estouraram: sem ServiceError o erro cru vira 500
+    // genérico (ou 401 nas rotas que só preservam status de ServiceError) e
+    // o operador lê "token inválido" num problema de banco (Codex no #296).
+    throw new ServiceError(
+      'falha ao verificar permissão (' + ((e as Error)?.name === 'TimeoutError' ? 'tempo esgotado' : 'rede') + ')',
+      502,
+    );
+  }
   if (!res.ok) throw new ServiceError('falha ao verificar permissão (profiles ' + res.status + ')', 502);
   let rows: Array<{ portal_access?: boolean | null; role?: string | null }>;
   try {
