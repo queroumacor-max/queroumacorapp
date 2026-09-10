@@ -59,10 +59,12 @@
   em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
   venda, teve mais curtidas, convidou mais gente, pediu material na loja,
   camisa, uso das IAs, fez orçamentos"). Portal v=20260909l. SQL
-  `/migrations/2026-09-09-ai-usage-feature-check.sql` — PENDENTE até o
-  usuário rodar (uma linha; conferência na
-  `2026-09-05-conferencia-pendencias.sql`). A tela funciona sem ele; só as
-  personas ficam sem contagem.**
+  `/migrations/2026-09-09-ai-usage-feature-check.sql` — JÁ EXECUTADO no
+  Supabase (2026-09-10, informado pelo usuário: "rodei"). Não pedir pra
+  rodar de novo; reconferir pela linha da
+  `2026-09-05-conferencia-pendencias.sql` antes de afirmar o contrário.
+  A partir daí as chamadas das personas passam a contar; o histórico
+  anterior ao ALTER não existe (os INSERTs eram recusados).**
   - **Quem agrega é o SERVIDOR**: `POST /api/admin/stats` (edge, service
     role, admin da allowlist, rate limit 30/min) → `lib/api/_services/
     admin-stats.ts`. Motivo: `ai_usage`, `referrals` e `points` têm RLS
