@@ -103,7 +103,7 @@ describe('EnvioDeTemplate preenche {{2}} cidade e {{3}} segmento', () => {
   // dois campos — tirar `city`/`segment` do select apagaria o prefill em
   // silêncio.
   it('a consulta de leads da aba WhatsApp traz city e segment', () => {
-    expect(fonte).toMatch(/from\('leads'\)\.select\('id, name, phone, category, segment, city, status'\)/);
+    expect(fonte).toMatch(/from\('leads'\)\.select\('id, name, phone, category, segment, city, status', extra\)/);
   });
 });
 

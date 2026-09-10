@@ -1,5 +1,40 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP: BOTÃO "NÃO LIDAS" NA COLUNA DE CONVERSAS (2026-09-09, pedido
+  do usuário: "botão de unread para ao clicar filtrar conversas que têm msg
+  nova de cliente"). Portal v=20260909m, SEM SQL.** Pílula "● Não lidas (N)"
+  embaixo da busca; ligada, a lista mostra só conversas com mensagem
+  RECEBIDA depois do `whatsapp_ai_state.last_read_at` (a mesma regra do
+  badge que já existia). **N é de CONVERSAS, não de mensagens.** A busca
+  procura DENTRO das não lidas. **A conversa ABERTA fica na lista** mesmo
+  depois de marcada como lida (`manter` em `filtrarConversas`) — abrir
+  zera o contador, e sem isso ela sumiria no mesmo clique que a abriu.
+  Puras `contarNaoLidas`/`filtrarConversas` entre `[teste:wa-lista-inicio]`
+  /`-fim` (só JS, sem JSX), testadas em `__tests__/portalWhatsAppNaoLidas
+  .test.ts`, que também trava que `naoLidas`/`convsFiltradas` da aba
+  passam por elas. Item novo em `AJUDA_WHATSAPP`.
+  - **A LISTA ERA "AS ÚLTIMAS 500 MENSAGENS" E CONVERSAS SE PERDIAM (mesmo
+    PR, pergunta do usuário: "realmente aparecem todas as conversas ou
+    algumas se perdem pelo limite?").** Perdiam: `limit(500)` em
+    `whatsapp_messages`, agrupado por número — um lote de abordagem ocupava
+    as 500 linhas e toda conversa mais antiga sumia da aba (histórico e não
+    lidas juntos), enquanto o badge do menu contava por outra consulta.
+    Agora: (1) a aba baixa TODAS as mensagens dos últimos `WA_DIAS_LISTA`
+    (90) dias com `buscarEmPaginas`, emendadas por id (`mesclarMensagens`,
+    devolve o MESMO array se nada mudou; linha com status de entrega novo
+    é atualização — antes o ✓✓ só aparecia quando chegava mensagem nova);
+    o poll de 60s só pede 1 dia (`created_at` OU `delivery_status_at`); o
+    eco local do envio (`local-…`) some quando a linha real chega. (2) O
+    histórico COMPLETO da conversa é buscado ao abrir (`conversasCarregadas`,
+    uma vez por aba). (3) **Nome do lead pelo telefone da conversa**: o
+    `limit(3000)` em `leads` (61 mil linhas) deixava quase todo lead
+    abordado só com o número; `resolverLeads` pede `phone.ilike.*<4
+    últimos dígitos>` (contíguos em qualquer máscara) em lotes de 60 e casa
+    pelos 8 últimos aqui. (4) `whatsapp_ai_state` (marca de leitura) e o
+    badge do menu também sem teto. (5) A coluna renderiza no máximo
+    `WA_LISTA_MAX` (300) conversas e avisa — um lote pode criar milhares.
+    `__tests__/portalWhatsAppNaoLidas.test.ts` proíbe os limites voltarem.
+
 - **PORTAL: TELA "USO DO APP" (2026-09-09, pedido do usuário: "dashboard
   em relação ao uso do app: quem postou mais fotos, vídeos, colocou à
   venda, teve mais curtidas, convidou mais gente, pediu material na loja,

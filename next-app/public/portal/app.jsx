@@ -6228,6 +6228,8 @@ const AJUDA_WHATSAPP = [
     d:'Faz a varredura DE VERDADE, enviando as mensagens. No dia a dia não precisa: o sistema já roda sozinho de hora em hora. Serve só pra antecipar.' },
   { t:'Última varredura (linha de baixo)',
     d:'Quando rodou pela última vez, quantas conversas foram analisadas e o que saiu de cada tipo.' },
+  { t:'● Não lidas (em cima da lista de conversas)',
+    d:'Filtra a lista pra mostrar só as conversas em que o cliente mandou mensagem depois da última vez que alguém abriu a conversa. O número é de CONVERSAS, não de mensagens. Resposta da IA não conta como lida — só abrir a conversa. Clique de novo pra ver todas.' },
   { t:'🧠 Prompt da IA',
     d:'O texto de instruções que a IA lê antes de cada resposta: quem ela é e como conversa. Dá pra editar e salvar; "Restaurar padrão" volta ao texto do sistema. A trava de preço, o horário, o teto diário e o PARE são de código e continuam valendo seja qual for o texto.' },
 ];
@@ -6428,6 +6430,93 @@ const restanteDaJanela = (msgs) => {
 
 // [teste:janela-fim]
 
+// ── Coluna de conversas: nao lidas + filtro "Nao lidas" (2026-09-09) ────
+// [teste:wa-lista-inicio] — mesmo contrato do bloco da janela: SO JS PURO
+// entre os marcadores (o teste avalia com `new Function`), e nao mexer nos
+// marcadores. Avaliado por __tests__/portalWhatsAppNaoLidas.test.ts.
+//
+// "Nao lida" = mensagem RECEBIDA depois da ultima vez que o operador abriu
+// a conversa (whatsapp_ai_state.last_read_at). A resposta da IA nao zera
+// nada — ela nao substitui alguem ler. Conversa nunca aberta conta tudo
+// que chegou.
+const contarNaoLidas = (msgs, desde) => {
+  const marca = desde ? new Date(desde).getTime() : 0;
+  let n = 0;
+  for(const m of (msgs || [])){
+    if(m.direction !== 'in') continue;
+    if(!marca || new Date(m.created_at).getTime() > marca) n++;
+  }
+  return n;
+};
+
+// Filtro da coluna. `busca` casa numero (so digitos) ou nome; `soNaoLidas`
+// deixa so quem tem mensagem de cliente que ninguem abriu. Os dois se
+// combinam (a busca procura DENTRO das nao lidas). `manter` e a conversa
+// ABERTA: abrir marca como lida, e sem isso ela sumiria da lista no mesmo
+// clique que a abriu — continua na tela enquanto estiver aberta.
+const filtrarConversas = (convs, { busca, soNaoLidas, manter, nomeDe, naoLidas }) => {
+  const q = String(busca || '').trim().toLowerCase();
+  const digitos = q.replace(/\D/g, '');
+  return (convs || []).filter(c => {
+    if(soNaoLidas && c.waId !== manter && !(naoLidas(c) > 0)) return false;
+    if(!q) return true;
+    return (digitos !== '' && c.waId.includes(digitos)) || nomeDe(c).toLowerCase().includes(q);
+  });
+};
+
+// A LISTA NAO E MAIS "AS ULTIMAS 500 MENSAGENS" (2026-09-09, pergunta do
+// usuario: "realmente aparecem todas as conversas ou algumas se perdem
+// pelo limite?"). Perdiam: um lote de abordagem sozinho ocupava as 500
+// linhas e toda conversa mais antiga sumia da aba — com historico e nao
+// lidas juntos. Agora a aba baixa TODAS as mensagens dos ultimos
+// WA_DIAS_LISTA dias, paginadas (buscarEmPaginas), e o historico inteiro
+// de uma conversa e buscado quando ela abre. Tudo entra por
+// `mesclarMensagens`, que emenda por id em vez de trocar o array.
+const WA_DIAS_LISTA = 90;
+// Quantas conversas a coluna renderiza de uma vez — acima disso a tela
+// pede a busca (um lote de abordagem pode criar milhares de conversas).
+const WA_LISTA_MAX = 300;
+// Campos que mudam DEPOIS de a linha existir (status de entrega chega por
+// webhook minutos depois; transcricao e midia, segundos depois). Linha
+// com o mesmo id e algum destes diferente e atualizacao, nao repeticao.
+const CAMPOS_MSG = ['body', 'delivery_status', 'delivery_status_at', 'delivery_error', 'transcript', 'media_url', 'profile_name', 'origin', 'sent_by'];
+const mesmaMensagem = (a, b) => CAMPOS_MSG.every(k => (a[k] == null ? null : a[k]) === (b[k] == null ? null : b[k]));
+const ehEcoLocal = (m) => String(m.id).startsWith('local-');
+// Emenda `chegadas` em `atual` por id. Devolve o MESMO array quando nada
+// mudou (o poll de 60s nao repinta a tela a toa). O eco local do envio
+// (id 'local-…') some quando a linha real do banco chega: mesma conversa,
+// mesma direcao, mesmo corpo — antes o array inteiro era trocado e o eco
+// ia junto; com emenda, sem esta regra ele ficaria duplicado.
+const mesclarMensagens = (atual, chegadas) => {
+  if(!chegadas || !chegadas.length) return atual;
+  const porId = new Map();
+  (atual || []).forEach(m => porId.set(m.id, m));
+  let mudou = false;
+  chegadas.forEach(m => {
+    const antes = porId.get(m.id);
+    if(!antes || !mesmaMensagem(antes, m)){ porId.set(m.id, m); mudou = true; }
+  });
+  porId.forEach((m, id) => {
+    if(!ehEcoLocal(m)) return;
+    const real = chegadas.some(r => !ehEcoLocal(r) && r.direction === 'out' && r.wa_id === m.wa_id && (r.body || '') === (m.body || ''));
+    if(real){ porId.delete(id); mudou = true; }
+  });
+  if(!mudou) return atual;
+  return Array.from(porId.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+};
+// Ultimos 8 digitos do telefone — a chave que casa wa_id com lead/perfil
+// (robusta a DDI, nono digito e mascara). null se nao tem 8 digitos.
+const sufixoDoTelefone = (tel) => {
+  const dig = String(tel || '').replace(/\D/g, '');
+  return dig.length >= 8 ? dig.slice(-8) : null;
+};
+const pedacos = (lista, n) => {
+  const out = [];
+  for(let i = 0; i < lista.length; i += n) out.push(lista.slice(i, i + n));
+  return out;
+};
+// [teste:wa-lista-fim]
+
 // ── Status de entrega (Wave 58) ─────────────────────────────────────────
 // A Meta avisa por webhook o que aconteceu com cada mensagem que a loja
 // mandou. Sem isso, "nao chegou" era adivinhacao: nao dava pra separar
@@ -6576,6 +6665,7 @@ const WhatsAppTab = () => {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState('');
   const [busca, setBusca] = useState('');
+  const [soNaoLidas, setSoNaoLidas] = useState(false); // filtro "Nao lidas" da coluna
   const endRef = React.useRef(null);
 
   // Carrega a lista viva de templates JA na abertura da aba, nao so quando
@@ -6616,33 +6706,70 @@ const WhatsAppTab = () => {
     } catch(_){ /* sem assinatura a bolha cai no marcador de texto */ }
   };
 
-  const load = async () => {
-    // Tenta com as colunas de status; se a migration da Wave 58 ainda nao
-    // rodou, o PostgREST responde 42703 e refazemos SEM elas. A tela toda
-    // parar de carregar porque falta um SQL seria trocar um recurso novo
-    // (o ✓✓) pela funcao inteira — mesma licao de `quotes.post_id`.
-    let { data, error } = await supa
-      .from('whatsapp_messages')
-      .select(WA_COLS)
-      .order('created_at', { ascending:false })
-      .limit(500);
-    if(error && /delivery_status|42703/i.test(error.message || '')){
-      ({ data } = await supa
-        .from('whatsapp_messages')
-        .select(WA_COLS_BASE)
-        .order('created_at', { ascending:false })
-        .limit(500));
+  // A aba fechou? Os trabalhadores de paginacao param e nada mais escreve
+  // no state de um componente desmontado.
+  const vivoRef = React.useRef(true);
+  useEffect(() => { vivoRef.current = true; return () => { vivoRef.current = false; }; }, []);
+
+  // Tenta com as colunas de status; se a migration da Wave 58 ainda nao
+  // rodou, o PostgREST responde 42703 e refazemos SEM elas (e lembramos,
+  // pra nao pagar o erro em toda consulta). A tela toda parar de carregar
+  // porque falta um SQL seria trocar um recurso novo (o ✓✓) pela funcao
+  // inteira — mesma licao de `quotes.post_id`.
+  const semStatusRef = React.useRef(false);
+  const buscarMensagens = async (montar, opts) => {
+    const cols = semStatusRef.current ? WA_COLS_BASE : WA_COLS;
+    try { return await buscarEmPaginas((extra) => montar(cols, extra), opts); }
+    catch(e){
+      if(semStatusRef.current || !/delivery_status|42703/i.test((e && e.message) || '')) throw e;
+      semStatusRef.current = true;
+      return buscarEmPaginas((extra) => montar(WA_COLS_BASE, extra), opts);
     }
-    if(data){
-      // So troca o state se algo MUDOU de verdade — sem isso cada poll
-      // recriava o array e a tela repintava (a "piscada").
-      setMsgs(prev => {
-        if(prev.length === data.length && prev.length > 0 && prev[0].id === data[0].id) return prev;
-        return data;
-      });
-    }
-    setLoading(false);
   };
+  const ordenar = (q) => q.order('created_at', { ascending:false }).order('id', { ascending:false });
+
+  // Carga da lista: TODAS as mensagens dos ultimos WA_DIAS_LISTA dias,
+  // paginadas e emendadas conforme chegam (a 1a pagina ja tira o
+  // "Carregando"). `dias` menor no poll: de minuto em minuto so interessa
+  // o que mudou ha pouco — mensagem nova ou status de entrega que a Meta
+  // confirmou (delivery_status_at) — nao os 90 dias de novo.
+  const load = async (dias) => {
+    const desde = new Date(Date.now() - (dias || WA_DIAS_LISTA) * 86400000).toISOString();
+    const entregar = comIntervalo((parcial) => {
+      if(!vivoRef.current) return;
+      setMsgs(prev => mesclarMensagens(prev, parcial));
+      setLoading(false);
+    }, 500);
+    try {
+      await buscarMensagens((cols, extra) => {
+        const q = supa.from('whatsapp_messages').select(cols, extra);
+        const recorte = (dias && !semStatusRef.current)
+          ? q.or('created_at.gte.' + desde + ',delivery_status_at.gte.' + desde)
+          : q.gte('created_at', desde);
+        return ordenar(recorte);
+      }, { aoChegar: entregar, cancelado: () => !vivoRef.current });
+      entregar.agora();
+    } catch(e){
+      console.warn('whatsapp: falha ao carregar mensagens', e);
+      entregar.cancelar();
+    }
+    if(vivoRef.current) setLoading(false);
+  };
+
+  // Historico COMPLETO da conversa aberta, sem recorte de data — a lista
+  // so tem os ultimos dias, e uma conversa antiga abriria pela metade.
+  // Uma vez por conversa por abertura da aba; o realtime/poll trazem o
+  // resto.
+  const conversasCarregadas = React.useRef(new Set());
+  useEffect(() => {
+    if(!openWa || conversasCarregadas.current.has(openWa)) return;
+    conversasCarregadas.current.add(openWa);
+    const alvo = openWa;
+    buscarMensagens((cols, extra) => ordenar(supa.from('whatsapp_messages').select(cols, extra).eq('wa_id', alvo)),
+      { cancelado: () => !vivoRef.current })
+      .then(linhas => { if(vivoRef.current) setMsgs(prev => mesclarMensagens(prev, linhas)); })
+      .catch(e => { conversasCarregadas.current.delete(alvo); console.warn('whatsapp: falha ao carregar a conversa', e); });
+  }, [openWa]);
 
   // Quem e o dono do numero? Duas fontes, casadas pelos ULTIMOS 8 DIGITOS
   // (robusto a DDI, nono digito e formatacao):
@@ -6674,7 +6801,10 @@ const WhatsAppTab = () => {
       .then(pr => setPromptIa(pr.error ? undefined : ((pr.data && pr.data.prompt) || null)))
       .catch(() => setPromptIa(undefined));
     const [st, cfg, al] = await Promise.all([
-      supa.from('whatsapp_ai_state').select('wa_id, enabled, last_why, last_at, last_read_at').limit(2000),
+      // Paginado: com milhares de conversas o `limit(2000)` deixava marca de
+      // leitura de fora e o contador de nao lidas subia sem motivo.
+      buscarEmPaginas((extra) => supa.from('whatsapp_ai_state').select('wa_id, enabled, last_why, last_at, last_read_at', extra).order('wa_id'),
+        { cancelado: () => !vivoRef.current }).then(data => ({ data })).catch(() => ({ data: [] })),
       supa.from('whatsapp_ai_config')
         .select('hours, default_on, followup_on, away_on, last_sweep_at, last_sweep_note')
         .eq('id',1).maybeSingle(),
@@ -6815,23 +6945,45 @@ const WhatsAppTab = () => {
     setAlertas(a => a.filter(x => x.id !== id)); // otimista
     await supa.from('portal_alerts').update({ resolved:true, resolved_at:new Date().toISOString() }).eq('id', id);
   };
+  // Perfis do app sao poucos (centenas): vem em massa, paginado.
   const loadProfiles = async () => {
-    const [profRes, leadRes] = await Promise.all([
-      supa.from('profiles').select('id, name, tag, phone').not('phone','is',null).limit(3000),
-      supa.from('leads').select('id, name, phone, category, segment, city, status').not('phone','is',null).limit(3000),
-    ]);
-    const mapP = {};
-    (profRes.data || []).forEach(p => {
-      const dig = String(p.phone || '').replace(/\D/g, '');
-      if(dig.length >= 8) mapP[dig.slice(-8)] = p;
-    });
-    setProfByPhone(mapP);
-    const mapL = {};
-    (leadRes.data || []).forEach(l => {
-      const dig = String(l.phone || '').replace(/\D/g, '');
-      if(dig.length >= 8) mapL[dig.slice(-8)] = l;
-    });
-    setLeadByPhone(mapL);
+    try {
+      const perfis = await buscarEmPaginas((extra) =>
+        supa.from('profiles').select('id, name, tag, phone', extra).not('phone','is',null).order('id'),
+        { cancelado: () => !vivoRef.current });
+      const mapP = {};
+      perfis.forEach(p => { const s = sufixoDoTelefone(p.phone); if(s) mapP[s] = p; });
+      if(vivoRef.current) setProfByPhone(mapP);
+    } catch(e){ console.warn('whatsapp: falha ao carregar perfis', e); }
+  };
+
+  // LEADS SAO 61 MIL: o `limit(3000)` antigo deixava quase todo lead
+  // abordado sem nome na lista (so o numero; o nome aparecia dentro do
+  // texto do template). Agora a consulta parte das CONVERSAS: pros
+  // numeros que estao na tela, pede em `leads` quem termina nos mesmos 4
+  // digitos (o `phone` e guardado como veio da planilha, com mascara ou
+  // DDI — os 4 ultimos digitos sao contiguos em qualquer formato) e casa
+  // pelos 8 ultimos aqui. Cada sufixo e pedido UMA vez por abertura da aba.
+  const LEADS_POR_CONSULTA = 60;
+  const sufixosPedidos = React.useRef(new Set());
+  const resolverLeads = async (sufixos) => {
+    const mapa = {};
+    for(const lote of pedacos(sufixos, LEADS_POR_CONSULTA)){
+      if(!vivoRef.current) return;
+      const finais = Array.from(new Set(lote.map(s => s.slice(-4))));
+      const ou = finais.map(f => 'phone.ilike.*' + f).join(',');
+      try {
+        const linhas = await buscarEmPaginas((extra) =>
+          supa.from('leads').select('id, name, phone, category, segment, city, status', extra).or(ou).order('id'),
+          { cancelado: () => !vivoRef.current });
+        const quer = new Set(lote);
+        linhas.forEach(l => { const s = sufixoDoTelefone(l.phone); if(s && quer.has(s) && !mapa[s]) mapa[s] = l; });
+      } catch(e){
+        lote.forEach(s => sufixosPedidos.current.delete(s)); // tenta de novo na proxima
+        console.warn('whatsapp: falha ao resolver leads', e);
+      }
+    }
+    if(Object.keys(mapa).length && vivoRef.current) setLeadByPhone(prev => ({ ...prev, ...mapa }));
   };
 
   // REALTIME (Wave 45): o banco AVISA quando entra mensagem — a msg
@@ -6846,10 +6998,10 @@ const WhatsAppTab = () => {
       .channel('portal-whatsapp')
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'whatsapp_messages' },
         (payload) => {
-          setMsgs(prev => prev.some(m => m.id === payload.new.id) ? prev : [payload.new, ...prev]);
+          setMsgs(prev => mesclarMensagens(prev, [payload.new]));
         })
       .subscribe();
-    const t = setInterval(load, 60000);
+    const t = setInterval(() => load(1), 60000);
     const tIa = setInterval(loadIa, 30000); // alertas novos da IA
     return () => {
       clearInterval(t); clearInterval(tIa);
@@ -6899,13 +7051,19 @@ const WhatsAppTab = () => {
     return Object.values(map).sort((a,b) => new Date(b.last.created_at) - new Date(a.last.created_at));
   }, [msgs]);
 
+  // Conversa nova na lista → pede o lead dela (ver resolverLeads).
+  const chaveDasConversas = convs.map(c => c.waId.slice(-8)).join(',');
+  useEffect(() => {
+    const novos = convs.map(c => c.waId.slice(-8)).filter(s => s.length === 8 && !sufixosPedidos.current.has(s));
+    if(!novos.length) return;
+    novos.forEach(s => sufixosPedidos.current.add(s));
+    resolverLeads(novos);
+  }, [chaveDasConversas]);
+
   // NAO LIDAS: mensagens RECEBIDAS depois da ultima vez que o operador
   // abriu a conversa. A resposta da IA nao zera nada — ela nao substitui
   // alguem ler. Conversa nunca aberta conta tudo que chegou.
-  const naoLidas = (c) => {
-    const desde = readAt[c.waId];
-    return c.msgs.filter(m => m.direction === 'in' && (!desde || new Date(m.created_at) > new Date(desde))).length;
-  };
+  const naoLidas = (c) => contarNaoLidas(c.msgs, readAt[c.waId]);
 
   // Marca lida ate agora. Otimista na tela; o banco guarda pra valer
   // (assim a marca vale em qualquer computador, nao so neste navegador).
@@ -6967,11 +7125,10 @@ const WhatsAppTab = () => {
     return lead ? (lead.category || 'Lead') : null;
   };
 
-  const convsFiltradas = convs.filter(c => {
-    if(!busca.trim()) return true;
-    const q = busca.toLowerCase();
-    return c.waId.includes(q.replace(/\D/g, '') || '§') || nomeDe(c).toLowerCase().includes(q);
-  });
+  // Quantas CONVERSAS tem mensagem nova (nao quantas mensagens) — e o que
+  // o botao "Nao lidas" mostra e o que o operador precisa atender.
+  const conversasNaoLidas = convs.reduce((n, c) => n + (naoLidas(c) > 0 ? 1 : 0), 0);
+  const convsFiltradas = filtrarConversas(convs, { busca, soNaoLidas, manter: openWa, nomeDe, naoLidas });
 
   const aberta = convs.find(c => c.waId === openWa);
   const thread = aberta ? [...aberta.msgs].sort((a,b) => new Date(a.created_at) - new Date(b.created_at)) : [];
@@ -7188,11 +7345,28 @@ const WhatsAppTab = () => {
       <div style={{ background:'#fff', borderRadius:16, boxShadow:'0 2px 12px rgba(26,26,46,.06)', overflow:'hidden', display:'flex', height:'calc(100vh - 230px)', minHeight:420 }}>
         {/* Coluna de conversas */}
         <div style={{ width:320, minWidth:260, borderRight:'1px solid '+C.border, display:'flex', flexDirection:'column' }}>
-          <div style={{ padding:12, borderBottom:'1px solid '+C.border, display:'flex', gap:8 }}>
-            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar numero ou nome…"
-              style={{ flex:1, padding:'8px 12px', borderRadius:10, border:'1.5px solid '+C.border, fontSize:13, outline:'none' }} />
-            <button onClick={novaConversa} title="Nova conversa"
-              style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'0 14px', fontWeight:700, fontSize:18, cursor:'pointer' }}>+</button>
+          <div style={{ padding:12, borderBottom:'1px solid '+C.border, display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar numero ou nome…"
+                style={{ flex:1, minWidth:0, padding:'8px 12px', borderRadius:10, border:'1.5px solid '+C.border, fontSize:13, outline:'none' }} />
+              <button onClick={novaConversa} title="Nova conversa"
+                style={{ background:C.p1, color:'#fff', border:'none', borderRadius:10, padding:'0 14px', fontWeight:700, fontSize:18, cursor:'pointer', flexShrink:0 }}>+</button>
+            </div>
+            {/* Filtro "Nao lidas" (2026-09-09, pedido do usuario): so conversas
+                com mensagem de cliente que ninguem abriu. Clicar de novo volta
+                pra todas. A conversa aberta continua na lista (ver
+                filtrarConversas). */}
+            <button onClick={()=>setSoNaoLidas(v => !v)} aria-pressed={soNaoLidas}
+              title={soNaoLidas ? 'Mostrando so conversas com mensagem nova de cliente. Clique pra ver todas.' : 'Mostrar so conversas com mensagem nova de cliente'}
+              style={{ alignSelf:'flex-start', display:'inline-flex', alignItems:'center', gap:6,
+                background: soNaoLidas ? C.p1 : '#fff', color: soNaoLidas ? '#fff' : C.ink,
+                border:'1.5px solid '+(soNaoLidas ? C.p1 : C.border), borderRadius:999, padding:'4px 12px',
+                fontSize:12, fontWeight:700, cursor:'pointer' }}>
+              <span aria-hidden="true">{soNaoLidas ? '✓' : '●'}</span>
+              Não lidas
+              <span style={{ background: soNaoLidas ? 'rgba(255,255,255,.25)' : C.cream, color: soNaoLidas ? '#fff' : C.p1,
+                borderRadius:10, padding:'0 7px', fontSize:11, fontWeight:800, lineHeight:'16px' }}>{conversasNaoLidas}</span>
+            </button>
           </div>
           <div style={{ flex:1, overflowY:'auto' }}>
             {loading ? (
@@ -7201,9 +7375,13 @@ const WhatsAppTab = () => {
               <div style={{ padding:20, color:C.muted, fontSize:13 }}>
                 {convs.length === 0
                   ? 'Nenhuma conversa ainda. Mensagens recebidas no +55 11 92072-5935 aparecem aqui.'
-                  : 'Nada encontrado na busca.'}
+                  : soNaoLidas && !busca.trim()
+                    ? 'Nenhuma conversa com mensagem nova de cliente. Tudo lido. 👏'
+                    : soNaoLidas
+                      ? 'Nada encontrado entre as não lidas.'
+                      : 'Nada encontrado na busca.'}
               </div>
-            ) : convsFiltradas.map(c => (
+            ) : convsFiltradas.slice(0, WA_LISTA_MAX).map(c => (
               <div key={c.waId} onClick={() => abrirConversa(c.waId)}
                 style={{ padding:'12px 14px', cursor:'pointer', borderBottom:'1px solid '+C.cream,
                   background: openWa === c.waId ? C.cream : 'transparent' }}>
@@ -7228,6 +7406,11 @@ const WhatsAppTab = () => {
                 </div>
               </div>
             ))}
+            {convsFiltradas.length > WA_LISTA_MAX ? (
+              <div style={{ padding:'10px 14px', fontSize:11, color:C.muted, textAlign:'center' }}>
+                Mostrando {WA_LISTA_MAX} de {convsFiltradas.length} conversas — use a busca ou o filtro pra achar as outras.
+              </div>
+            ) : null}
           </div>
         </div>
         {/* Thread */}
@@ -8241,9 +8424,14 @@ function App() {
       const { data: { session } } = await supa.auth.getSession();
       const meuId = session && session.user ? session.user.id : null;
       const [msgsRes, stRes, chatRes, chatReadRes] = await Promise.all([
-        supa.from('whatsapp_messages').select('wa_id, created_at')
-          .eq('direction','in').gte('created_at', desde).limit(3000),
-        supa.from('whatsapp_ai_state').select('wa_id, last_read_at').limit(3000),
+        // Paginado (sem teto): o `limit(3000)` antigo contava errado quando
+        // um lote de respostas passava disso — e a aba, que agora baixa
+        // tudo, discordaria do badge.
+        buscarEmPaginas((extra) => supa.from('whatsapp_messages').select('wa_id, created_at', extra)
+          .eq('direction','in').gte('created_at', desde).order('created_at', { ascending:false }).order('id', { ascending:false }))
+          .then(data => ({ data })).catch(() => ({ data: [] })),
+        buscarEmPaginas((extra) => supa.from('whatsapp_ai_state').select('wa_id, last_read_at', extra).order('wa_id'))
+          .then(data => ({ data })).catch(() => ({ data: [] })),
         supa.from('messages').select('conversation_id, sender_id, created_at')
           .gte('created_at', desde).limit(3000),
         supa.from('portal_chat_reads').select('conversation_id, last_read_at').limit(2000),
