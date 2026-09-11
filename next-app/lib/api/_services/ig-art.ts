@@ -541,10 +541,15 @@ async function generateImageGemini(args: {
     }
 
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent?key=${getRuntimeEnv('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Chave no HEADER, nunca em `?key=` (auditoria 2026-09-11): a URL de
+        // saída vai parar em breadcrumb do Sentry e em log de proxy.
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': getRuntimeEnv('GEMINI_API_KEY') || '',
+        },
         signal: ac.signal,
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],

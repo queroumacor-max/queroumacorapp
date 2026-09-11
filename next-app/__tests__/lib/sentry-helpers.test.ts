@@ -126,3 +126,103 @@ describe('sentryBeforeSend', () => {
     expect(out.user.email).toBeNull();
   });
 });
+
+// ─── Auditoria de segredos (2026-09-11) ─────────────────────────────────────
+//
+// O Sentry anexa ao evento a URL da request, os breadcrumbs de fetch de saída
+// e o texto das exceções — três caminhos por onde um segredo chega lá sem
+// passar por `console.*`. Estes testes travam que o beforeSend limpa TODOS.
+
+import { redactSecrets, scrubUrl } from '../../lib/sentry-helpers';
+
+describe('redactSecrets', () => {
+  it('troca o valor de parâmetro sensível na query, mantendo o nome', () => {
+    expect(redactSecrets('https://x/api/whatsapp/webhook?token=abc123&x=1')).toBe(
+      'https://x/api/whatsapp/webhook?token=[REDACTED]&x=1',
+    );
+    expect(redactSecrets('https://g/v1beta/models?key=AIzaSyXYZ&pageSize=2')).toBe(
+      'https://g/v1beta/models?key=[REDACTED]&pageSize=2',
+    );
+  });
+
+  it('mascara Bearer e chaves de provedor soltas no texto', () => {
+    expect(redactSecrets('Authorization: Bearer abcdefghijklmnop.qrs')).toBe(
+      'Authorization: Bearer [REDACTED]',
+    );
+    expect(redactSecrets('falhou com sk-proj-abcdefghijklmnopqrstuvwxyz0123')).toBe(
+      'falhou com [KEY_REDACTED]',
+    );
+    expect(redactSecrets('chave AIzaSyA1234567890abcdefghijklmnopqrstuv')).toBe(
+      'chave [KEY_REDACTED]',
+    );
+  });
+
+  it('mascara bloco PEM inteiro', () => {
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIIB\nabc\n-----END PRIVATE KEY-----';
+    expect(redactSecrets(`env: ${pem}!`)).toBe('env: [PRIVATE_KEY_REDACTED]!');
+  });
+
+  it('não altera string sem segredo', () => {
+    expect(redactSecrets('https://x/feed?page=2&q=tinta')).toBe('https://x/feed?page=2&q=tinta');
+  });
+});
+
+describe('scrubUrl', () => {
+  it('descarta o fragment inteiro (onde o OAuth web entrega a sessão)', () => {
+    expect(scrubUrl('https://x/completar-perfil#access_token=eyJa.bb.cc&refresh_token=zzz')).toBe(
+      'https://x/completar-perfil',
+    );
+  });
+
+  it('redige a query e preserva o resto', () => {
+    expect(scrubUrl('https://x/api/whatsapp/followup?token=s3cr3t&dryRun=1')).toBe(
+      'https://x/api/whatsapp/followup?token=[REDACTED]&dryRun=1',
+    );
+  });
+});
+
+describe('sentryBeforeSend — segredos', () => {
+  it('limpa request.url, query_string, headers sensíveis e cookies', () => {
+    const event = {
+      request: {
+        url: 'https://x/api/whatsapp/webhook?token=s3cr3t',
+        query_string: 'token=s3cr3t&a=1',
+        headers: {
+          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.abcdefghijklmnop',
+          'x-internal-secret': 'abc',
+          Cookie: 'sb-session-token=xyz',
+          'user-agent': 'UA',
+        },
+        cookies: { 'sb-session-token': 'xyz' },
+      },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.request.url).toBe('https://x/api/whatsapp/webhook?token=[REDACTED]');
+    expect(out.request.query_string).toBe('token=[REDACTED]&a=1');
+    expect(out.request.headers).toEqual({
+      Authorization: '[REDACTED]',
+      'x-internal-secret': '[REDACTED]',
+      Cookie: '[REDACTED]',
+      'user-agent': 'UA',
+    });
+    expect(out.request.cookies).toBe('[REDACTED]');
+  });
+
+  it('limpa breadcrumbs de fetch (url + message) e texto da exceção', () => {
+    const event = {
+      breadcrumbs: [
+        {
+          message: 'GET https://g/v1beta/models?key=AIzaSyA1234567890abcdefghijklmnopqrstuv',
+          data: { url: 'https://g/v1beta/models?key=AIzaSyA1234567890abcdefghijklmnopqrstuv', method: 'GET' },
+        },
+      ],
+      exception: { values: [{ value: 'fetch failed: Bearer abcdefghijklmnop' }] },
+      message: 'erro em ?token=abc',
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.breadcrumbs[0].data.url).toBe('https://g/v1beta/models?key=[REDACTED]');
+    expect(out.breadcrumbs[0].message).not.toContain('AIzaSyA1234567890');
+    expect(out.exception.values[0].value).toBe('fetch failed: Bearer [REDACTED]');
+    expect(out.message).toBe('erro em ?token=[REDACTED]');
+  });
+});

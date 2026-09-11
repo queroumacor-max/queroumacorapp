@@ -18,7 +18,7 @@
 import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import { jsonResponse, readBody, ServiceError, serviceErrorResponse } from '@/lib/api/security';
-import { persistWhatsAppMessage } from '@/lib/api/_services/whatsapp';
+import { persistWhatsAppMessage, safeEqual } from '@/lib/api/_services/whatsapp';
 import { parseEvolutionWebhook } from '@/lib/api/_services/whatsapp-evo';
 import { maybeAutoReply } from '@/lib/api/_services/whatsapp-ai-runner';
 import { processarMidia } from '@/lib/api/_services/whatsapp-media';
@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     );
   }
   const provided = request.nextUrl.searchParams.get('token') || '';
-  if (provided !== expected) {
+  // Comparação em tempo constante, igual ao webhook da Meta (`safeEqual`).
+  if (!safeEqual(provided, expected)) {
     return jsonResponse({ error: 'token inválido' }, 401);
   }
 

@@ -1,5 +1,64 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGREDOS (2026-09-11, pedido do usuário: "auditoria
+  completa procurando exposição de secrets"). SEM SQL.** Varridos: árvore de
+  trabalho + os 2157 commits do histórico (gitleaks + TruffleHog + grep de
+  padrões), bundle público, portal, Android/iOS, CI, migrations, docs.
+  - **ROTAÇÃO EXIGIDA — chave Gemini (`AIzaSy…`) hardcoded no
+    `queroumacorportal.html` legado**, commits `a735531` → removida em
+    `10ff6d2` (05/2026). Era FRONTEND (rodava no navegador), então já esteve
+    em todo cliente que abriu aquele portal. Remover do código não invalida:
+    revogar no Google AI Studio e gerar outra (`GEMINI_API_KEY` no CF Pages).
+    Não está em nenhum arquivo atual — só no histórico, que é público.
+  - **Nenhum outro segredo real, nem no histórico.** A anon key do Supabase
+    (JWT `role=anon`), o DSN do Sentry e a chave PÚBLICA do VAPID estão no
+    bundle DE PROPÓSITO. Os `EAA…` que o scanner acusa são imagens base64.
+    `service_role` NUNCA passou pelo Git. Mobile (strings.xml, gradle, plist,
+    Swift) limpo; keystore/`.p8`/`google-services.json` gitignored e
+    materializados pelo Codemagic a partir de secrets.
+  - **Corrigido: chave Gemini viajava em `?key=` na URL** (6 fetches). URL de
+    fetch de saída vai parar em breadcrumb do Sentry e em log de proxy — agora
+    vai no header `x-goog-api-key`. **REGRA: segredo nunca em query string de
+    fetch de saída.**
+  - **Corrigido: `sentryBeforeSend` só mascarava PII**, não segredo: a URL da
+    request (`/api/whatsapp/webhook?token=<segredo>`), `query_string`,
+    headers (`Authorization`, `Cookie`, `x-internal-secret`), cookies,
+    breadcrumbs de fetch e o texto das exceções iam pro Sentry inteiros.
+    `redactSecrets`/`scrubUrl` em `lib/sentry-helpers.ts` (valor vira
+    `[REDACTED]`, nome fica; fragment de URL é descartado inteiro).
+  - **Corrigido: `/api/log-error` gravava `location.href` cru** — depois do
+    OAuth web a página pousa com `#access_token=…&refresh_token=…`; uma falha
+    nesse instante gravaria a SESSÃO da pessoa na tabela `errors` e no
+    `console.log` do edge. `sanitizeErrorPayload` passa url/msg/stack/ctx por
+    `scrubUrl`/`redactSecrets`.
+  - **Corrigido: SOURCE MAPS do cliente iam pro ar.** O plugin do Sentry gera
+    157 `.js.map` em `.next/static`, e `hideSourceMaps` só remove o comentário
+    `sourceMappingURL` — os arquivos seguiam no output e o Pages os servia como
+    asset público (fonte inteiro a quem adivinhasse `chunk.js.map`). Agora
+    `sourcemaps.deleteSourcemapsAfterUpload: true` no `withSentryConfig`
+    (apaga mesmo sem `SENTRY_AUTH_TOKEN`; conferido no build: 157 → 0 `.js.map`; sobra só o `.css.map`, inofensivo).
+  - Corrigido: webhook da Evolution comparava o `?token=` com `!==` (agora
+    `safeEqual`, tempo constante); `.env.example` tinha valores reais (URL,
+    prefixo do JWT, DSN, e-mail) — agora SÓ NOMES, com toda env que o código
+    lê; `.gitignore` (raiz e next-app) cobria só `.env`/`.env.local` — agora
+    `.env.*` com `!.env.example`.
+  - **Guardas que ficam:** `__tests__/lib/secret-hygiene.test.ts` (código de
+    cliente não lê env secreta nem importa `lib/api`; todo `NEXT_PUBLIC_*` está
+    numa allowlist analisada — nome novo ali = nova análise "pode ir pro APK?";
+    nenhum Gemini com `?key=`; `.env.example` sem valor; `.gitignore` cobre
+    `.env.*`), `.gitleaks.toml` (allowlist EXPLICADA dos falsos positivos +
+    os 2 commits da chave Gemini) e job `gitleaks` no `security.yml`.
+    Falso positivo novo = entrada explicada na allowlist, nunca desligar.
+  - **Não corrigido (não é segredo, é dependência):** `npm audit` acusa
+    `next` 15.5.2 (critical) com fix em 15.5.25 — mas o peer range do
+    `@cloudflare/next-on-pages` é `<=15.5.2`; subir `next` exige subir o
+    next-on-pages junto (C6 já registrava). Decisão do usuário.
+  - **Conhecido, aceito:** `?token=` na URL dos webhooks (Meta/Dualhook não
+    assinam; é o protocolo) — mitigado pelo scrub do Sentry; `/api/log-error`
+    é público e aceita `user_id` do cliente (log, não identidade; rate limit
+    30/min); o service worker cacheia GETs de `/api/*` no aparelho (dado
+    pessoal em cache local, não segredo).
+
 - **ROTAS ADMIN ACEITAM QUEM FOI PROMOVIDO NO PORTAL (2026-09-10, decisão
   do usuário: "habilite pelo promover"). SEM SQL.** O relato: João estava
   promovido no portal e levava 403 ao responder WhatsApp ("não está na

@@ -118,10 +118,11 @@ export async function callAIText(opts: AITextOpts): Promise<AITextResult> {
       } = { temperature, maxOutputTokens: maxTokens };
       if (json) gconf.responseMimeType = 'application/json';
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // Chave no HEADER, nunca em `?key=` (auditoria 2026-09-11).
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key || '' },
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents,

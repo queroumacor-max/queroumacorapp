@@ -42,6 +42,23 @@ jobs:
             npm audit --audit-level=high --omit=dev
           fi
 
+  gitleaks:
+    # Auditoria de segredos 2026-09-11: varre o diff do PR (e, no agendado,
+    # o histórico inteiro) com a config de `.gitleaks.toml`. Falso positivo
+    # novo = entrada explicada na allowlist, nunca desligar o job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "true"
+
   zap-baseline:
     # Scan passivo (não dispara payloads). Roda só na cron pra não atrasar
     # PR. allow_issue_writing:false → não polui Issues do repo a cada run.

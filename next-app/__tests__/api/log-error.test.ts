@@ -106,6 +106,21 @@ describe('POST /api/log-error', () => {
     expect(safe.type).toBe('js');
   });
 
+  it('não persiste segredo: fragment da URL some e Bearer/?key= viram [REDACTED]', async () => {
+    const { sanitizeErrorPayload } = await import('../../lib/api/log-error-helpers');
+    const safe = sanitizeErrorPayload({
+      type: 'publish-fail',
+      msg: 'fetch falhou com Authorization: Bearer eyJabc.def.ghi',
+      stack: 'at https://g/v1beta/models?key=AIzaSyA1234567890abcdefghijklmnopqrstuv',
+      url: 'https://www.queroumacor.com.br/completar-perfil#access_token=eyJa.b.c&refresh_token=zzz',
+      ctx: 'token=abc',
+    });
+    expect(safe.url).toBe('https://www.queroumacor.com.br/completar-perfil');
+    expect(safe.msg).toBe('fetch falhou com Authorization: Bearer [REDACTED]');
+    expect(safe.stack).toBe('at https://g/v1beta/models?key=[REDACTED]');
+    expect(safe.ctx).toBe('token=[REDACTED]');
+  });
+
   it('OPTIONS returns 204', async () => {
     const { OPTIONS } = await import('@/app/api/log-error/route');
     const res = await OPTIONS();

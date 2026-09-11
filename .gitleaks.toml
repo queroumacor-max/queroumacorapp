@@ -1,0 +1,49 @@
+# .gitleaks.toml — configuração do scanner de segredos (CI: security.yml e
+# rodada local `gitleaks git .` / `gitleaks dir .`).
+#
+# Auditoria de segredos 2026-09-11: a varredura de TODO o histórico (2157
+# commits) achou UM segredo real, hoje removido — a chave Gemini hardcoded em
+# `queroumacorportal.html` (commits a735531 → removida em 10ff6d2, 05/2026).
+# Remover do código NÃO invalida a chave: ela precisa ser ROTACIONADA no
+# Google AI Studio. Os commits ficam listados abaixo pra que o scan de
+# histórico não volte a alarmar por algo já tratado — e pra que ninguém
+# conclua que "nunca vazou".
+#
+# O resto dos alarmes do scanner são falsos positivos conhecidos, cada um
+# explicado na sua entrada.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Falsos positivos conhecidos — cada um com motivo"
+commits = [
+  # Chave Gemini hardcoded no portal legado (REAL; rotação exigida, ver acima).
+  "a73553136333024755c7100198818ce6cae8232a",
+  # Commit que trocou a chave por leitura do localStorage — o diff ainda mostra a chave removida.
+  "10ff6d206ce195865ce39e5d0d9f1e970fdefb58",
+]
+regexes = [
+  # Anon key do Supabase (JWT com role=anon). Pública por design — a segurança
+  # é a RLS. Está no bundle, no wrangler.toml e no portal de propósito.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24i''',
+  # Token de exemplo do jwt.io (sub=1234567890) usado como fixture de teste.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.''',
+  # Placeholder truncado do antigo .env.example ("eyJhbGciOiJIUzI1NiIs...").
+  '''eyJhbGciOiJIUzI1NiIs\.\.\.''',
+  # DSN público do Sentry (feito pra viver no bundle).
+  '''https://[0-9a-f]{32}@o[0-9]+\.ingest\.us\.sentry\.io/[0-9]+''',
+]
+paths = [
+  # `pemToPkcs8` contém as strings "-----BEGIN PRIVATE KEY-----" como
+  # delimitadores de parse, não uma chave. O teste monta um PEM de 5 bytes.
+  '''next-app/lib/api/_services/fcm\.ts''',
+  '''next-app/__tests__/api/fcm\.test\.ts''',
+  # Regexes de redação contêm os PREFIXOS das chaves (sk-, AIza, ghp_…).
+  '''next-app/lib/sentry-helpers\.ts''',
+  '''next-app/__tests__/lib/sentry-helpers\.test\.ts''',
+  '''next-app/__tests__/api/log-error\.test\.ts''',
+  # Imagens base64 (data:image/...) disparam heurística de entropia.
+  '''\.(png|jpg|jpeg|webp|gif|svg)$''',
+  '''package-lock\.json$''',
+]

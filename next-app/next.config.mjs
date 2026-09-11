@@ -108,5 +108,13 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   widenClientFileUpload: true,
   hideSourceMaps: true,
+  // Auditoria de segredos 2026-09-11: o plugin GERA source maps do bundle do
+  // cliente (157 `.js.map` em `.next/static`) e o `hideSourceMaps` só tira o
+  // comentário `sourceMappingURL` — os arquivos continuavam no output e iam
+  // pro Cloudflare Pages como asset público (`/_next/static/chunks/*.js.map`),
+  // entregando o FONTE do app inteiro a quem adivinhasse a URL. Com isso o
+  // plugin apaga os maps depois de subir pro Sentry; a exclusão roda mesmo
+  // sem `SENTRY_AUTH_TOKEN` (é um plugin separado do upload).
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   disableLogger: true,
 });

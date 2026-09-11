@@ -33,8 +33,13 @@ export async function diagnoseIgArt(args: {
   if (geminiKey) {
     try {
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}&pageSize=200`,
-        { signal: AbortSignal.timeout(TIMEOUT_MS) }
+        'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',
+        {
+          // Chave no HEADER, nunca em `?key=`: URL de fetch vai parar em
+          // breadcrumb do Sentry e em log de proxy (auditoria 2026-09-11).
+          headers: { 'x-goog-api-key': geminiKey },
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        }
       );
       if (!r.ok) {
         const txt = (await r.text()).slice(0, 300);

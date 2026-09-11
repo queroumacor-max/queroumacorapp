@@ -175,10 +175,13 @@ async function uploadToGemini(
   mime: string
 ): Promise<string> {
   const start = await fetch(
-    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    'https://generativelanguage.googleapis.com/upload/v1beta/files',
     {
       method: 'POST',
+      // Chave no HEADER, nunca em `?key=` (auditoria 2026-09-11): a URL de
+      // saída vai parar em breadcrumb do Sentry e em log de proxy.
       headers: {
+        'x-goog-api-key': apiKey,
         'X-Goog-Upload-Protocol': 'resumable',
         'X-Goog-Upload-Command': 'start',
         'X-Goog-Upload-Header-Content-Length': String(buf.byteLength),
@@ -216,8 +219,8 @@ async function uploadToGemini(
   while (state === 'PROCESSING' && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 2500));
     const s = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${name}?key=${apiKey}`,
-      { signal: AbortSignal.timeout(10000) }
+      `https://generativelanguage.googleapis.com/v1beta/${name}`,
+      { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(10000) }
     );
     const sd = (await s.json()) as { state?: string; uri?: string };
     state = sd?.state;
@@ -234,10 +237,10 @@ async function analyzeVideo(
   caption: string
 ): Promise<{ flagged: boolean; severity: 'none' | 'soft' | 'hard'; reasons: string[] }> {
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [
           {
