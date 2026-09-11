@@ -16,6 +16,7 @@
 //     compatibilidade com endpoints que ainda dependem dela.
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { chaveDeRateLimit } from './_services/_untrusted';
 import { assertProductionEnvs } from './env-check';
 import { getRuntimeEnv, getSupabaseServiceKey } from './env';
 // `isAdminEmail` é implementada em `admin-config.ts` (cache + validação
@@ -402,13 +403,23 @@ export async function checkRateLimit(opts: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        p_user_id: userId,
+        // A RPC recebe `uuid`: chave que não é UUID (`ip:…`, `log-error:…`)
+        // dava 22P02 → 400 → liberava em silêncio. Nenhum limite por IP
+        // valia (auditoria 2026-09-11). Agora vira UUID determinístico.
+        p_user_id: await chaveDeRateLimit(userId),
         p_endpoint: endpoint,
         p_limit: limit,
       }),
       signal: AbortSignal.timeout(RATE_LIMIT_TIMEOUT_MS),
     });
-    if (!res.ok) return { allowed: true, skipped: true };
+    if (!res.ok) {
+      // Fail-open continua (blip do banco não pode derrubar rota legítima),
+      // mas NUNCA mais em silêncio: foi o silêncio que escondeu o 22P02.
+      console.warn(
+        `[rate-limit] RPC respondeu ${res.status} pra endpoint=${endpoint}: ${(await res.text().catch(() => '')).slice(0, 160)}`
+      );
+      return { allowed: true, skipped: true };
+    }
     const data = await res.json();
     return {
       allowed: !!data?.allowed,

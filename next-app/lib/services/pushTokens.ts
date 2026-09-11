@@ -37,8 +37,19 @@ export async function saveDeviceToken(
       },
       { onConflict: 'token' },
     );
-    if (error) return { ok: false, reason: 'error' };
-    return { ok: true };
+    if (!error) return { ok: true };
+    // Token já registrado em OUTRA conta (aparelho trocou de dono): a RLS
+    // recusa o upsert (só o dono edita a linha — antes `USING (true)` deixava
+    // qualquer um tomar todos os tokens). A RPC troca o dono só desta linha,
+    // e só pra quem TEM o token. Ver migrations/2026-09-11-auditoria-seguranca.sql.
+    // Cast: a RPC é nova e ainda não está nos tipos gerados do schema.
+    const { data: reivindicado, error: erroRpc } = await (
+      sb as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+      }
+    ).rpc('claim_push_device_token', { p_token: token, p_platform: native.platform() });
+    if (!erroRpc && reivindicado === true) return { ok: true };
+    return { ok: false, reason: 'error' };
   } catch {
     return { ok: false, reason: 'error' };
   }

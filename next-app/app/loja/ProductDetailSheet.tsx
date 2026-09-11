@@ -10,6 +10,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { corCssSegura } from '@/lib/utils/urlSegura';
 import { useQuery } from '@tanstack/react-query';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
@@ -382,7 +383,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {product._colorVariants.map((cv) => {
                   const active = selectedColorVariant?.product.id === cv.product.id;
-                  const hex = cv.product.color_hex ?? '#cccccc';
+                  const hex = corCssSegura(cv.product.color_hex, '#cccccc');
                   return (
                     <button
                       key={cv.product.id}
@@ -831,7 +832,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                         width: 16,
                         height: 16,
                         borderRadius: '50%',
-                        background: selectedLequeColor.color_hex || '#ccc',
+                        background: corCssSegura(selectedLequeColor.color_hex, '#ccc'),
                         border: '1px solid rgba(0,0,0,.12)',
                         flexShrink: 0,
                       }}
@@ -871,7 +872,7 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
                 >
                   {shown.map((c) => {
                     const active = selectedLequeColor?.id === c.id;
-                    const hex = c.color_hex || '#ccc';
+                    const hex = corCssSegura(c.color_hex, '#ccc');
                     const label = extractColorLabel(c, lequeBrand);
                     return (
                       <button

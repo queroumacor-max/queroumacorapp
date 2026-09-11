@@ -23,8 +23,16 @@ import { Fragment, type ReactNode } from 'react';
 const TOKEN_RE =
   /(?<=^|\s)(@[a-zA-Z0-9_]{2,30})|(?<=^|\s)(#[\p{L}\p{N}_]{1,50})|(https?:\/\/[^\s<>"]+)/gu;
 
-// Pontuação que costuma seguir uma URL e NÃO faz parte dela.
-const URL_TRAILING_RE = /[.,!?;:)\]}'"]+$/;
+// Pontuação que costuma seguir uma URL e NÃO faz parte dela. Laço em vez
+// de `/[...]+$/`: a regex ancorada no fim re-tentava a partir de cada
+// posição numa sequência longa de pontos (quadrática numa legenda de 2000
+// chars, rodando pra cada leitor do feed) — auditoria 2026-09-11.
+const URL_TRAILING = new Set(['.', ',', '!', '?', ';', ':', ')', ']', '}', "'", '"']);
+export function semPontuacaoFinal(url: string): string {
+  let fim = url.length;
+  while (fim > 0 && URL_TRAILING.has(url[fim - 1])) fim--;
+  return url.slice(0, fim);
+}
 
 export function renderRichText(text: string | null | undefined): ReactNode {
   if (!text) return null;
@@ -63,8 +71,8 @@ export function renderRichText(text: string | null | undefined): ReactNode {
     } else if (url) {
       // E2: stripa pontuação trailing. "veja https://foo.com." → URL é
       // "https://foo.com" e o "." vira texto solto depois do link.
-      const trailing = url.match(URL_TRAILING_RE)?.[0] ?? '';
-      const cleanUrl = trailing ? url.slice(0, url.length - trailing.length) : url;
+      const cleanUrl = semPontuacaoFinal(url);
+      const trailing = url.slice(cleanUrl.length);
       out.push(
         <a
           key={key++}

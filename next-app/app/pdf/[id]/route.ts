@@ -20,6 +20,7 @@
 // bucket. Cache imutável nos bytes: id aleatório, nunca sobrescrito.
 
 import type { NextRequest } from 'next/server';
+import { gerarNonce } from '@/lib/csp';
 import { getSupabaseUrl } from '@/lib/api/security';
 
 export const runtime = 'edge';
@@ -71,12 +72,16 @@ export async function GET(
 
 function paginaVisualizadora(): Response {
   // Nada dinâmico entra no HTML (o id vem de location.pathname no client),
-  // então não há o que escapar. CSP próprio e mínimo — o _headers do Pages
-  // não se aplica a resposta de function.
+  // então não há o que escapar. CSP própria e mínima — o middleware NÃO
+  // sobrescreve a desta rota (`cspParaPath` devolve null em /pdf/*).
+  // Nonce por resposta (pentest Strix, 2026-09-11): o <script> e o <style>
+  // inline carregam o mesmo valor que a CSP, sem 'unsafe-inline'. A resposta
+  // é cacheável (1h) e continua íntegra: cache guarda HTML e header juntos.
+  const nonce = gerarNonce();
   const html = `<!doctype html><html lang="pt-BR"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Orçamento — QueroUmaCor</title>
-<style>
+<style nonce="${nonce}">
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#f7f3ee;font:400 15px/1.5 system-ui,-apple-system,sans-serif;color:#1a1a2e;min-height:100dvh}
   header{position:sticky;top:0;background:#fff;border-bottom:2px solid #ff6b35;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:2}
@@ -102,8 +107,8 @@ function paginaVisualizadora(): Response {
   <div id="st">Carregando orçamento…</div>
   <div id="paginas"></div>
 </main>
-<script src="${PDFJS}"></script>
-<script>
+<script nonce="${nonce}" src="${PDFJS}"></script>
+<script nonce="${nonce}">
 (async function(){
   var st = document.getElementById('st');
   function falhou(){
@@ -143,8 +148,8 @@ function paginaVisualizadora(): Response {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
       'Content-Security-Policy':
-        "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
-        "style-src 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; " +
+        `default-src 'none'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; ` +
+        `style-src 'nonce-${nonce}'; connect-src 'self' https://cdn.jsdelivr.net; ` +
         "img-src 'self' data: blob:; worker-src blob:; base-uri 'none'; form-action 'none'",
       'X-Content-Type-Options': 'nosniff',
     },

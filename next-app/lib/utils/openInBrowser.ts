@@ -19,7 +19,11 @@ import { watchAppLeave } from './filePickerWatch';
 
 /** `https://x/y?z` → `intent://x/y?z#Intent;scheme=https;action=…;end` */
 export function intentUrl(url: string): string {
-  const semEsquema = url.replace(/^https?:\/\//, '');
+  // Só http(s): outro esquema entraria inteiro no `intent://`. E o
+  // fragmento sai — o Android lê o PRIMEIRO `#Intent;…;end`, então um `#`
+  // na URL escolheria o pacote/esquema de destino (auditoria 2026-09-11).
+  if (!/^https?:\/\//i.test(url)) throw new Error('intentUrl: só http(s)');
+  const semEsquema = url.replace(/^https?:\/\//i, '').split('#')[0];
   return `intent://${semEsquema}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
 }
 

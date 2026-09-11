@@ -95,28 +95,24 @@ describe('POST /api/play-billing-verify', () => {
     expect(calls.some((u) => u.includes('rpc/upsert_invoice'))).toBe(false);
   });
 
-  it('proceeds to upsert_invoice when IAP_PRODUCTION_VERIFICATION_ENABLED === "true" (stub still active)', async () => {
+  it('mesmo com IAP_PRODUCTION_VERIFICATION_ENABLED="true" o stub NÃO grava invoice (auditoria 2026-09-11)', async () => {
+    // A env sozinha não pode ligar um caminho que aceita qualquer recibo:
+    // enquanto a verificação real não existir, a rota responde 503 e não
+    // toca em upsert_invoice.
     process.env.IAP_PRODUCTION_VERIFICATION_ENABLED = 'true';
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/auth/v1/user')) return authOkResponse();
       if (url.includes('/rest/v1/rpc/upsert_invoice')) return upsertOkResponse();
-      throw new Error(`unexpected fetch: ${url}`);
+      return new Response('', { status: 201 });
     });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     const { POST } = await import('@/app/api/play-billing-verify/route');
-    const res = await POST(
-      mkReq({ purchaseToken: 'token-genuino', productId: 'pro_monthly' })
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.plan).toBe('pro');
-
-    // upsert_invoice precisa ter sido chamado.
+    const res = await POST(mkReq({ purchaseToken: 'token-genuino', receipt: 'recibo', transactionId: 'tx-1', productId: 'pro_monthly' }));
+    expect(res.status).toBe(503);
     const calls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(calls.some((u) => u.includes('rpc/upsert_invoice'))).toBe(true);
+    expect(calls.some((u) => u.includes('rpc/upsert_invoice'))).toBe(false);
   });
 
   it('returns 401 when auth fails (gate is irrelevant)', async () => {

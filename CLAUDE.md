@@ -1,5 +1,114 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA — fluxo de dados SOURCE→SINK (2026-09-11).
+  SQL `/migrations/2026-09-11-auditoria-seguranca.sql` — PENDENTE até o
+  usuário rodar (12 blocos, um por vez); conferência no fim de
+  `2026-09-05-conferencia-pendencias.sql`.** Relatório completo no chat da
+  sessão; o que virou REGRA fica aqui:
+  - **Dado de fora só entra em filtro PostgREST, URL, log ou header depois
+    de `lib/api/_services/_untrusted.ts`.** `encodeURIComponent` NÃO escapa
+    `*` (curinga do `ilike`) nem `( ) . ,` (gramática do `or=`): o webhook
+    da Meta com `from: "********"` virava `leads?phone=ilike.**` e um PATCH
+    com service role marcava TODOS os leads como opt-out. Agora `from`
+    precisa ser `\d{8,15}` no parse (`waIdValido`) e todo `ilike` de
+    telefone nasce de `filtroTelefoneContem` (8 dígitos ou nada). Texto de
+    pessoa dentro de `or=(…)` passa por `valorParaOr`.
+  - **`check_rate_limit` recebe `uuid`** — chave `ip:…` dava 22P02 → 400 →
+    `checkRateLimit` liberava em SILÊNCIO: nenhum limite por IP valia
+    (checkout, delete-account, log-error, auth-rate-check, cidades). Chave
+    vira UUID determinístico (`chaveDeRateLimit`) e o `!res.ok` loga.
+  - **Corpo com teto ANTES do auth**: toda rota lê por `readBody(request,
+    {maxBytes})`; `request.json()`/`formData()` cru é proibido (teste varre
+    `app/api`). Webhook da Meta: 2MB e 50 itens por lote.
+  - **`href`/`src` de dado = `hrefSeguro`** (`lib/utils/urlSegura.ts`; no
+    portal, bloco `[teste:seguranca-*]`). React NÃO filtra `javascript:` em
+    href; a CSP segura hoje, mas CSP é rede, não correção. Achado real:
+    `brand_logos.image_url` (gravado pelo pintor) virava `<a href>` no portal
+    ADMIN. Cor em CSS = `corCssSegura` (`url(` num `color_gradient` faria
+    o navegador buscar o que quiser; style-src tem unsafe-inline).
+  - **CSV exportado = `celulaCsv`**: célula começando com `= + - @` ganha
+    `'` (fórmula em Excel/Sheets). Cabeçalho é constante, não passa.
+  - **`/api/log-error` só grava `user_id` assinado** (bate com o Bearer;
+    `reportFailure` manda o token). Antes qualquer um gravava em nome de
+    qualquer usuário no /admin/errors.
+  - **Mercado Pago**: id de evento `^[A-Za-z0-9_-]{1,64}$` e encodado na URL
+    da API; valor ausente/zero/NaN é `amount_mismatch`, não `paid`.
+    **Mídia da Cloud API**: só https em host da lista
+    (`HOSTS_DE_MIDIA_WHATSAPP`), `redirect:'manual'`, Bearer nunca sai pra
+    outro host. **IAP**: a env `IAP_PRODUCTION_VERIFICATION_ENABLED` sozinha
+    não liga mais o stub (constante `VERIFICACAO_REAL_IMPLEMENTADA=false`).
+  - **No banco (SQL pendente)**: `push_device_tokens` UPDATE tinha
+    `USING (true)` (qualquer um tomava todos os tokens FCM); `GRANT … TO
+    service_role` NÃO tira o EXECUTE de PUBLIC/authenticated — `upsert_invoice`,
+    `check_rate_limit`, `cleanup_old_audit_events` etc. eram chamáveis por
+    `sb.rpc()` (REVOKE explícito agora); `get_feed_v2(p_user_id)` era
+    SECURITY DEFINER com o uid do CLIENTE (saved_posts/likes/blocks de
+    qualquer um — o corpo passa a usar `auth.uid()`); `protect_profile_columns`
+    não cobria `user_type` (→ `role='admin'` via `sync_role_from_user_type`),
+    `pro_expires_at`, `rating_avg`, contadores; `orders_update_own` deixava o
+    comprador marcar `paid` (+100 pts); pontos por orçamento próprio;
+    INSERT em `messages` com `conversation_id` livre; `leads` sem RLS no repo.
+    **REGRA: função SECURITY DEFINER nova = `REVOKE ALL … FROM PUBLIC, anon,
+    authenticated` + só `auth.uid()` como sujeito.**
+  - `__tests__/seguranca-auditoria.test.ts` é a regressão (40 casos) — se
+    falhar, a vulnerabilidade voltou; não "ajustar o esperado".
+  - **NÃO corrigido (decisão/risco)**: OAuth nativo sem `state` (exige
+    trocar pra PKCE — "não alterar a autenticação"); total do pedido
+    calculado no cliente (venda fecha por WhatsApp com humano; trigger de
+    recálculo proposto no relatório); SheetJS 0.18.5 vendorado no portal
+    (CVEs no parser; versão nova só em cdn.sheetjs.com); bucket `exports`
+    público (PDF de orçamento por link, decisão de produto);
+    `invite_code_valid` como oráculo pra anon.
+
+- **CSP COM NONCE — pentest Strix (2026-09-11). SEM SQL.** Três achados:
+  (1) `script-src` tinha `'unsafe-inline'`; (2) o Eruda (console de debug)
+  carregava em produção dentro da casca; (3) CORS/fingerprint — o
+  `next.config` já restringia `/api/*` a `https://queroumacor.com.br` e
+  `poweredByHeader: false` já existia, MAS `/api/health` escrevia
+  `'access-control-allow-origin': '*'` em minúsculas (busca sensível a caixa
+  não achou; o `wrangler pages dev` mostrou) — **header da ROTA vence o do
+  next.config**. Corrigido; o teste varre case-insensitive. Nada vem de fora
+  do código (o `_headers` da RAIZ é legado do vanilla e fica fora do build).
+  - **A CSP saiu do `headers()` do `next.config.mjs` e vive em `lib/csp.ts`,
+    emitida pelo `middleware.ts`** (matcher: tudo menos `_next/static` e
+    `_next/image`). Nonce por request em `script-src`; **a CSP vai TAMBÉM
+    nos headers da REQUEST** — é do header `content-security-policy` da
+    request que o Next lê o nonce pra carimbar nos scripts dele
+    (`get-script-nonce-from-header.js`); `x-nonce` é só pro nosso layout.
+  - **Nonce só vale em HTML renderizado POR request** — página
+    pré-renderizada nasce sem nonce e a CSP bloquearia a própria hidratação.
+    O layout raiz declara `runtime = 'edge'` (edge DESLIGA a geração
+    estática; 40 páginas eram estáticas). **A `/_not-found` NÃO herda o
+    runtime do layout** (o Next monta ela de um arquivo builtin fora do
+    `app/`, provado em `build/entries.js`): fica estática de propósito —
+    qualquer `headers()`/`cookies()` no layout raiz a torna função NODE e o
+    `build:cf` RECUSA ("routes not configured to run with the Edge
+    Runtime: /_not-found"). Foi a 1ª versão desta correção, pega só pelo
+    `build:cf` (nem `next build`, nem tsc, nem vitest reclamam). **Custo
+    conhecido: a página 404 não hidrata** (os inline do Next nela não têm
+    nonce) — é um link, funciona sem JS.
+  - **Por isso os inline do layout raiz entram por HASH, não por nonce**
+    (`LAYOUT_SCRIPT_HASHES`): ler `x-nonce` exigiria `headers()`. Inline
+    novo no layout = hash novo em `lib/csp.ts`, e o teste aponta o valor.
+    `x-nonce` continua na request pra server component de página dinâmica
+    que precise de inline por request.
+  - **`style-src` MANTÉM `'unsafe-inline'` de propósito**: são ~1.260
+    atributos `style={{…}}` no app, e nonce/hash cobrem só `<style>`, nunca
+    atributo — o navegador descartaria todo `style="…"` do SSR.
+  - **Também por hash:** `/portal` (HTML estático, 3 inline) e o auto-retry
+    da `TelaReconectando` (pages/500, `_error`). Tudo hardcoded em
+    `lib/csp.ts`; `__tests__/csp-nonce.test.ts` recalcula do fonte e aponta
+    o hash novo. **Mudou um inline sem trocar o hash = bloqueio SILENCIOSO**
+    (portal eterno em "Carregando", tema sem aplicar, auto-retry morto),
+    igual ao SRI do app.js.
+  - `/pdf/[id]` tem CSP própria com nonce por resposta; o middleware não
+    emite CSP ali (`cspParaPath` → null). `cdn.jsdelivr.net` FICA em
+    `script-src`: não era só o Eruda — o `WallARView` carrega o WASM do
+    MediaPipe de lá.
+  - **Eruda só com `NODE_ENV !== 'production'`** (resolvido no build; o
+    bloco nem entra no bundle de produção). Na casca em produção não há mais
+    console de debug.
+
 - **"Cortou as opções no envio da abordagem" (2026-09-08, entregue em
   2026-09-11 como v=20260911a) — NÃO cortou.** Os botões de resposta rápida
   são do template aprovado e a Meta os anexa sozinha em todo envio (prova:

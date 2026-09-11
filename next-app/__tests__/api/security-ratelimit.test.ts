@@ -96,7 +96,11 @@ describe('enforceRateLimit', () => {
     expect(res).toBeNull();
     // Confirma que a chave usada foi o IP (sem userId).
     const callBody = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(callBody.p_user_id).toBe('ip:3.3.3.3');
+    // A RPC recebe uuid: a chave `ip:…` vira UUID determinístico (antes o
+    // cast falhava com 22P02 e o limite era ignorado em silêncio).
+    const { chaveDeRateLimit } = await import('@/lib/api/_services/_untrusted');
+    expect(callBody.p_user_id).toBe(await chaveDeRateLimit('ip:3.3.3.3'));
+    expect(callBody.p_user_id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('usa a chave de usuário quando userId é passado', async () => {
@@ -113,6 +117,8 @@ describe('enforceRateLimit', () => {
       userId: 'user-123',
     });
     const callBody = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(callBody.p_user_id).toBe('u:user-123');
+    const { chaveDeRateLimit } = await import('@/lib/api/_services/_untrusted');
+    expect(callBody.p_user_id).toBe(await chaveDeRateLimit('u:user-123'));
+    expect(callBody.p_user_id).not.toBe(await chaveDeRateLimit('ip:4.4.4.4'));
   });
 });

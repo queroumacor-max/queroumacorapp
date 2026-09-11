@@ -24,14 +24,23 @@ export async function generateMetadata({
 export default async function HashtagPage({
   params,
 }: { params: Promise<Params> }) {
-  const { tag } = await params;
+  const { tag: bruto } = await params;
+  // `decodeURIComponent` estoura URIError em `%E0` solto → 500. Tag é só
+  // letra/número/underscore (o mesmo alfabeto do richText); o resto sai.
+  let tag = bruto;
+  try {
+    tag = decodeURIComponent(bruto);
+  } catch {
+    tag = bruto;
+  }
+  tag = tag.replace(/[^\p{L}\p{N}_]/gu, '').slice(0, 50);
   return (
     <AppShell>
       <div className="p-4">
         <h1 className="text-2xl font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }}>
-          #{decodeURIComponent(tag)}
+          #{tag}
         </h1>
-        <HashtagFeed tag={decodeURIComponent(tag)} />
+        <HashtagFeed tag={tag} />
       </div>
     </AppShell>
   );

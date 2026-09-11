@@ -107,6 +107,9 @@ const ASPECT_SIZES: Record<AspectKey, { openai: string; label: string }> = {
   horizontal: { openai: '1536x1024', label: 'horizontal 3:2 (capa/banner)' },
 };
 
+/** Onde os arquivos de `public/` vivem em produção. */
+const SITE_ORIGIN = 'https://queroumacor.com.br';
+
 const STYLE_REFERENCES: Record<StyleKey, string> = {
   portrait: '/style-refs/portrait.jpg',
   antesdepois: '/style-refs/antesdepois.jpg',
@@ -164,11 +167,11 @@ export async function generateIgArt(args: {
   }
 
   const styleKey: StyleKey =
-    typeof args.style === 'string' && args.style in STYLE_PROMPTS
+    typeof args.style === 'string' && Object.prototype.hasOwnProperty.call(STYLE_PROMPTS, args.style)
       ? (args.style as StyleKey)
       : 'portrait';
   const aspectKey: AspectKey =
-    typeof args.aspect === 'string' && args.aspect in ASPECT_SIZES
+    typeof args.aspect === 'string' && Object.prototype.hasOwnProperty.call(ASPECT_SIZES, args.aspect)
       ? (args.aspect as AspectKey)
       : 'square';
   const cleanHint =
@@ -297,7 +300,7 @@ async function loadStyleReference(args: {
   request: Request;
   styleKey: StyleKey;
 }): Promise<StyleReference | null> {
-  if (!STYLE_REFERENCES[args.styleKey]) return null;
+  if (!Object.prototype.hasOwnProperty.call(STYLE_REFERENCES, args.styleKey)) return null;
 
   // 1. Tenta Supabase storage (admin pode ter sobrescrito o template).
   let supaUrl: string;
@@ -326,8 +329,12 @@ async function loadStyleReference(args: {
   // 2. Fallback: static file no /public do Next.
   const path = STYLE_REFERENCES[args.styleKey];
   try {
-    const refUrl = new URL(path, args.request.url).toString();
-    const resp = await fetch(refUrl, { signal: AbortSignal.timeout(3000) });
+    // Origem FIXA, não `args.request.url`: a origem da request vem do
+    // header Host, e resolver o path nela mandava o fetch pra onde o
+    // cliente quisesse (SSRF por Host, seguindo redirect). O template é
+    // servido do próprio site; `redirect: 'error'` fecha a outra ponta.
+    const refUrl = new URL(path, SITE_ORIGIN).toString();
+    const resp = await fetch(refUrl, { redirect: 'error', signal: AbortSignal.timeout(3000) });
     if (!resp.ok) return null;
     const ct = (resp.headers.get('content-type') || '').toLowerCase();
     if (!ct.startsWith('image/')) return null;

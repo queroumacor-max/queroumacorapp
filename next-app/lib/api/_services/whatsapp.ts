@@ -45,6 +45,7 @@
 // traduzimos pra mensagem acionável.
 
 import { getRuntimeEnv } from '../env';
+import { paraLog, waIdValido } from './_untrusted';
 import { normalizeWhatsAppTarget } from './whatsapp-evo';
 import { getServiceKey, getSupabaseUrl, ServiceError } from '../security';
 
@@ -1105,6 +1106,14 @@ function lerMensagens(
           : typeof msg.from === 'string'
             ? msg.from
             : '';
+        // `from`/`to` é o wa_id: só dígitos, 8-15. Fora disso é payload
+        // malformado ou hostil — e, sem validar aqui, o valor ia parar num
+        // `phone=ilike.*<cauda>*` onde `*` casa a tabela inteira de leads
+        // (auditoria 2026-09-11). Não seria destinatário válido de resposta.
+        if (!waIdValido(from)) {
+          console.warn(`[whatsapp] mensagem com remetente inválido ignorada: ${paraLog(from, 40)}`);
+          continue;
+        }
         const contact = contacts.find((c) => c.wa_id === from) || contacts[0];
         const tipo = typeof msg.type === 'string' ? msg.type : 'unknown';
         const especial = textoDeReacaoOuEdicao(msg, tipo);

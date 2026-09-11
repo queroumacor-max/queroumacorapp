@@ -69,21 +69,44 @@ export function reportFailure(
       .filter(Boolean)
       .join(' ')
       .slice(0, 1000);
-    fetch('/api/log-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        user_id: opts?.userId || null,
-        msg: `${e?.name ? e.name + ': ' : ''}${msg}`,
-        stack: e?.stack ? String(e.stack).slice(0, 5000) : undefined,
-        ua: navigator.userAgent?.slice(0, 500),
-        url: location.href.slice(0, 500),
-        ctx: opts?.ctx?.slice(0, 500),
-      }),
-      keepalive: true,
-    }).catch(() => {});
+    const corpo = JSON.stringify({
+      type,
+      user_id: opts?.userId || null,
+      msg: `${e?.name ? e.name + ': ' : ''}${msg}`,
+      stack: e?.stack ? String(e.stack).slice(0, 5000) : undefined,
+      ua: navigator.userAgent?.slice(0, 500),
+      url: location.href.slice(0, 500),
+      ctx: opts?.ctx?.slice(0, 500),
+    });
+    // O servidor só aceita `user_id` assinado pelo Bearer da sessão (rota
+    // pública; sem isso qualquer um gravava em nome de qualquer um). O
+    // token é lido com teto: sessão travada não pode segurar o log.
+    void tokenDaSessao().then((token) =>
+      fetch('/api/log-error', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: corpo,
+        keepalive: true,
+      }).catch(() => {}),
+    );
   } catch {
     /* logar nunca pode custar nada a quem já está com problema */
+  }
+}
+
+const TOKEN_TIMEOUT_MS = 1500;
+
+async function tokenDaSessao(): Promise<string | null> {
+  try {
+    const { getSupabase } = await import('@/lib/supabase');
+    const sessao = getSupabase().auth.getSession();
+    const teto = new Promise<null>((resolve) => setTimeout(() => resolve(null), TOKEN_TIMEOUT_MS));
+    const r = await Promise.race([sessao, teto]);
+    return r && 'data' in r ? (r.data.session?.access_token ?? null) : null;
+  } catch {
+    return null;
   }
 }

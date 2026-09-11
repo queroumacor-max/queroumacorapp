@@ -155,6 +155,12 @@ export async function processMpWebhook(args: {
     urlObj?.searchParams.get('id') ||
     (typeof body?.resource === 'string' ? body.resource.split('/').pop() : '') ||
     '';
+  // O id vai pra URL da API do MP com o access token: só forma de id
+  // (dígitos no pagamento, hex/alfanumérico na assinatura). Qualquer outra
+  // coisa — `../`, `?`, `#` — é request forjada, não evento.
+  if (eventId && !/^[A-Za-z0-9_-]{1,64}$/.test(String(eventId))) {
+    return ok('event id com formato inválido');
+  }
 
   const isPreapproval =
     String(type).includes('preapproval') || String(type).includes('subscription');
@@ -255,7 +261,14 @@ async function processPaymentEvent(opts: {
   let patch: Record<string, unknown>;
   if (status === 'approved') {
     const expected = Number(order.total || 0);
-    if (transactionAmount > 0 && Math.abs(transactionAmount - expected) > 0.01) {
+    // Fail-closed: valor ausente, zero, NaN ou negativo NÃO é "bateu" — é
+    // "não dá pra conferir", e cai no mesmo balde do valor divergente.
+    // Antes `transactionAmount > 0 &&` pulava a conferência inteira.
+    const valorConfere =
+      Number.isFinite(transactionAmount) &&
+      transactionAmount > 0 &&
+      Math.abs(transactionAmount - expected) <= 0.01;
+    if (!valorConfere) {
       patch = {
         status: 'amount_mismatch',
         tx_id: String(eventId),
@@ -266,7 +279,7 @@ async function processPaymentEvent(opts: {
       patch = {
         status: 'paid',
         tx_id: String(eventId),
-        paid_amount: transactionAmount || expected,
+        paid_amount: transactionAmount,
         paid_at: new Date().toISOString(),
         payment_method: paymentMethod,
         gateway: 'mp',
@@ -400,7 +413,7 @@ async function processPreapprovalEvent(opts: {
 
   let pre: MpPreapprovalResponse;
   try {
-    const r = await fetch(`https://api.mercadopago.com/preapproval/${eventId}`, {
+    const r = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(eventId)}`, {
       headers: { Authorization: `Bearer ${getRuntimeEnv('MP_ACCESS_TOKEN')}` },
       signal: AbortSignal.timeout(MP_TIMEOUT_MS),
     });

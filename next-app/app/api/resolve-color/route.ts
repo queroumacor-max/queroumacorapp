@@ -7,6 +7,7 @@ import {
   recordAiUsage,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { resolveColors } from '@/lib/api/_services/resolve-color';
 import { getRuntimeEnv } from '../../../lib/api/env';
@@ -22,8 +23,9 @@ export async function POST(request: NextRequest) {
   }
   let body: { items?: unknown; accessToken?: unknown };
   try {
-    body = await request.json();
-  } catch {
+    body = (await readBody(request, { maxBytes: 256 * 1024 })) as typeof body;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
   const g = await gateProAI(request, body, {

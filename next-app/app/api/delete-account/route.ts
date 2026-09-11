@@ -15,7 +15,7 @@
 // Não throws em erros não-fatais — preserva resposta 200 pra cliente.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
+import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit, readBody, serviceErrorResponse } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 
 export const runtime = 'edge';
@@ -26,8 +26,9 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
   let body: { accessToken?: string };
   try {
-    body = (await request.json()) as { accessToken?: string };
-  } catch {
+    body = (await readBody(request, { maxBytes: 64 * 1024 })) as { accessToken?: string };
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'invalid body' }, { status: 400 });
   }
 

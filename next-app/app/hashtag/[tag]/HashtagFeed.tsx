@@ -22,7 +22,9 @@ async function fetchByHashtag(tag: string): Promise<HashtagPost[]> {
   // ILIKE com `% #tag %` matching pra evitar false positive em hashtag
   // contida em palavra (ex.: #pintura vs algopintura). Cobre início e fim
   // do texto com OR.
-  const needle = '%#' + tag + '%';
+  // `%` e `_` do segmento da URL são curingas do ILIKE: `/hashtag/%25`
+  // varria a tabela inteira. Escapa antes de montar o padrão.
+  const needle = '%#' + tag.replace(/[\\%_]/g, (c) => '\\' + c) + '%';
   const { data, error } = await sb
     .from('posts')
     .select('id, user_id, caption, media_url, media_type, media_width, media_height')

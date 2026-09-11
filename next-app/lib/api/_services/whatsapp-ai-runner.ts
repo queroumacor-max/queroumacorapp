@@ -14,6 +14,7 @@
 //   5. gera resposta           → envia; se escalou, desliga a IA e alerta
 
 import { getServiceKey, getSupabaseUrl } from '../security';
+import { filtroTelefoneContem } from './_untrusted';
 import {
   generateAiReply,
   descreverRegistroDeTemplate,
@@ -323,7 +324,10 @@ async function loadTurns(waId: string): Promise<ConversationTurn[]> {
 
 /** Lead correspondente ao número (casamento pelos últimos 8 dígitos). */
 async function loadLead(waId: string): Promise<{ id: string; ctx: LeadContext } | null> {
-  const tail = waId.slice(-8);
+  // Só consulta com 8 dígitos limpos: a cauda crua do wa_id com `*` dentro
+  // virava `ilike.**` e trazia um lead qualquer pro prompt da IA.
+  const filtro = filtroTelefoneContem(waId);
+  if (!filtro) return null;
   const rows = await dbGet<{
     id: string;
     name: string | null;
@@ -332,7 +336,7 @@ async function loadLead(waId: string): Promise<{ id: string; ctx: LeadContext } 
     segment: string | null;
     city: string | null;
     neighborhood: string | null;
-  }>(`leads?phone=ilike.*${encodeURIComponent(tail)}*&select=id,name,phone,category,segment,city,neighborhood&limit=1`);
+  }>(`leads?phone=${filtro}&select=id,name,phone,category,segment,city,neighborhood&limit=1`);
   const l = rows[0];
   if (!l) return null;
   return {
@@ -359,10 +363,13 @@ async function loadLead(waId: string): Promise<{ id: string; ctx: LeadContext } 
  * atendimento por causa de SQL pendente — a lição de `quotes.post_id`.
  */
 async function marcarLeadOptOut(waId: string): Promise<boolean> {
-  const tail = waId.slice(-8);
+  // Mesma trava do loadLead — aqui é um PATCH com service role: um `from`
+  // de `********` marcaria TODOS os leads como opt-out numa request.
+  const filtro = filtroTelefoneContem(waId);
+  if (!filtro) return false;
   try {
     const r = await fetch(
-      rest(`leads?phone=ilike.*${encodeURIComponent(tail)}*`),
+      rest(`leads?phone=${filtro}`),
       {
         method: 'PATCH',
         headers: headers({ Prefer: 'return=minimal' }),

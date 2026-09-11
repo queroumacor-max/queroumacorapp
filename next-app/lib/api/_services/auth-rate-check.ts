@@ -34,7 +34,11 @@ export async function checkAuthRateLimit(args: {
   ip: string;
 }): Promise<AuthRateCheckResult> {
   const actionRaw = args.action || 'login';
-  const action: AuthAction = actionRaw in LIMITS ? (actionRaw as AuthAction) : 'login';
+  // `in` sobe a cadeia de protótipos: `{"action":"toString"}` passava e
+  // virava um bucket próprio sem limite. `hasOwnProperty` é o allowlist real.
+  const action: AuthAction = Object.prototype.hasOwnProperty.call(LIMITS, actionRaw)
+    ? (actionRaw as AuthAction)
+    : 'login';
   const limit = LIMITS[action];
 
   const userId = `ip:${args.ip}:${action}`;

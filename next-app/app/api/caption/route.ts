@@ -7,6 +7,7 @@ import {
   recordAiUsage,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { generateCaption } from '@/lib/api/_services/caption';
 import { getRuntimeEnv } from '../../../lib/api/env';
@@ -22,8 +23,9 @@ export async function POST(request: NextRequest) {
   }
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
+    form = (await readBody(request, { maxBytes: 12 * 1024 * 1024, type: 'form' })) as FormData;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json(
       { error: 'multipart/form-data inválido' },
       { status: 400 }

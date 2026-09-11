@@ -5,6 +5,7 @@
 'use client';
 
 import { useState } from 'react';
+import { hrefSeguro } from '@/lib/utils/urlSegura';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { isAdmin } from '@/lib/policies';
@@ -158,9 +159,9 @@ function ReportRow({
           </p>
           {report.post ? (
             <div className="flex gap-3 items-start p-2 rounded-lg bg-[color:var(--color-bg)]">
-              {report.post.media_url ? (
+              {hrefSeguro(report.post.media_url) ? (
                 <img
-                  src={report.post.media_url}
+                  src={hrefSeguro(report.post.media_url) ?? undefined}
                   alt=""
                   width={56}
                   height={56}

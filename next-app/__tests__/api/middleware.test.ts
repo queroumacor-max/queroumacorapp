@@ -30,9 +30,10 @@ describe('middleware (x-request-id)', () => {
     const res = middleware(mkReq({ 'x-request-id': 'fixed-id-xyz' }));
     // O response da NextResponse.next() vem com o header setado pelo middleware.
     expect(res.headers.get('x-request-id')).toBe('fixed-id-xyz');
-    // Sanity: o config matcher do middleware aponta pra /api/:path*
+    // Sanity: o matcher cobre /api/* (e todo documento — ver csp-nonce.test),
+    // deixando de fora só os assets do Next.
     const { config } = await import('@/middleware');
-    expect(config.matcher).toContain('/api/:path*');
+    expect(config.matcher).toEqual(['/((?!_next/static|_next/image).*)']);
   });
 
   it('trata x-request-id em branco como ausente (gera novo)', async () => {

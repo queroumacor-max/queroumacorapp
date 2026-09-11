@@ -39,7 +39,7 @@ describe('GET /api/health', () => {
     const { GET } = await import('@/app/api/health/route');
     const res = await GET(mkReq());
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://queroumacor.com.br');
   });
 
   it('reports supabase=true when REST root responds (any status > 0)', async () => {

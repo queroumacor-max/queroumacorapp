@@ -3,7 +3,7 @@
 // do Supabase pra economizar request e dificultar brute force.
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { jsonResponse, rateLimitResponse, ServiceError, serviceErrorResponse } from '@/lib/api/security';
+import { jsonResponse, rateLimitResponse, ServiceError, serviceErrorResponse, readBody } from '@/lib/api/security';
 import { checkAuthRateLimit } from '@/lib/api/_services/auth-rate-check';
 
 export const runtime = 'edge';
@@ -11,8 +11,9 @@ export const runtime = 'edge';
 export async function POST(request: NextRequest) {
   let body: { action?: unknown } = {};
   try {
-    body = (await request.json()) as { action?: unknown };
-  } catch {
+    body = (await readBody(request, { maxBytes: 4 * 1024 })) as { action?: unknown };
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     /* sem body é OK */
   }
   try {

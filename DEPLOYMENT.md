@@ -226,17 +226,28 @@ houver quebra de contrato, novos endpoints vivem em `/api/v2/X.js` e o
 
 ---
 
-## 9. CSP (`_headers`)
+## 9. CSP (`next-app/lib/csp.ts` + `middleware.ts`)
 
-Politica completa no header `Content-Security-Policy` aplicada a `/*`.
+Politica completa no header `Content-Security-Policy`, emitida pelo
+`middleware.ts` em toda request de documento (o `_headers` da raiz e legado
+do vanilla e fica fora do build). Desde 2026-09-11 (pentest Strix) o
+`script-src` NAO tem `'unsafe-inline'`: o middleware gera um **nonce por
+request** (tambem no header da request, de onde o Next le pra carimbar os
+scripts dele). Nonce so vale em HTML renderizado por request, entao o layout
+raiz declara `runtime = 'edge'` (desliga a geracao estatica) — menos a
+`/_not-found`, que nao herda e fica estatica (como funcao Node o next-on-pages
+recusa o build). Os inline nossos entram por **hash** (`'sha256-…'`): os do
+`app/layout.tsx`, os tres do `/portal` (HTML estatico) e o auto-retry da
+`TelaReconectando`. O `/pdf/[id]` responde com CSP propria (nonce por
+resposta). Hashes conferidos em `__tests__/csp-nonce.test.ts`.
 
 Diretivas principais:
 
 | Diretiva               | Permite                                                              |
 | ---------------------- | -------------------------------------------------------------------- |
 | `default-src`          | `'self'`                                                             |
-| `script-src`           | `'self' 'unsafe-inline'`, `challenges.cloudflare.com`, `*.sentry-cdn.com` |
-| `style-src`            | `'self' 'unsafe-inline'`, `fonts.googleapis.com`                     |
+| `script-src`           | `'self' 'nonce-<por request>'` (+ hash do auto-retry), `challenges.cloudflare.com`, `*.sentry-cdn.com`, `cdn.jsdelivr.net` (WASM do MediaPipe) |
+| `style-src`            | `'self' 'unsafe-inline'` (mantido: nonce nao cobre atributos `style=`), `fonts.googleapis.com` |
 | `font-src`             | `'self'`, `fonts.gstatic.com`                                        |
 | `img-src`              | `'self' data: blob: https:`                                          |
 | `media-src`            | `'self' blob: data:`                                                 |

@@ -18,8 +18,15 @@
 // do edge, vem 500 — e a página interna do Next não tem uma linha de JS
 // nosso: nem service worker, nem boundary, nem retry. Uma lápide. Só saía
 // reiniciando o app porque nada mais navegava.
+//
+// CSP (2026-09-11): a política do app não tem mais 'unsafe-inline' em
+// script-src, e este inline roda sem nonce (Pages Router, sem `headers()`;
+// a 500 é até estática). Ele entra na CSP por HASH — `RETRY_SCRIPT_HASH` em
+// `lib/csp.ts`. Mudou UM caractere aqui? `__tests__/csp-nonce.test.ts`
+// recalcula o hash e aponta o valor novo; sem atualizar, o auto-retry é
+// bloqueado em silêncio.
 
-const RETRY = `(function () {
+export const RETRY = `(function () {
   var CHAVE = 'qucAutoRetry';
   var MAX = 6, JANELA = 120000, BASE = 2500, PASSO = 1500;
   var agora = Date.now();

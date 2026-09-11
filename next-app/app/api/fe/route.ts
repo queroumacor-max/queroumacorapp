@@ -9,6 +9,7 @@ import {
   recordAiUsage,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { chatWithPersona } from '@/lib/api/_services/chat-ai';
 import { getRuntimeEnv } from '../../../lib/api/env';
@@ -24,8 +25,9 @@ export async function POST(request: NextRequest) {
   }
   let body: { message?: unknown; history?: unknown; accessToken?: unknown };
   try {
-    body = await request.json();
-  } catch {
+    body = (await readBody(request, { maxBytes: 1 * 1024 * 1024 })) as typeof body;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
   const g = await gateProAI(request, body, { endpoint: 'fe', limit: 20 });

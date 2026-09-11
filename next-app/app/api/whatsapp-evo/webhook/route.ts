@@ -16,6 +16,7 @@
 // Webhook → URL acima, evento MESSAGES_UPSERT habilitado.
 
 import { type NextRequest } from 'next/server';
+import { safeEqual } from '@/lib/api/_services/whatsapp';
 import { getRuntimeEnv } from '@/lib/api/env';
 import { jsonResponse, readBody, ServiceError, serviceErrorResponse } from '@/lib/api/security';
 import { persistWhatsAppMessage } from '@/lib/api/_services/whatsapp';
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     );
   }
   const provided = request.nextUrl.searchParams.get('token') || '';
-  if (provided !== expected) {
+  if (!safeEqual(provided, expected)) {
     return jsonResponse({ error: 'token inválido' }, 401);
   }
 

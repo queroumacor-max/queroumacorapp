@@ -13,6 +13,7 @@
 'use client';
 
 import { useRef, useState, type FormEvent } from 'react';
+import { hrefSeguro } from '@/lib/utils/urlSegura';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -118,16 +119,16 @@ function QualRow({
 
   return (
     <li className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[color:var(--color-border)]">
-      {q.certificate_url ? (
+      {hrefSeguro(q.certificate_url) ? (
         <a
-          href={q.certificate_url}
+          href={hrefSeguro(q.certificate_url) ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-shrink-0"
           title="Ver certificado"
         >
           <img
-            src={q.certificate_url}
+            src={hrefSeguro(q.certificate_url) ?? undefined}
             alt="Certificado"
             className="w-10 h-10 rounded-lg object-cover border border-[color:var(--color-border)]"
           />
@@ -148,9 +149,9 @@ function QualRow({
           {q.org || ''}
           {q.year ? ` · ${q.year}` : ''}
         </span>
-        {q.certificate_url && (
+        {hrefSeguro(q.certificate_url) && (
           <a
-            href={q.certificate_url}
+            href={hrefSeguro(q.certificate_url) ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-semibold"
@@ -233,8 +234,14 @@ export function QualsSection() {
     if (certFile && user) {
       setUploading(true);
       try {
-        const ext = certFile.name.split('.').pop() || 'jpg';
-        const path = `certificates/${user.id}/${Date.now()}.${ext}`;
+        // Extensão só com [a-z0-9] e o uid PRIMEIRO no path: a policy do
+        // bucket exige `split_part(name,'/',1) = auth.uid()` — o path antigo
+        // (`certificates/<uid>/…`) era recusado em silêncio, e a extensão
+        // crua do arquivo entrava no nome do objeto (auditoria 2026-09-11).
+        const ext =
+          (certFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') ||
+          'jpg';
+        const path = `${user.id}/certificates/${Date.now()}.${ext}`;
         const sb = getSupabase();
         const { error: upErr } = await sb.storage.from('posts').upload(path, certFile, {
           // Pela extensão quando o Android não manda o tipo — o default

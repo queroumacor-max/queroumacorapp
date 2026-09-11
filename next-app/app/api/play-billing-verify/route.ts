@@ -41,6 +41,7 @@ import {
   requireAuthStrict,
   serviceErrorResponse,
   enforceRateLimit,
+  readBody,
 } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 import { getRuntimeEnv } from '../../../lib/api/env';
@@ -63,8 +64,9 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
   let body: VerifyBody;
   try {
-    body = (await request.json()) as VerifyBody;
-  } catch {
+    body = (await readBody(request, { maxBytes: 64 * 1024 })) as VerifyBody;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
 
@@ -97,7 +99,14 @@ export async function POST(request: NextRequest) {
   // real ao Google Play Developer API
   // (androidpublisher.purchases.subscriptionsv2.get). Sem isso, qualquer
   // purchaseToken aceito = PRO grátis. Ver docs/BILLING_STRATEGY.md.
+  // A env sozinha NÃO liga este caminho (auditoria 2026-09-11): o código
+  // abaixo é stub e grava a invoice como `paid` sem consultar a Google Play Developer API.
+  // Enquanto a verificação real não existir, a constante fica `false` e
+  // ligar a env no painel continua respondendo 503 — um env var errado não
+  // pode virar PRO grátis pra quem mandar qualquer string.
+  const VERIFICACAO_REAL_IMPLEMENTADA = false;
   const verificationEnabled =
+    VERIFICACAO_REAL_IMPLEMENTADA &&
     getRuntimeEnv('IAP_PRODUCTION_VERIFICATION_ENABLED') === 'true';
   if (!verificationEnabled) {
     console.warn(

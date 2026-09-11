@@ -8,6 +8,7 @@
 'use client';
 
 import Link from 'next/link';
+import { hrefSeguroOuHttps } from '@/lib/utils/urlSegura';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -749,9 +750,9 @@ function FormacaoSection({ quals, courses }: { quals: Qualification[]; courses: 
                 <div className="text-xs text-[color:var(--color-muted)] truncate">{c.subtitle}</div>
               ) : null}
             </div>
-            {c.link ? (
+            {hrefSeguroOuHttps(c.link) ? (
               <a
-                href={/^https?:\/\//i.test(c.link) ? c.link : `https://${c.link}`}
+                href={hrefSeguroOuHttps(c.link) ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold flex-shrink-0"

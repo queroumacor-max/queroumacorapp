@@ -22,6 +22,7 @@
 // webhook falhando é pior.
 
 import { getRuntimeEnv } from '../env';
+import { HOSTS_DE_MIDIA_WHATSAPP, hostPermitido, paraLog } from './_untrusted';
 import { getServiceKey, getSupabaseUrl } from '../security';
 import { DEFAULT_EVOLUTION_INSTANCE } from './whatsapp-evo';
 
@@ -315,8 +316,16 @@ export async function baixarMidiaCloudApi(
       return null;
     }
 
+    // A URL vem de um JSON de terceiro. Só https e só host da lista — e o
+    // Bearer (chave do Dualhook) NUNCA sai pra outro host; sem seguir
+    // redirect, pra um 302 não levar a credencial pra onde quiser.
+    if (!hostPermitido(info.url, HOSTS_DE_MIDIA_WHATSAPP)) {
+      console.warn(`wa-media: url de mídia fora da lista de hosts id=${mediaId}: ${paraLog(info.url, 120)}`);
+      return null;
+    }
     const arqRes = await fetch(info.url, {
       headers: { Authorization: `Bearer ${token}` },
+      redirect: 'manual',
       signal: AbortSignal.timeout(CLOUD_FETCH_TIMEOUT_MS),
     });
     if (!arqRes.ok) {
