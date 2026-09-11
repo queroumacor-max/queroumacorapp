@@ -19,6 +19,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
+import { getServiceKey, getSupabaseUrl } from '@/lib/api/security';
 import { moderateContent } from '@/lib/api/_services/moderate';
 import {
   hashMedia,
@@ -41,9 +42,39 @@ function isAllowedMediaHost(urlStr: string): boolean {
     const u = new URL(urlStr);
     if (u.protocol !== 'https:') return false;
     if (!/^[A-Za-z0-9-]+\.supabase\.co$/.test(u.hostname)) return false;
+    // Só o NOSSO projeto: qualquer `*.supabase.co` deixava a rota baixar 20 MB
+    // de um projeto alheio com banda nossa (auditoria 2026-09-11).
+    const ownHost = new URL(getSupabaseUrl()).hostname;
+    if (u.hostname !== ownHost) return false;
     return u.pathname.startsWith('/storage/');
   } catch {
     return false;
+  }
+}
+
+/**
+ * `postId` vem do cliente; antes de enfileirar revisão em nome dele, confere
+ * (com a chave de serviço) que o post é do caller. Post alheio ou inexistente
+ * vira `null` — a fila continua sabendo QUEM mandou (`userId`), só não
+ * aponta pro post de outra pessoa.
+ */
+async function postIdIfOwnedBy(postId: string | null, userId: string): Promise<string | null> {
+  if (!postId) return null;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) return null;
+  try {
+    const r = await fetch(
+      `${getSupabaseUrl()}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}&select=user_id`,
+      {
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+        signal: AbortSignal.timeout(HASH_FETCH_TIMEOUT_MS),
+      },
+    );
+    if (!r.ok) return null;
+    const rows = (await r.json()) as Array<{ user_id?: string }>;
+    return rows?.[0]?.user_id === userId ? postId : null;
+  } catch {
+    return null;
   }
 }
 
@@ -83,13 +114,14 @@ export async function POST(request: NextRequest) {
   const aiGate = await gateAiUsage({
     userId: auth.user.id,
     email: auth.user.email,
+    emailConfirmed: auth.user.emailConfirmed,
     feature: 'moderate',
   });
   if (aiGate instanceof NextResponse) return aiGate;
 
   const mediaUrl = body.mediaUrl ?? '';
-  const postId = body.postId ?? null;
   const userId = auth.user.id;
+  const postId = await postIdIfOwnedBy(body.postId ?? null, userId);
 
   // ── (1) Hash + blocklist check ──────────────────────────────────────
   let mediaHash = '';

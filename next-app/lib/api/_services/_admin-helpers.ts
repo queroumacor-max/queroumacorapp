@@ -11,7 +11,8 @@
 import {
   ServiceError,
   resolveSupabaseEnv,
-  isAdminEmail,
+  isTrustedAdminEmail,
+  emailConfirmedFromGoTrue,
   getServiceKey,
   getSupabaseUrl,
 } from '../security';
@@ -73,9 +74,22 @@ async function lerFlagsDoPerfil(callerId: string): Promise<{ portal_access?: boo
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
-/** true se o caller pode usar as rotas admin (allowlist OU promovido no portal). */
-export async function isPortalAdminUser(args: { callerId: string; email: string }): Promise<boolean> {
-  if (isAdminEmail(args.email)) return true;
+/**
+ * true se o caller pode usar as rotas admin (allowlist OU promovido no portal).
+ *
+ * A allowlist só vale com o e-mail CONFIRMADO (`emailConfirmed`). Sem essa
+ * exigência, qualquer pessoa se cadastrava com o e-mail de um admin que
+ * ainda não tinha conta (ou com um e-mail digitado errado na env), recebia
+ * uma sessão com aquele e-mail e entrava como admin (auditoria 2026-09-11).
+ * Caller que não informa `emailConfirmed` NÃO ganha pela allowlist — fail
+ * closed; o caminho por `portal_access`/`role` segue valendo.
+ */
+export async function isPortalAdminUser(args: {
+  callerId: string;
+  email: string;
+  emailConfirmed?: boolean;
+}): Promise<boolean> {
+  if (isTrustedAdminEmail({ email: args.email, emailConfirmed: args.emailConfirmed })) return true;
   if (!args.callerId) return false;
   const agora = Date.now();
   const cached = PORTAL_ADMIN_CACHE.get(args.callerId);
@@ -96,7 +110,11 @@ export function _resetPortalAdminCache(): void {
  * sem sub) só a allowlist vale. Mensagem do 403 diz os DOIS caminhos, porque
  * o operador que lê a faixa vermelha precisa saber o que fazer.
  */
-export async function ensurePortalAdmin(args: { callerId: string; email: string }): Promise<void> {
+export async function ensurePortalAdmin(args: {
+  callerId: string;
+  email: string;
+  emailConfirmed?: boolean;
+}): Promise<void> {
   if (await isPortalAdminUser(args)) return;
   throw new ServiceError(
     `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
@@ -115,7 +133,7 @@ export async function ensurePortalAdmin(args: { callerId: string; email: string 
  */
 export async function verifyAdminToken(
   accessToken: string
-): Promise<{ callerId: string; email: string }> {
+): Promise<{ callerId: string; email: string; emailConfirmed: boolean }> {
   if (!accessToken) throw new ServiceError('sem token', 401);
   // Par ÚNICO: a chave TEM que ser a do mesmo projeto da url, senão o GoTrue
   // responde 401 pra qualquer token (ver resolveSupabaseEnv).
@@ -135,5 +153,17 @@ export async function verifyAdminToken(
   return {
     callerId: data?.id || '',
     email: (data?.email || '').toLowerCase(),
+    emailConfirmed: emailConfirmedFromGoTrue(data),
   };
+}
+
+/**
+ * Admin "dono" = e-mail CONFIRMADO na allowlist `ADMIN_EMAILS`. É o único
+ * nível que pode mexer em OUTRO admin (trocar login, revogar, excluir,
+ * mudar papel). Operador promovido pelo portal (`portal_access`) tem o
+ * resto. Sem essa separação, qualquer promovido tomava a conta de quem o
+ * promoveu com um `set_email` + reset de senha.
+ */
+export function isOwnerAdmin(args: { email: string; emailConfirmed?: boolean }): boolean {
+  return isTrustedAdminEmail(args);
 }

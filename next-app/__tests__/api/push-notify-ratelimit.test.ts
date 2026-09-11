@@ -8,6 +8,7 @@
 // VAPID/Supabase.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { rateLimitKeyToUuid } from '@/lib/api/security';
 import type { NextRequest } from 'next/server';
 
 const originalFetch = globalThis.fetch;
@@ -217,7 +218,9 @@ describe('POST /api/push-notify — auth + Zod + rate limit', () => {
     expect(rlCall).toBeDefined();
     const rlInit = rlCall![1] as RequestInit;
     const rlBody = JSON.parse(rlInit.body as string);
-    expect(rlBody.p_user_id).toBe('push-notify:198.51.100.99');
+    // A chave decorada vira uuid determinístico (a RPC declara `p_user_id uuid`;
+    // a string crua fazia o cast falhar e o rate limit abria em silêncio).
+    expect(rlBody.p_user_id).toBe(await rateLimitKeyToUuid('push-notify:198.51.100.99'));
     expect(rlBody.p_endpoint).toBe('push-notify');
     expect(rlBody.p_limit).toBe(60);
   });

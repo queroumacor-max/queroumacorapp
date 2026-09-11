@@ -13,7 +13,7 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
+import { verifyAdminToken, ensurePortalAdmin, isOwnerAdmin } from '@/lib/api/_services/_admin-helpers';
 import {
   buildPatch,
   deleteUserPermanently,
@@ -25,6 +25,8 @@ import {
   setName,
   setTag,
   syncEmailFromAuth,
+  ACTIONS_AGAINST_PRIVILEGED,
+  isPrivilegedTarget,
 } from '@/lib/api/_services/admin-users';
 import { logAuditEvent } from '@/lib/api/audit';
 
@@ -66,12 +68,12 @@ export async function POST(request: NextRequest) {
   const action = typeof body?.action === 'string' ? body.action : '';
   try {
     const token = getToken(request, body);
-    const { callerId, email } = await verifyAdminToken(token);
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
     // Allowlist OU promovido no portal (ver ensurePortalAdmin). O 403 diz
     // qual conta o servidor viu e os dois jeitos de liberar — o e-mail é o
     // do próprio caller, então dizer não vaza nada que ele já não saiba.
-    await ensurePortalAdmin({ callerId, email });
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
     // 120/min (era 30): exclusão em massa do portal manda 1 request por
     // conta — um lote de 23 + as ações do mesmo minuto estourava o teto no
     // meio. Ações de escrita seguem exigindo portal_access ATIVO do caller
@@ -96,6 +98,19 @@ export async function POST(request: NextRequest) {
 
     if (!userId) return jsonResponse({ error: 'userId obrigatório' }, 400);
     await ensureCallerHasPortalAccess({ callerId });
+    // Mexer em OUTRO admin (login, revogar, excluir, papel) é só pro admin
+    // "dono" (e-mail confirmado na allowlist). Auditoria 2026-09-11: sem
+    // isso um promovido trocava o e-mail de login de quem o promoveu.
+    if (
+      ACTIONS_AGAINST_PRIVILEGED.has(action) &&
+      !isOwnerAdmin({ email, emailConfirmed }) &&
+      (userId === callerId || (await isPrivilegedTarget({ userId })))
+    ) {
+      throw new ServiceError(
+        'só um admin da allowlist ADMIN_EMAILS (com e-mail confirmado) pode alterar login, papel ou acesso de outra conta admin/portal',
+        403,
+      );
+    }
 
     let result: Record<string, unknown>;
     let auditChanges: Record<string, unknown>;

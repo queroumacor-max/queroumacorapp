@@ -96,14 +96,32 @@ export async function listReviewableQuotes(userId: string): Promise<ReviewableQu
   const sb = getSupabase();
   const { data, error } = await sb
     .from('quotes')
-    .select('id, title, service_type, area_m2, created_at, painter:profiles!painter_id(id, name, avatar_url, city)')
+    .select('id, title, service_type, area_m2, created_at, painter_id')
     .eq('client_id', userId)
     .in('status', ['concluido', 'completed', 'accepted'])
     .order('created_at', { ascending: false })
     .limit(10);
   if (error) throw new NetworkError(error.message, error);
+  // 2 passos em vez do embed `profiles!painter_id`: a tabela `profiles` só
+  // devolve a própria linha pra quem não é admin, e o embed voltaria null.
+  // O pintor vem da view pública (auditoria 2026-09-11).
+  const painterIds = Array.from(
+    new Set((data ?? []).map((q) => (q as { painter_id?: string | null }).painter_id).filter(Boolean)),
+  ) as string[];
+  const painters = new Map<string, RawQuoteRow['painter']>();
+  if (painterIds.length) {
+    const { data: pubs } = await sb
+      .from('profiles_public')
+      .select('id, name, avatar_url, city')
+      .in('id', painterIds);
+    (pubs ?? []).forEach((p) => {
+      const row = p as { id: string; name: string | null; avatar_url: string | null; city: string | null };
+      painters.set(row.id, row);
+    });
+  }
   return (data ?? []).map((q) => {
     const r = q as unknown as RawQuoteRow;
+    r.painter = painters.get((q as { painter_id?: string }).painter_id || '') ?? null;
     return {
       id: r.id,
       title: r.title,

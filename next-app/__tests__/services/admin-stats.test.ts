@@ -186,7 +186,7 @@ describe('POST /api/admin/stats', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         const tok = String((init!.headers as Record<string, string>).Authorization);
-        return Promise.resolve(new Response(JSON.stringify({ id: 'c', email: tok.includes('boss') ? 'boss@x.com' : 'zé@x.com' }), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify({ id: 'c', email: tok.includes('boss') ? 'boss@x.com' : 'zé@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 }));
       }
       if (url.includes('/rpc/check_rate_limit')) return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
       if (url.includes('/rest/v1/likes')) desdeVisto = url;
@@ -216,7 +216,7 @@ describe('POST /api/admin/stats', () => {
 
   it('uma tabela quebrada não derruba o relatório: sai zerada e listada em `truncado`', async () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/auth/v1/user')) return Promise.resolve(new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 }));
+      if (url.includes('/auth/v1/user')) return Promise.resolve(new Response(JSON.stringify({ id: 'c', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 }));
       if (url.includes('/rpc/check_rate_limit')) return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
       if (url.includes('/rest/v1/ai_usage')) return Promise.resolve(new Response('relation does not exist', { status: 404 }));
       return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-range': '*/0' } }));

@@ -28,6 +28,15 @@ export async function saveDeviceToken(
   if (!userId || !token) return { ok: false, reason: 'error' };
   try {
     const sb = getSupabase();
+    // RPC `register_push_token` (SECURITY DEFINER): troca o dono do token
+    // quando o aparelho mudou de conta. O UPDATE direto em linha alheia
+    // deixou de ser permitido pela RLS (auditoria 2026-09-11). Enquanto a
+    // migration não roda, cai no upsert antigo (só a própria linha).
+    const { error: rpcErr } = await sb.rpc('register_push_token' as never, {
+      p_token: token,
+      p_platform: native.platform(),
+    } as never);
+    if (!rpcErr) return { ok: true };
     const { error } = await sb.from('push_device_tokens').upsert(
       {
         user_id: userId,

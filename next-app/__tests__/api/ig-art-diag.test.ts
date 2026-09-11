@@ -1,6 +1,6 @@
 // __tests__/api/ig-art-diag.test.ts — testes do route `/api/ig-art-diag`.
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { installAuthMocks, type InstalledMocks } from './_helpers';
 
 let mocks: InstalledMocks | null = null;
@@ -19,7 +19,19 @@ function mkGetReq(url: string): Request {
 
 describe('GET /api/ig-art-diag', () => {
   beforeEach(() => {
+    vi.resetModules();
     process.env.GEMINI_API_KEY = 'g-test';
+    // A rota é "PRO + admin": o usuário dos mocks (test@example.com, e-mail
+    // confirmado) entra na allowlist só aqui.
+    process.env.ADMIN_EMAILS = 'test@example.com';
+  });
+
+  it('PRO que NÃO é admin leva 403 (diagnóstico é de operador)', async () => {
+    process.env.ADMIN_EMAILS = '';
+    mocks = installAuthMocks({ pro: true });
+    const { GET } = await import('@/app/api/ig-art-diag/route');
+    const res = await GET(mkGetReq('https://app.test/api/ig-art-diag') as never);
+    expect(res.status).toBe(403);
   });
 
   it('returns 503 when service key missing (gateProAI fail-closed)', async () => {

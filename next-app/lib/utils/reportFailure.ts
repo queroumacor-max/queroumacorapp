@@ -27,6 +27,8 @@
  *
  * `type` do schema tem teto de 32 chars.
  */
+import { authHeaders } from '@/lib/services/authHeaders';
+
 export const FAILURE_TYPE_LABELS = {
   'publish-fail': '📤 Publicar',
   'avatar-fail': '🖼️ Foto de perfil',
@@ -69,9 +71,13 @@ export function reportFailure(
       .filter(Boolean)
       .join(' ')
       .slice(0, 1000);
+    // O servidor só aceita `user_id` provado pelo token Bearer (rota pública
+    // gravando com chave de serviço não pode confiar no corpo). O campo no
+    // corpo fica só como pista de diagnóstico; quem decide é o servidor.
+    void authHeaders().then((auth) =>
     fetch('/api/log-error', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
       body: JSON.stringify({
         type,
         user_id: opts?.userId || null,
@@ -82,7 +88,8 @@ export function reportFailure(
         ctx: opts?.ctx?.slice(0, 500),
       }),
       keepalive: true,
-    }).catch(() => {});
+    }).catch(() => {}),
+    ).catch(() => {});
   } catch {
     /* logar nunca pode custar nada a quem já está com problema */
   }

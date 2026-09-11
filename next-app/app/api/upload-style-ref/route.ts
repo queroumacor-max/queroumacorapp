@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
       photoDataUrl = typeof body?.photoDataUrl === 'string' ? body.photoDataUrl : '';
     }
 
-    const { callerId, email } = await verifyAdminToken(token);
-    await ensurePortalAdmin({ callerId, email });
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
     const result = await uploadStyleRef({ styleKey, photoDataUrl, file });
     // Audit-log: upload de style-ref muda bucket público; rastreamos quem subiu o quê.
     await logAuditEvent({

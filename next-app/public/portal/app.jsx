@@ -1840,7 +1840,7 @@ const LogoCard = React.memo(function LogoCard({ item, onUse }) {
           <button onClick={() => onUse(item)} style={{ flex:1, background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'6px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
             Usar na camiseta
           </button>
-          <a href={item.image_url} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
+          <a href={hrefSeguro(item.image_url) || undefined} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
             Abrir
           </a>
           {wa && (
@@ -5690,7 +5690,7 @@ const PedidosLoja = () => {
                   {row('Valor pago', o.paid_amount!=null ? brl(o.paid_amount) : '—')}
                   {row('Método', o.payment_method||'—')}
                   {row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—')}
-                  {o.receipt_url ? <a href={o.receipt_url} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
+                  {hrefSeguro(o.receipt_url) ? <a href={hrefSeguro(o.receipt_url)} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
                 </>
               ) : (
                 <div style={{ color:C.muted, fontSize:13, fontStyle:'italic' }}>Aguardando pagamento / contato (pagamento online ainda não ativado).</div>
@@ -6153,6 +6153,15 @@ const AvaliacoesTab = () => {
 // Formata SO numero brasileiro no padrao (DD) 9xxxx-xxxx. Numero de outro
 // pais (ex.: EUA 16503154274) fica como +DDI... — antes o codigo tirava o
 // '55' de qualquer numero e exibia um DDD brasileiro que nao existe.
+// href vindo de coluna que o USUÁRIO escreve (brand_logos.image_url,
+// orders.receipt_url) só entra num <a> se for https:// — `javascript:`
+// numa página de admin era um clique de distância de auto-promoção
+// (auditoria 2026-09-11). Fora disso, devolve null e o link vira texto.
+const hrefSeguro = (u) => {
+  if (typeof u !== 'string') return null;
+  const t = u.trim();
+  return /^https:\/\//i.test(t) ? t : null;
+};
 const fmtWaPhone = (d) => {
   if(!d) return '';
   if(d.startsWith('55') && (d.length === 12 || d.length === 13)){

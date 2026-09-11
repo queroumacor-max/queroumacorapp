@@ -169,14 +169,18 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
     const sb = getSupabase();
     (async () => {
       try {
-        const { data } = await sb
-          .from('profiles')
-          .select('id, name, tag, phone, email, city, state, business_logo_url, business_name, avatar_url')
-          .eq('id', quote.painter_id!)
-          .maybeSingle();
+        // Telefone/e-mail do pintor: só pra quem é PARTE do orçamento, via
+        // RPC `quote_party_contact` (SECURITY DEFINER, confere client_id/
+        // painter_id = auth.uid()). A tabela `profiles` não devolve mais a
+        // linha de outra pessoa (auditoria 2026-09-11).
+        const { data } = await sb.rpc('quote_party_contact' as never, {
+          p_quote_id: quote.id,
+        } as never);
         if (cancel) return;
-        if (data) {
-          setPainterProfile(data as typeof painterProfile);
+        const rows = (Array.isArray(data) ? data : data ? [data] : []) as Array<typeof painterProfile>;
+        const contato = rows.find((r) => r && (r as { id?: string }).id === quote.painter_id) ?? rows[0];
+        if (contato) {
+          setPainterProfile(contato as typeof painterProfile);
         } else {
           // Fallback: profiles_public se select privado bloquear.
           const { data: pub } = await sb

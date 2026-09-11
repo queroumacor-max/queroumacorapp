@@ -1,5 +1,78 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE AUTORIZAÇÃO (2026-09-11, pedido do usuário: IDOR/BOLA/BFLA/
+  RLS/storage/realtime). Código na branch + SQL
+  `/migrations/2026-09-11-auditoria-autorizacao.sql` — PENDENTE até o usuário
+  rodar (bloco a bloco; conferência no fim do arquivo e duas linhas novas na
+  `2026-09-05-conferencia-pendencias.sql`).** O código TOLERA o SQL ausente
+  (perfis de outros vêm de `profiles_public`, que já existe; push-token cai no
+  upsert antigo; contato do orçamento cai na view). O que fechou:
+  - **CRÍTICO (SQL): `profiles` era legível por ANON, coluna por coluna**
+    (`Profiles are viewable by everyone` USING(true), nunca derrubada) —
+    e-mail, telefone, nascimento, carrinho, `mp_preapproval_id`. Agora SELECT
+    = própria linha OU `is_portal_admin()`; `profiles_public` virou SECURITY
+    DEFINER (só colunas seguras, + `business_name`/`business_logo_url`) e é a
+    ÚNICA fonte de perfil alheio no app. `search_all` e `get_conversations`
+    viraram DEFINER (o 2º sem `email`). Contato das partes de um orçamento:
+    RPC `quote_party_contact(p_quote_id)`.
+  - **CRÍTICO (SQL): escalada pra `role='admin'`.** A `trg_sync_role_from_
+    user_type` rodava DEPOIS da `protect_profile_columns` e o CHECK de
+    `user_type` aceita 'admin': INSERT (conta sem linha de perfil) ou UPDATE
+    (role vazio) com `user_type='admin'` virava `role='admin'` =
+    `is_portal_admin()` = tudo. Agora UMA trigger `zz_protect_profile_columns`
+    (não-DEFINER de propósito; bypass = service_role / RPC DEFINER do banco
+    / admin do portal) deriva role←user_type sem nunca produzir 'admin' e
+    protege is_pro, pro_expires_at, pro_grace_until, portal_access, verified,
+    role, contadores, ai_logo_gen_count, mp_preapproval_id, email.
+    `pickProfilePatch` no cliente é allowlist em runtime.
+  - **CRÍTICO (SQL): RPCs privilegiadas chamáveis por anon** — `upsert_invoice`
+    (PRO grátis via `handle_invoice_paid`), `check_rate_limit` (esgotar cota
+    alheia), `cleanup_*` (deletar dados de retenção). REVOKE por nome em loop
+    (`pg_proc`). **REGRA: GRANT só pra service_role NÃO tira o EXECUTE que o
+    Supabase dá por default a anon/authenticated — tem que REVOKE.**
+  - **ALTO (código): rate limit por IP era NO-OP** — `check_rate_limit` declara
+    `p_user_id uuid`, toda chave decorada (`ip:…`, `log-error:…`, `u:…`)
+    levava 400 e `checkRateLimit` abria em silêncio. `rateLimitKeyToUuid`
+    deriva uuid determinístico (SHA-256) e o `!res.ok` agora loga `error`.
+  - **ALTO (código): allowlist `ADMIN_EMAILS` confiava em e-mail NÃO
+    confirmado** — cadastro com o e-mail de um admin sem conta ganhava sessão
+    com aquele e-mail. `isTrustedAdminEmail` exige `email_confirmed_at` do
+    GoTrue; vale pra `ensurePortalAdmin`, `requireAdminServer` e o plano
+    `admin` do `gateAiUsage`. **Toda rota admin passa `emailConfirmed`** (o
+    teste `authz-audit` varre `app/api`).
+  - **ALTO (SQL): pontos/PRO de graça** — pedido marcado `paid` pelo dono
+    (`orders_update_own` sem restrição de coluna → 100 pts), orçamento consigo
+    mesmo (+5/+15), review de orçamento inventado. Triggers `zz_orders_guard_
+    update`, `zz_quotes_guard` (partes congeladas; cliente só aprova/recusa),
+    pontos só com cliente ≠ pintor (+ teto 3/dia), `submit_review` só de
+    concluído e 1 por profissional/30 dias. **`leads` sem RLS no repo** → RLS
+    + policy admin. `messages`: sem `type='store'` de não-admin, sem inserir
+    em conversa alheia, UPDATE só deleted_at (remetente)/read_at
+    (destinatário). `push_device_tokens` UPDATE era `USING (true)` → própria
+    linha + RPC `register_push_token`. `get_feed_v2` ignora `p_user_id`.
+    Buckets `posts`/`art-refs` sem listagem pública. `admin_delete_user`:
+    excluir outro admin exige `role='admin'` do caller.
+  - **MÉDIO (código):** `/api/log-error` gravava `user_id` do corpo com chave
+    de serviço (só Bearer verificado agora; `reportFailure` manda o token);
+    `/api/admin/users` sem camadas (promovido trocava o login de outro admin
+    com `set_email`) → `set_email`/`revoke`/`delete_user`/`set_role` contra
+    conta privilegiada só pra allowlist confirmada, guarda de delete fail
+    closed; `set-session-cookie` aceitava POST cross-site `text/plain` (login
+    CSRF) → só JSON do próprio host; `/api/moderate` baixava de qualquer
+    `*.supabase.co` e enfileirava `postId` alheio → host do projeto + dono;
+    `ig-art-diag` só PRO virou PRO+admin; portal: `href` de `image_url`/
+    `receipt_url` (colunas do usuário) só `https://` (`hrefSeguro`); o app
+    não insere mais a "boas-vindas" `type='store'` em nome da loja.
+  - **NÃO VERIFICÁVEL daqui / NÃO FEITO:** qual das 3 versões de
+    `protect_profile_columns` está viva (a migration substitui todas);
+    `award_referral_points`, `recalc_painter_rating`, `invites`, `errors`
+    (sem DDL no repo); grants reais de EXECUTE (a conferência lista);
+    `exports` (PDF de orçamento com dados do cliente) segue bucket público
+    por URL não listada; `posts` (chat, certificados) segue público por URL;
+    `ALTER DEFAULT PRIVILEGES` NÃO foi mexido (RPC nova continua nascendo
+    chamável — REVOKE na mão quando for privilegiada). Relatório completo na
+    resposta da sessão (branch `claude/security-audit-complete-0k9vs9`).
+
 - **"Cortou as opções no envio da abordagem" (2026-09-08, entregue em
   2026-09-11 como v=20260911a) — NÃO cortou.** Os botões de resposta rápida
   são do template aprovado e a Meta os anexa sozinha em todo envio (prova:

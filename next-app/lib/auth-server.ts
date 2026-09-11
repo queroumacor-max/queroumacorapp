@@ -110,7 +110,7 @@ async function readAccessTokenFromCookies(): Promise<string | null> {
 /** Valida JWT via Supabase Auth REST. Retorna `{ id, email }` ou null. */
 async function getUserFromToken(
   token: string
-): Promise<{ id: string; email: string } | null> {
+): Promise<{ id: string; email: string; emailConfirmed: boolean } | null> {
   const env = authEnv();
   if (!env) return null;
   try {
@@ -123,9 +123,20 @@ async function getUserFromToken(
       signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { id?: string; email?: string };
+    const data = (await res.json()) as {
+      id?: string;
+      email?: string;
+      email_confirmed_at?: unknown;
+      confirmed_at?: unknown;
+    };
     if (!data?.id || !data.email) return null;
-    return { id: data.id, email: data.email.toLowerCase() };
+    // Sessão de conta com e-mail NÃO confirmado existe (cadastro por e-mail
+    // antes do clique no link). Nesse estado o e-mail não prova nada — só o
+    // caminho por `portal_access`/`role` pode liberar. Ver auditoria 2026-09-11.
+    const emailConfirmed =
+      (typeof data.email_confirmed_at === 'string' && data.email_confirmed_at.length > 0) ||
+      (typeof data.confirmed_at === 'string' && data.confirmed_at.length > 0);
+    return { id: data.id, email: data.email.toLowerCase(), emailConfirmed };
   } catch {
     return null;
   }
@@ -207,8 +218,8 @@ export async function requireAdminServer(): Promise<AdminGuardResult> {
   const user = await getUserFromToken(token);
   if (!user) notFound();
 
-  // Admin via ADMIN_EMAILS env OR profile flags.
-  const adminByEmail = isAdminEmail(user.email);
+  // Admin via ADMIN_EMAILS env (só com e-mail confirmado) OR profile flags.
+  const adminByEmail = user.emailConfirmed && isAdminEmail(user.email);
   const adminByProfile = adminByEmail
     ? true
     : await isPortalAdmin(user.id);

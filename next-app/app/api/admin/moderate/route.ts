@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
   const postId = typeof body?.postId === 'string' ? body.postId : '';
   try {
     const token = getToken(request, body);
-    const { callerId, email } = await verifyAdminToken(token);
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
     // Modo "check": só verifica se o caller é admin, sem aplicar nada
-    if (action === 'check') return jsonResponse({ admin: await isPortalAdminUser({ callerId, email }) });
-    await ensurePortalAdmin({ callerId, email });
+    if (action === 'check') return jsonResponse({ admin: await isPortalAdminUser({ callerId, email, emailConfirmed }) });
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
     const rl = await checkRateLimit({
       userId: callerId || email,
       endpoint: 'admin-moderate',

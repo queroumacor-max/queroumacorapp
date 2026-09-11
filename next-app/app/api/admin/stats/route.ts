@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
   }
   try {
     const token = getToken(request, body);
-    const { callerId, email } = await verifyAdminToken(token);
-    await ensurePortalAdmin({ callerId, email });
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
     const rl = await checkRateLimit({ userId: callerId || email, endpoint: 'admin-stats', limit: 30 });
     if (!rl.allowed) return rateLimitResponse(rl);
     const desde = typeof body.desde === 'string' ? body.desde : null;

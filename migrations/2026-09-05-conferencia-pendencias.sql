@@ -79,4 +79,8 @@ SELECT 'whatsapp_ai_config.prompt existe' AS item, EXISTS (SELECT 1 FROM informa
 SELECT 'leads.abordagem_status existe' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='leads' AND column_name='abordagem_status') AS ok;
 
 -- 2026-09-09 (ai_usage sem CHECK de feature — personas passam a contar):
-SELECT 'ai_usage sem CHECK em feature (2026-09-09)' AS item, NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ai_usage'::regclass AND contype = 'c' AND conname = 'ai_usage_feature_check') AS ok;
+SELECT 'ai_usage sem CHECK em feature (2026-09-09)' AS item, NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ai_usage'::regclass AND contype = 'c' AND conname = 'ai_usage_feature_check') AS ok
+UNION ALL SELECT 'auditoria de autorização 2026-09-11 (trigger zz_protect_profile_columns)',
+       EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.profiles'::regclass AND tgname='zz_protect_profile_columns')
+UNION ALL SELECT 'auditoria de autorização 2026-09-11 (leads com RLS)',
+       COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass), false);

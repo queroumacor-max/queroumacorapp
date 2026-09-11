@@ -52,9 +52,9 @@ let cache: { em: number; templates: TemplateAprovado[] } | null = null;
 export async function GET(request: NextRequest) {
   try {
     const token = getToken(request, {});
-    const { callerId, email } = await verifyAdminToken(token);
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
     if (!callerId) throw new ServiceError('token inválido', 401);
-    await ensurePortalAdmin({ callerId, email });
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
   } catch (e) {
     if (e instanceof ServiceError) return serviceErrorResponse(e);
     return jsonResponse({ error: 'não autorizado' }, 401);

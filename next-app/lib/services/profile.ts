@@ -32,6 +32,25 @@ import { descreverArquivo, normalizarArquivo, provadoNaoImagem } from '@/lib/uti
 // Patch parcial — apenas as colunas que o usuário pode editar pelo form. `tag`
 // é immutable pós-criação na UI (input disabled), mas mantemos no shape pra o
 // signup-flow poder reusar este service no futuro.
+/** Colunas que o dono do perfil pode escrever pelo app. Fonte única. */
+export const PROFILE_PATCH_KEYS = [
+  'name', 'tag', 'user_type', 'bio', 'phone', 'city', 'state', 'birth_date',
+  'address', 'specialties', 'avatar_url', 'service_radius', 'business_logo_url',
+  'business_name', 'instagram_url', 'website_url',
+] as const satisfies ReadonlyArray<keyof ProfilePatch>;
+
+/** Copia só as chaves permitidas; `user_type='admin'` é descartado. */
+export function pickProfilePatch(patch: ProfilePatch): ProfilePatch {
+  const out: Record<string, unknown> = {};
+  const src = patch as Record<string, unknown>;
+  for (const k of PROFILE_PATCH_KEYS) {
+    if (!(k in src)) continue;
+    if (k === 'user_type' && String(src[k]).toLowerCase() === 'admin') continue;
+    out[k] = src[k];
+  }
+  return out as ProfilePatch;
+}
+
 export interface ProfilePatch {
   name?: string;
   tag?: string;
@@ -136,7 +155,11 @@ export async function updateProfile(
   // gravável de profiles.Update (sem `updated_at` — coluna não existe no
   // schema; o vanilla setava como no-op silencioso, o typed client agora
   // rejeita).
-  const cleaned: ProfilePatch = { ...patch };
+  // Allowlist EM RUNTIME: o tipo `ProfilePatch` só vale em compile time —
+  // chamador com objeto solto (form, JSON) mandaria qualquer coluna, e a
+  // proteção das colunas privilegiadas ficaria toda por conta da trigger
+  // do banco. `user_type` nunca aceita 'admin' aqui (auditoria 2026-09-11).
+  const cleaned = pickProfilePatch(patch);
   if (typeof cleaned.tag === 'string') {
     cleaned.tag = cleaned.tag.trim().replace(/^@+/, '').toLowerCase();
   }

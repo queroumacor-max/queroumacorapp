@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
   }
   const g = await gateProAI(request, body, { endpoint: 'tts', limit: 10 });
   if (g instanceof NextResponse) return g;
-  const aiGate = await gateAiUsage({ userId: g.userId, email: g.user?.email, feature: 'tts' });
+  const aiGate = await gateAiUsage({ userId: g.userId, email: g.user?.email,
+    emailConfirmed: g.user?.emailConfirmed, feature: 'tts' });
   if (aiGate instanceof NextResponse) return aiGate;
   try {
     const { audio } = await synthesizeSpeech({ text: body?.text, voice: body?.voice });

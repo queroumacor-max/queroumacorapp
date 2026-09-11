@@ -105,7 +105,7 @@ describe('requireAdminServer', () => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'user-1', email: 'rando@x.com' }),
+            JSON.stringify({ id: 'user-1', email: 'rando@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
             { status: 200 }
           )
         );
@@ -127,13 +127,29 @@ describe('requireAdminServer', () => {
     expect(notFoundCalls.length).toBeGreaterThan(0);
   });
 
+  it('e-mail da allowlist SEM confirmação e sem flags de perfil → notFound() (auditoria 2026-09-11)', async () => {
+    // Conta recém-criada com o e-mail de um admin que ainda não tinha conta:
+    // sessão existe, `email_confirmed_at` é nulo. O e-mail não prova nada.
+    mockCookieValue = VALID_JWT;
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'imp-1', email: 'boss@x.com', email_confirmed_at: null }), { status: 200 })
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify([{ portal_access: false, role: 'cliente' }]), { status: 200 }));
+    });
+    const { requireAdminServer } = await import('@/lib/auth-server');
+    await expect(requireAdminServer()).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it('JWT válido + email em ADMIN_EMAILS → retorna { userId, email }', async () => {
     mockCookieValue = VALID_JWT;
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'admin-1', email: 'BOSS@x.com' }),
+            JSON.stringify({ id: 'admin-1', email: 'BOSS@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
             { status: 200 }
           )
         );
@@ -156,7 +172,7 @@ describe('requireAdminServer', () => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'portal-1', email: 'portal@x.com' }),
+            JSON.stringify({ id: 'portal-1', email: 'portal@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
             { status: 200 }
           )
         );
@@ -186,7 +202,7 @@ describe('requireAdminServer', () => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'role-admin', email: 'role@x.com' }),
+            JSON.stringify({ id: 'role-admin', email: 'role@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
             { status: 200 }
           )
         );
@@ -215,7 +231,7 @@ describe('requireAdminServer', () => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'failing-1', email: 'failing@x.com' }),
+            JSON.stringify({ id: 'failing-1', email: 'failing@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
             { status: 200 }
           )
         );

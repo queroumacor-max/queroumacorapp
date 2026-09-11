@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
   const aiGate = await gateAiUsage({
     userId: g.userId,
     email: g.user?.email,
+    emailConfirmed: g.user?.emailConfirmed,
     feature: 'crm_draft',
   });
   if (aiGate instanceof NextResponse) return aiGate;

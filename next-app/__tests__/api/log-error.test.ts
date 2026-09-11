@@ -4,6 +4,7 @@
 // novos gates R-H2 (rate limit por IP) + R-H10 (Zod validation).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { rateLimitKeyToUuid } from '@/lib/api/security';
 import type { NextRequest } from 'next/server';
 
 const originalFetch = globalThis.fetch;
@@ -88,7 +89,9 @@ describe('POST /api/log-error', () => {
     expect(init.method).toBe('POST');
     const sent = JSON.parse(init.body as string);
     expect(sent.msg).toBe('oops');
-    expect(sent.user_id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    // `user_id` do CORPO é ignorado: rota pública + chave de serviço não pode
+    // confiar em identidade declarada (auditoria 2026-09-11). Sem Bearer → null.
+    expect(sent.user_id).toBeNull();
     expect((init.headers as Record<string, string>).apikey).toBe('svc-test');
   });
 
@@ -196,7 +199,9 @@ describe('POST /api/log-error', () => {
     expect(rlCall).toBeDefined();
     const rlInit = rlCall![1] as RequestInit;
     const rlBody = JSON.parse(rlInit.body as string);
-    expect(rlBody.p_user_id).toBe('log-error:198.51.100.1');
+    // A chave decorada vira uuid determinístico (a RPC declara `p_user_id uuid`;
+    // a string crua fazia o cast falhar e o rate limit abria em silêncio).
+    expect(rlBody.p_user_id).toBe(await rateLimitKeyToUuid('log-error:198.51.100.1'));
     expect(rlBody.p_endpoint).toBe('log-error');
     expect(rlBody.p_limit).toBe(30);
   });

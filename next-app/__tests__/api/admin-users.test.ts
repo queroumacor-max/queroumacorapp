@@ -33,7 +33,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -58,7 +58,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -97,7 +97,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -127,7 +127,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -160,7 +160,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -189,7 +189,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -213,7 +213,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -238,7 +238,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -246,7 +246,7 @@ describe('POST /api/admin/users', () => {
       }
       if (url.includes('/auth/v1/admin/users/')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'target', email: 'Bianca@Mail.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'target', email: 'Bianca@Mail.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rest/v1/profiles') && init?.method === 'PATCH') {
@@ -273,7 +273,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -302,7 +302,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {
@@ -330,7 +330,7 @@ describe('POST /api/admin/users', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/rpc/check_rate_limit')) {

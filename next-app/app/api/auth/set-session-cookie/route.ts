@@ -15,6 +15,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   enforceRateLimit,
+  isSameOriginJsonRequest,
   resolveSupabaseEnv,
   type SupabaseEnvPair,
 } from '@/lib/api/security';
@@ -59,6 +60,9 @@ async function validateToken(token: string): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!isSameOriginJsonRequest(request)) {
+    return NextResponse.json({ error: 'Origem não permitida' }, { status: 403 });
+  }
   // Valida JWT contra o Supabase — limita brute-force de token por IP.
   const limited = await enforceRateLimit(request, { endpoint: 'set-session-cookie', limit: 20 });
   if (limited) return limited;

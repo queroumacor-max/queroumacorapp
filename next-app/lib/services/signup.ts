@@ -211,11 +211,12 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
           insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>;
         };
       };
+      // Só as duas identidades: `status`/`bonus_points` são decididos pelo
+      // banco (trigger/default), nunca pelo cliente — mandar 1000 pontos
+      // daqui era um `curl` (auditoria 2026-09-11).
       await sbAny.from('referrals').insert({
         referrer_id: input.referrerId,
         referred_id: data.user.id,
-        status: 'completed',
-        bonus_points: 10, // 10 pts por indicação (ver ProView REFERRAL_POINTS)
       });
     } catch {
       /* silent — perfil já tem invited_by, admin pode reconciliar */

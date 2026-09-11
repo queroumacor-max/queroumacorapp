@@ -43,7 +43,7 @@ afterEach(() => {
 
 describe('ensurePortalAdmin', () => {
   it('e-mail na allowlist passa SEM consultar o banco', async () => {
-    await expect(ensurePortalAdmin({ callerId: 'u1', email: 'Dona@calicolors.com.br' })).resolves.toBeUndefined();
+    await expect(ensurePortalAdmin({ callerId: 'u1', email: 'Dona@calicolors.com.br', emailConfirmed: true })).resolves.toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('promovido no portal (portal_access=true) passa', async () => {
@@ -95,8 +95,8 @@ describe('ensurePortalAdmin', () => {
   });
   it('cache de 60s por caller: segunda chamada não vai ao banco', async () => {
     perfil({ portal_access: true });
-    expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com' })).toBe(true);
-    expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com' })).toBe(true);
+    expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com', emailConfirmed: true })).toBe(true);
+    expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com', emailConfirmed: true })).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

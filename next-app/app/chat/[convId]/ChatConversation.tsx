@@ -235,24 +235,19 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     setAddingStore(true);
     try {
       const sb = getSupabase();
-      const storeText =
-        'Olá! 👋 Fui convidado para ajudar nesta conversa. Como posso auxiliar com tintas e materiais?';
-      // 1) marker system (faz a conv virar 3-way no agrupador da sidebar)
-      await sb.from('messages').insert({
+      // Só o marker system (faz a conv virar 3-way no agrupador da sidebar).
+      // A "boas-vindas" com `type='store'` que o app inseria EM NOME da loja
+      // saiu: bolha de loja só pode nascer de quem é a loja (a RLS de
+      // `messages` recusa `type='store'` de quem não é admin do portal —
+      // auditoria 2026-09-11). Quem responde é o operador, pelo portal.
+      const { error: markerErr } = await sb.from('messages').insert({
         sender_id: user.id,
         receiver_id: otherId,
         conversation_id: convId,
         content: '__STORE_ADDED__',
         type: 'system',
       });
-      // 2) welcome message do Cali Colors (type=store pra pintar bolha laranja)
-      await sb.from('messages').insert({
-        sender_id: user.id,
-        receiver_id: otherId,
-        conversation_id: convId,
-        content: storeText,
-        type: 'store',
-      });
+      if (markerErr) throw new Error(markerErr.message);
       // Invalida tudo pra UI virar 3-way + welcome aparecer
       qc.invalidateQueries({ queryKey: ['chat', 'messages', convId] });
       qc.invalidateQueries({ queryKey: ['chat', 'conversations', user.id] });

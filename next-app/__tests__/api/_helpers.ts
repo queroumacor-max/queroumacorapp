@@ -61,7 +61,7 @@ export function installAuthMocks(opts: InstallAuthMocksOpts = {}): InstalledMock
       if (url.includes('/auth/v1/user')) {
         if (unauth) return new Response('', { status: 401 });
         return new Response(
-          JSON.stringify({ id: 'user-test-id', email: 'test@example.com' }),
+          JSON.stringify({ id: 'user-test-id', email: 'test@example.com', email_confirmed_at: '2026-01-01T00:00:00Z' }),
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }

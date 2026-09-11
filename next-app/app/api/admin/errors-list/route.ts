@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
   }
   try {
     const token = getToken(request, body as { accessToken?: unknown });
-    const { callerId, email } = await verifyAdminToken(token);
-    await ensurePortalAdmin({ callerId, email });
+    const { callerId, email, emailConfirmed } = await verifyAdminToken(token);
+    await ensurePortalAdmin({ callerId, email, emailConfirmed });
     const rl = await checkRateLimit({
       userId: callerId || email,
       endpoint: 'admin-errors-list',

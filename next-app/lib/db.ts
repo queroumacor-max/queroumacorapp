@@ -43,11 +43,21 @@ async function getById(id: string, cols?: string): Promise<Profile | null> {
   try {
     // maybeSingle() não estoura se a linha não existir (single() estoura).
     // Pra um getter público, ausência é resultado válido, não erro.
-    const r = await sb
-      .from('profiles')
+    // View pública primeiro (a tabela `profiles` só devolve a própria linha
+    // pra quem não é admin); cai pra tabela quando a view não tem a coluna
+    // pedida ou não acha — cobre o próprio perfil.
+    let r = await sb
+      .from('profiles_public')
       .select(cols || PUBLIC_COLS)
       .eq('id', id)
       .maybeSingle();
+    if (r.error || !r.data) {
+      r = await sb
+        .from('profiles')
+        .select(cols || PUBLIC_COLS)
+        .eq('id', id)
+        .maybeSingle();
+    }
     if (r.error) {
       logger.warn('DB.profiles.getById', r.error.message);
       return null;

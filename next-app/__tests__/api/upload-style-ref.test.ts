@@ -45,7 +45,7 @@ describe('POST /api/upload-style-ref', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'x', email: 'rando@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'x', email: 'rando@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       // Fora da allowlist a rota ainda pergunta ao banco se a conta foi
@@ -71,7 +71,7 @@ describe('POST /api/upload-style-ref', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       if (url.includes('/storage/v1/object/style-refs/') && init?.method === 'POST') {
@@ -101,7 +101,7 @@ describe('POST /api/upload-style-ref', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       return Promise.resolve(new Response('', { status: 200 }));
@@ -129,7 +129,7 @@ describe('POST /api/upload-style-ref', () => {
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/auth/v1/user')) {
         return Promise.resolve(
-          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 })
+          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' }), { status: 200 })
         );
       }
       return Promise.resolve(new Response('', { status: 200 }));

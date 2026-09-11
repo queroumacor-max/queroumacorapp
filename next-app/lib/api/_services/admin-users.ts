@@ -3,7 +3,7 @@
 // set PRO, role, verified. Service role + dupla checagem de admin
 // (ADMIN_EMAILS + portal_access ATIVO do caller).
 
-import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
+import { ServiceError, getServiceKey, getSupabaseUrl, isAdminEmail } from '../security';
 
 const TIMEOUT_MS = 10000;
 
@@ -82,6 +82,45 @@ export async function ensureCallerHasPortalAccess(args: { callerId: string }): P
     throw new ServiceError('falha ao verificar permissão', 502);
   }
 }
+
+/**
+ * O alvo tem privilégio (portal_access, role='admin' ou e-mail na
+ * allowlist)? Lido com a chave de serviço. FAIL CLOSED: falha de consulta
+ * vira 502 — "não deu pra saber" não é "não é admin".
+ */
+export async function isPrivilegedTarget(args: { userId: string }): Promise<boolean> {
+  const serviceKey = getServiceKey();
+  if (!serviceKey) throw new ServiceError('Gestão de usuários não configurada', 503);
+  const supaUrl = getSupabaseUrl();
+  const sHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+  let g: Response;
+  try {
+    g = await fetch(
+      `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(args.userId)}&select=portal_access,role,email`,
+      { headers: sHeaders, signal: AbortSignal.timeout(TIMEOUT_MS) },
+    );
+  } catch {
+    throw new ServiceError('falha ao verificar o perfil alvo (rede)', 502);
+  }
+  if (!g.ok) throw new ServiceError('falha ao verificar o perfil alvo (profiles ' + g.status + ')', 502);
+  let rows: Array<{ portal_access?: boolean; role?: string | null; email?: string | null }>;
+  try {
+    rows = (await g.json()) as typeof rows;
+  } catch {
+    throw new ServiceError('falha ao verificar o perfil alvo (resposta inválida)', 502);
+  }
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (!row) return false;
+  return row.portal_access === true || row.role === 'admin' || isAdminEmail(row.email);
+}
+
+/**
+ * Ações que atingem OUTRO admin (trocar o login, revogar, excluir, trocar o
+ * papel). Um operador promovido pelo portal não pode usá-las contra quem
+ * tem privilégio — senão qualquer promovido toma a conta de quem o promoveu
+ * (`set_email` + reset de senha) ou derruba os demais com `revoke`.
+ */
+export const ACTIONS_AGAINST_PRIVILEGED = new Set(['set_email', 'revoke', 'delete_user', 'set_role']);
 
 /**
  * Aplica patch no profile target.
@@ -477,20 +516,14 @@ export async function deleteUserPermanently(args: {
   const supaUrl = getSupabaseUrl();
   const sHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
-  // Proteção anti-tiro-no-pé: admin/portal não se exclui em lote.
-  const g = await fetch(
-    `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=portal_access,role`,
-    { headers: sHeaders, signal: AbortSignal.timeout(TIMEOUT_MS) },
-  );
-  if (g.ok) {
-    const rows = (await g.json()) as Array<{ portal_access?: boolean; role?: string | null }>;
-    const row = rows?.[0];
-    if (row && (row.portal_access || row.role === 'admin')) {
-      throw new ServiceError(
-        'este perfil tem acesso admin/portal — revogue o acesso antes de excluir',
-        400,
-      );
-    }
+  // Proteção anti-tiro-no-pé: admin/portal não se exclui em lote. FAIL
+  // CLOSED: se a consulta falhar não dá pra afirmar que o alvo NÃO é admin,
+  // então não se exclui (antes um erro de rede pulava a guarda).
+  if (await isPrivilegedTarget({ userId })) {
+    throw new ServiceError(
+      'este perfil tem acesso admin/portal — revogue o acesso antes de excluir',
+      400,
+    );
   }
 
   // 1) Login (Auth). 404 = já não existia (perfil órfão) — segue pro passo 2.

@@ -7,6 +7,7 @@
 // mocka o fetch da RPC `check_rate_limit`.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { rateLimitKeyToUuid } from '@/lib/api/security';
 import type { NextRequest } from 'next/server';
 import { getClientIp, enforceRateLimit } from '@/lib/api/security';
 
@@ -96,7 +97,9 @@ describe('enforceRateLimit', () => {
     expect(res).toBeNull();
     // Confirma que a chave usada foi o IP (sem userId).
     const callBody = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(callBody.p_user_id).toBe('ip:3.3.3.3');
+    // A chave decorada vira uuid determinístico (a RPC declara `p_user_id uuid`;
+    // a string crua fazia o cast falhar e o rate limit abria em silêncio).
+    expect(callBody.p_user_id).toBe(await rateLimitKeyToUuid('ip:3.3.3.3'));
   });
 
   it('usa a chave de usuário quando userId é passado', async () => {
@@ -113,6 +116,8 @@ describe('enforceRateLimit', () => {
       userId: 'user-123',
     });
     const callBody = JSON.parse((spy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(callBody.p_user_id).toBe('u:user-123');
+    // A chave decorada vira uuid determinístico (a RPC declara `p_user_id uuid`;
+    // a string crua fazia o cast falhar e o rate limit abria em silêncio).
+    expect(callBody.p_user_id).toBe(await rateLimitKeyToUuid('u:user-123'));
   });
 });

@@ -203,7 +203,7 @@ export function getTokenFromForm(
 }
 
 export interface AuthResult {
-  user: { id: string; email?: string } | null;
+  user: { id: string; email?: string; emailConfirmed?: boolean } | null;
   token?: string;
   anon?: boolean;
   warn?: string;
@@ -297,7 +297,10 @@ export async function requireAuth(
     }
     const user = await res.json();
     if (!user?.id) return { user: null, anon: true, warn: 'invalid_user' };
-    return { user: { id: user.id, email: user.email }, token };
+    return {
+      user: { id: user.id, email: user.email, emailConfirmed: emailConfirmedFromGoTrue(user) },
+      token,
+    };
   } catch (e) {
     console.warn('requireAuth: erro de rede — fail-open:', e instanceof Error ? e.message : e);
     return { user: null, anon: true, warn: 'network_error' };
@@ -313,7 +316,7 @@ export async function requireAuth(
 export async function requireAuthStrict(
   request: NextRequest | Request,
   body?: { accessToken?: unknown } | null
-): Promise<{ user: { id: string; email: string }; token: string }> {
+): Promise<{ user: { id: string; email: string; emailConfirmed: boolean }; token: string }> {
   const token = getToken(request, body);
   if (!token) throw new ServiceError('login obrigatório', 401);
 
@@ -335,9 +338,40 @@ export async function requireAuthStrict(
   const user = await res.json();
   if (!user?.id) throw new ServiceError('sessão inválida', 401);
   return {
-    user: { id: user.id, email: (user.email || '').toLowerCase() },
+    user: {
+      id: user.id,
+      email: (user.email || '').toLowerCase(),
+      emailConfirmed: emailConfirmedFromGoTrue(user),
+    },
     token,
   };
+}
+
+/**
+ * O GoTrue devolve `email_confirmed_at` (e `confirmed_at`) no `/auth/v1/user`.
+ * Conta criada por e-mail ainda sem confirmar tem sessão válida mas
+ * `email_confirmed_at` nulo — e é exatamente o caso em que o e-mail NÃO
+ * prova identidade: qualquer um pode se cadastrar com o e-mail de um admin
+ * que ainda não criou conta e receber uma sessão com aquele e-mail.
+ * Login social (Google/Apple) vem confirmado.
+ */
+export function emailConfirmedFromGoTrue(user: unknown): boolean {
+  const u = (user || {}) as { email_confirmed_at?: unknown; confirmed_at?: unknown };
+  return typeof u.email_confirmed_at === 'string' && u.email_confirmed_at.length > 0
+    || typeof u.confirmed_at === 'string' && u.confirmed_at.length > 0;
+}
+
+/**
+ * Allowlist `ADMIN_EMAILS` só vale com o e-mail CONFIRMADO pelo GoTrue.
+ * `isAdminEmail` sozinha responde "o e-mail está na lista?"; esta responde
+ * "posso confiar que quem está logado é dono desse e-mail?".
+ */
+export function isTrustedAdminEmail(
+  user: { email?: string | null; emailConfirmed?: boolean } | null | undefined,
+): boolean {
+  if (!user || !user.email) return false;
+  if (user.emailConfirmed !== true) return false;
+  return isAdminEmail(user.email);
 }
 
 /**
@@ -393,6 +427,13 @@ export async function checkRateLimit(opts: {
     return { allowed: true, skipped: true };
   }
 
+  // A RPC declara `p_user_id uuid`. Chave decorada ('ip:1.2.3.4',
+  // 'log-error:<ip>', 'u:<uuid>') fazia o cast falhar (400) e o helper
+  // abria em SILÊNCIO — todo rate limit por IP era um no-op (auditoria
+  // 2026-09-11). Chave que não é uuid vira um uuid determinístico (SHA-256
+  // truncado no formato v4) — mesma entrada, mesma linha em `rate_limits`.
+  const key = await rateLimitKeyToUuid(userId);
+
   try {
     const res = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
       method: 'POST',
@@ -402,13 +443,24 @@ export async function checkRateLimit(opts: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        p_user_id: userId,
+        p_user_id: key,
         p_endpoint: endpoint,
         p_limit: limit,
       }),
       signal: AbortSignal.timeout(RATE_LIMIT_TIMEOUT_MS),
     });
-    if (!res.ok) return { allowed: true, skipped: true };
+    if (!res.ok) {
+      // 4xx aqui é BUG (chave/RPC inválida), não indisponibilidade — e um
+      // rate limit que falha em silêncio é o mesmo que não existir.
+      let detail = '';
+      try {
+        detail = (await res.text()).slice(0, 200);
+      } catch {
+        /* sem corpo */
+      }
+      console.error(`checkRateLimit: RPC check_rate_limit respondeu ${res.status} (${endpoint}) ${detail}`);
+      return { allowed: true, skipped: true };
+    }
     const data = await res.json();
     return {
       allowed: !!data?.allowed,
@@ -416,9 +468,29 @@ export async function checkRateLimit(opts: {
       limit: data?.limit || limit,
       retry_after_seconds: data?.retry_after_seconds || 60,
     };
-  } catch {
+  } catch (e) {
+    console.warn('checkRateLimit: falha de rede', e instanceof Error ? e.message : e);
     return { allowed: true, skipped: true };
   }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Chave de rate limit → uuid aceito pela RPC. Uuid puro passa intacto
+ * (mantém a linha do usuário); qualquer outra string vira SHA-256 truncado
+ * em 16 bytes, escrito no formato de uuid v4 (versão/variante fixadas pra
+ * ser um uuid válido). Determinístico: a mesma chave conta na mesma janela.
+ */
+export async function rateLimitKeyToUuid(key: string): Promise<string> {
+  if (UUID_RE.test(key)) return key.toLowerCase();
+  const bytes = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`rl:${key}`)),
+  );
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 /**
@@ -510,7 +582,9 @@ export async function requirePro(
   try {
     supaUrl = getSupabaseUrl();
   } catch {
-    return { pro: true, checked: false };
+    // Chave de serviço existe mas a URL não: configuração quebrada, não
+    // blip — mesma regra fail-closed do CRIT-5.
+    return { pro: false, checked: false, error: 'service_unavailable' };
   }
   const url = `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(
     userId
@@ -541,7 +615,7 @@ export async function requirePro(
 
 export interface GateProAIOk {
   userId: string | undefined;
-  user: { id: string; email?: string } | null;
+  user: { id: string; email?: string; emailConfirmed?: boolean } | null;
   token?: string;
 }
 
@@ -650,9 +724,15 @@ import {
 export async function gateAiUsage(opts: {
   userId: string | undefined;
   email?: string | null;
+  /**
+   * O plano `admin` (cota 99999) só vale com o e-mail CONFIRMADO — sem isso
+   * qualquer um se cadastraria com o e-mail de um admin da allowlist e teria
+   * IA ilimitada. Caller que não informa não ganha o plano admin.
+   */
+  emailConfirmed?: boolean;
   feature: string;
 }): Promise<NextResponse | { allowed: true; plan: 'free' | 'pro' | 'admin'; used: number; limit: number }> {
-  const { userId, email, feature } = opts;
+  const { userId, email, emailConfirmed, feature } = opts;
   if (!userId) {
     // Sem userId, gateProAI já deveria ter barrado; aqui é defesa em prof.
     return { allowed: true, plan: 'free', used: 0, limit: 30 };
@@ -676,12 +756,15 @@ export async function gateAiUsage(opts: {
   try {
     supaUrl = getSupabaseUrl();
   } catch {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'service_unavailable' }, { status: 503 });
+    }
     return { allowed: true, plan: 'free', used: 0, limit: 30 };
   }
 
   // Resolve plano.
   let plan: 'free' | 'pro' | 'admin' = 'free';
-  if (email && isAdminEmail(email)) {
+  if (isTrustedAdminEmail({ email, emailConfirmed })) {
     plan = 'admin';
   } else {
     const isPro = await isProActiveViaRest({ supaUrl, serviceKey, userId });
@@ -832,4 +915,37 @@ export async function gateProAIForm(
   const rl = await checkRateLimit({ userId, endpoint, limit });
   if (!rl.allowed) return rateLimitResponse(rl);
   return { userId, user: auth.user, token: auth.token };
+}
+
+/**
+ * Só aceita chamada do PRÓPRIO site. Um POST cross-site com `text/plain`
+ * não dispara preflight (CORS só impede LER a resposta), então sem isto um
+ * site malicioso plantava um cookie de sessão de OUTRA conta no navegador
+ * do admin (login-CSRF): o /admin/* passava a responder 404 até relogar.
+ * Exige JSON (força preflight) e, quando o navegador manda Origin/Referer,
+ * que seja o nosso host.
+ */
+export function isSameOriginJsonRequest(request: Request): boolean {
+  const ct = (request.headers.get('content-type') || '').toLowerCase();
+  if (!ct.startsWith('application/json')) return false;
+  const self = new URL(request.url).host;
+  const origin = request.headers.get('origin');
+  if (origin) {
+    try {
+      return new URL(origin).host === self;
+    } catch {
+      return false;
+    }
+  }
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      return new URL(referer).host === self;
+    } catch {
+      return false;
+    }
+  }
+  // Sem Origin nem Referer (fetch de mesma origem em alguns WebViews): o
+  // Content-Type JSON já garante o preflight, que o CORS do /api/* recusa.
+  return true;
 }

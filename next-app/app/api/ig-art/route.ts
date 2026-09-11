@@ -60,6 +60,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   const aiGate = await gateAiUsage({
     userId: g.userId,
     email: g.user?.email,
+    emailConfirmed: g.user?.emailConfirmed,
     feature: 'ig_art',
   });
   if (aiGate instanceof NextResponse) return aiGate;

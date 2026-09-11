@@ -32,7 +32,11 @@ vi.mock('@/lib/native', () => ({
   },
 }));
 vi.mock('@/lib/supabase', () => ({
-  getSupabase: () => ({ from: () => ({ upsert: (...a: unknown[]) => upsert(...a) }) }),
+  getSupabase: () => ({
+    // RPC `register_push_token` ausente (migration não rodou) → cai no upsert.
+    rpc: () => Promise.resolve({ error: { message: 'function not found' } }),
+    from: () => ({ upsert: (...a: unknown[]) => upsert(...a) }),
+  }),
 }));
 
 import {
