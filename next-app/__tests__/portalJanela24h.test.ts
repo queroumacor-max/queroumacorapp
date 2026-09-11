@@ -234,9 +234,12 @@ describe('marcadores de extração do portal', () => {
     '// [teste:template-fim]',
     '// [teste:previa-inicio]',
     '// [teste:previa-fim]',
+    '// [teste:erro-supabase-inicio]',
+    '// [teste:erro-supabase-fim]',
     'const JANELA_MS =',
     'const TEMPLATE_IDIOMA =',
     'const segmentosDoTemplate =',
+    'const textoDeErroSupabase =',
   ];
 
   let fonte = '';
@@ -255,6 +258,7 @@ describe('marcadores de extração do portal', () => {
       fonte.slice(fonte.indexOf('const JANELA_MS ='), fonte.indexOf('// [teste:janela-fim]')),
       fonte.slice(fonte.indexOf('const TEMPLATE_IDIOMA ='), fonte.indexOf('// [teste:template-fim]')),
       fonte.slice(fonte.indexOf('const segmentosDoTemplate ='), fonte.indexOf('// [teste:previa-fim]')),
+      fonte.slice(fonte.indexOf('const textoDeErroSupabase ='), fonte.indexOf('// [teste:erro-supabase-fim]')),
     ];
     for (const b of blocos) {
       expect(b.length).toBeGreaterThan(50);
@@ -642,5 +646,94 @@ describe('prévia do template (portal)', () => {
     expect(
       rotuloDeTemplate({ nome: 'calicolors_nome', rotulo: 'Com o nome da pessoa' })
     ).toBe('Com o nome da pessoa');
+  });
+});
+
+// ── Erro de carga da lista de WhatsApp ───────────────────────────────────
+// Relato de 11/09/2026: "tem muitas msgs" com a coluna dizendo "Nenhuma
+// conversa ainda". O `load` engolia a falha num `console.warn`, então
+// consulta quebrada e caixa de entrada vazia produziam a MESMA frase — e a
+// única leitura possível era "sumiram as mensagens".
+//
+// O que vira teste é a parte que decide se o operador consegue AGIR: o
+// código do Postgres precisa sobreviver até a tela. Sem ele, 42703 (SQL
+// pendente), 42501 (permissão) e falha de rede são indistinguíveis.
+
+let textoDeErroSupabase: (e: unknown) => string;
+
+describe('erro do Supabase legível na tela', () => {
+  beforeAll(() => {
+    const src = readFileSync(join(process.cwd(), 'public/portal/app.jsx'), 'utf8');
+    const inicio = src.indexOf('const textoDeErroSupabase =');
+    const fim = src.indexOf('// [teste:erro-supabase-fim]');
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fim).toBeGreaterThan(inicio);
+    const fabrica = new Function(
+      `${src.slice(inicio, fim)}; return { textoDeErroSupabase };`
+    ) as () => { textoDeErroSupabase: typeof textoDeErroSupabase };
+    ({ textoDeErroSupabase } = fabrica());
+  });
+
+  // 42703 = coluna que não existe. É o desfecho que manda rodar um SQL, e
+  // já aconteceu três vezes neste projeto (quotes.post_id, leads.city,
+  // profiles.username). Perder o código transforma isso em "tela quebrada".
+  it('mantém o código do Postgres, que é o que diz o que fazer', () => {
+    const t = textoDeErroSupabase({
+      code: '42703',
+      message: 'column whatsapp_messages.foo does not exist',
+    });
+    expect(t).toContain('42703');
+    expect(t).toContain('does not exist');
+  });
+
+  it('anexa hint/details quando vêm — é onde o PostgREST explica', () => {
+    expect(textoDeErroSupabase({ code: 'PGRST204', message: 'x', hint: 'confira a coluna' }))
+      .toContain('confira a coluna');
+    expect(textoDeErroSupabase({ message: 'x', details: 'linha 3' })).toContain('linha 3');
+  });
+
+  it('erro sem código ainda é legível', () => {
+    expect(textoDeErroSupabase({ message: 'Failed to fetch' })).toBe('Failed to fetch');
+  });
+
+  it('nunca devolve vazio — string vazia na tela seria outro silêncio', () => {
+    expect(textoDeErroSupabase(null)).toBeTruthy();
+    expect(textoDeErroSupabase({})).toBeTruthy();
+    expect(textoDeErroSupabase({ message: '   ' })).toBeTruthy();
+  });
+
+  // A coluna é estreita e no celular fica mais estreita ainda; um `details`
+  // gigante empurraria o botão "Tentar de novo" pra fora da tela.
+  it('trunca para caber na coluna', () => {
+    const t = textoDeErroSupabase({ code: '42703', message: 'x'.repeat(900) });
+    expect(t.length).toBeLessThanOrEqual(300);
+  });
+});
+
+// ── A tela não pode dizer "não existe" quando a consulta falhou ──────────
+// Guarda de texto, não de comportamento: o defeito relatado foi uma FRASE
+// errada, e ela some se alguém reescrever o bloco sem saber por que ele é
+// assim.
+
+describe('coluna de conversas: vazio × falha', () => {
+  let fonte = '';
+  beforeAll(() => {
+    fonte = readFileSync(join(process.cwd(), 'public/portal/app.jsx'), 'utf8');
+  });
+
+  it('a falha de carga tem texto próprio, separado do caixa-vazia', () => {
+    expect(fonte).toContain('Não consegui carregar as conversas.');
+  });
+
+  it('o vazio sem erro não afirma que não existe mensagem', () => {
+    expect(fonte).toContain('provavelmente é permissão');
+  });
+
+  // O +55 11 92072-5935 era o número da Evolution, aposentada em 09/2026. A
+  // tela seguia mandando o operador esperar mensagem num canal que não
+  // recebe mais nada.
+  it('não cita o número da Evolution', () => {
+    expect(fonte).not.toContain('92072-5935');
+    expect(fonte).not.toContain('92072');
   });
 });
