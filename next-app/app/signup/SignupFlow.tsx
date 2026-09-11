@@ -17,6 +17,7 @@ import { signUp } from '@/lib/services/signup';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import type { UserRole } from '@/lib/types';
 import { readPendingReferrer, clearPendingReferrer } from '@/components/ReferralCapture';
+import { mensagemDeLimite, preCheckAuthRate } from '@/lib/services/authRateCheck';
 import { SocialAuthButtons } from '@/components/SocialAuthButtons';
 import { reportFailure } from '@/lib/utils/reportFailure';
 import { showToast } from '@/lib/toast';
@@ -153,6 +154,13 @@ export function SignupFlow() {
         (phoneRequired && !draft.phone)
       ) {
         setServerError('Volte e preencha os passos anteriores.');
+        return;
+      }
+      // Rate limit por IP (advisory, fail-open) contra criação automatizada
+      // de contas pela UI. O limite de verdade é o do Supabase Auth.
+      const limite = await preCheckAuthRate('signup');
+      if (limite.blocked) {
+        setServerError(mensagemDeLimite(limite));
         return;
       }
       const { userId } = await signUp({

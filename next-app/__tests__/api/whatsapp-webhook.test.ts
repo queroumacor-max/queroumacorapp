@@ -366,3 +366,17 @@ describe('POST /api/whatsapp/webhook — ecos e tipos sem conversa', () => {
     expect(autoReplyMock).not.toHaveBeenCalled();
   });
 });
+
+describe('GET /api/whatsapp/webhook — verificação da Meta', () => {
+  it('verify_token errado → 403; certo → devolve o challenge', async () => {
+    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN = 'verify-ok';
+    const mod = await import('@/app/api/whatsapp/webhook/route');
+    const base = `https://exemplo.com/api/whatsapp/webhook?token=${URL_SECRET}&hub.mode=subscribe&hub.challenge=123`;
+    const ruim = await mod.GET(new Request(`${base}&hub.verify_token=verify-no`) as never);
+    expect(ruim.status).toBe(403);
+    const bom = await mod.GET(new Request(`${base}&hub.verify_token=verify-ok`) as never);
+    expect(bom.status).toBe(200);
+    expect(await bom.text()).toBe('123');
+    delete process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  });
+});

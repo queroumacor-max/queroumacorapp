@@ -1,3 +1,4 @@
+import { scrubUrl } from './utils/scrubSecrets';
 /** Filtros PII shared entre client/server/edge configs do Sentry.
  *  Mascara email, phone BR, CPF, CNPJ, JWT tokens em qualquer string. */
 
@@ -38,7 +39,7 @@ export function maskPiiDeep<T>(value: T, depth = 0): T {
 export function sentryBeforeSend<
   E extends {
     user?: { email?: string | null };
-    request?: { data?: unknown };
+    request?: { data?: unknown; url?: string; headers?: Record<string, string> };
     extra?: Record<string, unknown>;
     contexts?: Record<string, unknown>;
   },
@@ -49,6 +50,20 @@ export function sentryBeforeSend<
     }
     if (event.request?.data !== undefined) {
       event.request.data = maskPiiDeep(event.request.data);
+    }
+    // `request.url` vem de `location.href`, que inclui o fragment — e é no
+    // fragment que o Supabase entrega access/refresh token no OAuth web e
+    // no link de recuperação de senha. Sem isto, um erro em /update-password
+    // mandava a sessão inteira pro Sentry (auditoria 2026-09-11).
+    if (typeof event.request?.url === 'string') {
+      event.request.url = scrubUrl(event.request.url);
+    }
+    if (event.request?.headers) {
+      for (const k of Object.keys(event.request.headers)) {
+        if (/^(authorization|cookie|apikey|x-internal-secret)$/i.test(k)) {
+          event.request.headers[k] = '[redacted]';
+        }
+      }
     }
     if (event.extra) event.extra = maskPiiDeep(event.extra);
     if (event.contexts) event.contexts = maskPiiDeep(event.contexts);

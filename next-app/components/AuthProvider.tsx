@@ -326,6 +326,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Silencioso.
     }
     await getSupabase().auth.signOut();
+    // O cache do service worker é por aparelho, não por conta: pede pra ele
+    // esvaziar tudo no logout, senão uma resposta guardada (offline) do dono
+    // anterior aparece pro próximo login no mesmo aparelho. Best-effort.
+    try {
+      navigator.serviceWorker?.controller?.postMessage('CLEAR_CACHES');
+    } catch {
+      // sem service worker — nada a limpar.
+    }
   }, []);
 
   const resendVerification = useCallback(async (): Promise<{ error?: string }> => {

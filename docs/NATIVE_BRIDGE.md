@@ -24,13 +24,27 @@ roadmap pedir telas nativas de verdade.
 
 ## OAuth nativo (fluxo A) — como funciona
 
-`lib/native/auth.ts`: `signInWithOAuth({ skipBrowserRedirect: true })` gera a
-URL → `Browser.open()` (Custom Tab / ASWebAuthenticationSession) → login no
+`lib/native/auth.ts`: um cliente Supabase DEDICADO (`flowType: 'pkce'`, sem
+persistência) gera a URL com `signInWithOAuth({ skipBrowserRedirect: true })`
+→ `Browser.open()` (Custom Tab / ASWebAuthenticationSession) → login no
 domínio do Supabase num browser REAL (sem `disallowed_useragent`) → Supabase
-redireciona pro deep link `br.com.queroumacor.app://auth/callback` → plugin
-App dispara `appUrlOpen` na WebView → parse do fragment (fluxo implicit) →
-`setSession()` → `/completar-perfil`. Integrado no `AuthProvider` com
+redireciona pro deep link `br.com.queroumacor.app://auth/callback?code=…` →
+plugin App dispara `appUrlOpen` na WebView → `exchangeCodeForSession(code)`
+(exige o `code_verifier` que nunca saiu da WebView) → `setSession()` no
+cliente principal → `/completar-perfil`. Integrado no `AuthProvider` com
 feature-detection; browser/PWA seguem no fluxo web intocado.
+
+**Por que PKCE e não o implicit de antes (auditoria de autenticação,
+2026-09-11):** o deep link é custom scheme, sem verificação de domínio — no
+Android qualquer app pode registrar `br.com.queroumacor.app://` e receber o
+callback. No implicit ele recebia `access_token` + `refresh_token` (a sessão
+inteira), e um link forjado com o token do atacante logava a vítima na conta
+dele. Com PKCE o callback só carrega um `code` de uso único, inútil sem o
+verifier. **Token no fragment/query do deep link é ignorado de propósito**
+(`parseAuthCallbackUrl` só devolve `code`); há teste travando isso
+(`__tests__/native-oauth-pkce.test.ts`). O cliente principal continua
+`implicit` porque o link de recuperação de senha abre em OUTRO navegador, sem
+verifier — PKCE ali quebraria o "esqueci a senha".
 
 ## Pendências pra ativar de verdade (lado da casca / painel)
 

@@ -350,3 +350,105 @@ describe('POST /api/admin/users', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ─── set_email: takeover de conta com poder (auditoria 2026-09-11) ─────────
+//
+// Trocar o login de alguém sem confirmação é tomar a conta ("esqueci a
+// senha" no endereço novo). Um operador promovido no portal não pode fazer
+// isso com um admin, nem consigo mesmo.
+function fetchParaSetEmail(opts: {
+  alvo?: { portal_access?: boolean; role?: string | null };
+  loginDoAlvo?: string | null;
+  callerId?: string;
+}) {
+  const calls: Array<{ url: string; method: string }> = [];
+  const f = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method || 'GET' });
+    if (url.includes('/auth/v1/user')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: opts.callerId ?? 'caller', email: 'boss@x.com' }), {
+          status: 200,
+        }),
+      );
+    }
+    if (url.includes('/rpc/check_rate_limit')) {
+      return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+    }
+    if (url.includes('id=eq.target') && url.includes('select=portal_access,role')) {
+      return Promise.resolve(
+        new Response(JSON.stringify([opts.alvo ?? { portal_access: false, role: 'pintor' }]), {
+          status: 200,
+        }),
+      );
+    }
+    if (url.includes(`id=eq.${opts.callerId ?? 'caller'}`) && url.endsWith('select=portal_access')) {
+      return Promise.resolve(new Response(JSON.stringify([{ portal_access: true }]), { status: 200 }));
+    }
+    if (url.includes('/auth/v1/admin/users/target') && (init?.method || 'GET') === 'GET') {
+      if (opts.loginDoAlvo === null) return Promise.resolve(new Response('', { status: 404 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: 'target', email: opts.loginDoAlvo ?? 'user@x.com' }), {
+          status: 200,
+        }),
+      );
+    }
+    if (url.includes('/auth/v1/admin/users/target') && init?.method === 'PUT') {
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    }
+    if (url.includes('/rest/v1/profiles?id=eq.target') && init?.method === 'PATCH') {
+      return Promise.resolve(new Response(JSON.stringify([{ id: 'target' }]), { status: 200 }));
+    }
+    return Promise.resolve(new Response('[]', { status: 200 }));
+  });
+  globalThis.fetch = f;
+  return calls;
+}
+
+describe('POST /api/admin/users — set_email não toma conta com poder', () => {
+  it('alvo com portal_access → 403 e o Auth NÃO é tocado', async () => {
+    const calls = fetchParaSetEmail({ alvo: { portal_access: true, role: 'pintor' } });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_email', userId: 'target', email: 'novo@x.com' }));
+    expect(res.status).toBe(403);
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('alvo com login em ADMIN_EMAILS (mesmo sem flag no perfil) → 403', async () => {
+    const calls = fetchParaSetEmail({ loginDoAlvo: 'boss@x.com' });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_email', userId: 'target', email: 'novo@x.com' }));
+    expect(res.status).toBe(403);
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('a própria conta → 400 (troca de e-mail própria é pelo fluxo com confirmação)', async () => {
+    const calls = fetchParaSetEmail({ callerId: 'target' });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_email', userId: 'target', email: 'novo@x.com' }));
+    expect(res.status).toBe(400);
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('falha ao ler o alvo → 502, nada alterado (fail-closed)', async () => {
+    fetchParaSetEmail({});
+    const base = globalThis.fetch as ReturnType<typeof vi.fn>;
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('id=eq.target') && url.includes('select=portal_access,role')) {
+        return Promise.resolve(new Response('erro', { status: 500 }));
+      }
+      return base(url, init);
+    });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_email', userId: 'target', email: 'novo@x.com' }));
+    expect(res.status).toBe(502);
+  });
+
+  it('alvo comum → troca o login no Auth e espelha no perfil', async () => {
+    const calls = fetchParaSetEmail({});
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_email', userId: 'target', email: 'Novo@X.com' }));
+    expect(res.status).toBe(200);
+    expect(calls.some((c) => c.method === 'PUT' && c.url.includes('/auth/v1/admin/users/target'))).toBe(true);
+    expect(calls.some((c) => c.method === 'PATCH' && c.url.includes('/rest/v1/profiles?id=eq.target'))).toBe(true);
+  });
+});

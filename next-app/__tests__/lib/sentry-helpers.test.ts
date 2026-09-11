@@ -126,3 +126,18 @@ describe('sentryBeforeSend', () => {
     expect(out.user.email).toBeNull();
   });
 });
+
+describe('sentryBeforeSend — URL e headers sem credencial (auditoria 2026-09-11)', () => {
+  it('descarta o fragment da request.url (tokens do OAuth web / recovery)', () => {
+    const ev = sentryBeforeSend({
+      request: {
+        url: 'https://queroumacor.com.br/update-password#access_token=abc&refresh_token=def&type=recovery',
+        headers: { Authorization: 'Bearer abc', Cookie: 'sb=1', Accept: 'text/html' },
+      },
+    });
+    expect(ev.request?.url).toBe('https://queroumacor.com.br/update-password#[redacted]');
+    expect(ev.request?.headers?.Authorization).toBe('[redacted]');
+    expect(ev.request?.headers?.Cookie).toBe('[redacted]');
+    expect(ev.request?.headers?.Accept).toBe('text/html');
+  });
+});

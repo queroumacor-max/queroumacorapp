@@ -3,7 +3,7 @@
 // set PRO, role, verified. Service role + dupla checagem de admin
 // (ADMIN_EMAILS + portal_access ATIVO do caller).
 
-import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
+import { ServiceError, getServiceKey, getSupabaseUrl, isAdminEmail } from '../security';
 
 const TIMEOUT_MS = 10000;
 
@@ -303,6 +303,58 @@ export async function setInfo(args: {
 }
 
 /**
+ * Recusa (403) quando o ALVO de uma ação sensível é uma conta com poder:
+ * `portal_access`, `role='admin'` ou e-mail de login em `ADMIN_EMAILS`. O
+ * e-mail é lido do GoTrue (fonte de verdade do login), não do espelho em
+ * `profiles.email`, que pode estar vazio ou desatualizado. Falha de leitura
+ * é FAIL-CLOSED: sem saber se o alvo é admin, não se mexe nele.
+ */
+async function ensureTargetNotPrivileged(args: {
+  userId: string;
+  supaUrl: string;
+  sHeaders: Record<string, string>;
+}): Promise<void> {
+  const { userId, supaUrl, sHeaders } = args;
+  let row: { portal_access?: boolean | null; role?: string | null } | undefined;
+  try {
+    const g = await fetch(
+      `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=portal_access,role`,
+      { headers: sHeaders, signal: AbortSignal.timeout(TIMEOUT_MS) },
+    );
+    if (!g.ok) throw new Error(`profiles ${g.status}`);
+    const rows = (await g.json()) as Array<{ portal_access?: boolean | null; role?: string | null }>;
+    row = Array.isArray(rows) ? rows[0] : undefined;
+  } catch {
+    throw new ServiceError('falha ao verificar o perfil alvo — nada foi alterado', 502);
+  }
+  if (row && (row.portal_access === true || row.role === 'admin')) {
+    throw new ServiceError(
+      'este perfil tem acesso admin/portal — revogue o acesso antes de trocar o e-mail',
+      403,
+    );
+  }
+  let loginEmail = '';
+  try {
+    const a = await fetch(`${supaUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+      headers: sHeaders,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (a.status === 404) return; // perfil órfão: não há login pra proteger
+    if (!a.ok) throw new Error(`auth ${a.status}`);
+    const u = (await a.json()) as { email?: string };
+    loginEmail = (u?.email || '').toLowerCase();
+  } catch {
+    throw new ServiceError('falha ao verificar o login alvo — nada foi alterado', 502);
+  }
+  if (loginEmail && isAdminEmail(loginEmail)) {
+    throw new ServiceError(
+      'este login está na lista ADMIN_EMAILS — troque o e-mail dele pelo painel do Supabase',
+      403,
+    );
+  }
+}
+
+/**
  * Troca o e-mail de um usuário (portal admin). Atualiza o LOGIN no Auth
  * (GoTrue admin API — sem e-mail de confirmação: ação administrativa) e
  * espelha em `profiles.email` (coluna de exibição usada pelo portal).
@@ -311,11 +363,27 @@ export async function setInfo(args: {
 export async function setEmail(args: {
   userId: string;
   email: unknown;
+  /** Quem está pedindo — a troca NUNCA vale pra própria conta. */
+  callerId: string;
 }): Promise<{ ok: true; email: string; authUpdated: boolean }> {
   const raw = typeof args.email === 'string' ? args.email.trim().toLowerCase() : '';
   // Validação simples e suficiente pro admin: algo@algo.tld sem espaços.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw) || raw.length > 254) {
     throw new ServiceError('e-mail inválido (formato esperado: nome@dominio.com)', 400);
+  }
+  // Trocar o e-mail de LOGIN sem confirmação é, na prática, tomar a conta:
+  // quem troca pede "esqueci a senha" pro endereço novo e entra. Isso é
+  // aceitável pra atender um cliente que perdeu o e-mail antigo — e é
+  // inaceitável contra uma conta com poder: um operador promovido no portal
+  // trocaria o login de um admin da allowlist (ou o próprio, sem
+  // reautenticar) e escalaria pra allowlist inteira. Guardas (auditoria de
+  // autenticação 2026-09-11):
+  //   - nunca a própria conta (a pessoa troca o próprio e-mail pelo fluxo
+  //     normal do Supabase, com confirmação nos dois endereços);
+  //   - nunca um alvo admin/portal (portal_access, role='admin' ou e-mail
+  //     em ADMIN_EMAILS) — revogue o acesso antes, se for o caso.
+  if (!args.callerId || args.userId === args.callerId) {
+    throw new ServiceError('você não pode trocar o e-mail da própria conta por aqui', 400);
   }
   const serviceKey = getServiceKey();
   if (!serviceKey) throw new ServiceError('Gestão de usuários não configurada', 503);
@@ -325,6 +393,7 @@ export async function setEmail(args: {
     Authorization: `Bearer ${serviceKey}`,
     'Content-Type': 'application/json',
   };
+  await ensureTargetNotPrivileged({ userId: args.userId, supaUrl, sHeaders });
 
   // 1) Login no Auth. É a fonte de verdade — se falhar (fora 404), aborta
   //    sem tocar no profile, senão exibição e login divergem.

@@ -51,7 +51,7 @@
 // status cru (o router do Next trata e faz hard-nav, que cai aqui de novo
 // como documento).
 
-const CACHE_VERSION = 'quc-v7';
+const CACHE_VERSION = 'quc-v8';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const IMG_CACHE = `${CACHE_VERSION}-img`;
@@ -134,8 +134,31 @@ function isCacheable(res) {
 // Grava no cache sem nunca derrubar o request que a originou. Toda falha
 // (quota estoura, resposta não clonável, cache indisponível) é engolida:
 // cache é otimização, não pode custar a resposta pro usuário.
+// Resposta AUTENTICADA nunca entra no cache (auditoria 2026-09-11).
+//
+// O cache do service worker é por ORIGEM, não por sessão: o que entra aqui
+// fica no aparelho depois do logout e é servido offline pra quem logar em
+// seguida no mesmo aparelho. Os GETs do PostgREST/GoTrue (`/rest/v1/*`,
+// `/auth/v1/user`) e os `/api/*` de admin viajam com `Authorization: Bearer`
+// — mensagens, perfil, leads, tudo caía no `RUNTIME_CACHE`. Regra: request
+// com credencial no header, ou resposta marcada `no-store`/`private`, passa
+// direto. `Cache.match` ignora headers, então a exclusão TEM que ser na
+// escrita.
+function isPrivate(req, res) {
+  try {
+    if (req && req.headers && req.headers.get('authorization')) return true;
+    const cc = res && res.headers ? res.headers.get('cache-control') || '' : '';
+    if (/\b(no-store|private)\b/i.test(cc)) return true;
+  } catch {
+    // headers inacessíveis: na dúvida, trata como privado.
+    return true;
+  }
+  return false;
+}
+
 async function putSafe(cacheName, req, res, maxEntries) {
   if (!isCacheable(res)) return;
+  if (isPrivate(req, res)) return;
   try {
     const cache = await caches.open(cacheName);
     await cache.put(req, res.clone());

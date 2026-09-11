@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       auditChanges = { email: result.email, source: result.source, admin_email: email };
     } else if (action === 'set_email') {
       // Troca o LOGIN no Auth + espelho em profiles.email.
-      result = await setEmail({ userId, email: body?.email });
+      result = await setEmail({ userId, email: body?.email, callerId });
       auditChanges = { email: result.email, auth_updated: result.authUpdated, admin_email: email };
     } else {
       const patch = buildPatch({

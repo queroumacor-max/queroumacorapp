@@ -1,3 +1,4 @@
+import { redactTokens, scrubUrl } from './scrubSecrets';
 // reportFailure — manda pro `/api/log-error` uma falha que o usuário JÁ
 // está vendo na tela.
 //
@@ -75,10 +76,12 @@ export function reportFailure(
       body: JSON.stringify({
         type,
         user_id: opts?.userId || null,
-        msg: `${e?.name ? e.name + ': ' : ''}${msg}`,
-        stack: e?.stack ? String(e.stack).slice(0, 5000) : undefined,
+        msg: redactTokens(`${e?.name ? e.name + ': ' : ''}${msg}`),
+        stack: e?.stack ? redactTokens(String(e.stack).slice(0, 5000)) : undefined,
         ua: navigator.userAgent?.slice(0, 500),
-        url: location.href.slice(0, 500),
+        // NUNCA `location.href` cru: o fragment carrega os tokens da sessão
+        // no OAuth web e no link de recuperação de senha (ver scrubSecrets).
+        url: scrubUrl(location.href).slice(0, 500),
         ctx: opts?.ctx?.slice(0, 500),
       }),
       keepalive: true,

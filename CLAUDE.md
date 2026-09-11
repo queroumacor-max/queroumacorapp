@@ -1,5 +1,72 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE AUTENTICAÇÃO (2026-09-11, pedido do usuário). SEM SQL.**
+  Fluxos mapeados ponta a ponta (senha, cadastro, OAuth web e nativo, reset,
+  cookie do guard /admin/*, rotas admin, webhooks). Corrigido no código:
+  - **OAuth NATIVO agora é PKCE** (`lib/native/auth.ts`): cliente Supabase
+    dedicado (`flowType:'pkce'`, sem persistência) gera a URL; o deep link
+    volta com `?code=` e `exchangeCodeForSession` troca pela sessão, que é
+    gravada no cliente principal por `setSession`. Antes era implicit —
+    `access_token`+`refresh_token` no fragment de um custom scheme que
+    QUALQUER app Android pode registrar (sequestro de sessão) e um link
+    forjado logava a vítima na conta do atacante (login CSRF).
+    `parseAuthCallbackUrl` IGNORA token no deep link de propósito. **O
+    cliente principal FICA implicit**: o link de recuperação de senha abre em
+    outro navegador, sem verifier — PKCE nele quebraria o "esqueci a senha".
+    Não precisa de config nova no Supabase (a Redirect URL é a mesma).
+  - **`set_email` do `/api/admin/users` recusa alvo com poder** (portal_access,
+    role admin ou login em ADMIN_EMAILS, lido do GoTrue) e a própria conta:
+    trocar login sem confirmação + "esqueci a senha" = tomar a conta; um
+    promovido no portal escalava pra allowlist inteira. Fail-closed (502) se
+    não der pra ler o alvo.
+  - **Credencial nunca vai pra log**: `lib/utils/scrubSecrets.ts`
+    (`scrubUrl` descarta o fragment e mascara code/token/token_hash;
+    `redactTokens` mascara JWT). Aplicado no `reportFailure` (mandava
+    `location.href` com `#access_token=…` do recovery/OAuth web pro
+    `/api/log-error` → tabela `errors` → /admin/errors), no servidor
+    (`sanitizeErrorPayload`) e no `sentryBeforeSend` (`request.url` +
+    headers Authorization/Cookie).
+  - **Eruda (console de CDN dentro da casca) só com `NEXT_PUBLIC_ERUDA=1`
+    no build** (`app/layout.tsx`). Em produção era script sem versão fixada
+    do jsdelivr, com console aberto sobre o localStorage da sessão. Quem
+    quiser depurar a WebView liga a env no preview.
+  - **Service worker não guarda resposta autenticada** (`sw.js` v8:
+    request com `Authorization` ou resposta `no-store`/`private` passa
+    direto — PostgREST/GoTrue/`/api/*` admin caíam no `RUNTIME_CACHE` e
+    ficavam no aparelho depois do logout). `signOut` do AuthProvider manda
+    `CLEAR_CACHES` pro SW.
+  - **`/update-password` tem dois modos**: `recovery` (link do e-mail,
+    `type=recovery` lido no PRIMEIRO render porque o supabase-js apaga o
+    hash, ou evento PASSWORD_RECOVERY) troca direto; `logado` (qualquer
+    sessão comum que caia na tela) exige a SENHA ATUAL, conferida por
+    `signInWithPassword`. Nos dois, depois de trocar, `signOut({scope:
+    'others'})` revoga as outras sessões. Conta só-OAuth sem senha usa o
+    "esqueci a senha" (mensagem na tela).
+  - **`/api/auth/set-session-cookie` exige mesma origem**
+    (`isSameOriginRequest` em `security.ts`: `Sec-Fetch-Site`/`Origin`) no
+    POST e no DELETE — `<form enctype=text/plain>` de site alheio fixava o
+    cookie do guard /admin/* com a sessão do atacante (login CSRF).
+  - **`/api/auth-rate-check` existia sem NENHUM chamador.** Agora
+    `preCheckAuthRate` (`lib/services/authRateCheck.ts`) roda antes do
+    login, cadastro e reset — ADVISORY e fail-open (só 429 bloqueia; 3s de
+    teto). Quem ataca o GoTrue direto não passa por aqui: **a defesa real é
+    o rate limit do painel do Supabase Auth**, não este código.
+  - `hub.verify_token` do webhook da Meta comparado em tempo constante.
+  - **O que NÃO mudou e é decisão registrada:** sessão em localStorage +
+    cookie legível (ver `sessionStorageHybrid`, o supabase-js precisa ler);
+    validação de JWT é sempre pelo GoTrue (`/auth/v1/user`, nunca decode
+    local — o único decode sem verificar é o `sub` do `quote-pdf-upload`,
+    que só escolhe o prefixo do path e o Storage confere); cache de 60s do
+    `isPortalAdminUser` (revogar leva até 1 min nas rotas); `/pdf/<id>` é
+    público por id aleatório de 72 bits. **Ações manuais que só o painel
+    faz:** rate limits e "leaked password protection" no Supabase Auth,
+    "Secure email change"/"Secure password change" nos Auth settings.
+  - Testes: `native-oauth-pkce.test.ts`, `api/set-session-cookie.test.ts`,
+    `utils/scrubSecrets.test.ts`, `services/authRateCheck.test.ts`,
+    `components/UpdatePasswordReauth.test.tsx`, `lib/eruda-gate.test.ts` +
+    blocos novos em `admin-users`, `sw`, `sentry-helpers`, `log-error`,
+    `whatsapp-webhook`, `native`.
+
 - **ROTAS ADMIN ACEITAM QUEM FOI PROMOVIDO NO PORTAL (2026-09-10, decisão
   do usuário: "habilite pelo promover"). SEM SQL.** O relato: João estava
   promovido no portal e levava 403 ao responder WhatsApp ("não está na

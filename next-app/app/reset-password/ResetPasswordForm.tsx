@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { emailSchema } from '@/lib/schemas';
 import { getSupabase } from '@/lib/supabase';
+import { mensagemDeLimite, preCheckAuthRate } from '@/lib/services/authRateCheck';
 
 const schema = z.object({ email: emailSchema });
 type FormData = z.infer<typeof schema>;
@@ -32,6 +33,13 @@ export function ResetPasswordForm() {
 
   async function onSubmit(data: FormData) {
     setServerError(null);
+    // Rate limit por IP (advisory, fail-open): freia o bombardeio de e-mails
+    // de recuperação disparado pela UI. O limite de verdade é o do Supabase.
+    const limite = await preCheckAuthRate('reset');
+    if (limite.blocked) {
+      setServerError(mensagemDeLimite(limite));
+      return;
+    }
     try {
       const sb = getSupabase();
       const { error } = await sb.auth.resetPasswordForEmail(data.email, {

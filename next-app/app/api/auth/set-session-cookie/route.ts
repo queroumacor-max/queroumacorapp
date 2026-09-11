@@ -15,6 +15,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   enforceRateLimit,
+  isSameOriginRequest,
   resolveSupabaseEnv,
   type SupabaseEnvPair,
 } from '@/lib/api/security';
@@ -59,6 +60,12 @@ async function validateToken(token: string): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Só a própria aplicação grava este cookie. Sem isto, um site alheio
+  // fixava no browser da vítima a sessão do ATACANTE (login CSRF via
+  // `<form enctype="text/plain">`, que não passa por preflight).
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: 'origem não permitida' }, { status: 403 });
+  }
   // Valida JWT contra o Supabase — limita brute-force de token por IP.
   const limited = await enforceRateLimit(request, { endpoint: 'set-session-cookie', limit: 20 });
   if (limited) return limited;
@@ -95,7 +102,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 /** DELETE limpa o cookie no signOut. */
-export async function DELETE(): Promise<NextResponse> {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: 'origem não permitida' }, { status: 403 });
+  }
   const res = NextResponse.json({ ok: true });
   res.cookies.set({
     name: SESSION_COOKIE,

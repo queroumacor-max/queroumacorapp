@@ -1,3 +1,4 @@
+import { redactTokens, scrubUrl } from '@/lib/utils/scrubSecrets';
 // lib/api/log-error-helpers.ts — sanitização do payload do /api/log-error.
 // Extraído de app/api/log-error/route.ts porque Next.js 15 não aceita
 // exports de helpers no nível do módulo em arquivos de rota (só HTTP
@@ -48,15 +49,18 @@ export function sanitizeErrorPayload(body: LogErrorBody): SafeErrorPayload {
              (typeof body.userAgent === 'string' ? body.userAgent : null);
   const ctx = (typeof body.ctx === 'string' ? body.ctx : null) ??
               (typeof body.context === 'string' ? body.context : null);
+  // Defesa no servidor também: cliente antigo (ou forjado) manda a URL com
+  // fragment/tokens, e a linha vai pra uma tabela que todo admin lê.
+  const urlLimpa = typeof body.url === 'string' ? scrubUrl(body.url) : null;
   return {
     type: trunc(body.type, 32),
-    msg: trunc(msg, 500),
-    stack: trunc(body.stack, 1500),
-    url: trunc(body.url, 300),
+    msg: trunc(msg === null ? null : redactTokens(msg), 500),
+    stack: trunc(typeof body.stack === 'string' ? redactTokens(body.stack) : null, 1500),
+    url: trunc(urlLimpa, 300),
     ua: trunc(ua, 200),
     metric: trunc(body.metric, 32),
     value: typeof body.value === 'number' ? body.value : null,
-    ctx: trunc(ctx, 100),
+    ctx: trunc(ctx === null ? null : redactTokens(ctx), 100),
     ts: Date.now(),
     user_id: UUID_RE.test(uidRaw) ? uidRaw : null,
   };

@@ -59,6 +59,7 @@ import {
   TIPOS_SEM_CONVERSA,
   type AtualizacaoDeStatus,
   resumirEnvelope,
+  safeEqual,
   type InboundWhatsAppMessage,
 } from '@/lib/api/_services/whatsapp';
 import { maybeAutoReply } from '@/lib/api/_services/whatsapp-ai-runner';
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === verifyToken && challenge) {
+  if (mode === 'subscribe' && token && safeEqual(token, verifyToken) && challenge) {
     // A Meta espera o challenge cru em texto puro, status 200.
     return new NextResponse(challenge, {
       status: 200,

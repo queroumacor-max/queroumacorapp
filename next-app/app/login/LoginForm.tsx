@@ -17,6 +17,7 @@ import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
 import { SocialAuthButtons } from '@/components/SocialAuthButtons';
 import { getSupabase } from '@/lib/supabase';
+import { mensagemDeLimite, preCheckAuthRate } from '@/lib/services/authRateCheck';
 
 const schema = z.object({
   email: emailSchema,
@@ -101,6 +102,12 @@ export function LoginForm() {
 
   async function onSubmit(data: FormData) {
     setServerError(null);
+    // Rate limit por IP (advisory, fail-open) ANTES de bater no Supabase.
+    const limite = await preCheckAuthRate('login');
+    if (limite.blocked) {
+      setServerError(mensagemDeLimite(limite));
+      return;
+    }
     const { error } = await signIn(data.email, data.password);
     if (error) {
       // Supabase retorna "Invalid login credentials" — tradução amigável.

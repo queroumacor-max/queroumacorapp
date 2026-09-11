@@ -32,8 +32,14 @@ let _client: TypedSupabaseClient | null = null;
  * direcionada pro fix (vars precisam ser Plain text no painel CF Pages,
  * não Secret, pra ficar disponível durante o build do Next.js).
  */
-export function getSupabase(): TypedSupabaseClient {
-  if (_client) return _client;
+/**
+ * URL + anon key que o CLIENTE usa (inlinadas no build). Exportada pra que
+ * outros clientes de propósito único (o cliente PKCE do OAuth nativo em
+ * lib/native/auth.ts) falem com o MESMO projeto do singleton — o par nunca
+ * pode ser resolvido em dois lugares com ordens diferentes (lição do
+ * incidente de 2026-09-04 no servidor).
+ */
+export function resolveBrowserSupabaseEnv(): { url: string; key: string } {
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
@@ -42,6 +48,12 @@ export function getSupabase(): TypedSupabaseClient {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     '';
+  return { url, key };
+}
+
+export function getSupabase(): TypedSupabaseClient {
+  if (_client) return _client;
+  const { url, key } = resolveBrowserSupabaseEnv();
   if (!url || !key) {
     throw new Error(
       'Supabase anon key ausente: configure NEXT_PUBLIC_SUPABASE_ANON_KEY ' +

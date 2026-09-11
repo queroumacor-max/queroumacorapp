@@ -270,12 +270,12 @@ describe('service worker — navegação', () => {
   it('activate apaga os caches de versões anteriores', async () => {
     await h.cacheStorage.open('quc-v5-static');
     await h.cacheStorage.open('quc-v6-static');
-    await h.cacheStorage.open('quc-v7-static');
+    await h.cacheStorage.open('quc-v8-static');
     await h.runActivate();
     // Só a versão corrente sobrevive — é o bump de CACHE_VERSION que limpa
     // cache envenenado de versões antigas. (Acompanha o CACHE_VERSION do
-    // sw.js: hoje quc-v7.)
-    expect(await h.cacheStorage.keys()).toEqual(['quc-v7-static']);
+    // sw.js: hoje quc-v8.)
+    expect(await h.cacheStorage.keys()).toEqual(['quc-v8-static']);
   });
 });
 
@@ -310,5 +310,42 @@ describe('service worker — API e estáticos', () => {
     h.queue.set(`${ORIGIN}/icon-192.png`, ['network-error']);
     await expect(h.runInstall()).resolves.toBeUndefined();
     expect(await h.cacheStorage.match(`${ORIGIN}/`)).toBeDefined();
+  });
+});
+
+describe('service worker — resposta autenticada nunca entra no cache', () => {
+  let h: Harness;
+  beforeEach(() => {
+    h = buildHarness();
+  });
+
+  it('GET /api/* com Authorization não é guardado', async () => {
+    const url = `${ORIGIN}/api/whatsapp/templates`;
+    h.queue.set(url, [new Response('{"templates":[]}', { status: 200 })]);
+    const res = await h.handleFetch(new Request(url, { headers: { Authorization: 'Bearer x' } }));
+    expect(res.status).toBe(200);
+    expect(await h.cacheStorage.match(url)).toBeUndefined();
+  });
+
+  it('GET do PostgREST do Supabase com Authorization não é guardado', async () => {
+    const url = 'https://test.supabase.co/rest/v1/messages?select=*';
+    h.queue.set(url, [new Response('[]', { status: 200 })]);
+    const res = await h.handleFetch(new Request(url, { headers: { authorization: 'Bearer x', apikey: 'k' } }));
+    expect(res.status).toBe(200);
+    expect(await h.cacheStorage.match(url)).toBeUndefined();
+  });
+
+  it('resposta Cache-Control: no-store / private não é guardada', async () => {
+    const url = `${ORIGIN}/api/health`;
+    h.queue.set(url, [new Response('{}', { status: 200, headers: { 'Cache-Control': 'private, max-age=0' } })]);
+    await h.handleFetch(new Request(url));
+    expect(await h.cacheStorage.match(url)).toBeUndefined();
+  });
+
+  it('GET público sem credencial continua entrando no cache (sem regressão offline)', async () => {
+    const url = `${ORIGIN}/api/cidades?uf=SP`;
+    h.queue.set(url, [new Response('[]', { status: 200 })]);
+    await h.handleFetch(new Request(url));
+    expect(await h.cacheStorage.match(url)).toBeDefined();
   });
 });

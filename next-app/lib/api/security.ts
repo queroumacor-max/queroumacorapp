@@ -360,6 +360,34 @@ export function ensureAdminEmail(email: string | null | undefined): void {
   );
 }
 
+/**
+ * A request veio da PRÓPRIA aplicação (mesma origem), e não de um site de
+ * terceiros? Usa os sinais que o browser NÃO deixa página alguma forjar:
+ * `Sec-Fetch-Site` (Chrome/Firefox/Safari modernos) e `Origin` (todo POST
+ * cross-site carrega). Ausência dos dois (clientes não-browser, WebView
+ * antiga) NÃO bloqueia — o objetivo aqui é CSRF de browser, e um cliente
+ * sem esses headers não está numa página de atacante.
+ *
+ * Uso: rotas que ESCREVEM cookie de sessão ou dependem só de cookie. Um
+ * `<form enctype="text/plain">` em site alheio consegue mandar um JSON
+ * válido cross-site sem preflight; sem esta checagem ele fixava o cookie
+ * do guard /admin/* com a sessão do atacante (auditoria 2026-09-11).
+ */
+export function isSameOriginRequest(request: NextRequest | Request): boolean {
+  const h = request.headers;
+  const sfs = (h.get('sec-fetch-site') || '').toLowerCase();
+  if (sfs && sfs !== 'same-origin' && sfs !== 'none') return false;
+  const origin = h.get('origin');
+  if (!origin) return true;
+  let self: string;
+  try {
+    self = new URL(request.url).origin;
+  } catch {
+    return false;
+  }
+  return origin.toLowerCase() === self.toLowerCase();
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   skipped?: boolean;

@@ -5,6 +5,19 @@
 // Fluxo: user clica no link do email → Supabase processa hash da URL e
 // cria sessão de password-recovery → user vê esse form → submit chama
 // sb.auth.updateUser({ password }) → redireciona pra /feed.
+//
+// DOIS MODOS (auditoria de autenticação, 2026-09-11):
+//   - `recovery`: a sessão nasceu do link do e-mail (`type=recovery` na URL
+//     ou evento PASSWORD_RECOVERY). Quem tem o link provou que tem o
+//     e-mail — troca direto.
+//   - `logado`: uma sessão comum caiu nesta tela (a página aceita qualquer
+//     SIGNED_IN). Antes trocava a senha SEM pedir a atual: uma sessão
+//     roubada (XSS, aparelho destravado) virava senha nova e a pessoa
+//     perdia a conta. Agora exige a senha atual, conferida no GoTrue
+//     (`signInWithPassword`) antes do `updateUser`.
+// Nos dois modos, depois de trocar, as OUTRAS sessões são revogadas
+// (`signOut({ scope: 'others' })`): senha nova é pra expulsar quem estava
+// dentro, não pra conviver com ele.
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,6 +30,7 @@ import { getSupabase } from '@/lib/supabase';
 
 const schema = z
   .object({
+    atual: z.string().optional(),
     password: strongPasswordSchema,
     confirm: z.string(),
   })
@@ -27,6 +41,27 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
+type Modo = 'recovery' | 'logado';
+
+/**
+ * A URL desta abertura é a de um link de recuperação? O Supabase manda
+ * `type=recovery` no fragment (fluxo implicit) ou na query (PKCE) e LIMPA o
+ * hash depois de processar — por isso a leitura é feita no primeiro render,
+ * antes de o cliente ser criado. Pura pra teste.
+ */
+export function urlDeRecuperacao(href: string | null | undefined): boolean {
+  if (!href) return false;
+  try {
+    const u = new URL(href);
+    const q = u.searchParams.get('type');
+    if (q === 'recovery') return true;
+    const hash = u.hash.replace(/^#/, '');
+    return new URLSearchParams(hash).get('type') === 'recovery';
+  } catch {
+    return /[?#&]type=recovery(&|$)/.test(href);
+  }
+}
+
 export function UpdatePasswordForm() {
   const router = useRouter();
   const [showPw, setShowPw] = useState(false);
@@ -34,6 +69,13 @@ export function UpdatePasswordForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [done, setDone] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  // Lido no PRIMEIRO render: o supabase-js apaga o hash ao processar o link.
+  const [modo, setModo] = useState<Modo>(() =>
+    typeof window !== 'undefined' && urlDeRecuperacao(window.location.href)
+      ? 'recovery'
+      : 'logado',
+  );
 
   const {
     register,
@@ -41,7 +83,7 @@ export function UpdatePasswordForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { password: '', confirm: '' },
+    defaultValues: { atual: '', password: '', confirm: '' },
   });
 
   // Aguarda Supabase processar o hash da URL e disparar
@@ -53,11 +95,16 @@ export function UpdatePasswordForm() {
     let cancel = false;
     sb.auth.getSession().then(({ data }) => {
       if (cancel) return;
-      if (data.session) setSessionReady(true);
+      if (data.session) {
+        setSessionReady(true);
+        setEmail(data.session.user?.email ?? null);
+      }
     });
-    const { data: sub } = sb.auth.onAuthStateChange((event) => {
+    const { data: sub } = sb.auth.onAuthStateChange((event, sess) => {
+      if (event === 'PASSWORD_RECOVERY') setModo('recovery');
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         setSessionReady(true);
+        if (sess?.user?.email) setEmail(sess.user.email);
       }
     });
     return () => {
@@ -70,10 +117,39 @@ export function UpdatePasswordForm() {
     setServerError(null);
     try {
       const sb = getSupabase();
+      if (modo === 'logado') {
+        // Reautenticação: a senha atual é conferida no GoTrue. Conta sem
+        // senha (só Google/Apple) cai no "esqueci a senha", que prova a
+        // posse do e-mail — o caminho seguro pra criar uma senha.
+        const atual = (data.atual ?? '').trim();
+        if (!atual) {
+          setServerError('Informe a senha atual.');
+          return;
+        }
+        if (!email) {
+          setServerError('Não foi possível confirmar sua conta. Use "Esqueci a senha".');
+          return;
+        }
+        const { error: reauthErr } = await sb.auth.signInWithPassword({
+          email,
+          password: atual,
+        });
+        if (reauthErr) {
+          setServerError('Senha atual incorreta.');
+          return;
+        }
+      }
       const { error } = await sb.auth.updateUser({ password: data.password });
       if (error) {
         setServerError(error.message);
         return;
+      }
+      // Senha nova expulsa quem estava dentro: revoga as OUTRAS sessões
+      // (esta continua). Best-effort — a troca já valeu.
+      try {
+        await sb.auth.signOut({ scope: 'others' });
+      } catch {
+        /* sem rede pro revoke: a senha já mudou, o refresh dos outros morre no próximo ciclo */
       }
       setDone(true);
       // Pequena pausa pra user ver a mensagem antes de navegar.
@@ -136,6 +212,31 @@ export function UpdatePasswordForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      {modo === 'logado' && (
+        <div>
+          <label
+            htmlFor="atual"
+            className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]"
+          >
+            Senha atual
+          </label>
+          <input
+            id="atual"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Sua senha de hoje"
+            {...register('atual')}
+            className="w-full px-4 py-3 text-base bg-white border-[1.5px] border-[color:var(--color-border)] focus:border-[color:var(--color-p1)] rounded-xl outline-none transition-colors"
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+            Entrou só com Google/Apple e não tem senha? Use{' '}
+            <Link href="/reset-password" className="font-bold underline">
+              Esqueci a senha
+            </Link>
+            .
+          </p>
+        </div>
+      )}
       <div>
         <label
           htmlFor="password"

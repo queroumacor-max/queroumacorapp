@@ -130,13 +130,30 @@ describe('lib/native — dentro da casca', () => {
   });
 });
 
-describe('parseAuthCallbackUrl', () => {
-  it('extrai tokens do fragment (fluxo implicit do Supabase)', () => {
-    const url = `${NATIVE_OAUTH_REDIRECT}#access_token=AT123&refresh_token=RT456&token_type=bearer`;
-    expect(parseAuthCallbackUrl(url)).toEqual({
-      accessToken: 'AT123',
-      refreshToken: 'RT456',
-    });
+describe('parseAuthCallbackUrl (PKCE — só `code` entra pelo deep link)', () => {
+  const CODE = '34e770dd-9ff9-416c-87fa-43b31d7ef225';
+
+  it('extrai o authorization code da query (fluxo PKCE do Supabase)', () => {
+    expect(parseAuthCallbackUrl(`${NATIVE_OAUTH_REDIRECT}?code=${CODE}`)).toEqual({ code: CODE });
+  });
+
+  it('aceita o code também no fragment (provedor que degrade)', () => {
+    expect(parseAuthCallbackUrl(`${NATIVE_OAUTH_REDIRECT}#code=${CODE}`)).toEqual({ code: CODE });
+  });
+
+  it('IGNORA access_token/refresh_token no deep link — token de fora nunca vira sessão', () => {
+    // Custom scheme pode ser registrado por qualquer app no Android: um
+    // link forjado com token do atacante não pode logar a vítima nele.
+    const url = `${NATIVE_OAUTH_REDIRECT}#access_token=AT123&refresh_token=RT456&expires_in=3600`;
+    const out = parseAuthCallbackUrl(url) as Record<string, unknown>;
+    expect(out).toEqual({});
+    expect(out.accessToken).toBeUndefined();
+    expect(out.refreshToken).toBeUndefined();
+  });
+
+  it('code com formato estranho é descartado', () => {
+    expect(parseAuthCallbackUrl(`${NATIVE_OAUTH_REDIRECT}?code=../../x`)).toEqual({});
+    expect(parseAuthCallbackUrl(`${NATIVE_OAUTH_REDIRECT}?code=`)).toEqual({});
   });
 
   it('extrai erro (usuário negou no provedor)', () => {
@@ -144,14 +161,9 @@ describe('parseAuthCallbackUrl', () => {
     expect(parseAuthCallbackUrl(url).errorDescription).toBe('denied');
   });
 
-  it('aceita query string além de fragment', () => {
-    const url = `${NATIVE_OAUTH_REDIRECT}?access_token=A&refresh_token=R`;
-    expect(parseAuthCallbackUrl(url)).toEqual({ accessToken: 'A', refreshToken: 'R' });
-  });
-
   it('URL alheia (outro deep link) → objeto vazio, nunca throw', () => {
-    expect(parseAuthCallbackUrl('br.com.queroumacor.app://outro/caminho#x=1')).toEqual({});
-    expect(parseAuthCallbackUrl('https://queroumacor.com.br/#access_token=A')).toEqual({});
+    expect(parseAuthCallbackUrl(`br.com.queroumacor.app://outro/caminho?code=${CODE}`)).toEqual({});
+    expect(parseAuthCallbackUrl(`https://queroumacor.com.br/?code=${CODE}`)).toEqual({});
     expect(parseAuthCallbackUrl('')).toEqual({});
   });
 });

@@ -132,14 +132,20 @@ export default function RootLayout({
             __html: `(function(){try{if(!/Android/i.test(navigator.userAgent||''))return;var s=document.documentElement.style;s.minHeight='calc(100vh + 4px)';s.minHeight='calc(100dvh + 4px)';var pin=function(){if(window.scrollY<2)window.scrollTo(0,2);};pin();document.addEventListener('DOMContentLoaded',pin);window.addEventListener('load',pin);}catch(e){}})();`,
           }}
         />
-        {/* Eruda: console de DevTools mobile, ativa so dentro do app nativo
-            (Capacitor) pra debugar o WebView sem precisar de Mac/Safari
-            Web Inspector. Toca no botao flutuante pra abrir o console. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
-          }}
-        />
+        {/* Eruda: console de DevTools mobile pra depurar a WebView da casca.
+            SÓ com `NEXT_PUBLIC_ERUDA=1` no build (preview/staging): em
+            produção isso injetava um script de CDN SEM versão fixada dentro
+            do app das lojas, com acesso ao localStorage onde mora a sessão
+            — supply chain + console aberto pra quem tiver o aparelho na mão
+            (auditoria de autenticação, 2026-09-11). A CSP já libera o
+            jsdelivr, então a única trava era esta. */}
+        {process.env.NEXT_PUBLIC_ERUDA === '1' ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda@3';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
+            }}
+          />
+        ) : null}
       </head>
       <body>
         {/* AuthProvider envolve toda a árvore — substitui o `currentUser` global

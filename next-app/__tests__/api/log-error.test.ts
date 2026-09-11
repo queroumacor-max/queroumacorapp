@@ -201,3 +201,35 @@ describe('POST /api/log-error', () => {
     expect(rlBody.p_limit).toBe(30);
   });
 });
+
+describe('POST /api/log-error — nunca grava credencial (auditoria 2026-09-11)', () => {
+  it('url com fragment de tokens e msg com JWT chegam mascarados no INSERT', async () => {
+    process.env.SUPABASE_URL = 'https://test.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
+    let inserted = '';
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/rpc/check_rate_limit')) {
+        return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+      }
+      if (url.includes('/rest/v1/errors')) {
+        inserted = String(init?.body ?? '');
+        return Promise.resolve(new Response('', { status: 201 }));
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+    const { POST } = await import('@/app/api/log-error/route');
+    const res = await POST(
+      mkReq({
+        type: 'oauth-fail',
+        msg: `falhou com ${jwt}`,
+        url: `https://queroumacor.com.br/update-password#access_token=${jwt}&refresh_token=segredo&type=recovery`,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(inserted).not.toBe('');
+    expect(inserted).not.toContain(jwt);
+    expect(inserted).not.toContain('segredo');
+    expect(inserted).toContain('/update-password#[redacted]');
+  });
+});
