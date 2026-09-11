@@ -226,3 +226,134 @@ describe('sentryBeforeSend — segredos', () => {
     expect(out.message).toBe('erro em ?token=[REDACTED]');
   });
 });
+
+// ─── Cobertura adicional (revisão da auditoria, 2026-09-11) ──────────────────
+//
+// Um caso por caminho de vazamento, mais os casos em que a redação NÃO pode
+// mexer — senão a observabilidade normal (URL da rota, mensagem de erro, stack
+// trace, id de request) vira lixo e o Sentry deixa de servir pra depurar.
+
+describe('redactSecrets — cada tipo de segredo', () => {
+  const casos: Array<[string, string, string]> = [
+    ['Authorization Bearer', 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdef', 'Authorization: Bearer [REDACTED]'],
+    ['refresh_token na query', 'https://x/cb?refresh_token=v1.MRjk3-abc&x=1', 'https://x/cb?refresh_token=[REDACTED]&x=1'],
+    ['access_token na query', 'https://x/cb?access_token=ya29.a0Af&x=1', 'https://x/cb?access_token=[REDACTED]&x=1'],
+    ['api_key', 'https://x/api?api_key=abc123def&x=1', 'https://x/api?api_key=[REDACTED]&x=1'],
+    ['apikey', 'https://x/api?apikey=abc123def', 'https://x/api?apikey=[REDACTED]'],
+    ['?token= (webhook)', 'POST https://www.queroumacor.com.br/api/whatsapp/webhook?token=0123456789abcdef', 'POST https://www.queroumacor.com.br/api/whatsapp/webhook?token=[REDACTED]'],
+    ['x-internal-secret como param', 'x-internal-secret=s3cr3t-value', 'x-internal-secret=[REDACTED]'],
+    ['Gemini key solta no texto', 'fetch falhou pra AIzaSyD9xQ2mK7vLp4nR8tW3cY6hB1jF5gA0eZu depois de 3 tentativas', 'fetch falhou pra [KEY_REDACTED] depois de 3 tentativas'],
+    ['Gemini key em ?key=', 'https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyD9xQ2mK7vLp4nR8tW3cY6hB1jF5gA0eZu&pageSize=200', 'https://generativelanguage.googleapis.com/v1beta/models?key=[REDACTED]&pageSize=200'],
+    ['OpenAI key', 'OpenAI: 401 com sk-proj-abcdefghijklmnopqrstuvwxyz0123456789', 'OpenAI: 401 com [KEY_REDACTED]'],
+    ['Mercado Pago token', 'APP_USR-1234567890123456-090512-abcdef0123456789abcdef0123456789-123456', '[KEY_REDACTED]'],
+    ['password em texto', 'login falhou password=hunter2 user=x', 'login falhou password=[REDACTED] user=x'],
+  ];
+  for (const [nome, entrada, esperado] of casos) {
+    it(nome, () => {
+      expect(redactSecrets(entrada)).toBe(esperado);
+    });
+  }
+});
+
+describe('sentryBeforeSend — objetos aninhados e cookie', () => {
+  it('redige segredo em objeto aninhado dentro de extra/contexts (profundidade > 1)', () => {
+    const event = {
+      extra: {
+        upstream: {
+          request: {
+            headers: { Authorization: 'Bearer abcdefghijklmnop' },
+            url: 'https://g/v1beta/models?key=AIzaSyD9xQ2mK7vLp4nR8tW3cY6hB1jF5gA0eZu',
+          },
+        },
+        lista: ['token=abc123', 'ok'],
+      },
+      contexts: { supabase: { session: { refresh_token: 'v1.abc', ok: 'https://x?refresh_token=v1.abc' } } },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.extra.upstream.request.headers.Authorization).toBe('Bearer [REDACTED]');
+    expect(out.extra.upstream.request.url).toBe('https://g/v1beta/models?key=[REDACTED]');
+    expect(out.extra.lista).toEqual(['token=[REDACTED]', 'ok']);
+    expect(out.contexts.supabase.session.ok).toBe('https://x?refresh_token=[REDACTED]');
+  });
+
+  it('Cookie: header some inteiro e request.cookies vira [REDACTED]', () => {
+    const event = {
+      request: {
+        headers: { cookie: 'sb-session-token=eyJa.bb.cc; theme=dark', 'user-agent': 'UA' },
+        cookies: { 'sb-session-token': 'eyJa.bb.cc', theme: 'dark' },
+      },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.request.headers).toEqual({ cookie: '[REDACTED]', 'user-agent': 'UA' });
+    expect(out.request.cookies).toBe('[REDACTED]');
+  });
+
+  it('fragment do OAuth some da request.url e dos breadcrumbs de navegação', () => {
+    const event = {
+      request: { url: 'https://www.queroumacor.com.br/completar-perfil#access_token=eyJa.b.c&refresh_token=zzz&type=recovery' },
+      breadcrumbs: [
+        { category: 'navigation', data: { from: '/login', to: '/completar-perfil#access_token=eyJa.b.c', url: 'https://x/completar-perfil#access_token=eyJa.b.c' } },
+      ],
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.request.url).toBe('https://www.queroumacor.com.br/completar-perfil');
+    expect(out.breadcrumbs[0].data.url).toBe('https://x/completar-perfil');
+    // `to` não é URL absoluta: passa pelo maskPii (query/fragment redigidos por nome de parâmetro).
+    expect(out.breadcrumbs[0].data.to).not.toContain('eyJa.b.c');
+  });
+
+  it('exception.value com Gemini key e Bearer vira texto legível sem o segredo', () => {
+    const event = {
+      exception: {
+        values: [
+          { type: 'Error', value: 'Gemini 400 (key=AIzaSyD9xQ2mK7vLp4nR8tW3cY6hB1jF5gA0eZu) Bearer abcdefghijklmnop' },
+        ],
+      },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.exception.values[0].value).toBe('Gemini 400 (key=[REDACTED]) Bearer [REDACTED]');
+    expect(out.exception.values[0].type).toBe('Error');
+  });
+});
+
+describe('redação NÃO quebra a observabilidade normal', () => {
+  it('URL de rota comum, ids e paginação ficam intactos', () => {
+    const url = 'https://www.queroumacor.com.br/api/admin/errors-list?page=2&type=publish-fail&user_id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    expect(scrubUrl(url)).toBe(url);
+    expect(redactSecrets('error_code=131047 status=422 request_id=7f3c')).toBe(
+      'error_code=131047 status=422 request_id=7f3c',
+    );
+  });
+
+  it('mensagem de erro e stack trace continuam legíveis', () => {
+    const msg = 'TypeError: Cannot read properties of undefined (reading "id")';
+    const stack = `${msg}\n    at fetchFeed (webpack-internal:///./lib/services/feed.ts:127:15)\n    at async Feed (./app/feed/page.tsx:20:3)`;
+    expect(redactSecrets(msg)).toBe(msg);
+    expect(redactSecrets(stack)).toBe(stack);
+    const out = sentryBeforeSend({ exception: { values: [{ value: msg }] }, message: msg });
+    expect(out.exception.values[0].value).toBe(msg);
+    expect(out.message).toBe(msg);
+  });
+
+  it('breadcrumb de fetch sem segredo mantém url, method e status_code', () => {
+    const event = {
+      breadcrumbs: [{ category: 'fetch', data: { url: 'https://uwqebaqweehiljsqkifm.supabase.co/rest/v1/posts?select=id&limit=20', method: 'GET', status_code: 200 } }],
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.breadcrumbs[0].data).toEqual({
+      url: 'https://uwqebaqweehiljsqkifm.supabase.co/rest/v1/posts?select=id&limit=20',
+      method: 'GET',
+      status_code: 200,
+    });
+  });
+
+  it('headers não sensíveis e tags ficam como estão', () => {
+    const event = {
+      request: { headers: { 'content-type': 'application/json', 'x-request-id': 'abc-123', 'user-agent': 'Mozilla/5.0' } },
+      tags: { route: '/api/whatsapp/send', runtime: 'edge' },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.request.headers).toEqual({ 'content-type': 'application/json', 'x-request-id': 'abc-123', 'user-agent': 'Mozilla/5.0' });
+    expect(out.tags).toEqual({ route: '/api/whatsapp/send', runtime: 'edge' });
+  });
+});

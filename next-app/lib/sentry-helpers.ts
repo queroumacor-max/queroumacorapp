@@ -26,9 +26,12 @@ const SECRET_PARAM_NAMES =
   'token|access_token|refresh_token|id_token|key|api_key|apikey|secret|client_secret|code|signature|sig|password|senha|auth|authorization|session|sessionid|session_id|x-internal-secret';
 
 // Casa em URL (`?token=`, `&key=`), em fragment (`#access_token=`) e em texto
-// solto (`token=abc` no começo da linha ou depois de espaço/ponto-e-vírgula).
+// solto (`token=abc` no começo da linha, depois de espaço/ponto-e-vírgula ou
+// dentro de parênteses/colchetes, como em `Gemini 400 (key=…)`). O valor
+// nunca começa com `[`: assim `key=[REDACTED]` não casa de novo e a redação é
+// IDEMPOTENTE (o beforeSend passa pela mesma string mais de uma vez).
 const SECRET_QUERY_RE = new RegExp(
-  `((?:^|[?&#\\s;,])(?:${SECRET_PARAM_NAMES})=)([^&#\\s'"]+)`,
+  `((?:^|[?&#\\s;,(\\[{])(?:${SECRET_PARAM_NAMES})=)([^&#\\s'"()\\[\\]{}]+)`,
   'gi',
 );
 const BEARER_RE = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi;

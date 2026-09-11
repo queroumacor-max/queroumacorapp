@@ -3,26 +3,24 @@
 #
 # Auditoria de segredos 2026-09-11: a varredura de TODO o histórico (2157
 # commits) achou UM segredo real, hoje removido — a chave Gemini hardcoded em
-# `queroumacorportal.html` (commits a735531 → removida em 10ff6d2, 05/2026).
-# Remover do código NÃO invalida a chave: ela precisa ser ROTACIONADA no
-# Google AI Studio. Os commits ficam listados abaixo pra que o scan de
-# histórico não volte a alarmar por algo já tratado — e pra que ninguém
-# conclua que "nunca vazou".
+# `queroumacorportal.html` (commit a735531, 05/2026). Remover do código NÃO
+# invalida a chave: ela precisa ser ROTACIONADA no Google AI Studio.
 #
-# O resto dos alarmes do scanner são falsos positivos conhecidos, cada um
-# explicado na sua entrada.
+# Esse vazamento REAL fica registrado por FINGERPRINT em `.gitleaksignore`
+# (commit:arquivo:regra:linha), NÃO por allowlist de commit: allowlist de
+# commit esconde tudo que o commit contém; fingerprint esconde uma linha, e
+# o arquivo diz por quê. Este toml só tem FALSOS POSITIVOS, cada um explicado.
+#
+# A regra padrão `gcp-api-key` (AIza + 35 chars, entropia >= 3) foi a que
+# pegou a chave real (entropia 4,7). `scripts/secret-scan-selftest.sh` prova
+# no CI que ela continua pegando: chave sintética -> scanner FALHA; árvore
+# limpa -> scanner PASSA. Nunca desligar essa regra nem subir a entropia.
 
 [extend]
 useDefault = true
 
 [allowlist]
 description = "Falsos positivos conhecidos — cada um com motivo"
-commits = [
-  # Chave Gemini hardcoded no portal legado (REAL; rotação exigida, ver acima).
-  "a73553136333024755c7100198818ce6cae8232a",
-  # Commit que trocou a chave por leitura do localStorage — o diff ainda mostra a chave removida.
-  "10ff6d206ce195865ce39e5d0d9f1e970fdefb58",
-]
 regexes = [
   # Anon key do Supabase (JWT com role=anon). Pública por design — a segurança
   # é a RLS. Está no bundle, no wrangler.toml e no portal de propósito.
@@ -41,9 +39,18 @@ paths = [
   '''next-app/__tests__/api/fcm\.test\.ts''',
   # Regexes de redação contêm os PREFIXOS das chaves (sk-, AIza, ghp_…).
   '''next-app/lib/sentry-helpers\.ts''',
+  # Self-test do scanner: gera uma chave SINTÉTICA (não é credencial de
+  # ninguém) num diretório temporário e exige que o gitleaks a acuse.
+  '''scripts/secret-scan-selftest\.sh''',
   '''next-app/__tests__/lib/sentry-helpers\.test\.ts''',
   '''next-app/__tests__/api/log-error\.test\.ts''',
   # Imagens base64 (data:image/...) disparam heurística de entropia.
   '''\.(png|jpg|jpeg|webp|gif|svg)$''',
   '''package-lock\.json$''',
+  # Saída de build e dependências (só entram no `gitleaks dir`; o `git` scan
+  # já ignora porque nada disso é versionado).
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)\.vercel/''',
+  '''(^|/)\.open-next/''',
 ]

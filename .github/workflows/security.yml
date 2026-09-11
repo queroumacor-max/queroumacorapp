@@ -58,6 +58,17 @@ jobs:
           GITLEAKS_CONFIG: .gitleaks.toml
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
           GITLEAKS_ENABLE_SUMMARY: "true"
+      # Self-test: um scanner que passa em silêncio não prova nada. Baixa o
+      # MESMO binário e exige que uma chave Google SINTÉTICA seja acusada
+      # (exit 1) e que um diretório limpo passe (exit 0). Se a regra
+      # `gcp-api-key` for desligada ou enfraquecida, este passo cai.
+      - name: Self-test do scanner (chave sintética -> FAIL, limpo -> PASS)
+        run: |
+          set -euo pipefail
+          V=8.21.2
+          curl -sSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          scripts/secret-scan-selftest.sh /tmp/gitleaks
 
   zap-baseline:
     # Scan passivo (não dispara payloads). Roda só na cron pra não atrasar

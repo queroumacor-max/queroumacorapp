@@ -49,10 +49,59 @@
     `.env.*`), `.gitleaks.toml` (allowlist EXPLICADA dos falsos positivos +
     os 2 commits da chave Gemini) e job `gitleaks` no `security.yml`.
     Falso positivo novo = entrada explicada na allowlist, nunca desligar.
-  - **Não corrigido (não é segredo, é dependência):** `npm audit` acusa
-    `next` 15.5.2 (critical) com fix em 15.5.25 — mas o peer range do
-    `@cloudflare/next-on-pages` é `<=15.5.2`; subir `next` exige subir o
-    next-on-pages junto (C6 já registrava). Decisão do usuário.
+  - **REVISÃO (mesmo dia) — quatro correções do meu próprio relatório:**
+    1. **"Secret scan PASS" com a chave Gemini no histórico era
+       CONTRADITÓRIO.** O gitleaks PEGOU a chave (regra padrão
+       `gcp-api-key`, entropia 4,7) na 1ª rodada; o PASS veio DEPOIS de eu
+       allowlistar os dois commits no `.gitleaks.toml`. O TruffleHog 3.88
+       nunca acusou (nem com `--results=verified,unknown,unverified`, nem
+       com chave sintética): ele não é detector de `AIza…`. Agora o
+       vazamento conhecido vive em **`.gitleaksignore` por FINGERPRINT**
+       (commit:arquivo:regra:linha, com o status "ROTAÇÃO PENDENTE"), não
+       por allowlist de commit; e `scripts/secret-scan-selftest.sh` (roda
+       no `security.yml`) prova que chave Google sintética → gitleaks FALHA
+       e árvore limpa → PASSA. **REGRA: scanner que passa em silêncio não
+       prova nada; o self-test é parte do scanner.**
+    2. **`next` 15.5.2 NÃO é "só dependência": tem RCE aplicável.**
+       GHSA-9qr9-h5gf-34mp (CVE-2025-55182, critical, React Flight, corrigido
+       em 15.5.7) atinge App Router + RSC em qualquer runtime — RCE no
+       isolate = todas as envs. Mais 4 high de DoS em RSC. O que NÃO se
+       aplica (com motivo em `docs/MIGRACAO_OPENNEXT.md`): AVIF/Image
+       Optimizer (o worker não tem sharp; `/_next/image` vai pro Image
+       Resizing do CF), Windows, WebSocket SSRF (servidor Node), bypass de
+       middleware (o nosso não autentica), Server Actions (não há `use
+       server`), CSP nonce. **Sair de 15.5.2 exige sair do
+       `@cloudflare/next-on-pages` (DEPRECADO no npm, peer `<=15.5.2`, sem
+       versão nova) pro OpenNext (`next>=15.5.24`, deploy em WORKERS).**
+       Spike em worktree: 15.5.25 + OpenNext buildam depois de remover os
+       68 `runtime='edge'`; o empacotamento trava em `pages/_error.js` ×
+       `@sentry/nextjs` (v8 e v10). Plano, riscos e checklist de preview em
+       `docs/MIGRACAO_OPENNEXT.md`. **Migrar é ação externa no Cloudflare
+       (Pages → Workers, secrets, DNS): NÃO feita, NÃO deployada.**
+       Enquanto isso, produção está em versão com RCE aplicável — o status
+       da auditoria é UNSAFE até o upgrade.
+    3. **Source maps: o que conta é `.vercel/output/static`** (o que o
+       `wrangler pages deploy` sobe). Conferido no artefato real: 0
+       `.js.map` (só o `.css.map`); os 67 `functions/*.func/index.js.map`
+       ficam em `.vercel/output/functions`, intermediário que NÃO é
+       deployado. A exclusão do plugin do Sentry roda no `writeBundle`
+       DEPOIS do plugin de upload (`sentry-debug-id-upload-plugin` é
+       registrado antes do `sentry-file-deletion-plugin`, que espera o
+       upload liberar os arquivos) — com `SENTRY_AUTH_TOKEN` no build o
+       Sentry recebe os maps antes de apagar. Sem o token não há upload
+       (e aqui a rede bloqueia sentry.io, então isso não foi provado
+       ponta a ponta).
+    4. `redactSecrets` ficou IDEMPOTENTE (valor nunca começa com `[`) —
+       o beforeSend passa pela mesma string mais de uma vez e produzia
+       `[REDACTED]]`. Cobertura em `sentry-helpers.test.ts`: Bearer, Cookie,
+       refresh/access_token, api key, `?token=`, fragment OAuth,
+       `x-internal-secret`, chave Gemini, objetos aninhados, breadcrumbs,
+       exception, e os casos em que NÃO pode mexer (URL de rota, stack,
+       headers comuns, tags).
+    - **Rotação da chave Gemini: MANUAL ACTION REQUIRED — CRITICAL.**
+      Passo a passo e checklist de confirmação (chave antiga inválida, nova
+      só em secret, não no Git, não no bundle, não no Sentry, app
+      funcionando) em `docs/SEGREDOS_ROTACAO_GEMINI.md`.
   - **Conhecido, aceito:** `?token=` na URL dos webhooks (Meta/Dualhook não
     assinam; é o protocolo) — mitigado pelo scrub do Sentry; `/api/log-error`
     é público e aceita `user_id` do cliente (log, não identidade; rate limit
