@@ -49,6 +49,16 @@
     bloco nem entra no bundle de produção). Na casca em produção não há mais
     console de debug.
 
+- **"Cortou as opções no envio da abordagem" (2026-09-08, entregue em
+  2026-09-11 como v=20260911a) — NÃO cortou.** Os botões de resposta rápida
+  são do template aprovado e a Meta os anexa sozinha em todo envio (prova:
+  quem toca neles chega como `type='button'`, 06/09). O que faltava era a
+  BOLHA do portal desenhar o template inteiro: agora mostra cabeçalho,
+  corpo, rodapé e botões (`BolhaConteudo`, ramo `template`). Depende da
+  lista viva de templates (`templatePorNome`), que a aba já carrega. O PR
+  #284 ficou 3 dias aberto com conflito enquanto a `main` avançou até o
+  #297; foi reaplicado por cima.
+
 - **ROTAS ADMIN ACEITAM QUEM FOI PROMOVIDO NO PORTAL (2026-09-10, decisão
   do usuário: "habilite pelo promover"). SEM SQL.** O relato: João estava
   promovido no portal e levava 403 ao responder WhatsApp ("não está na
