@@ -12910,6 +12910,15 @@ const BolhaConteudo = ({
   // do espelho — a bolha voltou a mostrar "[template calicolors]".
   if (tipo === 'template') {
     const t = textoDeTemplate(m);
+    // A bolha mostra o template INTEIRO (2026-09-08): cabecalho, corpo,
+    // rodape e botoes. So o corpo dava a impressao de que "cortou as
+    // opcoes no envio" — nao cortou: os botoes de resposta rapida sao do
+    // template aprovado e a Meta os anexa sozinha em todo envio (prova:
+    // quem toca neles chega aqui como type='button'). O que faltava era a
+    // tela desenhar o que a pessoa recebeu.
+    const reg = parseRegistroTemplate(m.body);
+    const tpl = templatePorNome(m.template || reg && reg.template || '') || null;
+    const botoes = tpl && tpl.botoes || [];
     if (t) return /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
       style: {
         display: 'block',
@@ -12919,11 +12928,45 @@ const BolhaConteudo = ({
         textTransform: 'uppercase',
         letterSpacing: .4
       }
-    }, "Template aprovado"), /*#__PURE__*/React.createElement("span", {
+    }, "Template aprovado"), tpl && tpl.titulo ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: 'block',
+        fontWeight: 800,
+        marginBottom: 4
+      }
+    }, tpl.titulo) : null, /*#__PURE__*/React.createElement("span", {
       style: {
         whiteSpace: 'pre-wrap'
       }
-    }, t));
+    }, t), tpl && tpl.rodape ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: 'block',
+        fontSize: 11,
+        opacity: .75,
+        marginTop: 6
+      }
+    }, tpl.rodape) : null, botoes.length ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: 'block',
+        marginTop: 8,
+        borderTop: '1px solid rgba(255,255,255,.35)'
+      }
+    }, botoes.map((b, i) => /*#__PURE__*/React.createElement("span", {
+      key: i,
+      style: {
+        display: 'block',
+        textAlign: 'center',
+        padding: '6px 4px',
+        fontWeight: 700,
+        fontSize: 12.5,
+        borderTop: i ? '1px solid rgba(255,255,255,.35)' : 'none'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginRight: 6,
+        opacity: .85
+      }
+    }, ICONE_BOTAO[b.tipo] || '•'), b.texto))) : null);
   }
   const especial = rotuloDeTipo(m);
   if (especial) return /*#__PURE__*/React.createElement("span", {
