@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { hrefSeguroOuHttps } from '@/lib/utils/urlSegura';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCourses } from '@/lib/hooks/useCourses';
@@ -37,9 +38,12 @@ function CourseRow({
   // o título vira um link externo abrindo em nova aba — UX consistente com
   // o que o vanilla faz no perfil público (modules/perfil.js renderiza com
   // <a href=link>).
-  const titleNode = c.link ? (
+  // Mesma regra do perfil público: só http(s) vira link (`javascript:` é
+  // self-XSS aqui, mas a regra tem que ser uma só).
+  const linkSeguro = hrefSeguroOuHttps(c.link);
+  const titleNode = linkSeguro ? (
     <a
-      href={c.link}
+      href={linkSeguro}
       target="_blank"
       rel="noopener noreferrer"
       className="block font-semibold text-sm truncate hover:underline"

@@ -753,3 +753,63 @@ describe('POST /api/mp-webhook — body parsing edge cases', () => {
     expect(body.msg).toBe('sem id');
   });
 });
+
+// ─── Auditoria 2026-09-11 ────────────────────────────────────────────────────
+describe('auditoria 2026-09-11 — valor e id do evento', () => {
+  it('approved com transaction_amount 0/ausente NÃO vira paid (fail-closed)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ external_reference: 'ord-1', status: 'approved', transaction_amount: 0 }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ id: 'ord-1', total: 100, status: 'pending', tx_id: null }]), {
+          status: 200,
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock;
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const res = await POST(await mkSignedReq({ body: { type: 'payment.created', data: { id: 'pay-0' } } }));
+    expect(res.status).toBe(200);
+    const sent = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(sent.status).toBe('amount_mismatch');
+  });
+
+  it('approved com valor negativo/NaN também cai em amount_mismatch', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ external_reference: 'ord-1', status: 'approved', transaction_amount: 'abc' }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ id: 'ord-1', total: 100, status: 'pending', tx_id: null }]), {
+          status: 200,
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock;
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    await POST(await mkSignedReq({ body: { type: 'payment.created', data: { id: 'pay-1' } } }));
+    const sent = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(sent.status).toBe('amount_mismatch');
+  });
+
+  it('id de evento com `../` ou `?` não chega na API do Mercado Pago', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const res = await POST(
+      await mkSignedReq({ body: { type: 'subscription_preapproval', data: { id: '../v1/payments?x=1' } } })
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).msg).toBe('event id com formato inválido');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

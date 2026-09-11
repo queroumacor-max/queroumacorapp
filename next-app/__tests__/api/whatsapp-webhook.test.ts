@@ -366,3 +366,16 @@ describe('POST /api/whatsapp/webhook — ecos e tipos sem conversa', () => {
     expect(autoReplyMock).not.toHaveBeenCalled();
   });
 });
+
+describe('auditoria 2026-09-11 — teto de corpo', () => {
+  it('content-length acima de 2MB responde 413 sem ler o corpo', async () => {
+    const req = new Request(`https://exemplo.com/api/whatsapp/webhook?token=${URL_SECRET}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(3 * 1024 * 1024) },
+      body: '{}',
+    });
+    const res = await chamarPost(req);
+    expect(res.status).toBe(413);
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+});

@@ -53,6 +53,7 @@ describe('POST /api/log-error', () => {
 
   it('inserts into Supabase errors table when service key present', async () => {
     process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'anon-test';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-test';
     const fetchMock = vi.fn(
       async (url: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
@@ -64,20 +65,30 @@ describe('POST /api/log-error', () => {
             headers: { 'content-type': 'application/json' },
           });
         }
+        // GoTrue: o Bearer é do dono do user_id → fica gravado.
+        if (u.includes('/auth/v1/user')) {
+          return new Response(JSON.stringify({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
         return new Response('', { status: 201 });
       },
     );
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
     const { POST } = await import('@/app/api/log-error/route');
     const res = await POST(
-      mkReq({
-        msg: 'oops',
-        stack: 'Error: oops\n  at foo',
-        type: 'js',
-        url: 'https://queroumacor.com.br/x',
-        ua: 'Mozilla/5.0',
-        user_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
-      })
+      mkReq(
+        {
+          msg: 'oops',
+          stack: 'Error: oops\n  at foo',
+          type: 'js',
+          url: 'https://queroumacor.com.br/x',
+          ua: 'Mozilla/5.0',
+          user_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        },
+        { authorization: 'Bearer tok-do-dono' },
+      )
     );
     expect(res.status).toBe(200);
     const insertCall = fetchMock.mock.calls.find((c) =>
@@ -196,8 +207,56 @@ describe('POST /api/log-error', () => {
     expect(rlCall).toBeDefined();
     const rlInit = rlCall![1] as RequestInit;
     const rlBody = JSON.parse(rlInit.body as string);
-    expect(rlBody.p_user_id).toBe('log-error:198.51.100.1');
+    // A RPC recebe uuid: a chave textual vira UUID determinístico (antes o
+    // cast falhava com 22P02 e o limite era ignorado em silêncio).
+    const { chaveDeRateLimit } = await import('@/lib/api/_services/_untrusted');
+    expect(rlBody.p_user_id).toBe(await chaveDeRateLimit('log-error:198.51.100.1'));
+    expect(rlBody.p_user_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(rlBody.p_endpoint).toBe('log-error');
     expect(rlBody.p_limit).toBe(30);
+  });
+});
+
+describe('auditoria 2026-09-11 — user_id só assinado', () => {
+  function mockDb(authId: string | null) {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/rest/v1/rpc/check_rate_limit')) {
+        return new Response(JSON.stringify({ allowed: true, count: 1, limit: 30 }), { status: 200 });
+      }
+      if (u.includes('/auth/v1/user')) {
+        return authId
+          ? new Response(JSON.stringify({ id: authId }), { status: 200 })
+          : new Response('', { status: 401 });
+      }
+      return new Response('', { status: 201 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    return fetchMock;
+  }
+  const VITIMA = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const OUTRO = '11111111-2222-3333-4444-555555555555';
+
+  it('sem Authorization o user_id do corpo é descartado', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'anon-test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-test';
+    const fetchMock = mockDb(null);
+    const { POST } = await import('@/app/api/log-error/route');
+    await POST(mkReq({ msg: 'forjado', user_id: VITIMA }));
+    const insert = fetchMock.mock.calls.find((c) => String(c[0]).includes('/rest/v1/errors'));
+    expect(JSON.parse((insert![1] as RequestInit).body as string).user_id).toBeNull();
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/auth/v1/user'))).toBe(false);
+  });
+
+  it('token de OUTRA conta não grava em nome da vítima', async () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    process.env.SUPABASE_ANON_KEY = 'anon-test';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-test';
+    const fetchMock = mockDb(OUTRO);
+    const { POST } = await import('@/app/api/log-error/route');
+    await POST(mkReq({ msg: 'forjado', user_id: VITIMA }, { authorization: 'Bearer tok-do-outro' }));
+    const insert = fetchMock.mock.calls.find((c) => String(c[0]).includes('/rest/v1/errors'));
+    expect(JSON.parse((insert![1] as RequestInit).body as string).user_id).toBeNull();
   });
 });

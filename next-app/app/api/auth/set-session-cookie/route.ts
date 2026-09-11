@@ -17,6 +17,9 @@ import {
   enforceRateLimit,
   resolveSupabaseEnv,
   type SupabaseEnvPair,
+  readBody,
+  ServiceError,
+  serviceErrorResponse,
 } from '@/lib/api/security';
 
 // Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
@@ -64,8 +67,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (limited) return limited;
   let body: { accessToken?: unknown } | null = null;
   try {
-    body = (await request.json()) as { accessToken?: unknown };
-  } catch {
+    body = (await readBody(request, { maxBytes: 64 * 1024 })) as { accessToken?: unknown };
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   const accessToken =

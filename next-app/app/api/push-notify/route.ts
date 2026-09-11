@@ -18,7 +18,7 @@
 // (subscription expirou / user revogou).
 
 import type { NextRequest } from 'next/server';
-import { checkRateLimit, jsonResponse, rateLimitResponse } from '@/lib/api/security';
+import { checkRateLimit, jsonResponse, rateLimitResponse, readBody, ServiceError, serviceErrorResponse } from '@/lib/api/security';
 import { pushNotifySchema } from '@/lib/api/schemas/push-notify';
 // No edge do Cloudflare os secrets do painel NÃO estão em `process.env` —
 // só no request context. Ver lib/api/env.ts.
@@ -83,8 +83,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   // ─── 3) Parse + valida payload via Zod (R-H10) ──────────────────────────
   let raw: unknown;
   try {
-    raw = await request.json();
-  } catch {
+    raw = await readBody(request, { maxBytes: 256 * 1024 });
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return jsonResponse({ ok: false, error: 'invalid_body' }, 400);
   }
 

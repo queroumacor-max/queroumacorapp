@@ -15,6 +15,7 @@ import {
   serviceErrorResponse,
   getServiceKey,
   getSupabaseUrl,
+  readBody,
 } from '@/lib/api/security';
 import { chatWithPersona, ALICE_LAST_OF_DAY_HINT } from '@/lib/api/_services/chat-ai';
 import { getAiUsageTodayViaRest } from '@/lib/api/_services/_billing-helpers';
@@ -38,8 +39,9 @@ export async function POST(request: NextRequest) {
   }
   let body: { message?: unknown; history?: unknown; accessToken?: unknown };
   try {
-    body = await request.json();
-  } catch {
+    body = (await readBody(request, { maxBytes: 1 * 1024 * 1024 })) as typeof body;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
   // requirePro: false → só auth + rate-limit. Cliente final não tem PRO.

@@ -18,6 +18,7 @@
 // Tipos INLINE (spec: NÃO tocar em lib/types.ts).
 
 import { getSupabase } from '@/lib/supabase';
+import { corCssSegura } from '@/lib/utils/urlSegura';
 import type { Json } from '@/lib/database.types';
 import {
   NetworkError,
@@ -250,7 +251,9 @@ function normTxt(s: unknown): string {
  */
 export function resolveColorHex(p: Pick<Product, 'name' | 'color_hex'> | null | undefined): string | null {
   if (!p) return null;
-  const ch = p.color_hex ? String(p.color_hex).trim() : '';
+  // `corCssSegura`: `color_hex` vai direto num `style.background`; sem o
+  // filtro, `red),url(https://x` faria o navegador buscar o que quiser.
+  const ch = p.color_hex ? corCssSegura(String(p.color_hex), '') : '';
   if (ch && !PLACEHOLDER_HEX.test(ch.replace('#', ''))) return ch;
   const n = normTxt(p.name);
   for (const [k, hex] of COLOR_DICT) {
@@ -265,7 +268,8 @@ export function resolveColorHex(p: Pick<Product, 'name' | 'color_hex'> | null | 
  */
 export function productBg(p: Product | null | undefined): string {
   if (p && p.color_gradient) {
-    return 'linear-gradient(135deg,' + p.color_gradient + ')';
+    const g = corCssSegura(p.color_gradient, '');
+    if (g) return 'linear-gradient(135deg,' + g + ')';
   }
   return resolveColorHex(p ?? null) || '#e8e2d9';
 }

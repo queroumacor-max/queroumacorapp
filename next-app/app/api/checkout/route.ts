@@ -8,6 +8,7 @@ import {
   jsonResponse,
   serviceErrorResponse,
   enforceRateLimit,
+  readBody,
 } from '@/lib/api/security';
 import { createProCheckout } from '@/lib/api/_services/checkout';
 import { checkoutSchema, formatZodError } from '@/lib/api/schemas/checkout';
@@ -19,8 +20,9 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
   let raw: unknown;
   try {
-    raw = await request.json();
-  } catch {
+    raw = await readBody(request, { maxBytes: 64 * 1024 });
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return jsonResponse({ error: 'JSON inválido' }, 400);
   }
   const parsed = checkoutSchema.safeParse(raw);

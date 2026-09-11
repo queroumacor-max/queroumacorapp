@@ -217,7 +217,8 @@ describe('POST /api/push-notify — auth + Zod + rate limit', () => {
     expect(rlCall).toBeDefined();
     const rlInit = rlCall![1] as RequestInit;
     const rlBody = JSON.parse(rlInit.body as string);
-    expect(rlBody.p_user_id).toBe('push-notify:198.51.100.99');
+    const { chaveDeRateLimit } = await import('@/lib/api/_services/_untrusted');
+    expect(rlBody.p_user_id).toBe(await chaveDeRateLimit('push-notify:198.51.100.99'));
     expect(rlBody.p_endpoint).toBe('push-notify');
     expect(rlBody.p_limit).toBe(60);
   });

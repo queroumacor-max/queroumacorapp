@@ -9,6 +9,7 @@ import {
   requireAuthStrict,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { exportUserData } from '@/lib/api/_services/me-export';
 import { logAuditEvent } from '@/lib/api/audit';
@@ -18,8 +19,9 @@ export const runtime = 'edge';
 export async function POST(request: NextRequest) {
   let body: { accessToken?: unknown } = {};
   try {
-    body = (await request.json()) as { accessToken?: unknown };
-  } catch {
+    body = (await readBody(request, { maxBytes: 64 * 1024 })) as { accessToken?: unknown };
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     /* sem body OK — token pode vir só no header */
   }
   try {

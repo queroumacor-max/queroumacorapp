@@ -112,6 +112,9 @@ export function lerEscolhaPendente(
   if (
     !dado ||
     typeof dado.rota !== 'string' ||
+    // Só caminho do próprio app: `//evil` ou `https://…` vindo do storage
+    // viraria redirecionamento no boot (auditoria 2026-09-11).
+    !/^\/(?!\/)/.test(dado.rota) ||
     typeof dado.ctx !== 'string' ||
     typeof dado.em !== 'number'
   ) {

@@ -4,6 +4,7 @@
 // (ADMIN_EMAILS + portal_access ATIVO do caller).
 
 import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
+import { ehUuid, escaparCuringasIlike, valorParaOr } from './_untrusted';
 
 const TIMEOUT_MS = 10000;
 
@@ -570,13 +571,21 @@ export async function listUsers(args: {
   );
   qs.set('limit', '50');
 
-  const q = (args.query || '').trim();
+  const q = valorParaOr((args.query || '').trim());
   if (args.userId) {
+    // `eq.` é literal, mas id que não é UUID não acha nada de todo jeito —
+    // e um 400 do PostgREST vira 502 opaco pro operador.
+    if (!ehUuid(args.userId)) throw new ServiceError('userId inválido', 400);
     qs.set('id', `eq.${args.userId}`);
   } else if (args.email) {
-    qs.set('email', `ilike.${args.email}`);
+    // Igualdade sem curinga: `{"email":"*"}` listava os 50 primeiros perfis.
+    const email = String(args.email).trim().toLowerCase().slice(0, 254);
+    if (!/^[^\s@*%,()]+@[^\s@*%,()]+$/.test(email)) throw new ServiceError('email inválido', 400);
+    qs.set('email', `ilike.${escaparCuringasIlike(email)}`);
   } else if (q) {
-    // Busca por nome OU email (PostgREST `or`)
+    // Busca por nome OU email (PostgREST `or`). `valorParaOr` tirou `,` `(`
+    // `)` `.` e curingas: sem isso `a*,role.eq.admin,name.ilike.*` reescrevia
+    // o predicado inteiro (auditoria 2026-09-11).
     qs.set('or', `(name.ilike.*${q}*,email.ilike.*${q}*)`);
   } else {
     throw new ServiceError('query/userId/email obrigatório', 400);

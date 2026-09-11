@@ -25,6 +25,7 @@
 // testados contra `replyLeaksPrice`.
 
 import { getServiceKey, getSupabaseUrl } from '../security';
+import { filtroTelefoneContem } from './_untrusted';
 import { isBusinessHour, parseHoursSetting } from './whatsapp-ai';
 // Envio pelo canal ÚNICO (Dualhook/Cloud API) desde 2026-09-05.
 import {
@@ -461,14 +462,14 @@ export async function runFollowupSweep(opts?: {
 
 /** Nome pra personalizar: lead da prospecção primeiro, depois usuário. */
 async function nomeDoContato(waId: string): Promise<string | null> {
-  const tail = waId.slice(-8);
-  if (tail.length < 8) return null;
-  const leads = await dbGet<{ name: string | null }>(
-    `leads?phone=ilike.*${encodeURIComponent(tail)}*&select=name&limit=1`,
-  );
+  // Cauda de 8 DÍGITOS ou nada: `*` no wa_id casaria qualquer nome de
+  // qualquer perfil e ele iria pra mensagem de um estranho.
+  const filtro = filtroTelefoneContem(waId);
+  if (!filtro) return null;
+  const leads = await dbGet<{ name: string | null }>(`leads?phone=${filtro}&select=name&limit=1`);
   if (leads[0]?.name) return leads[0].name;
   const profs = await dbGet<{ name: string | null }>(
-    `profiles?phone=ilike.*${encodeURIComponent(tail)}*&select=name&limit=1`,
+    `profiles?phone=${filtro}&select=name&limit=1`,
   );
   return profs[0]?.name || null;
 }

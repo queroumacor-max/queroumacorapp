@@ -177,6 +177,8 @@ async function startMercadoPagoCheckout(): Promise<void> {
   }
   const { init_point } = (await res.json()) as { init_point?: string };
   if (!init_point) throw new Error('init_point ausente na resposta');
+  // Vem de um JSON de resposta: só https vira navegação (auditoria 2026-09-11).
+  if (!/^https:\/\//i.test(init_point)) throw new Error('init_point não é https');
   // Redirect pro checkout MP. Dentro da casca isto NÃO pode ser navegação
   // de topo: o host do Mercado Pago está fora de `server.allowNavigation`, o
   // Capacitor cancela e a WebView cai na errorPath ("Sem conexão"). Hoje esta

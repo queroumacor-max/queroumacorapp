@@ -189,7 +189,9 @@ export async function getAiUsageTodayViaRest(args: {
   // window é 24h sliding na pior das hipóteses.
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const url = `${supaUrl}/rest/v1/ai_usage?user_id=eq.${encodeURIComponent(userId)}&feature=eq.${encodeURIComponent(feature)}&created_at=gte.${today}T00:00:00Z&select=id`;
+    const url = `${supaUrl}/rest/v1/ai_usage?user_id=eq.${encodeURIComponent(userId)}&feature=eq.${encodeURIComponent(feature)}&used_at=gte.${today}T00:00:00Z&select=id`;
+    // `used_at`, não `created_at`: a tabela não tem `created_at`, o PostgREST
+    // respondia 42703 e o teto diário da Alice nunca disparou (2026-09-11).
     const res = await fetch(url, {
       method: 'GET',
       headers: {

@@ -80,3 +80,37 @@ SELECT 'leads.abordagem_status existe' AS item, EXISTS (SELECT 1 FROM informatio
 
 -- 2026-09-09 (ai_usage sem CHECK de feature — personas passam a contar):
 SELECT 'ai_usage sem CHECK em feature (2026-09-09)' AS item, NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ai_usage'::regclass AND contype = 'c' AND conname = 'ai_usage_feature_check') AS ok;
+-- ─── Auditoria de segurança (2026-09-11) — migrations/2026-09-11-auditoria-seguranca.sql
+SELECT 'push_device_tokens: UPDATE só do dono (bloco 1)' AS item,
+       EXISTS (SELECT 1 FROM pg_policies
+                WHERE schemaname='public' AND tablename='push_device_tokens'
+                  AND policyname='push_device_tokens owner update'
+                  AND qual LIKE '%auth.uid()%') AS ok;
+SELECT 'claim_push_device_token existe (bloco 2)' AS item,
+       EXISTS (SELECT 1 FROM pg_proc WHERE proname='claim_push_device_token') AS ok;
+SELECT 'upsert_invoice NÃO executável por authenticated (bloco 3)' AS item,
+       NOT has_function_privilege('authenticated',
+         'public.upsert_invoice(uuid,text,text,text,numeric,text,text,jsonb,timestamptz)', 'EXECUTE') AS ok;
+SELECT 'cleanup_old_audit_events NÃO executável por authenticated (bloco 3)' AS item,
+       NOT has_function_privilege('authenticated', 'public.cleanup_old_audit_events()', 'EXECUTE') AS ok;
+SELECT 'check_rate_limit NÃO executável por authenticated (bloco 3)' AS item,
+       NOT has_function_privilege('authenticated', 'public.check_rate_limit(uuid,text,integer,integer)', 'EXECUTE') AS ok;
+SELECT 'ai_usage_this_month só do próprio uid (bloco 4)' AS item,
+       (SELECT prosrc LIKE '%auth.uid()%' FROM pg_proc WHERE proname='ai_usage_this_month' LIMIT 1) AS ok;
+SELECT 'get_feed_v2 usa auth.uid() e não p_user_id no corpo (bloco 5)' AS item,
+       (SELECT prosrc LIKE '%auth.uid()%' AND prosrc NOT LIKE '%= p_user_id%' FROM pg_proc WHERE proname='get_feed_v2' LIMIT 1) AS ok;
+SELECT 'protect_profile_columns protege user_type/contadores (bloco 6)' AS item,
+       (SELECT prosrc LIKE '%rating_avg%' AND prosrc LIKE '%service_role%' FROM pg_proc WHERE proname='protect_profile_columns' LIMIT 1) AS ok;
+SELECT 'trigger protect_order_columns em orders (bloco 7)' AS item,
+       EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_protect_order_columns' AND NOT tgisinternal) AS ok;
+SELECT 'award_quote_request_points exige pintor ≠ cliente (bloco 8)' AS item,
+       (SELECT prosrc LIKE '%painter_id <> NEW.client_id%' FROM pg_proc WHERE proname='award_quote_request_points' LIMIT 1) AS ok;
+SELECT 'messages_insert_own amarra conversation_id (bloco 9)' AS item,
+       EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='messages'
+                 AND policyname='messages_insert_own' AND with_check LIKE '%conversation_id%') AS ok;
+SELECT 'notify_on_message respeita blocks (bloco 10)' AS item,
+       (SELECT prosrc LIKE '%public.blocks%' FROM pg_proc WHERE proname='notify_on_message' LIMIT 1) AS ok;
+SELECT 'search_all escapa _ (bloco 11)' AS item,
+       (SELECT prosrc LIKE '%''_'', ''\_''%' FROM pg_proc WHERE proname='search_all' LIMIT 1) AS ok;
+SELECT 'leads com RLS ligada (bloco 12)' AS item,
+       (SELECT relrowsecurity FROM pg_class WHERE oid='public.leads'::regclass) AS ok;

@@ -1,5 +1,65 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA — fluxo de dados SOURCE→SINK (2026-09-11).
+  SQL `/migrations/2026-09-11-auditoria-seguranca.sql` — PENDENTE até o
+  usuário rodar (12 blocos, um por vez); conferência no fim de
+  `2026-09-05-conferencia-pendencias.sql`.** Relatório completo no chat da
+  sessão; o que virou REGRA fica aqui:
+  - **Dado de fora só entra em filtro PostgREST, URL, log ou header depois
+    de `lib/api/_services/_untrusted.ts`.** `encodeURIComponent` NÃO escapa
+    `*` (curinga do `ilike`) nem `( ) . ,` (gramática do `or=`): o webhook
+    da Meta com `from: "********"` virava `leads?phone=ilike.**` e um PATCH
+    com service role marcava TODOS os leads como opt-out. Agora `from`
+    precisa ser `\d{8,15}` no parse (`waIdValido`) e todo `ilike` de
+    telefone nasce de `filtroTelefoneContem` (8 dígitos ou nada). Texto de
+    pessoa dentro de `or=(…)` passa por `valorParaOr`.
+  - **`check_rate_limit` recebe `uuid`** — chave `ip:…` dava 22P02 → 400 →
+    `checkRateLimit` liberava em SILÊNCIO: nenhum limite por IP valia
+    (checkout, delete-account, log-error, auth-rate-check, cidades). Chave
+    vira UUID determinístico (`chaveDeRateLimit`) e o `!res.ok` loga.
+  - **Corpo com teto ANTES do auth**: toda rota lê por `readBody(request,
+    {maxBytes})`; `request.json()`/`formData()` cru é proibido (teste varre
+    `app/api`). Webhook da Meta: 2MB e 50 itens por lote.
+  - **`href`/`src` de dado = `hrefSeguro`** (`lib/utils/urlSegura.ts`; no
+    portal, bloco `[teste:seguranca-*]`). React NÃO filtra `javascript:` em
+    href; a CSP segura hoje, mas CSP é rede, não correção. Achado real:
+    `brand_logos.image_url` (gravado pelo pintor) virava `<a href>` no portal
+    ADMIN. Cor em CSS = `corCssSegura` (`url(` num `color_gradient` faria
+    o navegador buscar o que quiser; style-src tem unsafe-inline).
+  - **CSV exportado = `celulaCsv`**: célula começando com `= + - @` ganha
+    `'` (fórmula em Excel/Sheets). Cabeçalho é constante, não passa.
+  - **`/api/log-error` só grava `user_id` assinado** (bate com o Bearer;
+    `reportFailure` manda o token). Antes qualquer um gravava em nome de
+    qualquer usuário no /admin/errors.
+  - **Mercado Pago**: id de evento `^[A-Za-z0-9_-]{1,64}$` e encodado na URL
+    da API; valor ausente/zero/NaN é `amount_mismatch`, não `paid`.
+    **Mídia da Cloud API**: só https em host da lista
+    (`HOSTS_DE_MIDIA_WHATSAPP`), `redirect:'manual'`, Bearer nunca sai pra
+    outro host. **IAP**: a env `IAP_PRODUCTION_VERIFICATION_ENABLED` sozinha
+    não liga mais o stub (constante `VERIFICACAO_REAL_IMPLEMENTADA=false`).
+  - **No banco (SQL pendente)**: `push_device_tokens` UPDATE tinha
+    `USING (true)` (qualquer um tomava todos os tokens FCM); `GRANT … TO
+    service_role` NÃO tira o EXECUTE de PUBLIC/authenticated — `upsert_invoice`,
+    `check_rate_limit`, `cleanup_old_audit_events` etc. eram chamáveis por
+    `sb.rpc()` (REVOKE explícito agora); `get_feed_v2(p_user_id)` era
+    SECURITY DEFINER com o uid do CLIENTE (saved_posts/likes/blocks de
+    qualquer um — o corpo passa a usar `auth.uid()`); `protect_profile_columns`
+    não cobria `user_type` (→ `role='admin'` via `sync_role_from_user_type`),
+    `pro_expires_at`, `rating_avg`, contadores; `orders_update_own` deixava o
+    comprador marcar `paid` (+100 pts); pontos por orçamento próprio;
+    INSERT em `messages` com `conversation_id` livre; `leads` sem RLS no repo.
+    **REGRA: função SECURITY DEFINER nova = `REVOKE ALL … FROM PUBLIC, anon,
+    authenticated` + só `auth.uid()` como sujeito.**
+  - `__tests__/seguranca-auditoria.test.ts` é a regressão (40 casos) — se
+    falhar, a vulnerabilidade voltou; não "ajustar o esperado".
+  - **NÃO corrigido (decisão/risco)**: OAuth nativo sem `state` (exige
+    trocar pra PKCE — "não alterar a autenticação"); total do pedido
+    calculado no cliente (venda fecha por WhatsApp com humano; trigger de
+    recálculo proposto no relatório); SheetJS 0.18.5 vendorado no portal
+    (CVEs no parser; versão nova só em cdn.sheetjs.com); bucket `exports`
+    público (PDF de orçamento por link, decisão de produto);
+    `invite_code_valid` como oráculo pra anon.
+
 - **CSP COM NONCE — pentest Strix (2026-09-11). SEM SQL.** Três achados:
   (1) `script-src` tinha `'unsafe-inline'`; (2) o Eruda (console de debug)
   carregava em produção dentro da casca; (3) CORS/fingerprint — o

@@ -9,6 +9,7 @@ import {
   recordAiUsage,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { errorResponse } from '@/lib/api/errors';
 import { generateIgArt } from '@/lib/api/_services/ig-art';
@@ -51,8 +52,9 @@ export async function POST(request: NextRequest) {
 async function handle(request: NextRequest): Promise<NextResponse> {
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+    body = (await readBody(request, { maxBytes: 24 * 1024 * 1024 })) as Record<string, unknown>;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
   const g = await gateProAI(request, body, { endpoint: 'ig-art', limit: 5 });

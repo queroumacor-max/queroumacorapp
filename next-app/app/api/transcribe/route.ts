@@ -7,6 +7,7 @@ import {
   recordAiUsage,
   ServiceError,
   serviceErrorResponse,
+  readBody,
 } from '@/lib/api/security';
 import { transcribeAudio } from '@/lib/api/_services/transcribe';
 import { getRuntimeEnv } from '../../../lib/api/env';
@@ -22,8 +23,9 @@ export async function POST(request: NextRequest) {
   }
   let formData: FormData;
   try {
-    formData = await request.formData();
-  } catch {
+    formData = (await readBody(request, { maxBytes: 30 * 1024 * 1024, type: 'form' })) as FormData;
+  } catch (e) {
+    if (e instanceof ServiceError && e.status === 413) return serviceErrorResponse(e);
     return NextResponse.json({ error: 'FormData inválido' }, { status: 400 });
   }
   const g = await gateProAIForm(request, formData, {

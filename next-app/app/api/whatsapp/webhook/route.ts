@@ -42,6 +42,7 @@
 // mensagem continuava chegando no portal normalmente.
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { paraLog } from '@/lib/api/_services/_untrusted';
 import { getRuntimeEnv, runAfterResponse } from '@/lib/api/env';
 import {
   checkWebhookUrlSecret,
@@ -74,6 +75,10 @@ import {
 } from '@/lib/api/_services/whatsapp';
 
 export const runtime = 'edge';
+
+// Tetos do webhook (auditoria 2026-09-11). Ver comentários no POST.
+const WEBHOOK_MAX_BYTES = 2 * 1024 * 1024;
+const WEBHOOK_MAX_ITENS = 50;
 
 export async function GET(request: NextRequest) {
   const verifyToken = getRuntimeEnv('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
@@ -165,9 +170,10 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
   for (const msg of messages) {
     // Log estruturado → Cloudflare logs. Não logar o corpo inteiro
     // (conversa de cliente); preview basta pra depurar entrega.
+    // `paraLog`: nome de contato/texto com `\n` forjava linha de log inteira.
     console.log(
-      `[whatsapp-webhook] msg de ${msg.from} (${msg.profileName || 'sem nome'}) ` +
-        `type=${msg.type} id=${msg.messageId} preview="${msg.text.slice(0, 60)}"`
+      `[whatsapp-webhook] msg de ${paraLog(msg.from, 20)} (${paraLog(msg.profileName || 'sem nome', 40)}) ` +
+        `type=${paraLog(msg.type, 20)} id=${paraLog(msg.messageId, 80)} preview="${paraLog(msg.text, 60)}"`
     );
   }
   // Mídia recebida (áudio, foto, vídeo, figurinha, documento). Na Cloud API
@@ -253,7 +259,7 @@ async function processarStatus(lista: AtualizacaoDeStatus[]): Promise<void> {
     // de "limite da Meta".
     if (st.status === 'failed') {
       console.warn(
-        `[whatsapp-status] FALHOU msg=${st.messageId} para=${st.recipientId}: ${st.erro || 'sem detalhe'}`
+        `[whatsapp-status] FALHOU msg=${paraLog(st.messageId, 80)} para=${paraLog(st.recipientId, 20)}: ${paraLog(st.erro || 'sem detalhe', 160)}`
       );
     }
     await persistStatusEntrega(st);
@@ -305,11 +311,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Teto de corpo (2026-09-11): era `request.text()` sem limite — a única
+  // rota de webhook sem `readBody`. O envelope da Meta tem poucos KB; os
+  // bytes de mídia NÃO vêm nele (só um id). 2MB sobra e barra o resto.
+  const tamanho = parseInt(request.headers.get('content-length') || '0', 10);
+  if (Number.isFinite(tamanho) && tamanho > WEBHOOK_MAX_BYTES) {
+    return NextResponse.json({ error: 'payload grande demais' }, { status: 413 });
+  }
   let rawBody = '';
   try {
     rawBody = await request.text();
   } catch {
     /* body vazio cai no parse abaixo */
+  }
+  if (rawBody.length > WEBHOOK_MAX_BYTES) {
+    return NextResponse.json({ error: 'payload grande demais' }, { status: 413 });
   }
 
   let payload: unknown;
@@ -367,7 +383,14 @@ export async function POST(request: NextRequest) {
   // mandou. Vinham no mesmo envelope e eram DESCARTADOS: o parse de
   // mensagens devolvia lista vazia e nada mais olhava o payload. O portal
   // registrava que mandamos e nunca sabia se chegou.
-  const statuses = parseStatusUpdates(payload);
+  // Teto por lote: cada mensagem custa download de mídia + Whisper + IA +
+  // um envio de WhatsApp, e cada status pode custar 1,5s de espera. Um
+  // envelope autenticado com milhares de itens virava fatura e travamento.
+  const statuses = parseStatusUpdates(payload).slice(0, WEBHOOK_MAX_ITENS);
+  if (messages.length > WEBHOOK_MAX_ITENS) {
+    console.warn(`[whatsapp-webhook] lote com ${messages.length} mensagens; processando ${WEBHOOK_MAX_ITENS}`);
+    messages = messages.slice(0, WEBHOOK_MAX_ITENS);
+  }
 
   if (messages.length > 0) runAfterResponse(processarEntrada(messages));
   if (statuses.length > 0) runAfterResponse(processarStatus(statuses));

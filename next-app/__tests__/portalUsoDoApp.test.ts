@@ -20,8 +20,13 @@ beforeAll(() => {
   const fim = fonte.indexOf('// [teste:uso-fim]');
   expect(inicio).toBeGreaterThan(0);
   expect(fim).toBeGreaterThan(inicio);
+  // `csvDoUso` usa `celulaCsv` (bloco de segurança, auditoria 2026-09-11):
+  // o bloco entra junto na avaliação.
+  const segIni = fonte.indexOf('// [teste:seguranca-inicio]');
+  const segFim = fonte.indexOf('// [teste:seguranca-fim]');
+  expect(segIni).toBeGreaterThan(0);
   ({ IA_FEATURE_ROTULOS, IA_PERSONAS, CATEGORIAS_DE_USO, desdeDoPeriodo, csvDoUso } = new Function(
-    `${fonte.slice(inicio, fim)}; return { IA_FEATURE_ROTULOS, IA_PERSONAS, CATEGORIAS_DE_USO, desdeDoPeriodo, csvDoUso };`,
+    `${fonte.slice(segIni, segFim)}; ${fonte.slice(inicio, fim)}; return { IA_FEATURE_ROTULOS, IA_PERSONAS, CATEGORIAS_DE_USO, desdeDoPeriodo, csvDoUso };`,
   )());
 });
 

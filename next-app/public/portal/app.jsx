@@ -1678,7 +1678,7 @@ const ProdutosList = () => {
           <div style={{ marginBottom:12 }}>
             <label style={labelStyle}>Foto do produto (opcional — sobrepõe a cor)</label>
             <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              {form.image_url && <div style={{ width:48, height:48, borderRadius:8, background:C.cream+' center/contain no-repeat url('+form.image_url+')', border:'1px solid '+C.border, flexShrink:0 }}></div>}
+              {hrefSeguro(form.image_url) && !/[()'"\s]/.test(form.image_url) && <div style={{ width:48, height:48, borderRadius:8, background:C.cream+' center/contain no-repeat url('+form.image_url+')', border:'1px solid '+C.border, flexShrink:0 }}></div>}
               <input type="file" accept="image/*" disabled={fotoBusy} onChange={async e=>{
                 const f = e.target.files && e.target.files[0];
                 e.target.value = '';
@@ -1840,9 +1840,9 @@ const LogoCard = React.memo(function LogoCard({ item, onUse }) {
           <button onClick={() => onUse(item)} style={{ flex:1, background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'6px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
             Usar na camiseta
           </button>
-          <a href={item.image_url} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
+          {hrefSeguro(item.image_url) ? <a href={hrefSeguro(item.image_url)} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
             Abrir
-          </a>
+          </a> : null}
           {wa && (
             <a href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer" title="Falar com o pintor" style={{ background:'#25d366', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
               💬
@@ -2161,7 +2161,7 @@ const Chats = () => {
     }
     setProfiles(profMap);
 
-    const convMap = {};
+    const convMap = Object.create(null); // sem protótipo: chave `__proto__` não colide
     data.forEach(m => {
       const key = m.conversation_id || m.sender_id || m.id;
       if(!convMap[key]) convMap[key] = { id: key, messages: [], lastMsg: m, participants: new Set(), is3way: false };
@@ -2215,6 +2215,9 @@ const Chats = () => {
 
     // Realtime subscription
     if(subRef.current) subRef.current.unsubscribe();
+    // `conversation_id` é texto livre no banco; `=`/`,` nele reescreveria
+    // o filtro do realtime. Fora da forma esperada, fica só o poll.
+    if(!/^[A-Za-z0-9_:.-]{1,160}$/.test(String(convId))) return;
     subRef.current = supa
       .channel('portal-chat-' + convId)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId },
@@ -2491,6 +2494,42 @@ const decodificar = (buffer) => {
 const soDigitos = (t) => String(t||'').replace(/\D/g,'');
 const chaveTelefone = (t) => { const d = soDigitos(t); return d.length >= 8 ? d.slice(-8) : ''; };
 // "@fulano", "instagram.com/fulano/" ou "fulano" → "fulano" (minusculo).
+// [teste:seguranca-inicio]
+// Helpers de dado NÃO CONFIÁVEL (auditoria 2026-09-11). Tudo que vem de
+// linha do banco (lead de planilha, logo de pintor, pedido, mensagem) ou
+// do que o operador digita passa por aqui antes de virar href, célula de
+// CSV ou expressão `or=` do PostgREST. Só JS puro: o teste avalia o bloco.
+//
+// `href` só com http(s): o React NÃO filtra `javascript:` em href, e este
+// portal roda com a sessão de ADMIN — um logo cadastrado por um pintor com
+// `image_url = javascript:…` executaria aqui ao clicar em "Abrir".
+const hrefSeguro = (u) => {
+  if (typeof u !== 'string') return null;
+  const t = u.trim();
+  return /^https?:\/\/[^\s/]+/i.test(t) && !/[\u0000-\u001f\u007f]/.test(t) ? t : null;
+};
+// Célula de CSV: Excel/Sheets executam célula que começa com = + - @ (ou
+// tab/CR seguido disso) mesmo entre aspas. Um lead chamado
+// `=HYPERLINK("https://evil"...)` viraria link ativo na planilha de quem
+// exporta. Prefixo `'` desarma sem mudar o texto visível.
+const celulaCsv = (v) => {
+  const t = String(v == null ? '' : v);
+  const armada = /^[\t\r\n ]*[=+\-@]/.test(t);
+  return '"' + (armada ? "'" : '') + t.replace(/"/g, '""') + '"';
+};
+// Valor pra dentro de `or=(col.ilike.*X*,…)`: `,` `(` `)` `.` e aspas são
+// GRAMÁTICA do PostgREST (separam cláusulas), `*` `%` `_` são curingas.
+// Sem isto, digitar `a*,role.eq.admin,name.ilike.*` na busca reescrevia o
+// predicado inteiro. O que sobra só pode ser valor.
+const valorParaOr = (q) => String(q || '')
+  .replace(/[,()."'\\*%_]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+// Padrão `ilike` só com dígitos: `*` dentro de um wa_id casaria a tabela
+// inteira de leads.
+const caudaDeDigitos = (s, n) => {
+  const d = String(s || '').replace(/\D/g, '').slice(-n);
+  return d.length === n ? d : null;
+};
+// [teste:seguranca-fim]
 const normalizarIg = (t) => String(t||'').trim()
   .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@+/, '')
   .replace(/[\/?#\s].*$/, '').toLowerCase().slice(0, 80);
@@ -3913,7 +3952,9 @@ const NovaConversaModal = ({ onClose, onAbrir }) => {
 
     const filtro = (sel) => {
       let r = sel.not('phone', 'is', null);
-      if(nomeLike && alvoLike) r = r.or('name.ilike.' + nomeLike + ',phone.ilike.' + alvoLike);
+      // Dentro do `or=` o texto é GRAMÁTICA: `valorParaOr` tira `,()."` e
+      // curingas (nome com vírgula quebrava a busca; `a,id.gte.0` listava tudo).
+      if(nomeLike && alvoLike && valorParaOr(q)) r = r.or('name.ilike.*' + valorParaOr(q) + '*,phone.ilike.' + alvoLike);
       else if(nomeLike) r = r.ilike('name', nomeLike);
       else if(alvoLike) r = r.ilike('phone', alvoLike);
       // A letra so entra quando NAO ha busca: quem digitou quer procurar em
@@ -4728,7 +4769,8 @@ const Leads = () => {
   const exportCSV = () => {
     const header = ['#','Nome','Cidade','Bairro','Endereco','Segmento','Categoria','Rating','Reviews','Telefone','Prioridade','Status','Entrega','Erro da entrega','Entrega em'];
     const rows = filtered.map((l,i) => { const d = descreverAbordagem(l); return [i+1, l.name||'', l.city||'', l.neighborhood||'', l.address||'', l.segment||'', l.category||'', l.rating||'', l.review_count||'', l.phone||'', l.priority||'', l.status||'', d ? d.rotulo : '', d ? d.erro : '', d ? d.quando : '']; });
-    const csv = [header, ...rows].map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    // Cabeçalho é constante do código; as células de DADO passam por celulaCsv.
+    const csv = [header.map(h => '"' + h + '"').join(','), ...rows.map(r => r.map(celulaCsv).join(','))].join('\n');
     const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'leads_calicolors.csv'; a.click();
@@ -5690,7 +5732,7 @@ const PedidosLoja = () => {
                   {row('Valor pago', o.paid_amount!=null ? brl(o.paid_amount) : '—')}
                   {row('Método', o.payment_method||'—')}
                   {row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—')}
-                  {o.receipt_url ? <a href={o.receipt_url} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
+                  {hrefSeguro(o.receipt_url) ? <a href={hrefSeguro(o.receipt_url)} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
                 </>
               ) : (
                 <div style={{ color:C.muted, fontSize:13, fontStyle:'italic' }}>Aguardando pagamento / contato (pagamento online ainda não ativado).</div>
@@ -6991,7 +7033,10 @@ const WhatsAppTab = () => {
     const mapa = {};
     for(const lote of pedacos(sufixos, LEADS_POR_CONSULTA)){
       if(!vivoRef.current) return;
-      const finais = Array.from(new Set(lote.map(s => s.slice(-4))));
+      // Só 4 DÍGITOS entram no `or=`: um wa_id fora do padrão (texto, `*`)
+      // reescreveria o filtro ou casaria todo lead.
+      const finais = Array.from(new Set(lote.map(s => caudaDeDigitos(s, 4)).filter(Boolean)));
+      if(!finais.length) continue;
       const ou = finais.map(f => 'phone.ilike.*' + f).join(',');
       try {
         const linhas = await buscarEmPaginas((extra) =>
@@ -7061,7 +7106,7 @@ const WhatsAppTab = () => {
 
   // Agrupa por numero (mensagem mais recente primeiro).
   const convs = React.useMemo(() => {
-    const map = {};
+    const map = Object.create(null); // sem protótipo: wa_id `__proto__` não derruba a aba
     msgs.forEach(m => {
       if(!m.wa_id) return;
       if(!map[m.wa_id]) map[m.wa_id] = { waId: m.wa_id, msgs: [], last: m, name: '' };
@@ -8041,8 +8086,11 @@ const csvDoUso = (pessoas) => {
     ['Camisetas','camisetas'],['Logos','logos'],['Chamadas IA','ia'],['Orçamentos feitos','orcamentosFeitos'],
     ['Orçamentos pedidos','orcamentosPedidos'],['Avaliações','avaliacoes'],['Nota média','notaMedia'],
     ['Última atividade','ultimaAtividade'],['Atividade (pts)','atividade']];
-  const linhas = [cols.map(c => c[0])].concat(pessoas.map(p => cols.map(c => p[c[1]] == null ? '' : p[c[1]])));
-  return '\uFEFF' + linhas.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
+  // Cabeçalho é constante do código; as células de DADO passam por celulaCsv
+  // (nome/tag/cidade vêm do perfil da pessoa).
+  const cabecalho = cols.map(c => '"' + c[0] + '"').join(';');
+  const corpo = pessoas.map(p => cols.map(c => celulaCsv(p[c[1]] == null ? '' : p[c[1]])).join(';'));
+  return '\uFEFF' + [cabecalho, ...corpo].join('\n');
 };
 // [teste:uso-fim]
 

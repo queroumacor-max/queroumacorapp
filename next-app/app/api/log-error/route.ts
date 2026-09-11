@@ -25,6 +25,7 @@ import {
   jsonResponse,
   rateLimitResponse,
   readBody,
+  requireAuth,
   serviceErrorResponse,
 } from '@/lib/api/security';
 import {
@@ -79,6 +80,17 @@ export async function POST(request: NextRequest) {
     }
 
     const safe = sanitizeErrorPayload(parsed.data as LogErrorBody);
+    // `user_id` só vale ASSINADO (auditoria 2026-09-11): a rota é pública e
+    // o campo vinha cru do corpo — qualquer um gravava linhas em nome de
+    // qualquer usuário no /admin/errors. Agora só fica se bater com o dono
+    // do Bearer que veio no header; sem token (service worker, tela de
+    // erro antes do login) a linha entra anônima, que é o que ela é.
+    if (safe.user_id) {
+      const auth = request.headers.get('authorization')
+        ? await requireAuth(request)
+        : { user: null };
+      if (auth.user?.id !== safe.user_id) safe.user_id = null;
+    }
     // Logar antes de tentar inserir — garante registro mesmo se o Supabase
     // estiver fora (Cloudflare/Vercel logs capturam).
     console.log('[client-log]', JSON.stringify(safe));

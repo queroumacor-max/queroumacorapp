@@ -13,6 +13,7 @@
 'use client';
 
 import { useState } from 'react';
+import { hrefSeguro } from '@/lib/utils/urlSegura';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { isAdmin } from '@/lib/policies';
@@ -217,7 +218,11 @@ function ReviewRow({
       (row.post.caption.length > 120 ? '…' : '')
     : null;
   const hashShort = row.media_hash ? row.media_hash.slice(0, 12) + '…' : '(sem hash)';
-  const isImage = /\.(jpe?g|png|webp|gif|heic|heif)(\?|$)/i.test(row.media_url);
+  // `media_url` é gravada pelo CLIENTE de qualquer usuário: só vira link
+  // se for http(s). `javascript:`/`//evil` num painel de admin é o pior
+  // lugar possível pra um href cru (auditoria 2026-09-11).
+  const mediaHref = hrefSeguro(row.media_url);
+  const isImage = !!mediaHref && /\.(jpe?g|png|webp|gif|heic|heif)(\?|$)/i.test(mediaHref);
 
   return (
     <div className="p-4 rounded-xl bg-white border border-[color:var(--color-border)]">
@@ -254,10 +259,10 @@ function ReviewRow({
               // Evita Next/Image porque a URL é externa do Supabase e
               // mídias suspeitas podem ser pesadas; preferimos lazy + tag bruta.
               // eslint-disable-next-line @next/next/no-img-element
-              <a href={row.media_url} target="_blank" rel="noopener noreferrer">
+              <a href={mediaHref ?? undefined} target="_blank" rel="noopener noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={row.media_url}
+                  src={mediaHref ?? undefined}
                   alt="mídia em revisão"
                   width={64}
                   height={64}
@@ -266,15 +271,19 @@ function ReviewRow({
                   style={{ width: 64, height: 64 }}
                 />
               </a>
-            ) : (
+            ) : mediaHref ? (
               <a
-                href={row.media_url}
+                href={mediaHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-blue-600 underline flex-shrink-0"
               >
                 Abrir mídia
               </a>
+            ) : (
+              <span className="text-xs text-red-600 flex-shrink-0 break-all" title={row.media_url}>
+                URL de mídia inválida (não é http/https)
+              </span>
             )}
             <div className="flex-1 min-w-0">
               {captionSnippet ? (
