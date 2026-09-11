@@ -585,7 +585,7 @@ RETURNS TABLE (
   top_comments     jsonb
 )
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  -- auth.uid() é IGNORADO: quem decide liked_by_me/saved_by_me/bloqueios é
+  -- p_user_id é IGNORADO: quem decide liked_by_me/saved_by_me/bloqueios é
   -- auth.uid(). Antes qualquer um passava o uuid de outra pessoa e lia os
   -- salvos/curtidas/bloqueios dela (auditoria 2026-09-11).
   WITH
