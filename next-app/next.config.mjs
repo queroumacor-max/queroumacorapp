@@ -52,22 +52,22 @@ const nextConfig = {
     const noCache = [
       { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
     ];
-    // FIX C2 (auditoria 2026-08-26): a CSP vivia só no `_headers` da RAIZ do
-    // repo, que fica fora do output do build — produção rodava sem CSP,
-    // Permissions-Policy e COOP/CORP. Agora o conjunto completo vive em DOIS
-    // lugares que se complementam no CF Pages: `public/_headers` (assets
-    // estáticos, HTML prerenderizado incluso) e aqui (rotas servidas pelo
-    // worker, /api/* incluso). Mudou um? Mude o outro — os valores são
-    // idênticos de propósito.
-    // CSP validada em produção/preview (PR #163). NÃO alterar sem revalidar
-    // com curl -I: `*.onrender.com` cobre a Evolution API do WhatsApp.
-    const csp =
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
+    // FIX C2 (auditoria 2026-08-26): estes headers viviam só no `_headers`
+    // da RAIZ do repo, que fica fora do output do build — produção rodava sem
+    // eles. O `_headers` da raiz é legado do app vanilla e NÃO entra no
+    // deploy; a fonte é este arquivo (rotas servidas pelo worker, /api/*
+    // incluso). NÃO recriar `public/_headers` com CSP: seria uma segunda
+    // política divergente.
+    //
+    // A Content-Security-Policy NÃO está mais aqui (pentest Strix,
+    // 2026-09-11): ela precisa de um NONCE por request pra dispensar o
+    // 'unsafe-inline' em script-src, e header estático não tem como carregar
+    // isso. Vive em `lib/csp.ts`, emitida pelo `middleware.ts` — inclusive a
+    // do /portal (por hash) e a exceção do /pdf (CSP própria da rota).
     return [
       {
         source: '/(.*)',
         headers: [
-          { key: 'Content-Security-Policy', value: csp },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },

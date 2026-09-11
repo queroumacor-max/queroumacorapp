@@ -1,5 +1,54 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **CSP COM NONCE — pentest Strix (2026-09-11). SEM SQL.** Três achados:
+  (1) `script-src` tinha `'unsafe-inline'`; (2) o Eruda (console de debug)
+  carregava em produção dentro da casca; (3) CORS/fingerprint — o
+  `next.config` já restringia `/api/*` a `https://queroumacor.com.br` e
+  `poweredByHeader: false` já existia, MAS `/api/health` escrevia
+  `'access-control-allow-origin': '*'` em minúsculas (busca sensível a caixa
+  não achou; o `wrangler pages dev` mostrou) — **header da ROTA vence o do
+  next.config**. Corrigido; o teste varre case-insensitive. Nada vem de fora
+  do código (o `_headers` da RAIZ é legado do vanilla e fica fora do build).
+  - **A CSP saiu do `headers()` do `next.config.mjs` e vive em `lib/csp.ts`,
+    emitida pelo `middleware.ts`** (matcher: tudo menos `_next/static` e
+    `_next/image`). Nonce por request em `script-src`; **a CSP vai TAMBÉM
+    nos headers da REQUEST** — é do header `content-security-policy` da
+    request que o Next lê o nonce pra carimbar nos scripts dele
+    (`get-script-nonce-from-header.js`); `x-nonce` é só pro nosso layout.
+  - **Nonce só vale em HTML renderizado POR request** — página
+    pré-renderizada nasce sem nonce e a CSP bloquearia a própria hidratação.
+    O layout raiz declara `runtime = 'edge'` (edge DESLIGA a geração
+    estática; 40 páginas eram estáticas). **A `/_not-found` NÃO herda o
+    runtime do layout** (o Next monta ela de um arquivo builtin fora do
+    `app/`, provado em `build/entries.js`): fica estática de propósito —
+    qualquer `headers()`/`cookies()` no layout raiz a torna função NODE e o
+    `build:cf` RECUSA ("routes not configured to run with the Edge
+    Runtime: /_not-found"). Foi a 1ª versão desta correção, pega só pelo
+    `build:cf` (nem `next build`, nem tsc, nem vitest reclamam). **Custo
+    conhecido: a página 404 não hidrata** (os inline do Next nela não têm
+    nonce) — é um link, funciona sem JS.
+  - **Por isso os inline do layout raiz entram por HASH, não por nonce**
+    (`LAYOUT_SCRIPT_HASHES`): ler `x-nonce` exigiria `headers()`. Inline
+    novo no layout = hash novo em `lib/csp.ts`, e o teste aponta o valor.
+    `x-nonce` continua na request pra server component de página dinâmica
+    que precise de inline por request.
+  - **`style-src` MANTÉM `'unsafe-inline'` de propósito**: são ~1.260
+    atributos `style={{…}}` no app, e nonce/hash cobrem só `<style>`, nunca
+    atributo — o navegador descartaria todo `style="…"` do SSR.
+  - **Também por hash:** `/portal` (HTML estático, 3 inline) e o auto-retry
+    da `TelaReconectando` (pages/500, `_error`). Tudo hardcoded em
+    `lib/csp.ts`; `__tests__/csp-nonce.test.ts` recalcula do fonte e aponta
+    o hash novo. **Mudou um inline sem trocar o hash = bloqueio SILENCIOSO**
+    (portal eterno em "Carregando", tema sem aplicar, auto-retry morto),
+    igual ao SRI do app.js.
+  - `/pdf/[id]` tem CSP própria com nonce por resposta; o middleware não
+    emite CSP ali (`cspParaPath` → null). `cdn.jsdelivr.net` FICA em
+    `script-src`: não era só o Eruda — o `WallARView` carrega o WASM do
+    MediaPipe de lá.
+  - **Eruda só com `NODE_ENV !== 'production'`** (resolvido no build; o
+    bloco nem entra no bundle de produção). Na casca em produção não há mais
+    console de debug.
+
 - **ROTAS ADMIN ACEITAM QUEM FOI PROMOVIDO NO PORTAL (2026-09-10, decisão
   do usuário: "habilite pelo promover"). SEM SQL.** O relato: João estava
   promovido no portal e levava 403 ao responder WhatsApp ("não está na

@@ -71,7 +71,11 @@ export async function GET(request: NextRequest) {
     {
       headers: {
         'cache-control': 'no-store',
-        'access-control-allow-origin': '*',
+        // Pentest Strix (2026-09-11): era '*'. Monitor externo (UptimeRobot,
+        // curl) não passa por CORS; só navegador de OUTRA origem perde — e
+        // não há quem legitimamente leia isto de fora do próprio domínio.
+        // Header da rota VENCE o de `next.config` (comprovado no wrangler).
+        'access-control-allow-origin': 'https://queroumacor.com.br',
         'x-request-id': requestId,
       },
     }

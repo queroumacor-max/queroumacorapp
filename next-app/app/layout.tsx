@@ -83,6 +83,23 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+// CSP com nonce (pentest Strix, 2026-09-11). O `middleware.ts` gera um nonce
+// por request e o Next carimba nos scripts DELE — mas isso só vale em HTML
+// renderizado POR request: página pré-renderizada nasce sem nonce e a CSP
+// bloquearia a própria hidratação. Edge runtime desliga a geração estática
+// ("Using edge runtime on a page currently disables static generation"), e
+// este export vale pra árvore inteira — sem ele ~40 páginas seguiam
+// estáticas. A `/_not-found` NÃO herda (arquivo builtin fora do `app/`) e
+// fica estática de propósito: como função Node o next-on-pages recusa o
+// deploy. Custo conhecido: a página 404 não hidrata (é só um link).
+//
+// Os <script> inline daqui NÃO usam o nonce — usam HASH (`LAYOUT_SCRIPT_HASHES`
+// em lib/csp.ts). Ler o nonce exigiria `headers()`, que tornaria a
+// `/_not-found` dinâmica e quebraria o build. Mudou um inline? O teste
+// `csp-nonce.test.ts` aponta o hash novo; sem atualizar, o script é
+// bloqueado em silêncio. Script inline NOVO aqui = hash novo lá.
+export const runtime = 'edge';
+
 export default function RootLayout({
   children,
 }: {
@@ -134,12 +151,19 @@ export default function RootLayout({
         />
         {/* Eruda: console de DevTools mobile, ativa so dentro do app nativo
             (Capacitor) pra debugar o WebView sem precisar de Mac/Safari
-            Web Inspector. Toca no botao flutuante pra abrir o console. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
-          }}
-        />
+            Web Inspector. Toca no botao flutuante pra abrir o console.
+            SÓ FORA DE PRODUÇÃO (pentest Strix, 2026-09-11): em produção
+            carregava um console de depuração inteiro de um CDN, com acesso a
+            tudo (sessão, localStorage, rede), em todo aparelho com a casca.
+            `NODE_ENV` é resolvido no build, então o bloco nem entra no
+            bundle de produção. */}
+        {process.env.NODE_ENV !== 'production' ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
+            }}
+          />
+        ) : null}
       </head>
       <body>
         {/* AuthProvider envolve toda a árvore — substitui o `currentUser` global
