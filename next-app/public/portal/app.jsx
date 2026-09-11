@@ -6430,6 +6430,24 @@ const restanteDaJanela = (msgs) => {
 
 // [teste:janela-fim]
 
+// [teste:erro-supabase-inicio]
+// Erro do PostgREST em uma frase que serve pra AGIR.
+//
+// O supabase-js NAO lanca: ele devolve `{ data, error }`, e o `error` traz
+// `message`, `code`, `details` e `hint`. Mostrar so o `message` perde
+// justamente o que separa os casos que importam aqui — `42703` e coluna
+// que falta (SQL pendente), `42501`/vazio e RLS, `PGRST` e a camada REST.
+// Sem o codigo, todo defeito vira "falha ao carregar" e ninguem sabe se
+// rodar um SQL, conferir permissao ou olhar a rede.
+const textoDeErroSupabase = (e) => {
+  if(!e) return 'erro desconhecido';
+  const msg = String((e && e.message) || e || '').trim() || 'erro desconhecido';
+  const cod = e && e.code ? String(e.code) : '';
+  const dica = e && (e.hint || e.details) ? String(e.hint || e.details).trim() : '';
+  return [cod ? cod + ': ' + msg : msg, dica].filter(Boolean).join(' — ').slice(0, 300);
+};
+// [teste:erro-supabase-fim]
+
 // ── Coluna de conversas: nao lidas + filtro "Nao lidas" (2026-09-09) ────
 // [teste:wa-lista-inicio] — mesmo contrato do bloco da janela: SO JS PURO
 // entre os marcadores (o teste avalia com `new Function`), e nao mexer nos
@@ -6687,6 +6705,12 @@ const WhatsAppTab = () => {
   const [err, setErr] = useState('');
   const [busca, setBusca] = useState('');
   const [soNaoLidas, setSoNaoLidas] = useState(false); // filtro "Nao lidas" da coluna
+  // Falha ao CARREGAR a lista. Sem isto, `load` engolia o erro num
+  // console.warn e a coluna caia no mesmo texto de caixa vazia: consulta
+  // que quebrou e conversa que nao existe viravam a MESMA frase na tela,
+  // e a unica leitura possivel era "sumiram as mensagens". 11/09/2026.
+  const [erroCarga, setErroCarga] = useState('');
+  const [recarregando, setRecarregando] = useState(false);
   const endRef = React.useRef(null);
 
   // Carrega a lista viva de templates JA na abertura da aba, nao so quando
@@ -6770,11 +6794,20 @@ const WhatsAppTab = () => {
         return ordenar(recorte);
       }, { aoChegar: entregar, cancelado: () => !vivoRef.current });
       entregar.agora();
+      if(vivoRef.current) setErroCarga('');
     } catch(e){
       console.warn('whatsapp: falha ao carregar mensagens', e);
       entregar.cancelar();
+      if(vivoRef.current) setErroCarga(textoDeErroSupabase(e));
     }
     if(vivoRef.current) setLoading(false);
+  };
+
+  // Recarga manual, pro operador nao precisar recarregar a pagina inteira
+  // (no celular isso significa reabrir o portal e refazer o login).
+  const tentarDeNovo = async () => {
+    setRecarregando(true);
+    try { await load(); } finally { if(vivoRef.current) setRecarregando(false); }
   };
 
   // Historico COMPLETO da conversa aberta, sem recorte de data — a lista
@@ -7394,8 +7427,36 @@ const WhatsAppTab = () => {
               <div style={{ padding:20, color:C.muted, fontSize:13 }}>Carregando…</div>
             ) : convsFiltradas.length === 0 ? (
               <div style={{ padding:20, color:C.muted, fontSize:13 }}>
-                {convs.length === 0
-                  ? 'Nenhuma conversa ainda. Mensagens recebidas no +55 11 92072-5935 aparecem aqui.'
+                {erroCarga ? (
+                  /* Consulta FALHOU. Antes isto virava "nenhuma conversa
+                     ainda" — a tela afirmava com confianca o oposto do que
+                     sabia. O codigo do Postgres fica a vista porque e ele
+                     que diz o que fazer: 42703 e SQL pendente, 42501 e
+                     permissao, PGRST e a camada REST. */
+                  <div>
+                    <div style={{ color:C.p4, fontWeight:700, marginBottom:6 }}>
+                      Não consegui carregar as conversas.
+                    </div>
+                    <div style={{ lineHeight:1.5, marginBottom:10 }}>
+                      As mensagens continuam no banco — o que falhou foi esta consulta.
+                    </div>
+                    <code style={{ display:'block', background:'#fdecea', color:'#b3261e', padding:'6px 8px',
+                      borderRadius:8, fontSize:11, lineHeight:1.4, marginBottom:10, wordBreak:'break-word' }}>
+                      {erroCarga}
+                    </code>
+                    <button onClick={tentarDeNovo} disabled={recarregando}
+                      style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'6px 14px',
+                        fontSize:12, fontWeight:700, cursor: recarregando ? 'wait' : 'pointer' }}>
+                      {recarregando ? 'Tentando…' : '↻ Tentar de novo'}
+                    </button>
+                  </div>
+                ) : convs.length === 0
+                  ? /* Zero linhas SEM erro. Nao afirmamos "nao existe": a RLS
+                       de `whatsapp_messages` exige is_portal_admin(), e conta
+                       sem essa permissao recebe lista vazia com SUCESSO — a
+                       mesma armadilha do `update` que nao acha linha. As duas
+                       leituras ficam na tela, sem escolher uma. */
+                    'Nenhuma conversa nos últimos 90 dias. Se você sabe que existem mensagens, provavelmente é permissão: a lista exige acesso de portal no banco.'
                   : soNaoLidas && !busca.trim()
                     ? 'Nenhuma conversa com mensagem nova de cliente. Tudo lido. 👏'
                     : soNaoLidas
