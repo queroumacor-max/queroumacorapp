@@ -88,13 +88,30 @@ SELECT 'push_device_tokens: UPDATE só do dono (bloco 1)' AS item,
                   AND qual LIKE '%auth.uid()%') AS ok;
 SELECT 'claim_push_device_token existe (bloco 2)' AS item,
        EXISTS (SELECT 1 FROM pg_proc WHERE proname='claim_push_device_token') AS ok;
+-- Checagem por `pg_proc`/oid, não por texto de assinatura: a versão anterior
+-- (`has_function_privilege('authenticated','public.fn(tipos…)','EXECUTE')`)
+-- ESTOURA 42883 quando a função não existe ou tem assinatura diferente da
+-- suposta — foi o que aconteceu com `cleanup_old_notifications()` no bloco 3
+-- (função que nunca existiu neste banco). Função ausente = já não é
+-- executável por ninguém, então conta como `ok`.
 SELECT 'upsert_invoice NÃO executável por authenticated (bloco 3)' AS item,
-       NOT has_function_privilege('authenticated',
-         'public.upsert_invoice(uuid,text,text,text,numeric,text,text,jsonb,timestamptz)', 'EXECUTE') AS ok;
+       NOT EXISTS (
+         SELECT 1 FROM pg_proc p
+         WHERE p.proname = 'upsert_invoice'
+           AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       ) AS ok;
 SELECT 'cleanup_old_audit_events NÃO executável por authenticated (bloco 3)' AS item,
-       NOT has_function_privilege('authenticated', 'public.cleanup_old_audit_events()', 'EXECUTE') AS ok;
+       NOT EXISTS (
+         SELECT 1 FROM pg_proc p
+         WHERE p.proname = 'cleanup_old_audit_events'
+           AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       ) AS ok;
 SELECT 'check_rate_limit NÃO executável por authenticated (bloco 3)' AS item,
-       NOT has_function_privilege('authenticated', 'public.check_rate_limit(uuid,text,integer,integer)', 'EXECUTE') AS ok;
+       NOT EXISTS (
+         SELECT 1 FROM pg_proc p
+         WHERE p.proname = 'check_rate_limit'
+           AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       ) AS ok;
 SELECT 'ai_usage_this_month só do próprio uid (bloco 4)' AS item,
        (SELECT prosrc LIKE '%auth.uid()%' FROM pg_proc WHERE proname='ai_usage_this_month' LIMIT 1) AS ok;
 SELECT 'get_feed_v2 usa auth.uid() e não p_user_id no corpo (bloco 5)' AS item,

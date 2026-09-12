@@ -56,16 +56,44 @@ GRANT EXECUTE ON FUNCTION public.claim_push_device_token(text, text) TO authenti
 -- do navegador gravava/sobrescrevia fatura de QUALQUER usuário (e disparava
 -- o trigger que estende o PRO); `cleanup_old_audit_events()` apagava a
 -- trilha de auditoria; `check_rate_limit(uuid_da_vitima, …)` esgotava o
--- limite de outra pessoa. Só as três funções abaixo do bloco tinham REVOKE.
-REVOKE ALL ON FUNCTION public.upsert_invoice(uuid, text, text, text, numeric, text, text, jsonb, timestamptz) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.check_rate_limit(uuid, text, integer, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cleanup_rate_limits() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cleanup_old_notifications() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cleanup_old_audit_events() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cleanup_old_messages() FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cleanup_old_quotes() FROM PUBLIC, anon, authenticated;
+-- limite de outra pessoa.
+--
+-- A lista abaixo tem nomes de função que NENHUM arquivo deste repo cria —
+-- só existiriam se alguém tivesse colado no SQL Editor fora do controle de
+-- versão. `cleanup_old_notifications()`, na 1ª versão deste bloco, não
+-- existe no banco vivo (ERROR 42883) e derrubou o bloco INTEIRO em
+-- transação implícita (nada das linhas anteriores foi revogado). Agora
+-- cada REVOKE roda dentro do seu próprio `EXCEPTION WHEN undefined_function`:
+-- função ausente vira um AVISO (RAISE NOTICE), não aborta o resto.
+DO $$
+DECLARE
+  v_fn text;
+  v_fns text[] := ARRAY[
+    'public.upsert_invoice(uuid, text, text, text, numeric, text, text, jsonb, timestamptz)',
+    'public.check_rate_limit(uuid, text, integer, integer)',
+    'public.cleanup_rate_limits()',
+    'public.cleanup_old_notifications()',
+    'public.cleanup_old_audit_events()',
+    'public.cleanup_old_messages()',
+    'public.cleanup_old_quotes()'
+  ];
+BEGIN
+  FOREACH v_fn IN ARRAY v_fns LOOP
+    BEGIN
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', v_fn);
+    EXCEPTION WHEN undefined_function THEN
+      RAISE NOTICE 'função % não existe neste banco — pulando (bloco 3)', v_fn;
+    END;
+  END LOOP;
+END $$;
+
 -- Status/uso de OUTRA conta não é dado público: só o próprio (ou service role).
-REVOKE ALL ON FUNCTION public.is_pro_active(uuid) FROM PUBLIC, anon;
+DO $$
+BEGIN
+  REVOKE ALL ON FUNCTION public.is_pro_active(uuid) FROM PUBLIC, anon;
+EXCEPTION WHEN undefined_function THEN
+  RAISE NOTICE 'função public.is_pro_active(uuid) não existe ainda — será criada no bloco 4';
+END $$;
 
 
 -- ─── 4. ai_usage_this_month / is_pro_active: só o próprio uid ──────────────
