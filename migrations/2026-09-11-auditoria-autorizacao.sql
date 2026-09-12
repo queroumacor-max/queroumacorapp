@@ -464,6 +464,16 @@ END $$;
 
 
 -- ─── 7. posts: dono não desfaz moderação nem se impulsiona ───────────────────
+-- As colunas abaixo vêm das Waves 22 (boosted_until) e 29 (media_hash). Ao
+-- rodar em 2026-09-12 o bloco 10 estourou 42703 "boosted_until does not
+-- exist": a Wave 22 constava como executada e NÃO estava. Garantimos as
+-- colunas aqui (no-op se existem) — sem isso a trigger abaixo quebraria TODO
+-- UPDATE em posts em runtime, e o bloco 10 não compila.
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS boosted_until timestamptz;
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS media_hash text;
+CREATE INDEX IF NOT EXISTS idx_posts_boosted_active ON public.posts (boosted_until)
+  WHERE boosted_until IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.posts_guard_update()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -560,7 +570,12 @@ GRANT EXECUTE ON FUNCTION public.is_pro_active(uuid) TO authenticated, service_r
 
 
 -- ─── 10. get_feed_v2: identidade é auth.uid() ────────────────────────────────
-CREATE OR REPLACE FUNCTION public.get_feed_v2(
+-- Depende das colunas garantidas no bloco 7 (rodar o 7 antes). DROP antes do
+-- CREATE: se a versão viva for anterior à Wave 22, o RETURNS TABLE é outro e
+-- CREATE OR REPLACE recusa ("cannot change return type").
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS boosted_until timestamptz;
+DROP FUNCTION IF EXISTS public.get_feed_v2(int, timestamptz, uuid, uuid[], text);
+CREATE FUNCTION public.get_feed_v2(
   p_limit       int          DEFAULT 10,
   p_cursor      timestamptz  DEFAULT NULL,
   p_user_id     uuid         DEFAULT NULL,
@@ -888,4 +903,8 @@ UNION ALL SELECT 'storage posts sem listagem pública',
 UNION ALL SELECT 'referrals: 1 indicador por indicado',
        EXISTS (SELECT 1 FROM pg_indexes WHERE tablename='referrals' AND indexname='referrals_one_per_referred')
 UNION ALL SELECT 'quote_party_contact existe',
-       EXISTS (SELECT 1 FROM pg_proc WHERE proname='quote_party_contact');
+       EXISTS (SELECT 1 FROM pg_proc WHERE proname='quote_party_contact')
+UNION ALL SELECT 'posts.boosted_until e posts.media_hash existem (Waves 22/29)',
+       (SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='posts'
+           AND column_name IN ('boosted_until','media_hash')) = 2;
