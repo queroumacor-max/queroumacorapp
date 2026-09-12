@@ -335,8 +335,12 @@ describe('guardas de fonte (auditoria 2026-09-11)', () => {
       expect(sql, needle).toContain(needle);
     }
     // get_feed_v2: identidade é auth.uid(); o parâmetro do cliente é ignorado.
-    const feed = sql.slice(sql.indexOf('FUNCTION public.get_feed_v2('));
-    const body = feed.slice(feed.indexOf('AS $$'), feed.indexOf('$$;'));
+    const feed = sql.slice(sql.indexOf('CREATE FUNCTION public.get_feed_v2('));
+    const body = feed
+      .slice(feed.indexOf('AS $$'), feed.indexOf('$$;'))
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('--'))
+      .join('\n');
     expect(body).not.toMatch(/\bp_user_id\b/);
   });
 });
