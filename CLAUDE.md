@@ -2,9 +2,11 @@
 
 - **AUDITORIA DE AUTORIZAÇÃO (2026-09-11, pedido do usuário: IDOR/BOLA/BFLA/
   RLS/storage/realtime). Código na branch + SQL
-  `/migrations/2026-09-11-auditoria-autorizacao.sql` — PENDENTE até o usuário
-  rodar (bloco a bloco; conferência no fim do arquivo e duas linhas novas na
-  `2026-09-05-conferencia-pendencias.sql`).** O código TOLERA o SQL ausente
+  `/migrations/2026-09-11-auditoria-autorizacao.sql` — EXECUTADO no Supabase
+  em 2026-09-12 (informado pelo usuário: "rodei tudo", blocos 1-15 um por um).
+  A CONFERÊNCIA do fim do arquivo (15 linhas `ok`) é a prova; reconferir por
+  ela antes de afirmar qualquer coisa. Duas linhas novas também na
+  `2026-09-05-conferencia-pendencias.sql`.** O código TOLERA o SQL ausente
   (perfis de outros vêm de `profiles_public`, que já existe; push-token cai no
   upsert antigo; contato do orçamento cai na view). O que fechou:
   - **CRÍTICO (SQL): `profiles` era legível por ANON, coluna por coluna**
@@ -63,6 +65,18 @@
     `ig-art-diag` só PRO virou PRO+admin; portal: `href` de `image_url`/
     `receipt_url` (colunas do usuário) só `https://` (`hrefSeguro`); o app
     não insere mais a "boas-vindas" `type='store'` em nome da loja.
+  - **A WAVE 22 (boost/trending) NÃO ESTAVA NO BANCO (descoberto em
+    2026-09-12).** O bloco 10 estourou `42703: column "boosted_until" does not
+    exist` — a anotação "JÁ EXECUTADO" de 2026-06-09 era falsa, e o bloco 7
+    (trigger em posts) já tinha rodado referenciando a coluna. Os blocos 7 e
+    10 passaram a fazer `ADD COLUMN IF NOT EXISTS boosted_until/media_hash` e
+    o 10 dá `DROP FUNCTION` antes do `CREATE` (o RETURNS TABLE da versão viva
+    era outro). Consequência a confirmar: `boost_post`/`unboost_post`/
+    `get_trending_posts` provavelmente também não existem — o `/explore` e o
+    "Destacar 7 dias" estariam quebrados desde junho. Conferir com
+    `SELECT proname FROM pg_proc WHERE proname IN ('boost_post','unboost_post','get_trending_posts')`
+    e, se vazio, rodar `/migrations/2026-06-09-boost-trending.sql` SEM o bloco
+    do `get_feed_v2` (a versão da auditoria é a canônica).
   - **NÃO VERIFICÁVEL daqui / NÃO FEITO:** qual das 3 versões de
     `protect_profile_columns` está viva (a migration substitui todas);
     `award_referral_points`, `recalc_painter_rating`, `invites`, `errors`
