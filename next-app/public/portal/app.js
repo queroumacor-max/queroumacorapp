@@ -12836,6 +12836,100 @@ const pedacos = (lista, n) => {
   for (let i = 0; i < lista.length; i += n) out.push(lista.slice(i, i + n));
   return out;
 };
+// Erro do PostgREST quando uma funcao (RPC) ainda nao existe no banco —
+// o SQL de 2026-09-13 nao rodou. A aba cai no caminho antigo em vez de
+// quebrar: recurso novo nao derruba o que funcionava por SQL pendente.
+const ehFuncaoAusente = e => {
+  if (!e) return false;
+  const cod = String(e.code || '');
+  const msg = String(e.message || '');
+  return cod === '42883' || cod === 'PGRST202' || /could not find the function|function .* does not exist/i.test(msg);
+};
+
+// ── Lista por RESUMO (2026-09-13) ─────────────────────────────────────
+// O banco devolve UMA linha por conversa (`whatsapp_conversas`): a ultima
+// mensagem inteira (`ultima`), o nome, o canal da ultima resposta, quantas
+// recebidas ninguem abriu e o estado da IA. A coluna nasce disso — sem
+// baixar os 90 dias de mensagens. `msgs` continua existindo pro historico
+// da conversa ABERTA e pro que chega por realtime; `montarConversas` casa
+// as duas fontes por numero. Sem resumo (SQL pendente) a lista sai so de
+// `msgs`, que e exatamente o desenho de 09/09.
+const montarConversas = (resumos, msgs) => {
+  const map = {};
+  (msgs || []).forEach(m => {
+    if (!m.wa_id) return;
+    if (!map[m.wa_id]) map[m.wa_id] = {
+      waId: m.wa_id,
+      msgs: [],
+      last: m,
+      name: '',
+      resumo: null
+    };
+    map[m.wa_id].msgs.push(m);
+    if (m.direction === 'in' && m.profile_name && !map[m.wa_id].name) map[m.wa_id].name = m.profile_name;
+    if (new Date(m.created_at) > new Date(map[m.wa_id].last.created_at)) map[m.wa_id].last = m;
+  });
+  (resumos || []).forEach(r => {
+    if (!r || !r.wa_id || !r.ultima) return;
+    const c = map[r.wa_id] || (map[r.wa_id] = {
+      waId: r.wa_id,
+      msgs: [],
+      last: r.ultima,
+      name: '',
+      resumo: null
+    });
+    c.resumo = r;
+    if (!c.name && r.nome) c.name = r.nome;
+    if (new Date(r.ultima.created_at) > new Date(c.last.created_at)) c.last = r.ultima;
+  });
+  return Object.values(map).sort((a, b) => new Date(b.last.created_at) - new Date(a.last.created_at));
+};
+
+// Nao lidas de UMA conversa. Marca local mais nova que a do servidor (o
+// operador acabou de abrir a conversa e o upsert ainda esta em voo) → conta
+// pelo que esta na tela; senao vale o numero que o banco contou. Sem
+// resumo, e a conta de 09/09 (`contarNaoLidas`).
+const naoLidasDaConversa = (c, marca) => {
+  const r = c && c.resumo;
+  const localGanha = !!marca && (!r || !r.last_read_at || new Date(marca) > new Date(r.last_read_at));
+  if (!r || localGanha) return contarNaoLidas(c ? c.msgs : [], marca);
+  return r.nao_lidas || 0;
+};
+
+// Mensagem que chegou por realtime entra no resumo da conversa dela, sem
+// esperar o proximo poll: `nova` (INSERT) recebida soma 1 nao lida e vira a
+// ultima; UPDATE (✓✓ chegou) so troca a ultima quando e a mesma linha.
+// Devolve o MESMO array quando nao ha resumo (caminho antigo) ou nada mudou.
+const aplicarMensagemNoResumo = (resumos, m, nova) => {
+  if (!resumos || !m || !m.wa_id) return resumos;
+  const i = resumos.findIndex(r => r.wa_id === m.wa_id);
+  if (i < 0) {
+    if (!nova) return resumos;
+    return [{
+      wa_id: m.wa_id,
+      ultima: m,
+      nome: m.direction === 'in' ? m.profile_name || null : null,
+      canal: m.direction === 'out' ? m.origin || (m.sent_by ? 'portal' : null) : null,
+      nao_lidas: m.direction === 'in' ? 1 : 0,
+      enabled: null,
+      last_why: null,
+      last_at: null,
+      last_read_at: null
+    }].concat(resumos);
+  }
+  const r = resumos[i];
+  const mesma = r.ultima && r.ultima.id === m.id;
+  const maisNova = !r.ultima || new Date(m.created_at) >= new Date(r.ultima.created_at);
+  if (!mesma && !nova && !maisNova) return resumos;
+  const out = resumos.slice();
+  out[i] = Object.assign({}, r, {
+    ultima: mesma || maisNova ? m : r.ultima,
+    nome: r.nome || (m.direction === 'in' ? m.profile_name || null : null),
+    canal: m.direction === 'out' && (m.origin || m.sent_by) ? m.origin || 'portal' : r.canal,
+    nao_lidas: (r.nao_lidas || 0) + (nova && !mesma && m.direction === 'in' ? 1 : 0)
+  });
+  return out;
+};
 // [teste:wa-lista-fim]
 
 // ── Status de entrega (Wave 58) ─────────────────────────────────────────
@@ -13206,7 +13300,68 @@ const WhatsAppTab = () => {
   // "Carregando"). `dias` menor no poll: de minuto em minuto so interessa
   // o que mudou ha pouco — mensagem nova ou status de entrega que a Meta
   // confirmou (delivery_status_at) — nao os 90 dias de novo.
+  // RESUMO NO BANCO (2026-09-13). A coluna de conversas vem de
+  // `whatsapp_conversas` (uma linha por numero) em vez de baixar as
+  // mensagens de 90 dias — era isso, somado a uma policy avaliada por
+  // linha, que dava "57014: statement timeout" na tela. `resumos` null =
+  // funcao ausente (SQL pendente) → caminho antigo, intacto (`loadTudo`).
+  const [resumos, setResumos] = useState(null);
+  const semRpcRef = React.useRef(false);
+  const openWaRef = React.useRef(null);
+  useEffect(() => {
+    openWaRef.current = openWa;
+  }, [openWa]);
+  const carregarResumos = async () => {
+    const desde = new Date(Date.now() - WA_DIAS_LISTA * 86400000).toISOString();
+    const r = await supa.rpc('whatsapp_conversas', {
+      p_desde: desde
+    });
+    if (r.error) throw r.error;
+    return r.data || [];
+  };
+  // O que mudou HA POUCO na conversa aberta: mensagem nova (created_at) ou
+  // ✓✓ que a Meta confirmou depois (delivery_status_at). So ela — o resto
+  // da lista ja veio no resumo.
+  const recarregarConversa = async (waId, dias) => {
+    const desde = new Date(Date.now() - (dias || 1) * 86400000).toISOString();
+    const linhas = await buscarMensagens((cols, extra) => {
+      const q = supa.from('whatsapp_messages').select(cols, extra).eq('wa_id', waId);
+      const recorte = semStatusRef.current ? q.gte('created_at', desde) : q.or('created_at.gte.' + desde + ',delivery_status_at.gte.' + desde);
+      return ordenar(recorte);
+    }, {
+      cancelado: () => !vivoRef.current
+    });
+    if (vivoRef.current) setMsgs(prev => mesclarMensagens(prev, linhas));
+  };
   const load = async dias => {
+    if (!semRpcRef.current) {
+      try {
+        const lista = await carregarResumos();
+        if (!vivoRef.current) return;
+        setResumos(lista);
+        aplicarEstadoDaIa(lista);
+        setErroCarga('');
+        setLoading(false);
+        if (openWaRef.current) await recarregarConversa(openWaRef.current, dias || 1);
+        return;
+      } catch (e) {
+        if (!ehFuncaoAusente(e)) {
+          console.warn('whatsapp: falha ao carregar o resumo das conversas', e);
+          if (vivoRef.current) {
+            setErroCarga(textoDeErroSupabase(e));
+            setLoading(false);
+          }
+          return;
+        }
+        // Funcao ausente: o SQL de 2026-09-13 nao rodou. Segue no desenho
+        // antigo (todas as mensagens do periodo) sem quebrar a tela.
+        semRpcRef.current = true;
+        console.warn('whatsapp: whatsapp_conversas ausente — rode /migrations/2026-09-13-whatsapp-perf.sql; usando o caminho antigo');
+      }
+    }
+    return loadTudo(dias);
+  };
+  const loadTudo = async dias => {
     const desde = new Date(Date.now() - (dias || WA_DIAS_LISTA) * 86400000).toISOString();
     const entregar = comIntervalo(parcial => {
       if (!vivoRef.current) return;
@@ -13236,6 +13391,7 @@ const WhatsAppTab = () => {
   // (no celular isso significa reabrir o portal e refazer o login).
   const tentarDeNovo = async () => {
     setRecarregando(true);
+    semRpcRef.current = false; // o SQL pode ter acabado de rodar
     try {
       await load();
     } finally {
@@ -13277,33 +13433,14 @@ const WhatsAppTab = () => {
   const [readAt, setReadAt] = useState({}); // wa_id → ISO
   const [iaPadrao, setIaPadrao] = useState(false);
   const [alertas, setAlertas] = useState([]);
-
-  // Prompt da IA: string = personalizado, null = padrão, undefined = não
-  // carregado ou coluna ausente (o select é separado do da config de
-  // propósito: se a coluna nova não existir, o 42703 derrubaria horário,
-  // padrão e ausência junto).
-  const [promptIa, setPromptIa] = useState(undefined);
-  const [promptOpen, setPromptOpen] = useState(false);
-  const loadIa = async () => {
-    // Config em tabela PROPRIA (Wave 47) — app_settings guarda segredo de
-    // sistema e recusa escrita do portal, corretamente.
-    supa.from('whatsapp_ai_config').select('prompt').eq('id', 1).maybeSingle().then(pr => setPromptIa(pr.error ? undefined : pr.data && pr.data.prompt || null)).catch(() => setPromptIa(undefined));
-    const [st, cfg, al] = await Promise.all([
-    // Paginado: com milhares de conversas o `limit(2000)` deixava marca de
-    // leitura de fora e o contador de nao lidas subia sem motivo.
-    buscarEmPaginas(extra => supa.from('whatsapp_ai_state').select('wa_id, enabled, last_why, last_at, last_read_at', extra).order('wa_id'), {
-      cancelado: () => !vivoRef.current
-    }).then(data => ({
-      data
-    })).catch(() => ({
-      data: []
-    })), supa.from('whatsapp_ai_config').select('hours, default_on, followup_on, away_on, last_sweep_at, last_sweep_note').eq('id', 1).maybeSingle(), supa.from('portal_alerts').select('id, kind, wa_id, title, body, created_at').eq('resolved', false).order('created_at', {
-      ascending: false
-    }).limit(50)]);
+  // Chave, ultima decisao e marca de leitura por conversa. As linhas vem de
+  // `whatsapp_ai_state` (caminho antigo) ou do resumo `whatsapp_conversas`
+  // (2026-09-13) — os dois trazem os mesmos campos.
+  const aplicarEstadoDaIa = linhas => {
     const m = {};
     const w = {};
     const rd = {};
-    (st.data || []).forEach(r => {
+    (linhas || []).forEach(r => {
       if (r.last_read_at) rd[r.wa_id] = r.last_read_at;
       // enabled NULL (Wave 48) = "nunca foi decidido nesta conversa" →
       // segue o padrao global. Guardamos o valor CRU de proposito.
@@ -13325,6 +13462,40 @@ const WhatsAppTab = () => {
       });
       return merged;
     });
+  };
+  const resumosRef = React.useRef(null);
+  useEffect(() => {
+    resumosRef.current = resumos;
+  }, [resumos]);
+
+  // Prompt da IA: string = personalizado, null = padrão, undefined = não
+  // carregado ou coluna ausente (o select é separado do da config de
+  // propósito: se a coluna nova não existir, o 42703 derrubaria horário,
+  // padrão e ausência junto).
+  const [promptIa, setPromptIa] = useState(undefined);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const loadIa = async () => {
+    // Config em tabela PROPRIA (Wave 47) — app_settings guarda segredo de
+    // sistema e recusa escrita do portal, corretamente.
+    supa.from('whatsapp_ai_config').select('prompt').eq('id', 1).maybeSingle().then(pr => setPromptIa(pr.error ? undefined : pr.data && pr.data.prompt || null)).catch(() => setPromptIa(undefined));
+    const [st, cfg, al] = await Promise.all([
+    // Paginado: com milhares de conversas o `limit(2000)` deixava marca de
+    // leitura de fora e o contador de nao lidas subia sem motivo. No
+    // caminho por resumo (2026-09-13) isto nem roda: a chave, a decisao e
+    // a marca de leitura de cada conversa ja vem em `whatsapp_conversas`,
+    // e baixar a tabela inteira a cada 30s era so custo.
+    resumosRef.current !== null ? Promise.resolve({
+      data: null
+    }) : buscarEmPaginas(extra => supa.from('whatsapp_ai_state').select('wa_id, enabled, last_why, last_at, last_read_at', extra).order('wa_id'), {
+      cancelado: () => !vivoRef.current
+    }).then(data => ({
+      data
+    })).catch(() => ({
+      data: []
+    })), supa.from('whatsapp_ai_config').select('hours, default_on, followup_on, away_on, last_sweep_at, last_sweep_note').eq('id', 1).maybeSingle(), supa.from('portal_alerts').select('id, kind, wa_id, title, body, created_at').eq('resolved', false).order('created_at', {
+      ascending: false
+    }).limit(50)]);
+    if (st.data) aplicarEstadoDaIa(st.data);
     setIaPadrao(Boolean(cfg.data && cfg.data.default_on));
     setAlertas(al.data || []);
     setHoras(cfg.data && cfg.data.hours || '8-19');
@@ -13441,7 +13612,7 @@ const WhatsAppTab = () => {
       } catch (_) {}
       setDiag(j || 'HTTP ' + r.status + ' — ' + (raw || '').slice(0, 200));
       loadIa();
-      load();
+      load(1);
     } catch (e) {
       setDiag('Falha de rede: ' + (e && e.message || '?'));
     }
@@ -13553,6 +13724,7 @@ const WhatsAppTab = () => {
   // pelos 8 ultimos aqui. Cada sufixo e pedido UMA vez por abertura da aba.
   const LEADS_POR_CONSULTA = 60;
   const sufixosPedidos = React.useRef(new Set());
+  const semRpcLeadsRef = React.useRef(false);
   const resolverLeads = async sufixos => {
     const mapa = {};
     for (const lote of pedacos(sufixos, LEADS_POR_CONSULTA)) {
@@ -13560,7 +13732,17 @@ const WhatsAppTab = () => {
       const finais = Array.from(new Set(lote.map(s => s.slice(-4))));
       const ou = finais.map(f => 'phone.ilike.*' + f).join(',');
       try {
-        const linhas = await buscarEmPaginas(extra => supa.from('leads').select('id, name, phone, category, segment, city, status', extra).or(ou).order('id'), {
+        // `leads_por_telefone` (2026-09-13) compara os 8 ultimos digitos
+        // por igualdade, com indice — o ILIKE '%1234' varria as 61 mil
+        // linhas a cada lote. Sem a funcao (SQL pendente), o ILIKE segue.
+        let linhas = null;
+        if (!semRpcLeadsRef.current) {
+          const r = await supa.rpc('leads_por_telefone', {
+            p_sufixos: lote
+          });
+          if (!r.error) linhas = r.data || [];else if (ehFuncaoAusente(r.error)) semRpcLeadsRef.current = true;else throw r.error;
+        }
+        if (!linhas) linhas = await buscarEmPaginas(extra => supa.from('leads').select('id, name, phone, category, segment, city, status', extra).or(ou).order('id'), {
           cancelado: () => !vivoRef.current
         });
         const quer = new Set(lote);
@@ -13595,6 +13777,19 @@ const WhatsAppTab = () => {
       table: 'whatsapp_messages'
     }, payload => {
       setMsgs(prev => mesclarMensagens(prev, [payload.new]));
+      setResumos(prev => aplicarMensagemNoResumo(prev, payload.new, true));
+    })
+    // UPDATE = status de entrega (✓ → ✓✓ → lido, ou "nao entregue") que o
+    // webhook grava minutos depois. Antes so o poll de 60s trazia isso;
+    // agora a bolha muda na hora. REPLICA IDENTITY FULL (Wave 45) manda a
+    // linha inteira no evento.
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'whatsapp_messages'
+    }, payload => {
+      setMsgs(prev => mesclarMensagens(prev, [payload.new]));
+      setResumos(prev => aplicarMensagemNoResumo(prev, payload.new, false));
     }).subscribe();
     const t = setInterval(() => load(1), 60000);
     const tIa = setInterval(loadIa, 30000); // alertas novos da IA
@@ -13637,22 +13832,9 @@ const WhatsAppTab = () => {
   }, [openWa, msgs.length]);
 
   // Agrupa por numero (mensagem mais recente primeiro).
-  const convs = React.useMemo(() => {
-    const map = {};
-    msgs.forEach(m => {
-      if (!m.wa_id) return;
-      if (!map[m.wa_id]) map[m.wa_id] = {
-        waId: m.wa_id,
-        msgs: [],
-        last: m,
-        name: ''
-      };
-      map[m.wa_id].msgs.push(m);
-      if (m.direction === 'in' && m.profile_name && !map[m.wa_id].name) map[m.wa_id].name = m.profile_name;
-      if (new Date(m.created_at) > new Date(map[m.wa_id].last.created_at)) map[m.wa_id].last = m;
-    });
-    return Object.values(map).sort((a, b) => new Date(b.last.created_at) - new Date(a.last.created_at));
-  }, [msgs]);
+  // `montarConversas` casa o resumo do banco (uma linha por numero) com o
+  // que esta em `msgs` (historico da conversa aberta + realtime).
+  const convs = React.useMemo(() => montarConversas(resumos, msgs), [resumos, msgs]);
 
   // Conversa nova na lista → pede o lead dela (ver resolverLeads).
   const chaveDasConversas = convs.map(c => c.waId.slice(-8)).join(',');
@@ -13666,7 +13848,7 @@ const WhatsAppTab = () => {
   // NAO LIDAS: mensagens RECEBIDAS depois da ultima vez que o operador
   // abriu a conversa. A resposta da IA nao zera nada — ela nao substitui
   // alguem ler. Conversa nunca aberta conta tudo que chegou.
-  const naoLidas = c => contarNaoLidas(c.msgs, readAt[c.waId]);
+  const naoLidas = c => naoLidasDaConversa(c, readAt[c.waId]);
 
   // Marca lida ate agora. Otimista na tela; o banco guarda pra valer
   // (assim a marca vale em qualquer computador, nao so neste navegador).
@@ -13718,7 +13900,8 @@ const WhatsAppTab = () => {
         t: m.created_at
       };
     });
-    return melhor ? melhor.o : null;
+    if (melhor) return melhor.o;
+    return c.resumo && c.resumo.canal || null;
   };
   const CANAL_CHIP = {
     celular: {
@@ -13843,7 +14026,9 @@ const WhatsAppTab = () => {
           created_at: new Date().toISOString(),
           wa_timestamp: null
         }, ...prev]);
-        load();
+        // So o que mudou ha pouco (resumo + conversa aberta). O `load()`
+        // sem argumento aqui recarregava os 90 dias inteiros A CADA ENVIO.
+        load(1);
       }
     } catch (_) {
       setErr('Falha de rede ao enviar.');
@@ -13914,7 +14099,7 @@ const WhatsAppTab = () => {
           created_at: new Date().toISOString(),
           wa_timestamp: null
         }, ...prev]);
-        load();
+        load(1); // idem ao envio de texto: nada de recarregar 90 dias
       }
     } catch (_) {
       setErr('Falha de rede ao enviar.');
@@ -16789,28 +16974,41 @@ function App() {
         }
       } = await supa.auth.getSession();
       const meuId = session && session.user ? session.user.id : null;
-      const [msgsRes, stRes, chatRes, chatReadRes] = await Promise.all([
-      // Paginado (sem teto): o `limit(3000)` antigo contava errado quando
-      // um lote de respostas passava disso — e a aba, que agora baixa
-      // tudo, discordaria do badge.
-      buscarEmPaginas(extra => supa.from('whatsapp_messages').select('wa_id, created_at', extra).eq('direction', 'in').gte('created_at', desde).order('created_at', {
-        ascending: false
-      }).order('id', {
-        ascending: false
-      })).then(data => ({
-        data
-      })).catch(() => ({
-        data: []
-      })), buscarEmPaginas(extra => supa.from('whatsapp_ai_state').select('wa_id, last_read_at', extra).order('wa_id')).then(data => ({
-        data
-      })).catch(() => ({
-        data: []
-      })), supa.from('messages').select('conversation_id, sender_id, created_at').gte('created_at', desde).limit(3000), supa.from('portal_chat_reads').select('conversation_id, last_read_at').limit(2000)]);
-      const lido = {};
-      (stRes.data || []).forEach(r => {
-        if (r.last_read_at) lido[r.wa_id] = r.last_read_at;
-      });
-      const n = (msgsRes.data || []).filter(m => !lido[m.wa_id] || new Date(m.created_at) > new Date(lido[m.wa_id])).length;
+      // Quem conta e o BANCO (`whatsapp_nao_lidas`, 2026-09-13): um inteiro
+      // em vez de 30 dias de mensagens + a tabela de marcas a cada 45s. Sem
+      // a funcao (SQL pendente), o caminho antigo continua abaixo.
+      const contarNoBanco = async () => {
+        const r = await supa.rpc('whatsapp_nao_lidas', {
+          p_desde: desde
+        });
+        if (r.error) throw r.error;
+        return typeof r.data === 'number' ? r.data : parseInt(r.data, 10) || 0;
+      };
+      const contarNoNavegador = async () => {
+        const [msgsRes, stRes] = await Promise.all([
+        // Paginado (sem teto): o `limit(3000)` antigo contava errado quando
+        // um lote de respostas passava disso — e a aba, que agora baixa
+        // tudo, discordaria do badge.
+        buscarEmPaginas(extra => supa.from('whatsapp_messages').select('wa_id, created_at', extra).eq('direction', 'in').gte('created_at', desde).order('created_at', {
+          ascending: false
+        }).order('id', {
+          ascending: false
+        })).then(data => ({
+          data
+        })).catch(() => ({
+          data: []
+        })), buscarEmPaginas(extra => supa.from('whatsapp_ai_state').select('wa_id, last_read_at', extra).order('wa_id')).then(data => ({
+          data
+        })).catch(() => ({
+          data: []
+        }))]);
+        const lido = {};
+        (stRes.data || []).forEach(r => {
+          if (r.last_read_at) lido[r.wa_id] = r.last_read_at;
+        });
+        return (msgsRes.data || []).filter(m => !lido[m.wa_id] || new Date(m.created_at) > new Date(lido[m.wa_id])).length;
+      };
+      const [n, chatRes, chatReadRes] = await Promise.all([contarNoBanco().catch(() => contarNoNavegador()), supa.from('messages').select('conversation_id, sender_id, created_at').gte('created_at', desde).limit(3000), supa.from('portal_chat_reads').select('conversation_id, last_read_at').limit(2000)]);
 
       // Chats 3-Way: mesma conta. Antes o badge era o TOTAL de mensagens
       // da tabela — nao dizia nada e nunca baixava.

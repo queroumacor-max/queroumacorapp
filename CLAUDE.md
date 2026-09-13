@@ -1,5 +1,60 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
+  pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
+  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
+  rodar; linhas na `2026-09-05-conferencia-pendencias.sql`. O código TOLERA
+  o SQL ausente (cai no desenho de 09/09), mas o timeout só some com ele.**
+  - **A causa não era o volume; era a RLS.** As policies de
+    `whatsapp_messages`/`whatsapp_ai_state`/`portal_alerts`/
+    `whatsapp_ai_config` tinham `USING (is_portal_admin())` SOLTO. A função
+    é SECURITY DEFINER (não inlina), então o Postgres a chamava UMA VEZ POR
+    LINHA — cada chamada um SELECT em `profiles`. Um `count:'exact'` sobre
+    90 dias virava dezenas de milhares de consultas escondidas e passava dos
+    8s do `statement_timeout` do papel `authenticated`. Agora
+    `USING ((SELECT is_portal_admin()))`: InitPlan, avaliada UMA vez por
+    statement. **Mesma regra, mesma segurança.** **REGRA: função em policy
+    de RLS vai SEMPRE embrulhada em `(select …)`.** Vale pra qualquer
+    policy nova com `is_portal_admin()`.
+  - **Índices que faltavam:** `(created_at desc, id desc)` (ordem exata da
+    paginação — o índice só de `created_at` reordenava o recorte inteiro a
+    cada página), `delivery_status_at` parcial (o poll filtra por `OR`) e
+    `(wa_id, created_at) where direction='in'` (não lidas).
+  - **A coluna de conversas vem de um RESUMO no banco**: `whatsapp_conversas
+    (p_desde)` devolve UMA linha por número (última mensagem inteira em
+    `ultima` jsonb, nome, canal da última resposta, `nao_lidas`, chave/
+    decisão/marca da IA) — a aba não baixa mais os 90 dias de mensagens;
+    `msgs` fica pro histórico da conversa ABERTA e pro realtime.
+    `montarConversas(resumos, msgs)` casa as duas fontes,
+    `naoLidasDaConversa` decide quem conta (marca local mais nova que a do
+    servidor = o operador acabou de abrir → conta na tela; senão vale o
+    número do banco), `aplicarMensagemNoResumo` põe a mensagem do realtime
+    no resumo sem esperar o poll. A função é plpgsql SECURITY DEFINER que
+    ESTOURA 42501 pra quem não é admin — zero linhas seria lido pela tela
+    como "não há conversas". `whatsapp_nao_lidas(p_desde)` é o número do
+    badge do menu (antes: 30 dias de mensagens + a tabela de marcas a cada
+    45s). `leads_por_telefone(sufixos[])` + índice de expressão nos 8
+    últimos dígitos substitui o `phone ILIKE '%1234'` que varria 61 mil
+    linhas por lote (SECURITY INVOKER: a RLS de `leads` segue valendo).
+  - **Fallback por `ehFuncaoAusente`** (42883/PGRST202): função ausente →
+    caminho antigo (`loadTudo`, o badge no navegador, o ILIKE). Outro erro
+    (42501, 57014) → aparece na tela com o código. "↻ Tentar de novo"
+    tenta a RPC de novo (o SQL pode ter acabado de rodar).
+  - **Enviar recarregava os 90 dias A CADA MENSAGEM** (`load()` sem
+    argumento depois do envio, nos dois caminhos). Agora `load(1)`; o teste
+    proíbe o `load();` voltar ali. **Status de entrega chega por realtime
+    UPDATE** (a bolha muda na hora em vez de esperar o poll de 60s — a
+    REPLICA IDENTITY FULL da Wave 45 manda a linha inteira). O `loadIa` de
+    30s deixou de baixar `whatsapp_ai_state` inteira quando o resumo está
+    ativo (os campos já vêm nele).
+  - **Rota `/api/whatsapp/send`: escrituração DEPOIS da resposta.** Gravar
+    a mensagem e o audit passaram pro `runAfterResponse` (`ctx.waitUntil`);
+    só o vínculo wamid→lead (`vincularAbordagemAoLead`) ainda segura a
+    resposta, com teto de 3s, porque o webhook da Meta precisa achá-lo. O
+    portal mostra o envio pelo eco local e recebe a linha real pelo
+    realtime segundos depois. Testes em `__tests__/portalWhatsAppNaoLidas
+    .test.ts` (42).
+
 - **"Cortou as opções no envio da abordagem" (2026-09-08, entregue em
   2026-09-11 como v=20260911a) — NÃO cortou.** Os botões de resposta rápida
   são do template aprovado e a Meta os anexa sozinha em todo envio (prova:

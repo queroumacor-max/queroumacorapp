@@ -80,3 +80,12 @@ SELECT 'leads.abordagem_status existe' AS item, EXISTS (SELECT 1 FROM informatio
 
 -- 2026-09-09 (ai_usage sem CHECK de feature — personas passam a contar):
 SELECT 'ai_usage sem CHECK em feature (2026-09-09)' AS item, NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ai_usage'::regclass AND contype = 'c' AND conname = 'ai_usage_feature_check') AS ok;
+
+-- 2026-09-13 (aba WhatsApp: 57014 statement timeout). Sem isto a aba cai no
+-- caminho antigo (baixa todas as mensagens de 90 dias) e continua sujeita ao
+-- timeout; com a policy avaliada por linha, até o caminho antigo é lento.
+SELECT 'whatsapp: policy avaliada uma vez (initplan) — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_policies WHERE tablename='whatsapp_messages' AND qual LIKE '%SELECT%is_portal_admin%') AS ok;
+SELECT 'whatsapp: função whatsapp_conversas — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='whatsapp_conversas') AS ok;
+SELECT 'whatsapp: função whatsapp_nao_lidas — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='whatsapp_nao_lidas') AS ok;
+SELECT 'whatsapp: função leads_por_telefone — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='leads_por_telefone') AS ok;
+SELECT 'whatsapp: índice idx_whatsapp_messages_created_id — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='idx_whatsapp_messages_created_id') AS ok;

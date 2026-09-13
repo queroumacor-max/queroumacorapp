@@ -22,6 +22,12 @@ let mesclarMensagens: (atual: Linha[], chegadas: Linha[] | null) => Linha[];
 let sufixoDoTelefone: (tel: unknown) => string | null;
 let pedacos: <T>(l: T[], n: number) => T[][];
 let WA_DIAS_LISTA: number;
+interface Resumo { wa_id: string; ultima: Linha | null; nome?: string | null; canal?: string | null; nao_lidas?: number; enabled?: boolean | null; last_why?: string | null; last_at?: string | null; last_read_at?: string | null }
+interface ConvR { waId: string; msgs: Linha[]; last: Linha; name: string; resumo: Resumo | null }
+let ehFuncaoAusente: (e: unknown) => boolean;
+let montarConversas: (resumos: Resumo[] | null, msgs: Linha[]) => ConvR[];
+let naoLidasDaConversa: (c: ConvR, marca?: string | null) => number;
+let aplicarMensagemNoResumo: (resumos: Resumo[] | null, m: Linha, nova: boolean) => Resumo[] | null;
 let filtrarConversas: (
   convs: Conv[],
   o: { busca?: string; soNaoLidas?: boolean; manter?: string | null;
@@ -35,8 +41,10 @@ beforeAll(() => {
   expect(ini).toBeGreaterThan(0);
   expect(fim).toBeGreaterThan(ini);
   bloco = fonte.slice(ini, fim);
-  ({ contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA } = new Function(
-    `${bloco}; return { contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA };`
+  ({ contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA,
+    ehFuncaoAusente, montarConversas, naoLidasDaConversa, aplicarMensagemNoResumo } = new Function(
+    `${bloco}; return { contarNaoLidas, filtrarConversas, mesclarMensagens, sufixoDoTelefone, pedacos, WA_DIAS_LISTA,
+      ehFuncaoAusente, montarConversas, naoLidasDaConversa, aplicarMensagemNoResumo };`
   )());
 });
 
@@ -118,7 +126,11 @@ describe('filtrarConversas', () => {
 
 describe('a aba WhatsApp usa as funções puras (não uma cópia)', () => {
   it('naoLidas e convsFiltradas passam pelo bloco testado', () => {
-    expect(fonte).toContain('const naoLidas = (c) => contarNaoLidas(c.msgs, readAt[c.waId]);');
+    // 2026-09-13: a conta por conversa passou a considerar o resumo do
+    // banco, mas continua caindo em `contarNaoLidas` quando conta na tela.
+    expect(fonte).toContain('const naoLidas = (c) => naoLidasDaConversa(c, readAt[c.waId]);');
+    expect(bloco).toMatch(/const naoLidasDaConversa = [\s\S]*?contarNaoLidas\(/);
+    expect(fonte).toContain('const convs = React.useMemo(() => montarConversas(resumos, msgs), [resumos, msgs]);');
     expect(fonte).toContain('filtrarConversas(convs, { busca, soNaoLidas, manter: openWa, nomeDe, naoLidas })');
   });
   it('o botão existe, mostra a contagem de CONVERSAS e tem item na ajuda', () => {
@@ -196,5 +208,164 @@ describe('a aba WhatsApp não tem mais teto de 500 mensagens', () => {
     expect(fonte).not.toContain(".eq('direction','in').gte('created_at', desde).limit(3000)");
     expect(fonte).not.toContain("select('wa_id, last_read_at').limit(3000)");
     expect(fonte).not.toContain("select('wa_id, enabled, last_why, last_at, last_read_at').limit(2000)");
+  });
+});
+
+// ── Lista por RESUMO no banco (2026-09-13) ─────────────────────────────────
+// A tela caía em "57014: statement timeout" baixando as mensagens de 90 dias
+// pra montar a coluna. Agora o banco devolve uma linha por conversa
+// (`whatsapp_conversas`) e a coluna nasce disso; `msgs` fica pro histórico
+// da conversa aberta e pro realtime. Sem a função (SQL pendente), tudo
+// continua no desenho de 09/09.
+
+const resumo = (wa_id: string, o: Partial<Resumo> = {}): Resumo => ({
+  wa_id, ultima: linha('u-' + wa_id, { wa_id, direction: 'in', body: 'última', created_at: '2026-09-13T10:00:00Z' }),
+  nome: null, canal: null, nao_lidas: 0, enabled: null, last_why: null, last_at: null, last_read_at: null, ...o,
+});
+
+describe('ehFuncaoAusente', () => {
+  it('reconhece função inexistente pelo código do Postgres e do PostgREST', () => {
+    expect(ehFuncaoAusente({ code: '42883', message: 'function public.whatsapp_conversas(timestamptz) does not exist' })).toBe(true);
+    expect(ehFuncaoAusente({ code: 'PGRST202', message: 'Could not find the function public.whatsapp_conversas(p_desde) in the schema cache' })).toBe(true);
+  });
+  it('permissão negada, timeout e coluna ausente NÃO são "função ausente" (viram erro na tela)', () => {
+    expect(ehFuncaoAusente({ code: '42501', message: 'whatsapp_conversas: acesso de portal necessário' })).toBe(false);
+    expect(ehFuncaoAusente({ code: '57014', message: 'canceling statement due to statement timeout' })).toBe(false);
+    expect(ehFuncaoAusente({ code: '42703', message: 'column "delivery_status" does not exist' })).toBe(false);
+    expect(ehFuncaoAusente(null)).toBe(false);
+  });
+});
+
+describe('montarConversas', () => {
+  it('sem resumo (SQL pendente) a lista sai só de msgs, como em 09/09', () => {
+    const msgs = [
+      linha('a', { wa_id: '551', created_at: '2026-09-13T09:00:00Z', direction: 'in' }),
+      linha('b', { wa_id: '552', created_at: '2026-09-13T10:00:00Z' }),
+      linha('c', { wa_id: '551', created_at: '2026-09-13T11:00:00Z' }),
+    ];
+    const out = montarConversas(null, msgs);
+    expect(out.map(c => c.waId)).toEqual(['551', '552']);
+    expect(out[0].last.id).toBe('c');
+    expect(out[0].msgs.length).toBe(2);
+    expect(out[0].resumo).toBeNull();
+  });
+  it('resumo cria a conversa mesmo sem NENHUMA mensagem baixada', () => {
+    const out = montarConversas([resumo('553', { nome: 'Ana', nao_lidas: 2 })], []);
+    expect(out).toHaveLength(1);
+    expect(out[0].waId).toBe('553');
+    expect(out[0].msgs).toEqual([]);
+    expect(out[0].name).toBe('Ana');
+    expect(out[0].last.body).toBe('última');
+    expect(out[0].resumo?.nao_lidas).toBe(2);
+  });
+  it('mensagem mais nova em msgs (realtime) vence a última do resumo, e vice-versa', () => {
+    const r = resumo('554', { ultima: linha('velha', { wa_id: '554', created_at: '2026-09-13T08:00:00Z' }) });
+    const nova = linha('nova', { wa_id: '554', created_at: '2026-09-13T12:00:00Z' });
+    expect(montarConversas([r], [nova])[0].last.id).toBe('nova');
+    const r2 = resumo('554', { ultima: linha('mais-nova', { wa_id: '554', created_at: '2026-09-13T13:00:00Z' }) });
+    expect(montarConversas([r2], [nova])[0].last.id).toBe('mais-nova');
+  });
+  it('ordena pela mensagem mais recente, misturando as duas fontes', () => {
+    const out = montarConversas(
+      [resumo('a', { ultima: linha('ua', { wa_id: 'a', created_at: '2026-09-13T10:00:00Z' }) })],
+      [linha('mb', { wa_id: 'b', created_at: '2026-09-13T11:00:00Z' })]
+    );
+    expect(out.map(c => c.waId)).toEqual(['b', 'a']);
+  });
+});
+
+describe('naoLidasDaConversa', () => {
+  const conv = (o: Partial<ConvR>): ConvR => ({ waId: '551', msgs: [], last: linha('x'), name: '', resumo: null, ...o });
+  it('sem resumo: conta na tela (contarNaoLidas)', () => {
+    const c = conv({ msgs: [linha('1', { direction: 'in', created_at: '2026-09-13T10:00:00Z' }), linha('2', { direction: 'in', created_at: '2026-09-13T11:00:00Z' })] });
+    expect(naoLidasDaConversa(c, null)).toBe(2);
+    expect(naoLidasDaConversa(c, '2026-09-13T10:30:00Z')).toBe(1);
+  });
+  it('com resumo e sem marca local: vale o número que o banco contou', () => {
+    const c = conv({ resumo: resumo('551', { nao_lidas: 7, last_read_at: '2026-09-13T09:00:00Z' }) });
+    expect(naoLidasDaConversa(c, null)).toBe(7);
+    // marca local IGUAL à do servidor também é o servidor que manda
+    expect(naoLidasDaConversa(c, '2026-09-13T09:00:00Z')).toBe(7);
+  });
+  it('operador acabou de abrir (marca local mais nova): zera na hora, sem esperar o poll', () => {
+    const c = conv({
+      resumo: resumo('551', { nao_lidas: 7, last_read_at: '2026-09-13T09:00:00Z' }),
+      msgs: [linha('1', { direction: 'in', created_at: '2026-09-13T10:00:00Z' })],
+    });
+    expect(naoLidasDaConversa(c, '2026-09-13T12:00:00Z')).toBe(0);
+    // e o que chegar DEPOIS da marca conta de novo
+    c.msgs.push(linha('2', { direction: 'in', created_at: '2026-09-13T12:30:00Z' }));
+    expect(naoLidasDaConversa(c, '2026-09-13T12:00:00Z')).toBe(1);
+  });
+  it('conversa nunca aberta no servidor, mas marcada aqui: a marca local ganha', () => {
+    const c = conv({ resumo: resumo('551', { nao_lidas: 3, last_read_at: null }) });
+    expect(naoLidasDaConversa(c, '2026-09-13T12:00:00Z')).toBe(0);
+  });
+});
+
+describe('aplicarMensagemNoResumo (realtime sem esperar o poll)', () => {
+  it('sem resumo (caminho antigo) devolve o MESMO valor', () => {
+    expect(aplicarMensagemNoResumo(null, linha('m', { direction: 'in' }), true)).toBeNull();
+  });
+  it('INSERT recebido: vira a última e soma 1 não lida', () => {
+    const antes = [resumo('551', { nao_lidas: 1 })];
+    const out = aplicarMensagemNoResumo(antes, linha('n', { wa_id: '551', direction: 'in', created_at: '2026-09-13T12:00:00Z', body: 'oi' }), true)!;
+    expect(out).not.toBe(antes);
+    expect(out[0].nao_lidas).toBe(2);
+    expect(out[0].ultima?.id).toBe('n');
+  });
+  it('INSERT enviado (portal/IA): vira a última, NÃO soma não lida e atualiza o canal', () => {
+    const out = aplicarMensagemNoResumo([resumo('551', { nao_lidas: 1 })],
+      linha('o', { wa_id: '551', direction: 'out', created_at: '2026-09-13T12:00:00Z', ...( { origin: 'ia' } as object) }), true)!;
+    expect(out[0].nao_lidas).toBe(1);
+    expect(out[0].ultima?.id).toBe('o');
+    expect(out[0].canal).toBe('ia');
+  });
+  it('UPDATE (✓✓ chegou) na última troca a linha sem somar; em linha antiga não mexe', () => {
+    const antes = [resumo('551', { nao_lidas: 1, ultima: linha('u', { wa_id: '551', direction: 'out', created_at: '2026-09-13T10:00:00Z' }) })];
+    const out = aplicarMensagemNoResumo(antes, linha('u', { wa_id: '551', direction: 'out', created_at: '2026-09-13T10:00:00Z', delivery_status: 'read' }), false)!;
+    expect(out[0].nao_lidas).toBe(1);
+    expect(out[0].ultima?.delivery_status).toBe('read');
+    const mesma = aplicarMensagemNoResumo(out, linha('antiga', { wa_id: '551', direction: 'out', created_at: '2026-09-13T08:00:00Z', delivery_status: 'read' }), false);
+    expect(mesma).toBe(out);
+  });
+  it('conversa NOVA (número que nunca apareceu) entra no topo com 1 não lida', () => {
+    const out = aplicarMensagemNoResumo([resumo('551')], linha('z', { wa_id: '999', direction: 'in', created_at: '2026-09-13T12:00:00Z', ...( { profile_name: 'Zé' } as object) }), true)!;
+    expect(out).toHaveLength(2);
+    expect(out[0].wa_id).toBe('999');
+    expect(out[0].nao_lidas).toBe(1);
+    expect(out[0].nome).toBe('Zé');
+  });
+});
+
+describe('a aba e o badge usam o resumo do banco, com fallback', () => {
+  it('a lista vem de whatsapp_conversas e o caminho antigo continua como fallback', () => {
+    expect(fonte).toContain("supa.rpc('whatsapp_conversas', { p_desde: desde })");
+    expect(fonte).toContain('if(!ehFuncaoAusente(e)){');
+    expect(fonte).toContain('return loadTudo(dias);');
+  });
+  it('o badge do menu conta no banco (whatsapp_nao_lidas) e cai no navegador se a função faltar', () => {
+    expect(fonte).toContain("supa.rpc('whatsapp_nao_lidas', { p_desde: desde })");
+    expect(fonte).toContain('contarNoBanco().catch(() => contarNoNavegador())');
+  });
+  it('o nome do lead vem por leads_por_telefone (índice), com o ILIKE de fallback', () => {
+    expect(fonte).toContain("supa.rpc('leads_por_telefone', { p_sufixos: lote })");
+  });
+  it('enviar NÃO recarrega os 90 dias: só o que mudou há pouco', () => {
+    // O `load()` sem argumento depois do envio baixava tudo de novo A CADA
+    // mensagem. Os dois envios (texto e template) pedem `load(1)`.
+    // Só os envios DA ABA (os da tela de Leads não recarregam lista nenhuma).
+    const aba = fonte.slice(fonte.indexOf('const WhatsAppTab = () => {'));
+    const envios = aba.split("fetch('/api/whatsapp/send', {").slice(1)
+      .filter(t => t.indexOf('setSending(false); setSendStage') > 0);
+    expect(envios.length).toBe(2);
+    for (const trecho of envios) {
+      const ate = trecho.indexOf('setSending(false); setSendStage');
+      expect(trecho.slice(0, ate)).not.toMatch(/\bload\(\);/);
+      expect(trecho.slice(0, ate)).toContain('load(1)');
+    }
+  });
+  it('o status de entrega chega por realtime (UPDATE), não só pelo poll', () => {
+    expect(fonte).toContain("{ event:'UPDATE', schema:'public', table:'whatsapp_messages' }");
   });
 });
