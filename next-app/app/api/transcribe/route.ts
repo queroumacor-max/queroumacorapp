@@ -5,6 +5,7 @@ import {
   gateProAIForm,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+  // Auditoria 2026-09-13: pré-check de Content-Length — o teto de 25MB do áudio (Whisper) já existe em transcribe.ts, mas só é conferido DEPOIS de `request.formData()` bufferizar tudo.
+  const oversized = rejectOversizedBody(request, 27 * 1024 * 1024);
+  if (oversized) return oversized;
   let formData: FormData;
   try {
     formData = await request.formData();

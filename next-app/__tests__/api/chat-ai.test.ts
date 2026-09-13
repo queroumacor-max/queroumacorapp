@@ -23,6 +23,17 @@ afterEach(() => {
 });
 
 describe('POST /api/chat-ai', () => {
+  it('rejeita corpo grande (413) ANTES do gate, sem gastar auth/rate-limit/IA (auditoria 2026-09-13)', async () => {
+    const req = new Request('https://app.test/api/chat-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(10 * 1024 * 1024) },
+      body: '{}',
+    });
+    const { POST } = await import('@/app/api/chat-ai/route');
+    const res = await POST(req as never);
+    expect(res.status).toBe(413);
+  });
+
   it('returns 503 when neither API key configured', async () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.GEMINI_API_KEY;

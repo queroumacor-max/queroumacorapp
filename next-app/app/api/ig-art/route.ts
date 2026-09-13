@@ -7,6 +7,7 @@ import {
   gateProAI,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -49,6 +50,12 @@ export async function POST(request: NextRequest) {
 }
 
 async function handle(request: NextRequest): Promise<NextResponse> {
+  // Auditoria 2026-09-13: duas fotos em base64 (MAX_INPUT_BYTES = 8MB
+  // decodificado cada, checado DEPOIS do parse em ig-art.ts) inflam pra
+  // ~11MB codificadas cada — 24MB dá folga real sem deixar o body
+  // ilimitado até o Zod/validação manual rodar.
+  const oversized = rejectOversizedBody(request, 24 * 1024 * 1024);
+  if (oversized) return oversized;
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;

@@ -89,3 +89,10 @@ SELECT 'whatsapp: função whatsapp_conversas — 2026-09-13' AS item, EXISTS (S
 SELECT 'whatsapp: função whatsapp_nao_lidas — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='whatsapp_nao_lidas') AS ok;
 SELECT 'whatsapp: função leads_por_telefone — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='leads_por_telefone') AS ok;
 SELECT 'whatsapp: índice idx_whatsapp_messages_created_id — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='idx_whatsapp_messages_created_id') AS ok;
+
+-- 2026-09-13 (auditoria de rate limiting/abuse). Sem isto o rate limit por
+-- IP (login/signup/reset, log-error, push-notify, enforceRateLimit) segue
+-- fail-open silencioso, e a busca segue chamável por anon sem teto.
+SELECT 'auditoria: rate_limits.user_id é text — 2026-09-13' AS item, (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='rate_limits' AND column_name='user_id') = 'text' AS ok;
+SELECT 'auditoria: check_rate_limit(text,...) existe — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='check_rate_limit' AND pg_get_function_identity_arguments(p.oid) LIKE 'p_user_id text%') AS ok;
+SELECT 'auditoria: search_all sem GRANT pra anon/public — 2026-09-13' AS item, NOT EXISTS (SELECT 1 FROM information_schema.routine_privileges WHERE routine_schema='public' AND routine_name='search_all' AND grantee IN ('anon','PUBLIC')) AS ok;

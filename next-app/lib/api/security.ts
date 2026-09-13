@@ -750,6 +750,48 @@ export async function recordAiUsage(opts: {
  */
 export const DEFAULT_MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
+/**
+ * Auditoria de rate limiting/abuse 2026-09-13 (item 51/52 — request body
+ * size / JSON bomb): vários handlers de IA leem o corpo direto
+ * (`request.json()`/`request.formData()`) SEM passar por `readBody` — ou
+ * seja, sem NENHUM teto antes do parse. Um body de dezenas de MB é
+ * bufferizado e faz `JSON.parse`/multipart-parse rodar inteiro ANTES de
+ * `gateProAI` sequer checar auth (o `accessToken` mora DENTRO do body
+ * nesses endpoints — não dá pra autenticar antes de ler algo). Isso é
+ * custo pago por qualquer um, autenticado ou não.
+ *
+ * Este helper é um pré-check BARATO (só olha o header `Content-Length`,
+ * não lê o corpo) pra cortar isso ANTES do parse caro. Chamar como
+ * primeira linha do handler, antes de `request.json()`/`.formData()`:
+ *
+ *   const oversized = rejectOversizedBody(request, 256 * 1024);
+ *   if (oversized) return oversized;
+ *
+ * LIMITAÇÃO DECLARADA (não é `readBody`): só pega corpo com
+ * `Content-Length` presente e MAIOR que o header diz. Corpo chunked sem
+ * esse header, ou um header mentiroso menor que o real, passa direto —
+ * pra esses casos o parse ainda acontece, sob o teto que resta é o do
+ * próprio Cloudflare Workers na borda (hoje ~100MB, fora do nosso
+ * controle). Onde isso importa de verdade (upload de arquivo), o caminho
+ * certo continua sendo `readBody({ maxBytes })`, que confere o
+ * byte-length REAL pós-leitura — este helper aqui é só pros handlers que
+ * ainda não foram portados pra esse padrão.
+ */
+export function rejectOversizedBody(
+  request: NextRequest | Request,
+  maxBytes: number = DEFAULT_MAX_BYTES
+): NextResponse | null {
+  const raw = request.headers.get('content-length');
+  const len = raw ? parseInt(raw, 10) : NaN;
+  if (Number.isFinite(len) && len > maxBytes) {
+    return jsonResponse(
+      { error: `payload muito grande (${len} bytes, limite ${maxBytes})` },
+      413
+    );
+  }
+  return null;
+}
+
 export interface ReadBodyOptions {
   /** Limite em bytes; default `DEFAULT_MAX_BYTES`. */
   maxBytes?: number;

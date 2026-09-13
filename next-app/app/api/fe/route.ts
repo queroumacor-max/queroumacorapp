@@ -7,6 +7,7 @@ import {
   gateProAI,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -22,6 +23,12 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+  // Auditoria 2026-09-13: sem schema Zod aqui (diferente de /api/chat-ai) —
+  // `message`/history` são truncados só DEPOIS do parse, dentro de
+  // chatWithPersona. Pré-check de Content-Length corta corpo grande ANTES
+  // do JSON.parse bufferizar tudo.
+  const oversized = rejectOversizedBody(request, 256 * 1024);
+  if (oversized) return oversized;
   let body: { message?: unknown; history?: unknown; accessToken?: unknown };
   try {
     body = await request.json();

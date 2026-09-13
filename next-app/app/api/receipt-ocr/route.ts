@@ -6,6 +6,7 @@ import {
   gateProAIForm,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
       { status: 503 },
     );
   }
+  // Auditoria 2026-09-13: mesmo pré-check; o teto de 8MB da foto já existe em receipt-ocr.ts, checado só pós-parse.
+  const oversized = rejectOversizedBody(request, 9 * 1024 * 1024);
+  if (oversized) return oversized;
   let formData: FormData;
   try {
     formData = await request.formData();
