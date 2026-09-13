@@ -84,3 +84,26 @@ export async function ensureDeviceToken(
   if (perm !== 'granted') return { ok: false, reason: 'denied' };
   return registerDeviceToken(userId);
 }
+
+/**
+ * Desassocia ESTE aparelho do push antes do logout — sem isso, quem sai da
+ * conta continua recebendo notificação (a linha em `push_device_tokens`
+ * segue apontando pro token dele) até outra conta logar no mesmo aparelho e
+ * sobrescrever via `onConflict: 'token'`. Em device compartilhado (troca de
+ * conta, alguém empresta o celular) essa janela vaza "você tem mensagem
+ * nova" de quem saiu pra quem está usando o aparelho agora.
+ *
+ * Best-effort, nunca lança: sem plugin/permissão/token não há o que apagar,
+ * e falha de rede aqui não pode travar o signOut.
+ */
+export async function clearDeviceTokenOnLogout(): Promise<void> {
+  try {
+    if (!native.push.isAvailable()) return;
+    const token = await native.push.currentToken();
+    if (!token) return;
+    const sb = getSupabase();
+    await sb.from('push_device_tokens').delete().eq('token', token);
+  } catch {
+    // best-effort — não bloquear o logout por causa disso.
+  }
+}

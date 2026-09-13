@@ -38,6 +38,7 @@ import {
   listNativePlugins,
   getDeviceInfo,
   setAppBadge,
+  currentNativePushToken,
 } from '../lib/native';
 
 type CapacitorMock = {
@@ -465,5 +466,55 @@ describe('listNativePlugins — diagnóstico', () => {
   it('fora da casca é lista vazia, nunca throw', () => {
     setCapacitor(undefined);
     expect(listNativePlugins()).toEqual([]);
+  });
+});
+
+describe('currentNativePushToken — lê sem NUNCA abrir prompt (logout/troca de conta)', () => {
+  it('fora da casca devolve null', async () => {
+    setCapacitor(undefined);
+    await expect(currentNativePushToken()).resolves.toBeNull();
+  });
+
+  it('permissão ainda não concedida ("prompt"/"denied") → null, getToken nunca chamado', async () => {
+    const getToken = () => Promise.resolve({ token: 'nao-deveria-vir' });
+    setCapacitor({
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        FirebaseMessaging: {
+          checkPermissions: () => Promise.resolve({ receive: 'prompt' }),
+          getToken,
+        },
+      },
+    });
+    await expect(currentNativePushToken()).resolves.toBeNull();
+  });
+
+  it('permissão concedida → devolve o token atual', async () => {
+    setCapacitor({
+      isNativePlatform: () => true,
+      getPlatform: () => 'ios',
+      Plugins: {
+        FirebaseMessaging: {
+          checkPermissions: () => Promise.resolve({ receive: 'granted' }),
+          getToken: () => Promise.resolve({ token: 'tok-atual' }),
+        },
+      },
+    });
+    await expect(currentNativePushToken()).resolves.toBe('tok-atual');
+  });
+
+  it('erro do plugin não lança — devolve null', async () => {
+    setCapacitor({
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        FirebaseMessaging: {
+          checkPermissions: () => Promise.reject(new Error('boom')),
+          getToken: () => Promise.resolve({ token: 'x' }),
+        },
+      },
+    });
+    await expect(currentNativePushToken()).resolves.toBeNull();
   });
 });

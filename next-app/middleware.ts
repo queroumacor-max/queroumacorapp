@@ -14,7 +14,39 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Auditoria de segurança mobile (2026-09-13) — CVE-2025-66478 / CVE-2025-55182
+// (CVSS 10.0, RCE): o pipeline de Server Actions do App Router desserializa o
+// protocolo Flight de QUALQUER requisição que chegue com o header
+// `Next-Action`, em toda versão 15.x/16.x afetada — independente de o app
+// declarar alguma Server Action (`'use server'`). Este repo NÃO declara
+// nenhuma (conferido: zero ocorrências de `'use server'` em app/lib/
+// components), então esse header nunca é tráfego legítimo aqui.
+//
+// A versão instalada (`next@15.5.2`, corrigida só a partir da 15.5.7) está
+// PRESA nesse valor: é o TETO EXATO do peer range do `@cloudflare/
+// next-on-pages` (`>=14.3.0 && <=15.5.2` — o adapter que gera o deploy pro
+// Cloudflare Pages). Subir o Next sem trocar de adapter quebra o build; e o
+// próprio `@cloudflare/next-on-pages` já está descontinuado pelo mantenedor
+// (recomenda migrar pro OpenNext), então não existe uma versão nova dele que
+// destrave um Next mais novo — migrar de adapter é decisão arquitetural
+// grande demais (e não testável sem um deploy real no Cloudflare) pra fazer
+// dentro desta auditoria.
+//
+// Mitigação em profundidade que NÃO mexe em versão nem em config externa:
+// barra a requisição ANTES do Next processar o corpo (404 — não confirma que
+// a defesa existe). Zero custo funcional: nenhum código deste app manda esse
+// header, porque nenhuma Server Action existe pra invocar.
+function bloqueiaServerActionHeader(request: NextRequest): NextResponse | null {
+  if (request.headers.has('next-action')) {
+    return new NextResponse(null, { status: 404 });
+  }
+  return null;
+}
+
 export function middleware(request: NextRequest) {
+  const bloqueado = bloqueiaServerActionHeader(request);
+  if (bloqueado) return bloqueado;
+
   const incoming = request.headers.get('x-request-id');
   const requestId = incoming && incoming.trim() ? incoming.trim() : crypto.randomUUID();
 
@@ -33,6 +65,10 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Só rotas API — evita custo em assets estáticos e SSR.
-  matcher: ['/api/:path*'],
+  // O bloqueio de `Next-Action` (acima) precisa valer em QUALQUER rota do
+  // App Router — Server Actions são invocadas via POST na própria URL da
+  // página, não só em /api/*. Exclui assets estáticos (_next/static,
+  // _next/image, o service worker e afins) por custo, não por segurança:
+  // eles não passam pelo pipeline de Actions de qualquer forma.
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|sw\\.js|manifest\\.json).*)'],
 };
