@@ -1,3 +1,15 @@
+# ⚠️ ARQUIVO INERTE — NÃO É LIDO POR NADA EM PRODUÇÃO (auditoria Cloudflare
+# 2026-09-13). O Cloudflare Pages projeto `queroumacor-next` publica
+# `next-app/.vercel/output/static` (ver `next-app/wrangler.toml`
+# `pages_build_output_dir` e `next-app/DEPLOY.md`), e Pages só lê
+# `_headers`/`_redirects` de DENTRO do build output directory. Este
+# arquivo vive na RAIZ do repo (fora de `next-app/`) — relíquia do site
+# vanilla pré-migração — e não é copiado pra lugar nenhum do build atual.
+#
+# A CSP/headers de segurança REAIS de produção vivem em
+# `next-app/next.config.mjs` (`headers()`). Editar este arquivo esperando
+# mudar o comportamento de `queroumacor.com.br` NÃO TEM EFEITO. Mantido só
+# como registro histórico; considerar remover num PR de limpeza.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff

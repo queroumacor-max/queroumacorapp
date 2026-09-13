@@ -53,12 +53,21 @@ const nextConfig = {
       { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
     ];
     // FIX C2 (auditoria 2026-08-26): a CSP vivia só no `_headers` da RAIZ do
-    // repo, que fica fora do output do build — produção rodava sem CSP,
-    // Permissions-Policy e COOP/CORP. Agora o conjunto completo vive em DOIS
-    // lugares que se complementam no CF Pages: `public/_headers` (assets
-    // estáticos, HTML prerenderizado incluso) e aqui (rotas servidas pelo
-    // worker, /api/* incluso). Mudou um? Mude o outro — os valores são
-    // idênticos de propósito.
+    // repo (fora do next-app/), que fica fora do build output
+    // (`next-app/.vercel/output/static`) — produção rodava sem CSP,
+    // Permissions-Policy e COOP/CORP.
+    //
+    // FONTE ÚNICA hoje: este `headers()`. Verificado por inspeção real do
+    // artefato (auditoria Cloudflare 2026-09-13): o `_routes.json` gerado
+    // pelo next-on-pages só EXCLUI `/_next/static/*` do Worker — toda rota,
+    // HTML prerenderizado incluso, passa pelo `_worker.js` (que roda o
+    // servidor Next completo, headers() incluso). NÃO existe
+    // `next-app/public/_headers` neste repo — não recriar um: seria uma
+    // segunda CSP divergente da que está aqui. O `_headers`/`_redirects` na
+    // RAIZ do repo (fora de `next-app/`) são relíquia do site vanilla
+    // pré-migração: o Cloudflare Pages só lê `_headers`/`_redirects` de
+    // DENTRO do build output directory, então esses arquivos não são lidos
+    // por nada em produção — não editar esperando efeito.
     // CSP validada em produção/preview (PR #163). NÃO alterar sem revalidar
     // com curl -I: `*.onrender.com` cobre a Evolution API do WhatsApp.
     const csp =

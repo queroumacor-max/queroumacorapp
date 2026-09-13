@@ -19,6 +19,35 @@ updates:
       dev-dependencies:
         dependency-type: "development"
 
+  # npm — next-app/package.json (o app de PRODUÇÃO — publicado via
+  # Cloudflare Pages). Faltava aqui (auditoria de segurança Cloudflare,
+  # 2026-09-13): as dependências que de fato rodam em produção (Next.js,
+  # Supabase JS, Sentry) nunca geravam PR automático de bump, só o
+  # `npm audit` manual em CI pegava CVEs nelas.
+  - package-ecosystem: "npm"
+    directory: "/next-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+      - "next-app"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+    ignore:
+      # `next` é fixado em versão EXATA de propósito (CLAUDE.md): o
+      # @cloudflare/next-on-pages@1.13.16 (deprecado, nunca mais
+      # atualizado) trava o peer range em "<=15.5.2" e quebra o `npm
+      # install` interno do próprio build (`vercel build`) se `next`
+      # sair da minor 15.5.x. Bump de patch (15.5.x) é seguro e deve ser
+      # feito à mão após validar `npm run build:cf`; bump de minor/major
+      # exige trocar o adapter primeiro (ver ADR de migração pro OpenNext).
+      - dependency-name: "next"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
   # GitHub Actions — workflows em .github/workflows/
   - package-ecosystem: "github-actions"
     directory: "/"

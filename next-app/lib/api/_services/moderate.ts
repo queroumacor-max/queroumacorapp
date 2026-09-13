@@ -101,10 +101,12 @@ export async function moderateContent(args: {
   const key = getRuntimeEnv('GEMINI_API_KEY');
   try {
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Chave no header, não na query string — evita vazamento em logs
+        // que registrem a URL (Sentry, proxy). Auditoria Cloudflare 2026-09-13.
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key || '' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
           generationConfig: {

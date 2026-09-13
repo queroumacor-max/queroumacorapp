@@ -541,10 +541,15 @@ async function generateImageGemini(args: {
     }
 
     const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent?key=${getRuntimeEnv('GEMINI_API_KEY')}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(args.model)}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Chave no header, não na query string — evita vazamento em logs
+          // que registrem a URL. Auditoria Cloudflare 2026-09-13.
+          'x-goog-api-key': getRuntimeEnv('GEMINI_API_KEY') || '',
+        },
         signal: ac.signal,
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],

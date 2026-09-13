@@ -1,5 +1,93 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13, pedido do usuário).
+  Branch `claude/cloudflare-security-audit-gurtsy`.** Achado mais grave:
+  **Next.js estava em 15.5.2 com 3 CVEs CRITICAL** (RCE via React Flight
+  protocol, exposição de código-fonte de Server Actions, DoS) — a versão
+  fixada porque `@cloudflare/next-on-pages@1.13.16` (deprecado, nunca mais
+  atualizado; recomenda migrar pro adapter OpenNext) declara peer
+  `next: "<=15.5.2"` e o `npm install` INTERNO do `vercel build` (rodado
+  pelo próprio next-on-pages) falha com ERESOLVE em qualquer patch acima
+  disso. **Corrigido**: `next` → `15.5.25` (último patch da MESMA minor,
+  sem mudança de API) + `next-app/.npmrc` com `legacy-peer-deps=true` (só
+  isso destrava o `npm install` do adapter; não afeta a resolução de mais
+  nada). **Build real testado ponta a ponta** (`npm run build:cf` completo,
+  `wrangler pages dev` servindo o artefato) — funciona. **REGRA NOVA: essa
+  trava de peer dep é conhecida e esperada — não é motivo pra reverter um
+  bump de PATCH do Next; só minor/major exige rever o adapter primeiro.**
+  A regra antiga "next pinado EXATO em 15.5.2, não subir sem subir
+  next-on-pages junto" está PARCIALMENTE SUPERADA: dentro da minor 15.5.x,
+  suba à vontade (rodando `npm run build:cf` antes de confiar). `tar` e
+  `vitest` seguem com CVE CRITICAL sem fix disponível sem major breaking —
+  os dois são só devDependency/build-time do adapter, não rodam em
+  produção; aceito como risco residual baixo.
+  - **Source maps do bundle client-side vazavam publicamente.** O
+    `@sentry/nextjs` só apaga o `.map` do artefato DEPOIS de fazer upload
+    pra Sentry, e o upload só roda com `SENTRY_AUTH_TOKEN` no ambiente de
+    build — sem o token, o plugin pula o upload E o apagamento, mas
+    `hideSourceMaps` ainda tira o comentário `//# sourceMappingURL=` do
+    `.js` (então parecia limpo no DevTools). Inspecionando o artefato REAL
+    (não só `.next`): **157 arquivos `.js.map` ficavam no output final**,
+    baixáveis direto por URL, reconstruindo o código-fonte legível do app
+    inteiro. `next-app/scripts/strip-source-maps.mjs` (novo) apaga todo
+    `.map` de `.vercel/output/static` DEPOIS do `next-on-pages`, plugado no
+    `build:cf` — funciona independente do token do Sentry existir ou não
+    (o upload, quando acontece, já rodou antes, durante o `next build`).
+    **O `deploy.yml` do GitHub Actions não passava `SENTRY_AUTH_TOKEN`** —
+    corrigido pra chamar `npm run build:cf` (herda o strip) + um passo que
+    FALHA o job se sobrar `.map` ou `.env*` no artefato antes do deploy.
+  - **MANUAL ACTION REQUIRED, não verificável daqui — PRIORIDADE ALTA:**
+    confirmar se as env vars de **Preview** no Cloudflare Pages Dashboard
+    são as MESMAS de produção (`STAGING.md` já dizia isso e ninguém tinha
+    tirado a conclusão: qualquer push em qualquer branch dispara um build
+    de Preview que roda com `SUPABASE_SERVICE_ROLE_KEY`/chaves de IA/MP/
+    WhatsApp no ambiente — supply-chain via `postinstall` malicioso
+    exfiltraria segredo de produção sem precisar de PR aprovado). Ver aviso
+    completo em `STAGING.md`.
+  - **Chave Gemini vazada no histórico do Git** (arquivo
+    `queroumacorportal.html`, removido do HEAD há meses, mas recuperável
+    via `git show a735531:queroumacorportal.html`) — **ROTACIONAR
+    `GEMINI_API_KEY`** no Google AI Studio/GCP + trocar no CF Pages.
+  - **Chamadas ao Gemini paravam a API key na QUERY STRING** (`?key=...`)
+    em 8 pontos (`_ai.ts`, `ig-art.ts`, `ig-art-diag.ts`, `moderate.ts`,
+    `moderate-video.ts`) — URL de requisição é o tipo de dado que mais
+    vaza pra log/Sentry/proxy sem querer. Movido pro header
+    `x-goog-api-key` nos 8. Guardado por teste
+    (`__tests__/lib/gemini-key-not-in-query-string.test.ts`).
+  - **`deploy.yml` (workflow_dispatch) podia publicar produção a partir de
+    QUALQUER branch** — o `wrangler pages deploy --branch=main` é fixo,
+    mas o dispatch deixa escolher a ref livremente; agora
+    `if: github.ref == 'refs/heads/main'`. Comparação de token do webhook
+    Evolution (legado) trocada de `!==` pra `safeEqual` (tempo constante,
+    mesma regra do webhook da Meta/MP). `ios-screenshots.yml` ganhou
+    `permissions: contents: read` explícito (herdava o default do
+    repo/org). `next-app/` entrou no `dependabot.yml` (só cobria o
+    `package.json` da raiz — as deps que rodam em PRODUÇÃO nunca geravam
+    PR automático de CVE).
+  - **`_headers`/`_redirects` da RAIZ do repo (fora de `next-app/`) são
+    INERTES** — Cloudflare Pages publica `next-app/.vercel/output/static`
+    e só lê esses arquivos de DENTRO do build output, então os da raiz
+    nunca são lidos em produção. Confirmado com inspeção real do artefato
+    (`_routes.json` gerado: só `/_next/static/*` bypassa o `_worker.js`;
+    todo o resto — HTML prerenderizado incluso — passa pelo worker, que
+    aplica o `headers()` do `next.config.mjs` normalmente). Banner de aviso
+    adicionado nos dois arquivos; considerar apagar num PR de limpeza.
+    **Fonte única de CSP/headers confirmada por `curl` real via
+    `wrangler pages dev` contra o artefato: `/login`, `/portal` e rotas
+    prerenderizadas recebem CSP/HSTS/COOP/CORP/Permissions-Policy
+    corretamente — C2 (auditoria 2026-08-26) está de fato fechado, não só
+    documentado.**
+  - **KV/R2/D1/Durable Objects/Queues/Workers AI/Service Bindings/Zero
+    Trust Access: NENHUM em uso real** (confirmado por inventário
+    completo). O binding `KV` mencionado no `wrangler.toml` existe só no
+    painel (se existir) — o código não lê `env.KV` hoje, usa cache nativo
+    do Next. Turnstile não existe mais no `next-app` (só no vanilla morto)
+    — CSP ainda permite `challenges.cloudflare.com` de propósito, caso
+    reintroduzido; login/signup hoje não têm NENHUMA proteção anti-bot
+    além do que o Supabase GoTrue aplica por conta própria.
+  - Relatório completo (132 seções cobertas) entregue no chat da sessão;
+    não copiado pra arquivo por decisão de manter este CLAUDE.md enxuto.
+
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
   SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário

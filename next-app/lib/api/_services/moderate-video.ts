@@ -175,7 +175,7 @@ async function uploadToGemini(
   mime: string
 ): Promise<string> {
   const start = await fetch(
-    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/upload/v1beta/files`,
     {
       method: 'POST',
       headers: {
@@ -184,6 +184,9 @@ async function uploadToGemini(
         'X-Goog-Upload-Header-Content-Length': String(buf.byteLength),
         'X-Goog-Upload-Header-Content-Type': mime,
         'Content-Type': 'application/json',
+        // Chave no header, não na query string — evita vazamento em logs
+        // que registrem a URL. Auditoria Cloudflare 2026-09-13.
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({ file: { display_name: 'qmc_mod' } }),
       signal: AbortSignal.timeout(45000),
@@ -215,10 +218,10 @@ async function uploadToGemini(
   const deadline = Date.now() + 40000;
   while (state === 'PROCESSING' && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 2500));
-    const s = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${name}?key=${apiKey}`,
-      { signal: AbortSignal.timeout(10000) }
-    );
+    const s = await fetch(`https://generativelanguage.googleapis.com/v1beta/${name}`, {
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(10000),
+    });
     const sd = (await s.json()) as { state?: string; uri?: string };
     state = sd?.state;
     uri = sd?.uri || uri;
@@ -234,10 +237,10 @@ async function analyzeVideo(
   caption: string
 ): Promise<{ flagged: boolean; severity: 'none' | 'soft' | 'hard'; reasons: string[] }> {
   const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [
           {
