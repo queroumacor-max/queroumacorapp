@@ -96,3 +96,10 @@ SELECT 'whatsapp: índice idx_whatsapp_messages_created_id — 2026-09-13' AS it
 SELECT 'auditoria: rate_limits.user_id é text — 2026-09-13' AS item, (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='rate_limits' AND column_name='user_id') = 'text' AS ok;
 SELECT 'auditoria: check_rate_limit(text,...) existe — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='check_rate_limit' AND pg_get_function_identity_arguments(p.oid) LIKE 'p_user_id text%') AS ok;
 SELECT 'auditoria: search_all sem GRANT pra anon/public — 2026-09-13' AS item, NOT EXISTS (SELECT 1 FROM information_schema.routine_privileges WHERE routine_schema='public' AND routine_name='search_all' AND grantee IN ('anon','PUBLIC')) AS ok;
+
+-- 2026-09-13 (auditoria de segurança do Supabase — RLS/grants). `leads`
+-- nunca teve RLS habilitada em nenhuma migration deste repo (a tabela
+-- nasceu fora dele). Sem isto, qualquer usuário comum do app (não só
+-- admin) lê/escreve a tabela inteira direto pela API REST do Supabase.
+SELECT 'auditoria supabase: leads com RLS — 2026-09-13' AS item, (SELECT relrowsecurity FROM pg_class WHERE relname='leads' AND relnamespace='public'::regnamespace) AS ok;
+SELECT 'auditoria supabase: policy leads_admin_all existe — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_policies WHERE tablename='leads' AND policyname='leads_admin_all') AS ok;

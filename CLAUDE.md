@@ -1,5 +1,87 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria
+  COMPLETA... RLS, policies, grants, roles, functions, RPCs, triggers, views,
+  Storage, Realtime, Auth, cron, service role"). SQL
+  `/migrations/2026-09-13-leads-rls-critical.sql` — PENDENTE até o usuário
+  rodar.**
+  - **ACHADO CRÍTICO: `public.leads` NUNCA teve RLS habilitada por nenhuma
+    migration deste repositório.** A tabela nasceu FORA do repo (não existe
+    `CREATE TABLE public.leads` em lugar nenhum — só 7 `ALTER TABLE ... ADD
+    COLUMN`). Varredura da história INTEIRA de SQL (10.935 linhas, base +
+    94 migrations em ordem): zero `ENABLE ROW LEVEL SECURITY`, zero
+    `CREATE POLICY`, zero `GRANT`/`REVOKE` tocando `leads`, em qualquer
+    ponto. **Comparado com as outras 50 tabelas criadas neste repo — todas
+    as 50 passam por `ENABLE ROW LEVEL SECURITY` pelo menos uma vez.**
+    `leads` é a única exceção, porque nunca apareceu numa `CREATE TABLE`
+    que desse o "gancho" de lembrar de proteger.
+    - **Impacto**: `leads` guarda ~1072 contatos de prospecção (nome,
+      telefone, categoria, cidade, status, abordagem) — dado de negócio
+      da loja. Sem RLS, qualquer usuário comum do app (pintor, cliente —
+      não precisa ser admin) ou a chave `anon` conseguia ler/escrever a
+      tabela INTEIRA direto pela API REST do Supabase
+      (`GET /rest/v1/leads?select=*`), sem passar pelo portal nem por
+      `is_portal_admin()`. Conferido: o app consumidor (`next-app/`)
+      **não toca essa tabela** — `lib/services/leads.ts` de lá é outro
+      conceito (posts `for_sale=true`), sem relação. Toda leitura real de
+      `leads` é do portal, sempre logado como admin — travar pra
+      `is_portal_admin()` não tira acesso de ninguém que usa a feature.
+    - **AUTOCRÍTICA DESTA SESSÃO**: o comentário do `leads_por_telefone`
+      (escrito hoje mais cedo, na correção de performance do WhatsApp)
+      dizia "SECURITY INVOKER de propósito: a RLS de `leads` continua
+      valendo" — uma suposição repetida sem nunca ter sido checada. Esta
+      auditoria corrigiu a própria suposição da sessão, não só o código.
+      **Lição: "a RLS de X vale" não é fato até alguém ler a tabela de
+      políticas de X.**
+  - **FALSOS POSITIVOS CONFIRMADOS SEGUROS (lidos no SQL final, não
+    presumidos)**: `products`/`orders`/`announcements`/`commissions`
+    tiveram policy `USING(true)`/`WITH CHECK(true)` no `supabase_init.sql`
+    original (qualquer `authenticated` alterava catálogo/pedido/aviso de
+    QUALQUER UM) — mas todas as 4 foram fechadas pra
+    `is_portal_admin()` num bloco "Re-auditoria Onda 1" já no mesmo
+    arquivo, antes de qualquer migration incremental. `profiles_public`
+    (view) perdeu `security_invoker=true` em duas recriações (Waves 32 e
+    counters) e foi corrigida de volta num hardening posterior que cita
+    literalmente "o ERROR do advisor" (Supabase Security Advisor —
+    sessão anterior teve esse dado, mesmo sem estar resumido no
+    CLAUDE.md). `exec_sql`/`executar_sql` (execução de SQL arbitrário,
+    herança do vanilla) tiveram EXECUTE revogado e foram DROPadas por
+    `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` (idempotente,
+    com pré-check de dependência — não confirmável se rodou em produção,
+    ver MANUAL VERIFICATION abaixo). **100% das funções SECURITY DEFINER
+    do histórico (52 ocorrências) têm `SET search_path` — nenhum risco de
+    search-path hijacking encontrado.** Bucket `whatsapp-media`:
+    corretamente privado, só `is_portal_admin()` lê, escrita só por
+    service_role (sem policy de INSERT pra ninguém logado). Trigger
+    `protect_profile_columns` (BEFORE INSERT/UPDATE em `profiles`,
+    vinculada via `CREATE TRIGGER`, confirmado) reverte silenciosamente
+    qualquer tentativa de setar `is_pro`/`portal_access`/`role=admin`/
+    `verified` por quem não é `is_portal_admin()` — bloqueia auto-promoção
+    a admin. Cron jobs (4, via `pg_cron`) têm corpo fixo sem parâmetro
+    controlável pelo cliente — sem superfície de injeção. Nenhuma
+    Edge Function no repo (tudo é rota Next.js no Cloudflare Pages).
+  - **ACEITO COMO RISCO BAIXO, não corrigido**: `push_device_tokens`
+    UPDATE usa `USING(true) WITH CHECK(auth.uid()=user_id)` — de
+    propósito, pro aparelho que trocou de conta reatribuir a própria
+    linha (o token físico é a chave natural, não o dono). Um usuário
+    comum PODERIA, em teoria, sequestrar a linha de outro se soubesse o
+    `id` (uuid) dela — mas não há SELECT que vaze esse id pra ninguém
+    fora do dono, então a exploração exige adivinhar um UUID. Mudar pra
+    `auth.uid()=user_id` também no USING quebraria a reatribinação
+    legítima; não mexido nesta rodada.
+  - **NÃO VERIFICADO NESTA RODADA** (fora do que consegui aprofundar):
+    matriz completa das 50 tabelas × 4 operações (fiz um sweep de
+    `USING(true)`/`WITH CHECK(true)` cobrindo os casos historicamente
+    achados, não uma tabela linha-a-linha de tudo); Storage buckets além
+    de `whatsapp-media` não foram re-conferidos nesta sessão (o histórico
+    em waves anteriores já documenta `posts`/`avatars`/`exports`/
+    `art-refs` — não re-lidos agora); Realtime publications além de
+    `whatsapp_messages`; configuração de Auth (redirect URLs, expiração
+    de JWT, MFA, leaked password protection, captcha) — tudo isso só no
+    Dashboard do Supabase, **MANUAL VERIFICATION REQUIRED**; execução
+    real em produção do DROP de `exec_sql`/`executar_sql` (o arquivo
+    existe e está correto, mas não há como confirmar daqui se rodou).
+
 - **AUDITORIA DE RATE LIMITING / ABUSE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA de segurança... rate limiting, DoS, abuse de IA/WhatsApp/push").
   SQL `/migrations/2026-09-13-security-audit-hardening.sql` — JÁ EXECUTADO
