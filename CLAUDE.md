@@ -2,9 +2,10 @@
 
 - **AUDITORIA DE RATE LIMITING / ABUSE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA de segurança... rate limiting, DoS, abuse de IA/WhatsApp/push").
-  SQL `/migrations/2026-09-13-security-audit-hardening.sql` — PENDENTE até o
-  usuário rodar. O código já está protegido pro caso comum (payload grande);
-  o achado CRÍTICO só fecha de verdade com o SQL.**
+  SQL `/migrations/2026-09-13-security-audit-hardening.sql` — JÁ EXECUTADO
+  no Supabase (2026-09-13, confirmado pelo usuário: a consulta de
+  conferência do fim do arquivo voltou as 5 linhas com `ok=true`). Não
+  pedir pra rodar de novo.**
   - **ACHADO CRÍTICO: `check_rate_limit(p_user_id uuid, ...)` — a coluna e o
     parâmetro sempre foram UUID, mas toda chave que não é um id de usuário
     puro é uma STRING** ("ip:1.2.3.4", "ip:1.2.3.4:login",
