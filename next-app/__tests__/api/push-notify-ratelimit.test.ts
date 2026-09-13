@@ -236,6 +236,70 @@ describe('POST /api/push-notify — auth + Zod + rate limit', () => {
     expect(body.sent).toBe(0);
   });
 
+  // ─── auditoria FCM/push 2026-09-13: teto de fan-out por envio ───────────
+  // Nada impede um usuário de inserir milhares de tokens/subscriptions
+  // falsos na própria conta (RLS só garante que é dono, não que é uma
+  // quantidade razoável). Sem limite aqui, qualquer notificação endereçada
+  // a essa conta dispararia um fetch concorrente por linha. A query pro
+  // Postgres precisa vir com `order=` + `limit=` — não dá pra testar
+  // "quantos foram enviados de fato" sem simular milhares de linhas, mas dá
+  // pra travar que a rota NUNCA busca sem teto.
+
+  it('busca push_subscriptions com order + limit (nunca sem teto)', async () => {
+    const fetchMock = installFetchMock();
+    const { POST } = await import('@/app/api/push-notify/route');
+    await POST(mkReq({ userIds: [VALID_UID], title: 'Oi' }));
+
+    const subsCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('/rest/v1/push_subscriptions'),
+    );
+    expect(subsCall).toBeDefined();
+    const calledUrl = String(subsCall![0]);
+    expect(calledUrl).toMatch(/order=last_seen_at\.desc/);
+    expect(calledUrl).toMatch(/limit=\d+/);
+  });
+
+  it('busca push_device_tokens com order + limit (nunca sem teto)', async () => {
+    const fetchMock = installFetchMock();
+    process.env.FCM_PROJECT_ID = 'p';
+    process.env.FCM_CLIENT_EMAIL = 'x@y.iam';
+    process.env.FCM_PRIVATE_KEY = 'k';
+    const { POST } = await import('@/app/api/push-notify/route');
+    await POST(mkReq({ userIds: [VALID_UID], title: 'Oi' }));
+
+    const tokensCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('/rest/v1/push_device_tokens'),
+    );
+    expect(tokensCall).toBeDefined();
+    const calledUrl = String(tokensCall![0]);
+    expect(calledUrl).toMatch(/order=last_seen_at\.desc/);
+    expect(calledUrl).toMatch(/limit=\d+/);
+  });
+
+  it('o teto de fetch cresce com o nº de destinatários, mas fica bem abaixo de "sem limite"', async () => {
+    const fetchMock = installFetchMock();
+    const many = new Array(60).fill(0).map((_, i) => {
+      const hex = i.toString(16).padStart(12, '0');
+      return `aaaaaaaa-bbbb-cccc-dddd-${hex}`;
+    });
+    const { POST } = await import('@/app/api/push-notify/route');
+    await POST(
+      mkReq(
+        { userIds: many, title: 'oi' },
+        { headers: { 'cf-connecting-ip': '203.0.113.9' } },
+      ),
+    );
+    const subsCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('/rest/v1/push_subscriptions'),
+    );
+    const match = String(subsCall![0]).match(/limit=(\d+)/);
+    expect(match).not.toBeNull();
+    const limit = Number(match![1]);
+    // Nunca "ilimitado": um teto proporcional, não uma string vazia/ausente.
+    expect(limit).toBeGreaterThan(0);
+    expect(limit).toBeLessThan(100_000);
+  });
+
   it('logs warning when userIds > 50 (high-volume signal)', async () => {
     installFetchMock();
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
