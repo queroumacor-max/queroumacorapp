@@ -19,6 +19,17 @@ function imageBlob(): Blob {
 }
 
 describe('POST /api/area-from-photo', () => {
+  it('rejeita corpo grande (413) antes de bufferizar o formData (auditoria 2026-09-13)', async () => {
+    const req = new Request('https://app.test/api/area-from-photo', {
+      method: 'POST',
+      headers: { 'content-length': String(15 * 1024 * 1024) },
+      body: 'x',
+    });
+    const { POST } = await import('@/app/api/area-from-photo/route');
+    const res = await POST(req as never);
+    expect(res.status).toBe(413);
+  });
+
   it('returns 503 when OPENAI_API_KEY missing', async () => {
     delete process.env.OPENAI_API_KEY;
     const { POST } = await import('@/app/api/area-from-photo/route');

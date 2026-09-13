@@ -23,6 +23,17 @@ afterEach(() => {
 });
 
 describe('POST /api/ig-art', () => {
+  it('rejeita corpo grande (413) antes do gate, mesmo dentro do hard-timeout race (auditoria 2026-09-13)', async () => {
+    const req = new Request('https://app.test/api/ig-art', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(30 * 1024 * 1024) },
+      body: '{}',
+    });
+    const { POST } = await import('@/app/api/ig-art/route');
+    const res = await POST(req as never);
+    expect(res.status).toBe(413);
+  });
+
   it('returns 403 when user is not PRO', async () => {
     mocks = installAuthMocks({ pro: false });
     const { POST } = await import('@/app/api/ig-art/route');

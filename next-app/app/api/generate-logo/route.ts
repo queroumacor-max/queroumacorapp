@@ -5,6 +5,7 @@ import {
   gateProAI,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -21,6 +22,10 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+  // Auditoria 2026-09-13: `name`/`style` são strings curtas — nada aqui
+  // justifica um corpo grande. 64KB é folga generosa pro JSON em volta.
+  const oversized = rejectOversizedBody(request, 64 * 1024);
+  if (oversized) return oversized;
   let body: { name?: unknown; style?: unknown; accessToken?: unknown };
   try {
     body = await request.json();

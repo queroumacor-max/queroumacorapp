@@ -6,6 +6,7 @@ import {
   gateProAI,
   gateAiUsage,
   recordAiUsage,
+  rejectOversizedBody,
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
@@ -22,6 +23,13 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+  // Auditoria 2026-09-13: pré-check barato de Content-Length ANTES do
+  // parse — o Zod abaixo (chatAiSchema) já rejeita `message`/`history`
+  // grandes, mas só DEPOIS de `request.json()` já ter bufferizado e
+  // parseado o corpo inteiro. 256KB cobre message (10k) + history (20×10k)
+  // com folga de sobra pro JSON em volta.
+  const oversized = rejectOversizedBody(request, 256 * 1024);
+  if (oversized) return oversized;
   let raw: unknown;
   try {
     raw = await request.json();

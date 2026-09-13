@@ -15,6 +15,17 @@ afterEach(() => {
 });
 
 describe('POST /api/generate-logo', () => {
+  it('rejeita corpo grande (413) antes de qualquer gate (auditoria 2026-09-13)', async () => {
+    const req = new Request('https://app.test/api/generate-logo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(1024 * 1024) },
+      body: '{}',
+    });
+    const { POST } = await import('@/app/api/generate-logo/route');
+    const res = await POST(req as never);
+    expect(res.status).toBe(413);
+  });
+
   it('returns 503 when OPENAI_API_KEY missing', async () => {
     delete process.env.OPENAI_API_KEY;
     const { POST } = await import('@/app/api/generate-logo/route');

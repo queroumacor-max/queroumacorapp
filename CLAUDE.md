@@ -1,5 +1,96 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE RATE LIMITING / ABUSE (2026-09-13, pedido do usuário: "auditoria
+  COMPLETA de segurança... rate limiting, DoS, abuse de IA/WhatsApp/push").
+  SQL `/migrations/2026-09-13-security-audit-hardening.sql` — PENDENTE até o
+  usuário rodar. O código já está protegido pro caso comum (payload grande);
+  o achado CRÍTICO só fecha de verdade com o SQL.**
+  - **ACHADO CRÍTICO: `check_rate_limit(p_user_id uuid, ...)` — a coluna e o
+    parâmetro sempre foram UUID, mas toda chave que não é um id de usuário
+    puro é uma STRING** ("ip:1.2.3.4", "ip:1.2.3.4:login",
+    "log-error:1.2.3.4", "push-notify:1.2.3.4", "u:<uuid>"). O PostgREST
+    recusa o cast (22P02 → HTTP 400), e `checkRateLimit` (`lib/api/
+    security.ts`) trata QUALQUER `!res.ok` como "serviço indisponível" →
+    FAIL-OPEN. **Não é "raro estourar": é "nunca rodou".** Isso significa
+    que, desde que foram escritos, os seguintes limites por IP nunca
+    funcionaram de verdade:
+    - `checkAuthRateLimit` — brute force de LOGIN, criação em massa no
+      SIGNUP, bombing de RESET DE SENHA — a defesa por IP estava morta;
+    - `/api/log-error` por IP (log flooding / custo de Sentry);
+    - `/api/push-notify` por IP (defesa contra vazamento do
+      `PUSH_INTERNAL_SECRET`);
+    - os 7 endpoints que usam `enforceRateLimit`: checkout, delete-account,
+      upload-style-ref, apple-iap-verify, play-billing-verify, cidades,
+      reverse-geocode, auth/set-session-cookie.
+    **O que NÃO foi afetado**: qualquer chamada que manda um UUID de
+    usuário puro (me-export, moderate, moderate-video, quote-pdf-upload,
+    quote-pdf-upload, wa-suggest, admin-*, whatsapp/send, e o rate-limit
+    por minuto de `gateProAI`/`gateAiUsage` — todos usam `auth.user.id`
+    direto). A cota MENSAL de IA (`ai_usage`, 30/500/99999 por plano)
+    também não foi tocada — é uma tabela e uma conta separadas.
+    **Por que o teste existente nunca pegou**: `__tests__/api/
+    security-ratelimit.test.ts` e `__tests__/api/auth-rate-check.test.ts`
+    só mockavam respostas 200 da RPC — nunca simulavam o 400 real que o
+    Postgres devolve pra UUID inválido. Os dois ganharam teste novo que
+    simula esse 400 explicitamente e documenta o contrato (a chave
+    mandada NUNCA é um UUID, prova em `auth-rate-check.test.ts`).
+    **FIX**: `ALTER COLUMN user_id TYPE text` + `check_rate_limit(p_user_id
+    text, ...)`. UUID continua sendo string válida — não quebra nada que
+    já funcionava.
+  - **ACHADO ALTO: `search_all(p_query, p_limit)` sem GRANT restrito nem
+    teto no LIMIT.** Função criada sem REVOKE herda EXECUTE pra PUBLIC —
+    ou seja, a chave `anon` (pública, em qualquer bundle do app) podia
+    chamar `POST /rest/v1/rpc/search_all` DIRETO no Supabase, sem passar
+    pelo `/search` do Next.js e sem NENHUM rate limit nosso. E o
+    `p_limit` do cliente ia direto pro `LIMIT` da query, sem teto —
+    `p_limit=2000000000` era aceito. **FIX**: `LIMIT
+    LEAST(coalesce(p_limit,20), 100)` + REVOKE de PUBLIC/anon + GRANT só
+    pra `authenticated` (o app exige login desde 2026-06-18, então isso
+    não tira acesso de ninguém que hoje usa a busca pelo app).
+  - **FALSOS POSITIVOS DESCARTADOS (verificados, não presumidos)**:
+    tokens de IA já têm teto (`max_tokens`/`maxTokens` 200-2000 conforme o
+    serviço; histórico truncado a 8-10 turnos e 2000 chars por turno em
+    `chat-ai.ts`); `moderate-video` já tem SSRF guard (só `*.supabase.co
+    /storage/`), timeout de 20s e teto de 25MB; `tts`/`moderate` já
+    truncam texto de entrada (2000/4000 chars); webhooks (WhatsApp,
+    Mercado Pago) já são idempotentes (`message_id`/`external_id` UNIQUE
+    + upsert); `whatsapp/send` e `whatsapp/followup` já usam `safeEqual`
+    (comparação em tempo constante) pro segredo — só o handshake GET de
+    verificação do webhook (chamado uma vez pela Meta na configuração,
+    não é o segredo corrente) usa `===` puro, risco residual BAIXO, não
+    corrigido nesta rodada.
+  - **CORRIGIDO (código, sem depender do SQL): 9 rotas de IA liam o corpo
+    cru (`request.json()`/`request.formData()`) SEM NENHUM teto de
+    tamanho antes do parse** — o `accessToken` mora dentro do body nesses
+    endpoints, então não dá pra autenticar antes de ler algo, e um corpo
+    de dezenas de MB era bufferizado e parseado por completo antes de
+    qualquer rejeição. `rejectOversizedBody(request, maxBytes)`
+    (`lib/api/security.ts`) é um pré-check barato (só olha
+    `Content-Length`, não lê o corpo) chamado como PRIMEIRA linha do
+    handler: chat-ai, alice, senna, fe (256KB — o Zod de chat-ai e o
+    `.slice()` de `chatWithPersona` já capavam o que sobra, isso é
+    defesa-em-profundidade pro custo de PARSE), generate-logo (64KB),
+    ig-art (24MB, cobre as 2 fotos base64), transcribe (27MB),
+    area-from-photo e receipt-ocr (9MB cada). **Limitação declarada**:
+    só pega corpo com `Content-Length` presente e maior que o header diz;
+    corpo chunked sem esse header passa direto, sob o teto que resta é o
+    do próprio Cloudflare Workers na borda (~100MB, fora do nosso
+    controle) — documentado no JSDoc do helper. Testes:
+    `__tests__/api/security-body-size-guard.test.ts` (unitário do
+    helper) + um caso de integração em cada um dos 6 arquivos de teste
+    de rota que já existiam (chat-ai, generate-logo, transcribe, ig-art,
+    area-from-photo); alice/senna/fe/receipt-ocr receberam o MESMO código
+    mas não ganharam arquivo de teste novo (padrão idêntico ao já
+    testado em chat-ai/transcribe — decisão de escopo, não esquecimento).
+  - **NÃO coberto nesta rodada (reportado, não corrigido)**: janela FIXA
+    de 1 minuto no `check_rate_limit` (não sliding window — dá pra
+    dobrar o volume batendo bem na virada do minuto; baixo impacto,
+    limites atuais têm folga); comparação `===` no handshake GET do
+    webhook do WhatsApp; rotas `whatsapp-evo/*` (Evolution API,
+    "aposentada" por decisão do usuário — ver regra "WEBINTOAPP" — mas
+    o endpoint ainda existe e não foi auditado a fundo por já ser
+    caminho morto).
+
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
   SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
