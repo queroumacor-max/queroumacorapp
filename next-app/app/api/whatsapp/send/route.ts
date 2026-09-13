@@ -37,6 +37,7 @@ import {
 import { normalizeWhatsAppTarget } from '@/lib/api/_services/whatsapp-evo';
 import { whatsappSendSchema } from '@/lib/api/schemas/whatsapp-send';
 import { logAuditEvent } from '@/lib/api/audit';
+import { runAfterResponse } from '@/lib/api/env';
 
 export const runtime = 'edge';
 
@@ -50,11 +51,12 @@ export const runtime = 'edge';
 // (500 e não 504 — ver deadlineResponse).
 const ROUTE_DEADLINE_MS = 22000;
 
-// Teto do que roda DEPOIS do envio (gravar a mensagem + audit). Passou
-// disso, a resposta sai assim mesmo: o cliente já recebeu a mensagem, e
-// segurar a tela do operador por causa de escrituração é o que criava o
-// 502 em envio que deu certo.
-const BOOKKEEPING_BUDGET_MS = 6000;
+// Teto do que AINDA segura a resposta depois do envio: só o vínculo
+// wamid → lead (ver abaixo). Gravar a mensagem e o audit saíram do caminho
+// da resposta em 2026-09-13 (`runAfterResponse`): o cliente já recebeu, e
+// segurar a tela do operador por escrituração era o que criava o 502 em
+// envio que deu certo — e, mesmo sem 502, custava até 6s de "Enviando…".
+const BOOKKEEPING_BUDGET_MS = 3000;
 
 /**
  * Resposta honesta quando o orçamento acaba: a mensagem PODE ter saído.
@@ -160,53 +162,61 @@ async function handle(request: NextRequest): Promise<Response> {
     // envio bem-sucedido ainda terminava na página 502 do Cloudflare — com
     // a mensagem já entregue ao cliente e o operador achando que falhou.
     // Agora correm em paralelo e com teto próprio.
-    const bookkeeping = Promise.allSettled([
-      // Abordagem de lead (2026-09-09): amarra o wamid ao lead AGORA, antes
-      // de responder. É por esse vínculo que o `sent`/`failed` do webhook
-      // acha o lead — e o webhook pode chegar segundos depois desta
-      // resposta, então o vínculo não pode ficar por conta do portal.
-      // NÃO marca `contactado`: só a confirmação da Meta faz isso.
-      input.leadId
-        ? vincularAbordagemAoLead({ leadId: input.leadId, messageId: result.messageId })
-        : Promise.resolve(false),
-      persistWhatsAppMessage({
-        direction: 'out',
-        // Fallback do wa_id respeita DDI estrangeiro (ver
-        // normalizeWhatsAppTarget) — com normalizeBrPhone, resposta pra
-        // número dos EUA era gravada na conversa errada.
-        // `normalizeWhatsAppTarget` e não `normalizeBrPhone`: só ele respeita
-        // DDI estrangeiro. Com o normalizador BR, resposta pra número dos EUA
-        // era gravada na conversa errada.
-        waId: result.waId || normalizeWhatsAppTarget(input.to) || input.to,
-        messageId: result.messageId,
-        type: input.type,
-        body: input.body,
-        template: input.template,
-        sentBy: callerId,
-        origin: 'portal',
-      }),
-      // Sem o corpo completo no `changes` — só o preview — pra não acumular
-      // conversa de cliente no audit_log (LGPD data minimization).
-      logAuditEvent({
-        actorId: callerId,
-        action: 'whatsapp.send',
-        targetTable: null,
-        targetId: result.waId || null,
-        changes: {
-          type: input.type,
-          channel,
-          template: input.template || null,
-          bodyPreview: (input.body || '').slice(0, 80),
+    // Abordagem de lead (2026-09-09): amarra o wamid ao lead ANTES de
+    // responder. É por esse vínculo que o `sent`/`failed` do webhook acha o
+    // lead — e o webhook pode chegar segundos depois desta resposta, então o
+    // vínculo não pode ficar por conta do portal. NÃO marca `contactado`:
+    // só a confirmação da Meta faz isso. Único item que ainda segura a
+    // resposta, e com teto próprio.
+    if (input.leadId) {
+      await Promise.race([
+        vincularAbordagemAoLead({ leadId: input.leadId, messageId: result.messageId }).catch((e) => {
+          console.error('whatsapp_send_vinculo_falhou', e instanceof Error ? e.message : e);
+          return false;
+        }),
+        new Promise((r) => setTimeout(r, BOOKKEEPING_BUDGET_MS)),
+      ]);
+    }
+
+    // Histórico (Wave 38) + trilha no audit_log: DEPOIS da resposta
+    // (`ctx.waitUntil`). Os dois são best-effort — a mensagem JÁ SAIU e a
+    // escrituração não pode custar o sucesso. O portal mostra a mensagem
+    // pelo eco local e recebe a linha real pelo realtime assim que ela for
+    // gravada, segundos depois; nada depende de ela existir antes do 200.
+    runAfterResponse(
+      Promise.allSettled([
+        persistWhatsAppMessage({
+          direction: 'out',
+          // `normalizeWhatsAppTarget` e não `normalizeBrPhone`: só ele
+          // respeita DDI estrangeiro. Com o normalizador BR, resposta pra
+          // número dos EUA era gravada na conversa errada.
+          waId: result.waId || normalizeWhatsAppTarget(input.to) || input.to,
           messageId: result.messageId,
-          leadId: input.leadId || null,
-        },
-        request,
-      }),
-    ]);
-    await Promise.race([
-      bookkeeping,
-      new Promise((r) => setTimeout(r, BOOKKEEPING_BUDGET_MS)),
-    ]);
+          type: input.type,
+          body: input.body,
+          template: input.template,
+          sentBy: callerId,
+          origin: 'portal',
+        }),
+        // Sem o corpo completo no `changes` — só o preview — pra não acumular
+        // conversa de cliente no audit_log (LGPD data minimization).
+        logAuditEvent({
+          actorId: callerId,
+          action: 'whatsapp.send',
+          targetTable: null,
+          targetId: result.waId || null,
+          changes: {
+            type: input.type,
+            channel,
+            template: input.template || null,
+            bodyPreview: (input.body || '').slice(0, 80),
+            messageId: result.messageId,
+            leadId: input.leadId || null,
+          },
+          request,
+        }),
+      ])
+    );
 
     return jsonResponse({
       ok: true,
