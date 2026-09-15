@@ -40,3 +40,99 @@
 3. Bloquear bots conhecidos e scrapers
 4. Bloquear admin paths suspeitos
 5. Challenge portal para IPs fora do BR/US/PT
+
+## 🔒 Sessão 13-15/09/2026 — Auditoria Completa Cloudflare (132 seções)
+
+Branch `claude/cloudflare-security-audit-gurtsy`, pedido explícito do usuário.
+Cobriu DNS, TLS, WAF, Workers/Pages, cache, secrets, CI/CD e o artefato REAL
+do build (não só `.next`). Relatório completo das 132 seções foi entregue no
+chat da sessão; aqui fica o resumo operacional — o que mudou, o que ficou
+confirmado por evidência e o que ainda depende do Dashboard.
+
+### Corrigido no código (commits `4abcea8` + `3956760`)
+
+- **CRITICAL**: `next` 15.5.2 → **15.5.25** (mesma minor) — 3 CVEs CRITICAL
+  (RCE via React Flight protocol, exposição de código-fonte de Server
+  Actions, DoS). O `@cloudflare/next-on-pages@1.13.16` (deprecado) trava o
+  peer range em `<=15.5.2`; `next-app/.npmrc` com `legacy-peer-deps=true`
+  destrava só isso. Build `npm run build:cf` reproduzido do zero com
+  sucesso.
+- **HIGH**: 157 source maps do bundle client-side ficavam PÚBLICOS no
+  artefato de produção — sem `SENTRY_AUTH_TOKEN` no ambiente de build, o
+  plugin do Sentry pula o upload E o apagamento dos `.map`. Novo
+  `next-app/scripts/strip-source-maps.mjs`, plugado no `build:cf`, apaga
+  todo `.map` do artefato final independente do token existir.
+- **HIGH**: `deploy.yml` (workflow_dispatch) podia publicar PRODUÇÃO a
+  partir de qualquer branch — `wrangler pages deploy --branch=main` é
+  fixo, mas o dispatch deixava escolher a ref livremente. Corrigido com
+  `if: github.ref == 'refs/heads/main'`.
+- **MEDIUM**: chave Gemini ia na query string (`?key=...`) em 8 pontos —
+  movida pro header `x-goog-api-key` (URL de requisição vaza fácil pra
+  log/Sentry/proxy).
+- **MEDIUM**: chave Gemini **vazada no histórico do Git** (arquivo
+  `queroumacorportal.html`, commit `a735531`, 2026-03-23, removido 17min
+  depois mas recuperável via `git show`) — **ROTACIONAR `GEMINI_API_KEY`**
+  no Google AI Studio/GCP + trocar no Cloudflare Pages.
+- Webhook Evolution (legado): comparação de token `!==` → `safeEqual`
+  (tempo constante). `ios-screenshots.yml` ganhou `permissions:` mínimo.
+  `next-app/` entrou no `dependabot.yml` (só cobria o `package.json` da
+  raiz antes).
+
+### Confirmado por evidência real (curl via `wrangler pages dev` contra o
+### artefato publicado, não suposição)
+
+- CSP/HSTS/COOP/CORP/Permissions-Policy aplicados corretamente em
+  `/login`, `/portal` e rotas prerenderizadas — a fonte única é o
+  `headers()` do `next-app/next.config.mjs` (C2 da auditoria de
+  2026-08-26 está de fato fechado).
+- Artefato final pós-fix: **0** `.map`, **0** `.env*`, **0** `service_role`
+  key vazada (só a `anon` key, pública por design).
+- `_headers`/`_redirects` da RAIZ do repo (fora de `next-app/`) são
+  **INERTES** — Cloudflare Pages só lê esses arquivos de DENTRO do build
+  output (`next-app/.vercel/output/static`). Banner de aviso adicionado
+  nos dois pra não confundir sessão futura.
+
+### Cruzamento com o registro de 25/05/2026 acima — corrige um veredito
+
+O relatório desta auditoria tinha marcado "Bot protection: FAIL" olhando
+só a ausência de Turnstile no `next-app` (confirmado: o widget saiu na
+migração vanilla→Next, só a CSP ainda permite `challenges.cloudflare.com`
+por precaução). **Isso ignorava o que já está registrado ACIMA neste
+mesmo arquivo**: 5 custom rules no Cloudflare desde 25/05, incluindo
+"Bloquear bots conhecidos e scrapers" e "Challenge portal para IPs fora
+do BR/US/PT" — proteção de bot EXISTE na camada Cloudflare (edge), só não
+tem uma segunda camada no nível de APLICAÇÃO (login/signup do app não
+pedem nenhum challenge). Veredito correto: proteção de borda presente,
+proteção de aplicação ausente — não "nenhuma proteção".
+**Não reverificado nesta sessão se as 5 regras de 25/05 ainda estão
+ativas** — ver item 5 abaixo.
+
+### MANUAL ACTION REQUIRED (Cloudflare Dashboard — nada disso é
+### verificável/corrigível a partir do repo)
+
+1. **[PRIORIDADE MÁXIMA]** Confirmar se as env vars de **Preview** no
+   Cloudflare Pages são as MESMAS de produção. Se forem, qualquer push em
+   qualquer branch expõe `SUPABASE_SERVICE_ROLE_KEY`/chaves de IA/
+   pagamento/WhatsApp a um build malicioso (supply-chain via
+   `postinstall`). Ver aviso completo em `STAGING.md`.
+2. **Rotacionar `GEMINI_API_KEY`** (vazamento histórico, ver acima).
+3. Confirmar `SENTRY_AUTH_TOKEN` está de fato no Build Command real do CF
+   Pages Dashboard (não só no GitHub Actions, já corrigido).
+4. `DMARC` de `calicolors.com.br` — **segue pendente desde 25/05/2026**,
+   ninguém rodou o TXT no GoDaddy ainda.
+5. Reconferir se as 5 custom rules do WAF (seção acima) ainda existem e
+   fazem sentido — não verificado nesta sessão.
+6. Confirmar SSL/TLS mode = Full (Strict), TLS mínimo/1.3, DNSSEC, CAA.
+7. Confirmar escopo do `CLOUDFLARE_API_TOKEN` do deploy (deveria ser só
+   `Pages:Edit`).
+8. Considerar Cloudflare Access na frente de `*.pages.dev`.
+9. Considerar Bot Fight Mode/Managed Challenge (ou Turnstile com
+   validação server-side real) especificamente em `/login` e `/signup`
+   do app — hoje sem camada de aplicação.
+
+### Testes
+
+2096/2096 testes verdes (163 arquivos), typecheck limpo, `npm run
+build:cf` reproduzido do zero com `npm ci`. Testes novos:
+`whatsapp-evo-webhook-auth.test.ts`, `gemini-key-not-in-query-string
+.test.ts`, `strip-source-maps.test.ts`.
