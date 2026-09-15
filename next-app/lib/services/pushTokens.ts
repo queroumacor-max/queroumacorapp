@@ -6,6 +6,23 @@
 // RLS user-owned do web push: o client grava a própria linha; o ENVIO
 // (server → FCM) lê via service_role e é a etapa seguinte do plano.
 //
+// AUDITORIA FCM/PUSH (2026-09-13) — TOKEN OWNERSHIP: a reassociação de um
+// token (aparelho compartilhado que troca de conta) upserta por conflito de
+// `token` — e a linha em conflito pode pertencer a OUTRO usuário. Fazer isso
+// via `.from(...).upsert()` direto exige que a policy de UPDATE de
+// `push_device_tokens` aceite atualizar uma linha de dono diferente
+// (USING(true)), o que também abre a porta pra qualquer usuário autenticado
+// mandar um PATCH cru filtrando por `user_id=eq.<vítima>` e SEQUESTRAR a
+// linha de outra pessoa (reatribuir pra si mesmo), sem precisar conhecer o
+// token dela. `upsert_push_device_token` é uma RPC SECURITY DEFINER que faz
+// a mesma reatribuição (por `token`, nunca por `user_id`) mas SEMPRE grava
+// `user_id = auth.uid()` no corpo da função — não no que o cliente manda —
+// então a policy de UPDATE da tabela pôde voltar a ser estritamente
+// `auth.uid() = user_id` (ninguém edita linha alheia via REST cru).
+// Fallback pro upsert antigo SÓ quando a RPC ainda não existe no banco
+// (42883/PGRST202 — SQL da migration `2026-09-13-fcm-push-hardening.sql`
+// pendente), mesmo padrão `ehFuncaoAusente` usado no resto do projeto:
+// recurso novo não pode derrubar o registro de push por SQL não rodado.
 import { getSupabase } from '../supabase';
 import { native } from '../native';
 
@@ -14,6 +31,11 @@ export interface RegisterDeviceTokenResult {
   /** 'unavailable' = fora da casca/sem plugin; 'denied' = permissão negada
    *  ou registro falhou; 'error' = gravação no banco falhou. */
   reason?: 'unavailable' | 'denied' | 'error';
+}
+
+function rpcAusente(error: { code?: string } | null | undefined): boolean {
+  const code = error?.code;
+  return code === 'PGRST202' || code === '42883';
 }
 
 /**
@@ -28,11 +50,28 @@ export async function saveDeviceToken(
   if (!userId || !token) return { ok: false, reason: 'error' };
   try {
     const sb = getSupabase();
+    const platform = native.platform();
+
+    // Caminho seguro: RPC SECURITY DEFINER, dono da linha sempre = quem
+    // está autenticado nesta chamada (auth.uid() dentro da função — nunca
+    // o `userId` do parâmetro, que aqui só serve pro fallback legado).
+    const rpc = await sb.rpc('upsert_push_device_token' as never, {
+      p_token: token,
+      p_platform: platform,
+    } as never);
+    if (!rpc.error) return { ok: true };
+    if (!rpcAusente(rpc.error as { code?: string })) {
+      return { ok: false, reason: 'error' };
+    }
+
+    // Fallback: SQL da hardening ainda não rodou neste ambiente. Mesmo
+    // comportamento de antes (RLS mais permissiva na tabela até a migration
+    // rodar) — registrar push continua funcionando, só sem o reforço.
     const { error } = await sb.from('push_device_tokens').upsert(
       {
         user_id: userId,
         token,
-        platform: native.platform(),
+        platform,
         last_seen_at: new Date().toISOString(),
       },
       { onConflict: 'token' },

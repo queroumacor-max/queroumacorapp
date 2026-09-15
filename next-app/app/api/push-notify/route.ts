@@ -55,6 +55,17 @@ interface PushPayload {
 
 const ENDPOINT_TIMEOUT_MS = 8000;
 
+// Teto de fan-out por usuário-alvo neste envio. Nada no INSERT de
+// `push_subscriptions`/`push_device_tokens` limita QUANTAS linhas um usuário
+// autenticado cria pra si mesmo (RLS só garante que são dele) — sem este
+// teto, alguém que inserisse milhares de tokens/subscriptions falsos na
+// própria conta faria QUALQUER notificação endereçada a ele (curtida,
+// comentário, mensagem) virar milhares de fetches concorrentes daqui pro
+// FCM/push service, no MESMO isolate. `order=...desc&limit=N` mantém só os
+// dispositivos mais recentes — a pessoa continua recebendo push nos
+// aparelhos de verdade, o resto nunca é buscado.
+const MAX_RECIPIENTS_PER_SEND = 25;
+
 export async function POST(request: NextRequest): Promise<Response> {
   // ─── 1) Auth interno (constant-time-ish compare) ─────────────────────────
   const internalSecret = getRuntimeEnv('PUSH_INTERNAL_SECRET');
@@ -244,7 +255,7 @@ async function fetchSubscriptions(
   // PostgREST `in.()` filter espera lista entre parens, quoted se contiver
   // caractere especial — UUIDs não têm, então plain join basta.
   const inList = userIds.map((u) => `"${u}"`).join(',');
-  const u = `${url.replace(/\/$/, '')}/rest/v1/push_subscriptions?select=id,user_id,endpoint,p256dh,auth&user_id=in.(${inList})`;
+  const u = `${url.replace(/\/$/, '')}/rest/v1/push_subscriptions?select=id,user_id,endpoint,p256dh,auth&user_id=in.(${inList})&order=last_seen_at.desc&limit=${MAX_RECIPIENTS_PER_SEND * Math.max(1, userIds.length)}`;
   const res = await fetch(u, {
     headers: {
       apikey: serviceKey,
@@ -287,7 +298,7 @@ async function fetchDeviceTokens(
   userIds: string[],
 ): Promise<DeviceTokenRow[]> {
   const inList = userIds.map((u) => `"${u}"`).join(',');
-  const u = `${url.replace(/\/$/, '')}/rest/v1/push_device_tokens?select=id,token&user_id=in.(${inList})`;
+  const u = `${url.replace(/\/$/, '')}/rest/v1/push_device_tokens?select=id,token&user_id=in.(${inList})&order=last_seen_at.desc&limit=${MAX_RECIPIENTS_PER_SEND * Math.max(1, userIds.length)}`;
   const res = await fetch(u, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
     signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),

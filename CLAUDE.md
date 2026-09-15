@@ -1,5 +1,113 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **RATE LIMIT EM MENSAGENS DE CHAT + PUSH DE MENSAGEM SEM TEXTO (2026-09-15,
+  pedido do usuário, fechando 2 pendências da auditoria FCM/push abaixo). SQL
+  `/migrations/2026-09-15-chat-safety-hardening.sql` — JÁ EXECUTADO no
+  Supabase (2026-09-15, confirmado pelo usuário: "feito"). Não pedir pra
+  rodar de novo.**
+  - **`messages` ganhou rate limit PRÓPRIO** (antes só existia no dispatch do
+    push, 20/min por destinatário — continha o SINTOMA, não a causa). Trigger
+    `BEFORE INSERT` chama `check_rate_limit` com chave por PAR
+    remetente→destinatário (`sender>receiver`, não o remetente sozinho — pra
+    não travar a loja respondendo muita gente rápido), 30 msgs/min. Estourou
+    → INSERT recusado com mensagem que contém "rate limit" (já bate no
+    pattern existente de `lib/errors-friendly.ts` → "Muitas tentativas",
+    nenhuma mudança de client necessária). `type='system'` (marcadores
+    internos) não conta. Falha na checagem não bloqueia o envio.
+  - **`dispatch_push_on_notification` para de mandar o texto da mensagem no
+    push.** Antes copiava `notifications.body`, que pra `type='message'`
+    inclui até 80 chars do texto real (ex. "Fulano: manda o endereço
+    que..."), direto pro corpo da notificação — aparecia na tela de bloqueio.
+    Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>`
+    enviou uma mensagem" (nome vem do `actor_id`, já gravado na notificação).
+    **`notifications.body` NÃO muda** — a tela `/notificacoes` dentro do app
+    continua mostrando o preview completo; só o que SAI pelo push foi
+    redigido. Testes: `__tests__/chatSafetyHardening.test.ts` (lê o SQL e
+    trava os dois invariantes) + caso novo em
+    `__tests__/lib/errors-friendly.test.ts`.
+
+- **AUDITORIA FIREBASE / FCM / APNs / PUSH (2026-09-13, auditoria paralela #11
+  da rodada de segurança). SQL `/migrations/2026-09-13-fcm-push-hardening.sql`
+  — JÁ EXECUTADO no Supabase (2026-09-15, confirmado pelo usuário: a consulta
+  de conferência do fim do arquivo voltou as 6 linhas com `ok=true`). Não
+  pedir pra rodar de novo.**
+  - **ACHADO CRÍTICO: `push_device_tokens` tinha `UPDATE ... USING (true)`.**
+    A intenção era só permitir que um aparelho compartilhado, ao trocar de
+    conta, reatribuísse a PRÓPRIA linha (upsert por conflito de `token`) pro
+    novo dono — mas `USING(true)` não distingue "minha linha antiga" de
+    "linha de qualquer um". Qualquer usuário autenticado podia mandar
+    `PATCH /rest/v1/push_device_tokens?user_id=eq.<vítima>
+    {"user_id":"<atacante>"}` DIRETO no Supabase (sem passar pelo app) e
+    **sequestrar a linha de qualquer outra pessoa**, sem precisar conhecer o
+    token dela — só o `user_id`, que não é secreto. O `WITH CHECK` barrava só
+    o passo seguinte (manter o `user_id` da vítima), não impedia tomar posse
+    da linha. Efeito prático: o dispositivo real da vítima some da lista de
+    destinatários até o app dela regravar o token sozinho (auto-cura no
+    próximo `ensureDeviceToken`, mas é uma janela real de negação de serviço
+    contra o push de outra pessoa). **FIX**: RPC SECURITY DEFINER
+    `upsert_push_device_token(p_token, p_platform)` que grava **sempre**
+    `user_id = auth.uid()` lido dentro da função (nunca de um campo que o
+    cliente manda) — a reatribuição legítima passa a acontecer só por ali,
+    identificando a linha em conflito pelo `token` (string de alta entropia
+    que o próprio aparelho gerou), nunca pelo `user_id`. A policy de UPDATE
+    da tabela volta a ser estritamente `auth.uid() = user_id` nos dois lados.
+    Client (`lib/services/pushTokens.ts`) chama a RPC primeiro; cai pro
+    upsert direto na tabela só se a função ainda não existir no banco
+    (`PGRST202`/`42883`).
+  - **ACHADO MÉDIO: nada limitava QUANTAS linhas um usuário cria pra si mesmo
+    em `push_device_tokens`/`push_subscriptions`.** RLS de INSERT só garante
+    "é dono da linha", não "é uma quantidade razoável" — um usuário podia
+    inserir milhares de tokens/subscriptions falsos na PRÓPRIA conta e, a
+    partir daí, QUALQUER notificação endereçada a ele (curtida, comentário,
+    mensagem — nenhuma pede confirmação de quem recebe) faria
+    `/api/push-notify` disparar milhares de fetches concorrentes pro
+    FCM/push service no MESMO isolate. **FIX**: trigger que mantém só os 20
+    dispositivos/subscriptions mais recentes por usuário (apaga o excedente
+    no próprio INSERT) + `app/api/push-notify/route.ts` busca só os
+    `25 × nº de destinatários do envio` mais recentes por chamada
+    (`order=last_seen_at.desc&limit=`) — essa parte já vale mesmo sem a
+    migration, é defesa em profundidade no código.
+  - **ACHADO MÉDIO: `dispatch_push_on_notification` disparava 1 push por
+    linha de `notifications`, sem teto por DESTINATÁRIO.** O rate limit do
+    `/api/push-notify` é por IP de quem CHAMA a rota (o próprio Postgres, via
+    pg_net) — nunca por quem RECEBE. Mensagem de chat virou 1 notificação por
+    mensagem em 2026-09-04 (antes agrupava rajada de 5 min), então mandar
+    muitas mensagens rápidas pro mesmo contato aciona um envio de push por
+    mensagem pra essa pessoa. **FIX**: `check_rate_limit(NEW.user_id::text,
+    'push-dispatch', 20, 1)` antes do `net.http_post` — estourou → a
+    notificação continua gravada normalmente (sininho funciona), só o ENVIO
+    de push é contido. Depende do `check_rate_limit(text,...)` da migration
+    da auditoria de rate limiting (item abaixo) — rodar aquela primeiro.
+  - **VERIFICADO E CORRETO, sem mudança**: `push_subscriptions` (web push)
+    já tinha UPDATE/DELETE corretamente escopados (`USING(user_id=auth.uid())`
+    nos dois lados) — só `push_device_tokens` (push nativo) tinha o buraco,
+    porque o padrão de reatribuição cross-device foi copiado sem o `WITH
+    CHECK` bastar sozinho. FK `ON DELETE CASCADE` em ambas as tabelas
+    (`profiles.id`) já limpa tokens/subscriptions de conta deletada. Token
+    morto (404/410/`UNREGISTERED` do FCM; 404/410 do push service) já é
+    removido pelo próprio envio (`classifyFcmResult`/`sendWebPush`) — sem
+    isso a lista cresceria pra sempre. Nenhum `.p8`/service-account JSON/chave
+    privada no repo ou no histórico do git (`.gitignore` cobre os quatro:
+    `*.p8`, `key.properties`, `google-services.json`,
+    `GoogleService-Info.plist`); FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY só
+    em env do Cloudflare Pages, lidas por `getRuntimeEnv` (nunca
+    `process.env` cru), nunca expostas ao mobile/frontend. Deep link do
+    toque na notificação (`routeFromNotificationData`) só aceita path
+    relativo começando com `/` — bloqueia URL externa/open-redirect vinda de
+    um payload adulterado. Sem FCM topics em uso (nem cliente nem servidor) —
+    NOT APPLICABLE pros itens de segurança de topic. Sem notification actions
+    customizadas (botões "Aprovar"/"Excluir" etc.) — NOT APPLICABLE.
+    `notify_user()` RPC (não chamada por nenhum código cliente hoje, só fica
+    disponível) já exige relação prévia (quote ou conversa) com o
+    destinatário — não é broadcast arbitrário.
+  - **NÃO coberto nesta rodada (fora do escopo Firebase/push, reportado)**:
+    mensagem de chat spamada rapidamente gera 1 notificação por mensagem sem
+    rate limit na CAMADA DE MENSAGENS (o teto que ESTE audit adicionou é no
+    dispatch do PUSH, que contém o sintoma mas não a causa); conteúdo de
+    mensagem de chat aparece em texto puro no `body` da notificação (lock
+    screen) — decisão de produto equivalente à de apps de mensagem
+    populares, não alterada sem confirmação do usuário.
+
 - **AUDITORIA DE RATE LIMITING / ABUSE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA de segurança... rate limiting, DoS, abuse de IA/WhatsApp/push").
   SQL `/migrations/2026-09-13-security-audit-hardening.sql` — JÁ EXECUTADO
