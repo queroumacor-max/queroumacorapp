@@ -23,6 +23,18 @@ describe('toFriendlyError — patterns', () => {
     expect(r.title).toBe('Muitas tentativas');
   });
 
+  it('reconhece o texto exato que o trigger de rate limit de mensagens grava', () => {
+    // Contrato com a migration 2026-09-15-chat-safety-hardening.sql: o
+    // trigger `rate_limit_messages` estoura com essa string quando o par
+    // remetente→destinatário passa de 30 msgs/min — se o texto mudar lá
+    // sem sincronizar aqui, o erro cru vazaria pro usuário (fallback
+    // "Algo deu errado" em vez de "Muitas tentativas").
+    const r = toFriendlyError(
+      new Error('rate limit: muitas mensagens em pouco tempo, aguarde um instante'),
+    );
+    expect(r.title).toBe('Muitas tentativas');
+  });
+
   it('reconhece falha de rede', () => {
     const r = toFriendlyError(new Error('fetch failed'));
     expect(r.title).toBe('Sem conexão');
