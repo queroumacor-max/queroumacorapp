@@ -2,9 +2,9 @@
 
 - **AUDITORIA DE SEGURANÇA MOBILE (2026-09-13/15, pedido do usuário: auditoria
   completa Capacitor/Android/iOS/WebView). Branch `claude/mobile-security-
-  audit-b36g38`, commit `af59a79`, PUSHADA — SEM PR ABERTO e SEM merge na
-  `main` (aguardando decisão do usuário). Suíte inteira verde (163 arquivos /
-  2115 testes), typecheck e `next build` limpos.**
+  audit-b36g38` (commits `af59a79`…`927f466`), PUSHADA — SEM PR ABERTO e SEM
+  merge na `main` (aguardando decisão do usuário). Suíte inteira verde (163
+  arquivos / 2119 testes), typecheck e `next build` limpos.**
   - **CRÍTICO — CONTIDO, NÃO CORRIGIDO: `next@15.5.2` é vulnerável a
     CVE-2025-66478/CVE-2025-55182 (RCE, CVSS 10.0, desserialização do
     protocolo Flight via header `Next-Action`).** A versão está PRESA nesse
@@ -35,15 +35,27 @@
     `media-src` no `_headers` estava sem `https://*.supabase.co` — podia
     bloquear `<video>`/`<audio>` do Storage em página estática pré-renderizada
     (ex. `/feed`). Ficaram idênticos; teste de paridade travando isso.
-  - **PENDENTE, não corrigido de propósito (M1): OAuth mobile usa implicit
-    flow** (`lib/supabase.ts` sem `flowType:'pkce'`) — `access_token`/
-    `refresh_token` viajam no fragment da URL do deep link
-    `br.com.queroumacor.app://auth/callback#...`, que o Android loga no
-    Logcat (`dat=...`) em requisição de topo. Risco baixo (exige acesso
-    físico/adb ao aparelho), mas mexer nisso afeta o fluxo web E o nativo ao
-    mesmo tempo — e este app já teve VÁRIOS incidentes de OAuth quebrado
-    (ver waves de 2026-09-06/07 mais abaixo). Fazer como tarefa própria, com
-    teste em aparelho de verdade.
+  - **M1 CORRIGIDO (2026-09-15, commit `927f466`): OAuth mobile migrou de
+    implicit flow pra PKCE.** `lib/supabase.ts` ganhou `flowType:'pkce'`; o
+    callback nativo (`lib/native/auth.ts`) agora recebe
+    `br.com.queroumacor.app://auth/callback?code=...` (código de uso único)
+    em vez de `#access_token=...&refresh_token=...` crus no fragment — o
+    que o Android loga no Logcat deixa de ser um token de sessão utilizável
+    (o `code` sozinho não abre sessão sem o `code_verifier`, que nunca sai
+    do storage da WebView). `exchangeCodeForSession` troca o code pela
+    sessão; o `setSession` com tokens crus virou fallback defensivo, nunca
+    acionado com PKCE ligado. **O fluxo WEB não precisou de nenhuma
+    mudança** — o supabase-js já troca `?code=` sozinho no boot
+    (`detectSessionInUrl`, default true). Testes novos cobrindo
+    `parseAuthCallbackUrl` (code via query) e 3 casos de
+    `nativeSignInWithOAuth` mockando o client. Suíte (163/2119), typecheck
+    e `next build` verdes. **AINDA NÃO TESTADO EM APARELHO REAL nem contra
+    Google/Apple de verdade** — este ambiente não tem device nem consegue
+    completar um login OAuth de ponta a ponta. Antes de confiar cegamente:
+    instalar o AAB/IPA desta branch e fazer login social de verdade (Google
+    e Apple) uma vez em cada plataforma. Este app já quebrou OAuth várias
+    vezes em produção (ver waves de 2026-09-06/07 mais abaixo) — testar no
+    aparelho não é opcional aqui.
   - **NOT VERIFIED: build nativo real.** Ambiente sem Android SDK e sem
     macOS/Xcode — `.aab`/`.apk`/`.ipa` nunca foram gerados nesta sessão, só
     revisão de código/config. Precisa rodar no Codemagic (ou local com SDK)

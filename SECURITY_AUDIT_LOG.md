@@ -2,9 +2,9 @@
 
 ## ⚠️ Sessão 13-15/09/2026 — Auditoria Mobile (Capacitor/Android/iOS)
 
-Branch `claude/mobile-security-audit-b36g38` (commits `af59a79`, `30c4ae9`),
+Branch `claude/mobile-security-audit-b36g38` (commits `af59a79`…`927f466`),
 pushada, **sem PR aberto e sem merge na `main`**. Suíte completa verde (163
-arquivos / 2115 testes), typecheck e `next build` limpos. Escopo: Capacitor,
+arquivos / 2119 testes), typecheck e `next build` limpos. Escopo: Capacitor,
 Android, iOS, WebView, bridge nativa, plugins, OAuth mobile, deep links,
 storage de token, permissões, Firebase/FCM, câmera, filesystem, uploads,
 networking, logs, backups, clipboard, exported components, release build.
@@ -41,14 +41,23 @@ networking, logs, backups, clipboard, exported components, release build.
   do Supabase Storage em página estática pré-renderizada. Ficaram idênticos
   + teste de paridade (`cspHeadersParidade.test.ts`).
 
-### PENDENTE, não corrigido de propósito
+### CORRIGIDO (rodada 2, 2026-09-15)
 
-- **M1 — OAuth mobile em implicit flow** (`lib/supabase.ts` sem
-  `flowType:'pkce'`): tokens no fragment da URL do deep link
-  `br.com.queroumacor.app://auth/callback#...`, que o Android loga no
-  Logcat. Risco baixo (exige acesso físico/adb); não mexido porque afeta
-  fluxo web + nativo ao mesmo tempo e este app já teve múltiplos incidentes
-  de OAuth quebrado. Fazer como tarefa própria, com teste em aparelho real.
+- **M1 — OAuth mobile migrou de implicit flow pra PKCE** (commit
+  `927f466`). `lib/supabase.ts` ganhou `flowType:'pkce'`; o callback do
+  deep link nativo (`br.com.queroumacor.app://auth/callback`) passa a
+  carregar `?code=...` (uso único) em vez de tokens crus no fragment — o
+  que o Android loga no Logcat deixa de ser sessão utilizável sozinha (o
+  `code` precisa do `code_verifier`, que nunca sai do storage da WebView).
+  `exchangeCodeForSession` troca o code pela sessão; o `setSession` com
+  tokens crus virou fallback defensivo. **O fluxo web não mudou** — o
+  supabase-js já troca `?code=` sozinho no boot. Testes novos cobrindo
+  parser + 3 cenários de `nativeSignInWithOAuth`.
+  - ⚠️ **AINDA NÃO TESTADO EM APARELHO REAL** nem contra Google/Apple de
+    verdade — este ambiente não tem device. Antes de confiar cegamente:
+    instalar o AAB/IPA desta branch e fazer login social de verdade (Google
+    e Apple) em cada plataforma. Este app já quebrou OAuth várias vezes em
+    produção — testar no aparelho não é opcional aqui.
 
 ### NOT VERIFIED
 
