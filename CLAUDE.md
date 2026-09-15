@@ -1,5 +1,69 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA MOBILE (2026-09-13/15, pedido do usuário: auditoria
+  completa Capacitor/Android/iOS/WebView). Branch `claude/mobile-security-
+  audit-b36g38`, commit `af59a79`, PUSHADA — SEM PR ABERTO e SEM merge na
+  `main` (aguardando decisão do usuário). Suíte inteira verde (163 arquivos /
+  2115 testes), typecheck e `next build` limpos.**
+  - **CRÍTICO — CONTIDO, NÃO CORRIGIDO: `next@15.5.2` é vulnerável a
+    CVE-2025-66478/CVE-2025-55182 (RCE, CVSS 10.0, desserialização do
+    protocolo Flight via header `Next-Action`).** A versão está PRESA nesse
+    número porque é o teto exato do peer range do `@cloudflare/next-on-pages`
+    (`>=14.3.0 && <=15.5.2`), e esse adapter está DESCONTINUADO pelo próprio
+    mantenedor (recomenda migrar pro OpenNext) — não existe versão dele que
+    destrave um Next corrigido (15.5.7+). **Mitigação aplicada em
+    `next-app/middleware.ts`**: qualquer requisição com o header `Next-Action`
+    é barrada com 404 antes de qualquer processamento — o app não declara
+    NENHUMA Server Action (`'use server'`, zero ocorrências no repo), então
+    esse header nunca é tráfego legítimo aqui. Matcher ampliado de
+    `/api/:path*` pra todas as rotas de página (Actions são invocadas na
+    própria URL da página). **PENDÊNCIA REAL: migrar o adapter de deploy
+    (ex.: OpenNext-Cloudflare) e SÓ DEPOIS subir o Next** — decisão
+    arquitetural, precisa de teste contra o Cloudflare de verdade, não feita
+    nesta sessão (instrução era não fazer deploy).
+  - **Corrigido: Android `allowBackup` true→false.** A sessão do Supabase
+    mora em localStorage/cookies dentro da WebView
+    (`lib/sessionStorageHybrid.ts`) — com `allowBackup=true` (o default) ela
+    entrava no Auto Backup pra nuvem (Google Drive) e no `adb backup`.
+  - **Corrigido: token de push nativo (FCM) não era desassociado no
+    logout.** Em aparelho compartilhado, trocar de conta deixava quem saiu
+    recebendo notificação (e o badge do ícone com a contagem de quem saiu)
+    até a próxima conta sobrescrever o mesmo token. `currentNativePushToken()`
+    (lê sem abrir prompt) + `clearDeviceTokenOnLogout()` no `signOut` do
+    `AuthProvider`; badge zera ao desmontar.
+  - **Corrigido: drift de CSP entre `_headers` (raiz) e `next.config.mjs`.**
+    `media-src` no `_headers` estava sem `https://*.supabase.co` — podia
+    bloquear `<video>`/`<audio>` do Storage em página estática pré-renderizada
+    (ex. `/feed`). Ficaram idênticos; teste de paridade travando isso.
+  - **PENDENTE, não corrigido de propósito (M1): OAuth mobile usa implicit
+    flow** (`lib/supabase.ts` sem `flowType:'pkce'`) — `access_token`/
+    `refresh_token` viajam no fragment da URL do deep link
+    `br.com.queroumacor.app://auth/callback#...`, que o Android loga no
+    Logcat (`dat=...`) em requisição de topo. Risco baixo (exige acesso
+    físico/adb ao aparelho), mas mexer nisso afeta o fluxo web E o nativo ao
+    mesmo tempo — e este app já teve VÁRIOS incidentes de OAuth quebrado
+    (ver waves de 2026-09-06/07 mais abaixo). Fazer como tarefa própria, com
+    teste em aparelho de verdade.
+  - **NOT VERIFIED: build nativo real.** Ambiente sem Android SDK e sem
+    macOS/Xcode — `.aab`/`.apk`/`.ipa` nunca foram gerados nesta sessão, só
+    revisão de código/config. Precisa rodar no Codemagic (ou local com SDK)
+    antes de confiar cegamente nas mudanças de manifest/config.
+  - **Achados baixos, sem ação necessária:** `.well-known/assetlinks.json` é
+    resto de uma versão TWA anterior ao Capacitor — hoje não tem efeito
+    nenhum (sem intent-filter `autoVerify` no manifest atual); FileProvider
+    (`file_paths.xml`) tem `path="."` mais amplo que o necessário, mas não é
+    exportado e é o template padrão do plugin de câmera — não mexido pra não
+    arriscar quebrar o contrato do plugin. Sem Universal Links/App Links
+    verificados (só o custom scheme do OAuth) — funcional pro que existe
+    hoje, só vira pendência se um dia quiserem link direto de post/perfil
+    abrindo no app.
+  - Arquivos alterados: `_headers`, `android/app/src/main/AndroidManifest.xml`,
+    `next-app/middleware.ts`, `next-app/components/{AuthProvider,
+    NativeBadge}.tsx`, `next-app/lib/native/{index,push}.ts`,
+    `next-app/lib/services/pushTokens.ts`, + 6 arquivos de teste (3 novos:
+    `androidManifestSecurity`, `capacitorWebviewSecurity`,
+    `cspHeadersParidade`).
+
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
   SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
