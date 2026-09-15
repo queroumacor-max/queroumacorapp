@@ -35,6 +35,7 @@ export {
   nativePushPermission,
   initNativePushTapRouting,
   onNativePushTokenRefresh,
+  currentNativePushToken,
   routeFromNotificationData,
 } from './push';
 export {
@@ -70,6 +71,7 @@ import {
   nativePushPermission,
   initNativePushTapRouting,
   onNativePushTokenRefresh,
+  currentNativePushToken,
 } from './push';
 import { isNativeFilesystemAvailable, saveFileNative } from './filesystem';
 import { hapticImpact, hapticNotify, hapticSelection } from './haptics';
@@ -102,6 +104,7 @@ export const native = {
     permission: nativePushPermission,
     initTapRouting: initNativePushTapRouting,
     onTokenRefresh: onNativePushTokenRefresh,
+    currentToken: currentNativePushToken,
   },
   haptics: {
     impact: hapticImpact,

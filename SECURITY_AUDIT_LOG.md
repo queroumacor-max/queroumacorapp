@@ -45,10 +45,90 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | Confirmar escopo do `CLOUDFLARE_API_TOKEN` do deploy (deveria ser só `Pages:Edit`) | ⚪ MANUAL | Cloudflare Dashboard |
 | Cloudflare Access na frente de `*.pages.dev` | ⚪ MANUAL | a considerar, Cloudflare Dashboard |
 | Bot Fight Mode/Turnstile server-side em `/login` e `/signup` | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação |
+| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — CVE já corrigido via bump pra `next@15.5.25` + `legacy-peer-deps`, isto não é mais bloqueante de segurança |
+| Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
 
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-15 — Auditoria Mobile completa (Capacitor/Android/iOS/WebView)
+Branch `claude/mobile-security-audit-b36g38` (commits `af59a79`…`927f466`),
+mergeada na `main` por pedido explícito do usuário. Suíte inteira verde (163
+arquivos / 2119 testes), typecheck e `next build` limpos. Escopo: Capacitor,
+Android, iOS, WebView, bridge nativa, plugins, OAuth mobile, deep links,
+storage de token, permissões, Firebase/FCM, câmera, filesystem, uploads,
+networking, logs, backups, clipboard, exported components, release build —
+166 itens conferidos contra OWASP MASVS/MASTG.
+- 🔵→✅ **CRÍTICO CONTIDO NESTA AUDITORIA, CORRIGIDO NA RAIZ pela auditoria
+  Cloudflare (ver abaixo)**: CVE-2025-66478/CVE-2025-55182 (RCE, CVSS 10.0)
+  em `next@15.5.2` — desserialização do protocolo Flight via header
+  `Next-Action`, alcançável em qualquer rota do App Router mesmo sem o app
+  declarar Server Actions. Nesta sessão a versão estava presa porque
+  `@cloudflare/next-on-pages@1.13.16` (descontinuado) tem peer range
+  `next: >=14.3.0 && <=15.5.2` — teto exato na versão vulnerável — então a
+  correção aqui foi só CONTER: mitigação em `next-app/middleware.ts`
+  (qualquer requisição com header `Next-Action` barrada com 404, seguro
+  porque zero `'use server'` no repo). Essa mitigação FICA como defesa em
+  profundidade. A correção de verdade veio da auditoria Cloudflare, em
+  paralelo: `next` → `15.5.25` (acima do patch 15.5.3+ que corrige o CVE,
+  mesma minor) destravado via `next-app/.npmrc` (`legacy-peer-deps=true`,
+  só ignora o teto do peer range do adapter) e validado com `npm run
+  build:cf` ponta a ponta. Migrar o adapter (OpenNext-Cloudflare) continua
+  como melhoria arquitetural, sem mais ser bloqueante de segurança.
+- ✅ **Android `allowBackup` true→false** — a sessão do Supabase (localStorage/
+  cookies da WebView) não entra mais no Auto Backup/`adb backup`.
+- ✅ **Push nativo (FCM) sem cleanup no logout** — em aparelho compartilhado,
+  trocar de conta deixava quem saiu recebendo notificação até a próxima
+  conta sobrescrever o mesmo token FCM. `currentNativePushToken()` (lê sem
+  abrir prompt) + `clearDeviceTokenOnLogout()` no `AuthProvider.signOut`;
+  badge do ícone zera ao desmontar. Complementar (não conflita) com o fix de
+  RLS/RPC `upsert_push_device_token` da auditoria FCM/APNs/Push abaixo —
+  aquela fecha o hijack de escrita entre contas, esta fecha o vazamento de
+  notificação pra quem já saiu.
+- ✅ **Drift de CSP entre `_headers` (raiz) e `next.config.mjs`** — `media-src`
+  sem `https://*.supabase.co` num dos dois podia bloquear `<video>`/`<audio>`
+  do Supabase Storage em página estática pré-renderizada. Ficaram idênticos
+  + teste de paridade (`cspHeadersParidade.test.ts`).
+- ✅ **OAuth mobile migrou de implicit flow pra PKCE** (commit `927f466`).
+  `lib/supabase.ts` ganhou `flowType:'pkce'`; o callback do deep link nativo
+  (`br.com.queroumacor.app://auth/callback`) passa a carregar `?code=...`
+  (uso único) em vez de tokens crus no fragment — o que o Android loga no
+  Logcat deixa de ser sessão utilizável sozinha (o `code` precisa do
+  `code_verifier`, que nunca sai do storage da WebView).
+  `exchangeCodeForSession` troca o code pela sessão; o `setSession` com
+  tokens crus virou fallback defensivo, nunca acionado com PKCE ligado. O
+  fluxo web não mudou — o supabase-js já troca `?code=` sozinho no boot.
+  Testes novos cobrindo o parser + 3 cenários de `nativeSignInWithOAuth`.
+- ⚪ **NOT VERIFIED**: build nativo real (`.aab`/`.apk`/`.ipa`) — ambiente sem
+  Android SDK e sem macOS/Xcode, só revisão de código/config; rodar no
+  Codemagic (ou local com SDK/Xcode) antes de confiar cegamente nas
+  mudanças de manifest/config.
+- Achados baixos, sem ação necessária: `.well-known/assetlinks.json` é resto
+  de uma versão TWA anterior ao Capacitor (sem efeito hoje, sem
+  intent-filter `autoVerify` no manifest atual); `FileProvider`
+  (`file_paths.xml`) com `path="."` mais amplo que o necessário, mas não
+  exportado e é o template padrão do plugin de câmera; sem Universal
+  Links/Android App Links verificados (só o custom scheme do OAuth) —
+  funcional pro que existe hoje.
+- Arquivos: `_headers`, `android/app/src/main/AndroidManifest.xml`,
+  `next-app/middleware.ts`, `next-app/components/{AuthProvider,
+  NativeBadge}.tsx`, `next-app/lib/native/{index,push,auth}.ts`,
+  `next-app/lib/services/pushTokens.ts`, `next-app/lib/supabase.ts` + 9
+  arquivos de teste (3 novos: `androidManifestSecurity`,
+  `capacitorWebviewSecurity`, `cspHeadersParidade`).
+- **Reconciliação de merge**: `main` avançou 17 commits enquanto esta branch
+  estava aberta, incluindo duas outras auditorias de segurança em paralelo
+  (rate limiting/abuse e FCM/APNs/Push, ambas listadas abaixo). Conflito só
+  em texto (este arquivo, `CLAUDE.md`, `push-nativo.test.ts`) — nenhuma
+  colisão semântica nas correções de código; `pushTokens.ts` recebeu
+  contribuições das duas auditorias (RPC de ownership + cleanup de logout)
+  e as duas se somam sem conflito. **Segunda reconciliação** minutos depois:
+  o push foi rejeitado porque a auditoria Cloudflare (abaixo) mergeou `main`
+  no meio do caminho; único conflito novo foi a tabela de pendências deste
+  arquivo (mesma causa: duas branches editando o mesmo ponto), resolvido
+  concatenando as duas listas — foi essa auditoria que corrigiu de verdade
+  o CVE que esta sessão só conteve (ver nota atualizada acima).
 
 ### 2026-09-15 — Rate limit em mensagens + push de mensagem sem texto
 SQL `2026-09-15-chat-safety-hardening.sql` — ✅ **JÁ EXECUTADO** (2026-09-15,

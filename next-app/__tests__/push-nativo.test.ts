@@ -21,6 +21,8 @@ const register = vi.fn();
 const isAvailable = vi.fn();
 const upsert = vi.fn();
 const rpc = vi.fn();
+const currentToken = vi.fn();
+const eq = vi.fn();
 
 vi.mock('@/lib/native', () => ({
   native: {
@@ -28,13 +30,17 @@ vi.mock('@/lib/native', () => ({
       isAvailable: () => isAvailable(),
       permission: () => permission(),
       register: () => register(),
+      currentToken: () => currentToken(),
     },
     platform: () => 'android',
   },
 }));
 vi.mock('@/lib/supabase', () => ({
   getSupabase: () => ({
-    from: () => ({ upsert: (...a: unknown[]) => upsert(...a) }),
+    from: () => ({
+      upsert: (...a: unknown[]) => upsert(...a),
+      delete: () => ({ eq: (...a: unknown[]) => eq(...a) }),
+    }),
     rpc: (...a: unknown[]) => rpc(...a),
   }),
 }));
@@ -43,6 +49,7 @@ import {
   ensureDeviceToken,
   registerDeviceToken,
   saveDeviceToken,
+  clearDeviceTokenOnLogout,
 } from '@/lib/services/pushTokens';
 
 beforeEach(() => {
@@ -51,6 +58,7 @@ beforeEach(() => {
   upsert.mockResolvedValue({ error: null });
   // Caminho feliz: a RPC segura (upsert_push_device_token) existe e aceita.
   rpc.mockResolvedValue({ error: null });
+  eq.mockResolvedValue({ error: null });
 });
 
 describe('ensureDeviceToken: o token existe sem abrir prompt', () => {
@@ -208,5 +216,40 @@ describe('token ownership: cross-user hijacking fica impossível pelo caminho no
       const args = call[1] as Record<string, unknown>;
       expect(args).toEqual({ p_token: 'tok-compartilhado', p_platform: 'android' });
     }
+  });
+});
+
+describe('clearDeviceTokenOnLogout: device compartilhado não fica recebendo push de quem saiu', () => {
+  // Auditoria mobile 2026-09-13: sem isto, trocar de conta no MESMO
+  // aparelho deixava a conta anterior recebendo notificação até a próxima
+  // conta registrar o mesmo token FCM por cima (upsert onConflict:'token').
+  it('token atual presente → apaga a linha por token', async () => {
+    currentToken.mockResolvedValue('tok-do-aparelho');
+
+    await clearDeviceTokenOnLogout();
+
+    expect(eq).toHaveBeenCalledWith('token', 'tok-do-aparelho');
+  });
+
+  it('sem token (permissão nunca concedida, ou fora da casca) não chama delete', async () => {
+    currentToken.mockResolvedValue(null);
+
+    await clearDeviceTokenOnLogout();
+
+    expect(eq).not.toHaveBeenCalled();
+  });
+
+  it('fora da casca (isAvailable=false) não consulta token nem apaga', async () => {
+    isAvailable.mockReturnValue(false);
+
+    await clearDeviceTokenOnLogout();
+
+    expect(currentToken).not.toHaveBeenCalled();
+    expect(eq).not.toHaveBeenCalled();
+  });
+
+  it('erro do banco/plugin nunca lança — best-effort, não pode travar o logout', async () => {
+    currentToken.mockRejectedValue(new Error('boom'));
+    await expect(clearDeviceTokenOnLogout()).resolves.toBeUndefined();
   });
 });
