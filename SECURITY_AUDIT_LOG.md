@@ -34,8 +34,6 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | Quantidade/idade das service account keys (Firebase) | ⚪ MANUAL | Firebase Console → Service Accounts |
 | Revisão de acesso ao Apple Developer (posse da chave APNs) | ⚪ MANUAL | developer.apple.com |
 | Quotas/billing alerts do FCM no Google Cloud | ⚪ MANUAL | Google Cloud Console |
-| Rate limit na camada de MENSAGENS (chat) | 🟡 SQL PENDENTE | código pronto em `2026-09-15-chat-safety-hardening.sql`, aguardando o usuário rodar |
-| Conteúdo de mensagem em texto puro no `body` do push (lock screen) | 🟡 SQL PENDENTE | mesmo arquivo acima — push de mensagem passa a mandar rótulo genérico |
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
@@ -45,9 +43,9 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 ## Histórico (mais recente primeiro)
 
 ### 2026-09-15 — Rate limit em mensagens + push de mensagem sem texto
-SQL `2026-09-15-chat-safety-hardening.sql` — 🟡 **SQL PENDENTE**. Fecha os 2
-itens que a auditoria de FCM/push abaixo tinha deixado pendentes, por pedido
-explícito do usuário.
+SQL `2026-09-15-chat-safety-hardening.sql` — ✅ **JÁ EXECUTADO** (2026-09-15,
+confirmado pelo usuário). Fecha os 2 itens que a auditoria de FCM/push abaixo
+tinha deixado pendentes, por pedido explícito do usuário.
 - `messages` ganhou rate limit PRÓPRIO (trigger `BEFORE INSERT`,
   `check_rate_limit` por par remetente→destinatário, 30/min) — antes só o
   *dispatch do push* tinha teto (continha o sintoma, não a causa: a

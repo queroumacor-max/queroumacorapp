@@ -2,9 +2,9 @@
 
 - **RATE LIMIT EM MENSAGENS DE CHAT + PUSH DE MENSAGEM SEM TEXTO (2026-09-15,
   pedido do usuário, fechando 2 pendências da auditoria FCM/push abaixo). SQL
-  `/migrations/2026-09-15-chat-safety-hardening.sql` — PENDENTE até o usuário
-  rodar. Depende do `check_rate_limit(text,...)` da auditoria de rate
-  limiting (já executado).**
+  `/migrations/2026-09-15-chat-safety-hardening.sql` — JÁ EXECUTADO no
+  Supabase (2026-09-15, confirmado pelo usuário: "feito"). Não pedir pra
+  rodar de novo.**
   - **`messages` ganhou rate limit PRÓPRIO** (antes só existia no dispatch do
     push, 20/min por destinatário — continha o SINTOMA, não a causa). Trigger
     `BEFORE INSERT` chama `check_rate_limit` com chave por PAR
