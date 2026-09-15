@@ -2,9 +2,9 @@
 
 - **AUDITORIA FIREBASE / FCM / APNs / PUSH (2026-09-13, auditoria paralela #11
   da rodada de segurança). SQL `/migrations/2026-09-13-fcm-push-hardening.sql`
-  — PENDENTE até o usuário rodar. O código TOLERA o SQL ausente (mesmo padrão
-  `ehFuncaoAusente` do resto do projeto): registrar push continua funcionando
-  hoje, só sem o reforço, até a migration rodar.**
+  — JÁ EXECUTADO no Supabase (2026-09-15, confirmado pelo usuário: a consulta
+  de conferência do fim do arquivo voltou as 6 linhas com `ok=true`). Não
+  pedir pra rodar de novo.**
   - **ACHADO CRÍTICO: `push_device_tokens` tinha `UPDATE ... USING (true)`.**
     A intenção era só permitir que um aparelho compartilhado, ao trocar de
     conta, reatribuísse a PRÓPRIA linha (upsert por conflito de `token`) pro
