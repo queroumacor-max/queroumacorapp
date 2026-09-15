@@ -6,7 +6,27 @@
 //      — o coração do fluxo A; regressão aqui = login social quebrado no app.
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mocks do client Supabase — só usados pelo describe de nativeSignInWithOAuth
+// mais abaixo (auditoria de segurança mobile 2026-09-15, migração PKCE).
+// Vitest hoisteia `vi.mock` pro topo do módulo, então a posição aqui não
+// importa pra ordem de avaliação — mas as OUTRAS descrições deste arquivo
+// (câmera, push, clipboard…) não tocam em `getSupabase`, então mockar não
+// afeta nada além do describe novo.
+const signInWithOAuth = vi.fn();
+const exchangeCodeForSession = vi.fn();
+const setSession = vi.fn();
+vi.mock('../lib/supabase', () => ({
+  getSupabase: () => ({
+    auth: {
+      signInWithOAuth: (...a: unknown[]) => signInWithOAuth(...a),
+      exchangeCodeForSession: (...a: unknown[]) => exchangeCodeForSession(...a),
+      setSession: (...a: unknown[]) => setSession(...a),
+    },
+  }),
+}));
+
 import {
   isNativePlatform,
   getNativePlatform,
@@ -14,6 +34,7 @@ import {
   isNativeCameraAvailable,
   isNativePushAvailable,
   parseAuthCallbackUrl,
+  nativeSignInWithOAuth,
   takePhotoNative,
   registerNativePush,
   routeFromNotificationData,
@@ -132,7 +153,12 @@ describe('lib/native — dentro da casca', () => {
 });
 
 describe('parseAuthCallbackUrl', () => {
-  it('extrai tokens do fragment (fluxo implicit do Supabase)', () => {
+  it('extrai o code PKCE da query (caminho ATIVO desde a migração 2026-09-15)', () => {
+    const url = `${NATIVE_OAUTH_REDIRECT}?code=abc-123-xyz`;
+    expect(parseAuthCallbackUrl(url)).toEqual({ code: 'abc-123-xyz' });
+  });
+
+  it('extrai tokens do fragment (fallback defensivo — implicit legado)', () => {
     const url = `${NATIVE_OAUTH_REDIRECT}#access_token=AT123&refresh_token=RT456&token_type=bearer`;
     expect(parseAuthCallbackUrl(url)).toEqual({
       accessToken: 'AT123',
@@ -154,6 +180,75 @@ describe('parseAuthCallbackUrl', () => {
     expect(parseAuthCallbackUrl('br.com.queroumacor.app://outro/caminho#x=1')).toEqual({});
     expect(parseAuthCallbackUrl('https://queroumacor.com.br/#access_token=A')).toEqual({});
     expect(parseAuthCallbackUrl('')).toEqual({});
+  });
+});
+
+describe('nativeSignInWithOAuth — PKCE (auditoria de segurança mobile, 2026-09-15)', () => {
+  beforeEach(() => {
+    signInWithOAuth.mockReset();
+    exchangeCodeForSession.mockReset();
+    setSession.mockReset();
+  });
+
+  function setCapacitorComPlugins(onUrl: { current?: (ev: { url: string }) => void }) {
+    setCapacitor({
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        Browser: { open: vi.fn().mockResolvedValue(undefined), close: vi.fn() },
+        App: {
+          addListener: (_event: string, cb: (ev: { url: string }) => void) => {
+            onUrl.current = cb;
+            return { remove: vi.fn() };
+          },
+        },
+      },
+    });
+  }
+
+  it('troca o code por sessão via exchangeCodeForSession (caminho ativo)', async () => {
+    signInWithOAuth.mockResolvedValue({ data: { url: 'https://provider/auth' }, error: null });
+    exchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
+    const onUrl: { current?: (ev: { url: string }) => void } = {};
+    setCapacitorComPlugins(onUrl);
+
+    const promise = nativeSignInWithOAuth('google');
+    // Simula o deep link chegando depois que o browser abriu.
+    await Promise.resolve();
+    onUrl.current?.({ url: `${NATIVE_OAUTH_REDIRECT}?code=meu-code` });
+
+    await expect(promise).resolves.toEqual({});
+    expect(exchangeCodeForSession).toHaveBeenCalledWith('meu-code');
+    expect(setSession).not.toHaveBeenCalled(); // caminho implicit não deve rodar
+  });
+
+  it('erro do exchangeCodeForSession vira { error } — não trava o app', async () => {
+    signInWithOAuth.mockResolvedValue({ data: { url: 'https://provider/auth' }, error: null });
+    exchangeCodeForSession.mockResolvedValue({
+      data: {},
+      error: { message: 'code inválido ou expirado' },
+    });
+    const onUrl: { current?: (ev: { url: string }) => void } = {};
+    setCapacitorComPlugins(onUrl);
+
+    const promise = nativeSignInWithOAuth('google');
+    await Promise.resolve();
+    onUrl.current?.({ url: `${NATIVE_OAUTH_REDIRECT}?code=vencido` });
+
+    await expect(promise).resolves.toEqual({ error: 'code inválido ou expirado' });
+  });
+
+  it('deep link de erro (usuário cancelou no provedor) nunca chama exchangeCodeForSession', async () => {
+    signInWithOAuth.mockResolvedValue({ data: { url: 'https://provider/auth' }, error: null });
+    const onUrl: { current?: (ev: { url: string }) => void } = {};
+    setCapacitorComPlugins(onUrl);
+
+    const promise = nativeSignInWithOAuth('apple');
+    await Promise.resolve();
+    onUrl.current?.({ url: `${NATIVE_OAUTH_REDIRECT}?error=access_denied&error_description=cancelado` });
+
+    await expect(promise).resolves.toEqual({ error: 'cancelado' });
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
   });
 });
 
