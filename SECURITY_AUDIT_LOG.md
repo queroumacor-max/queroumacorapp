@@ -37,10 +37,80 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
+| CVE-2025-66478/55182 no `next@15.5.2` — RCE contida (mitigação no middleware), não corrigida | 🔵 DECISÃO/NÃO CORRIGIDO | migrar adapter de deploy (`@cloudflare/next-on-pages` descontinuado → OpenNext) e só então subir o Next; arquitetural, precisa teste contra Cloudflare real |
+| Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
 
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-15 — Auditoria Mobile completa (Capacitor/Android/iOS/WebView)
+Branch `claude/mobile-security-audit-b36g38` (commits `af59a79`…`927f466`),
+mergeada na `main` por pedido explícito do usuário. Suíte inteira verde (163
+arquivos / 2119 testes), typecheck e `next build` limpos. Escopo: Capacitor,
+Android, iOS, WebView, bridge nativa, plugins, OAuth mobile, deep links,
+storage de token, permissões, Firebase/FCM, câmera, filesystem, uploads,
+networking, logs, backups, clipboard, exported components, release build —
+166 itens conferidos contra OWASP MASVS/MASTG.
+- 🔵 **CRÍTICO CONTIDO, NÃO CORRIGIDO**: CVE-2025-66478/CVE-2025-55182 (RCE,
+  CVSS 10.0) em `next@15.5.2` — desserialização do protocolo Flight via
+  header `Next-Action`, alcançável em qualquer rota do App Router mesmo sem
+  o app declarar Server Actions. Causa da versão presa: `@cloudflare/
+  next-on-pages@1.13.16` tem peer range `next: >=14.3.0 && <=15.5.2` — teto
+  exato na versão vulnerável — e está descontinuado pelo mantenedor (sem
+  versão que destrave um Next 15.5.7+). Mitigação em `next-app/middleware.ts`:
+  qualquer requisição com header `Next-Action` é barrada com 404 antes de
+  qualquer processamento (seguro porque zero `'use server'` no repo). A
+  correção real (trocar o adapter de deploy, ex. OpenNext-Cloudflare) fica
+  como ação arquitetural pendente, linkada na tabela acima.
+- ✅ **Android `allowBackup` true→false** — a sessão do Supabase (localStorage/
+  cookies da WebView) não entra mais no Auto Backup/`adb backup`.
+- ✅ **Push nativo (FCM) sem cleanup no logout** — em aparelho compartilhado,
+  trocar de conta deixava quem saiu recebendo notificação até a próxima
+  conta sobrescrever o mesmo token FCM. `currentNativePushToken()` (lê sem
+  abrir prompt) + `clearDeviceTokenOnLogout()` no `AuthProvider.signOut`;
+  badge do ícone zera ao desmontar. Complementar (não conflita) com o fix de
+  RLS/RPC `upsert_push_device_token` da auditoria FCM/APNs/Push abaixo —
+  aquela fecha o hijack de escrita entre contas, esta fecha o vazamento de
+  notificação pra quem já saiu.
+- ✅ **Drift de CSP entre `_headers` (raiz) e `next.config.mjs`** — `media-src`
+  sem `https://*.supabase.co` num dos dois podia bloquear `<video>`/`<audio>`
+  do Supabase Storage em página estática pré-renderizada. Ficaram idênticos
+  + teste de paridade (`cspHeadersParidade.test.ts`).
+- ✅ **OAuth mobile migrou de implicit flow pra PKCE** (commit `927f466`).
+  `lib/supabase.ts` ganhou `flowType:'pkce'`; o callback do deep link nativo
+  (`br.com.queroumacor.app://auth/callback`) passa a carregar `?code=...`
+  (uso único) em vez de tokens crus no fragment — o que o Android loga no
+  Logcat deixa de ser sessão utilizável sozinha (o `code` precisa do
+  `code_verifier`, que nunca sai do storage da WebView).
+  `exchangeCodeForSession` troca o code pela sessão; o `setSession` com
+  tokens crus virou fallback defensivo, nunca acionado com PKCE ligado. O
+  fluxo web não mudou — o supabase-js já troca `?code=` sozinho no boot.
+  Testes novos cobrindo o parser + 3 cenários de `nativeSignInWithOAuth`.
+- ⚪ **NOT VERIFIED**: build nativo real (`.aab`/`.apk`/`.ipa`) — ambiente sem
+  Android SDK e sem macOS/Xcode, só revisão de código/config; rodar no
+  Codemagic (ou local com SDK/Xcode) antes de confiar cegamente nas
+  mudanças de manifest/config.
+- Achados baixos, sem ação necessária: `.well-known/assetlinks.json` é resto
+  de uma versão TWA anterior ao Capacitor (sem efeito hoje, sem
+  intent-filter `autoVerify` no manifest atual); `FileProvider`
+  (`file_paths.xml`) com `path="."` mais amplo que o necessário, mas não
+  exportado e é o template padrão do plugin de câmera; sem Universal
+  Links/Android App Links verificados (só o custom scheme do OAuth) —
+  funcional pro que existe hoje.
+- Arquivos: `_headers`, `android/app/src/main/AndroidManifest.xml`,
+  `next-app/middleware.ts`, `next-app/components/{AuthProvider,
+  NativeBadge}.tsx`, `next-app/lib/native/{index,push,auth}.ts`,
+  `next-app/lib/services/pushTokens.ts`, `next-app/lib/supabase.ts` + 9
+  arquivos de teste (3 novos: `androidManifestSecurity`,
+  `capacitorWebviewSecurity`, `cspHeadersParidade`).
+- **Reconciliação de merge**: `main` avançou 17 commits enquanto esta branch
+  estava aberta, incluindo duas outras auditorias de segurança em paralelo
+  (rate limiting/abuse e FCM/APNs/Push, ambas listadas abaixo). Conflito só
+  em texto (este arquivo, `CLAUDE.md`, `push-nativo.test.ts`) — nenhuma
+  colisão semântica nas correções de código; `pushTokens.ts` recebeu
+  contribuições das duas auditorias (RPC de ownership + cleanup de logout)
+  e as duas se somam sem conflito.
 
 ### 2026-09-15 — Rate limit em mensagens + push de mensagem sem texto
 SQL `2026-09-15-chat-safety-hardening.sql` — ✅ **JÁ EXECUTADO** (2026-09-15,

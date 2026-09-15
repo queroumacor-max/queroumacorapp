@@ -17,5 +17,14 @@ export function NativeBadge() {
     native.badge.set((notif || 0) + (msgs || 0));
   }, [notif, msgs]);
 
+  // Ao desmontar (logout — este componente só vive dentro do AppShell
+  // privado), zera o badge: senão o ícone do app continua mostrando a
+  // contagem de quem saiu até a próxima conta abrir o app num aparelho
+  // compartilhado, o que também revela ("tem gente com mensagem não lida")
+  // a quem pegar o celular emprestado sem nunca ter feito login.
+  useEffect(() => {
+    return () => native.badge.set(0);
+  }, []);
+
   return null;
 }

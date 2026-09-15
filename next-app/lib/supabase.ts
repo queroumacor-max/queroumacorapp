@@ -55,6 +55,21 @@ export function getSupabase(): TypedSupabaseClient {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      // Auditoria de segurança mobile (2026-09-15, mitigação de M1): PKCE em
+      // vez do implicit flow default. Com implicit, o callback de OAuth
+      // trazia `access_token`/`refresh_token` CRUS no fragment da URL — no
+      // fluxo nativo (lib/native/auth.ts) isso é o deep link
+      // `br.com.queroumacor.app://auth/callback#access_token=...`, que o
+      // Android loga (Intent data). Com PKCE, o callback carrega só um
+      // `code` de uso único (trocado por sessão via
+      // `exchangeCodeForSession`, que precisa do `code_verifier` gerado
+      // ANTES do redirect — sem ele, o code sozinho não abre sessão nenhuma,
+      // então logar o code é inofensivo). NÃO precisa de mudança nenhuma no
+      // fluxo WEB: o supabase-js já troca o `?code=` da URL sozinho no boot
+      // (`detectSessionInUrl`, default true) — só o parser do deep link
+      // nativo (que faz isso na mão, porque o callback chega por evento
+      // `appUrlOpen`, não por navegação de página) precisou de código novo.
+      flowType: 'pkce',
       // Sessão em DOIS armazéns (localStorage + cookies fatiados): o
       // wrapper Android limpa localStorage ao fechar e deslogava o user a
       // cada reinício — com o espelho em cookie, restaura de quem

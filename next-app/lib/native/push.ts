@@ -94,6 +94,32 @@ export async function registerNativePush(): Promise<string | null> {
 }
 
 /**
+ * Lê o token FCM ATUAL sem pedir permissão nem abrir prompt nenhum — só
+ * quando a permissão já foi concedida antes. Existe pra logout/troca de
+ * conta no MESMO aparelho: antes de encerrar a sessão, o app precisa saber
+ * qual token desassociar de `push_device_tokens` (senão o dono anterior
+ * continua recebendo push depois de sair — troca de conta no mesmo device
+ * vazando notificação de quem saiu). Nunca abre o prompt do sistema: rodar
+ * isso no meio do signOut não pode ser a primeira vez que a pessoa vê o
+ * pedido de permissão de notificação.
+ */
+export async function currentNativePushToken(): Promise<string | null> {
+  const fm = getPlugin<FirebaseMessagingPlugin>(PLUGIN);
+  if (!isNativePlatform() || !fm) return null;
+  try {
+    const perm = await fm.checkPermissions();
+    if (perm?.receive !== 'granted') return null;
+    const result = await Promise.race([
+      fm.getToken(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), TOKEN_TIMEOUT_MS)),
+    ]);
+    return result?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Escuta a ROTAÇÃO do token FCM. O token não é eterno: muda ao limpar os
  * dados do app, ao reinstalar, e quando o próprio Firebase decide renovar.
  * Sem este listener a linha em `push_device_tokens` vira lixo apontando pra
