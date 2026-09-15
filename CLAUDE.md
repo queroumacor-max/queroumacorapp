@@ -1,5 +1,31 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **RATE LIMIT EM MENSAGENS DE CHAT + PUSH DE MENSAGEM SEM TEXTO (2026-09-15,
+  pedido do usuário, fechando 2 pendências da auditoria FCM/push abaixo). SQL
+  `/migrations/2026-09-15-chat-safety-hardening.sql` — PENDENTE até o usuário
+  rodar. Depende do `check_rate_limit(text,...)` da auditoria de rate
+  limiting (já executado).**
+  - **`messages` ganhou rate limit PRÓPRIO** (antes só existia no dispatch do
+    push, 20/min por destinatário — continha o SINTOMA, não a causa). Trigger
+    `BEFORE INSERT` chama `check_rate_limit` com chave por PAR
+    remetente→destinatário (`sender>receiver`, não o remetente sozinho — pra
+    não travar a loja respondendo muita gente rápido), 30 msgs/min. Estourou
+    → INSERT recusado com mensagem que contém "rate limit" (já bate no
+    pattern existente de `lib/errors-friendly.ts` → "Muitas tentativas",
+    nenhuma mudança de client necessária). `type='system'` (marcadores
+    internos) não conta. Falha na checagem não bloqueia o envio.
+  - **`dispatch_push_on_notification` para de mandar o texto da mensagem no
+    push.** Antes copiava `notifications.body`, que pra `type='message'`
+    inclui até 80 chars do texto real (ex. "Fulano: manda o endereço
+    que..."), direto pro corpo da notificação — aparecia na tela de bloqueio.
+    Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>`
+    enviou uma mensagem" (nome vem do `actor_id`, já gravado na notificação).
+    **`notifications.body` NÃO muda** — a tela `/notificacoes` dentro do app
+    continua mostrando o preview completo; só o que SAI pelo push foi
+    redigido. Testes: `__tests__/chatSafetyHardening.test.ts` (lê o SQL e
+    trava os dois invariantes) + caso novo em
+    `__tests__/lib/errors-friendly.test.ts`.
+
 - **AUDITORIA FIREBASE / FCM / APNs / PUSH (2026-09-13, auditoria paralela #11
   da rodada de segurança). SQL `/migrations/2026-09-13-fcm-push-hardening.sql`
   — JÁ EXECUTADO no Supabase (2026-09-15, confirmado pelo usuário: a consulta
