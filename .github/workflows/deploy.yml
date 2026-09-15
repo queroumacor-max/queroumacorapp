@@ -15,6 +15,12 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # workflow_dispatch deixa escolher QUALQUER branch/ref na UI do Actions,
+    # mas o comando wrangler abaixo é fixo em `--branch=main` (produção) —
+    # sem este guard, rodar o dispatch numa branch de feature publicaria o
+    # conteúdo dela como produção, sem passar pelo `validate` do ci.yml nem
+    # por revisão de PR. Auditoria de segurança CI/CD, 2026-09-13.
+    if: github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: next-app
@@ -40,7 +46,21 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Build Cloudflare Pages output
-        run: npx @cloudflare/next-on-pages@1
+        run: npm run build:cf
+
+      - name: Scan artifact for stray source maps / secrets
+        run: |
+          set -e
+          MAPS=$(find .vercel/output/static -iname '*.map' | wc -l)
+          if [ "$MAPS" -ne 0 ]; then
+            echo "::error::$MAPS arquivo(s) .map encontrados no artefato publicado — source maps não podem ir pro Cloudflare Pages."
+            find .vercel/output/static -iname '*.map'
+            exit 1
+          fi
+          if find .vercel/output/static -iname '.env*' | grep -q .; then
+            echo "::error::arquivo .env encontrado no artefato publicado."
+            exit 1
+          fi
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

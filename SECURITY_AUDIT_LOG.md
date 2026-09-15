@@ -37,7 +37,15 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
-| CVE-2025-66478/55182 no `next@15.5.2` — RCE contida (mitigação no middleware), não corrigida | 🔵 DECISÃO/NÃO CORRIGIDO | migrar adapter de deploy (`@cloudflare/next-on-pages` descontinuado → OpenNext) e só então subir o Next; arquitetural, precisa teste contra Cloudflare real |
+| Preview env vars = produção no Cloudflare Pages (supply-chain via `postinstall`) | ⚪ MANUAL | **PRIORIDADE MÁXIMA** — Cloudflare Pages Dashboard, ver `STAGING.md` |
+| Rotacionar `GEMINI_API_KEY` (vazada no histórico do Git, `queroumacorportal.html`) | ⚪ MANUAL | Google AI Studio/GCP + Cloudflare Pages |
+| Confirmar `SENTRY_AUTH_TOKEN` no Build Command real do CF Pages (não só GitHub Actions) | ⚪ MANUAL | Cloudflare Pages Dashboard |
+| Reconferir se as 5 custom rules do WAF (sessão 25/05 acima) ainda existem/fazem sentido | ⚪ MANUAL | Cloudflare Dashboard |
+| Confirmar SSL/TLS = Full (Strict), TLS mínimo 1.3, DNSSEC, CAA | ⚪ MANUAL | Cloudflare Dashboard |
+| Confirmar escopo do `CLOUDFLARE_API_TOKEN` do deploy (deveria ser só `Pages:Edit`) | ⚪ MANUAL | Cloudflare Dashboard |
+| Cloudflare Access na frente de `*.pages.dev` | ⚪ MANUAL | a considerar, Cloudflare Dashboard |
+| Bot Fight Mode/Turnstile server-side em `/login` e `/signup` | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação |
+| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — CVE já corrigido via bump pra `next@15.5.25` + `legacy-peer-deps`, isto não é mais bloqueante de segurança |
 | Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
 
 ---
@@ -52,17 +60,22 @@ Android, iOS, WebView, bridge nativa, plugins, OAuth mobile, deep links,
 storage de token, permissões, Firebase/FCM, câmera, filesystem, uploads,
 networking, logs, backups, clipboard, exported components, release build —
 166 itens conferidos contra OWASP MASVS/MASTG.
-- 🔵 **CRÍTICO CONTIDO, NÃO CORRIGIDO**: CVE-2025-66478/CVE-2025-55182 (RCE,
-  CVSS 10.0) em `next@15.5.2` — desserialização do protocolo Flight via
-  header `Next-Action`, alcançável em qualquer rota do App Router mesmo sem
-  o app declarar Server Actions. Causa da versão presa: `@cloudflare/
-  next-on-pages@1.13.16` tem peer range `next: >=14.3.0 && <=15.5.2` — teto
-  exato na versão vulnerável — e está descontinuado pelo mantenedor (sem
-  versão que destrave um Next 15.5.7+). Mitigação em `next-app/middleware.ts`:
-  qualquer requisição com header `Next-Action` é barrada com 404 antes de
-  qualquer processamento (seguro porque zero `'use server'` no repo). A
-  correção real (trocar o adapter de deploy, ex. OpenNext-Cloudflare) fica
-  como ação arquitetural pendente, linkada na tabela acima.
+- 🔵→✅ **CRÍTICO CONTIDO NESTA AUDITORIA, CORRIGIDO NA RAIZ pela auditoria
+  Cloudflare (ver abaixo)**: CVE-2025-66478/CVE-2025-55182 (RCE, CVSS 10.0)
+  em `next@15.5.2` — desserialização do protocolo Flight via header
+  `Next-Action`, alcançável em qualquer rota do App Router mesmo sem o app
+  declarar Server Actions. Nesta sessão a versão estava presa porque
+  `@cloudflare/next-on-pages@1.13.16` (descontinuado) tem peer range
+  `next: >=14.3.0 && <=15.5.2` — teto exato na versão vulnerável — então a
+  correção aqui foi só CONTER: mitigação em `next-app/middleware.ts`
+  (qualquer requisição com header `Next-Action` barrada com 404, seguro
+  porque zero `'use server'` no repo). Essa mitigação FICA como defesa em
+  profundidade. A correção de verdade veio da auditoria Cloudflare, em
+  paralelo: `next` → `15.5.25` (acima do patch 15.5.3+ que corrige o CVE,
+  mesma minor) destravado via `next-app/.npmrc` (`legacy-peer-deps=true`,
+  só ignora o teto do peer range do adapter) e validado com `npm run
+  build:cf` ponta a ponta. Migrar o adapter (OpenNext-Cloudflare) continua
+  como melhoria arquitetural, sem mais ser bloqueante de segurança.
 - ✅ **Android `allowBackup` true→false** — a sessão do Supabase (localStorage/
   cookies da WebView) não entra mais no Auto Backup/`adb backup`.
 - ✅ **Push nativo (FCM) sem cleanup no logout** — em aparelho compartilhado,
@@ -110,7 +123,12 @@ networking, logs, backups, clipboard, exported components, release build —
   em texto (este arquivo, `CLAUDE.md`, `push-nativo.test.ts`) — nenhuma
   colisão semântica nas correções de código; `pushTokens.ts` recebeu
   contribuições das duas auditorias (RPC de ownership + cleanup de logout)
-  e as duas se somam sem conflito.
+  e as duas se somam sem conflito. **Segunda reconciliação** minutos depois:
+  o push foi rejeitado porque a auditoria Cloudflare (abaixo) mergeou `main`
+  no meio do caminho; único conflito novo foi a tabela de pendências deste
+  arquivo (mesma causa: duas branches editando o mesmo ponto), resolvido
+  concatenando as duas listas — foi essa auditoria que corrigiu de verdade
+  o CVE que esta sessão só conteve (ver nota atualizada acima).
 
 ### 2026-09-15 — Rate limit em mensagens + push de mensagem sem texto
 SQL `2026-09-15-chat-safety-hardening.sql` — ✅ **JÁ EXECUTADO** (2026-09-15,
@@ -171,6 +189,51 @@ SQL `2026-09-13-security-audit-hardening.sql` — ✅ **JÁ EXECUTADO**.
 - Falsos positivos descartados (verificados): tokens de IA já tinham teto;
   `moderate-video` já tinha SSRF guard; webhooks já eram idempotentes;
   `whatsapp/send`/`followup` já usavam `safeEqual`.
+
+### 2026-09-13/15 — Auditoria completa Cloudflare (132 seções)
+Branch `claude/cloudflare-security-audit-gurtsy`, pedido explícito do usuário.
+Cobriu DNS, TLS, WAF, Workers/Pages, cache, secrets, CI/CD e o artefato REAL do
+build (não só `.next`). Relatório completo das 132 seções entregue no chat da
+sessão; detalhe completo no `CLAUDE.md`.
+- **CRITICAL**: `next` 15.5.2 tinha 3 CVEs CRITICAL (RCE via React Flight
+  protocol, exposição de código-fonte de Server Actions, DoS) — bump pra
+  `15.5.25` (mesma minor, dentro do teto de peer dep do
+  `@cloudflare/next-on-pages@1.13.16` deprecado, via `next-app/.npmrc
+  legacy-peer-deps=true`). Build `npm run build:cf` reproduzido do zero.
+- **HIGH**: 157 source maps do bundle client-side ficavam PÚBLICOS no artefato
+  de produção — sem `SENTRY_AUTH_TOKEN` no build, o plugin do Sentry pula o
+  upload E o apagamento do `.map`. `next-app/scripts/strip-source-maps.mjs`
+  (novo, plugado no `build:cf`) apaga todo `.map` do artefato final
+  independente do token existir.
+- **HIGH**: `deploy.yml` (workflow_dispatch) podia publicar PRODUÇÃO a partir
+  de QUALQUER branch — travado com `if: github.ref == 'refs/heads/main'`.
+- **MEDIUM**: chave Gemini ia na query string (`?key=...`) em 8 pontos —
+  movida pro header `x-goog-api-key`. Chave Gemini também **vazada no
+  histórico do Git** (`queroumacorportal.html`, commit `a735531`) — rotação
+  segue pendente (ver tabela de pendências no topo).
+- Webhook Evolution (legado): comparação de token `!==` → `safeEqual` (tempo
+  constante). `ios-screenshots.yml` ganhou `permissions:` mínimo. `next-app/`
+  entrou no `dependabot.yml` (só cobria o `package.json` da raiz antes).
+- **Confirmado por evidência real** (curl via `wrangler pages dev` contra o
+  artefato publicado, não suposição): CSP/HSTS/COOP/CORP/Permissions-Policy
+  aplicados corretamente em `/login`, `/portal` e rotas prerenderizadas — a
+  fonte única é `headers()` do `next.config.mjs`; artefato final pós-fix com
+  **0** `.map`, **0** `.env*`, **0** `service_role` key vazada. `_headers`/
+  `_redirects` da RAIZ do repo (fora de `next-app/`) são **INERTES** —
+  Cloudflare Pages só lê esses arquivos de DENTRO do build output.
+- **Sessão 15/09 (continuação) — itens de código fechados**: `/api/
+  ig-art-diag` virou admin-only de verdade (`ensurePortalAdmin` depois do
+  `gateProAI` — o comentário sempre disse "PRO + admin", só PRO era
+  checado); scanner de segredos **gitleaks** entrou no CI
+  (`.gitleaks.toml`+`.gitleaksignore`+self-test, recuperados de uma branch
+  nunca mergeada, validados contra os 1519 commits do histórico inteiro com
+  o binário real: 0 leaks); `scripts/load-test.js` restaurado (apagado sem
+  querer num cleanup antigo, `load-test.yml` rodava arquivo inexistente
+  desde então). Não sobrou nenhum item de CÓDIGO pendente desta auditoria —
+  só os itens MANUAL/DECISÃO listados na tabela de pendências no topo.
+- Testes: 2097/2097 verdes, typecheck limpo. Testes novos:
+  `whatsapp-evo-webhook-auth.test.ts`, `gemini-key-not-in-query-string
+  .test.ts`, `strip-source-maps.test.ts`.
 
 ### 2026-09-10 — Rotas admin aceitam quem foi promovido no portal
 SEM SQL. **Achado**: promover alguém no portal (`portal_access=true`) não

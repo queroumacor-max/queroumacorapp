@@ -207,22 +207,29 @@
   limiting (#301) e a auditoria FCM/APNs/push (merge `0bc52fc`) que
   avançaram a `main` em paralelo — ver nota de reconciliação no fim desta
   entrada.**
-  - **CRÍTICO — CONTIDO, NÃO CORRIGIDO: `next@15.5.2` é vulnerável a
-    CVE-2025-66478/CVE-2025-55182 (RCE, CVSS 10.0, desserialização do
-    protocolo Flight via header `Next-Action`).** A versão está PRESA nesse
-    número porque é o teto exato do peer range do `@cloudflare/next-on-pages`
-    (`>=14.3.0 && <=15.5.2`), e esse adapter está DESCONTINUADO pelo próprio
-    mantenedor (recomenda migrar pro OpenNext) — não existe versão dele que
-    destrave um Next corrigido (15.5.7+). **Mitigação aplicada em
-    `next-app/middleware.ts`**: qualquer requisição com o header `Next-Action`
-    é barrada com 404 antes de qualquer processamento — o app não declara
-    NENHUMA Server Action (`'use server'`, zero ocorrências no repo), então
-    esse header nunca é tráfego legítimo aqui. Matcher ampliado de
-    `/api/:path*` pra todas as rotas de página (Actions são invocadas na
-    própria URL da página). **PENDÊNCIA REAL: migrar o adapter de deploy
-    (ex.: OpenNext-Cloudflare) e SÓ DEPOIS subir o Next** — decisão
-    arquitetural, precisa de teste contra o Cloudflare de verdade, não feita
-    nesta sessão (instrução era não fazer deploy).
+  - **CRÍTICO CONTIDO NESTA SESSÃO, e DEPOIS CORRIGIDO NA RAIZ por uma
+    auditoria paralela — `next@15.5.2` era vulnerável a CVE-2025-66478/
+    CVE-2025-55182 (RCE, CVSS 10.0, desserialização do protocolo Flight via
+    header `Next-Action`).** Nesta sessão a versão estava PRESA nesse número
+    porque é o teto exato do peer range do `@cloudflare/next-on-pages`
+    (`>=14.3.0 && <=15.5.2`), adapter DESCONTINUADO pelo mantenedor — por
+    isso a correção aplicada aqui foi só **conter** o vetor em
+    `next-app/middleware.ts`: qualquer requisição com o header `Next-Action`
+    é barrada com 404 antes de qualquer processamento (seguro porque o app
+    não declara NENHUMA Server Action — zero `'use server'` no repo).
+    Matcher ampliado de `/api/:path*` pra todas as rotas de página (Actions
+    são invocadas na própria URL da página). **Essa mitigação FICA** (defesa
+    em profundidade, custo zero), mas deixou de ser a única barreira: a
+    AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13/15, ver entrada própria
+    mais abaixo), rodando em paralelo, bumpou `next` pra `15.5.25` — dentro
+    da MESMA minor, sem quebrar API, destravado via `next-app/.npmrc`
+    (`legacy-peer-deps=true`, que ignora só o teto do peer range do adapter
+    sem tocar em mais nenhuma resolução) — e validou com `npm run build:cf`
+    ponta a ponta. `15.5.25` está acima do patch que corrige o CVE
+    (15.5.3+, conforme o comentário do próprio `.npmrc`), então a causa raiz
+    está fechada em produção, não só contida. A migração de adapter
+    (OpenNext-Cloudflare) segue como melhoria arquitetural de médio prazo —
+    não é mais bloqueante de segurança.
   - **Corrigido: Android `allowBackup` true→false.** A sessão do Supabase
     mora em localStorage/cookies dentro da WebView
     (`lib/sessionStorageHybrid.ts`) — com `allowBackup=true` (o default) ela
@@ -296,12 +303,123 @@
     `currentNativePushToken()` e apaga a linha por `token` — as duas
     correções convivem sem se pisar. Suíte completa rodada de novo depois da
     reconciliação, verde.
+  - **SEGUNDA RECONCILIAÇÃO (mesma sessão, minutos depois): a AUDITORIA
+    CLOUDFLARE (ver as duas entradas logo abaixo) mergeou `main` NO MEIO do
+    push desta.** `git push origin main` foi rejeitado (main tinha andado de
+    `0bc52fc` pra `3c16bc1`); `git merge origin/main` trouxe mais um
+    conflito textual, só em `SECURITY_AUDIT_LOG.md` (mesma causa: duas
+    branches editando a tabela de pendências no mesmo ponto), resolvido
+    concatenando as duas listas de itens. Essa auditoria bumpou `next` pra
+    `15.5.25` — **corrigindo de verdade** o CVE que esta sessão só conteve
+    no middleware (ver a nota acima, atualizada). Suíte + typecheck + `next
+    build` rodados de novo na árvore com as DUAS reconciliações, verdes.
+  Dos achados da auditoria de 13/09 (ver entrada abaixo) que ainda podiam
+  ser corrigidos no repo: `/api/ig-art-diag` virou admin-only de verdade
+  (o comentário sempre disse "PRO + admin", só PRO era checado — qualquer
+  assinante PRO gastava cota das chaves de IA e via quais estavam
+  configuradas); scanner de segredos **gitleaks** entrou no CI
+  (`.gitleaks.toml`+`.gitleaksignore`+self-test, recuperados de uma
+  branch nunca mergeada, validados contra o histórico inteiro com o
+  binário real: 0 leaks); `scripts/load-test.js` restaurado (tinha sido
+  apagado sem querer num cleanup antigo, `load-test.yml` rodava arquivo
+  inexistente desde então). Detalhes em `SECURITY_AUDIT_LOG.md`. **Não
+  sobrou nenhum item de CÓDIGO pendente desta auditoria** — só os 9 itens
+  de MANUAL ACTION REQUIRED (Cloudflare/Supabase Dashboard), listados na
+  entrada abaixo e em `SECURITY_AUDIT_LOG.md`.
+
+- **AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13, pedido do usuário).
+  Branch `claude/cloudflare-security-audit-gurtsy`.** Achado mais grave:
+  **Next.js estava em 15.5.2 com 3 CVEs CRITICAL** (RCE via React Flight
+  protocol, exposição de código-fonte de Server Actions, DoS) — a versão
+  fixada porque `@cloudflare/next-on-pages@1.13.16` (deprecado, nunca mais
+  atualizado; recomenda migrar pro adapter OpenNext) declara peer
+  `next: "<=15.5.2"` e o `npm install` INTERNO do `vercel build` (rodado
+  pelo próprio next-on-pages) falha com ERESOLVE em qualquer patch acima
+  disso. **Corrigido**: `next` → `15.5.25` (último patch da MESMA minor,
+  sem mudança de API) + `next-app/.npmrc` com `legacy-peer-deps=true` (só
+  isso destrava o `npm install` do adapter; não afeta a resolução de mais
+  nada). **Build real testado ponta a ponta** (`npm run build:cf` completo,
+  `wrangler pages dev` servindo o artefato) — funciona. **REGRA NOVA: essa
+  trava de peer dep é conhecida e esperada — não é motivo pra reverter um
+  bump de PATCH do Next; só minor/major exige rever o adapter primeiro.**
+  A regra antiga "next pinado EXATO em 15.5.2, não subir sem subir
+  next-on-pages junto" está PARCIALMENTE SUPERADA: dentro da minor 15.5.x,
+  suba à vontade (rodando `npm run build:cf` antes de confiar). `tar` e
+  `vitest` seguem com CVE CRITICAL sem fix disponível sem major breaking —
+  os dois são só devDependency/build-time do adapter, não rodam em
+  produção; aceito como risco residual baixo.
+  - **Source maps do bundle client-side vazavam publicamente.** O
+    `@sentry/nextjs` só apaga o `.map` do artefato DEPOIS de fazer upload
+    pra Sentry, e o upload só roda com `SENTRY_AUTH_TOKEN` no ambiente de
+    build — sem o token, o plugin pula o upload E o apagamento, mas
+    `hideSourceMaps` ainda tira o comentário `//# sourceMappingURL=` do
+    `.js` (então parecia limpo no DevTools). Inspecionando o artefato REAL
+    (não só `.next`): **157 arquivos `.js.map` ficavam no output final**,
+    baixáveis direto por URL, reconstruindo o código-fonte legível do app
+    inteiro. `next-app/scripts/strip-source-maps.mjs` (novo) apaga todo
+    `.map` de `.vercel/output/static` DEPOIS do `next-on-pages`, plugado no
+    `build:cf` — funciona independente do token do Sentry existir ou não
+    (o upload, quando acontece, já rodou antes, durante o `next build`).
+    **O `deploy.yml` do GitHub Actions não passava `SENTRY_AUTH_TOKEN`** —
+    corrigido pra chamar `npm run build:cf` (herda o strip) + um passo que
+    FALHA o job se sobrar `.map` ou `.env*` no artefato antes do deploy.
+  - **MANUAL ACTION REQUIRED, não verificável daqui — PRIORIDADE ALTA:**
+    confirmar se as env vars de **Preview** no Cloudflare Pages Dashboard
+    são as MESMAS de produção (`STAGING.md` já dizia isso e ninguém tinha
+    tirado a conclusão: qualquer push em qualquer branch dispara um build
+    de Preview que roda com `SUPABASE_SERVICE_ROLE_KEY`/chaves de IA/MP/
+    WhatsApp no ambiente — supply-chain via `postinstall` malicioso
+    exfiltraria segredo de produção sem precisar de PR aprovado). Ver aviso
+    completo em `STAGING.md`.
+  - **Chave Gemini vazada no histórico do Git** (arquivo
+    `queroumacorportal.html`, removido do HEAD há meses, mas recuperável
+    via `git show a735531:queroumacorportal.html`) — **ROTACIONAR
+    `GEMINI_API_KEY`** no Google AI Studio/GCP + trocar no CF Pages.
+  - **Chamadas ao Gemini paravam a API key na QUERY STRING** (`?key=...`)
+    em 8 pontos (`_ai.ts`, `ig-art.ts`, `ig-art-diag.ts`, `moderate.ts`,
+    `moderate-video.ts`) — URL de requisição é o tipo de dado que mais
+    vaza pra log/Sentry/proxy sem querer. Movido pro header
+    `x-goog-api-key` nos 8. Guardado por teste
+    (`__tests__/lib/gemini-key-not-in-query-string.test.ts`).
+  - **`deploy.yml` (workflow_dispatch) podia publicar produção a partir de
+    QUALQUER branch** — o `wrangler pages deploy --branch=main` é fixo,
+    mas o dispatch deixa escolher a ref livremente; agora
+    `if: github.ref == 'refs/heads/main'`. Comparação de token do webhook
+    Evolution (legado) trocada de `!==` pra `safeEqual` (tempo constante,
+    mesma regra do webhook da Meta/MP). `ios-screenshots.yml` ganhou
+    `permissions: contents: read` explícito (herdava o default do
+    repo/org). `next-app/` entrou no `dependabot.yml` (só cobria o
+    `package.json` da raiz — as deps que rodam em PRODUÇÃO nunca geravam
+    PR automático de CVE).
+  - **`_headers`/`_redirects` da RAIZ do repo (fora de `next-app/`) são
+    INERTES** — Cloudflare Pages publica `next-app/.vercel/output/static`
+    e só lê esses arquivos de DENTRO do build output, então os da raiz
+    nunca são lidos em produção. Confirmado com inspeção real do artefato
+    (`_routes.json` gerado: só `/_next/static/*` bypassa o `_worker.js`;
+    todo o resto — HTML prerenderizado incluso — passa pelo worker, que
+    aplica o `headers()` do `next.config.mjs` normalmente). Banner de aviso
+    adicionado nos dois arquivos; considerar apagar num PR de limpeza.
+    **Fonte única de CSP/headers confirmada por `curl` real via
+    `wrangler pages dev` contra o artefato: `/login`, `/portal` e rotas
+    prerenderizadas recebem CSP/HSTS/COOP/CORP/Permissions-Policy
+    corretamente — C2 (auditoria 2026-08-26) está de fato fechado, não só
+    documentado.**
+  - **KV/R2/D1/Durable Objects/Queues/Workers AI/Service Bindings/Zero
+    Trust Access: NENHUM em uso real** (confirmado por inventário
+    completo). O binding `KV` mencionado no `wrangler.toml` existe só no
+    painel (se existir) — o código não lê `env.KV` hoje, usa cache nativo
+    do Next. Turnstile não existe mais no `next-app` (só no vanilla morto)
+    — CSP ainda permite `challenges.cloudflare.com` de propósito, caso
+    reintroduzido; login/signup hoje não têm NENHUMA proteção anti-bot
+    além do que o Supabase GoTrue aplica por conta própria.
+  - Relatório completo (132 seções cobertas) entregue no chat da sessão;
+    não copiado pra arquivo por decisão de manter este CLAUDE.md enxuto.
 
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
-  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
-  rodar; linhas na `2026-09-05-conferencia-pendencias.sql`. O código TOLERA
-  o SQL ausente (cai no desenho de 09/09), mas o timeout só some com ele.**
+  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — JÁ EXECUTADO no Supabase
+  (2026-09-15, informado pelo usuário). Não pedir pra rodar de novo; linhas
+  na `2026-09-05-conferencia-pendencias.sql`.**
   - **A causa não era o volume; era a RLS.** As policies de
     `whatsapp_messages`/`whatsapp_ai_state`/`portal_alerts`/
     `whatsapp_ai_config` tinham `USING (is_portal_admin())` SOLTO. A função
@@ -631,9 +749,8 @@
 - **IA DO WHATSAPP: prompt EDITÁVEL no portal + não fala do QueroUmaCor +
   entende a abordagem (2026-09-08, três pedidos do usuário). SQL
   `/migrations/2026-09-08-whatsapp-ai-prompt.sql` (uma linha:
-  `whatsapp_ai_config.prompt text`) — PENDENTE até o usuário rodar; linha de
-  conferência adicionada em `2026-09-05-conferencia-pendencias.sql`. O código
-  TOLERA a coluna ausente.**
+  `whatsapp_ai_config.prompt text`) — JÁ EXECUTADO no Supabase (2026-09-15,
+  informado pelo usuário). Não pedir pra rodar de novo.**
   - **"Não falar da QueroUmaCor automaticamente":** a IA respondeu "Posso te
     ajudar com algo relacionado a tintas ou o app QueroUmaCor?". A frase de
     apresentação do app saiu do prompt e entrou a regra 6: só fala do app
