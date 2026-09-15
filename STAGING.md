@@ -1,5 +1,39 @@
 # Staging / Preview Deploys
 
+## ⚠️ RISCO DE SEGURANÇA CONHECIDO (auditoria Cloudflare, 2026-09-13)
+
+Este documento já avisava "Mesmas env vars ... se ainda não estiverem
+diferenciadas, vai usar as mesmas de produção" — mas o que isso significa
+na prática precisa ficar explícito: **qualquer push em QUALQUER branch
+dispara um build automático do Cloudflare Pages** (é o comportamento
+default do Git integration, independente do GitHub Actions), e esse build
+roda `npm install && npm run build:cf` com as env vars de **Preview**
+injetadas no ambiente do processo. Se essas vars ainda forem as mesmas de
+produção, isso inclui `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS),
+`OPENAI_API_KEY`, `GEMINI_API_KEY`, `MP_ACCESS_TOKEN`,
+`WHATSAPP_ACCESS_TOKEN`/`DUALHOOK_API_KEY`, `FCM_PRIVATE_KEY` etc.
+
+**Isso é uma superfície real de exfiltração de segredos de produção via
+supply-chain**: um `postinstall` malicioso em qualquer dependência (ou
+código de build comprometido em qualquer branch, mesmo sem PR aprovado —
+o build dispara SÓ com o push) roda com acesso de rede e a esses secrets
+no ambiente. A URL de preview em si (`<branch>.queroumacorapp.pages.dev`)
+também não tem NENHUMA autenticação adicional (Cloudflare Access não está
+configurado) — `X-Robots-Tag: noindex` só impede indexação por buscador,
+não impede acesso direto por quem tem/adivinha a URL.
+
+**MANUAL ACTION REQUIRED** (Cloudflare Dashboard, fora do repo):
+1. Verificar HOJE se as env vars de **Preview** em Pages → Settings →
+   Environment variables são de fato as MESMAS de produção. Se forem,
+   separar — idealmente um projeto Supabase de staging próprio, ou no
+   mínimo remover `SUPABASE_SERVICE_ROLE_KEY` e as chaves de IA/pagamento/
+   WhatsApp do ambiente de Preview (aceitando que rotas admin/IA não
+   funcionem em preview).
+2. Considerar Cloudflare Access (Zero Trust) na frente de `*.pages.dev`
+   pra exigir login antes de qualquer preview responder.
+3. Restringir quem tem permissão de push/criar branch no repositório,
+   já que isso sozinho já dispara um build com os secrets configurados.
+
 ## Visão geral
 
 Cloudflare Pages cria **automaticamente** um preview deploy pra cada commit
