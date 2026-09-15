@@ -136,3 +136,43 @@ ativas** — ver item 5 abaixo.
 build:cf` reproduzido do zero com `npm ci`. Testes novos:
 `whatsapp-evo-webhook-auth.test.ts`, `gemini-key-not-in-query-string
 .test.ts`, `strip-source-maps.test.ts`.
+
+### Sessão 15/09/2026 (continuação) — itens de código que sobraram, fechados
+
+Dos achados não-Dashboard da sessão anterior, os três acionáveis no repo:
+
+- **`/api/ig-art-diag` virou admin-only de verdade** (`ensurePortalAdmin`
+  depois do `gateProAI`, reaproveitando a identidade já validada — sem
+  round-trip extra ao GoTrue). O comentário do arquivo sempre disse
+  "PRO + admin"; só PRO era checado. Teste novo cobre PRO-mas-não-admin
+  → 403; `__tests__/api/_helpers.ts` ganhou suporte a `admin` no
+  `installAuthMocks` (default `true`, os outros 17 consumidores do
+  helper não mudam de comportamento).
+- **Scanner de segredos (gitleaks) entrou no CI.** `.gitleaks.toml` +
+  `.gitleaksignore` + `scripts/secret-scan-selftest.sh` recuperados de
+  `claude/admiring-turing-20zlkj` (branch nunca mergeada, longe demais de
+  `main` pra merge seguro — só esses 3 arquivos, puramente aditivos,
+  foram trazidos). Job `gitleaks` novo em `security.yml`, com self-test
+  que prova a regra `gcp-api-key` continua detectando (chave sintética →
+  FALHA; árvore limpa → PASSA), não só que o job roda.
+  **Validado localmente com o binário real (gitleaks 8.21.2) contra os
+  1519 commits do histórico inteiro: 0 leaks.** No caminho, um allowlist
+  regex frágil foi corrigido: ancorava no HEADER do JWT de exemplo do
+  jwt.io, e um segundo fixture de teste no histórico
+  (`scrubSecrets.test.ts`) usa o MESMO payload com um header HS256
+  diferente — passava batido pelo regex antigo. Trocado pra casar só
+  pelo payload (`eyJzdWIiOiIxMjM0NTY3ODkwIn0`), que é o invariante.
+  A chave Gemini real (`GEMINI_API_KEY`, item 2 da lista acima) segue
+  registrada em `.gitleaksignore` como "ROTAÇÃO PENDENTE" — o scanner
+  não substitui a rotação, só evita que o histórico fique vermelho pra
+  sempre por algo já identificado.
+- **`scripts/load-test.js` restaurado** (existia no commit `e82ccbd`,
+  apagado sem querer num cleanup do vanilla) — `load-test.yml`
+  referenciava um arquivo inexistente desde então. Os dois endpoints que
+  ele testa (`/api/health`, `/api/cidades`) continuam existindo.
+
+Testes após essa leva: 2097/2097 verdes, typecheck limpo.
+
+Itens que continuam exigindo decisão/ação fora do repo: os 9 da lista
+`MANUAL ACTION REQUIRED` acima (nenhum mudou) — nenhum item de código
+sobrou pendente desta auditoria.

@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA CLOUDFLARE — RESTO DO CÓDIGO FECHADO (2026-09-15).**
+  Dos achados da auditoria de 13/09 (ver entrada abaixo) que ainda podiam
+  ser corrigidos no repo: `/api/ig-art-diag` virou admin-only de verdade
+  (o comentário sempre disse "PRO + admin", só PRO era checado — qualquer
+  assinante PRO gastava cota das chaves de IA e via quais estavam
+  configuradas); scanner de segredos **gitleaks** entrou no CI
+  (`.gitleaks.toml`+`.gitleaksignore`+self-test, recuperados de uma
+  branch nunca mergeada, validados contra o histórico inteiro com o
+  binário real: 0 leaks); `scripts/load-test.js` restaurado (tinha sido
+  apagado sem querer num cleanup antigo, `load-test.yml` rodava arquivo
+  inexistente desde então). Detalhes em `SECURITY_AUDIT_LOG.md`. **Não
+  sobrou nenhum item de CÓDIGO pendente desta auditoria** — só os 9 itens
+  de MANUAL ACTION REQUIRED (Cloudflare/Supabase Dashboard), listados na
+  entrada abaixo e em `SECURITY_AUDIT_LOG.md`.
+
 - **AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13, pedido do usuário).
   Branch `claude/cloudflare-security-audit-gurtsy`.** Achado mais grave:
   **Next.js estava em 15.5.2 com 3 CVEs CRITICAL** (RCE via React Flight
