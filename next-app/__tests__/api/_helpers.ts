@@ -19,6 +19,12 @@ export interface FetchCall {
 export interface InstallAuthMocksOpts {
   /** Se true (default), profile retorna `is_pro=true`. False → 403. */
   pro?: boolean;
+  /**
+   * Se true (default), o `/rest/v1/profiles?...select=portal_access,role`
+   * que `ensurePortalAdmin` consulta devolve `portal_access=true`. False →
+   * 403 nas rotas que exigem admin do portal (ex.: `ig-art-diag`).
+   */
+  admin?: boolean;
   /** Se true, `/auth/v1/user` falha (token inválido). */
   unauth?: boolean;
   /**
@@ -41,7 +47,7 @@ const SUPABASE_URL_TEST = 'https://test.supabase.co';
  * Sempre chame `restore()` no afterEach.
  */
 export function installAuthMocks(opts: InstallAuthMocksOpts = {}): InstalledMocks {
-  const { pro = true, unauth = false, fetchRest } = opts;
+  const { pro = true, admin = true, unauth = false, fetchRest } = opts;
 
   const originalFetch = globalThis.fetch;
   const originalEnv = { ...process.env };
@@ -66,10 +72,15 @@ export function installAuthMocks(opts: InstallAuthMocksOpts = {}): InstalledMock
         );
       }
 
-      // PRO check: /rest/v1/profiles?id=eq.<userId>
+      // PRO check (/rest/v1/profiles?...select=is_pro,...) E admin do
+      // portal (/rest/v1/profiles?...select=portal_access,role, via
+      // `ensurePortalAdmin`/`lerFlagsDoPerfil`) batem no MESMO endpoint —
+      // devolver os dois conjuntos de campo no mesmo objeto cobre ambos.
       if (url.includes('/rest/v1/profiles?')) {
         return new Response(
-          JSON.stringify([{ is_pro: pro, pro_expires_at: null }]),
+          JSON.stringify([
+            { is_pro: pro, pro_expires_at: null, portal_access: admin, role: null },
+          ]),
           { status: 200, headers: { 'content-type': 'application/json' } }
         );
       }

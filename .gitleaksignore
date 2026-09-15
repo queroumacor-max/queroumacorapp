@@ -1,0 +1,14 @@
+# .gitleaksignore — fingerprints de VAZAMENTOS CONHECIDOS (commit:arquivo:regra:linha).
+#
+# Isto NÃO é allowlist de falso positivo: cada linha aqui é um segredo REAL que
+# já esteve no histórico do Git. O histórico é público e imutável; a única
+# correção é ROTACIONAR a credencial. A entrada existe pra que o scan de
+# histórico no CI não fique vermelho pra sempre por algo já tratado — e pra
+# que quem ler saiba exatamente o que vazou e onde.
+#
+# Chave Gemini (Google API key, `AIza…`) hardcoded no portal legado
+# `queroumacorportal.html` (frontend), commit a735531 de 05/2026, removida em
+# 10ff6d2. Auditoria de segredos 2026-09-11. STATUS: ROTAÇÃO PENDENTE — revogar
+# no Google AI Studio e trocar `GEMINI_API_KEY` no CF Pages. Quando rotacionar,
+# trocar esta linha pra "ROTACIONADA em <data>".
+a73553136333024755c7100198818ce6cae8232a:queroumacorportal.html:gcp-api-key:429
