@@ -30,10 +30,7 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 |---|---|---|
 | DMARC de `calicolors.com.br` | ⚪ MANUAL | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
-| Firebase IAM / membros do projeto / roles do service account | ⚪ MANUAL | Firebase Console → IAM |
-| Quantidade/idade das service account keys (Firebase) | ⚪ MANUAL | Firebase Console → Service Accounts |
-| Revisão de acesso ao Apple Developer (posse da chave APNs) | ⚪ MANUAL | developer.apple.com |
-| Quotas/billing alerts do FCM no Google Cloud | ⚪ MANUAL | Google Cloud Console |
+| Acesso Admin da Beatris Porsebon no Apple Developer | 🔵 CONFIRMAR COM O USUÁRIO | ver entrada 2026-09-16 abaixo — não reconhecida pela memória do projeto, usuário precisa confirmar se é intencional |
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
@@ -41,6 +38,44 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-16 — Verificação MANUAL dos 4 itens de console (Firebase/GCP/Apple)
+Checado pelo usuário via sessão separada de "Claude in Chrome" (esta sessão
+de código não tem acesso a browser/console). Fecha os 4 itens ⚪ MANUAL
+VERIFICATION que restavam da auditoria FCM/APNs/Push de 2026-09-13 — os
+únicos 4 achados daquela auditoria que não eram verificáveis pelo repo.
+- **Conta**: verificado logado como `queroumacor@gmail.com` (dono real do
+  Firebase/GCP/Apple Developer — `jackson.guerra@gmail.com` não tem acesso
+  a esses consoles).
+- **Firebase/GCP IAM**: ✅ limpo. 3 principals no projeto: o owner +
+  2 service accounts, sendo uma delas `codemagic-play-publisher` (usada
+  pelo Codemagic pra publicar o AAB na Play Store — uso esperado e
+  documentado no CLAUDE.md).
+- **Idade das service account keys**: ✅ limpo. 1 chave ativa por conta,
+  as duas com ~13 dias (criadas em 2026-09-03) — nenhuma chave órfã, antiga
+  ou duplicada.
+- **Quotas/billing do FCM no Google Cloud**: ✅ limpo. Sem conta de billing
+  vinculada (confirma plano Spark/gratuito). Quota do FCM em 600.000
+  req/min, uso em 0%. **Achado adicional, não-bloqueante**: 0 alert
+  policies configuradas no Cloud Monitoring — o toggle global de alertas do
+  Firebase está ligado, mas não existe categoria de alerta específica pra
+  "limite de plano" do FCM porque ele não tem custo/teto no Spark (não é um
+  gap de configuração, é ausência de recurso aplicável).
+- **Apple Developer — Users and Access**: ⚪ **item aberto, não uma
+  vulnerabilidade confirmada**. 2 usuários com acesso: `queroumacor@gmail.com`
+  (Jackson Matos, Account Holder + Admin) e `beatrisporsebon@icloud.com`
+  (Beatris Porsebon, **Admin** — acesso completo, incluindo a chave APNs
+  `2R6FW9F2F6`). Esse segundo contato **não é reconhecido pela memória do
+  projeto** (não aparece em nenhuma entrada anterior do CLAUDE.md). Cross-
+  checado contra a lista de colaboradores do próprio Firebase Console, que
+  bateu exatamente com a IAM do GCP (nenhuma discrepância entre os dois
+  lados). **Não foi removido nem contestado** — fica registrado como
+  pendência do PRÓPRIO usuário confirmar se esse acesso é intencional
+  (colaborador de confiança) ou precisa ser revogado. Claude não tem como
+  saber quem é essa pessoa nem decidir por conta própria.
+- A chave APNs em si (`2R6FW9F2F6`, "QueroUmaCor APNs", criada 2026-09-04,
+  Team Scoped, Sandbox & Production) segue única, sem duplicatas/órfãs —
+  consistente com o que já estava documentado no CLAUDE.md.
 
 ### 2026-09-15 — Rate limit em mensagens + push de mensagem sem texto
 SQL `2026-09-15-chat-safety-hardening.sql` — ✅ **JÁ EXECUTADO** (2026-09-15,
