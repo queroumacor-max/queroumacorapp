@@ -38,7 +38,6 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
 | Preview env vars = produção no Cloudflare Pages (supply-chain via `postinstall`) | ⚪ MANUAL | **PRIORIDADE MÁXIMA** — Cloudflare Pages Dashboard, ver `STAGING.md` |
-| Rotacionar `GEMINI_API_KEY` (vazada no histórico do Git, `queroumacorportal.html`) | ⚪ MANUAL | Google AI Studio/GCP + Cloudflare Pages |
 | Confirmar `SENTRY_AUTH_TOKEN` no Build Command real do CF Pages (não só GitHub Actions) | ⚪ MANUAL | Cloudflare Pages Dashboard |
 | Reconferir se as 5 custom rules do WAF (sessão 25/05 acima) ainda existem/fazem sentido | ⚪ MANUAL | Cloudflare Dashboard |
 | Confirmar SSL/TLS = Full (Strict), TLS mínimo 1.3, DNSSEC, CAA | ⚪ MANUAL | Cloudflare Dashboard |
@@ -51,6 +50,20 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-16 — `GEMINI_API_KEY` vazada: confirmado que já não está ativa
+✅ **RESOLVIDO.** A chave vazada no histórico do Git (commit `a735531`,
+`queroumacorportal.html`) termina em `...sZN_IE`. No Google AI Studio (API
+Keys, filtro "All projects") só existem duas chaves ativas hoje —
+`...iVmQ` (projeto "Quero uma cor", o que importa) e `...LsIU` (projeto
+"JR Erp") — nenhuma bate com o final da vazada. Como o Google só lista
+chaves que ainda existem (uma revogada some da lista, não fica marcada
+como inativa), a vazada já não existe mais na conta — não tem como ser a
+que está configurada em `GEMINI_API_KEY` no Cloudflare Pages hoje. Não dá
+pra ler o valor do secret salvo no CF Pages direto (Cloudflare não exibe
+secret já gravado), mas a lógica fecha sem precisar disso: chave que não
+existe mais não pode ser a que está em uso. Confirmado pelo usuário. Não
+pedir pra rotacionar de novo.
 
 ### 2026-09-15 — Auditoria Mobile completa (Capacitor/Android/iOS/WebView)
 Branch `claude/mobile-security-audit-b36g38` (commits `af59a79`…`927f466`),
