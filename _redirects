@@ -1,3 +1,10 @@
+# ⚠️ ARQUIVO INERTE — NÃO É LIDO POR NADA EM PRODUÇÃO (auditoria Cloudflare
+# 2026-09-13). Mesma situação do `_headers` da raiz: o Cloudflare Pages
+# publica `next-app/.vercel/output/static`, e este arquivo fica fora
+# desse diretório — o Pages nunca o vê. O alias `/api/v1/*` REAL vive em
+# `next-app/next.config.mjs` (`rewrites()`), que é o que de fato roda.
+# Mantido só como registro histórico; considerar remover num PR de limpeza.
+
 # Versionamento de API: /api/v1/* é alias pra /api/* (a versão atual).
 /api/v1/*  /api/:splat         200
 

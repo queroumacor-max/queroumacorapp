@@ -84,6 +84,114 @@
     real em produção do DROP de `exec_sql`/`executar_sql` (o arquivo
     existe e está correto, mas não há como confirmar daqui se rodou).
 
+- **RATE LIMIT EM MENSAGENS DE CHAT + PUSH DE MENSAGEM SEM TEXTO (2026-09-15,
+  pedido do usuário, fechando 2 pendências da auditoria FCM/push abaixo). SQL
+  `/migrations/2026-09-15-chat-safety-hardening.sql` — JÁ EXECUTADO no
+  Supabase (2026-09-15, confirmado pelo usuário: "feito"). Não pedir pra
+  rodar de novo.**
+  - **`messages` ganhou rate limit PRÓPRIO** (antes só existia no dispatch do
+    push, 20/min por destinatário — continha o SINTOMA, não a causa). Trigger
+    `BEFORE INSERT` chama `check_rate_limit` com chave por PAR
+    remetente→destinatário (`sender>receiver`, não o remetente sozinho — pra
+    não travar a loja respondendo muita gente rápido), 30 msgs/min. Estourou
+    → INSERT recusado com mensagem que contém "rate limit" (já bate no
+    pattern existente de `lib/errors-friendly.ts` → "Muitas tentativas",
+    nenhuma mudança de client necessária). `type='system'` (marcadores
+    internos) não conta. Falha na checagem não bloqueia o envio.
+  - **`dispatch_push_on_notification` para de mandar o texto da mensagem no
+    push.** Antes copiava `notifications.body`, que pra `type='message'`
+    inclui até 80 chars do texto real (ex. "Fulano: manda o endereço
+    que..."), direto pro corpo da notificação — aparecia na tela de bloqueio.
+    Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>`
+    enviou uma mensagem" (nome vem do `actor_id`, já gravado na notificação).
+    **`notifications.body` NÃO muda** — a tela `/notificacoes` dentro do app
+    continua mostrando o preview completo; só o que SAI pelo push foi
+    redigido. Testes: `__tests__/chatSafetyHardening.test.ts` (lê o SQL e
+    trava os dois invariantes) + caso novo em
+    `__tests__/lib/errors-friendly.test.ts`.
+
+- **AUDITORIA FIREBASE / FCM / APNs / PUSH (2026-09-13, auditoria paralela #11
+  da rodada de segurança). SQL `/migrations/2026-09-13-fcm-push-hardening.sql`
+  — JÁ EXECUTADO no Supabase (2026-09-15, confirmado pelo usuário: a consulta
+  de conferência do fim do arquivo voltou as 6 linhas com `ok=true`). Não
+  pedir pra rodar de novo.**
+  - **ACHADO CRÍTICO: `push_device_tokens` tinha `UPDATE ... USING (true)`.**
+    A intenção era só permitir que um aparelho compartilhado, ao trocar de
+    conta, reatribuísse a PRÓPRIA linha (upsert por conflito de `token`) pro
+    novo dono — mas `USING(true)` não distingue "minha linha antiga" de
+    "linha de qualquer um". Qualquer usuário autenticado podia mandar
+    `PATCH /rest/v1/push_device_tokens?user_id=eq.<vítima>
+    {"user_id":"<atacante>"}` DIRETO no Supabase (sem passar pelo app) e
+    **sequestrar a linha de qualquer outra pessoa**, sem precisar conhecer o
+    token dela — só o `user_id`, que não é secreto. O `WITH CHECK` barrava só
+    o passo seguinte (manter o `user_id` da vítima), não impedia tomar posse
+    da linha. Efeito prático: o dispositivo real da vítima some da lista de
+    destinatários até o app dela regravar o token sozinho (auto-cura no
+    próximo `ensureDeviceToken`, mas é uma janela real de negação de serviço
+    contra o push de outra pessoa). **FIX**: RPC SECURITY DEFINER
+    `upsert_push_device_token(p_token, p_platform)` que grava **sempre**
+    `user_id = auth.uid()` lido dentro da função (nunca de um campo que o
+    cliente manda) — a reatribuição legítima passa a acontecer só por ali,
+    identificando a linha em conflito pelo `token` (string de alta entropia
+    que o próprio aparelho gerou), nunca pelo `user_id`. A policy de UPDATE
+    da tabela volta a ser estritamente `auth.uid() = user_id` nos dois lados.
+    Client (`lib/services/pushTokens.ts`) chama a RPC primeiro; cai pro
+    upsert direto na tabela só se a função ainda não existir no banco
+    (`PGRST202`/`42883`).
+  - **ACHADO MÉDIO: nada limitava QUANTAS linhas um usuário cria pra si mesmo
+    em `push_device_tokens`/`push_subscriptions`.** RLS de INSERT só garante
+    "é dono da linha", não "é uma quantidade razoável" — um usuário podia
+    inserir milhares de tokens/subscriptions falsos na PRÓPRIA conta e, a
+    partir daí, QUALQUER notificação endereçada a ele (curtida, comentário,
+    mensagem — nenhuma pede confirmação de quem recebe) faria
+    `/api/push-notify` disparar milhares de fetches concorrentes pro
+    FCM/push service no MESMO isolate. **FIX**: trigger que mantém só os 20
+    dispositivos/subscriptions mais recentes por usuário (apaga o excedente
+    no próprio INSERT) + `app/api/push-notify/route.ts` busca só os
+    `25 × nº de destinatários do envio` mais recentes por chamada
+    (`order=last_seen_at.desc&limit=`) — essa parte já vale mesmo sem a
+    migration, é defesa em profundidade no código.
+  - **ACHADO MÉDIO: `dispatch_push_on_notification` disparava 1 push por
+    linha de `notifications`, sem teto por DESTINATÁRIO.** O rate limit do
+    `/api/push-notify` é por IP de quem CHAMA a rota (o próprio Postgres, via
+    pg_net) — nunca por quem RECEBE. Mensagem de chat virou 1 notificação por
+    mensagem em 2026-09-04 (antes agrupava rajada de 5 min), então mandar
+    muitas mensagens rápidas pro mesmo contato aciona um envio de push por
+    mensagem pra essa pessoa. **FIX**: `check_rate_limit(NEW.user_id::text,
+    'push-dispatch', 20, 1)` antes do `net.http_post` — estourou → a
+    notificação continua gravada normalmente (sininho funciona), só o ENVIO
+    de push é contido. Depende do `check_rate_limit(text,...)` da migration
+    da auditoria de rate limiting (item abaixo) — rodar aquela primeiro.
+  - **VERIFICADO E CORRETO, sem mudança**: `push_subscriptions` (web push)
+    já tinha UPDATE/DELETE corretamente escopados (`USING(user_id=auth.uid())`
+    nos dois lados) — só `push_device_tokens` (push nativo) tinha o buraco,
+    porque o padrão de reatribuição cross-device foi copiado sem o `WITH
+    CHECK` bastar sozinho. FK `ON DELETE CASCADE` em ambas as tabelas
+    (`profiles.id`) já limpa tokens/subscriptions de conta deletada. Token
+    morto (404/410/`UNREGISTERED` do FCM; 404/410 do push service) já é
+    removido pelo próprio envio (`classifyFcmResult`/`sendWebPush`) — sem
+    isso a lista cresceria pra sempre. Nenhum `.p8`/service-account JSON/chave
+    privada no repo ou no histórico do git (`.gitignore` cobre os quatro:
+    `*.p8`, `key.properties`, `google-services.json`,
+    `GoogleService-Info.plist`); FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY só
+    em env do Cloudflare Pages, lidas por `getRuntimeEnv` (nunca
+    `process.env` cru), nunca expostas ao mobile/frontend. Deep link do
+    toque na notificação (`routeFromNotificationData`) só aceita path
+    relativo começando com `/` — bloqueia URL externa/open-redirect vinda de
+    um payload adulterado. Sem FCM topics em uso (nem cliente nem servidor) —
+    NOT APPLICABLE pros itens de segurança de topic. Sem notification actions
+    customizadas (botões "Aprovar"/"Excluir" etc.) — NOT APPLICABLE.
+    `notify_user()` RPC (não chamada por nenhum código cliente hoje, só fica
+    disponível) já exige relação prévia (quote ou conversa) com o
+    destinatário — não é broadcast arbitrário.
+  - **NÃO coberto nesta rodada (fora do escopo Firebase/push, reportado)**:
+    mensagem de chat spamada rapidamente gera 1 notificação por mensagem sem
+    rate limit na CAMADA DE MENSAGENS (o teto que ESTE audit adicionou é no
+    dispatch do PUSH, que contém o sintoma mas não a causa); conteúdo de
+    mensagem de chat aparece em texto puro no `body` da notificação (lock
+    screen) — decisão de produto equivalente à de apps de mensagem
+    populares, não alterada sem confirmação do usuário.
+
 - **AUDITORIA DE RATE LIMITING / ABUSE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA de segurança... rate limiting, DoS, abuse de IA/WhatsApp/push").
   SQL `/migrations/2026-09-13-security-audit-hardening.sql` — JÁ EXECUTADO
@@ -175,6 +283,221 @@
     "aposentada" por decisão do usuário — ver regra "WEBINTOAPP" — mas
     o endpoint ainda existe e não foi auditado a fundo por já ser
     caminho morto).
+- **AUDITORIA DE SEGURANÇA MOBILE (2026-09-13/15, pedido do usuário: auditoria
+  completa Capacitor/Android/iOS/WebView). MERGEADA na `main` (2026-09-15,
+  pedido explícito do usuário: "merge"), branch `claude/mobile-security-
+  audit-b36g38` (commits `af59a79`…`927f466`). Suíte inteira verde, typecheck
+  e `next build` limpos DEPOIS de reconciliada com a auditoria de rate
+  limiting (#301) e a auditoria FCM/APNs/push (merge `0bc52fc`) que
+  avançaram a `main` em paralelo — ver nota de reconciliação no fim desta
+  entrada.**
+  - **CRÍTICO CONTIDO NESTA SESSÃO, e DEPOIS CORRIGIDO NA RAIZ por uma
+    auditoria paralela — `next@15.5.2` era vulnerável a CVE-2025-66478/
+    CVE-2025-55182 (RCE, CVSS 10.0, desserialização do protocolo Flight via
+    header `Next-Action`).** Nesta sessão a versão estava PRESA nesse número
+    porque é o teto exato do peer range do `@cloudflare/next-on-pages`
+    (`>=14.3.0 && <=15.5.2`), adapter DESCONTINUADO pelo mantenedor — por
+    isso a correção aplicada aqui foi só **conter** o vetor em
+    `next-app/middleware.ts`: qualquer requisição com o header `Next-Action`
+    é barrada com 404 antes de qualquer processamento (seguro porque o app
+    não declara NENHUMA Server Action — zero `'use server'` no repo).
+    Matcher ampliado de `/api/:path*` pra todas as rotas de página (Actions
+    são invocadas na própria URL da página). **Essa mitigação FICA** (defesa
+    em profundidade, custo zero), mas deixou de ser a única barreira: a
+    AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13/15, ver entrada própria
+    mais abaixo), rodando em paralelo, bumpou `next` pra `15.5.25` — dentro
+    da MESMA minor, sem quebrar API, destravado via `next-app/.npmrc`
+    (`legacy-peer-deps=true`, que ignora só o teto do peer range do adapter
+    sem tocar em mais nenhuma resolução) — e validou com `npm run build:cf`
+    ponta a ponta. `15.5.25` está acima do patch que corrige o CVE
+    (15.5.3+, conforme o comentário do próprio `.npmrc`), então a causa raiz
+    está fechada em produção, não só contida. A migração de adapter
+    (OpenNext-Cloudflare) segue como melhoria arquitetural de médio prazo —
+    não é mais bloqueante de segurança.
+  - **Corrigido: Android `allowBackup` true→false.** A sessão do Supabase
+    mora em localStorage/cookies dentro da WebView
+    (`lib/sessionStorageHybrid.ts`) — com `allowBackup=true` (o default) ela
+    entrava no Auto Backup pra nuvem (Google Drive) e no `adb backup`.
+  - **Corrigido: token de push nativo (FCM) não era desassociado no
+    logout.** Em aparelho compartilhado, trocar de conta deixava quem saiu
+    recebendo notificação (e o badge do ícone com a contagem de quem saiu)
+    até a próxima conta sobrescrever o mesmo token. `currentNativePushToken()`
+    (lê sem abrir prompt) + `clearDeviceTokenOnLogout()` no `signOut` do
+    `AuthProvider`; badge zera ao desmontar.
+  - **Corrigido: drift de CSP entre `_headers` (raiz) e `next.config.mjs`.**
+    `media-src` no `_headers` estava sem `https://*.supabase.co` — podia
+    bloquear `<video>`/`<audio>` do Storage em página estática pré-renderizada
+    (ex. `/feed`). Ficaram idênticos; teste de paridade travando isso.
+  - **M1 CORRIGIDO (2026-09-15, commit `927f466`): OAuth mobile migrou de
+    implicit flow pra PKCE.** `lib/supabase.ts` ganhou `flowType:'pkce'`; o
+    callback nativo (`lib/native/auth.ts`) agora recebe
+    `br.com.queroumacor.app://auth/callback?code=...` (código de uso único)
+    em vez de `#access_token=...&refresh_token=...` crus no fragment — o
+    que o Android loga no Logcat deixa de ser um token de sessão utilizável
+    (o `code` sozinho não abre sessão sem o `code_verifier`, que nunca sai
+    do storage da WebView). `exchangeCodeForSession` troca o code pela
+    sessão; o `setSession` com tokens crus virou fallback defensivo, nunca
+    acionado com PKCE ligado. **O fluxo WEB não precisou de nenhuma
+    mudança** — o supabase-js já troca `?code=` sozinho no boot
+    (`detectSessionInUrl`, default true). Testes novos cobrindo
+    `parseAuthCallbackUrl` (code via query) e 3 casos de
+    `nativeSignInWithOAuth` mockando o client. Suíte (163/2119), typecheck
+    e `next build` verdes. **AINDA NÃO TESTADO EM APARELHO REAL nem contra
+    Google/Apple de verdade** — este ambiente não tem device nem consegue
+    completar um login OAuth de ponta a ponta. Antes de confiar cegamente:
+    instalar o AAB/IPA desta branch e fazer login social de verdade (Google
+    e Apple) uma vez em cada plataforma. Este app já quebrou OAuth várias
+    vezes em produção (ver waves de 2026-09-06/07 mais abaixo) — testar no
+    aparelho não é opcional aqui.
+  - **NOT VERIFIED: build nativo real.** Ambiente sem Android SDK e sem
+    macOS/Xcode — `.aab`/`.apk`/`.ipa` nunca foram gerados nesta sessão, só
+    revisão de código/config. Precisa rodar no Codemagic (ou local com SDK)
+    antes de confiar cegamente nas mudanças de manifest/config.
+  - **Achados baixos, sem ação necessária:** `.well-known/assetlinks.json` é
+    resto de uma versão TWA anterior ao Capacitor — hoje não tem efeito
+    nenhum (sem intent-filter `autoVerify` no manifest atual); FileProvider
+    (`file_paths.xml`) tem `path="."` mais amplo que o necessário, mas não é
+    exportado e é o template padrão do plugin de câmera — não mexido pra não
+    arriscar quebrar o contrato do plugin. Sem Universal Links/App Links
+    verificados (só o custom scheme do OAuth) — funcional pro que existe
+    hoje, só vira pendência se um dia quiserem link direto de post/perfil
+    abrindo no app.
+  - Arquivos alterados: `_headers`, `android/app/src/main/AndroidManifest.xml`,
+    `next-app/middleware.ts`, `next-app/components/{AuthProvider,
+    NativeBadge}.tsx`, `next-app/lib/native/{index,push}.ts`,
+    `next-app/lib/services/pushTokens.ts`, + 6 arquivos de teste (3 novos:
+    `androidManifestSecurity`, `capacitorWebviewSecurity`,
+    `cspHeadersParidade`).
+  - **RECONCILIAÇÃO COM O MERGE (2026-09-15).** Enquanto esta branch estava
+    aberta, DUAS outras auditorias avançaram a `main` em paralelo: rate
+    limiting/abuse (#301) e Firebase/FCM/APNs/push (merge `0bc52fc`, ver
+    entrada logo acima). A auditoria de FCM mexeu nos MESMOS arquivos desta
+    (`pushTokens.ts`, `push.ts`, `AuthProvider.tsx` etc.) por um motivo
+    DIFERENTE e complementar: ela fecha o sequestro cross-user de
+    `push_device_tokens` (RPC `upsert_push_device_token`, dono da linha
+    decidido por `auth.uid()` dentro da função — nunca pelo `userId` que o
+    cliente manda); esta auditoria fecha o logout (o token continuava
+    associado à conta depois que a pessoa saía). Os dois `git merge`
+    automáticos, exceto por 3 conflitos textuais (CLAUDE.md,
+    SECURITY_AUDIT_LOG.md, `__tests__/push-nativo.test.ts` — os três só
+    porque as duas branches inseriam conteúdo NO MESMO PONTO do arquivo, não
+    porque as correções colidissem). `pushTokens.ts`/`native/push.ts`/
+    `native/index.ts` mesclaram sem conflito nenhum: `saveDeviceToken` usa a
+    RPC deles, `clearDeviceTokenOnLogout` (desta auditoria) chama
+    `currentNativePushToken()` e apaga a linha por `token` — as duas
+    correções convivem sem se pisar. Suíte completa rodada de novo depois da
+    reconciliação, verde.
+  - **SEGUNDA RECONCILIAÇÃO (mesma sessão, minutos depois): a AUDITORIA
+    CLOUDFLARE (ver as duas entradas logo abaixo) mergeou `main` NO MEIO do
+    push desta.** `git push origin main` foi rejeitado (main tinha andado de
+    `0bc52fc` pra `3c16bc1`); `git merge origin/main` trouxe mais um
+    conflito textual, só em `SECURITY_AUDIT_LOG.md` (mesma causa: duas
+    branches editando a tabela de pendências no mesmo ponto), resolvido
+    concatenando as duas listas de itens. Essa auditoria bumpou `next` pra
+    `15.5.25` — **corrigindo de verdade** o CVE que esta sessão só conteve
+    no middleware (ver a nota acima, atualizada). Suíte + typecheck + `next
+    build` rodados de novo na árvore com as DUAS reconciliações, verdes.
+  Dos achados da auditoria de 13/09 (ver entrada abaixo) que ainda podiam
+  ser corrigidos no repo: `/api/ig-art-diag` virou admin-only de verdade
+  (o comentário sempre disse "PRO + admin", só PRO era checado — qualquer
+  assinante PRO gastava cota das chaves de IA e via quais estavam
+  configuradas); scanner de segredos **gitleaks** entrou no CI
+  (`.gitleaks.toml`+`.gitleaksignore`+self-test, recuperados de uma
+  branch nunca mergeada, validados contra o histórico inteiro com o
+  binário real: 0 leaks); `scripts/load-test.js` restaurado (tinha sido
+  apagado sem querer num cleanup antigo, `load-test.yml` rodava arquivo
+  inexistente desde então). Detalhes em `SECURITY_AUDIT_LOG.md`. **Não
+  sobrou nenhum item de CÓDIGO pendente desta auditoria** — só os 9 itens
+  de MANUAL ACTION REQUIRED (Cloudflare/Supabase Dashboard), listados na
+  entrada abaixo e em `SECURITY_AUDIT_LOG.md`.
+
+- **AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13, pedido do usuário).
+  Branch `claude/cloudflare-security-audit-gurtsy`.** Achado mais grave:
+  **Next.js estava em 15.5.2 com 3 CVEs CRITICAL** (RCE via React Flight
+  protocol, exposição de código-fonte de Server Actions, DoS) — a versão
+  fixada porque `@cloudflare/next-on-pages@1.13.16` (deprecado, nunca mais
+  atualizado; recomenda migrar pro adapter OpenNext) declara peer
+  `next: "<=15.5.2"` e o `npm install` INTERNO do `vercel build` (rodado
+  pelo próprio next-on-pages) falha com ERESOLVE em qualquer patch acima
+  disso. **Corrigido**: `next` → `15.5.25` (último patch da MESMA minor,
+  sem mudança de API) + `next-app/.npmrc` com `legacy-peer-deps=true` (só
+  isso destrava o `npm install` do adapter; não afeta a resolução de mais
+  nada). **Build real testado ponta a ponta** (`npm run build:cf` completo,
+  `wrangler pages dev` servindo o artefato) — funciona. **REGRA NOVA: essa
+  trava de peer dep é conhecida e esperada — não é motivo pra reverter um
+  bump de PATCH do Next; só minor/major exige rever o adapter primeiro.**
+  A regra antiga "next pinado EXATO em 15.5.2, não subir sem subir
+  next-on-pages junto" está PARCIALMENTE SUPERADA: dentro da minor 15.5.x,
+  suba à vontade (rodando `npm run build:cf` antes de confiar). `tar` e
+  `vitest` seguem com CVE CRITICAL sem fix disponível sem major breaking —
+  os dois são só devDependency/build-time do adapter, não rodam em
+  produção; aceito como risco residual baixo.
+  - **Source maps do bundle client-side vazavam publicamente.** O
+    `@sentry/nextjs` só apaga o `.map` do artefato DEPOIS de fazer upload
+    pra Sentry, e o upload só roda com `SENTRY_AUTH_TOKEN` no ambiente de
+    build — sem o token, o plugin pula o upload E o apagamento, mas
+    `hideSourceMaps` ainda tira o comentário `//# sourceMappingURL=` do
+    `.js` (então parecia limpo no DevTools). Inspecionando o artefato REAL
+    (não só `.next`): **157 arquivos `.js.map` ficavam no output final**,
+    baixáveis direto por URL, reconstruindo o código-fonte legível do app
+    inteiro. `next-app/scripts/strip-source-maps.mjs` (novo) apaga todo
+    `.map` de `.vercel/output/static` DEPOIS do `next-on-pages`, plugado no
+    `build:cf` — funciona independente do token do Sentry existir ou não
+    (o upload, quando acontece, já rodou antes, durante o `next build`).
+    **O `deploy.yml` do GitHub Actions não passava `SENTRY_AUTH_TOKEN`** —
+    corrigido pra chamar `npm run build:cf` (herda o strip) + um passo que
+    FALHA o job se sobrar `.map` ou `.env*` no artefato antes do deploy.
+  - **MANUAL ACTION REQUIRED, não verificável daqui — PRIORIDADE ALTA:**
+    confirmar se as env vars de **Preview** no Cloudflare Pages Dashboard
+    são as MESMAS de produção (`STAGING.md` já dizia isso e ninguém tinha
+    tirado a conclusão: qualquer push em qualquer branch dispara um build
+    de Preview que roda com `SUPABASE_SERVICE_ROLE_KEY`/chaves de IA/MP/
+    WhatsApp no ambiente — supply-chain via `postinstall` malicioso
+    exfiltraria segredo de produção sem precisar de PR aprovado). Ver aviso
+    completo em `STAGING.md`.
+  - **Chave Gemini vazada no histórico do Git** (arquivo
+    `queroumacorportal.html`, removido do HEAD há meses, mas recuperável
+    via `git show a735531:queroumacorportal.html`) — **ROTACIONAR
+    `GEMINI_API_KEY`** no Google AI Studio/GCP + trocar no CF Pages.
+  - **Chamadas ao Gemini paravam a API key na QUERY STRING** (`?key=...`)
+    em 8 pontos (`_ai.ts`, `ig-art.ts`, `ig-art-diag.ts`, `moderate.ts`,
+    `moderate-video.ts`) — URL de requisição é o tipo de dado que mais
+    vaza pra log/Sentry/proxy sem querer. Movido pro header
+    `x-goog-api-key` nos 8. Guardado por teste
+    (`__tests__/lib/gemini-key-not-in-query-string.test.ts`).
+  - **`deploy.yml` (workflow_dispatch) podia publicar produção a partir de
+    QUALQUER branch** — o `wrangler pages deploy --branch=main` é fixo,
+    mas o dispatch deixa escolher a ref livremente; agora
+    `if: github.ref == 'refs/heads/main'`. Comparação de token do webhook
+    Evolution (legado) trocada de `!==` pra `safeEqual` (tempo constante,
+    mesma regra do webhook da Meta/MP). `ios-screenshots.yml` ganhou
+    `permissions: contents: read` explícito (herdava o default do
+    repo/org). `next-app/` entrou no `dependabot.yml` (só cobria o
+    `package.json` da raiz — as deps que rodam em PRODUÇÃO nunca geravam
+    PR automático de CVE).
+  - **`_headers`/`_redirects` da RAIZ do repo (fora de `next-app/`) são
+    INERTES** — Cloudflare Pages publica `next-app/.vercel/output/static`
+    e só lê esses arquivos de DENTRO do build output, então os da raiz
+    nunca são lidos em produção. Confirmado com inspeção real do artefato
+    (`_routes.json` gerado: só `/_next/static/*` bypassa o `_worker.js`;
+    todo o resto — HTML prerenderizado incluso — passa pelo worker, que
+    aplica o `headers()` do `next.config.mjs` normalmente). Banner de aviso
+    adicionado nos dois arquivos; considerar apagar num PR de limpeza.
+    **Fonte única de CSP/headers confirmada por `curl` real via
+    `wrangler pages dev` contra o artefato: `/login`, `/portal` e rotas
+    prerenderizadas recebem CSP/HSTS/COOP/CORP/Permissions-Policy
+    corretamente — C2 (auditoria 2026-08-26) está de fato fechado, não só
+    documentado.**
+  - **KV/R2/D1/Durable Objects/Queues/Workers AI/Service Bindings/Zero
+    Trust Access: NENHUM em uso real** (confirmado por inventário
+    completo). O binding `KV` mencionado no `wrangler.toml` existe só no
+    painel (se existir) — o código não lê `env.KV` hoje, usa cache nativo
+    do Next. Turnstile não existe mais no `next-app` (só no vanilla morto)
+    — CSP ainda permite `challenges.cloudflare.com` de propósito, caso
+    reintroduzido; login/signup hoje não têm NENHUMA proteção anti-bot
+    além do que o Supabase GoTrue aplica por conta própria.
+  - Relatório completo (132 seções cobertas) entregue no chat da sessão;
+    não copiado pra arquivo por decisão de manter este CLAUDE.md enxuto.
 
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.

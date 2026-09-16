@@ -10,6 +10,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import type { Message } from '@/lib/services/chat';
 
 export type BubbleKind = 'me' | 'other' | 'store';
@@ -87,10 +88,12 @@ export interface MessageBubbleProps {
   kind: BubbleKind;
   senderName?: string | null;
   senderAvatar?: string | null;
-  onRetry?: () => void;
+  /** Recebe a própria mensagem — permite ao MessageList passar o handler do
+   *  pai direto, sem criar uma arrow function nova por bolha a cada render. */
+  onRetry?: (message: Message) => void;
 }
 
-export function MessageBubble({
+function MessageBubbleInner({
   message,
   kind,
   senderName,
@@ -213,7 +216,7 @@ export function MessageBubble({
           {failed ? (
             <button
               type="button"
-              onClick={onRetry}
+              onClick={() => onRetry?.(message)}
               className="text-[10px] text-red-600 underline"
               aria-label="Tentar enviar novamente"
             >
@@ -225,4 +228,10 @@ export function MessageBubble({
     </div>
   );
 }
+
+// memo: bolha renderizada em .map() na conversa — evita re-render de bolhas
+// que não mudaram quando o pai atualiza por outro motivo (ex.: participantInfo
+// resolvendo em outro sender). Efeito pleno depende de MessageList passar
+// `onRetry` com referência estável (ver comentário lá).
+export const MessageBubble = memo(MessageBubbleInner);
 

@@ -20,6 +20,9 @@ const permission = vi.fn();
 const register = vi.fn();
 const isAvailable = vi.fn();
 const upsert = vi.fn();
+const rpc = vi.fn();
+const currentToken = vi.fn();
+const eq = vi.fn();
 
 vi.mock('@/lib/native', () => ({
   native: {
@@ -27,24 +30,35 @@ vi.mock('@/lib/native', () => ({
       isAvailable: () => isAvailable(),
       permission: () => permission(),
       register: () => register(),
+      currentToken: () => currentToken(),
     },
     platform: () => 'android',
   },
 }));
 vi.mock('@/lib/supabase', () => ({
-  getSupabase: () => ({ from: () => ({ upsert: (...a: unknown[]) => upsert(...a) }) }),
+  getSupabase: () => ({
+    from: () => ({
+      upsert: (...a: unknown[]) => upsert(...a),
+      delete: () => ({ eq: (...a: unknown[]) => eq(...a) }),
+    }),
+    rpc: (...a: unknown[]) => rpc(...a),
+  }),
 }));
 
 import {
   ensureDeviceToken,
   registerDeviceToken,
   saveDeviceToken,
+  clearDeviceTokenOnLogout,
 } from '@/lib/services/pushTokens';
 
 beforeEach(() => {
   vi.clearAllMocks();
   isAvailable.mockReturnValue(true);
   upsert.mockResolvedValue({ error: null });
+  // Caminho feliz: a RPC segura (upsert_push_device_token) existe e aceita.
+  rpc.mockResolvedValue({ error: null });
+  eq.mockResolvedValue({ error: null });
 });
 
 describe('ensureDeviceToken: o token existe sem abrir prompt', () => {
@@ -57,11 +71,19 @@ describe('ensureDeviceToken: o token existe sem abrir prompt', () => {
     const r = await ensureDeviceToken('u1');
 
     expect(r.ok).toBe(true);
-    expect(upsert).toHaveBeenCalledTimes(1);
-    const [linha, opts] = upsert.mock.calls[0] as [Record<string, unknown>, unknown];
-    expect(linha.user_id).toBe('u1');
-    expect(linha.token).toBe('tok-abc');
-    expect(opts).toEqual({ onConflict: 'token' });
+    // Caminho seguro: RPC SECURITY DEFINER, não o upsert direto na tabela —
+    // o dono da linha é decidido dentro da função (auth.uid()), não pelo
+    // `userId` passado aqui.
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(upsert).not.toHaveBeenCalled();
+    const [fn, args] = rpc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(fn).toBe('upsert_push_device_token');
+    expect(args.p_token).toBe('tok-abc');
+    expect(args.p_platform).toBe('android');
+    // Nenhum campo de identidade (user_id) viaja no corpo da chamada — a
+    // RPC lê auth.uid() do lado do servidor.
+    expect(args).not.toHaveProperty('user_id');
+    expect(args).not.toHaveProperty('p_user_id');
   });
 
   it('em "prompt" NÃO pede permissão — boot não sequestra a decisão', async () => {
@@ -72,6 +94,7 @@ describe('ensureDeviceToken: o token existe sem abrir prompt', () => {
     const r = await ensureDeviceToken('u1');
 
     expect(register).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
     expect(r).toEqual({ ok: false, reason: 'denied' });
   });
@@ -93,6 +116,7 @@ describe('ensureDeviceToken: o token existe sem abrir prompt', () => {
 
   it('sem usuário não grava token órfão', async () => {
     expect((await ensureDeviceToken('')).ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
   });
 });
@@ -105,12 +129,46 @@ describe('saveDeviceToken: a rotação do token é seguida', () => {
 
     expect(r.ok).toBe(true);
     expect(permission).not.toHaveBeenCalled();
-    expect((upsert.mock.calls[0][0] as Record<string, unknown>).token).toBe(
+    expect((rpc.mock.calls[0][1] as Record<string, unknown>).p_token).toBe(
       'tok-novo',
     );
   });
 
-  it('erro do banco não lança — best-effort', async () => {
+  it('erro real da RPC não lança e não cai pro fallback legado', async () => {
+    // Erro de negócio (ex.: RLS/validação) — não é "função ausente", então
+    // mascarar isso caindo pro upsert direto esconderia o problema de
+    // verdade e reabriria a tabela pra escrita fora da RPC.
+    rpc.mockResolvedValue({ error: { message: 'rls', code: '42501' } });
+    await expect(saveDeviceToken('u1', 't')).resolves.toEqual({
+      ok: false,
+      reason: 'error',
+    });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('RPC ausente (SQL da hardening ainda não rodou) cai pro upsert legado', async () => {
+    // Mesmo padrão `ehFuncaoAusente` do resto do projeto: recurso de
+    // segurança novo não pode derrubar o registro de push por SQL pendente.
+    rpc.mockResolvedValue({ error: { code: 'PGRST202', message: 'not found' } });
+    const r = await saveDeviceToken('u1', 'tok-fallback');
+
+    expect(r.ok).toBe(true);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const [linha, opts] = upsert.mock.calls[0] as [Record<string, unknown>, unknown];
+    expect(linha.user_id).toBe('u1');
+    expect(linha.token).toBe('tok-fallback');
+    expect(opts).toEqual({ onConflict: 'token' });
+  });
+
+  it('42883 (undefined_function direto do Postgres) também cai pro fallback', async () => {
+    rpc.mockResolvedValue({ error: { code: '42883', message: 'does not exist' } });
+    const r = await saveDeviceToken('u1', 'tok-fallback-2');
+    expect(r.ok).toBe(true);
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('erro do banco no fallback legado não lança — best-effort', async () => {
+    rpc.mockResolvedValue({ error: { code: 'PGRST202' } });
     upsert.mockResolvedValue({ error: { message: 'rls' } });
     await expect(saveDeviceToken('u1', 't')).resolves.toEqual({
       ok: false,
@@ -120,6 +178,7 @@ describe('saveDeviceToken: a rotação do token é seguida', () => {
 
   it('token vazio não vira linha', async () => {
     expect((await saveDeviceToken('u1', '')).ok).toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
   });
 });
@@ -138,6 +197,59 @@ describe('registerDeviceToken: o caminho do BOTÃO ainda pede permissão', () =>
       ok: false,
       reason: 'denied',
     });
+    expect(rpc).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('token ownership: cross-user hijacking fica impossível pelo caminho normal', () => {
+  it('duas contas diferentes salvando o MESMO token físico nunca mandam o user_id da outra', async () => {
+    // Simula o aparelho compartilhado: usuário A registra, depois B loga no
+    // mesmo aparelho e o token físico (FCM) é o mesmo. As duas chamadas
+    // devem depender só de auth.uid() (do lado do servidor) — o parâmetro
+    // `userId` do serviço nunca deveria aparecer no corpo da RPC.
+    await saveDeviceToken('user-a', 'tok-compartilhado');
+    await saveDeviceToken('user-b', 'tok-compartilhado');
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    for (const call of rpc.mock.calls) {
+      const args = call[1] as Record<string, unknown>;
+      expect(args).toEqual({ p_token: 'tok-compartilhado', p_platform: 'android' });
+    }
+  });
+});
+
+describe('clearDeviceTokenOnLogout: device compartilhado não fica recebendo push de quem saiu', () => {
+  // Auditoria mobile 2026-09-13: sem isto, trocar de conta no MESMO
+  // aparelho deixava a conta anterior recebendo notificação até a próxima
+  // conta registrar o mesmo token FCM por cima (upsert onConflict:'token').
+  it('token atual presente → apaga a linha por token', async () => {
+    currentToken.mockResolvedValue('tok-do-aparelho');
+
+    await clearDeviceTokenOnLogout();
+
+    expect(eq).toHaveBeenCalledWith('token', 'tok-do-aparelho');
+  });
+
+  it('sem token (permissão nunca concedida, ou fora da casca) não chama delete', async () => {
+    currentToken.mockResolvedValue(null);
+
+    await clearDeviceTokenOnLogout();
+
+    expect(eq).not.toHaveBeenCalled();
+  });
+
+  it('fora da casca (isAvailable=false) não consulta token nem apaga', async () => {
+    isAvailable.mockReturnValue(false);
+
+    await clearDeviceTokenOnLogout();
+
+    expect(currentToken).not.toHaveBeenCalled();
+    expect(eq).not.toHaveBeenCalled();
+  });
+
+  it('erro do banco/plugin nunca lança — best-effort, não pode travar o logout', async () => {
+    currentToken.mockRejectedValue(new Error('boom'));
+    await expect(clearDeviceTokenOnLogout()).resolves.toBeUndefined();
   });
 });
