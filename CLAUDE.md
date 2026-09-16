@@ -1,5 +1,86 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **SEGUNDA RODADA DE VERIFICAÇÃO POR CONSOLE — 15 dos 17 itens pendentes da
+  auditoria Cloudflare/Supabase checados (2026-09-16).** Mesma sessão
+  "Claude in Chrome" (logada como `queroumacor@gmail.com`), continuação da
+  verificação dos 4 itens FCM/Firebase logo abaixo. Detalhe completo em
+  `SECURITY_AUDIT_LOG.md` (entrada 2026-09-16, continuação). Resumo:
+  - **FECHADOS/VERIFICADOS (9 itens):**
+    - **`exec_sql`/`executar_sql` — CONFIRMADO REMOVIDO EM PRODUÇÃO.** Query
+      direta no SQL Editor (`select … from pg_proc where proname ilike
+      '%exec_sql%' or '%executar_sql%'`) voltou **0 rows** — a função de
+      execução de SQL arbitrário não existe mais no banco vivo. O
+      `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` rodou de fato.
+    - **Config de Auth do Supabase**: "Confirm email" desligado (login sem
+      confirmar e-mail — a trava real é no APP, `AuthProvider.emailVerified`
+      bloqueando publicar/comentar/mandar mensagem, não o login em si, então
+      não é regressão); "Allow anonymous sign-ins" desligado (consistente
+      com o modo visitante removido em 18/06); Redirect URLs (3) escopadas
+      certo, sem wildcard perigoso; access token 3600s + refresh rotation +
+      reuse detection ligados; **"Prevent use of leaked passwords" LIGADO**
+      (bom); MFA TOTP disponível, SMS desligado. **Achado: "Enable Captcha
+      protection" está DESLIGADO** — mesma lacuna do item "Bot Fight Mode/
+      Turnstile ausente em `/login`/`/signup`" já conhecido, vista agora
+      pelo lado do Supabase Auth em vez da borda Cloudflare — é a MESMA
+      decisão pendente, não um achado novo.
+    - **5 custom rules do WAF**: confirmadas ativas (a de bots/scrapers já
+      bloqueou 794 tentativas reais) + 2 allowlists novas desde 25/05
+      (webhook WhatsApp, `assetlinks.json`).
+    - **`CLOUDFLARE_API_TOKEN`**: escopo confirmado como só
+      `Cloudflare Pages:Edit` — mínimo necessário, nada a mais.
+    - **`SENTRY_AUTH_TOKEN`**: confirmado AUSENTE do build real do CF Pages.
+      Sem impacto de SEGURANÇA (o `strip-source-maps.mjs` da auditoria
+      Cloudflare apaga todo `.map` do artefato incondicionalmente, com ou
+      sem token) — o efeito é só operacional: o Sentry recebe stack trace
+      minificado, sem symbolication.
+    - **Rotas `whatsapp-evo/*`**: testadas ao vivo — `GET /webhook` → 405,
+      `GET /ping` → 401 sem token, `GET /followup` → 405. Nenhuma vaza dado
+      nem aceita ação sem auth; caminho morto, mas fechado, não uma porta
+      aberta. Deixa de ser "não auditado".
+    - **Cloudflare Access na frente de `*.pages.dev`**: confirmado que NÃO
+      está configurado (zero aplicações). Continua sendo decisão do
+      usuário — "a considerar", agora com o estado real confirmado.
+    - **Preview env vars do Cloudflare Pages — achado que CONTRADIZ o
+      `STAGING.md`.** Checando ao vivo o painel (`queroumacor-next` →
+      Settings → Environment variables → Preview): só **5 variáveis
+      públicas** (`NEXT_PUBLIC_*` + `VAPID_SUBJECT`) — nenhum secret de
+      produção (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA/MP/WhatsApp
+      ausentes). Isso não bate com o que o `STAGING.md` e a auditoria
+      Cloudflare de 13/09 descreviam ("Preview roda com os MESMOS secrets
+      de produção"). **Duas explicações possíveis, nenhuma confirmada**:
+      (a) o usuário já corrigiu isso no painel entre a auditoria original e
+      agora, ou (b) o `STAGING.md` está e sempre esteve descrevendo um
+      risco que não reflete a configuração real. **Não tratar como
+      definitivamente fechado sem reconciliar com o `STAGING.md`** — o
+      texto do arquivo precisa ser corrigido OU o painel precisa ser
+      re-conferido puxando o histórico de mudanças, porque as duas fontes
+      hoje se contradizem e uma delas está desatualizada.
+    - **DMARC de `calicolors.com.br`**: CONFIRMADO ausente via lookup DNS
+      direto (`_dmarc.calicolors.com.br` → NXDOMAIN) — deixa de ser
+      presumido pela falta de confirmação e passa a ser um fato verificado.
+      Ação (TXT no GoDaddy) continua sendo só do usuário.
+  - **AINDA ABERTOS, com achado NOVO e mais específico (1 item):**
+    - **SSL/TLS do domínio**: mode está em **Full**, não **Full (Strict)**
+      (não valida certificado da origem); TLS mínimo em **1.2**, não
+      **1.3**; **DNSSEC desativado**; **nenhum registro CAA** configurado.
+      HSTS está OK (12 meses, `includeSubDomains`, preload). Diferente dos
+      itens "confirmar", este tem gap CONCRETO — vale decidir se sobe pra
+      Full (Strict)/TLS 1.3/liga DNSSEC/adiciona CAA, ou se aceita como
+      risco residual.
+  - **FECHADO por confirmação direta do usuário (2026-09-16):** acesso
+    Admin da Beatris Porsebon no Apple Developer é **INTENCIONAL** — não
+    era vulnerabilidade, só um colaborador que a memória do projeto ainda
+    não tinha registrado.
+  - **AINDA ABERTO, sem mudança (1 item):** login social PKCE no mobile
+    (só testável instalando o AAB/IPA num aparelho real — não dá pra
+    verificar por console/navegador).
+  - **NÃO alterados por decisão/risco aceito, sem mudança**: `===` no
+    handshake GET do webhook WhatsApp; janela fixa de 1 min no
+    `check_rate_limit`; migrar adapter pro OpenNext-Cloudflare.
+  - Cloudflare CSAM Scanning Tool: confirmado que não é toggle self-service
+    nas configurações da zona — segue exigindo contato manual por e-mail,
+    sem mudança de fato.
+
 - **VERIFICAÇÃO MANUAL DOS 4 ITENS DE CONSOLE DA AUDITORIA FCM/PUSH — FEITA
   (2026-09-16).** Os 4 itens "MANUAL VERIFICATION" que a auditoria de
   Firebase/FCM/APNs/Push de 2026-09-13 tinha deixado em aberto (fora do
@@ -15,16 +96,14 @@
     plan confirmado), quota 600k req/min em 0% de uso. 0 alert policies no
     Cloud Monitoring, mas isso é esperado: FCM não tem custo/teto no Spark,
     então não existe categoria de alerta aplicável (não é gap).
-  - **Apple Developer — Users and Access**: **achado ABERTO, não resolvido
-    por decisão — pendência do USUÁRIO confirmar.** Além de
-    `queroumacor@gmail.com` (Account Holder+Admin), existe
-    `beatrisporsebon@icloud.com` (Beatris Porsebon) com **Admin**, acesso
-    completo à chave APNs `2R6FW9F2F6`. Esse contato **não é reconhecido em
-    nenhuma entrada anterior deste arquivo** — não sei quem é. Cross-checado
-    contra o Firebase Console (colaboradores batem 1:1 com a IAM do GCP,
-    sem discrepância). Não foi removido nem contestado: só o usuário pode
-    dizer se é colaborador de confiança ou acesso a revogar. **Não tratar
-    como resolvido até o usuário confirmar.**
+  - **Apple Developer — Users and Access**: além de `queroumacor@gmail.com`
+    (Account Holder+Admin), existe `beatrisporsebon@icloud.com` (Beatris
+    Porsebon) com **Admin**, acesso completo à chave APNs `2R6FW9F2F6`.
+    Esse contato não aparecia em nenhuma entrada anterior deste arquivo.
+    Cross-checado contra o Firebase Console (colaboradores batem 1:1 com a
+    IAM do GCP, sem discrepância). **✅ CONFIRMADO PELO USUÁRIO
+    (2026-09-16): o acesso é INTENCIONAL** — não era vulnerabilidade, só um
+    colaborador que a memória do projeto ainda não tinha registrado.
   - Detalhe completo em `SECURITY_AUDIT_LOG.md` (entrada 2026-09-16).
 
 - **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria
