@@ -11,7 +11,12 @@ import {
   ServiceError,
   serviceErrorResponse,
 } from '@/lib/api/security';
-import { verifyAdminToken, ensurePortalAdmin, isPortalAdminUser } from '@/lib/api/_services/_admin-helpers';
+import {
+  verifyAdminToken,
+  ensurePortalAdmin,
+  ensurePortalAdminFresh,
+  isPortalAdminUser,
+} from '@/lib/api/_services/_admin-helpers';
 import { moderateAction, type ModerateAction } from '@/lib/api/_services/admin-moderate';
 import { logAuditEvent } from '@/lib/api/audit';
 // No edge do Cloudflare a env-var só existe dentro do request handler —
@@ -46,6 +51,11 @@ export async function POST(request: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl);
     if (action !== 'approve' && action !== 'reject') {
       return jsonResponse({ error: 'ação inválida' }, 400);
+    }
+    if (action === 'reject') {
+      // Irreversível (hard delete de post + mídia alheia) — sem o cache
+      // de 60s do check acima, ver ensurePortalAdminFresh.
+      await ensurePortalAdminFresh({ callerId, email });
     }
     const result = await moderateAction({ action: action as ModerateAction, postId });
     // Audit-log fail-open — não bloqueia resposta se gravação falhar.

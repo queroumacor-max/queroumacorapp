@@ -621,10 +621,9 @@ export async function gateProAI(
 // ─────────────────────────────────────────────────────────────────────────
 
 import {
-  getAiUsageThisMonthViaRest,
   getPlanLimitViaRest,
   isProActiveViaRest,
-  recordAiUsageViaRest,
+  reserveAiUsageViaRest,
 } from './_services/_billing-helpers';
 
 /**
@@ -640,12 +639,26 @@ import {
  *   2. is_pro_active (RPC com grace) → 'pro' (limite 500)
  *   3. fallback → 'free' (limite 30)
  *
- * `getPlanLimitViaRest` e `getAiUsageThisMonthViaRest` continuam fail-open
- * em DB error temporário — isso é resiliência (preferimos perder telemetria
- * a travar usuário PRO legítimo num blip do banco). O que mudou (CRIT-5):
+ * `getPlanLimitViaRest` e `reserveAiUsageViaRest` continuam fail-open em DB
+ * error temporário — isso é resiliência (preferimos perder telemetria a
+ * travar usuário PRO legítimo num blip do banco). O que mudou (CRIT-5):
  * service key AUSENTE agora é fail-CLOSED em produção, porque indica config
  * quebrada (não blip transitório), e o comportamento antigo libera-tudo era
  * abuso de quota IA esperando acontecer.
+ *
+ * ATOMICIDADE (auditoria de negócio 2026-09-16): até aqui o check (SELECT
+ * soma do mês) e o registro (INSERT, em `recordAiUsage`, chamado pela rota
+ * SÓ depois da chamada de IA suceder) eram dois round-trips separados —
+ * um TOCTOU clássico. N requisições concorrentes liam o mesmo "used" antes
+ * de qualquer uma gravar, e todas passavam pra chamada de IA (paga) antes
+ * de a quota realmente contar. `reserveAiUsageViaRest` faz check+INSERT
+ * numa RPC atômica (advisory lock por usuário) — a reserva acontece AQUI,
+ * antes da chamada de IA, não depois dela. `recordAiUsage` (chamado pelas
+ * ~15 rotas depois do sucesso da IA) virou no-op — o uso já foi gravado na
+ * reserva. Custo aceito: uma chamada de IA que FALHA depois de reservada
+ * ainda consome 1 unidade de cota (sem isso, teria que tocar em 15 rotas
+ * pra devolver a reserva no catch — trade-off documentado, não
+ * silencioso).
  */
 export async function gateAiUsage(opts: {
   userId: string | undefined;
@@ -688,12 +701,16 @@ export async function gateAiUsage(opts: {
     if (isPro) plan = 'pro';
   }
 
-  const [limit, used] = await Promise.all([
-    getPlanLimitViaRest({ supaUrl, serviceKey, plan }),
-    getAiUsageThisMonthViaRest({ supaUrl, serviceKey, userId }),
-  ]);
+  const limit = await getPlanLimitViaRest({ supaUrl, serviceKey, plan });
+  const { allowed, used } = await reserveAiUsageViaRest({
+    supaUrl,
+    serviceKey,
+    userId,
+    feature,
+    limit,
+  });
 
-  if (used >= limit) {
+  if (!allowed) {
     return NextResponse.json(
       {
         error: `Limite mensal de IA atingido (${used}/${limit}). ${plan === 'free' ? 'Vire PRO pra mais.' : 'Aguarde o próximo mês.'}`,
@@ -709,31 +726,18 @@ export async function gateAiUsage(opts: {
 }
 
 /**
- * Registra 1 uso de feature de IA. Chamado APÓS sucesso da chamada upstream.
- * Falha silenciosa.
+ * NO-OP desde a auditoria de negócio 2026-09-16 — o uso já é gravado
+ * atomicamente dentro de `gateAiUsage` (via `reserveAiUsageViaRest`, ANTES
+ * da chamada de IA, não depois). Função mantida (mesma assinatura) só pra
+ * não exigir mudança nas ~15 rotas que a chamam depois do sucesso da IA —
+ * chamar de novo aqui gravaria o uso DUAS vezes por chamada bem-sucedida.
  */
-export async function recordAiUsage(opts: {
+export async function recordAiUsage(_opts: {
   userId: string | undefined;
   feature: string;
   costUnits?: number;
 }): Promise<void> {
-  const { userId, feature, costUnits = 1 } = opts;
-  if (!userId) return;
-  const serviceKey = getServiceKey();
-  if (!serviceKey) return;
-  let supaUrl: string;
-  try {
-    supaUrl = getSupabaseUrl();
-  } catch {
-    return;
-  }
-  await recordAiUsageViaRest({
-    supaUrl,
-    serviceKey,
-    userId,
-    feature,
-    costUnits,
-  });
+  // Intencionalmente vazio — ver comentário acima.
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -44,7 +44,8 @@ async function mkSignedReq(opts: {
   const {
     body,
     reqId = 'req-cancel',
-    ts = '1700000000',
+    // Fresca por padrão — ver mp-webhook.test.ts (anti-replay 2026-09-16).
+    ts = String(Math.floor(Date.now() / 1000)),
     dataId = (body as { data?: { id?: string } })?.data?.id || '',
     secret = WEBHOOK_SECRET,
     url = 'https://app.test/api/mp-webhook',
