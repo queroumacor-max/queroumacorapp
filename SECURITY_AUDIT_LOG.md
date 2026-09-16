@@ -24,31 +24,87 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 
 ---
 
-## 🔴 Pendências abertas agora (2026-09-15)
+## 🔴 Pendências abertas agora (2026-09-16, atualizado após 2ª rodada de verificação por console)
+
+9 dos 17 itens da lista anterior foram fechados/verificados nesta rodada
+(ver entrada "2026-09-16 (continuação)" no histórico abaixo). Restam:
 
 | Item | Status | Onde tratar |
 |---|---|---|
-| DMARC de `calicolors.com.br` | ⚪ MANUAL | GoDaddy DNS — `dpo@calicolors.com.br` |
+| Acesso Admin da Beatris Porsebon no Apple Developer | 🔵 CONFIRMAR COM O USUÁRIO | não reconhecida pela memória do projeto, usuário precisa confirmar se é intencional |
+| SSL/TLS: mode em Full (não Strict), TLS mínimo 1.2 (não 1.3), DNSSEC desligado, sem registro CAA | ⚪ MANUAL, achado concreto | Cloudflare Dashboard — HSTS já está ok |
+| Preview env vars do Cloudflare Pages — checado ao vivo e SEM secrets hoje, mas contradiz o `STAGING.md` | ⚪ RECONCILIAR DOC | ver nota na entrada 2026-09-16 (continuação) — reconferir/corrigir `STAGING.md` |
+| DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
-| Acesso Admin da Beatris Porsebon no Apple Developer | 🔵 CONFIRMAR COM O USUÁRIO | ver entrada 2026-09-16 abaixo — não reconhecida pela memória do projeto, usuário precisa confirmar se é intencional |
+| Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
-| Rotas `whatsapp-evo/*` (Evolution API aposentada) | 🔵 NÃO AUDITADO | caminho morto, endpoint ainda existe |
-| Preview env vars = produção no Cloudflare Pages (supply-chain via `postinstall`) | ⚪ MANUAL | **PRIORIDADE MÁXIMA** — Cloudflare Pages Dashboard, ver `STAGING.md` |
-| Confirmar `SENTRY_AUTH_TOKEN` no Build Command real do CF Pages (não só GitHub Actions) | ⚪ MANUAL | Cloudflare Pages Dashboard |
-| Reconferir se as 5 custom rules do WAF (sessão 25/05 acima) ainda existem/fazem sentido | ⚪ MANUAL | Cloudflare Dashboard |
-| Confirmar SSL/TLS = Full (Strict), TLS mínimo 1.3, DNSSEC, CAA | ⚪ MANUAL | Cloudflare Dashboard |
-| Confirmar escopo do `CLOUDFLARE_API_TOKEN` do deploy (deveria ser só `Pages:Edit`) | ⚪ MANUAL | Cloudflare Dashboard |
-| Cloudflare Access na frente de `*.pages.dev` | ⚪ MANUAL | a considerar, Cloudflare Dashboard |
-| Bot Fight Mode/Turnstile server-side em `/login` e `/signup` | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação |
-| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — CVE já corrigido via bump pra `next@15.5.25` + `legacy-peer-deps`, isto não é mais bloqueante de segurança |
-| Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
-| Config de Auth do Supabase (redirect URLs, expiração de JWT, MFA, leaked password protection, captcha) | ⚪ MANUAL | Supabase Dashboard — não verificável pelo repo, achado da auditoria de segurança do Supabase (2026-09-13) |
-| Confirmar em produção que o DROP de `exec_sql`/`executar_sql` (execução de SQL arbitrário, herança do vanilla) rodou de fato | ⚪ MANUAL | `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` existe e está correto, mas não há como confirmar a execução real a partir do repo |
+| Bot Fight Mode/Turnstile server-side em `/login`/`/signup` — E captcha desligado no Supabase Auth (mesma lacuna, dois ângulos) | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação nem captcha no Auth |
+| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — não é mais bloqueante de segurança |
+| Cloudflare Access na frente de `*.pages.dev` | 🔵 DECISÃO, confirmado que NÃO está configurado | a considerar, Cloudflare Dashboard |
 
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-16 (continuação) — 2ª rodada: 15 dos 17 itens pendentes checados por console
+Mesma sessão "Claude in Chrome" (`queroumacor@gmail.com`), na sequência da
+verificação dos 4 itens FCM/Firebase abaixo. Cobriu Cloudflare Dashboard,
+GoDaddy DNS, Supabase Auth Dashboard, SQL Editor de produção e as rotas
+`whatsapp-evo/*` ao vivo.
+
+**Fechados/verificados (9 itens):**
+- **`exec_sql`/`executar_sql` — ✅ CONFIRMADO REMOVIDO.** Query direta no
+  SQL Editor de produção (`select … from pg_proc where proname ilike
+  '%exec_sql%' or '%executar_sql%'`) voltou **0 rows** — a função de
+  execução de SQL arbitrário não existe no banco vivo; o DROP rodou.
+- **Config de Auth do Supabase — ✅ verificada.** "Confirm email" e
+  "Allow anonymous sign-ins" desligados (consistente com o app); Redirect
+  URLs (3) escopadas certo; access token 3600s + refresh rotation + reuse
+  detection ligados; "Prevent use of leaked passwords" **LIGADO**; MFA
+  TOTP disponível. **Achado**: "Enable Captcha protection" **DESLIGADO**
+  — dobra sobre o item já conhecido de Bot Fight Mode/Turnstile ausente
+  (mesma lacuna vista pelo lado do Auth), não é item novo.
+- **5 custom rules do WAF — ✅ confirmadas ativas** (a de bots/scrapers já
+  bloqueou 794 tentativas reais) **+ 2 allowlists novas** desde 25/05
+  (webhook WhatsApp, `assetlinks.json`).
+- **`CLOUDFLARE_API_TOKEN` — ✅ escopo confirmado**: só
+  `Cloudflare Pages:Edit`, nada além disso.
+- **`SENTRY_AUTH_TOKEN` — ✅ confirmado AUSENTE** do build real do CF
+  Pages. Sem risco de segurança (`strip-source-maps.mjs` apaga todo
+  `.map` do artefato incondicionalmente, com ou sem token) — só efeito
+  operacional: Sentry recebe stack trace minificado.
+- **Rotas `whatsapp-evo/*` — ✅ testadas ao vivo, seguras.** `GET
+  /webhook` → 405, `GET /ping` → 401 sem token, `GET /followup` → 405.
+  Nenhuma vaza dado nem aceita ação sem auth — caminho morto, mas
+  fechado. Deixa de ser "não auditado".
+- **Cloudflare Access em `*.pages.dev` — confirmado que NÃO está
+  configurado** (zero aplicações). Segue sendo decisão do usuário.
+- **DMARC de `calicolors.com.br` — confirmado ausente via DNS direto**
+  (`_dmarc.calicolors.com.br` → NXDOMAIN). Deixa de ser presumido.
+- **Preview env vars do Cloudflare Pages — achado que CONTRADIZ o
+  `STAGING.md`.** Painel ao vivo (`queroumacor-next` → Settings →
+  Environment variables → Preview) mostra só **5 variáveis públicas**
+  (`NEXT_PUBLIC_*` + `VAPID_SUBJECT`) — nenhum secret de produção. Isso
+  não bate com a descrição do `STAGING.md`/auditoria Cloudflare de 13/09
+  ("Preview roda com os MESMOS secrets de produção"). **Duas explicações
+  possíveis, nenhuma confirmada**: o usuário já corrigiu isso no painel
+  depois daquela auditoria, ou o `STAGING.md` descreve um risco que nunca
+  bateu com a config real. **Não tratar como definitivamente fechado** —
+  falta reconciliar o texto do `STAGING.md` com o painel (ou entender por
+  que divergem) antes de riscar de vez este item.
+
+**Aberto, com achado novo e mais específico (1 item):**
+- **SSL/TLS do domínio**: mode em **Full** (não Full Strict — não valida
+  cert da origem); TLS mínimo **1.2** (não 1.3); **DNSSEC desligado**;
+  **sem registro CAA**. HSTS está ok. Diferente dos itens "a confirmar",
+  este é um gap CONCRETO — decidir se sobe a régua ou aceita como risco.
+
+**Sem mudança:** acesso Admin da Beatris no Apple Developer (ainda
+pendente do usuário); PKCE mobile (só testável com AAB/IPA em aparelho
+real); `===` no handshake GET do webhook WhatsApp; janela fixa do rate
+limit; migrar adapter pro OpenNext; Cloudflare CSAM Scanning Tool (segue
+exigindo contato manual por e-mail, não é toggle self-service).
 
 ### 2026-09-16 — Verificação MANUAL dos 4 itens de console (Firebase/GCP/Apple)
 Checado pelo usuário via sessão separada de "Claude in Chrome" (esta sessão
