@@ -512,9 +512,10 @@
 - **IA DO WHATSAPP: prompt EDITÁVEL no portal + não fala do QueroUmaCor +
   entende a abordagem (2026-09-08, três pedidos do usuário). SQL
   `/migrations/2026-09-08-whatsapp-ai-prompt.sql` (uma linha:
-  `whatsapp_ai_config.prompt text`) — PENDENTE até o usuário rodar; linha de
-  conferência adicionada em `2026-09-05-conferencia-pendencias.sql`. O código
-  TOLERA a coluna ausente.**
+  `whatsapp_ai_config.prompt text`) — JÁ EXECUTADO no Supabase (2026-09-16,
+  confirmado pelo usuário: a linha de conferência de
+  `2026-09-05-conferencia-pendencias.sql` voltou `ok=true`). Não pedir pra
+  rodar de novo.**
   - **"Não falar da QueroUmaCor automaticamente":** a IA respondeu "Posso te
     ajudar com algo relacionado a tintas ou o app QueroUmaCor?". A frase de
     apresentação do app saiu do prompt e entrou a regra 6: só fala do app
