@@ -24,15 +24,16 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 
 ---
 
-## 🔴 Pendências abertas agora (2026-09-16, atualizado após 2ª rodada de verificação por console)
+## 🔴 Pendências abertas agora (2026-09-16, atualizado após 3ª rodada — DNSSEC/CAA executados)
 
-10 dos 17 itens da lista anterior foram fechados/verificados nesta rodada
-(ver entrada "2026-09-16 (continuação)" no histórico abaixo). Restam:
+10 dos 17 itens da lista original foram fechados/verificados na 2ª rodada
+(ver entrada "2026-09-16 (continuação)" no histórico abaixo). Na 3ª rodada,
+DNSSEC foi ligado e o CAA foi criado de verdade (não só confirmados — ver
+entrada "2026-09-16 (3ª rodada)"). Restam:
 
 | Item | Status | Onde tratar |
 |---|---|---|
-| DNSSEC desligado (verificado 2 vezes; NÃO ligado) | ⚪ MANUAL | Cloudflare Dashboard → DNS → Settings → "Enable DNSSEC" |
-| Sem registro CAA (verificado 2 vezes; nenhum ADICIONADO) | ⚪ MANUAL | Cloudflare Dashboard → DNS → Records |
+| DNSSEC ligado no Cloudflare, falta o DS record no registrador | 🟡 MANUAL (passo final) | Registro.br (registrador de `queroumacor.com.br`) — publicar o DS record que o Cloudflare gerou |
 | Preview env vars do Cloudflare Pages — checado ao vivo e SEM secrets hoje, mas contradiz o `STAGING.md` | ⚪ RECONCILIAR DOC | ver nota na entrada 2026-09-16 (continuação) — reconferir/corrigir `STAGING.md` |
 | DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
@@ -122,6 +123,34 @@ Mesma sessão "Claude in Chrome", agindo sobre o achado de SSL/TLS acima.
   usuário de que TLS 1.2 bem configurado é aceitável. Não é pendência.
 - Confirmado OK, sem gap: Always Use HTTPS ligado; HSTS ligado (12
   meses, includeSubDomains, preload).
+
+### 2026-09-16 (3ª rodada) — DNSSEC ligado e CAA criado de verdade (não só confirmados)
+Terceira sessão "Claude in Chrome", agindo sobre os 2 itens que as duas
+rodadas anteriores só tinham CONFIRMADO como desligados/ausentes, sem
+executar a ação recomendada (ver regra na entrada acima).
+- **✅ DNSSEC — LIGADO** em Cloudflare DNS → Settings → "Enable DNSSEC".
+  **Falta um passo fora do Cloudflare**: o DS record que o Cloudflare
+  gerou precisa ser publicado no REGISTRADOR do domínio —
+  `queroumacor.com.br` é registrado na **Registro.br** (não confundir
+  com o GoDaddy, que é o registrador de `calicolors.com.br`, usado só
+  pro TXT do DMARC). Sem esse DS record no pai da zona, a cadeia de
+  confiança do DNSSEC não fecha e a proteção não vale nada na prática —
+  por isso o item continua na tabela de pendências, agora só com esse
+  passo final, que só o usuário pode fazer (acesso à conta na
+  Registro.br).
+- **✅ CAA — 6 registros criados e publicados na zona.** Tag `issue`
+  (autoriza emitir certificado padrão) e tag `issuewild` (autoriza
+  emitir wildcard) para 3 CAs: `letsencrypt.org` (a CA pedida
+  originalmente), mais `pki.goog` e `ssl.com` (sugeridas pelo próprio
+  Cloudflare como reforço). Qualquer CA fora dessa lista fica bloqueada
+  de emitir certificado pro domínio — item fechado, sem passo manual
+  restante.
+- **REGRA (reafirmada, agora do lado positivo):** a mesma régua que
+  rejeitou "verifiquei que está desligado" como equivalente a "liguei"
+  nas duas rodadas anteriores é a que confirma que, desta vez, a ação
+  foi mesmo executada — o painel mostra o toggle "Enable DNSSEC" ativo
+  e os 6 registros CAA na lista de DNS, não apenas um relato dizendo
+  que foi feito.
 
 **Fechado por confirmação direta do usuário (1 item, 2026-09-16):**
 - **Acesso Admin de `beatrisporsebon@icloud.com` no Apple Developer é

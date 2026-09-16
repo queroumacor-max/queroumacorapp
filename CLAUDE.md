@@ -65,17 +65,26 @@
       Overview → Configure, confirmado pela mensagem "Encryption mode
       updated successfully." Agora a conexão Cloudflare↔origem exige
       certificado válido, não só cifra.
-    - **⚪ DNSSEC — SEGUE DESLIGADO, NÃO FOI LIGADO.** A sessão verificou
-      o estado (painel mostrando o botão "Enable DNSSEC") e concluiu
-      "nenhuma ação necessária" — **isso contraria a recomendação
-      original**, que era LIGAR o DNSSEC, não só confirmar que está
-      desligado. Tratar como PENDENTE de verdade até alguém decidir
-      ligar ou aceitar o risco explicitamente.
-    - **⚪ Registro CAA — SEGUE AUSENTE, NENHUM FOI ADICIONADO.** A
-      sessão verificou os 11 registros da zona (CNAME/MX/TXT) e
-      confirmou que não existe CAA nenhum hoje — mas a recomendação era
-      ADICIONAR um CAA autorizando as CAs certas, não só confirmar a
-      ausência. Mesmo tratamento: PENDENTE de verdade.
+    - **🟡 DNSSEC — LIGADO NO CLOUDFLARE (2026-09-16, 3ª sessão),
+      FALTA SÓ O DS RECORD NO REGISTRADOR.** Depois de duas rodadas que
+      só CONFIRMARAM o estado desligado (ver regra abaixo), esta terceira
+      sessão executou a ação de verdade: "Enable DNSSEC" ativado em DNS →
+      Settings. O DNSSEC só fica TOTALMENTE ativo depois que o registrador
+      publica o DS record que o Cloudflare gera — e `queroumacor.com.br` é
+      registrado na **Registro.br** (domínio `.com.br`; não confundir com
+      o GoDaddy, que é o registrador de `calicolors.com.br`, usado pro
+      DMARC). **Pendência real agora é só isso**: usuário adicionar o DS
+      record na Registro.br. Enquanto isso não acontece, o DNSSEC está
+      "ligado" do lado Cloudflare mas não protege nada (a cadeia de
+      confiança só fecha com o DS no pai da zona).
+    - **✅ Registro CAA — CRIADO E PUBLICADO (2026-09-16, 3ª sessão).**
+      6 registros CAA criados na zona: tag `issue` (pode emitir certificado
+      padrão) e tag `issuewild` (pode emitir wildcard) para **3 CAs**:
+      `letsencrypt.org`, `pki.goog` e `ssl.com` — o Cloudflare sugeriu as
+      duas últimas automaticamente como reforço além da CA pedida.
+      Qualquer outra CA que não estiver nessa lista fica IMPEDIDA de emitir
+      certificado pro domínio, mesmo que seja enganada/comprometida. Item
+      fechado, sem passo manual restante.
     - **TLS mínimo 1.2 (não 1.3)** — mantido de propósito, decisão do
       usuário ("TLS 1.2 bem configurado ainda é aceitável"). Confirmado
       que TLS 1.3 já está HABILITADO no edge (clientes que suportam usam
@@ -86,7 +95,11 @@
     - **REGRA: "verificar que X está desligado" NÃO é o mesmo que "ligar
       X".** Um relato que confirma o estado atual sem executar a ação
       recomendada não fecha a pendência — só a documenta com mais
-      precisão. Aconteceu aqui com DNSSEC e CAA.
+      precisão. Aconteceu aqui com DNSSEC e CAA nas duas primeiras
+      rodadas — e é a mesma regra que permitiu reconhecer, na 3ª rodada,
+      que desta vez a ação FOI executada de verdade (DNSSEC ligado, CAA
+      criado), em vez de aceitar a palavra "feito" sem examinar o que
+      mudou.
   - **FECHADO por confirmação direta do usuário (2026-09-16):** acesso
     Admin da Beatris Porsebon no Apple Developer é **INTENCIONAL** — não
     era vulnerabilidade, só um colaborador que a memória do projeto ainda
