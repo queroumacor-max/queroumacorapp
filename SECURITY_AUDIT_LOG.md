@@ -43,6 +43,8 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 | Bot Fight Mode/Turnstile server-side em `/login` e `/signup` | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação |
 | Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — CVE já corrigido via bump pra `next@15.5.25` + `legacy-peer-deps`, isto não é mais bloqueante de segurança |
 | Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
+| Config de Auth do Supabase (redirect URLs, expiração de JWT, MFA, leaked password protection, captcha) | ⚪ MANUAL | Supabase Dashboard — não verificável pelo repo, achado da auditoria de segurança do Supabase (2026-09-13) |
+| Confirmar em produção que o DROP de `exec_sql`/`executar_sql` (execução de SQL arbitrário, herança do vanilla) rodou de fato | ⚪ MANUAL | `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` existe e está correto, mas não há como confirmar a execução real a partir do repo |
 
 ---
 
@@ -85,6 +87,50 @@ VERIFICATION que restavam da auditoria FCM/APNs/Push de 2026-09-13 — os
 - A chave APNs em si (`2R6FW9F2F6`, "QueroUmaCor APNs", criada 2026-09-04,
   Team Scoped, Sandbox & Production) segue única, sem duplicatas/órfãs —
   consistente com o que já estava documentado no CLAUDE.md.
+
+### 2026-09-13/16 — Auditoria de segurança do Supabase (RLS/policies/grants/RPCs)
+SQL `2026-09-13-leads-rls-critical.sql` — ✅ **JÁ EXECUTADO** (2026-09-16,
+confirmado pelo usuário: a consulta de conferência do fim do arquivo voltou
+as 3 linhas com `ok=true`). Escopo: RLS, policies, grants, roles, functions,
+RPCs, triggers, views, Storage, Realtime, Auth, cron, service role.
+- **CRÍTICO**: `public.leads` NUNCA teve RLS habilitada por nenhuma migration
+  deste repositório — a tabela nasceu FORA do repo (sem `CREATE TABLE`
+  correspondente, só `ALTER TABLE ... ADD COLUMN`), e por isso nunca passou
+  pelo "gancho" de lembrar de protegê-la (as outras 50 tabelas criadas no
+  repo têm `ENABLE ROW LEVEL SECURITY` pelo menos uma vez cada). Qualquer
+  usuário comum do app, ou a própria chave `anon`, conseguia ler/escrever
+  os ~1072 contatos de prospecção (nome, telefone, categoria, cidade, status)
+  direto pela API REST do Supabase, sem passar pelo portal nem por
+  `is_portal_admin()`. Fix: RLS habilitada + policy `leads_admin_all`
+  restrita a `is_portal_admin()` + `anon` sem GRANT algum. O app consumidor
+  (`next-app/`) não toca essa tabela — travar não tirou acesso de ninguém.
+- **Falsos positivos confirmados seguros** (lidos no SQL final, não
+  presumidos): `products`/`orders`/`announcements`/`commissions` tinham
+  `USING(true)` no `supabase_init.sql` original, mas já foram fechadas pra
+  `is_portal_admin()` num hardening anterior; `profiles_public` (view) já
+  tem `security_invoker=true`; `exec_sql`/`executar_sql` (execução de SQL
+  arbitrário, herança do vanilla) já tiveram EXECUTE revogado e DROP escrito
+  (execução real em produção não confirmada — ver tabela de pendências);
+  100% das 52 funções SECURITY DEFINER do histórico têm `SET search_path`
+  (sem risco de search-path hijacking); bucket `whatsapp-media` corretamente
+  privado; trigger `protect_profile_columns` bloqueia auto-promoção a admin;
+  os 4 cron jobs (pg_cron) têm corpo fixo, sem superfície de injeção.
+- **Aceito como risco baixo, não corrigido**: `push_device_tokens` UPDATE
+  usa `USING(true)` de propósito (reatribuição de aparelho compartilhado
+  pelo token físico) — exploração exigiria adivinhar um UUID que não vaza
+  em nenhum SELECT.
+- **Não verificado nesta rodada** (fora do aprofundamento desta sessão):
+  matriz completa das 50 tabelas × 4 operações (foi um sweep de
+  `USING(true)`, não uma tabela linha-a-linha); Storage buckets além de
+  `whatsapp-media`; Realtime publications além de `whatsapp_messages`;
+  configuração de Auth (redirect URLs, expiração de JWT, MFA, leaked
+  password protection, captcha) — só no Dashboard do Supabase, MANUAL
+  VERIFICATION (ver tabela de pendências no topo).
+- **Autocrítica registrada**: um comentário de código escrito na mesma
+  sessão, antes desta auditoria, afirmava "a RLS de `leads` continua
+  valendo" sem nunca ter checado — a própria auditoria corrigiu essa
+  suposição, não só o código. Regra: suposição sobre RLS de uma tabela não
+  é fato até alguém ler a tabela de políticas dela.
 
 ### 2026-09-16 — `GEMINI_API_KEY` vazada: confirmado que já não está ativa
 ✅ **RESOLVIDO.** A chave vazada no histórico do Git (commit `a735531`,
