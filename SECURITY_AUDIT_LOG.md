@@ -31,7 +31,8 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 
 | Item | Status | Onde tratar |
 |---|---|---|
-| SSL/TLS: mode em Full (não Strict), TLS mínimo 1.2 (não 1.3), DNSSEC desligado, sem registro CAA | ⚪ MANUAL, achado concreto | Cloudflare Dashboard — HSTS já está ok |
+| DNSSEC desligado (verificado 2 vezes; NÃO ligado) | ⚪ MANUAL | Cloudflare Dashboard → DNS → Settings → "Enable DNSSEC" |
+| Sem registro CAA (verificado 2 vezes; nenhum ADICIONADO) | ⚪ MANUAL | Cloudflare Dashboard → DNS → Records |
 | Preview env vars do Cloudflare Pages — checado ao vivo e SEM secrets hoje, mas contradiz o `STAGING.md` | ⚪ RECONCILIAR DOC | ver nota na entrada 2026-09-16 (continuação) — reconferir/corrigir `STAGING.md` |
 | DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
@@ -93,11 +94,34 @@ GoDaddy DNS, Supabase Auth Dashboard, SQL Editor de produção e as rotas
   falta reconciliar o texto do `STAGING.md` com o painel (ou entender por
   que divergem) antes de riscar de vez este item.
 
-**Aberto, com achado novo e mais específico (1 item):**
+**Aberto, com achado novo e mais específico (1 item, ver correção abaixo):**
 - **SSL/TLS do domínio**: mode em **Full** (não Full Strict — não valida
   cert da origem); TLS mínimo **1.2** (não 1.3); **DNSSEC desligado**;
   **sem registro CAA**. HSTS está ok. Diferente dos itens "a confirmar",
   este é um gap CONCRETO — decidir se sobe a régua ou aceita como risco.
+
+### 2026-09-16 (2ª continuação) — SSL/TLS: 1 de 4 gaps fechado, 2 confundidos com "resolvido"
+Mesma sessão "Claude in Chrome", agindo sobre o achado de SSL/TLS acima.
+- **✅ Mode Full → Full (Strict) — FEITO.** Alterado em SSL/TLS → Overview
+  → Configure; confirmado pela mensagem "Encryption mode updated
+  successfully." A conexão Cloudflare↔origem agora exige certificado
+  válido, não só cifra o tráfego.
+- **⚠️ DNSSEC e CAA — RELATADOS COMO "verificados, nenhuma ação
+  necessária", mas NÃO FORAM EXECUTADOS.** A recomendação original era
+  LIGAR o DNSSEC e ADICIONAR um registro CAA; o que a sessão fez foi só
+  confirmar que os dois continuam no estado antigo (DNSSEC desligado,
+  zero registros CAA nos 11 da zona) e concluir "sem ação necessária" —
+  uma conclusão que contradiz a recomendação, não a cumpre. **Os dois
+  seguem PENDENTES de verdade**, agora com o estado confirmado por
+  inspeção direta (não presumido). **REGRA: "verifiquei que X está
+  desligado" não é o mesmo relatório que "liguei X" — uma checagem que
+  só confirma o status quo não fecha a pendência, só a documenta melhor.**
+- **TLS mínimo 1.2**: confirmado que TLS 1.3 já está HABILITADO no edge
+  (clientes que suportam usam 1.3); 1.2 é só o piso mínimo aceito, não
+  "1.3 desligado". Mantido de propósito — decisão já registrada do
+  usuário de que TLS 1.2 bem configurado é aceitável. Não é pendência.
+- Confirmado OK, sem gap: Always Use HTTPS ligado; HSTS ligado (12
+  meses, includeSubDomains, preload).
 
 **Fechado por confirmação direta do usuário (1 item, 2026-09-16):**
 - **Acesso Admin de `beatrisporsebon@icloud.com` no Apple Developer é

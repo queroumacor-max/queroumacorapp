@@ -59,14 +59,34 @@
       direto (`_dmarc.calicolors.com.br` → NXDOMAIN) — deixa de ser
       presumido pela falta de confirmação e passa a ser um fato verificado.
       Ação (TXT no GoDaddy) continua sendo só do usuário.
-  - **AINDA ABERTOS, com achado NOVO e mais específico (1 item):**
-    - **SSL/TLS do domínio**: mode está em **Full**, não **Full (Strict)**
-      (não valida certificado da origem); TLS mínimo em **1.2**, não
-      **1.3**; **DNSSEC desativado**; **nenhum registro CAA** configurado.
-      HSTS está OK (12 meses, `includeSubDomains`, preload). Diferente dos
-      itens "confirmar", este tem gap CONCRETO — vale decidir se sobe pra
-      Full (Strict)/TLS 1.3/liga DNSSEC/adiciona CAA, ou se aceita como
-      risco residual.
+  - **SSL/TLS do domínio — PARCIALMENTE FECHADO (2026-09-16, sessão
+    separada de "Claude in Chrome").** Dos 4 gaps achados nesta rodada:
+    - **✅ Mode Full → Full (Strict) — FEITO.** Alterado em SSL/TLS →
+      Overview → Configure, confirmado pela mensagem "Encryption mode
+      updated successfully." Agora a conexão Cloudflare↔origem exige
+      certificado válido, não só cifra.
+    - **⚪ DNSSEC — SEGUE DESLIGADO, NÃO FOI LIGADO.** A sessão verificou
+      o estado (painel mostrando o botão "Enable DNSSEC") e concluiu
+      "nenhuma ação necessária" — **isso contraria a recomendação
+      original**, que era LIGAR o DNSSEC, não só confirmar que está
+      desligado. Tratar como PENDENTE de verdade até alguém decidir
+      ligar ou aceitar o risco explicitamente.
+    - **⚪ Registro CAA — SEGUE AUSENTE, NENHUM FOI ADICIONADO.** A
+      sessão verificou os 11 registros da zona (CNAME/MX/TXT) e
+      confirmou que não existe CAA nenhum hoje — mas a recomendação era
+      ADICIONAR um CAA autorizando as CAs certas, não só confirmar a
+      ausência. Mesmo tratamento: PENDENTE de verdade.
+    - **TLS mínimo 1.2 (não 1.3)** — mantido de propósito, decisão do
+      usuário ("TLS 1.2 bem configurado ainda é aceitável"). Confirmado
+      que TLS 1.3 já está HABILITADO no edge (clientes que suportam usam
+      1.3; 1.2 é só o piso pra não excluir clientes mais antigos) — não é
+      "TLS 1.3 desligado", é "1.2 ainda aceito". Não é pendência.
+    - **Confirmado OK, sem gap**: Always Use HTTPS ligado; HSTS ligado
+      (12 meses, includeSubDomains, preload).
+    - **REGRA: "verificar que X está desligado" NÃO é o mesmo que "ligar
+      X".** Um relato que confirma o estado atual sem executar a ação
+      recomendada não fecha a pendência — só a documenta com mais
+      precisão. Aconteceu aqui com DNSSEC e CAA.
   - **FECHADO por confirmação direta do usuário (2026-09-16):** acesso
     Admin da Beatris Porsebon no Apple Developer é **INTENCIONAL** — não
     era vulnerabilidade, só um colaborador que a memória do projeto ainda
