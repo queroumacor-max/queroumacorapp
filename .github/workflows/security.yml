@@ -42,6 +42,37 @@ jobs:
             npm audit --audit-level=high --omit=dev
           fi
 
+  gitleaks:
+    # Auditoria de segredos 2026-09-11/15: varre o diff do PR (e, no
+    # agendado, o histórico inteiro) com a config de `.gitleaks.toml`.
+    # Falso positivo novo = entrada explicada na allowlist, nunca desligar
+    # o job. Recuperado de uma branch que nunca foi mergeada
+    # (claude/admiring-turing-20zlkj) — trazido isolado, sem o resto
+    # daquela branch (que estava muito atrás de main).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "true"
+      # Self-test: um scanner que passa em silêncio não prova nada. Baixa o
+      # MESMO binário e exige que uma chave Google SINTÉTICA seja acusada
+      # (exit 1) e que um diretório limpo passe (exit 0). Se a regra
+      # `gcp-api-key` for desligada ou enfraquecida, este passo cai.
+      - name: Self-test do scanner (chave sintética -> FAIL, limpo -> PASS)
+        run: |
+          set -euo pipefail
+          V=8.21.2
+          curl -sSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          scripts/secret-scan-selftest.sh /tmp/gitleaks
+
   zap-baseline:
     # Scan passivo (não dispara payloads). Roda só na cron pra não atrasar
     # PR. allow_issue_writing:false → não polui Issues do repo a cada run.

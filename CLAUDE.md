@@ -27,6 +27,90 @@
     como resolvido até o usuário confirmar.**
   - Detalhe completo em `SECURITY_AUDIT_LOG.md` (entrada 2026-09-16).
 
+- **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria
+  COMPLETA... RLS, policies, grants, roles, functions, RPCs, triggers, views,
+  Storage, Realtime, Auth, cron, service role"). SQL
+  `/migrations/2026-09-13-leads-rls-critical.sql` — JÁ EXECUTADO no Supabase
+  (2026-09-16, confirmado pelo usuário: a consulta de conferência do fim do
+  arquivo voltou as 3 linhas com `ok=true` — RLS habilitada, policy
+  `leads_admin_all` existe, `anon` sem GRANT). Não pedir pra rodar de novo.**
+  - **ACHADO CRÍTICO: `public.leads` NUNCA teve RLS habilitada por nenhuma
+    migration deste repositório.** A tabela nasceu FORA do repo (não existe
+    `CREATE TABLE public.leads` em lugar nenhum — só 7 `ALTER TABLE ... ADD
+    COLUMN`). Varredura da história INTEIRA de SQL (10.935 linhas, base +
+    94 migrations em ordem): zero `ENABLE ROW LEVEL SECURITY`, zero
+    `CREATE POLICY`, zero `GRANT`/`REVOKE` tocando `leads`, em qualquer
+    ponto. **Comparado com as outras 50 tabelas criadas neste repo — todas
+    as 50 passam por `ENABLE ROW LEVEL SECURITY` pelo menos uma vez.**
+    `leads` é a única exceção, porque nunca apareceu numa `CREATE TABLE`
+    que desse o "gancho" de lembrar de proteger.
+    - **Impacto**: `leads` guarda ~1072 contatos de prospecção (nome,
+      telefone, categoria, cidade, status, abordagem) — dado de negócio
+      da loja. Sem RLS, qualquer usuário comum do app (pintor, cliente —
+      não precisa ser admin) ou a chave `anon` conseguia ler/escrever a
+      tabela INTEIRA direto pela API REST do Supabase
+      (`GET /rest/v1/leads?select=*`), sem passar pelo portal nem por
+      `is_portal_admin()`. Conferido: o app consumidor (`next-app/`)
+      **não toca essa tabela** — `lib/services/leads.ts` de lá é outro
+      conceito (posts `for_sale=true`), sem relação. Toda leitura real de
+      `leads` é do portal, sempre logado como admin — travar pra
+      `is_portal_admin()` não tira acesso de ninguém que usa a feature.
+    - **AUTOCRÍTICA DESTA SESSÃO**: o comentário do `leads_por_telefone`
+      (escrito hoje mais cedo, na correção de performance do WhatsApp)
+      dizia "SECURITY INVOKER de propósito: a RLS de `leads` continua
+      valendo" — uma suposição repetida sem nunca ter sido checada. Esta
+      auditoria corrigiu a própria suposição da sessão, não só o código.
+      **Lição: "a RLS de X vale" não é fato até alguém ler a tabela de
+      políticas de X.**
+  - **FALSOS POSITIVOS CONFIRMADOS SEGUROS (lidos no SQL final, não
+    presumidos)**: `products`/`orders`/`announcements`/`commissions`
+    tiveram policy `USING(true)`/`WITH CHECK(true)` no `supabase_init.sql`
+    original (qualquer `authenticated` alterava catálogo/pedido/aviso de
+    QUALQUER UM) — mas todas as 4 foram fechadas pra
+    `is_portal_admin()` num bloco "Re-auditoria Onda 1" já no mesmo
+    arquivo, antes de qualquer migration incremental. `profiles_public`
+    (view) perdeu `security_invoker=true` em duas recriações (Waves 32 e
+    counters) e foi corrigida de volta num hardening posterior que cita
+    literalmente "o ERROR do advisor" (Supabase Security Advisor —
+    sessão anterior teve esse dado, mesmo sem estar resumido no
+    CLAUDE.md). `exec_sql`/`executar_sql` (execução de SQL arbitrário,
+    herança do vanilla) tiveram EXECUTE revogado e foram DROPadas por
+    `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` (idempotente,
+    com pré-check de dependência — não confirmável se rodou em produção,
+    ver MANUAL VERIFICATION abaixo). **100% das funções SECURITY DEFINER
+    do histórico (52 ocorrências) têm `SET search_path` — nenhum risco de
+    search-path hijacking encontrado.** Bucket `whatsapp-media`:
+    corretamente privado, só `is_portal_admin()` lê, escrita só por
+    service_role (sem policy de INSERT pra ninguém logado). Trigger
+    `protect_profile_columns` (BEFORE INSERT/UPDATE em `profiles`,
+    vinculada via `CREATE TRIGGER`, confirmado) reverte silenciosamente
+    qualquer tentativa de setar `is_pro`/`portal_access`/`role=admin`/
+    `verified` por quem não é `is_portal_admin()` — bloqueia auto-promoção
+    a admin. Cron jobs (4, via `pg_cron`) têm corpo fixo sem parâmetro
+    controlável pelo cliente — sem superfície de injeção. Nenhuma
+    Edge Function no repo (tudo é rota Next.js no Cloudflare Pages).
+  - **ACEITO COMO RISCO BAIXO, não corrigido**: `push_device_tokens`
+    UPDATE usa `USING(true) WITH CHECK(auth.uid()=user_id)` — de
+    propósito, pro aparelho que trocou de conta reatribuir a própria
+    linha (o token físico é a chave natural, não o dono). Um usuário
+    comum PODERIA, em teoria, sequestrar a linha de outro se soubesse o
+    `id` (uuid) dela — mas não há SELECT que vaze esse id pra ninguém
+    fora do dono, então a exploração exige adivinhar um UUID. Mudar pra
+    `auth.uid()=user_id` também no USING quebraria a reatribinação
+    legítima; não mexido nesta rodada.
+  - **NÃO VERIFICADO NESTA RODADA** (fora do que consegui aprofundar):
+    matriz completa das 50 tabelas × 4 operações (fiz um sweep de
+    `USING(true)`/`WITH CHECK(true)` cobrindo os casos historicamente
+    achados, não uma tabela linha-a-linha de tudo); Storage buckets além
+    de `whatsapp-media` não foram re-conferidos nesta sessão (o histórico
+    em waves anteriores já documenta `posts`/`avatars`/`exports`/
+    `art-refs` — não re-lidos agora); Realtime publications além de
+    `whatsapp_messages`; configuração de Auth (redirect URLs, expiração
+    de JWT, MFA, leaked password protection, captcha) — tudo isso só no
+    Dashboard do Supabase, **MANUAL VERIFICATION REQUIRED**; execução
+    real em produção do DROP de `exec_sql`/`executar_sql` (o arquivo
+    existe e está correto, mas não há como confirmar daqui se rodou).
+
 - **RATE LIMIT EM MENSAGENS DE CHAT + PUSH DE MENSAGEM SEM TEXTO (2026-09-15,
   pedido do usuário, fechando 2 pendências da auditoria FCM/push abaixo). SQL
   `/migrations/2026-09-15-chat-safety-hardening.sql` — JÁ EXECUTADO no
@@ -226,12 +310,239 @@
     "aposentada" por decisão do usuário — ver regra "WEBINTOAPP" — mas
     o endpoint ainda existe e não foi auditado a fundo por já ser
     caminho morto).
+- **AUDITORIA DE SEGURANÇA MOBILE (2026-09-13/15, pedido do usuário: auditoria
+  completa Capacitor/Android/iOS/WebView). MERGEADA na `main` (2026-09-15,
+  pedido explícito do usuário: "merge"), branch `claude/mobile-security-
+  audit-b36g38` (commits `af59a79`…`927f466`). Suíte inteira verde, typecheck
+  e `next build` limpos DEPOIS de reconciliada com a auditoria de rate
+  limiting (#301) e a auditoria FCM/APNs/push (merge `0bc52fc`) que
+  avançaram a `main` em paralelo — ver nota de reconciliação no fim desta
+  entrada.**
+  - **CRÍTICO CONTIDO NESTA SESSÃO, e DEPOIS CORRIGIDO NA RAIZ por uma
+    auditoria paralela — `next@15.5.2` era vulnerável a CVE-2025-66478/
+    CVE-2025-55182 (RCE, CVSS 10.0, desserialização do protocolo Flight via
+    header `Next-Action`).** Nesta sessão a versão estava PRESA nesse número
+    porque é o teto exato do peer range do `@cloudflare/next-on-pages`
+    (`>=14.3.0 && <=15.5.2`), adapter DESCONTINUADO pelo mantenedor — por
+    isso a correção aplicada aqui foi só **conter** o vetor em
+    `next-app/middleware.ts`: qualquer requisição com o header `Next-Action`
+    é barrada com 404 antes de qualquer processamento (seguro porque o app
+    não declara NENHUMA Server Action — zero `'use server'` no repo).
+    Matcher ampliado de `/api/:path*` pra todas as rotas de página (Actions
+    são invocadas na própria URL da página). **Essa mitigação FICA** (defesa
+    em profundidade, custo zero), mas deixou de ser a única barreira: a
+    AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13/15, ver entrada própria
+    mais abaixo), rodando em paralelo, bumpou `next` pra `15.5.25` — dentro
+    da MESMA minor, sem quebrar API, destravado via `next-app/.npmrc`
+    (`legacy-peer-deps=true`, que ignora só o teto do peer range do adapter
+    sem tocar em mais nenhuma resolução) — e validou com `npm run build:cf`
+    ponta a ponta. `15.5.25` está acima do patch que corrige o CVE
+    (15.5.3+, conforme o comentário do próprio `.npmrc`), então a causa raiz
+    está fechada em produção, não só contida. A migração de adapter
+    (OpenNext-Cloudflare) segue como melhoria arquitetural de médio prazo —
+    não é mais bloqueante de segurança.
+  - **Corrigido: Android `allowBackup` true→false.** A sessão do Supabase
+    mora em localStorage/cookies dentro da WebView
+    (`lib/sessionStorageHybrid.ts`) — com `allowBackup=true` (o default) ela
+    entrava no Auto Backup pra nuvem (Google Drive) e no `adb backup`.
+  - **Corrigido: token de push nativo (FCM) não era desassociado no
+    logout.** Em aparelho compartilhado, trocar de conta deixava quem saiu
+    recebendo notificação (e o badge do ícone com a contagem de quem saiu)
+    até a próxima conta sobrescrever o mesmo token. `currentNativePushToken()`
+    (lê sem abrir prompt) + `clearDeviceTokenOnLogout()` no `signOut` do
+    `AuthProvider`; badge zera ao desmontar.
+  - **Corrigido: drift de CSP entre `_headers` (raiz) e `next.config.mjs`.**
+    `media-src` no `_headers` estava sem `https://*.supabase.co` — podia
+    bloquear `<video>`/`<audio>` do Storage em página estática pré-renderizada
+    (ex. `/feed`). Ficaram idênticos; teste de paridade travando isso.
+  - **M1 CORRIGIDO (2026-09-15, commit `927f466`): OAuth mobile migrou de
+    implicit flow pra PKCE.** `lib/supabase.ts` ganhou `flowType:'pkce'`; o
+    callback nativo (`lib/native/auth.ts`) agora recebe
+    `br.com.queroumacor.app://auth/callback?code=...` (código de uso único)
+    em vez de `#access_token=...&refresh_token=...` crus no fragment — o
+    que o Android loga no Logcat deixa de ser um token de sessão utilizável
+    (o `code` sozinho não abre sessão sem o `code_verifier`, que nunca sai
+    do storage da WebView). `exchangeCodeForSession` troca o code pela
+    sessão; o `setSession` com tokens crus virou fallback defensivo, nunca
+    acionado com PKCE ligado. **O fluxo WEB não precisou de nenhuma
+    mudança** — o supabase-js já troca `?code=` sozinho no boot
+    (`detectSessionInUrl`, default true). Testes novos cobrindo
+    `parseAuthCallbackUrl` (code via query) e 3 casos de
+    `nativeSignInWithOAuth` mockando o client. Suíte (163/2119), typecheck
+    e `next build` verdes. **AINDA NÃO TESTADO EM APARELHO REAL nem contra
+    Google/Apple de verdade** — este ambiente não tem device nem consegue
+    completar um login OAuth de ponta a ponta. Antes de confiar cegamente:
+    instalar o AAB/IPA desta branch e fazer login social de verdade (Google
+    e Apple) uma vez em cada plataforma. Este app já quebrou OAuth várias
+    vezes em produção (ver waves de 2026-09-06/07 mais abaixo) — testar no
+    aparelho não é opcional aqui.
+  - **NOT VERIFIED: build nativo real.** Ambiente sem Android SDK e sem
+    macOS/Xcode — `.aab`/`.apk`/`.ipa` nunca foram gerados nesta sessão, só
+    revisão de código/config. Precisa rodar no Codemagic (ou local com SDK)
+    antes de confiar cegamente nas mudanças de manifest/config.
+  - **Achados baixos, sem ação necessária:** `.well-known/assetlinks.json` é
+    resto de uma versão TWA anterior ao Capacitor — hoje não tem efeito
+    nenhum (sem intent-filter `autoVerify` no manifest atual); FileProvider
+    (`file_paths.xml`) tem `path="."` mais amplo que o necessário, mas não é
+    exportado e é o template padrão do plugin de câmera — não mexido pra não
+    arriscar quebrar o contrato do plugin. Sem Universal Links/App Links
+    verificados (só o custom scheme do OAuth) — funcional pro que existe
+    hoje, só vira pendência se um dia quiserem link direto de post/perfil
+    abrindo no app.
+  - Arquivos alterados: `_headers`, `android/app/src/main/AndroidManifest.xml`,
+    `next-app/middleware.ts`, `next-app/components/{AuthProvider,
+    NativeBadge}.tsx`, `next-app/lib/native/{index,push}.ts`,
+    `next-app/lib/services/pushTokens.ts`, + 6 arquivos de teste (3 novos:
+    `androidManifestSecurity`, `capacitorWebviewSecurity`,
+    `cspHeadersParidade`).
+  - **RECONCILIAÇÃO COM O MERGE (2026-09-15).** Enquanto esta branch estava
+    aberta, DUAS outras auditorias avançaram a `main` em paralelo: rate
+    limiting/abuse (#301) e Firebase/FCM/APNs/push (merge `0bc52fc`, ver
+    entrada logo acima). A auditoria de FCM mexeu nos MESMOS arquivos desta
+    (`pushTokens.ts`, `push.ts`, `AuthProvider.tsx` etc.) por um motivo
+    DIFERENTE e complementar: ela fecha o sequestro cross-user de
+    `push_device_tokens` (RPC `upsert_push_device_token`, dono da linha
+    decidido por `auth.uid()` dentro da função — nunca pelo `userId` que o
+    cliente manda); esta auditoria fecha o logout (o token continuava
+    associado à conta depois que a pessoa saía). Os dois `git merge`
+    automáticos, exceto por 3 conflitos textuais (CLAUDE.md,
+    SECURITY_AUDIT_LOG.md, `__tests__/push-nativo.test.ts` — os três só
+    porque as duas branches inseriam conteúdo NO MESMO PONTO do arquivo, não
+    porque as correções colidissem). `pushTokens.ts`/`native/push.ts`/
+    `native/index.ts` mesclaram sem conflito nenhum: `saveDeviceToken` usa a
+    RPC deles, `clearDeviceTokenOnLogout` (desta auditoria) chama
+    `currentNativePushToken()` e apaga a linha por `token` — as duas
+    correções convivem sem se pisar. Suíte completa rodada de novo depois da
+    reconciliação, verde.
+  - **SEGUNDA RECONCILIAÇÃO (mesma sessão, minutos depois): a AUDITORIA
+    CLOUDFLARE (ver as duas entradas logo abaixo) mergeou `main` NO MEIO do
+    push desta.** `git push origin main` foi rejeitado (main tinha andado de
+    `0bc52fc` pra `3c16bc1`); `git merge origin/main` trouxe mais um
+    conflito textual, só em `SECURITY_AUDIT_LOG.md` (mesma causa: duas
+    branches editando a tabela de pendências no mesmo ponto), resolvido
+    concatenando as duas listas de itens. Essa auditoria bumpou `next` pra
+    `15.5.25` — **corrigindo de verdade** o CVE que esta sessão só conteve
+    no middleware (ver a nota acima, atualizada). Suíte + typecheck + `next
+    build` rodados de novo na árvore com as DUAS reconciliações, verdes.
+  Dos achados da auditoria de 13/09 (ver entrada abaixo) que ainda podiam
+  ser corrigidos no repo: `/api/ig-art-diag` virou admin-only de verdade
+  (o comentário sempre disse "PRO + admin", só PRO era checado — qualquer
+  assinante PRO gastava cota das chaves de IA e via quais estavam
+  configuradas); scanner de segredos **gitleaks** entrou no CI
+  (`.gitleaks.toml`+`.gitleaksignore`+self-test, recuperados de uma
+  branch nunca mergeada, validados contra o histórico inteiro com o
+  binário real: 0 leaks); `scripts/load-test.js` restaurado (tinha sido
+  apagado sem querer num cleanup antigo, `load-test.yml` rodava arquivo
+  inexistente desde então). Detalhes em `SECURITY_AUDIT_LOG.md`. **Não
+  sobrou nenhum item de CÓDIGO pendente desta auditoria** — só os 9 itens
+  de MANUAL ACTION REQUIRED (Cloudflare/Supabase Dashboard), listados na
+  entrada abaixo e em `SECURITY_AUDIT_LOG.md`.
+
+- **AUDITORIA DE SEGURANÇA CLOUDFLARE (2026-09-13, pedido do usuário).
+  Branch `claude/cloudflare-security-audit-gurtsy`.** Achado mais grave:
+  **Next.js estava em 15.5.2 com 3 CVEs CRITICAL** (RCE via React Flight
+  protocol, exposição de código-fonte de Server Actions, DoS) — a versão
+  fixada porque `@cloudflare/next-on-pages@1.13.16` (deprecado, nunca mais
+  atualizado; recomenda migrar pro adapter OpenNext) declara peer
+  `next: "<=15.5.2"` e o `npm install` INTERNO do `vercel build` (rodado
+  pelo próprio next-on-pages) falha com ERESOLVE em qualquer patch acima
+  disso. **Corrigido**: `next` → `15.5.25` (último patch da MESMA minor,
+  sem mudança de API) + `next-app/.npmrc` com `legacy-peer-deps=true` (só
+  isso destrava o `npm install` do adapter; não afeta a resolução de mais
+  nada). **Build real testado ponta a ponta** (`npm run build:cf` completo,
+  `wrangler pages dev` servindo o artefato) — funciona. **REGRA NOVA: essa
+  trava de peer dep é conhecida e esperada — não é motivo pra reverter um
+  bump de PATCH do Next; só minor/major exige rever o adapter primeiro.**
+  A regra antiga "next pinado EXATO em 15.5.2, não subir sem subir
+  next-on-pages junto" está PARCIALMENTE SUPERADA: dentro da minor 15.5.x,
+  suba à vontade (rodando `npm run build:cf` antes de confiar). `tar` e
+  `vitest` seguem com CVE CRITICAL sem fix disponível sem major breaking —
+  os dois são só devDependency/build-time do adapter, não rodam em
+  produção; aceito como risco residual baixo.
+  - **Source maps do bundle client-side vazavam publicamente.** O
+    `@sentry/nextjs` só apaga o `.map` do artefato DEPOIS de fazer upload
+    pra Sentry, e o upload só roda com `SENTRY_AUTH_TOKEN` no ambiente de
+    build — sem o token, o plugin pula o upload E o apagamento, mas
+    `hideSourceMaps` ainda tira o comentário `//# sourceMappingURL=` do
+    `.js` (então parecia limpo no DevTools). Inspecionando o artefato REAL
+    (não só `.next`): **157 arquivos `.js.map` ficavam no output final**,
+    baixáveis direto por URL, reconstruindo o código-fonte legível do app
+    inteiro. `next-app/scripts/strip-source-maps.mjs` (novo) apaga todo
+    `.map` de `.vercel/output/static` DEPOIS do `next-on-pages`, plugado no
+    `build:cf` — funciona independente do token do Sentry existir ou não
+    (o upload, quando acontece, já rodou antes, durante o `next build`).
+    **O `deploy.yml` do GitHub Actions não passava `SENTRY_AUTH_TOKEN`** —
+    corrigido pra chamar `npm run build:cf` (herda o strip) + um passo que
+    FALHA o job se sobrar `.map` ou `.env*` no artefato antes do deploy.
+  - **MANUAL ACTION REQUIRED, não verificável daqui — PRIORIDADE ALTA:**
+    confirmar se as env vars de **Preview** no Cloudflare Pages Dashboard
+    são as MESMAS de produção (`STAGING.md` já dizia isso e ninguém tinha
+    tirado a conclusão: qualquer push em qualquer branch dispara um build
+    de Preview que roda com `SUPABASE_SERVICE_ROLE_KEY`/chaves de IA/MP/
+    WhatsApp no ambiente — supply-chain via `postinstall` malicioso
+    exfiltraria segredo de produção sem precisar de PR aprovado). Ver aviso
+    completo em `STAGING.md`.
+  - **Chave Gemini vazada no histórico do Git** (arquivo
+    `queroumacorportal.html`, removido do HEAD há meses, mas recuperável
+    via `git show a735531:queroumacorportal.html`) — **RESOLVIDO
+    (2026-09-16, confirmado pelo usuário).** A chave vazada termina em
+    `...sZN_IE`; no Google AI Studio (API Keys, "All projects") só existem
+    duas chaves ativas hoje — `...iVmQ` (projeto "Quero uma cor", a que
+    importa) e `...LsIU` (projeto "JR Erp") — nenhuma bate com o final da
+    vazada. Como o Google só lista chaves que ainda EXISTEM (revogada some
+    da lista, não fica listada como inativa), a vazada já não existe mais
+    na conta — não tem como ser a que está configurada em `GEMINI_API_KEY`
+    no Cloudflare Pages hoje. Não dá pra ler o valor do secret no CF Pages
+    direto (Cloudflare não exibe secret já salvo), mas a lógica fecha sem
+    isso: chave que não existe não pode ser a que está em uso. **Não
+    pedir pra rotacionar de novo.**
+  - **Chamadas ao Gemini paravam a API key na QUERY STRING** (`?key=...`)
+    em 8 pontos (`_ai.ts`, `ig-art.ts`, `ig-art-diag.ts`, `moderate.ts`,
+    `moderate-video.ts`) — URL de requisição é o tipo de dado que mais
+    vaza pra log/Sentry/proxy sem querer. Movido pro header
+    `x-goog-api-key` nos 8. Guardado por teste
+    (`__tests__/lib/gemini-key-not-in-query-string.test.ts`).
+  - **`deploy.yml` (workflow_dispatch) podia publicar produção a partir de
+    QUALQUER branch** — o `wrangler pages deploy --branch=main` é fixo,
+    mas o dispatch deixa escolher a ref livremente; agora
+    `if: github.ref == 'refs/heads/main'`. Comparação de token do webhook
+    Evolution (legado) trocada de `!==` pra `safeEqual` (tempo constante,
+    mesma regra do webhook da Meta/MP). `ios-screenshots.yml` ganhou
+    `permissions: contents: read` explícito (herdava o default do
+    repo/org). `next-app/` entrou no `dependabot.yml` (só cobria o
+    `package.json` da raiz — as deps que rodam em PRODUÇÃO nunca geravam
+    PR automático de CVE).
+  - **`_headers`/`_redirects` da RAIZ do repo (fora de `next-app/`) são
+    INERTES** — Cloudflare Pages publica `next-app/.vercel/output/static`
+    e só lê esses arquivos de DENTRO do build output, então os da raiz
+    nunca são lidos em produção. Confirmado com inspeção real do artefato
+    (`_routes.json` gerado: só `/_next/static/*` bypassa o `_worker.js`;
+    todo o resto — HTML prerenderizado incluso — passa pelo worker, que
+    aplica o `headers()` do `next.config.mjs` normalmente). Banner de aviso
+    adicionado nos dois arquivos; considerar apagar num PR de limpeza.
+    **Fonte única de CSP/headers confirmada por `curl` real via
+    `wrangler pages dev` contra o artefato: `/login`, `/portal` e rotas
+    prerenderizadas recebem CSP/HSTS/COOP/CORP/Permissions-Policy
+    corretamente — C2 (auditoria 2026-08-26) está de fato fechado, não só
+    documentado.**
+  - **KV/R2/D1/Durable Objects/Queues/Workers AI/Service Bindings/Zero
+    Trust Access: NENHUM em uso real** (confirmado por inventário
+    completo). O binding `KV` mencionado no `wrangler.toml` existe só no
+    painel (se existir) — o código não lê `env.KV` hoje, usa cache nativo
+    do Next. Turnstile não existe mais no `next-app` (só no vanilla morto)
+    — CSP ainda permite `challenges.cloudflare.com` de propósito, caso
+    reintroduzido; login/signup hoje não têm NENHUMA proteção anti-bot
+    além do que o Supabase GoTrue aplica por conta própria.
+  - Relatório completo (132 seções cobertas) entregue no chat da sessão;
+    não copiado pra arquivo por decisão de manter este CLAUDE.md enxuto.
 
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
-  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
-  rodar; linhas na `2026-09-05-conferencia-pendencias.sql`. O código TOLERA
-  o SQL ausente (cai no desenho de 09/09), mas o timeout só some com ele.**
+  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — JÁ EXECUTADO no Supabase
+  (2026-09-16, confirmado pelo usuário: as 5 linhas de conferência voltaram
+  `ok=true` — policy avaliada 1x, e as funções `whatsapp_conversas`/
+  `whatsapp_nao_lidas`/`leads_por_telefone` e o índice
+  `idx_whatsapp_messages_created_id` existem). Não pedir pra rodar de novo.**
   - **A causa não era o volume; era a RLS.** As policies de
     `whatsapp_messages`/`whatsapp_ai_state`/`portal_alerts`/
     `whatsapp_ai_config` tinham `USING (is_portal_admin())` SOLTO. A função
@@ -561,9 +872,10 @@
 - **IA DO WHATSAPP: prompt EDITÁVEL no portal + não fala do QueroUmaCor +
   entende a abordagem (2026-09-08, três pedidos do usuário). SQL
   `/migrations/2026-09-08-whatsapp-ai-prompt.sql` (uma linha:
-  `whatsapp_ai_config.prompt text`) — PENDENTE até o usuário rodar; linha de
-  conferência adicionada em `2026-09-05-conferencia-pendencias.sql`. O código
-  TOLERA a coluna ausente.**
+  `whatsapp_ai_config.prompt text`) — JÁ EXECUTADO no Supabase (2026-09-16,
+  confirmado pelo usuário: a linha de conferência de
+  `2026-09-05-conferencia-pendencias.sql` voltou `ok=true`). Não pedir pra
+  rodar de novo.**
   - **"Não falar da QueroUmaCor automaticamente":** a IA respondeu "Posso te
     ajudar com algo relacionado a tintas ou o app QueroUmaCor?". A frase de
     apresentação do app saiu do prompt e entrou a regra 6: só fala do app

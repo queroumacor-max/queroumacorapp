@@ -1000,8 +1000,8 @@ export function ProductsList() {
                 <li key={p.id}>
                   <ProductCard
                     product={p}
-                    onAdd={(prod) => setDetailProduct(prod)}
-                    onOpen={(prod) => setDetailProduct(prod)}
+                    onAdd={setDetailProduct}
+                    onOpen={setDetailProduct}
                   />
                 </li>
               ))}

@@ -1,7 +1,13 @@
 // __tests__/api/ig-art-diag.test.ts — testes do route `/api/ig-art-diag`.
+//
+// Auditoria de segurança Cloudflare (2026-09-13/15): o comentário do route
+// sempre disse "PRO + admin", mas só o PRO era checado — qualquer assinante
+// PRO conseguia gastar cota das chaves de IA e descobrir quais estão
+// configuradas. Corrigido: `ensurePortalAdmin` depois do `gateProAI`.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { installAuthMocks, type InstalledMocks } from './_helpers';
+import { _resetPortalAdminCache } from '@/lib/api/_services/_admin-helpers';
 
 let mocks: InstalledMocks | null = null;
 
@@ -20,6 +26,10 @@ function mkGetReq(url: string): Request {
 describe('GET /api/ig-art-diag', () => {
   beforeEach(() => {
     process.env.GEMINI_API_KEY = 'g-test';
+    // `ensurePortalAdmin` cacheia por callerId por 60s no isolate — o mock
+    // de auth sempre devolve o mesmo `user-test-id`, então sem resetar o
+    // cache o resultado de UM teste vazaria pro próximo.
+    _resetPortalAdminCache();
   });
 
   it('returns 503 when service key missing (gateProAI fail-closed)', async () => {
@@ -33,6 +43,13 @@ describe('GET /api/ig-art-diag', () => {
 
   it('returns 403 when user is not PRO', async () => {
     mocks = installAuthMocks({ pro: false });
+    const { GET } = await import('@/app/api/ig-art-diag/route');
+    const res = await GET(mkGetReq('https://app.test/api/ig-art-diag') as never);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when user is PRO but not admin of the portal', async () => {
+    mocks = installAuthMocks({ pro: true, admin: false });
     const { GET } = await import('@/app/api/ig-art-diag/route');
     const res = await GET(mkGetReq('https://app.test/api/ig-art-diag') as never);
     expect(res.status).toBe(403);

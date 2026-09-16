@@ -27,6 +27,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { reportFailure } from '@/lib/utils/reportFailure';
+import { clearDeviceTokenOnLogout } from '@/lib/services/pushTokens';
 
 interface AuthContextValue {
   user: User | null;
@@ -314,6 +315,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // Auditoria mobile 2026-09-13: desassocia o token de push NATIVO deste
+    // aparelho ANTES de encerrar a sessão — a policy de DELETE em
+    // `push_device_tokens` exige `auth.uid() = user_id`, então isso só
+    // funciona com a sessão ainda viva. Sem isso, trocar de conta no MESMO
+    // aparelho (device compartilhado, ou alguém empresta o celular) deixava
+    // quem saiu recebendo push até a próxima conta registrar o mesmo token
+    // por cima. Best-effort: nunca bloqueia o logout.
+    try {
+      await clearDeviceTokenOnLogout();
+    } catch {
+      // Silencioso — ver função (best-effort por design).
+    }
     // CRIT-4: limpa o cookie httpOnly `sb-session-token` (gravado no login
     // por /api/auth/set-session-cookie) pra que o guard server-side de
     // /admin/* não conceda acesso após logout. Não-fatal.

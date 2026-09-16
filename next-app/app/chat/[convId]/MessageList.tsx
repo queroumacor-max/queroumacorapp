@@ -71,7 +71,7 @@ export function MessageList({
             kind={kind}
             senderName={info?.name ?? null}
             senderAvatar={info?.avatar ?? null}
-            onRetry={() => onRetry(m)}
+            onRetry={onRetry}
           />
         );
       })}

@@ -12398,6 +12398,9 @@ const AJUDA_WHATSAPP = [{
 }, {
   t: '🧠 Prompt da IA',
   d: 'O texto de instruções que a IA lê antes de cada resposta: quem ela é e como conversa. Dá pra editar e salvar; "Restaurar padrão" volta ao texto do sistema. A trava de preço, o horário, o teto diário e o PARE são de código e continuam valendo seja qual for o texto.'
+}, {
+  t: 'Status do lead (seletor colorido)',
+  d: 'Aparece quando o número da conversa casa com um lead da aba Leads — no cabeçalho da conversa aberta e embaixo de cada linha na lista. É o MESMO status: mudar aqui muda lá também, sem precisar trocar de aba.'
 }];
 
 // ── Prompt da IA: editável no portal (2026-09-08, pedido do usuário) ────
@@ -13194,6 +13197,42 @@ const BolhaConteudo = ({
     }
   }, "\uD83D\uDCCE ", legenda && !marcador ? legenda : 'Abrir documento');
 };
+
+// Espelha o select de status da aba Leads (mesma lista LEADS_STATUS, mesmo
+// updateStatus por baixo) pra dentro da conversa do WhatsApp — o operador
+// muda o status do lead sem trocar de aba. `mini` encolhe pra caber na
+// linha da lista de conversas; o cabecalho da conversa aberta usa o
+// tamanho normal. `stopPropagation` porque o `<select>` mora dentro de uma
+// linha clicavel (abre a conversa) — sem isso, escolher uma opcao tambem
+// dispara o onClick do card.
+const StatusLeadSelect = ({
+  status,
+  onChange,
+  mini
+}) => /*#__PURE__*/React.createElement("select", {
+  value: status || 'novo',
+  onClick: e => e.stopPropagation(),
+  onChange: e => {
+    e.stopPropagation();
+    onChange(e.target.value);
+  },
+  title: "Status do lead (mesmo da aba Leads) \u2014 muda aqui e la",
+  style: {
+    padding: mini ? '1px 4px' : '4px 8px',
+    borderRadius: 6,
+    border: '1px solid ' + C.border,
+    background: C.bg,
+    color: LEAD_STATUS_COLORS[status] || C.ink,
+    fontWeight: 700,
+    fontSize: mini ? 10 : 11,
+    outline: 'none',
+    cursor: 'pointer',
+    maxWidth: mini ? 108 : 160
+  }
+}, LEADS_STATUS.map(k => /*#__PURE__*/React.createElement("option", {
+  key: k,
+  value: k
+}, LEADS_STATUS_LABELS[k])));
 const WhatsAppTab = () => {
   const [msgs, setMsgs] = useState([]);
   const [profByPhone, setProfByPhone] = useState({});
@@ -13759,6 +13798,38 @@ const WhatsAppTab = () => {
       ...prev,
       ...mapa
     }));
+  };
+
+  // Muda o status do lead DIRETO da conversa (mesma acao da aba Leads,
+  // mesmo leadsService.updateStatus por baixo — um so lugar grava no
+  // banco). Otimista: pinta a mudanca na hora e desfaz se o banco recusar.
+  // `chave` e o sufixo de 8 digitos que indexa `leadByPhone` — quem chama
+  // ja tem ele (linha da lista ou conversa aberta), entao nao precisamos
+  // adivinhar de novo a partir do telefone.
+  const atualizarStatusLead = async (chave, lead, status) => {
+    if (!lead || !lead.id || !chave) return;
+    const anterior = lead.status;
+    if (anterior === status) return;
+    setLeadByPhone(prev => prev[chave] ? {
+      ...prev,
+      [chave]: {
+        ...prev[chave],
+        status
+      }
+    } : prev);
+    try {
+      await leadsService.updateStatus(lead.id, status);
+    } catch (e) {
+      setLeadByPhone(prev => prev[chave] ? {
+        ...prev,
+        [chave]: {
+          ...prev[chave],
+          status: anterior
+        }
+      } : prev);
+      const msg = String(e && e.message || e);
+      alert(/23514|check constraint/i.test(msg) ? 'O banco recusou o status "' + status + '": leads.status tem um CHECK sem esse valor. Rode /migrations/2026-09-09-leads-status-fixo.sql no Supabase e tente de novo.\n\n' + msg : 'Erro ao atualizar status do lead: ' + msg);
+    }
   };
 
   // REALTIME (Wave 45): o banco AVISA quando entra mensagem — a msg
@@ -14533,75 +14604,91 @@ const WhatsAppTab = () => {
      sem essa permissao recebe lista vazia com SUCESSO — a
      mesma armadilha do `update` que nao acha linha. As duas
      leituras ficam na tela, sem escolher uma. */
-  'Nenhuma conversa nos últimos 90 dias. Se você sabe que existem mensagens, provavelmente é permissão: a lista exige acesso de portal no banco.' : soNaoLidas && !busca.trim() ? 'Nenhuma conversa com mensagem nova de cliente. Tudo lido. 👏' : soNaoLidas ? 'Nada encontrado entre as não lidas.' : 'Nada encontrado na busca.') : convsFiltradas.slice(0, WA_LISTA_MAX).map(c => /*#__PURE__*/React.createElement("div", {
-    key: c.waId,
-    onClick: () => abrirConversa(c.waId),
-    style: {
-      padding: '12px 14px',
-      cursor: 'pointer',
-      borderBottom: '1px solid ' + C.cream,
-      background: openWa === c.waId ? C.cream : 'transparent'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      gap: 8,
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("strong", {
-    style: {
-      fontSize: 13,
-      color: C.ink,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      fontWeight: naoLidas(c) > 0 ? 800 : 600
-    }
-  }, nomeDe(c)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-      flexShrink: 0
-    }
-  }, naoLidas(c) > 0 ? /*#__PURE__*/React.createElement("span", {
-    title: naoLidas(c) + ' mensagem(ns) que voce ainda nao abriu',
-    style: {
-      background: C.p1,
-      color: '#fff',
-      borderRadius: 10,
-      fontSize: 10,
-      fontWeight: 800,
-      padding: '1px 7px',
-      lineHeight: '16px'
-    }
-  }, naoLidas(c) > 99 ? '99+' : naoLidas(c)) : null, /*#__PURE__*/React.createElement(ChipCanal, {
-    c: c,
-    mini: true
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: C.muted,
-      whiteSpace: 'nowrap'
-    }
-  }, waHora(c.last)))), origemDe(c) ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: C.p3,
-      fontWeight: 600,
-      marginTop: 1
-    }
-  }, origemDe(c)) : null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: C.muted,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      marginTop: 2
-    }
-  }, (c.last.direction === 'out' ? 'Voce: ' : '') + previewMsg(c.last)))), convsFiltradas.length > WA_LISTA_MAX ? /*#__PURE__*/React.createElement("div", {
+  'Nenhuma conversa nos últimos 90 dias. Se você sabe que existem mensagens, provavelmente é permissão: a lista exige acesso de portal no banco.' : soNaoLidas && !busca.trim() ? 'Nenhuma conversa com mensagem nova de cliente. Tudo lido. 👏' : soNaoLidas ? 'Nada encontrado entre as não lidas.' : 'Nada encontrado na busca.') : convsFiltradas.slice(0, WA_LISTA_MAX).map(c => {
+    const leadChave = c.waId.slice(-8);
+    const leadDaConversa = leadByPhone[leadChave];
+    return /*#__PURE__*/React.createElement("div", {
+      key: c.waId,
+      onClick: () => abrirConversa(c.waId),
+      style: {
+        padding: '12px 14px',
+        cursor: 'pointer',
+        borderBottom: '1px solid ' + C.cream,
+        background: openWa === c.waId ? C.cream : 'transparent'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 8,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontSize: 13,
+        color: C.ink,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontWeight: naoLidas(c) > 0 ? 800 : 600
+      }
+    }, nomeDe(c)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexShrink: 0
+      }
+    }, naoLidas(c) > 0 ? /*#__PURE__*/React.createElement("span", {
+      title: naoLidas(c) + ' mensagem(ns) que voce ainda nao abriu',
+      style: {
+        background: C.p1,
+        color: '#fff',
+        borderRadius: 10,
+        fontSize: 10,
+        fontWeight: 800,
+        padding: '1px 7px',
+        lineHeight: '16px'
+      }
+    }, naoLidas(c) > 99 ? '99+' : naoLidas(c)) : null, /*#__PURE__*/React.createElement(ChipCanal, {
+      c: c,
+      mini: true
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: C.muted,
+        whiteSpace: 'nowrap'
+      }
+    }, waHora(c.last)))), origemDe(c) ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: C.p3,
+        fontWeight: 600,
+        marginTop: 1
+      }
+    }, origemDe(c)) : null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.muted,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        marginTop: 2
+      }
+    }, (c.last.direction === 'out' ? 'Voce: ' : '') + previewMsg(c.last)), leadDaConversa ?
+    /*#__PURE__*/
+    /* Espelha o status da aba Leads: mudar aqui grava no MESMO
+       lead (leadsService.updateStatus), sem trocar de aba. */
+    React.createElement("div", {
+      style: {
+        marginTop: 5
+      }
+    }, /*#__PURE__*/React.createElement(StatusLeadSelect, {
+      mini: true,
+      status: leadDaConversa.status,
+      onChange: novo => atualizarStatusLead(leadChave, leadDaConversa, novo)
+    })) : null);
+  }), convsFiltradas.length > WA_LISTA_MAX ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '10px 14px',
       fontSize: 11,
@@ -14661,6 +14748,17 @@ const WhatsAppTab = () => {
     }
   }, /*#__PURE__*/React.createElement(ChipCanal, {
     c: aberta
+  })) : null, leadDoContatoAberto ?
+  /*#__PURE__*/
+  /* Mesmo select da aba Leads, mesmo lead — mudar aqui muda
+     la tambem (e a linha na lista de conversas ao lado). */
+  React.createElement("span", {
+    style: {
+      marginLeft: 8
+    }
+  }, /*#__PURE__*/React.createElement(StatusLeadSelect, {
+    status: leadDoContatoAberto.status,
+    onChange: novo => atualizarStatusLead(openWa.slice(-8), leadDoContatoAberto, novo)
   })) : null, /*#__PURE__*/React.createElement("button", {
     onClick: () => toggleIa(openWa),
     title: iaLigada(openWa) ? 'IA respondendo — clique pra assumir a conversa' : 'IA desligada — clique pra ela responder',

@@ -3,6 +3,13 @@ name: iOS Screenshots via Simulator
 on:
   workflow_dispatch:
 
+# Sem bloco permissions este workflow herdava o default do repo/org, que
+# pode ser "read and write" em repositórios mais antigos. O job só faz
+# checkout + upload de artifact (screenshots do simulador) — não precisa
+# de escrita em nada. Least privilege explícito.
+permissions:
+  contents: read
+
 jobs:
   screenshots:
     name: Take iOS Screenshots

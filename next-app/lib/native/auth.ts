@@ -7,17 +7,30 @@
 // SISTEMA (Custom Tab / ASWebAuthenticationSession via plugin Browser) e
 // voltar pro app por deep link.
 //
-// Fluxo completo:
+// Fluxo completo (PKCE, desde a auditoria de segurança mobile 2026-09-15 —
+// ver o comentário do `flowType: 'pkce'` em lib/supabase.ts pro porquê):
 //   1. signInWithOAuth({ skipBrowserRedirect: true }) → só gera a URL, não
-//      navega a WebView (navegar seria repetir o bug).
+//      navega a WebView (navegar seria repetir o bug). O supabase-js já
+//      gera o `code_verifier` AQUI e guarda no storage do app (mesmo
+//      localStorage/cookie de sempre) — ele nunca sai da WebView.
 //   2. Browser.open(url) → navegador do sistema; Google vê um browser real.
+//      A URL carrega só o `code_challenge` (derivado, sentido único).
 //   3. Callback volta pro DOMÍNIO DO SUPABASE, que redireciona pro deep link
-//      `br.com.queroumacor.app://auth/callback#access_token=...` (o client
-//      usa fluxo implicit — tokens vêm no fragment).
+//      `br.com.queroumacor.app://auth/callback?code=...` — um código de
+//      USO ÚNICO, não uma sessão pronta: sozinho, sem o `code_verifier`
+//      guardado no passo 1, ele não abre sessão nenhuma.
 //   4. O SO entrega o deep link pra casca → plugin App dispara 'appUrlOpen'
-//      NA MESMA WebView → parseamos o fragment e chamamos setSession().
+//      NA MESMA WebView (mesmo storage do passo 1) → extraímos o `code` e
+//      chamamos `exchangeCodeForSession(code)`, que casa com o verifier
+//      guardado e devolve a sessão de verdade.
 //   5. Navegamos pra /completar-perfil — o mesmo landing do fluxo web, que
 //      decide entre /feed e onboarding.
+//
+// O fluxo WEB (fora da casca) não precisa de nada disso escrito à mão: o
+// supabase-js detecta o `?code=` na URL sozinho no boot (`detectSessionInUrl`,
+// ligado por padrão) e troca por sessão antes do app renderizar. Só o
+// caminho nativo precisa de código explícito, porque aqui o callback chega
+// por EVENTO (`appUrlOpen`), não por navegação de página.
 //
 // CONFIG NECESSÁRIA (fora do código):
 //   - O deep link `br.com.queroumacor.app://auth/callback` precisa estar na
@@ -63,15 +76,20 @@ interface AppPlugin {
 }
 
 export interface ParsedAuthCallback {
+  /** Código PKCE de uso único (fluxo atual — trocar via `exchangeCodeForSession`). */
+  code?: string;
+  /** Só aparece se o client algum dia voltar pro implicit flow — mantido
+   *  como leitura defensiva, não é o caminho ativo (ver lib/supabase.ts). */
   accessToken?: string;
   refreshToken?: string;
   errorDescription?: string;
 }
 
 /**
- * Extrai tokens (fluxo implicit → fragment) ou erro de uma URL de callback.
- * Pura e exportada pra teste unitário. Aceita tanto `#a=b` quanto `?a=b`
- * (o Supabase usa fragment; o `?` cobre provedores que degradam pra query).
+ * Extrai o código PKCE (ou erro) de uma URL de callback. Pura e exportada
+ * pra teste unitário. Aceita tanto `?a=b` (formato real do PKCE) quanto
+ * `#a=b` (implicit, legado — cobre um client mal configurado que ainda
+ * mande tokens no fragment).
  */
 export function parseAuthCallbackUrl(url: string): ParsedAuthCallback {
   if (!url.startsWith(NATIVE_OAUTH_REDIRECT)) return {};
@@ -82,9 +100,10 @@ export function parseAuthCallbackUrl(url: string): ParsedAuthCallback {
   const errorDescription =
     params.get('error_description') ?? params.get('error') ?? undefined;
   if (errorDescription) return { errorDescription };
+  const code = params.get('code') ?? undefined;
   const accessToken = params.get('access_token') ?? undefined;
   const refreshToken = params.get('refresh_token') ?? undefined;
-  return { accessToken, refreshToken };
+  return { code, accessToken, refreshToken };
 }
 
 /** true quando o fluxo nativo está disponível (casca + plugins presentes). */
@@ -154,6 +173,25 @@ export async function nativeSignInWithOAuth(
         finish({ error: parsed.errorDescription });
         return;
       }
+      // Caminho ativo (PKCE): troca o código de uso único pela sessão —
+      // exige o code_verifier gravado no passo 1 (signInWithOAuth), que
+      // vive no MESMO storage desta WebView.
+      if (parsed.code) {
+        void sb.auth
+          .exchangeCodeForSession(parsed.code)
+          .then(({ error: sessErr }) =>
+            finish(sessErr ? { error: sessErr.message } : {}),
+          )
+          .catch((e: unknown) =>
+            finish({
+              error: e instanceof Error ? e.message : 'Falha ao trocar o código pela sessão.',
+            }),
+          );
+        return;
+      }
+      // Fallback defensivo (implicit, legado): só dispara se o client algum
+      // dia voltar a rodar sem `flowType: 'pkce'` — não é o caminho normal
+      // hoje (lib/supabase.ts fixa PKCE).
       if (!parsed.accessToken || !parsed.refreshToken) return; // não é nosso callback
       void sb.auth
         .setSession({
