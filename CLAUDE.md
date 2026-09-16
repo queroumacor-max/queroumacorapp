@@ -1,5 +1,32 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **VERIFICAÇÃO MANUAL DOS 4 ITENS DE CONSOLE DA AUDITORIA FCM/PUSH — FEITA
+  (2026-09-16).** Os 4 itens "MANUAL VERIFICATION" que a auditoria de
+  Firebase/FCM/APNs/Push de 2026-09-13 tinha deixado em aberto (fora do
+  alcance desta sessão de código, que não tem browser) foram checados pelo
+  usuário numa sessão separada de "Claude in Chrome", logado como
+  `queroumacor@gmail.com` (dono do Firebase/GCP/Apple Developer). Resultado:
+  - **IAM do Firebase/GCP**: limpo — 3 principals (owner + 2 service
+    accounts, uma delas `codemagic-play-publisher`, uso esperado pro AAB da
+    Play Store via Codemagic).
+  - **Service account keys**: limpo — 1 chave ativa por conta, ambas com
+    ~13 dias (criadas 2026-09-03), nenhuma órfã/duplicada.
+  - **Quotas/billing do FCM**: limpo — sem billing account vinculada (Spark
+    plan confirmado), quota 600k req/min em 0% de uso. 0 alert policies no
+    Cloud Monitoring, mas isso é esperado: FCM não tem custo/teto no Spark,
+    então não existe categoria de alerta aplicável (não é gap).
+  - **Apple Developer — Users and Access**: **achado ABERTO, não resolvido
+    por decisão — pendência do USUÁRIO confirmar.** Além de
+    `queroumacor@gmail.com` (Account Holder+Admin), existe
+    `beatrisporsebon@icloud.com` (Beatris Porsebon) com **Admin**, acesso
+    completo à chave APNs `2R6FW9F2F6`. Esse contato **não é reconhecido em
+    nenhuma entrada anterior deste arquivo** — não sei quem é. Cross-checado
+    contra o Firebase Console (colaboradores batem 1:1 com a IAM do GCP,
+    sem discrepância). Não foi removido nem contestado: só o usuário pode
+    dizer se é colaborador de confiança ou acesso a revogar. **Não tratar
+    como resolvido até o usuário confirmar.**
+  - Detalhe completo em `SECURITY_AUDIT_LOG.md` (entrada 2026-09-16).
+
 - **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA... RLS, policies, grants, roles, functions, RPCs, triggers, views,
   Storage, Realtime, Auth, cron, service role"). SQL
