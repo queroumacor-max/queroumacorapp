@@ -6232,6 +6232,8 @@ const AJUDA_WHATSAPP = [
     d:'Filtra a lista pra mostrar só as conversas em que o cliente mandou mensagem depois da última vez que alguém abriu a conversa. O número é de CONVERSAS, não de mensagens. Resposta da IA não conta como lida — só abrir a conversa. Clique de novo pra ver todas.' },
   { t:'🧠 Prompt da IA',
     d:'O texto de instruções que a IA lê antes de cada resposta: quem ela é e como conversa. Dá pra editar e salvar; "Restaurar padrão" volta ao texto do sistema. A trava de preço, o horário, o teto diário e o PARE são de código e continuam valendo seja qual for o texto.' },
+  { t:'Status do lead (seletor colorido)',
+    d:'Aparece quando o número da conversa casa com um lead da aba Leads — no cabeçalho da conversa aberta e embaixo de cada linha na lista. É o MESMO status: mudar aqui muda lá também, sem precisar trocar de aba.' },
 ];
 
 // ── Prompt da IA: editável no portal (2026-09-08, pedido do usuário) ────
@@ -6769,6 +6771,25 @@ const BolhaConteudo = ({ m, url }) => {
   );
 };
 
+// Espelha o select de status da aba Leads (mesma lista LEADS_STATUS, mesmo
+// updateStatus por baixo) pra dentro da conversa do WhatsApp — o operador
+// muda o status do lead sem trocar de aba. `mini` encolhe pra caber na
+// linha da lista de conversas; o cabecalho da conversa aberta usa o
+// tamanho normal. `stopPropagation` porque o `<select>` mora dentro de uma
+// linha clicavel (abre a conversa) — sem isso, escolher uma opcao tambem
+// dispara o onClick do card.
+const StatusLeadSelect = ({ status, onChange, mini }) => (
+  <select value={status || 'novo'}
+    onClick={e => e.stopPropagation()}
+    onChange={e => { e.stopPropagation(); onChange(e.target.value); }}
+    title="Status do lead (mesmo da aba Leads) — muda aqui e la"
+    style={{ padding: mini ? '1px 4px' : '4px 8px', borderRadius:6, border:'1px solid '+C.border,
+      background:C.bg, color: LEAD_STATUS_COLORS[status] || C.ink, fontWeight:700,
+      fontSize: mini ? 10 : 11, outline:'none', cursor:'pointer', maxWidth: mini ? 108 : 160 }}>
+    {LEADS_STATUS.map(k => <option key={k} value={k}>{LEADS_STATUS_LABELS[k]}</option>)}
+  </select>
+);
+
 const WhatsAppTab = () => {
   const [msgs, setMsgs] = useState([]);
   const [profByPhone, setProfByPhone] = useState({});
@@ -7191,6 +7212,28 @@ const WhatsAppTab = () => {
       }
     }
     if(Object.keys(mapa).length && vivoRef.current) setLeadByPhone(prev => ({ ...prev, ...mapa }));
+  };
+
+  // Muda o status do lead DIRETO da conversa (mesma acao da aba Leads,
+  // mesmo leadsService.updateStatus por baixo — um so lugar grava no
+  // banco). Otimista: pinta a mudanca na hora e desfaz se o banco recusar.
+  // `chave` e o sufixo de 8 digitos que indexa `leadByPhone` — quem chama
+  // ja tem ele (linha da lista ou conversa aberta), entao nao precisamos
+  // adivinhar de novo a partir do telefone.
+  const atualizarStatusLead = async (chave, lead, status) => {
+    if(!lead || !lead.id || !chave) return;
+    const anterior = lead.status;
+    if(anterior === status) return;
+    setLeadByPhone(prev => (prev[chave] ? { ...prev, [chave]: { ...prev[chave], status } } : prev));
+    try {
+      await leadsService.updateStatus(lead.id, status);
+    } catch(e){
+      setLeadByPhone(prev => (prev[chave] ? { ...prev, [chave]: { ...prev[chave], status: anterior } } : prev));
+      const msg = String((e && e.message) || e);
+      alert(/23514|check constraint/i.test(msg)
+        ? 'O banco recusou o status "' + status + '": leads.status tem um CHECK sem esse valor. Rode /migrations/2026-09-09-leads-status-fixo.sql no Supabase e tente de novo.\n\n' + msg
+        : 'Erro ao atualizar status do lead: ' + msg);
+    }
   };
 
   // REALTIME (Wave 45): o banco AVISA quando entra mensagem — a msg
@@ -7622,7 +7665,10 @@ const WhatsAppTab = () => {
                       ? 'Nada encontrado entre as não lidas.'
                       : 'Nada encontrado na busca.'}
               </div>
-            ) : convsFiltradas.slice(0, WA_LISTA_MAX).map(c => (
+            ) : convsFiltradas.slice(0, WA_LISTA_MAX).map(c => {
+              const leadChave = c.waId.slice(-8);
+              const leadDaConversa = leadByPhone[leadChave];
+              return (
               <div key={c.waId} onClick={() => abrirConversa(c.waId)}
                 style={{ padding:'12px 14px', cursor:'pointer', borderBottom:'1px solid '+C.cream,
                   background: openWa === c.waId ? C.cream : 'transparent' }}>
@@ -7645,8 +7691,17 @@ const WhatsAppTab = () => {
                 <div style={{ fontSize:12, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:2 }}>
                   {(c.last.direction === 'out' ? 'Voce: ' : '') + previewMsg(c.last)}
                 </div>
+                {leadDaConversa ? (
+                  /* Espelha o status da aba Leads: mudar aqui grava no MESMO
+                     lead (leadsService.updateStatus), sem trocar de aba. */
+                  <div style={{ marginTop:5 }}>
+                    <StatusLeadSelect mini status={leadDaConversa.status}
+                      onChange={novo => atualizarStatusLead(leadChave, leadDaConversa, novo)} />
+                  </div>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
             {convsFiltradas.length > WA_LISTA_MAX ? (
               <div style={{ padding:'10px 14px', fontSize:11, color:C.muted, textAlign:'center' }}>
                 Mostrando {WA_LISTA_MAX} de {convsFiltradas.length} conversas — use a busca ou o filtro pra achar as outras.
@@ -7670,6 +7725,14 @@ const WhatsAppTab = () => {
                   return org ? <span style={{ marginLeft:8, background:C.p3+'1f', color:C.p3, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{org}</span> : null;
                 })()}
                 {aberta ? <span style={{ marginLeft:8 }}><ChipCanal c={aberta} /></span> : null}
+                {leadDoContatoAberto ? (
+                  /* Mesmo select da aba Leads, mesmo lead — mudar aqui muda
+                     la tambem (e a linha na lista de conversas ao lado). */
+                  <span style={{ marginLeft:8 }}>
+                    <StatusLeadSelect status={leadDoContatoAberto.status}
+                      onChange={novo => atualizarStatusLead(openWa.slice(-8), leadDoContatoAberto, novo)} />
+                  </span>
+                ) : null}
                 {/* CHAVE DA IA — liga/desliga a resposta automatica NESTA
                     conversa. Desliga sozinha quando escala pra humano. */}
                 <button onClick={()=>toggleIa(openWa)} title={iaLigada(openWa) ? 'IA respondendo — clique pra assumir a conversa' : 'IA desligada — clique pra ela responder'}
