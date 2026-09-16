@@ -8,7 +8,11 @@
 #
 # Chave Gemini (Google API key, `AIza…`) hardcoded no portal legado
 # `queroumacorportal.html` (frontend), commit a735531 de 05/2026, removida em
-# 10ff6d2. Auditoria de segredos 2026-09-11. STATUS: ROTAÇÃO PENDENTE — revogar
-# no Google AI Studio e trocar `GEMINI_API_KEY` no CF Pages. Quando rotacionar,
-# trocar esta linha pra "ROTACIONADA em <data>".
+# 10ff6d2. Auditoria de segredos 2026-09-11. STATUS (2026-09-16, ver
+# CLAUDE.md): a chave vazada (final `...sZN_IE`) foi conferida contra as
+# chaves ATIVAS no Google AI Studio — nenhuma das 2 existentes hoje bate com
+# esse final, e o Google não lista chave revogada/deletada. Como só existem
+# chaves que ainda existem, a vazada já não existe mais na conta — não pode
+# ser a que está configurada em GEMINI_API_KEY no Cloudflare Pages. Não
+# pedir pra rotacionar de novo (regra do CLAUDE.md).
 a73553136333024755c7100198818ce6cae8232a:queroumacorportal.html:gcp-api-key:429

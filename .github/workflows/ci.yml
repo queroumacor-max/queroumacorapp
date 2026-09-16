@@ -29,7 +29,15 @@ jobs:
       run:
         working-directory: next-app
     steps:
+      # persist-credentials:false — este job só lê o repo (npm ci, lint,
+      # typecheck, testes); nunca dá `git push`. Sem a credencial persistida,
+      # um postinstall malicioso de uma dependência de PR não tem como usar
+      # o GITHUB_TOKEN pra escrever no repo (defesa em profundidade — o
+      # token de PR de fork já é read-only por padrão do GitHub, isto cobre
+      # também o caso de push de branch same-repo).
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:

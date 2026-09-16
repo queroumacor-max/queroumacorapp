@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Boot simulator
         run: |
@@ -46,8 +48,8 @@ jobs:
 
       - name: Install deps
         run: |
-          npm install
-          npm install --prefix next-app
+          npm ci
+          npm ci --prefix next-app
 
       - name: Add Capacitor iOS
         run: |
@@ -106,3 +108,6 @@ jobs:
           name: ios-screenshots
           path: screenshots/
           if-no-files-found: error
+          # Screenshots não são sensíveis, mas não há razão pra guardá-los
+          # além do necessário pra revisão (default do org pode ser 90d).
+          retention-days: 14

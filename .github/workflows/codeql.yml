@@ -1,0 +1,58 @@
+name: CodeQL
+
+# SAST pra JS/TS. Não existia scanner de análise estática no repo — o
+# security.yml cobre dependências (npm audit) e segredos (gitleaks), mas
+# nada olhava o CÓDIGO em si (injeção, XSS, path traversal, etc).
+#
+# pull_request (não pull_request_target): roda com o GITHUB_TOKEN read-only
+# padrão do PR de fork, sem acesso a nenhum secret do repo — seguro contra
+# PR não confiável. `security-events: write` é escopado ao JOB (não ao
+# workflow todo) e só serve pra publicar os resultados no Security tab; um
+# PR de fork não ganha esse token com escrita mesmo assim, porque o GitHub
+# rebaixa GITHUB_TOKEN pra read-only em qualquer permissão declarada quando
+# o evento é pull_request de um fork.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 9 * * 3' # quarta-feira 09:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Ações oficiais do próprio GitHub (github/codeql-action) — mesmo
+      # nível de confiança de actions/*, mantidas pela plataforma.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Só o código que vai pra produção (next-app) + workflows/scripts
+          # da raiz. Os diretórios nativos (android/, ios/) e node_modules
+          # não são JS/TS analisável relevante aqui.
+          source-root: .
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
