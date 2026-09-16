@@ -457,8 +457,18 @@
     completo em `STAGING.md`.
   - **Chave Gemini vazada no histórico do Git** (arquivo
     `queroumacorportal.html`, removido do HEAD há meses, mas recuperável
-    via `git show a735531:queroumacorportal.html`) — **ROTACIONAR
-    `GEMINI_API_KEY`** no Google AI Studio/GCP + trocar no CF Pages.
+    via `git show a735531:queroumacorportal.html`) — **RESOLVIDO
+    (2026-09-16, confirmado pelo usuário).** A chave vazada termina em
+    `...sZN_IE`; no Google AI Studio (API Keys, "All projects") só existem
+    duas chaves ativas hoje — `...iVmQ` (projeto "Quero uma cor", a que
+    importa) e `...LsIU` (projeto "JR Erp") — nenhuma bate com o final da
+    vazada. Como o Google só lista chaves que ainda EXISTEM (revogada some
+    da lista, não fica listada como inativa), a vazada já não existe mais
+    na conta — não tem como ser a que está configurada em `GEMINI_API_KEY`
+    no Cloudflare Pages hoje. Não dá pra ler o valor do secret no CF Pages
+    direto (Cloudflare não exibe secret já salvo), mas a lógica fecha sem
+    isso: chave que não existe não pode ser a que está em uso. **Não
+    pedir pra rotacionar de novo.**
   - **Chamadas ao Gemini paravam a API key na QUERY STRING** (`?key=...`)
     em 8 pontos (`_ai.ts`, `ig-art.ts`, `ig-art-diag.ts`, `moderate.ts`,
     `moderate-video.ts`) — URL de requisição é o tipo de dado que mais
