@@ -3,6 +3,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import type { ConversationMeta } from '@/lib/services/chat';
 
@@ -54,7 +55,7 @@ export interface ConversationItemProps {
   conv: ConversationMeta;
 }
 
-export function ConversationItem({ conv }: ConversationItemProps) {
+function ConversationItemInner({ conv }: ConversationItemProps) {
   const name = displayName(conv);
   const badge = !conv.is3way ? roleBadge(conv.role) : null;
   const preview = conv.lastMsg || '';
@@ -123,3 +124,8 @@ export function ConversationItem({ conv }: ConversationItemProps) {
     </Link>
   );
 }
+
+// memo: item de lista renderizado em .map() na sidebar de conversas — sem
+// callbacks como prop, então o `conv` (referência estável vinda do useMemo
+// de ChatList) já basta pra pular re-render de itens que não mudaram.
+export const ConversationItem = memo(ConversationItemInner);

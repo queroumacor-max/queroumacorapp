@@ -10,6 +10,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import { productBg, resolveColorHex, type Product } from '@/lib/services/mkt';
 
 function categoryEmoji(cat: string | null | undefined): string {
@@ -35,7 +36,7 @@ export interface ProductCardProps {
   isAdding?: boolean;
 }
 
-export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardProps) {
+function ProductCardInner({ product, onAdd, onOpen, isAdding }: ProductCardProps) {
   const bg = productBg(product);
   const emoji = categoryEmoji(product.category);
   const hasColor = !!(product.color_gradient || resolveColorHex(product));
@@ -116,3 +117,8 @@ export function ProductCard({ product, onAdd, onOpen, isAdding }: ProductCardPro
     </article>
   );
 }
+
+// memo: card renderizado em lista (até PAGE_SIZE por página, mais a grade da
+// busca) — real efeito só quando onAdd/onOpen chegam com referência estável
+// (ver ProductsList: passa setDetailProduct direto, não um wrapper inline).
+export const ProductCard = memo(ProductCardInner);
