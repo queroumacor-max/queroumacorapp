@@ -3,8 +3,10 @@
 - **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria
   COMPLETA... RLS, policies, grants, roles, functions, RPCs, triggers, views,
   Storage, Realtime, Auth, cron, service role"). SQL
-  `/migrations/2026-09-13-leads-rls-critical.sql` — PENDENTE até o usuário
-  rodar.**
+  `/migrations/2026-09-13-leads-rls-critical.sql` — JÁ EXECUTADO no Supabase
+  (2026-09-16, confirmado pelo usuário: a consulta de conferência do fim do
+  arquivo voltou as 3 linhas com `ok=true` — RLS habilitada, policy
+  `leads_admin_all` existe, `anon` sem GRANT). Não pedir pra rodar de novo.**
   - **ACHADO CRÍTICO: `public.leads` NUNCA teve RLS habilitada por nenhuma
     migration deste repositório.** A tabela nasceu FORA do repo (não existe
     `CREATE TABLE public.leads` em lugar nenhum — só 7 `ALTER TABLE ... ADD
@@ -176,9 +178,11 @@
 
 - **WHATSAPP: "57014: statement timeout" AO CARREGAR AS CONVERSAS (2026-09-13,
   pedido do usuário: "mais rápido sem perder segurança"). Portal v=20260913a.
-  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — PENDENTE até o usuário
-  rodar; linhas na `2026-09-05-conferencia-pendencias.sql`. O código TOLERA
-  o SQL ausente (cai no desenho de 09/09), mas o timeout só some com ele.**
+  SQL `/migrations/2026-09-13-whatsapp-perf.sql` — JÁ EXECUTADO no Supabase
+  (2026-09-16, confirmado pelo usuário: as 5 linhas de conferência voltaram
+  `ok=true` — policy avaliada 1x, e as funções `whatsapp_conversas`/
+  `whatsapp_nao_lidas`/`leads_por_telefone` e o índice
+  `idx_whatsapp_messages_created_id` existem). Não pedir pra rodar de novo.**
   - **A causa não era o volume; era a RLS.** As policies de
     `whatsapp_messages`/`whatsapp_ai_state`/`portal_alerts`/
     `whatsapp_ai_config` tinham `USING (is_portal_admin())` SOLTO. A função
