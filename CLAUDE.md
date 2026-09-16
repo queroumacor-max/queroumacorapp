@@ -67,10 +67,13 @@
       itens "confirmar", este tem gap CONCRETO — vale decidir se sobe pra
       Full (Strict)/TLS 1.3/liga DNSSEC/adiciona CAA, ou se aceita como
       risco residual.
-  - **AINDA ABERTOS, sem mudança (2 itens):** acesso Admin da Beatris
-    Porsebon no Apple Developer (segue precisando confirmação do usuário);
-    login social PKCE no mobile (só testável instalando o AAB/IPA num
-    aparelho real — não dá pra verificar por console/navegador).
+  - **FECHADO por confirmação direta do usuário (2026-09-16):** acesso
+    Admin da Beatris Porsebon no Apple Developer é **INTENCIONAL** — não
+    era vulnerabilidade, só um colaborador que a memória do projeto ainda
+    não tinha registrado.
+  - **AINDA ABERTO, sem mudança (1 item):** login social PKCE no mobile
+    (só testável instalando o AAB/IPA num aparelho real — não dá pra
+    verificar por console/navegador).
   - **NÃO alterados por decisão/risco aceito, sem mudança**: `===` no
     handshake GET do webhook WhatsApp; janela fixa de 1 min no
     `check_rate_limit`; migrar adapter pro OpenNext-Cloudflare.
@@ -93,16 +96,14 @@
     plan confirmado), quota 600k req/min em 0% de uso. 0 alert policies no
     Cloud Monitoring, mas isso é esperado: FCM não tem custo/teto no Spark,
     então não existe categoria de alerta aplicável (não é gap).
-  - **Apple Developer — Users and Access**: **achado ABERTO, não resolvido
-    por decisão — pendência do USUÁRIO confirmar.** Além de
-    `queroumacor@gmail.com` (Account Holder+Admin), existe
-    `beatrisporsebon@icloud.com` (Beatris Porsebon) com **Admin**, acesso
-    completo à chave APNs `2R6FW9F2F6`. Esse contato **não é reconhecido em
-    nenhuma entrada anterior deste arquivo** — não sei quem é. Cross-checado
-    contra o Firebase Console (colaboradores batem 1:1 com a IAM do GCP,
-    sem discrepância). Não foi removido nem contestado: só o usuário pode
-    dizer se é colaborador de confiança ou acesso a revogar. **Não tratar
-    como resolvido até o usuário confirmar.**
+  - **Apple Developer — Users and Access**: além de `queroumacor@gmail.com`
+    (Account Holder+Admin), existe `beatrisporsebon@icloud.com` (Beatris
+    Porsebon) com **Admin**, acesso completo à chave APNs `2R6FW9F2F6`.
+    Esse contato não aparecia em nenhuma entrada anterior deste arquivo.
+    Cross-checado contra o Firebase Console (colaboradores batem 1:1 com a
+    IAM do GCP, sem discrepância). **✅ CONFIRMADO PELO USUÁRIO
+    (2026-09-16): o acesso é INTENCIONAL** — não era vulnerabilidade, só um
+    colaborador que a memória do projeto ainda não tinha registrado.
   - Detalhe completo em `SECURITY_AUDIT_LOG.md` (entrada 2026-09-16).
 
 - **AUDITORIA DE SEGURANÇA DO SUPABASE (2026-09-13, pedido do usuário: "auditoria

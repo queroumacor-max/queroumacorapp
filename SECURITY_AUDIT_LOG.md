@@ -26,12 +26,11 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 
 ## 🔴 Pendências abertas agora (2026-09-16, atualizado após 2ª rodada de verificação por console)
 
-9 dos 17 itens da lista anterior foram fechados/verificados nesta rodada
+10 dos 17 itens da lista anterior foram fechados/verificados nesta rodada
 (ver entrada "2026-09-16 (continuação)" no histórico abaixo). Restam:
 
 | Item | Status | Onde tratar |
 |---|---|---|
-| Acesso Admin da Beatris Porsebon no Apple Developer | 🔵 CONFIRMAR COM O USUÁRIO | não reconhecida pela memória do projeto, usuário precisa confirmar se é intencional |
 | SSL/TLS: mode em Full (não Strict), TLS mínimo 1.2 (não 1.3), DNSSEC desligado, sem registro CAA | ⚪ MANUAL, achado concreto | Cloudflare Dashboard — HSTS já está ok |
 | Preview env vars do Cloudflare Pages — checado ao vivo e SEM secrets hoje, mas contradiz o `STAGING.md` | ⚪ RECONCILIAR DOC | ver nota na entrada 2026-09-16 (continuação) — reconferir/corrigir `STAGING.md` |
 | DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
@@ -100,10 +99,14 @@ GoDaddy DNS, Supabase Auth Dashboard, SQL Editor de produção e as rotas
   **sem registro CAA**. HSTS está ok. Diferente dos itens "a confirmar",
   este é um gap CONCRETO — decidir se sobe a régua ou aceita como risco.
 
-**Sem mudança:** acesso Admin da Beatris no Apple Developer (ainda
-pendente do usuário); PKCE mobile (só testável com AAB/IPA em aparelho
-real); `===` no handshake GET do webhook WhatsApp; janela fixa do rate
-limit; migrar adapter pro OpenNext; Cloudflare CSAM Scanning Tool (segue
+**Fechado por confirmação direta do usuário (1 item, 2026-09-16):**
+- **Acesso Admin de `beatrisporsebon@icloud.com` no Apple Developer é
+  INTENCIONAL** — confirmado pelo usuário. Não era vulnerabilidade; era
+  só um contato que a memória do projeto não reconhecia. Sem ação.
+
+**Sem mudança:** PKCE mobile (só testável com AAB/IPA em aparelho real);
+`===` no handshake GET do webhook WhatsApp; janela fixa do rate limit;
+migrar adapter pro OpenNext; Cloudflare CSAM Scanning Tool (segue
 exigindo contato manual por e-mail, não é toggle self-service).
 
 ### 2026-09-16 — Verificação MANUAL dos 4 itens de console (Firebase/GCP/Apple)
@@ -128,18 +131,16 @@ VERIFICATION que restavam da auditoria FCM/APNs/Push de 2026-09-13 — os
   Firebase está ligado, mas não existe categoria de alerta específica pra
   "limite de plano" do FCM porque ele não tem custo/teto no Spark (não é um
   gap de configuração, é ausência de recurso aplicável).
-- **Apple Developer — Users and Access**: ⚪ **item aberto, não uma
-  vulnerabilidade confirmada**. 2 usuários com acesso: `queroumacor@gmail.com`
-  (Jackson Matos, Account Holder + Admin) e `beatrisporsebon@icloud.com`
-  (Beatris Porsebon, **Admin** — acesso completo, incluindo a chave APNs
-  `2R6FW9F2F6`). Esse segundo contato **não é reconhecido pela memória do
-  projeto** (não aparece em nenhuma entrada anterior do CLAUDE.md). Cross-
-  checado contra a lista de colaboradores do próprio Firebase Console, que
-  bateu exatamente com a IAM do GCP (nenhuma discrepância entre os dois
-  lados). **Não foi removido nem contestado** — fica registrado como
-  pendência do PRÓPRIO usuário confirmar se esse acesso é intencional
-  (colaborador de confiança) ou precisa ser revogado. Claude não tem como
-  saber quem é essa pessoa nem decidir por conta própria.
+- **Apple Developer — Users and Access**: 2 usuários com acesso:
+  `queroumacor@gmail.com` (Jackson Matos, Account Holder + Admin) e
+  `beatrisporsebon@icloud.com` (Beatris Porsebon, **Admin** — acesso
+  completo, incluindo a chave APNs `2R6FW9F2F6`). Esse segundo contato
+  não aparecia em nenhuma entrada anterior do CLAUDE.md. Cross-checado
+  contra a lista de colaboradores do próprio Firebase Console, que bateu
+  exatamente com a IAM do GCP (nenhuma discrepância entre os dois lados).
+  **✅ CONFIRMADO PELO USUÁRIO (2026-09-16): o acesso é INTENCIONAL** —
+  não era vulnerabilidade, só um colaborador que a memória do projeto
+  ainda não tinha registrado. Sem ação necessária.
 - A chave APNs em si (`2R6FW9F2F6`, "QueroUmaCor APNs", criada 2026-09-04,
   Team Scoped, Sandbox & Production) segue única, sem duplicatas/órfãs —
   consistente com o que já estava documentado no CLAUDE.md.
