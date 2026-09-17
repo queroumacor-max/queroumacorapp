@@ -43,10 +43,72 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 | Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — não é mais bloqueante de segurança |
 | Cloudflare Access na frente de `*.pages.dev` | 🔵 DECISÃO, confirmado que NÃO está configurado | a considerar, Cloudflare Dashboard |
 | INSERT direto em `posts` via PostgREST pula `/api/moderate` inteiro (moderação é só orquestração de cliente) | 🔵 DECISÃO/NÃO CORRIGIDO | exige mover a criação de post pro servidor — ver entrada 2026-09-17 "Moderação Gemini no publish" |
+| MFA/roles/recovery de Cloudflare, Supabase, GCP/Firebase, Apple, Play, Codemagic, Sentry, Meta, Mercado Pago, Registro.br, GoDaddy nunca foram levantados em detalhe (só GCP/Firebase e Apple têm verificação parcial datada) | ⚪ MANUAL | ver `docs/EXTERNAL_SECURITY_BASELINE.md` — auditoria externa 2026-09-17 |
+| Evolution API (Render, "aposentada" 2026-09-05) — confirmar se a instância ainda roda e se a API key ainda é válida | ⚪ MANUAL, candidata a desligar | painel Render — ver `docs/EXTERNAL_SECURITY_BASELINE.md` §14 |
+| `queroumacor@gmail.com` (presumido) concentra recovery de Firebase/GCP, Google AI Studio (2 empresas), Apple Developer Account Holder e provavelmente Cloudflare/Play, sem 2º admin fora do Apple | 🔴 CRITICAL, NÃO CORRIGIDO | decisão do usuário — ver `docs/EXTERNAL_SECURITY_BASELINE.md` §9/§12 e `docs/ACCOUNT_RECOVERY_RUNBOOK.md` |
+| Nenhum break-glass documentado em nenhum provedor | 🔵 DECISÃO/NÃO IMPLEMENTADO | ver `docs/ACCOUNT_RECOVERY_RUNBOOK.md` §1 |
 
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-17 — Auditoria externa de identidade e contas administrativas (IAM/MFA/recovery/break-glass)
+Auditoria de **infraestrutura externa e contas administrativas** (diferente
+das auditorias de RLS/código de cima) — pergunta central: "se uma conta ou
+credencial externa vazar, qual o blast radius, detectamos, contemos e
+recuperamos, e existe alguém que sozinho derruba tudo?". Entregue em
+`docs/EXTERNAL_SECURITY_BASELINE.md` (inventário completo, matrizes de
+IAM/MFA/recovery/blast-radius, achados por severidade) e
+`docs/ACCOUNT_RECOVERY_RUNBOOK.md` (break-glass, tabletops por cenário,
+ordem de rotação de emergência).
+
+**Limitação de acesso desta sessão (declarada, não contornada):** sem
+browser, sem sessão logada em nenhum console externo. Tentei inclusive
+verificar DNS PÚBLICO (NS/CAA/DS/DMARC, que não exige login nenhum) via
+DNS-over-HTTPS — o proxy de rede do ambiente bloqueou com 403 qualquer
+host fora da allowlist. Ou seja: nem dado público foi verificável, só o
+que a API do GitHub expõe e o que sessões anteriores ("Claude in Chrome")
+já haviam confirmado e registrado no `CLAUDE.md`.
+
+**Verificado agora, com evidência real (GitHub API):** repo
+`queroumacor-max/queroumacorapp` é conta pessoal (não organização), 2
+collaborators — `queroumacor-max` (admin/dono) e `jacksongmatos` (write),
+nenhum desconhecido. 8 workflows do GitHub Actions, todos com bloco
+`permissions:` explícito, nenhum usa `pull_request_target`, actions de
+terceiros pinadas por SHA completo, `persist-credentials:false` em todos
+exceto `rollback.yml` (que precisa de contents:write pra force-push, por
+design, e é hoje o workflow de maior blast radius do repo — gated só por
+já exigir permissão de escrita pra disparar). Nenhum segredo real
+commitado (git limpo, `.gitleaksignore` só registra 1 leak histórico já
+remediado — a chave Gemini de `queroumacorportal.html`, já fechada em
+2026-09-16).
+
+**CRITICAL, não corrigido (decisão do usuário)**: `queroumacor@gmail.com`
+(presumido, por ser a identidade usada em toda verificação de console
+anterior) parece concentrar Firebase/GCP, Google AI Studio (inclusive um
+projeto de OUTRA empresa, "JR Erp"), Apple Developer Account Holder e
+provavelmente Cloudflare/Google Play — **sem 2º admin confirmado em
+nenhum destes exceto o Apple Developer** (`beatrisporsebon@icloud.com`,
+Admin, confirmado intencional pelo usuário em 2026-09-16). É o maior
+single point of failure do sistema inteiro.
+
+**HIGH, achados novos**: (1) **Dualhook** (proxy 3º-party que intermedeia
+todo o WhatsApp desde 2026-09-05) não estava no inventário original do
+usuário — é vendor com acesso total de envio/recebimento no número
+oficial, sem MFA/ownership/rotação documentados; (2) **Evolution API**
+(Render, "aposentada" desde 2026-09-05) tem variáveis ainda em
+`.env.example` e nenhuma confirmação de que a instância no Render foi
+desligada ou a API key revogada — clássico serviço esquecido com
+credencial potencialmente viva; (3) `MP_ACCESS_TOKEN` de produção segue
+vivo no código sem call-site de UI ativo (checkout PRO web removido por
+compliance Apple 3.1.3e).
+
+**Nada foi corrigido/revogado/rotacionado automaticamente** (regra
+explícita do pedido) — cada achado tem a ação manual recomendada descrita
+nos dois documentos novos. `FINAL STATUS`: **HIGH ACCOUNT-TAKEOVER RISK**
+(concentração de identidade + MFA não confirmado em nenhum dos 12
+provedores externos críticos + serviço dormant não resolvido + nenhum
+break-glass).
 
 ### 2026-09-17 — Moderação Gemini no publish + blocklist de hash CSAM em avatar/art-references (PR #325 + #327)
 Fecha PARTE das 2 pendências deixadas em aberto pela auditoria de lógica
