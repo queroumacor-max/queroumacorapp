@@ -45,11 +45,6 @@ describe('check_rate_limit — sliding window (não mais fixed window puro)', ()
     expect(body).toMatch(/'allowed', v_estimated <= p_limit/);
   });
 
-  it('retry_after_seconds respeita p_window_minutes (não fica preso a 60s fixo)', () => {
-    const body = corpoDaFuncao();
-    expect(body).toMatch(/v_window_seconds - EXTRACT\(EPOCH FROM \(now\(\) - v_window\)\)::integer/);
-  });
-
   it('mantém REVOKE de PUBLIC/anon/authenticated + GRANT só service_role (não afrouxou o achado B do audit anterior)', () => {
     expect(SQL).toMatch(
       /REVOKE ALL ON FUNCTION public\.check_rate_limit\(text, text, integer, integer\) FROM PUBLIC, anon, authenticated;/
@@ -57,5 +52,41 @@ describe('check_rate_limit — sliding window (não mais fixed window puro)', ()
     expect(SQL).toMatch(
       /GRANT EXECUTE ON FUNCTION public\.check_rate_limit\(text, text, integer, integer\) TO service_role;/
     );
+  });
+});
+
+// Review automático do Codex no PR #326 achou 2 problemas reais na primeira
+// versão desta migration (verificados e corrigidos antes do merge — ver
+// comentário "REVISÃO" no topo do arquivo SQL). Os dois viraram guarda aqui.
+describe('check_rate_limit — fixes do review (P1 corrida, P2 retry_after ingênuo)', () => {
+  it('P1: serializa por (user_id, endpoint) com advisory lock ANTES de ler o bucket anterior', () => {
+    const body = corpoDaFuncao();
+    const idxLock = body.indexOf('pg_advisory_xact_lock');
+    const idxRead = body.indexOf("window_start = v_window - (v_window_minutes");
+    expect(idxLock).toBeGreaterThan(-1);
+    expect(idxRead).toBeGreaterThan(-1);
+    // a ordem importa: o lock tem que vir ANTES da leitura que ele protege.
+    expect(idxLock).toBeLessThan(idxRead);
+  });
+
+  it('P1: pega o lock pelos dois campos da chave (não só um, senão colide entre endpoints diferentes)', () => {
+    const body = corpoDaFuncao();
+    expect(body).toMatch(/pg_advisory_xact_lock\(hashtext\(p_user_id\), hashtext\(p_endpoint\)\)/);
+  });
+
+  it('P2: retry_after_seconds já não é mais só "tempo até o próximo minuto" — resolve o decaimento', () => {
+    const body = corpoDaFuncao();
+    // A versão ingênua que o Codex apontou (só isso, sem mais nada em volta).
+    expect(body).not.toMatch(
+      /'retry_after_seconds', GREATEST\(1, v_window_seconds - EXTRACT\(EPOCH FROM \(now\(\) - v_window\)\)::integer\)/
+    );
+    // A versão corrigida projeta o cruzamento com p_limit.
+    expect(body).toMatch(/v_retry_in_window := v_window_seconds/);
+    expect(body).toMatch(/1 - \(p_limit - v_count\)::numeric \/ v_prev_count/);
+  });
+
+  it('P2: quando o decaimento não basta dentro da janela atual, projeta pro próximo bucket', () => {
+    const body = corpoDaFuncao();
+    expect(body).toMatch(/CASE WHEN v_count > p_limit/);
   });
 });
