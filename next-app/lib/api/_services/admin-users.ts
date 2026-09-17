@@ -4,6 +4,7 @@
 // (ADMIN_EMAILS + portal_access ATIVO do caller).
 
 import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
+import { captureDrAuditEvent } from '@/lib/drAuditTrail';
 
 const TIMEOUT_MS = 10000;
 
@@ -541,6 +542,14 @@ export async function deleteUserPermanently(args: {
       502,
     );
   }
+
+  // DR audit 2026-09-17 (HIGH-1): espelha o evento no Sentry, FORA do
+  // Postgres — ver lib/api/drAuditTrail.ts.
+  captureDrAuditEvent('account_deletion', {
+    userId,
+    deletedBy: callerId,
+    source: 'admin_route',
+  });
 
   return { ok: true, deleted: userId };
 }

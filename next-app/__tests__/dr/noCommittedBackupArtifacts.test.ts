@@ -64,7 +64,7 @@ function isEnvExample(name: string): boolean {
 // checagem genérica de substring ("backup" em qualquer parte do nome)
 // ignora essas extensões — as checagens por extensão exata
 // (.dump/.bak/.pem/etc.) valem pra qualquer arquivo, sempre.
-const TEXT_SOURCE_EXT = new Set(['.ts', '.tsx', '.md', '.mdx', '.yml', '.yaml']);
+const TEXT_SOURCE_EXT = new Set(['.ts', '.tsx', '.md', '.mdx', '.yml', '.yaml', '.sh']);
 
 function extOf(name: string): string {
   const i = name.lastIndexOf('.');
