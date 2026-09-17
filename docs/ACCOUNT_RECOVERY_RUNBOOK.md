@@ -293,7 +293,46 @@ em caso de incidente real.
 
 ---
 
-## 5. O que este runbook explicitamente NÃO cobre
+## 5. Checklist de offboarding (item 10/13 da auditoria — não existia)
+
+Quando alguém (colaborador, contractor) deixa de precisar de acesso,
+revisar CADA linha abaixo — nenhuma é automática:
+
+- [ ] **GitHub**: remover de `list_repository_collaborators` (Settings →
+  Collaborators) — hoje só 2 pessoas têm acesso
+  (`queroumacor-max` admin, `jacksongmatos` write); revogar qualquer PAT
+  pessoal que a pessoa tenha gerado.
+- [ ] **Cloudflare**: remover da lista de Members da conta (Manage
+  Account → Members) — **hoje esta lista nunca foi levantada**, então o
+  primeiro passo real é levantá-la (ver `EXTERNAL_SECURITY_BASELINE.md`
+  §17).
+- [ ] **Supabase**: remover da organização (Organization → Team).
+- [ ] **Google Cloud/Firebase**: remover principal do IAM do projeto
+  `queroumacor-245ef`.
+- [ ] **Apple Developer**: remover de Users and Access — hoje só
+  `queroumacor@gmail.com` (Account Holder) e `beatrisporsebon@icloud.com`
+  (Admin, intencional).
+- [ ] **Google Play Console**: remover usuário/permissão de release.
+- [ ] **Codemagic**: remover da equipe/organização.
+- [ ] **Sentry**: remover da organização.
+- [ ] **Meta Business Manager**: remover admin/employee/system user.
+- [ ] **Dualhook**: remover acesso ao painel.
+- [ ] **Mercado Pago**: remover usuário da equipe.
+- [ ] **Registro.br / GoDaddy**: revisar se a pessoa tinha acesso ao
+  painel do registrador (raramente deveria ter).
+- [ ] **E-mail administrativo / password manager**: revogar acesso a
+  qualquer caixa ou cofre compartilhado.
+- [ ] **Rotacionar** qualquer secret que a pessoa tenha visto em texto
+  puro (ex.: se ela teve acesso ao painel Cloudflare Pages, tratar
+  `SUPABASE_SERVICE_ROLE_KEY` e os demais secrets de runtime como
+  potencialmente vistos — ver ordem de rotação no §2).
+
+**Isto é um checklist, não uma automação** — nenhum item acima é
+executado por software; cada um exige entrar no console do provedor.
+
+---
+
+## 6. O que este runbook explicitamente NÃO cobre
 
 - Resposta operacional a incidente de produção (bug, downtime, dado
   incorreto) — isso é `docs/INCIDENT_RESPONSE.md`.

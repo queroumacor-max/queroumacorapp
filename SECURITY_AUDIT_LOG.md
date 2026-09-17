@@ -52,6 +52,29 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 
 ## Histórico (mais recente primeiro)
 
+### 2026-09-17 — Correções de código da auditoria externa (CODEOWNERS, environment protection, offboarding)
+Segue a auditoria externa da entrada abaixo. Do que sobrou como pendência,
+só 3 itens eram corrigíveis EM CÓDIGO (o resto exige console de terceiro):
+- **`CODEOWNERS` criado** (raiz), escopado só a `.github/workflows/`,
+  `migrations/`, `.github/SECURITY.md` e o próprio arquivo — não ao repo
+  inteiro, pra não travar PR de rotina. **Inerte até ação MANUAL**: ligar
+  "Require review from Code Owners" em Settings → Branches → `main`.
+- **`rollback.yml`** (o workflow de maior blast radius — force-push em
+  `main`) ganhou `environment: production-rollback` no job. **Inerte até
+  ação MANUAL**: criar a proteção de required reviewers nesse environment
+  em Settings → Environments.
+- **`next-app/.env.example`**: bloco da Evolution API (Render, aposentada
+  2026-09-05) marcado como deprecated com a ação manual pendente
+  (confirmar no painel do Render se a instância ainda roda; se sim,
+  desligar + revogar as envs no Cloudflare Pages). **Isso é só
+  documentação** — não desliga nada de verdade.
+- **Checklist de offboarding criado** em
+  `docs/ACCOUNT_RECOVERY_RUNBOOK.md` §5, cobrindo os 12 provedores do
+  inventário — não existia nenhum antes. Continua exigindo execução
+  manual a cada saída de colaborador.
+Nenhuma credencial rotacionada, nenhum acesso removido — os 3 primeiros
+itens são "prontos pra serem ligados", não ligados sozinhos.
+
 ### 2026-09-17 — Auditoria externa de identidade e contas administrativas (IAM/MFA/recovery/break-glass)
 Auditoria de **infraestrutura externa e contas administrativas** (diferente
 das auditorias de RLS/código de cima) — pergunta central: "se uma conta ou

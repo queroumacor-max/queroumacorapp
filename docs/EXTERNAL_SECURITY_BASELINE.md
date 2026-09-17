@@ -64,7 +64,7 @@ verificação humana conhecida (se houver) e o que precisa ser conferido.
 | **Sentry** | NOT VERIFIED | NOT VERIFIED | n/a | `SENTRY_AUTH_TOKEN` (confirmado AUSENTE do build de produção CF Pages, 2026-09-16) | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | MEDIUM | NOT VERIFIED |
 | **Meta Business Manager / WhatsApp Cloud API** | NOT VERIFIED | NOT VERIFIED | System users NOT VERIFIED | `META_APP_SECRET`, `WHATSAPP_WEBHOOK_URL_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | HIGH | NOT VERIFIED |
 | **Dualhook** (proxy 3º-party entre app↔Meta Cloud API, desde 2026-09-05) | **NÃO estava no inventário original do pedido** — vendor externo descoberto nesta varredura | NOT VERIFIED | n/a | `DUALHOOK_API_KEY` | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | HIGH (tem acesso de envio/recebimento no canal WhatsApp) | NOT VERIFIED — **novo item de inventário** |
-| **Evolution API** (self-host Baileys no Render, "aposentada" 2026-09-05) | NOT VERIFIED | NOT VERIFIED | n/a | `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN` (ainda em `.env.example`; não referenciados no código atual) | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | MEDIUM→HIGH se ainda ativa | **DORMANT — candidato a desligar, ver §15** |
+| **Evolution API** (self-host Baileys no Render, "aposentada" 2026-09-05) | NOT VERIFIED | NOT VERIFIED | n/a | `EVOLUTION_API_KEY`, `EVOLUTION_WEBHOOK_TOKEN` (`.env.example` marcado como deprecated em 2026-09-17, mas isso NÃO desliga nada — a instância real no Render e as envs no Cloudflare Pages continuam existindo até ação manual) | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | MEDIUM→HIGH se ainda ativa | **DORMANT — ação manual pendente, ver §14** |
 | **Mercado Pago** | NOT VERIFIED | NOT VERIFIED | n/a | `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` (código vivo, mas sem call-site de UI ativo — ver §15) | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | HIGH (financeiro) | NOT VERIFIED |
 | **Domain registrar — Registro.br** (`queroumacor.com.br`) | NOT VERIFIED | NOT VERIFIED | n/a | n/a | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | CRITICAL | NOT VERIFIED |
 | **Domain registrar — GoDaddy** (`calicolors.com.br`) | NOT VERIFIED | NOT VERIFIED | n/a | n/a | NOT VERIFIED | NOT VERIFIED | NOT VERIFIED | CRITICAL | NOT VERIFIED |
@@ -367,25 +367,28 @@ queroumacor@gmail.com (Google Account pessoal, presumido)
 7. **Dualhook (vendor WhatsApp) não estava no inventário original do
    usuário** — é um provedor com acesso total de envio/recebimento no
    número oficial da loja, sem MFA/ownership/rotação documentados.
-8. **Nenhum processo de offboarding documentado** para nenhum provedor
-   (item 10 do pedido) — hoje, se alguém saísse do projeto, não há
-   checklist de "revogar acesso em X, Y, Z".
+8. **✅ FIXADO EM CÓDIGO (2026-09-17)** — checklist de offboarding
+   criado em `ACCOUNT_RECOVERY_RUNBOOK.md` §5, cobrindo os 12
+   provedores da tabela de inventário. **Continua exigindo execução
+   MANUAL a cada saída** (o checklist não automatiza revogação).
 9. **Nenhuma evidência de password manager compartilhado** — se
    realmente não existe, toda credencial depende de acesso pessoal
    individual, sem trilha de auditoria de "quem tem a senha".
 
 ### MEDIUM
 
-10. **`rollback.yml` (GitHub Actions) tem `permissions: contents: write`
-    e faz `git push --force origin main`** — gated por input textual
-    "ROLLBACK" em `workflow_dispatch`, então só quem já tem write no
-    repo (2 pessoas) consegue disparar. Não é uma vulnerabilidade em si
-    (workflow_dispatch exige permissão de escrita), mas é o workflow de
-    maior blast radius do repo — vale considerar "environment protection
-    rule" (revisores obrigatórios) para essa ação específica.
-11. **Nenhum CODEOWNERS no repo** — qualquer um dos 2 colaboradores com
-    write pode aprovar/mergear mudança em qualquer arquivo sem revisão
-    direcionada.
+10. **🟡 PARCIALMENTE FIXADO (2026-09-17)** — `rollback.yml` ganhou
+    `environment: production-rollback` no job. Isso deixa o workflow
+    PRONTO pra ser gated, mas **é inerte até uma ação MANUAL**: criar a
+    proteção de "required reviewers" nesse environment em
+    Settings → Environments → `production-rollback`. Sem esse passo,
+    o comportamento do workflow não muda em nada.
+11. **🟡 PARCIALMENTE FIXADO (2026-09-17)** — `CODEOWNERS` criado na
+    raiz, escopado só a `.github/workflows/`, `migrations/`,
+    `.github/SECURITY.md` e o próprio `CODEOWNERS` (não ao repo
+    inteiro, pra não travar PR de rotina). **Também é inerte até uma
+    ação MANUAL**: ligar "Require review from Code Owners" em
+    Settings → Branches → `main`.
 12. **Nenhum rulesets/branch-protection-as-code versionado** — a
     configuração de proteção de branch existe (confirmada por evidência
     indireta: recusa histórica com "Required status check"), mas não
