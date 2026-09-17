@@ -129,12 +129,37 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     const req = mkRawReq({
       rawBody: JSON.stringify({ type: 'payment', data: { id: '123' } }),
       headers: {
-        'x-signature': 'ts=1700000000,v1=deadbeef',
+        'x-signature': `ts=${Math.floor(Date.now() / 1000)},v1=deadbeef`,
         'x-request-id': 'req-1',
       },
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
+  });
+
+  // Auditoria de observabilidade de segurança (2026-09-17): antes desta
+  // rodada, um HMAC simplesmente errado (não o caso "secret ausente", que
+  // já tinha audit_log dedicado) não deixava rastro NENHUM — nem console.
+  it('loga security.webhook.invalid_signature (estruturado) em HMAC mismatch', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = mkRawReq({
+      rawBody: JSON.stringify({ type: 'payment', data: { id: '123' } }),
+      headers: {
+        'x-signature': `ts=${Math.floor(Date.now() / 1000)},v1=deadbeef`,
+        'x-request-id': 'req-1',
+      },
+    });
+    await POST(req);
+    const call = errorSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.webhook.invalid_signature');
+    expect(record.provider).toBe('mercadopago');
+    expect(record.reason).toBe('hmac_mismatch');
+    // Nunca loga o HMAC calculado nem o recebido.
+    expect(JSON.stringify(record)).not.toContain('deadbeef');
+    errorSpy.mockRestore();
   });
 
   // Auditoria de negócio 2026-09-16: uma assinatura VÁLIDA (HMAC correto
@@ -150,6 +175,23 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
+  });
+
+  it('loga security.webhook.replay_suspected (estruturado) quando o skew excede a janela', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const staleTs = String(Math.floor(Date.now() / 1000) - 3600);
+    const req = await mkSignedReq({
+      body: { type: 'payment', data: { id: '123' } },
+      ts: staleTs,
+    });
+    await POST(req);
+    const call = errorSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.webhook.replay_suspected');
+    expect(record.skewSeconds).toBeGreaterThan(600);
+    errorSpy.mockRestore();
   });
 
   it('accepts a signature within the replay window (a few minutes old — clock skew tolerance)', async () => {
@@ -185,6 +227,22 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
+  });
+
+  it('loga security.webhook.invalid_signature quando ts/v1 estão ausentes', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const req = mkRawReq({
+      rawBody: JSON.stringify({ type: 'payment', data: { id: '123' } }),
+      headers: { 'x-signature': 'foo=bar', 'x-request-id': 'req-1' },
+    });
+    await POST(req);
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.webhook.invalid_signature');
+    expect(record.reason).toBe('missing_ts_or_v1');
+    warnSpy.mockRestore();
   });
 
   it('fail-open: accepts unsigned when MP_WEBHOOK_SECRET unset and ENFORCE off (dev)', async () => {
@@ -612,8 +670,16 @@ describe('POST /api/mp-webhook — preapproval (PRO)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.msg).toMatch(/valor diferente/);
-    // NÃO chamou PATCH em profiles
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Auditoria de observabilidade de segurança (2026-09-17): a 2ª chamada
+    // agora é o `logAuditEvent` (audit_log, action=mp.subscription.
+    // amount_mismatch) — payment mismatch passou a ser persistido, não só
+    // um console.warn. Continua NÃO chamando PATCH em profiles (a
+    // ativação foi negada).
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const auditCall = fetchMock.mock.calls[1];
+    expect(String(auditCall[0])).toContain('/rest/v1/audit_log');
+    const auditBody = JSON.parse(auditCall[1].body);
+    expect(auditBody.action).toBe('mp.subscription.amount_mismatch');
   });
 
   it('anti-fraud: currency != BRL rejects activation', async () => {
@@ -639,7 +705,11 @@ describe('POST /api/mp-webhook — preapproval (PRO)', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Mesmo racional do teste anterior — a 2ª chamada é o audit_log do
+    // mismatch, não um PATCH em profiles.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const auditCall = fetchMock.mock.calls[1];
+    expect(String(auditCall[0])).toContain('/rest/v1/audit_log');
   });
 
   it('cancelled preapproval keeps PRO until pro_expires_at (R-H12 grace)', async () => {

@@ -63,6 +63,7 @@ import {
   type InboundWhatsAppMessage,
 } from '@/lib/api/_services/whatsapp';
 import { maybeAutoReply } from '@/lib/api/_services/whatsapp-ai-runner';
+import { logSecurityEvent } from '@/lib/api/securityEvents';
 import {
   baixarMidiaCloudApi,
   caminhoMidia,
@@ -257,8 +258,10 @@ async function processarStatus(lista: AtualizacaoDeStatus[]): Promise<void> {
     // motivo: é ele que separa "número sem WhatsApp" de "recusou marketing"
     // de "limite da Meta".
     if (st.status === 'failed') {
-      console.warn(
-        `[whatsapp-status] FALHOU msg=${st.messageId} para=${st.recipientId}: ${st.erro || 'sem detalhe'}`
+      logSecurityEvent(
+        'security.whatsapp.delivery_failed',
+        { messageId: st.messageId, recipient: st.recipientId, reason: st.erro || 'sem detalhe' },
+        { severity: 'info' },
       );
     }
     await persistStatusEntrega(st);
@@ -300,12 +303,17 @@ export async function POST(request: NextRequest) {
     // distinguir a Meta de qualquer um. O motivo vai no corpo — 403 sozinho
     // não diferencia "env não subiu" de "token errado", e essa distinção é
     // a primeira pergunta de quem for depurar.
-    console.warn(`[whatsapp-webhook] POST recusado: url-secret ${check}`);
+    const reason = check === 'missing-config' ? 'url_secret_ausente' : 'token_invalido';
+    // Auditoria de observabilidade (2026-09-17): nunca loga o secret nem o
+    // valor recebido — só o veredito (`check`), o mesmo que já era coarse
+    // no console.warn anterior, agora estruturado + correlacionável por IP.
+    logSecurityEvent(
+      'security.webhook.invalid_signature',
+      { provider: 'whatsapp', reason },
+      { severity: 'warning', request },
+    );
     return NextResponse.json(
-      {
-        error: 'não autorizado',
-        reason: check === 'missing-config' ? 'url_secret_ausente' : 'token_invalido',
-      },
+      { error: 'não autorizado', reason },
       { status: 403 }
     );
   }
@@ -344,9 +352,20 @@ export async function POST(request: NextRequest) {
     // portal (a entrega some, nada aparece na tela), então esta linha é a
     // única pista. Recebido × esperado responde na hora se o caso é env
     // errada no Cloudflare ou webhook apontado pra outra conta.
-    console.warn(
-      `[whatsapp-webhook] payload rejeitado — recebido: ${resumirEnvelope(payload)} | ` +
-        `esperado: waba=${expected.wabaId} phone_number_id=${expected.phoneNumberId}`
+    // `resumirEnvelope` já é seguro por construção (nunca inclui conteúdo de
+    // mensagem — só object/waba/field/phone_number_id, ver comentário na
+    // própria função). Nomear os dois lados (recebido × esperado) é o que
+    // permite investigar "webhook apontado pra conta errada" vs. "alguém
+    // tentando WABA aleatório" sem vazar conversa nenhuma.
+    logSecurityEvent(
+      'security.webhook.unexpected_sender',
+      {
+        provider: 'whatsapp',
+        received: resumirEnvelope(payload),
+        expectedWaba: expected.wabaId,
+        expectedPhoneNumberId: expected.phoneNumberId,
+      },
+      { severity: 'warning', request },
     );
     return NextResponse.json(
       { error: 'não autorizado', reason: 'payload_inesperado' },

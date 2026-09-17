@@ -38,6 +38,7 @@ import { normalizeWhatsAppTarget } from '@/lib/api/_services/whatsapp-evo';
 import { whatsappSendSchema } from '@/lib/api/schemas/whatsapp-send';
 import { logAuditEvent } from '@/lib/api/audit';
 import { runAfterResponse } from '@/lib/api/env';
+import { logSecurityEvent } from '@/lib/api/securityEvents';
 
 export const runtime = 'edge';
 
@@ -237,6 +238,16 @@ async function handle(request: NextRequest): Promise<Response> {
           status: e.status,
           message: e.message,
         });
+        // Auditoria de observabilidade de segurança (2026-09-17): antes,
+        // só o SUCESSO de um envio ia pro `audit_log` — uma falha (janela
+        // de 24h, credencial revogada no Dualhook, número inválido) não
+        // deixava rastro algum, além deste console.error. Nunca inclui
+        // corpo/telefone — `reason` é a classe do erro, não o conteúdo.
+        logSecurityEvent(
+          'security.whatsapp.send_failed',
+          { reason: 'upstream_error', upstreamStatus: e.status },
+          { severity: 'warning', request },
+        );
         return jsonResponse(
           { error: e.message, upstreamStatus: e.status, ...(e.extra || {}) },
           500
@@ -245,6 +256,11 @@ async function handle(request: NextRequest): Promise<Response> {
       return serviceErrorResponse(e);
     }
     console.error('whatsapp-send erro inesperado:', e instanceof Error ? e.message : e);
+    logSecurityEvent(
+      'security.whatsapp.send_failed',
+      { reason: 'unexpected_error' },
+      { severity: 'warning', request },
+    );
     return jsonResponse({ error: 'erro interno' }, 500);
   }
 }

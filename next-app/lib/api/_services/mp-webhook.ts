@@ -38,6 +38,7 @@ import { getServiceKey, getSupabaseUrl } from '../security';
 import { recordInvoiceViaRest } from './_billing-helpers';
 import { logAuditEvent } from '../audit';
 import { getRuntimeEnv } from '../env';
+import { logSecurityEvent } from '../securityEvents';
 
 const MP_TIMEOUT_MS = 15000;
 const SUPA_TIMEOUT_MS = 10000;
@@ -424,12 +425,29 @@ async function processPreapprovalEvent(opts: {
       proCurrency !== 'BRL' ||
       Math.abs(proAmount - PRO_AMOUNT_BRL) > 0.01
     ) {
-      console.warn('mp-webhook: preapproval com valor suspeito, ignorando ativação', {
-        userIdPrefix: String(userId).slice(0, 8),
-        proAmount,
-        proCurrency,
-        expected: PRO_AMOUNT_BRL,
-      });
+      // Auditoria de observabilidade de segurança (2026-09-17): esse
+      // `return` acontecia ANTES do `logAuditEvent` genérico mais abaixo
+      // (linha ~518), então "preapproval com valor manipulado" nunca
+      // virava audit_log — só um console.warn. Payment mismatch é
+      // security event por definição (#65): persiste (não-critical —
+      // ativação foi negada, não há dano feito) + log estruturado.
+      logSecurityEvent(
+        'security.payment.amount_mismatch',
+        { provider: 'mercadopago', kind: 'preapproval', proAmount, proCurrency, expected: PRO_AMOUNT_BRL, userId },
+        { severity: 'high', request: { headers: reqHeaders } },
+      );
+      try {
+        await logAuditEvent({
+          actorId: userId,
+          action: 'mp.subscription.amount_mismatch',
+          targetTable: 'profiles',
+          targetId: userId,
+          changes: { proAmount, proCurrency, expected: PRO_AMOUNT_BRL, mp_preapproval_id: eventId },
+          request: { headers: reqHeaders },
+        });
+      } catch {
+        /* fail-open — o evento já foi logado estruturado acima */
+      }
       return ok('preapproval com valor diferente do esperado');
     }
     patch = {
@@ -652,7 +670,20 @@ async function verifyMpSignature(args: {
   }
   const ts = parts.ts || '';
   const v1 = parts.v1 || '';
-  if (!ts || !v1) return false;
+  if (!ts || !v1) {
+    // Auditoria de observabilidade de segurança (2026-09-17): antes desta
+    // linha, um `x-signature` ausente/malformado voltava `false` SEM log
+    // nenhum — o único caso desta função (das 5 formas de recusar) sem
+    // rastro algum. Nunca loga `sigHeader` inteiro (é o material da
+    // assinatura, não um secret, mas não adiciona valor de investigação
+    // vs. o risco de log grande demais).
+    logSecurityEvent(
+      'security.webhook.invalid_signature',
+      { provider: 'mercadopago', reason: 'missing_ts_or_v1' },
+      { severity: 'warning', request: { headers } },
+    );
+    return false;
+  }
 
   // Auditoria de negócio 2026-09-16: a assinatura provava que o corpo foi
   // assinado pelo MP EM ALGUM MOMENTO — nunca checava QUANDO. Um webhook
@@ -664,8 +695,13 @@ async function verifyMpSignature(args: {
   if (!Number.isFinite(tsSeconds)) return false;
   const skewSeconds = Math.abs(Math.floor(Date.now() / 1000) - tsSeconds);
   if (skewSeconds > MP_SIGNATURE_MAX_SKEW_SECONDS) {
-    console.warn(
-      `mp-webhook: assinatura fora da janela de validade (skew=${skewSeconds}s) — possível replay, rejeitando`
+    // `high`, não `warning`: skew grande com HMAC formalmente presente é o
+    // padrão específico de replay (assinatura capturada de um webhook
+    // antigo e reenviada), não um erro de config.
+    logSecurityEvent(
+      'security.webhook.replay_suspected',
+      { provider: 'mercadopago', skewSeconds, maxSkewSeconds: MP_SIGNATURE_MAX_SKEW_SECONDS },
+      { severity: 'high', request: { headers } },
     );
     return false;
   }
@@ -688,11 +724,24 @@ async function verifyMpSignature(args: {
     const hex = Array.from(new Uint8Array(sig))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
-    return timingSafeEqualHex(hex, v1);
+    const matches = timingSafeEqualHex(hex, v1);
+    if (!matches) {
+      // Este era o ÚNICO caminho de "assinatura simplesmente errada" sem
+      // NENHUM log — confirmado lendo a função inteira. Nunca loga `hex`/
+      // `v1` (são o HMAC calculado e o recebido, não secrets, mas
+      // comparar visualmente não ajuda investigação e só ocupa espaço).
+      logSecurityEvent(
+        'security.webhook.invalid_signature',
+        { provider: 'mercadopago', reason: 'hmac_mismatch' },
+        { severity: 'high', request: { headers } },
+      );
+    }
+    return matches;
   } catch (e) {
-    console.warn(
-      'mp-webhook: erro ao calcular HMAC:',
-      e instanceof Error ? e.message : String(e)
+    logSecurityEvent(
+      'security.webhook.invalid_signature',
+      { provider: 'mercadopago', reason: 'hmac_compute_error', error: e instanceof Error ? e.message : String(e) },
+      { severity: 'warning', request: { headers } },
     );
     return false;
   }
