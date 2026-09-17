@@ -124,18 +124,24 @@
       Overview → Configure, confirmado pela mensagem "Encryption mode
       updated successfully." Agora a conexão Cloudflare↔origem exige
       certificado válido, não só cifra.
-    - **🟡 DNSSEC — LIGADO NO CLOUDFLARE (2026-09-16, 3ª sessão),
-      FALTA SÓ O DS RECORD NO REGISTRADOR.** Depois de duas rodadas que
-      só CONFIRMARAM o estado desligado (ver regra abaixo), esta terceira
-      sessão executou a ação de verdade: "Enable DNSSEC" ativado em DNS →
-      Settings. O DNSSEC só fica TOTALMENTE ativo depois que o registrador
-      publica o DS record que o Cloudflare gera — e `queroumacor.com.br` é
-      registrado na **Registro.br** (domínio `.com.br`; não confundir com
-      o GoDaddy, que é o registrador de `calicolors.com.br`, usado pro
-      DMARC). **Pendência real agora é só isso**: usuário adicionar o DS
-      record na Registro.br. Enquanto isso não acontece, o DNSSEC está
-      "ligado" do lado Cloudflare mas não protege nada (a cadeia de
-      confiança só fecha com o DS no pai da zona).
+    - **✅ DNSSEC — DS RECORD PUBLICADO NA REGISTRO.BR (2026-09-17),
+      FECHADO.** Depois de duas rodadas que só CONFIRMARAM o estado
+      desligado e uma terceira que ligou o DNSSEC no lado Cloudflare (ver
+      regra abaixo), o usuário completou o último passo à mão: entrou no
+      painel da **Registro.br** (registrador de `queroumacor.com.br` —
+      não confundir com o GoDaddy, registrador de `calicolors.com.br`
+      usado pro DMARC), abriu DNS → "Alterar servidores DNS" → "+
+      DNSSEC", e publicou o DS record que o Cloudflare gerou (DNS →
+      Settings → DNSSEC → "DS Record" no painel Cloudflare): **Key Tag
+      2371, Algoritmo 13, Digest Type 2 (SHA256)**. A Registro.br
+      confirmou "DNS atualizado com sucesso!". **Propagação (10min-1h,
+      segundo o próprio Cloudflare) ainda não foi reverificada** — a
+      cadeia de confiança do DNSSEC só fecha de fato depois que o
+      resolver externo enxergar o DS no pai da zona; o valor do dígito
+      completo não foi registrado aqui de propósito (é público, mas não
+      há necessidade de reproduzir credencial/hash sensível num arquivo
+      de memória). Tratar como fechado; reconfirmar só se algum dia
+      houver suspeita de regressão (troca de registrador, DS revogado).
     - **✅ Registro CAA — CRIADO E PUBLICADO (2026-09-16, 3ª sessão).**
       6 registros CAA criados na zona: tag `issue` (pode emitir certificado
       padrão) e tag `issuewild` (pode emitir wildcard) para **3 CAs**:
