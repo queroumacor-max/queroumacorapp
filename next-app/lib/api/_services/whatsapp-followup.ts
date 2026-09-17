@@ -360,6 +360,9 @@ export async function runFollowupSweep(opts?: {
     }
 
     for (const a of acoes) {
+      // Declarado FORA do try: precisa ser visível no catch (um `let`
+      // declarado dentro do try não existe no escopo do catch irmão).
+      let desfazerReservaSeFalhar = false;
       try {
         if (a.kind === 'alerta') {
           await fetch(rest(`portal_alerts?id=eq.${encodeURIComponent(a.alertId)}`), {
@@ -371,6 +374,35 @@ export async function runFollowupSweep(opts?: {
           res.alertas++;
           continue;
         }
+
+        // Reserva ATÔMICA no banco ANTES de qualquer envio (achado do review
+        // do PR #328, Codex bot, P1): a trava por isolate + rate limit da
+        // ROTA reduzem a corrida mas não a fecham — duas invocações que
+        // caem em isolates DIFERENTES do Cloudflare passam as duas pelo
+        // rate limit e cada trava em memória é local ao seu isolate, então
+        // as duas podiam ler a mesma conversa "ainda não cutucada" antes de
+        // qualquer uma escrever. A garantia de verdade só existe onde as
+        // duas invocações realmente se encontram: o banco. `reservarX`
+        // usa UPDATE condicional / UPSERT com WHERE (mesma técnica de
+        // `bump_wa_ai_reply_count`) — atômico no Postgres via lock de linha,
+        // não importa de qual isolate a requisição veio. Só uma das duas
+        // invocações concorrentes reserva; a outra recebe `false` e pula.
+        const reservado =
+          a.kind === 'cobranca'
+            ? await reservarCobranca(a.alertId, now)
+            : await reservarReengajamento(a.waId, now);
+        if (!reservado) {
+          // Outra varredura concorrente (ou a mesma pendência já tratada)
+          // já reivindicou esta ação — nada a fazer aqui.
+          continue;
+        }
+        // Reservar ANTES de enviar fecha a corrida, mas troca "nunca manda
+        // duas vezes" por "uma falha inesperada no meio do envio pode
+        // queimar a reserva sem a mensagem ter saído". Falha real (não o
+        // caso já tratado de fora-da-janela, que marca de propósito) reseta
+        // a reserva no catch abaixo — perder um envio isolado é aceitável;
+        // perder a chance de retry pra sempre não é.
+        desfazerReservaSeFalhar = true;
 
         const snap = snaps.get(a.waId);
         const nome = (await nomeDoContato(a.waId)) || snap?.nome || null;
@@ -421,6 +453,11 @@ export async function runFollowupSweep(opts?: {
               `${a.kind} ${a.waId}: template ${escolha.template} recusado: ` +
                 (e2 instanceof Error ? e2.message : String(e2)),
             );
+            // Mantém a reserva de propósito: nem texto livre nem template
+            // saíram, mas repetir de hora em hora daria o mesmo resultado
+            // (número inválido, cota, template removido) — não é falha
+            // transitória que mereça retry.
+            desfazerReservaSeFalhar = false;
             await marcarFollowup(a.waId, a.kind, now);
             continue;
           }
@@ -433,6 +470,11 @@ export async function runFollowupSweep(opts?: {
             ? `[template ${escolha.template}] {{1}}=${escolha.nome}`
             : `[template ${escolha.template}]`;
         }
+        // Mensagem saiu de verdade — a reserva feita acima FICA (é o que
+        // ela existe pra fazer); nada a desfazer, e o PATCH de
+        // `followed_up_at` que existia aqui pra cobrança já aconteceu
+        // dentro de `reservarCobranca`, atomicamente, antes do envio.
+        desfazerReservaSeFalhar = false;
         await persistWhatsAppMessage({
           origin: 'ia',
           direction: 'out',
@@ -443,12 +485,6 @@ export async function runFollowupSweep(opts?: {
           template: templateUsado ?? undefined,
         });
         if (a.kind === 'cobranca') {
-          await fetch(rest(`portal_alerts?id=eq.${encodeURIComponent(a.alertId)}`), {
-            method: 'PATCH',
-            headers: headers({ Prefer: 'return=minimal' }),
-            body: JSON.stringify({ followed_up_at: now.toISOString() }),
-            signal: AbortSignal.timeout(DB_TIMEOUT_MS),
-          });
           res.cobrancas++;
         } else {
           res.reengajamentos++;
@@ -456,6 +492,9 @@ export async function runFollowupSweep(opts?: {
         await marcarFollowup(a.waId, a.kind, now);
       } catch (e) {
         res.erros.push(`${a.kind} ${a.waId}: ${e instanceof Error ? e.message : String(e)}`);
+        if (desfazerReservaSeFalhar) {
+          await desfazerReserva(a);
+        }
       }
     }
 
@@ -513,4 +552,112 @@ async function marcarFollowup(waId: string, kind: string, now: Date): Promise<vo
     }),
     signal: AbortSignal.timeout(DB_TIMEOUT_MS),
   }).catch(() => {});
+}
+
+// ── Reserva atômica (achado do review do PR #328 — P1, Codex bot) ───────────
+//
+// A trava por isolate (`sweepEmAndamento`) e o rate limit da rota
+// (`app/api/whatsapp/followup/route.ts`) reduzem a chance de duas
+// invocações concorrentes decidirem cutucar a MESMA conversa, mas não
+// eliminam a corrida: cada trava em memória vale só dentro do isolate do
+// Cloudflare que a recebeu, e duas invocações em isolates diferentes podem
+// ambas passar pelo rate limit e ler o mesmo retrato de "ainda não
+// cutucado" antes de qualquer uma escrever. A garantia real só existe onde
+// as duas se encontram de fato: o banco. As duas funções abaixo reservam
+// ANTES do envio, usando write condicional / UPSERT com WHERE — a mesma
+// técnica (comprovada) de `bump_wa_ai_reply_count`: atômico via lock de
+// linha do Postgres, não importa de qual isolate veio a requisição.
+
+/**
+ * Reserva a COBRANÇA de um alerta: só reivindica se `followed_up_at` ainda
+ * está nulo. PATCH com filtro `followed_up_at=is.null` — sob concorrência,
+ * a segunda transação bloqueia no lock de linha até a primeira committar, e
+ * o Postgres RE-AVALIA o filtro contra a linha já committada (EvalPlanQual)
+ * antes de decidir se atualiza; a segunda não bate mais no filtro e não
+ * atualiza nada. `return=representation`: corpo vazio = perdeu a corrida.
+ */
+async function reservarCobranca(alertId: string, now: Date): Promise<boolean> {
+  try {
+    const res = await fetch(
+      rest(`portal_alerts?id=eq.${encodeURIComponent(alertId)}&followed_up_at=is.null`),
+      {
+        method: 'PATCH',
+        headers: headers({ Prefer: 'return=representation' }),
+        body: JSON.stringify({ followed_up_at: now.toISOString() }),
+        signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+      },
+    );
+    // Falha de infra: NÃO reserva — fail-safe (não manda em vez de arriscar
+    // mandar sem garantia de exclusividade).
+    if (!res.ok) return false;
+    const linhas = (await res.json().catch(() => [])) as unknown[];
+    return Array.isArray(linhas) && linhas.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Desfaz a reserva de cobrança (usado quando o envio falha de verdade
+ *  depois de reservar — devolve a pendência pra próxima varredura). */
+async function desfazerReservaCobranca(alertId: string): Promise<void> {
+  await fetch(rest(`portal_alerts?id=eq.${encodeURIComponent(alertId)}`), {
+    method: 'PATCH',
+    headers: headers({ Prefer: 'return=minimal' }),
+    body: JSON.stringify({ followed_up_at: null }),
+    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+  }).catch(() => {});
+}
+
+/**
+ * Reserva o REENGAJAMENTO de uma conversa: só reivindica se a linha ainda
+ * não existe OU se `followup_at` está fora do cooldown de
+ * `NUDGE_COOLDOWN_DAYS`. Diferente da cobrança (linha sempre existe), aqui
+ * a linha de `whatsapp_ai_state` pode não existir ainda — "não existe" E
+ * "existe mas está velha" precisam contar como reivindicável no MESMO
+ * INSERT ATÔMICO, o que um PATCH condicional sozinho não expressa (PATCH
+ * não cria linha). Por isso é uma RPC (`claim_wa_followup_nudge`,
+ * migration `2026-09-17-whatsapp-followup-claim.sql`) — `INSERT … ON
+ * CONFLICT DO UPDATE … WHERE <fora do cooldown> RETURNING`, exatamente o
+ * padrão de `bump_wa_ai_reply_count`.
+ *
+ * Tolera a RPC ausente (SQL ainda não rodado): trata como reserva NEGADA
+ * (fail-safe — não manda em vez de arriscar duplicar). Diferente da regra
+ * usual deste arquivo ("recurso novo não derruba o que já funciona"), aqui
+ * o recurso ANTIGO (reengajamento) fica temporariamente pausado até a
+ * migration rodar, porque a alternativa (mandar sem reserva atômica) é
+ * exatamente o bug que este review pediu pra fechar.
+ */
+async function reservarReengajamento(waId: string, now: Date): Promise<boolean> {
+  try {
+    const res = await fetch(rest('rpc/claim_wa_followup_nudge'), {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        p_wa_id: waId,
+        p_cooldown_days: NUDGE_COOLDOWN_DAYS,
+        p_now: now.toISOString(),
+      }),
+      signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json().catch(() => null)) as boolean | null;
+    return data === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Desfaz a reserva de reengajamento (zera `followup_at`). */
+async function desfazerReservaReengajamento(waId: string): Promise<void> {
+  await fetch(rest('whatsapp_ai_state?on_conflict=wa_id'), {
+    method: 'POST',
+    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+    body: JSON.stringify({ wa_id: waId, followup_at: null, updated_at: new Date().toISOString() }),
+    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+  }).catch(() => {});
+}
+
+async function desfazerReserva(a: FollowupAction): Promise<void> {
+  if (a.kind === 'cobranca') return desfazerReservaCobranca(a.alertId);
+  if (a.kind === 'reengajamento') return desfazerReservaReengajamento(a.waId);
 }
