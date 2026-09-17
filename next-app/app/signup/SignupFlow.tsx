@@ -176,10 +176,14 @@ export function SignupFlow() {
       if (draft.avatarFile && userId) {
         try {
           const { uploadAvatar: doUpload } = await import('@/lib/services/profile');
-          const url = await doUpload(userId, draft.avatarFile);
+          const { url, hash } = await doUpload(userId, draft.avatarFile);
+          // Checagem autoritativa (2026-09-17) — mesmo gate de
+          // EditProfileForm.tsx, ver comentário lá.
+          const { assertMediaApproved } = await import('@/lib/services/moderateMedia');
+          await assertMediaApproved({ mediaUrl: url });
           // updateProfile separado pra setar avatar_url no row do user.
           const { updateProfile } = await import('@/lib/services/profile');
-          await updateProfile(userId, { avatar_url: url });
+          await updateProfile(userId, { avatar_url: url, avatar_hash: hash || null });
         } catch (e) {
           // P4 (01/09/2026): era `catch {}` mudo. A pessoa escolhia a foto no
           // passo 2, o upload falhava e ninguém — nem ela, nem o

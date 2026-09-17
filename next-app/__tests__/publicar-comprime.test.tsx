@@ -37,6 +37,15 @@ vi.mock('@/components/AuthProvider', () => ({
 }));
 vi.mock('@/lib/native', () => ({ hapticNotify: vi.fn() }));
 vi.mock('@/lib/utils/reportFailure', () => ({ reportFailure: vi.fn() }));
+// 2026-09-17: usePublishPost ganhou uma chamada a /api/moderate ANTES de
+// createPost (ver __tests__/publicar-moderacao.test.tsx). Sem este mock, os
+// testes de compressão acima bateriam em `fetch` de verdade. Resposta
+// padrão simula Gemini indisponível (res.ok=false) — fail-open, não
+// interfere em nenhuma asserção deste arquivo.
+const moderateFetch = vi.fn();
+vi.mock('@/lib/services/fetchGated', () => ({
+  fetchGated: (...a: unknown[]) => moderateFetch(...a),
+}));
 
 import { usePublishPost } from '@/lib/hooks/usePublishPost';
 
@@ -82,6 +91,7 @@ beforeEach(() => {
   uploadMedia.mockResolvedValue({ url: 'https://x/y.jpg', mediaHash: 'h' });
   createPost.mockResolvedValue({ id: 'p1' });
   readImageDimensions.mockResolvedValue({ width: 1920, height: 1080 });
+  moderateFetch.mockResolvedValue({ ok: false } as Response);
 });
 
 describe('publicar: a foto grande é comprimida ANTES de subir', () => {

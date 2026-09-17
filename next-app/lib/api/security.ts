@@ -624,7 +624,14 @@ import {
   getPlanLimitViaRest,
   isProActiveViaRest,
   reserveAiUsageViaRest,
+  reserveModerationUsageViaRest,
 } from './_services/_billing-helpers';
+
+// Moderação (Gemini triage de posts/avatares) tem pool PRÓPRIO — nunca o
+// pool geral de chat/legenda/etc (ver reserveModerationUsageViaRest). Teto
+// alto de propósito: backstop de abuso, não limite de produto.
+const MODERATION_FEATURES = new Set(['moderate', 'moderate_video']);
+const MODERATION_MONTHLY_LIMIT = 1000;
 
 /**
  * Checa limite mensal de IA. Retorna NextResponse 429 com Retry-After se
@@ -699,6 +706,34 @@ export async function gateAiUsage(opts: {
   } else {
     const isPro = await isProActiveViaRest({ supaUrl, serviceKey, userId });
     if (isPro) plan = 'pro';
+  }
+
+  // Moderação (feature de segurança, roda em nome da plataforma) nunca
+  // disputa a cota mensal de IA que o usuário escolheu gastar em chat/
+  // legenda/etc — pool próprio, resolvido ANTES do pool geral. `plan` só
+  // entra no retorno pra manter o shape da resposta (telemetria/UI), não
+  // influencia o teto aqui.
+  if (MODERATION_FEATURES.has(feature)) {
+    const { allowed, used } = await reserveModerationUsageViaRest({
+      supaUrl,
+      serviceKey,
+      userId,
+      feature,
+      limit: MODERATION_MONTHLY_LIMIT,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: `Limite de moderação atingido (${used}/${MODERATION_MONTHLY_LIMIT}). Tente novamente mais tarde.`,
+          used,
+          limit: MODERATION_MONTHLY_LIMIT,
+          plan,
+          feature,
+        },
+        { status: 429 }
+      );
+    }
+    return { allowed: true, plan, used, limit: MODERATION_MONTHLY_LIMIT };
   }
 
   const limit = await getPlanLimitViaRest({ supaUrl, serviceKey, plan });

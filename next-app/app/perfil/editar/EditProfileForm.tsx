@@ -40,6 +40,7 @@ import {
   uploadAvatar,
 } from '@/lib/services/profile';
 import { fetchLogo, uploadLogo, saveLogo } from '@/lib/services/aiLogo';
+import { assertMediaApproved } from '@/lib/services/moderateMedia';
 import { phoneSchema, requiredField } from '@/lib/schemas';
 import { showToast } from '@/lib/toast';
 import { CameraCapture } from '@/components/CameraCapture';
@@ -362,8 +363,21 @@ export function EditProfileForm() {
     setAvatarPreview(local);
     setAvatarBusy(true);
     try {
-      const url = await uploadAvatar(user.id, f);
-      await update({ avatar_url: url } as Parameters<typeof update>[0]);
+      const { url, hash } = await uploadAvatar(user.id, f);
+      // Checagem AUTORITATIVA (2026-09-17, achado do Codex na revisão da
+      // PR que estendeu a blocklist de hash CSAM pra avatar): o trigger
+      // do banco confia no hash que O CLIENTE manda, e RLS deixa o dono
+      // escrever a própria linha direto via PostgREST — falsificável, só
+      // não mandar o hash certo. `/api/moderate` baixa o arquivo e
+      // calcula o hash NO SERVIDOR (não confia em `hash` acima pra nada
+      // além de gravar no banco depois), então é essa chamada que fecha
+      // a checagem de verdade — o trigger fica como defesa em
+      // profundidade, igual sempre foi pra `posts.media_hash`.
+      await assertMediaApproved({ mediaUrl: url });
+      await update({
+        avatar_url: url,
+        avatar_hash: hash || null,
+      } as Parameters<typeof update>[0]);
       setAvatarPreview(null); // a partir daqui vale a do banco
       URL.revokeObjectURL(local);
       showToast('Foto atualizada!', 'success');

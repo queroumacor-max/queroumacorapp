@@ -33,6 +33,7 @@ import {
 } from '@/lib/errors';
 import { getMediaType } from '@/lib/utils';
 import { ehImagem, mimeConfiavel, normalizarArquivo } from '@/lib/utils/mediaType';
+import { sha256Hex } from '@/lib/utils/sha256';
 
 import { fetchGated } from './fetchGated';
 // Limites alinhados com o bucket `posts` no Supabase (CLAUDE.md confirma:
@@ -92,9 +93,9 @@ interface LeituraDeMidia {
 }
 
 /**
- * Lê o arquivo inteiro (uma vez) e calcula o SHA-256. A leitura serve
- * também de sonda: se ela falha, sabemos que o problema é o ARQUIVO, não a
- * rede.
+ * Lê o arquivo inteiro (uma vez) e calcula o SHA-256 (via `sha256Hex`,
+ * compartilhado com avatar/art-references). A leitura serve também de
+ * sonda: se ela falha, sabemos que o problema é o ARQUIVO, não a rede.
  *
  * Sem `crypto.subtle` não lemos nada, então `ilegivel` fica false — não
  * saber é diferente de saber que está quebrado.
@@ -112,18 +113,8 @@ async function lerEHashear(file: File): Promise<LeituraDeMidia> {
   // `file.size` já foi conferido lá em cima; chegar aqui com zero byte
   // significa que a leitura devolveu vazio — mesmo sintoma do blob morto.
   if (buf.byteLength === 0) return { hash: '', ilegivel: true };
-  try {
-    const digest = await crypto.subtle.digest('SHA-256', buf);
-    const bytes = new Uint8Array(digest);
-    let out = '';
-    for (let i = 0; i < bytes.length; i++) {
-      const h = bytes[i].toString(16);
-      out += h.length === 1 ? '0' + h : h;
-    }
-    return { hash: out, ilegivel: false };
-  } catch {
-    return { hash: '', ilegivel: false };
-  }
+  const hash = await sha256Hex(new Blob([buf]));
+  return { hash, ilegivel: false };
 }
 
 /** A mensagem do storage parece queda de rede (e não recusa do servidor)? */
