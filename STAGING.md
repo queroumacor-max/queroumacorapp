@@ -1,38 +1,36 @@
 # Staging / Preview Deploys
 
-## ⚠️ RISCO DE SEGURANÇA CONHECIDO (auditoria Cloudflare, 2026-09-13)
+## ✅ RISCO DE SEGURANÇA CONHECIDO — VERIFICADO E FECHADO (2026-09-16)
 
-Este documento já avisava "Mesmas env vars ... se ainda não estiverem
-diferenciadas, vai usar as mesmas de produção" — mas o que isso significa
-na prática precisa ficar explícito: **qualquer push em QUALQUER branch
-dispara um build automático do Cloudflare Pages** (é o comportamento
-default do Git integration, independente do GitHub Actions), e esse build
-roda `npm install && npm run build:cf` com as env vars de **Preview**
-injetadas no ambiente do processo. Se essas vars ainda forem as mesmas de
-produção, isso inclui `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS),
-`OPENAI_API_KEY`, `GEMINI_API_KEY`, `MP_ACCESS_TOKEN`,
-`WHATSAPP_ACCESS_TOKEN`/`DUALHOOK_API_KEY`, `FCM_PRIVATE_KEY` etc.
+A auditoria Cloudflare de 2026-09-13 (ver histórico abaixo) tinha levantado
+como risco ALTO que as env vars de **Preview** pudessem ser as MESMAS de
+produção — o que exporia `SUPABASE_SERVICE_ROLE_KEY`, chaves de IA/
+pagamento/WhatsApp a qualquer build de Preview (disparado por push em
+QUALQUER branch, sem precisar de PR aprovado).
 
-**Isso é uma superfície real de exfiltração de segredos de produção via
-supply-chain**: um `postinstall` malicioso em qualquer dependência (ou
-código de build comprometido em qualquer branch, mesmo sem PR aprovado —
-o build dispara SÓ com o push) roda com acesso de rede e a esses secrets
-no ambiente. A URL de preview em si (`<branch>.queroumacorapp.pages.dev`)
-também não tem NENHUMA autenticação adicional (Cloudflare Access não está
-configurado) — `X-Robots-Tag: noindex` só impede indexação por buscador,
-não impede acesso direto por quem tem/adivinha a URL.
+**Checado ao vivo no painel em 2026-09-16** (sessão "Claude in Chrome",
+`queroumacor@gmail.com`): Pages → `queroumacor-next` → Settings →
+Environment variables → **Preview** tem hoje só **5 variáveis, todas
+públicas** (`NEXT_PUBLIC_*` + `VAPID_SUBJECT`) — **nenhum secret de
+produção configurado** (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA/MP/
+WhatsApp/FCM ausentes). O risco descrito nesta seção **não reflete a
+configuração real hoje** — ou o usuário já tinha corrigido isso no painel
+antes desta auditoria, ou o texto anterior nunca bateu com o estado real.
+De qualquer forma, o estado ATUAL é seguro: um build de Preview comprometido
+não teria acesso a nenhum segredo de produção.
 
-**MANUAL ACTION REQUIRED** (Cloudflare Dashboard, fora do repo):
-1. Verificar HOJE se as env vars de **Preview** em Pages → Settings →
-   Environment variables são de fato as MESMAS de produção. Se forem,
-   separar — idealmente um projeto Supabase de staging próprio, ou no
-   mínimo remover `SUPABASE_SERVICE_ROLE_KEY` e as chaves de IA/pagamento/
-   WhatsApp do ambiente de Preview (aceitando que rotas admin/IA não
-   funcionem em preview).
-2. Considerar Cloudflare Access (Zero Trust) na frente de `*.pages.dev`
-   pra exigir login antes de qualquer preview responder.
-3. Restringir quem tem permissão de push/criar branch no repositório,
-   já que isso sozinho já dispara um build com os secrets configurados.
+**O que ainda vale do risco original, sem mudança:** a URL de preview
+(`<branch>.queroumacorapp.pages.dev`) continua sem autenticação adicional
+— **Cloudflare Access não está configurado** (confirmado, zero aplicações)
+— e `X-Robots-Tag: noindex` só impede indexação por buscador, não acesso
+direto por quem tem/adivinha a URL. Isso é decisão em aberto do usuário
+(ver `SECURITY_AUDIT_LOG.md`), não mais bloqueante de segredo de produção.
+
+**Vale reconferir periodicamente** (não é uma garantia permanente): alguém
+pode adicionar um secret de produção ao ambiente de Preview no futuro sem
+perceber a implicação. Antes de configurar qualquer env var nova em
+Preview, perguntar: "se um build malicioso rodar com isso, o que ele
+consegue fazer?".
 
 ## Visão geral
 
@@ -88,9 +86,15 @@ Três caminhos:
 - **Mesmo banco** (Supabase é compartilhado). Cuidado com mutações em dados
   reais durante testes — use um usuário de teste se precisar criar/apagar
   coisas.
-- **Mesmas env vars** do Cloudflare Pages (OPENAI/GEMINI keys etc.) — preview
-  herda as variáveis "Preview" configuradas no painel; se ainda não estiverem
-  diferenciadas, vai usar as mesmas de produção.
+- **Env vars PRÓPRIAS de Preview, mais restritas que produção** — preview
+  herda as variáveis "Preview" configuradas no painel do Cloudflare Pages,
+  que hoje são só 5 públicas (`NEXT_PUBLIC_*` + `VAPID_SUBJECT`, checado
+  ao vivo em 2026-09-16). **Não são as mesmas de produção**: nenhum secret
+  (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA/pagamento/WhatsApp/FCM) está
+  configurado em Preview. Na prática isso significa que rotas que dependem
+  desses secrets (admin, IA, pagamento, WhatsApp) **não funcionam** em
+  preview — é a troca aceita pra manter o ambiente de Preview seguro pra
+  builds disparados por qualquer push, sem PR aprovado.
 - **Sem cache do navegador** entre preview e prod (hostnames diferentes).
 
 ## Como saber que estou no staging
