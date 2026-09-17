@@ -1,12 +1,30 @@
 // lib/api/_services/moderate-video.ts — port de
 // `functions/api/_services/moderate-video.js`. Frame-by-frame video moderation
 // via Gemini (resumable file upload).
-
+//
+// AUDITORIA DE SEGURANÇA DE IA (2026-09-17): até aqui, severity="hard" fazia
+// um DELETE PERMANENTE do post + arquivo do Storage — decisão 100% do
+// veredito do LLM, sem hash-blocklist prévia (ao contrário de `moderate.ts`,
+// que já tinha isso pra imagem) e sem NENHUMA revisão humana. Isso violava a
+// própria política do projeto (ver `docs/CSAM_POLICY.md`: "não considerar
+// LLM/vision comum um detector confiável de CSAM") e era estritamente PIOR
+// que o fluxo manual do admin (`blockMediaPermanent`/`escalateToNcmec` em
+// `lib/services/mediaReviewAdmin.ts`), que sempre faz SOFT-delete
+// (`deleted_at`) pra preservar evidência antes de um humano decidir — um
+// DELETE de verdade destruiria a prova que o próprio processo de NCMEC exige.
+// Agora "hard" (por hash OU por Gemini) SOFT-deleta o post (mesmo efeito
+// prático: some do feed na hora) e enfileira em `media_review_queue` pro
+// mesmo pipeline de revisão humana que a imagem já usa — nunca mais um
+// DELETE automático de conteúdo do usuário decidido só pelo modelo.
 import { ServiceError, getServiceKey, getSupabaseUrl, resolveSupabaseEnv } from '../security';
 import { getRuntimeEnv } from '../env';
+import { hashMedia, checkHashBlocklist, enqueueMediaReview } from '../mediaHash';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024;
+// Hash de vídeo grande é custo aceitável (já baixamos o buffer inteiro pra
+// mandar pro Gemini de qualquer forma) — sem teto extra aqui, MAX_BYTES já
+// limita o buffer.
 
 const RUBRIC =
   'Você é um moderador de uma plataforma BRASILEIRA de pintores/grafiteiros. ' +
@@ -139,16 +157,67 @@ export async function moderateVideoPost(args: {
     return { status: 'pending', reason: 'falha ao baixar vídeo' };
   }
 
+  // Hash + blocklist ANTES de gastar cota do Gemini — mesma defesa em
+  // profundidade que `moderate.ts` já tinha pra imagem (item que faltava
+  // aqui: vídeo nunca passava por hash nenhum). Reaproveita o buffer já
+  // baixado, sem fetch extra.
+  let mediaHash = '';
+  try {
+    mediaHash = await hashMedia(videoBuf);
+  } catch {
+    /* falha ao hashear não bloqueia — segue só com Gemini */
+  }
+  if (mediaHash) {
+    const hit = await checkHashBlocklist(mediaHash);
+    if (hit.blocked) {
+      await softRejectAndEnqueue({
+        supaUrl,
+        sHeaders,
+        postId,
+        userId,
+        mediaUrl,
+        mediaHash,
+        reason: `blocklist:${hit.category || 'reported'}`,
+        severity: hit.category === 'csam' ? 'critical' : 'high',
+      });
+      return { status: 'rejected', reasons: ['media_blocked'] };
+    }
+  }
+
   const geminiKey = getRuntimeEnv('GEMINI_API_KEY') || '';
   try {
     const fileUri = await uploadToGemini(geminiKey, videoBuf, videoMime);
     const verdict = await analyzeVideo(geminiKey, fileUri, videoMime, caption);
 
     if (verdict.severity === 'hard') {
-      await rejectPost(supaUrl, sHeaders, postId, mediaUrl);
+      // NUNCA um DELETE automático decidido só pelo modelo: soft-delete
+      // (some do feed na hora) + fila de revisão humana — mesmo pipeline
+      // que `blockMediaPermanent`/`escalateToNcmec` já usam pra imagem.
+      await softRejectAndEnqueue({
+        supaUrl,
+        sHeaders,
+        postId,
+        userId,
+        mediaUrl,
+        mediaHash,
+        reason: verdict.reasons.length > 0 ? verdict.reasons.join(',') : 'gemini_flagged_hard',
+        severity: verdict.reasons.some((r) => /sexual_menores|csam/i.test(r))
+          ? 'critical'
+          : 'high',
+      });
       return { status: 'rejected', reasons: verdict.reasons };
     }
     if (verdict.severity === 'soft' || verdict.flagged) {
+      if (mediaHash) {
+        await enqueueMediaReview({
+          postId,
+          userId,
+          mediaUrl,
+          mediaHash,
+          reason: verdict.reasons.length > 0 ? verdict.reasons.join(',') : 'gemini_flagged_soft',
+          severity: 'med',
+        });
+      }
       return { status: 'pending', reasons: verdict.reasons };
     }
     await fetch(
@@ -283,37 +352,36 @@ async function analyzeVideo(
   };
 }
 
-async function rejectPost(
-  supaUrl: string,
-  sHeaders: Record<string, string>,
-  postId: string,
-  mediaUrl: string
-): Promise<void> {
-  await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`, {
-    method: 'DELETE',
-    headers: { ...sHeaders, Prefer: 'return=minimal' },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (mediaUrl && mediaUrl.includes('/posts/')) {
-    const rawPath = mediaUrl.split('/posts/').pop() || '';
-    // Anti-traversal: bloqueia .. e URL-encoded ..
-    const path =
-      /^[A-Za-z0-9_\-./]+$/.test(rawPath) &&
-      !rawPath.includes('..') &&
-      !rawPath.includes('%2E') &&
-      !rawPath.includes('%2e')
-        ? rawPath
-        : null;
-    if (path) {
-      try {
-        await fetch(`${supaUrl}/storage/v1/object/posts/${path}`, {
-          method: 'DELETE',
-          headers: sHeaders,
-          signal: AbortSignal.timeout(10000),
-        });
-      } catch {
-        /* best-effort */
-      }
-    }
+/**
+ * Some do feed NA HORA (soft-delete, `deleted_at`) e enfileira pra revisão
+ * humana — nunca um DELETE definitivo decidido sozinho pelo modelo. O
+ * arquivo do Storage é PRESERVADO de propósito: é a mesma regra do fluxo
+ * manual do admin (`blockMediaPermanent`/`escalateToNcmec`), porque destruir
+ * o arquivo destruiria também a evidência que um eventual report ao NCMEC
+ * exige (ver `docs/CSAM_POLICY.md`). Best-effort: falha aqui não pode
+ * reverter a decisão de bloquear o conteúdo (o post já não aparece mais
+ * pra ninguém assim que o soft-delete valer).
+ */
+async function softRejectAndEnqueue(args: {
+  supaUrl: string;
+  sHeaders: Record<string, string>;
+  postId: string;
+  userId: string;
+  mediaUrl: string;
+  mediaHash: string;
+  reason: string;
+  severity: 'high' | 'critical';
+}): Promise<void> {
+  const { supaUrl, sHeaders, postId, userId, mediaUrl, mediaHash, reason, severity } = args;
+  try {
+    await fetch(`${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`, {
+      method: 'PATCH',
+      headers: { ...sHeaders, Prefer: 'return=minimal' },
+      body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (e) {
+    console.warn('moderate-video soft-delete err:', e instanceof Error ? e.message : e);
   }
+  await enqueueMediaReview({ postId, userId, mediaUrl, mediaHash, reason, severity });
 }

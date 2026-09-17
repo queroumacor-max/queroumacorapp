@@ -86,12 +86,34 @@ export function clientAsksForPrice(text: string): 'preco' | 'orcamento' | null {
  * A RESPOSTA DA IA vazou preço? Última linha de defesa antes de enviar.
  * Pega "R$", números com vírgula decimal em contexto de dinheiro, e as
  * palavras que a IA não deveria usar afirmando valor.
+ *
+ * REGRA: esta trava é SINTÁTICA (regex), não semântica — ela não entende o
+ * texto, só reconhece padrões. Achado da auditoria de segurança de IA
+ * (2026-09-17): "R $ 120" (espaço entre R e $) e variações de espaçamento
+ * escapavam do `/r\$/` original porque o regex exigia os dois caracteres
+ * colados. Normalizar espaço solto entre pontuação ANTES de testar fecha
+ * essa classe específica de bypass sem mudar o que a regra tenta pegar.
+ * Isto NÃO torna a trava semanticamente à prova de tudo (por extenso,
+ * unicode look-alike, ofuscação deliberada ainda podem escapar) — por isso
+ * ela é só a ÚLTIMA camada, em cima da trava 1 (`clientAsksForPrice`, que
+ * nem deixa a pergunta chegar no modelo) e nunca a única defesa.
  */
 export function replyLeaksPrice(text: string): boolean {
-  const t = (text || '').toLowerCase();
+  // Colapsa espaço/pontuação solta entre símbolo de moeda e dígito:
+  // "R $ 120", "R$ 120", "r$120" viram todos comparáveis ao mesmo padrão.
+  const t = (text || '')
+    .toLowerCase()
+    .replace(/r\s*\$\s*/g, 'r$')
+    .replace(/\$\s+(?=\d)/g, '$');
   if (/r\$|\breais\b/.test(t)) return true;
-  // "custa 120", "sai por 89,90", "fica 250"
-  if (/\b(custa|sai por|fica em|fica por|por apenas|a partir de)\s*\d/.test(t)) return true;
+  // "custa 120", "sai por 89,90", "fica 250", "cobramos 90", "gira em torno de 300"
+  if (
+    /\b(custa|sai por|sai a|fica em|fica por|por apenas|a partir de|cobra(?:mos)?|em torno de|por volta de|gira em torno de)\s*\d/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
   // Promessa de orçamento fechado pela IA.
   if (/(segue o or[çc]amento|or[çc]amento fica|valor total|te passo o valor de)\b/.test(t)) {
     return true;

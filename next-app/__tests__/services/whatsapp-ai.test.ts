@@ -62,6 +62,23 @@ describe('replyLeaksPrice — trava final na SAÍDA da IA', () => {
     expect(replyLeaksPrice('Abrimos das 8h às 18h')).toBe(false);
     expect(replyLeaksPrice('Trabalhamos com acrílico e látex, sim!')).toBe(false);
   });
+
+  // Achado da auditoria de segurança de IA (2026-09-17): a regex original
+  // exigia "R" e "$" colados — um jailbreak que convence o modelo a variar
+  // só o espaçamento ("R $ 120") escapava da trava de saída inteira,
+  // mesmo com a trava de entrada (`clientAsksForPrice`) não tendo disparado
+  // (pergunta indireta). Prova que o bypass fechou.
+  it('não escapa por espaçamento variado em torno do R$ (bypass corrigido)', () => {
+    expect(replyLeaksPrice('Fica R $ 120 o galão')).toBe(true);
+    expect(replyLeaksPrice('São R$120')).toBe(true);
+    expect(replyLeaksPrice('o valor é R  $  95,50')).toBe(true);
+  });
+
+  it('pega frases de preço indireto que a v1 da regex não cobria', () => {
+    expect(replyLeaksPrice('cobramos 300 pela pintura completa')).toBe(true);
+    expect(replyLeaksPrice('gira em torno de 450 dependendo da área')).toBe(true);
+    expect(replyLeaksPrice('sai a 90 o galão')).toBe(true);
+  });
 });
 
 describe('isBusinessHour — horário de Brasília', () => {
