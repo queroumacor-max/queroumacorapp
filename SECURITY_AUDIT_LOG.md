@@ -33,7 +33,6 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 
 | Item | Status | Onde tratar |
 |---|---|---|
-| DNSSEC ligado no Cloudflare, falta o DS record no registrador | 🟡 MANUAL (passo final) | Registro.br (registrador de `queroumacor.com.br`) — publicar o DS record que o Cloudflare gerou |
 | DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
 | Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
@@ -51,6 +50,21 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-17 — DNSSEC de `queroumacor.com.br` FECHADO — DS record publicado na Registro.br
+Última pendência do DNSSEC (aberta desde 2026-09-16, quando o Cloudflare foi
+ligado mas a cadeia de confiança não fechava sem o DS no registrador).
+**Confirmado pelo usuário**: DS record pego em Cloudflare → DNS → Settings →
+DNSSEC (Key Tag 2371, Algoritmo 13, Digest Type 2/SHA-256, Digest
+`622EAF7E13F810DC8DFE5A78127EC1EDEB19CCAE3398EE0CB4AB758D003E6CE7`) e
+publicado no formulário "Alterar servidores DNS → + DNSSEC" da Registro.br,
+que confirmou "DNS atualizado com sucesso!". Propagação estimada pelo
+Cloudflare: 10min-1h. **Não pedir pra verificar de novo antes disso** — se
+precisar reconfirmar depois da janela de propagação, checar em Cloudflare →
+DNS → Settings → DNSSEC (deve mostrar "Status: Active", não só "Enabled").
+Isso fecha o item 10 (MEDIUM) da auditoria externa de 2026-09-17
+(`docs/EXTERNAL_SECURITY_BASELINE.md`) — dos 6 itens levantados ali, é o
+primeiro resolvido.
 
 ### 2026-09-17 — Correções de código da auditoria externa (CODEOWNERS, environment protection, offboarding)
 Segue a auditoria externa da entrada abaixo. Do que sobrou como pendência,

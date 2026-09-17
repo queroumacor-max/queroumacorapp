@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **DNSSEC de `queroumacor.com.br` FECHADO (2026-09-17) — DS record
+  publicado na Registro.br.** Última pendência do item aberto em
+  2026-09-16 (3ª rodada Cloudflare, ver entrada mais abaixo): o DNSSEC
+  estava "ligado" só do lado Cloudflare, sem proteger nada até o
+  registrador publicar o DS. **Confirmado pelo usuário**: pegou o DS
+  record em Cloudflare → DNS → Settings → DNSSEC (Key Tag `2371`,
+  Algoritmo `13`, Digest Type `2` / SHA-256, Digest
+  `622EAF7E13F810DC8DFE5A78127EC1EDEB19CCAE3398EE0CB4AB758D003E6CE7`),
+  publicou no formulário "Alterar servidores DNS → + DNSSEC" da
+  Registro.br, que confirmou "DNS atualizado com sucesso!". Propagação
+  estimada pelo Cloudflare: 10min-1h. **Não pedir pra reconfirmar antes
+  dessa janela** — depois dela, o jeito de checar é Cloudflare → DNS →
+  Settings → DNSSEC mostrando "Status: Active" (não só "Enabled").
+  Fecha o item 10 (MEDIUM) da auditoria externa de identidade abaixo.
+
 - **AUDITORIA EXTERNA DE IDENTIDADE E CONTAS ADMINISTRATIVAS (2026-09-17,
   branch `claude/inspiring-thompson-yh6hc9`) — diferente das auditorias
   de RLS/código acima: aqui o escopo é IAM/MFA/recovery/break-glass de
@@ -274,8 +289,9 @@
       Overview → Configure, confirmado pela mensagem "Encryption mode
       updated successfully." Agora a conexão Cloudflare↔origem exige
       certificado válido, não só cifra.
-    - **🟡 DNSSEC — LIGADO NO CLOUDFLARE (2026-09-16, 3ª sessão),
-      FALTA SÓ O DS RECORD NO REGISTRADOR.** Depois de duas rodadas que
+    - **✅ DNSSEC — FECHADO EM 2026-09-17 (DS record publicado na
+      Registro.br; ver entrada no topo deste arquivo).** Ligado no
+      Cloudflare nesta sessão (2026-09-16, 3ª sessão); depois de duas rodadas que
       só CONFIRMARAM o estado desligado (ver regra abaixo), esta terceira
       sessão executou a ação de verdade: "Enable DNSSEC" ativado em DNS →
       Settings. O DNSSEC só fica TOTALMENTE ativo depois que o registrador
