@@ -34,13 +34,24 @@ export function maskPiiDeep<T>(value: T, depth = 0): T {
   return value;
 }
 
-/** beforeSend Sentry compartilhado. Mascara user.email/data + tags + request body. */
+/** beforeSend Sentry compartilhado. Mascara user.email/data + tags + request body.
+ *
+ * Privacidade 2026-09-17: a máscara cobria `user.email`/`request.data`/
+ * `extra`/`contexts` mas deixava passar CRU o `message` do evento, o
+ * `exception.value` (a mensagem de erro em si — pode ecoar um valor de
+ * linha/coluna vindo de um erro do Postgres, ex. "duplicate key value
+ * violates ... (phone)=(11999998888)"), `request.url` (querystring pode
+ * carregar telefone/email em algum endpoint legado) e `breadcrumbs`
+ * (mensagens e dados de passos anteriores, mesmo formato de `extra`). */
 export function sentryBeforeSend<
   E extends {
+    message?: string;
     user?: { email?: string | null };
-    request?: { data?: unknown };
+    request?: { data?: unknown; url?: string };
     extra?: Record<string, unknown>;
     contexts?: Record<string, unknown>;
+    exception?: { values?: Array<{ value?: string | null }> };
+    breadcrumbs?: Array<{ message?: string | null; data?: unknown }>;
   },
 >(event: E): E {
   try {
@@ -50,8 +61,25 @@ export function sentryBeforeSend<
     if (event.request?.data !== undefined) {
       event.request.data = maskPiiDeep(event.request.data);
     }
+    if (event.request?.url) {
+      event.request.url = maskPii(event.request.url);
+    }
     if (event.extra) event.extra = maskPiiDeep(event.extra);
     if (event.contexts) event.contexts = maskPiiDeep(event.contexts);
+    if (typeof event.message === 'string') {
+      event.message = maskPii(event.message);
+    }
+    if (Array.isArray(event.exception?.values)) {
+      for (const v of event.exception.values) {
+        if (typeof v.value === 'string') v.value = maskPii(v.value);
+      }
+    }
+    if (Array.isArray(event.breadcrumbs)) {
+      for (const b of event.breadcrumbs) {
+        if (typeof b.message === 'string') b.message = maskPii(b.message);
+        if (b.data !== undefined) b.data = maskPiiDeep(b.data);
+      }
+    }
   } catch {
     // Silent — não bloqueia evento se filtro falhar.
   }

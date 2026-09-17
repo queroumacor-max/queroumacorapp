@@ -150,8 +150,13 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
     () => ({ postType, caption, forSale, priceText, artType }),
     [postType, caption, forSale, priceText, artType]
   );
+  // Chave escopada por usuário (privacy audit 2026-09-17): antes era a
+  // string fixa 'post_composer' — legenda/preço digitados por A e ainda
+  // não publicados sobreviviam no localStorage e restauravam pra B no
+  // mesmo aparelho.
+  const autosaveKey = `post_composer_${user?.id ?? 'anon'}`;
   const autosave = useAutosave<typeof autosaveValues>({
-    key: 'post_composer',
+    key: autosaveKey,
     values: autosaveValues,
     onRestore: (restored) => {
       // No portfólio não existe 24h: rascunho de story restaura como publicação.
@@ -429,7 +434,7 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
           // quem digita a legenda e toca em seguida perderia o texto junto
           // com a foto. Aqui a gravação é imediata.
           onAntesDeAbrir={() => {
-            writeDraft('post_composer', autosaveValues);
+            writeDraft(autosaveKey, autosaveValues);
           }}
           accept={
             isVideoMode

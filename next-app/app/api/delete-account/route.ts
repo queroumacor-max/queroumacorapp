@@ -64,6 +64,44 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
 
+  // 0. Storage: apaga os ARQUIVOS do usuário nos buckets públicos onde o
+  // path segue a convenção `<uid>/...` (avatars, art-refs; `posts` também
+  // segue essa convenção pro que o PRÓPRIO usuário fez upload — post de
+  // OUTRO usuário nunca cai sob o prefixo do uid deletado, então apagar o
+  // prefixo inteiro é seguro).
+  //
+  // Privacidade 2026-09-17: nenhum dos dois caminhos de exclusão de conta
+  // (este endpoint e a RPC `admin_delete_user`, que é SQL puro e não pode
+  // tocar Storage) deletava arquivo nenhum — o profile ficava anonimizado
+  // no banco, mas a foto de perfil/arte publicada continuava baixável pra
+  // sempre pela URL pública antiga. Best-effort: falha aqui não pode
+  // impedir o resto da exclusão.
+  async function deleteUserStorageFolder(bucket: string): Promise<void> {
+    try {
+      const listRes = await fetch(`${supaUrl}/storage/v1/object/list/${bucket}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ prefix: `${userId}/`, limit: 1000 }),
+      });
+      if (!listRes.ok) return;
+      const items = (await listRes.json().catch(() => [])) as Array<{ name?: string }>;
+      const paths = (Array.isArray(items) ? items : [])
+        .map((it) => (typeof it.name === 'string' ? `${userId}/${it.name}` : null))
+        .filter((p): p is string => !!p);
+      if (paths.length === 0) return;
+      await fetch(`${supaUrl}/storage/v1/object/remove/${bucket}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ prefixes: paths }),
+      });
+    } catch {
+      /* silent — best-effort, não bloqueia a exclusão de conta */
+    }
+  }
+  await Promise.all(
+    ['avatars', 'art-refs', 'posts'].map((bucket) => deleteUserStorageFolder(bucket))
+  );
+
   // 1. Soft-delete em cascade nas tabelas do user.
   // PATCH em massa em cada tabela com user_id ou owner. Best-effort:
   // falha em uma tabela não bloqueia as outras (loop captura erros).
@@ -182,26 +220,43 @@ export async function POST(request: NextRequest) {
   // usuário (dados removidos) já aconteceu, e bloquear a resposta por
   // isso pioraria a UX sem mudar o resultado (operador precisa limpar
   // manualmente de qualquer forma).
-  try {
-    const authDeleteRes = await fetch(`${supaUrl}/auth/v1/admin/users/${userId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-      },
-    });
-    if (!authDeleteRes.ok) {
-      const t = await authDeleteRes.text().catch(() => '');
-      console.error(
-        `delete-account: GoTrue DELETE falhou (${authDeleteRes.status}) para ${userId} — ` +
-          `auth.users pode continuar ATIVO (sessão/token seguem válidos). Corpo: ${t.slice(0, 300)}`
-      );
+  // Privacy audit 2026-09-17: UMA retentativa (falha de GoTrue é muitas
+  // vezes transitória) e, se persistir, grava em `errors` — `console.error`
+  // sozinho só existe nos logs do Cloudflare Worker (sem retenção/dashboard
+  // garantidos pra este projeto); `/admin/errors` já é o painel que a loja
+  // olha pra incidente. Continua best-effort: nunca muda a resposta 200.
+  async function tryDeleteAuthUser(): Promise<boolean> {
+    try {
+      const res = await fetch(`${supaUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey as string },
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
-  } catch (e) {
+  }
+  let authDeleted = await tryDeleteAuthUser();
+  if (!authDeleted) authDeleted = await tryDeleteAuthUser();
+  if (!authDeleted) {
     console.error(
-      `delete-account: exceção ao chamar GoTrue DELETE para ${userId} — auth.users pode continuar ativo`,
-      e instanceof Error ? e.message : e
+      `delete-account: GoTrue DELETE falhou (2 tentativas) para ${userId} — ` +
+        `auth.users pode continuar ATIVO (sessão/token seguem válidos).`
     );
+    try {
+      await fetch(`${supaUrl}/rest/v1/errors`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'account-deletion-incomplete',
+          msg: `auth.users de ${userId} não foi removido após soft-delete + anonimização — limpar manualmente`,
+          user_id: userId,
+          client_ts: Date.now(),
+        }),
+      });
+    } catch {
+      /* silent — best-effort */
+    }
   }
 
   return NextResponse.json({ ok: true, deleted_at: now });

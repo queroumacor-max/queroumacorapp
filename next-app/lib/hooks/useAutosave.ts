@@ -116,6 +116,30 @@ export function clearDraft(key: string): void {
 }
 
 /**
+ * Apaga TODOS os drafts de autosave do aparelho, de qualquer `key`.
+ *
+ * Defesa em profundidade (privacy audit 2026-09-17): as chaves passaram a
+ * ser escopadas por usuário (`profile_edit_<uid>`, `post_composer_<uid>`),
+ * o que já evita A ver o rascunho de B — mas só se TODO call site atual e
+ * futuro lembrar de incluir o uid na key. Chamado no logout
+ * (`AuthProvider.signOut`) pra fechar isso sem depender de cada tela
+ * acertar sozinha.
+ */
+export function clearAllAutosaveDrafts(): void {
+  if (!hasStorage()) return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(STORAGE_PREFIX)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore — quota/disabled storage não deve quebrar o logout
+  }
+}
+
+/**
  * Persiste um snapshot agora (ignorando throttle). Retorna `true` se
  * escreveu, `false` se quota excedida ou storage indisponível.
  */

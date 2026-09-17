@@ -113,8 +113,11 @@ export async function fetchStoriesGroupedByUser(
   // pro perfil. Sem isso, a fila de stories fica vazia/só com "Seu story" e
   // dá impressão de que ninguém é seguido.
   const allKnownIds = Array.from(new Set([...rows.map((r) => r.user_id), ...feedIds]));
+  // profiles_public (não `profiles` direto): a policy de SELECT de `profiles`
+  // é restrita a dono/admin (privacy audit 2026-09-17) — ler dados de OUTROS
+  // usuários (todo mundo que a pessoa segue) precisa passar pela view pública.
   const { data: profilesData, error: profilesErr } = await sb
-    .from('profiles')
+    .from('profiles_public')
     .select(PROFILE_COLS)
     .in('id', allKnownIds);
   if (profilesErr) {

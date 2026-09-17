@@ -43,12 +43,16 @@ export async function orderAgenda(args: {
   }
 
   const validIds = new Set(cleanJobs.map((j) => j.id));
+  // Privacidade 2026-09-17: o nome do CLIENTE do pintor (terceiro, nunca
+  // deu consentimento pra IA nenhuma) não entra no prompt — o modelo só
+  // reordena por endereço/horário, nunca usou o nome pra nada. Minimização
+  // de dado enviado a terceiro (OpenAI/Gemini via callAIText).
   const userPrompt =
     `Data: ${cleanDate || '(sem data)'}\nObras do dia:\n` +
     cleanJobs
       .map(
         (j) =>
-          `- id="${j.id}" cliente="${j.client_name}" endereco="${j.address}"${j.scheduled_time ? ` hora="${j.scheduled_time}"` : ''}`
+          `- id="${j.id}" endereco="${j.address}"${j.scheduled_time ? ` hora="${j.scheduled_time}"` : ''}`
       )
       .join('\n');
 

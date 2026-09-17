@@ -159,41 +159,47 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   }, [authLoading, user, quotes, id]);
 
   // Fetch dos dados do pintor (dono da quote) pelo painter_id. Roda quando
-  // a quote chega no estado e ainda não temos o profile carregado. Usa
-  // profiles_public (campos seguros — name/tag/avatar/city/state) + chama
-  // profiles direto pra phone/email/business_logo_url (RLS permite read
-  // próprio; admin lê tudo).
+  // a quote chega no estado e ainda não temos o profile carregado.
+  //
+  // Privacidade 2026-09-17: `profiles` (tabela base) passou a ter SELECT
+  // restrito a dono/admin — ler telefone/email/business info de OUTRO
+  // usuário (o pintor, do ponto de vista do cliente) direto da tabela
+  // não funciona mais pra ninguém além do próprio pintor/admin. A RPC
+  // `quote_painter_contact` autoriza essa leitura especificamente pra
+  // quem é cliente OU pintor DESTE orçamento (mesmo critério da RLS de
+  // `quotes`), sem abrir a tabela inteira. Sem telefone/email (RPC nega
+  // ou orçamento órfão) cai pra `profiles_public` (name/avatar/cidade),
+  // suficiente pro cabeçalho não ficar vazio.
   useEffect(() => {
-    if (!quote?.painter_id) return;
+    if (!quote?.painter_id || !quote?.id) return;
     let cancel = false;
     const sb = getSupabase();
     (async () => {
       try {
-        const { data } = await sb
-          .from('profiles')
-          .select('id, name, tag, phone, email, city, state, business_logo_url, business_name, avatar_url')
-          .eq('id', quote.painter_id!)
-          .maybeSingle();
+        // `as never`: RPC nova, ainda fora dos tipos gerados do Supabase
+        // (mesmo padrão de upsert_push_device_token/is_feature_enabled).
+        const { data } = await sb.rpc('quote_painter_contact' as never, {
+          p_quote_id: quote.id,
+        } as never);
         if (cancel) return;
         if (data) {
           setPainterProfile(data as typeof painterProfile);
-        } else {
-          // Fallback: profiles_public se select privado bloquear.
-          const { data: pub } = await sb
-            .from('profiles_public')
-            .select('id, name, tag, avatar_url, city, state')
-            .eq('id', quote.painter_id!)
-            .maybeSingle();
-          if (cancel) return;
-          if (pub) setPainterProfile(pub as typeof painterProfile);
+          return;
         }
+        const { data: pub } = await sb
+          .from('profiles_public')
+          .select('id, name, tag, avatar_url, city, state')
+          .eq('id', quote.painter_id!)
+          .maybeSingle();
+        if (cancel) return;
+        if (pub) setPainterProfile(pub as typeof painterProfile);
       } catch {
         // sem profile no PDF, fallback cabeçalho genérico
       }
     })();
     return () => { cancel = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote?.painter_id]);
+  }, [quote?.painter_id, quote?.id]);
 
   const mutationError = sendError || approveError || rejectError || advanceError;
   const isBusy = isSending || isApproving || isRejecting || isAdvancing;

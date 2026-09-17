@@ -42,6 +42,11 @@ export const FAILURE_TYPE_LABELS = {
   'sw-status': '⚙️ Service worker',
   'oauth-fail': '🔑 Login social',
   'profile-incomplete': '🪪 Perfil incompleto',
+  // Gravado direto por /api/delete-account (rota de servidor, sem acesso
+  // a este helper client-side) — listado aqui só pra manter o invariante
+  // "todo type em `errors` tem rótulo" e aparecer certo no filtro do
+  // /admin/errors. Ver auditoria de privacidade 2026-09-17.
+  'account-deletion-incomplete': '🗑️ Exclusão de conta incompleta',
 } as const satisfies Record<string, string>;
 
 export type FailureType = keyof typeof FAILURE_TYPE_LABELS;
