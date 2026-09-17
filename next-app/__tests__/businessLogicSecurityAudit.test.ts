@@ -39,6 +39,21 @@ describe('A. PRO permanente grátis — pro_expires_at/pro_grace_until protegido
     expect(SQL).toMatch(/DROP TRIGGER IF EXISTS trg_protect_profile_columns ON public\.profiles/);
     expect(SQL).toMatch(/CREATE TRIGGER trg_protect_profile_columns\s*\n\s*BEFORE INSERT OR UPDATE ON public\.profiles/);
   });
+
+  // Achado de revisão (Codex, PR #319): checar `auth.role()` quebra
+  // `redeem_pro_with_points` — essa RPC é SECURITY DEFINER chamada por um
+  // usuário comum (GRANT ... TO authenticated), e `auth.role()` dentro
+  // dela CONTINUA 'authenticated' (é o role do JWT original, não muda com
+  // SECURITY DEFINER). Só `current_user` muda pro dono da função. Sem
+  // essa correção, a trigger reverteria a ativação de PRO da própria RPC
+  // que deveria concedê-la — debitando pontos sem dar nada em troca.
+  it('confia em current_user (não auth.role()) pra reconhecer escrita vinda de dentro de uma RPC SECURITY DEFINER', () => {
+    const fnStart = SQL.indexOf('CREATE OR REPLACE FUNCTION public.protect_profile_columns()');
+    const fnEnd = SQL.indexOf('DROP TRIGGER IF EXISTS protect_profile_columns', fnStart);
+    const fnBody = SQL.slice(fnStart, fnEnd);
+    expect(fnBody).toMatch(/current_user NOT IN \('anon', 'authenticated'\)/);
+    expect(fnBody).not.toMatch(/auth\.role\(\) IS DISTINCT FROM 'service_role'/);
+  });
 });
 
 describe('B. auto-promoção a admin via user_type', () => {
@@ -125,7 +140,23 @@ describe('G. orders — pagamento/status protegidos, total sempre recalculado', 
     for (const col of ['status', 'paid_amount', 'paid_at', 'tx_id', 'payment_method', 'gateway', 'user_id']) {
       expect(fnBody).toContain(`NEW.${col}`);
     }
-    expect(fnBody).toMatch(/NOT public\.is_portal_admin\(\) AND auth\.role\(\) IS DISTINCT FROM 'service_role'/);
+    expect(fnBody).toMatch(/v_trusted := public\.is_portal_admin\(\) OR current_user NOT IN \('anon', 'authenticated'\)/);
+  });
+
+  // Achado de revisão (Codex, PR #319): a 1ª versão só cobria UPDATE —
+  // `orders_insert_own` deixava criar a order JÁ como status='paid' com
+  // metadado de pagamento arbitrário, pulando a proteção inteira.
+  it('trigger cobre INSERT também (não só UPDATE) e força status=pending + payment fields NULL nesse caminho', () => {
+    expect(SQL).toMatch(/CREATE TRIGGER trg_protect_order_columns\s*\n\s*BEFORE INSERT OR UPDATE ON public\.orders/);
+    const fnStart = SQL.indexOf('CREATE OR REPLACE FUNCTION public.protect_order_columns()');
+    const fnEnd = SQL.indexOf('DROP TRIGGER IF EXISTS trg_protect_order_columns', fnStart);
+    const fnBody = SQL.slice(fnStart, fnEnd);
+    const insertBranchStart = fnBody.indexOf("IF TG_OP = 'INSERT' THEN");
+    const insertBranchEnd = fnBody.indexOf("UPDATE: mesma proteção");
+    const insertBranch = fnBody.slice(insertBranchStart, insertBranchEnd);
+    expect(insertBranch).toMatch(/NEW\.status\s+:= 'pending'/);
+    expect(insertBranch).toMatch(/NEW\.paid_amount\s+:= NULL/);
+    expect(insertBranch).not.toMatch(/OLD\./); // OLD não existe em INSERT
   });
 
   it('items continua livre (fluxo legítimo "editar pedido") — não aparece na lista de reversão', () => {
@@ -194,6 +225,23 @@ describe('J. messages — bloqueio impede chat nos dois sentidos + teto agregado
     expect(fnBody).toMatch(/blocker_id = NEW\.receiver_id AND blocked_id = NEW\.sender_id/);
   });
 
+  // Achado de revisão (Codex, PR #319): `type` é coluna livre do client
+  // (sem CHECK constraint) — se o early-return de type='system' vier
+  // ANTES do check de bloqueio, um usuário bloqueado contorna os dois só
+  // mandando type:'system'. O check de bloqueio tem que rodar SEMPRE,
+  // e só o RATE LIMIT (não o bloqueio) pode ser pulado pra mensagem de
+  // sistema.
+  it('o check de bloqueio roda ANTES do early-return de type=system (não pode ser contornado com type:"system")', () => {
+    const fnStart = SQL.indexOf('CREATE OR REPLACE FUNCTION public.rate_limit_messages()');
+    const fnEnd = SQL.indexOf('DROP TRIGGER IF EXISTS trg_rate_limit_messages', fnStart);
+    const fnBody = SQL.slice(fnStart, fnEnd);
+    const blockCheckIdx = fnBody.indexOf('FROM public.blocks');
+    const systemBypassIdx = fnBody.indexOf("COALESCE(NEW.type, 'text') = 'system'");
+    expect(blockCheckIdx).toBeGreaterThan(-1);
+    expect(systemBypassIdx).toBeGreaterThan(-1);
+    expect(blockCheckIdx).toBeLessThan(systemBypassIdx);
+  });
+
   it('mantém o teto por PAR (30/min) e soma um teto AGREGADO por remetente (60/min)', () => {
     const fnStart = SQL.indexOf('CREATE OR REPLACE FUNCTION public.rate_limit_messages()');
     const fnEnd = SQL.indexOf('DROP TRIGGER IF EXISTS trg_rate_limit_messages', fnStart);
@@ -203,9 +251,17 @@ describe('J. messages — bloqueio impede chat nos dois sentidos + teto agregado
   });
 });
 
-describe('K. reports — dedup por alvo (sem post) + rate limit', () => {
-  it('índice único cobre denúncia de perfil/review (post_id NULL)', () => {
-    expect(SQL).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique_per_target\s*\n\s*ON public\.reports\(reporter_id, target_user_id\)\s*\n\s*WHERE post_id IS NULL AND target_user_id IS NOT NULL/);
+describe('K. reports — rate limit (sem dedup por target — review e perfil colidiam)', () => {
+  // Achado de revisão (Codex, PR #319): `reports` não tem coluna pra
+  // identificar QUAL review foi denunciada (só o texto livre `reason`) —
+  // denúncia de perfil e de review usam o MESMO target_user_id, então um
+  // índice único (reporter_id, target_user_id) bloqueava denunciar uma 2ª
+  // review diferente da mesma pessoa, ou o perfil dela depois de já ter
+  // denunciado uma review. Removido; o índice antigo (se já criado por
+  // uma execução anterior desta migration) é derrubado explicitamente.
+  it('derruba o índice único problemático em vez de recriá-lo', () => {
+    expect(SQL).toMatch(/DROP INDEX IF EXISTS idx_reports_unique_per_target/);
+    expect(SQL).not.toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique_per_target/);
   });
 
   it('trigger de rate limit em reports existe e usa check_rate_limit', () => {

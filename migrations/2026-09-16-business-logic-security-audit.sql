@@ -41,11 +41,30 @@
 
 CREATE OR REPLACE FUNCTION public.protect_profile_columns()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_trusted boolean;
 BEGIN
+  -- Revisão de código (Codex, PR #319): a primeira versão checava
+  -- `auth.role()`, que é o role do JWT ORIGINAL e NÃO muda dentro de uma
+  -- função SECURITY DEFINER — só `current_user` muda (vira o DONO da
+  -- função). `redeem_pro_with_points` é SECURITY DEFINER, GRANT pra
+  -- `authenticated`, e termina com `UPDATE profiles SET is_pro=true,
+  -- pro_expires_at=...`; com o check em `auth.role()`, essa UPDATE
+  -- disparava esta trigger com `auth.role()='authenticated'` (o role do
+  -- usuário comum que chamou a RPC) e a trigger REVERTIA a ativação de
+  -- PRO — debitando os pontos sem conceder nada. `current_user`, por
+  -- outro lado, é 'authenticated' num PATCH DIRETO do client (o caso que
+  -- queremos bloquear) mas vira o dono da função (não
+  -- 'anon'/'authenticated') assim que a escrita passa por dentro de uma
+  -- SECURITY DEFINER nossa — exatamente o mesmo padrão já usado na
+  -- primeira versão histórica desta função (Wave B2:
+  -- `current_user IN ('postgres','supabase_admin','service_role')`).
+  v_trusted := public.is_portal_admin() OR current_user NOT IN ('anon', 'authenticated');
+
   -- INSERT: usuário comum não pode nascer com is_pro/portal/admin/verified
   -- ou datas de PRO já setadas.
   IF TG_OP = 'INSERT' THEN
-    IF NOT public.is_portal_admin() AND auth.role() IS DISTINCT FROM 'service_role' THEN
+    IF NOT v_trusted THEN
       IF NEW.is_pro = true OR NEW.portal_access = true OR NEW.role = 'admin' OR NEW.verified = true
          OR NEW.pro_expires_at IS NOT NULL OR NEW.pro_grace_until IS NOT NULL THEN
         NEW.is_pro := false;
@@ -59,11 +78,11 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- UPDATE: reverte mudança de flags/datas privilegiadas se não-admin e
-  -- não-service_role. pro_expires_at/pro_grace_until ENTRAM aqui agora —
-  -- essa é a correção do achado A.
+  -- UPDATE: reverte mudança de flags/datas privilegiadas se não-confiável.
+  -- pro_expires_at/pro_grace_until ENTRAM aqui agora — essa é a correção
+  -- do achado A.
   IF TG_OP = 'UPDATE' THEN
-    IF NOT public.is_portal_admin() AND auth.role() IS DISTINCT FROM 'service_role' THEN
+    IF NOT v_trusted THEN
       IF OLD.is_pro          IS DISTINCT FROM NEW.is_pro          THEN NEW.is_pro          := OLD.is_pro;          END IF;
       IF OLD.portal_access   IS DISTINCT FROM NEW.portal_access   THEN NEW.portal_access   := OLD.portal_access;   END IF;
       IF OLD.role            IS DISTINCT FROM NEW.role            THEN NEW.role            := OLD.role;            END IF;
@@ -321,9 +340,44 @@ GRANT EXECUTE ON FUNCTION public.submit_review(uuid, uuid, integer, text, jsonb)
 
 CREATE OR REPLACE FUNCTION public.protect_order_columns()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_total numeric;
+DECLARE
+  v_total   numeric;
+  v_trusted boolean;
 BEGIN
-  IF NOT public.is_portal_admin() AND auth.role() IS DISTINCT FROM 'service_role' THEN
+  v_trusted := public.is_portal_admin() OR current_user NOT IN ('anon', 'authenticated');
+
+  -- INSERT: revisão de código (Codex, PR #319) — a 1ª versão só cobria
+  -- UPDATE. `orders_insert_own` (WITH CHECK auth.uid()=user_id) deixava
+  -- um POST direto criar a order JÁ como `status='paid'` com
+  -- paid_amount/tx_id/etc. arbitrários — a proteção nunca entrava em
+  -- jogo, porque a linha nascia "pré-violada" em vez de ser alterada
+  -- depois. Não referencia OLD (não existe em INSERT).
+  IF TG_OP = 'INSERT' THEN
+    IF NOT v_trusted THEN
+      NEW.status         := 'pending';
+      NEW.paid_amount     := NULL;
+      NEW.paid_at         := NULL;
+      NEW.tx_id           := NULL;
+      NEW.payment_method  := NULL;
+      NEW.gateway         := NULL;
+      NEW.payment_url     := NULL;
+      NEW.installments    := NULL;
+      NEW.receipt_url     := NULL;
+    END IF;
+    -- total sempre derivado de items, nunca aceito cru — igual ao
+    -- submitOrder() do app (mesma fórmula: soma de price×qty), então não
+    -- muda nada pro fluxo legítimo e fecha o caminho desonesto de propósito.
+    SELECT COALESCE(SUM(
+      COALESCE((item->>'price')::numeric, 0) * COALESCE((item->>'qty')::numeric, 1)
+    ), 0)
+    INTO v_total
+    FROM jsonb_array_elements(COALESCE(NEW.items, '[]'::jsonb)) AS item;
+    NEW.total := v_total;
+    RETURN NEW;
+  END IF;
+
+  -- UPDATE: mesma proteção, agora comparando com OLD.
+  IF NOT v_trusted THEN
     IF NEW.status         IS DISTINCT FROM OLD.status         THEN NEW.status         := OLD.status;         END IF;
     IF NEW.paid_amount     IS DISTINCT FROM OLD.paid_amount     THEN NEW.paid_amount     := OLD.paid_amount;     END IF;
     IF NEW.paid_at         IS DISTINCT FROM OLD.paid_at         THEN NEW.paid_at         := OLD.paid_at;         END IF;
@@ -354,7 +408,7 @@ END $$;
 
 DROP TRIGGER IF EXISTS trg_protect_order_columns ON public.orders;
 CREATE TRIGGER trg_protect_order_columns
-  BEFORE UPDATE ON public.orders
+  BEFORE INSERT OR UPDATE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.protect_order_columns();
 
 
@@ -469,19 +523,28 @@ DECLARE
   v_rl  jsonb;
   v_key text;
 BEGIN
-  IF COALESCE(NEW.type, 'text') = 'system' THEN
-    RETURN NEW;
-  END IF;
   IF NEW.sender_id IS NULL OR NEW.receiver_id IS NULL THEN
     RETURN NEW;
   END IF;
 
+  -- Bloqueio vale pra QUALQUER `type`, inclusive 'system' — revisão de
+  -- código (Codex, PR #319): `type` é coluna livre do client (sem CHECK
+  -- constraint, `WITH CHECK` do INSERT só exige `auth.uid()=sender_id`),
+  -- então a 1ª versão desta trigger devolvia cedo demais pra
+  -- `type='system'` e isso pulava JUNTO o check de bloqueio que vem
+  -- abaixo — bastava mandar `type:'system'` pra falar com quem te
+  -- bloqueou. Só o RATE LIMIT (não o bloqueio) é isento de mensagem de
+  -- sistema, e só depois de confirmar que não há bloqueio.
   IF EXISTS (
     SELECT 1 FROM public.blocks
     WHERE (blocker_id = NEW.sender_id AND blocked_id = NEW.receiver_id)
        OR (blocker_id = NEW.receiver_id AND blocked_id = NEW.sender_id)
   ) THEN
     RAISE EXCEPTION 'Não é possível enviar mensagem para este usuário';
+  END IF;
+
+  IF COALESCE(NEW.type, 'text') = 'system' THEN
+    RETURN NEW;
   END IF;
 
   v_key := NEW.sender_id::text || '>' || NEW.receiver_id::text;
@@ -520,11 +583,26 @@ CREATE TRIGGER trg_rate_limit_messages
 --    existia — inundar a fila de moderação (`/admin/reports`) ou
 --    forçar ação de moderação contra um alvo via volume de denúncias
 --    era possível sem fricção nenhuma.
+--
+--    CORREÇÃO (revisão de código, Codex, PR #319): a 1ª versão desta
+--    seção tentou um índice único (reporter_id, target_user_id) WHERE
+--    post_id IS NULL — mas `reports` NÃO tem coluna pra identificar QUAL
+--    review foi denunciada (`reportContent()` codifica isso só dentro do
+--    texto livre `reason`; a tabela só guarda reporter/post/target_user/
+--    reason). Denúncia de PERFIL e denúncia de UMA REVIEW específica de
+--    alguém usam o MESMO `target_user_id` — então aquele índice também
+--    bloqueava denunciar uma 2ª review diferente da mesma pessoa, ou o
+--    perfil depois de já ter denunciado uma review dela: mesma chave,
+--    "já existe", nunca mais entra. Removido (DROP explícito, pois o
+--    índice já pode ter sido criado por quem rodou a versão anterior
+--    desta migration). O rate limit abaixo (10/min por reporter) segue
+--    sendo a defesa real contra flood — sem inventar um `review_id`/
+--    `target_kind` novo no schema pra decidir dedup direito, o que exige
+--    também mudar `reportContent()` no app (fora do escopo desta
+--    auditoria).
 -- ════════════════════════════════════════════════════════════════════
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_unique_per_target
-  ON public.reports(reporter_id, target_user_id)
-  WHERE post_id IS NULL AND target_user_id IS NOT NULL;
+DROP INDEX IF EXISTS idx_reports_unique_per_target;
 
 CREATE OR REPLACE FUNCTION public.rate_limit_reports()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -756,9 +834,9 @@ UNION ALL SELECT 'I. trigger de proteção de messages existe',
        EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_message_columns')
 UNION ALL SELECT 'J. rate_limit_messages checa blocks',
        EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'rate_limit_messages' AND prosrc LIKE '%public.blocks%')
-UNION ALL SELECT 'K. reports tem rate limit + dedup por target_user_id',
+UNION ALL SELECT 'K. reports tem rate limit (índice de dedup por target removido — colidia review×perfil)',
        EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_rate_limit_reports')
-       AND EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'reports' AND indexname = 'idx_reports_unique_per_target')
+       AND NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'reports' AND indexname = 'idx_reports_unique_per_target')
 UNION ALL SELECT 'L. cleanup_orphan_media cobre media_urls',
        EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'cleanup_orphan_media' AND prosrc LIKE '%media_urls%')
 UNION ALL SELECT 'M. follows bloqueia self-follow',
