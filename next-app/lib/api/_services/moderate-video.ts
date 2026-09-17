@@ -124,6 +124,31 @@ export async function moderateVideoPost(args: {
   }
   if (!mediaUrl) throw new ServiceError('post sem media_url', 400);
 
+  // Preenchido depois do download (ver hash+blocklist abaixo). Declarado
+  // aqui porque `pending()` já pode ser chamada ANTES do download (media_url
+  // inválida, fora do storage) — nesses casos vai vazio mesmo, o hash só
+  // existe depois que o vídeo é baixado.
+  let mediaHash = '';
+
+  // Todo caminho 'pending' ENFILEIRA de verdade pra revisão humana
+  // (2026-09-17, achado do Codex: `status:'pending'` nunca gravava nada
+  // em `media_review_queue` — o post ficava aprovado e público pra
+  // sempre, sem NINGUÉM olhar, apesar de "enviado para revisão humana"
+  // já estar escrito num dos textos abaixo desde antes desta correção).
+  // `enqueueMediaReview` é best-effort (nunca lança) — não precisa de
+  // try/catch aqui em volta.
+  const pending = async (reason: string, reasons?: string[]): Promise<ModerateVideoResult> => {
+    await enqueueMediaReview({
+      postId,
+      userId,
+      mediaUrl,
+      mediaHash, // vazio antes do download; preenchido depois (ver abaixo)
+      reason: reasons && reasons.length > 0 ? reasons.join(',') : reason,
+      severity: 'med',
+    });
+    return reasons ? { status: 'pending', reason, reasons } : { status: 'pending', reason };
+  };
+
   // Defesa em profundidade: só baixa de Supabase Storage do projeto.
   try {
     const u = new URL(mediaUrl);
@@ -132,10 +157,10 @@ export async function moderateVideoPost(args: {
       !/^[A-Za-z0-9-]+\.supabase\.co$/.test(u.hostname) ||
       !u.pathname.startsWith('/storage/')
     ) {
-      return { status: 'pending', reason: 'media_url fora do storage do projeto' };
+      return pending('media_url fora do storage do projeto');
     }
   } catch {
-    return { status: 'pending', reason: 'media_url inválida' };
+    return pending('media_url inválida');
   }
 
   // Baixa o vídeo (com limite de tamanho).
@@ -147,21 +172,17 @@ export async function moderateVideoPost(args: {
     videoMime = (v.headers.get('content-type') || 'video/mp4').split(';')[0];
     videoBuf = await v.arrayBuffer();
     if (videoBuf.byteLength > MAX_BYTES) {
-      return {
-        status: 'pending',
-        reason: 'vídeo grande — enviado para revisão humana',
-      };
+      return pending('vídeo grande — enviado para revisão humana');
     }
   } catch (e) {
     console.warn('moderate-video download err:', e instanceof Error ? e.message : e);
-    return { status: 'pending', reason: 'falha ao baixar vídeo' };
+    return pending('falha ao baixar vídeo');
   }
 
   // Hash + blocklist ANTES de gastar cota do Gemini — mesma defesa em
   // profundidade que `moderate.ts` já tinha pra imagem (item que faltava
   // aqui: vídeo nunca passava por hash nenhum). Reaproveita o buffer já
   // baixado, sem fetch extra.
-  let mediaHash = '';
   try {
     mediaHash = await hashMedia(videoBuf);
   } catch {
@@ -208,17 +229,7 @@ export async function moderateVideoPost(args: {
       return { status: 'rejected', reasons: verdict.reasons };
     }
     if (verdict.severity === 'soft' || verdict.flagged) {
-      if (mediaHash) {
-        await enqueueMediaReview({
-          postId,
-          userId,
-          mediaUrl,
-          mediaHash,
-          reason: verdict.reasons.length > 0 ? verdict.reasons.join(',') : 'gemini_flagged_soft',
-          severity: 'med',
-        });
-      }
-      return { status: 'pending', reasons: verdict.reasons };
+      return pending('gemini_flagged_video', verdict.reasons);
     }
     await fetch(
       `${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`,
@@ -232,7 +243,7 @@ export async function moderateVideoPost(args: {
     return { status: 'approved' };
   } catch (e) {
     console.warn('moderate-video analyze err:', e instanceof Error ? e.message : e);
-    return { status: 'pending', reason: 'análise indisponível' };
+    return pending('análise indisponível');
   }
 }
 

@@ -26,6 +26,7 @@ import {
   getProfile,
   updateProfile,
   uploadAvatar,
+  removeUploadedAvatar,
   getCidadesByUF,
   getEspecialidadesByRole,
   ROLE_SPECS,
@@ -44,6 +45,7 @@ interface ChainSpies {
   storageFrom: ReturnType<typeof vi.fn>;
   upload: ReturnType<typeof vi.fn>;
   getPublicUrl: ReturnType<typeof vi.fn>;
+  remove: ReturnType<typeof vi.fn>;
 }
 
 interface QueueItem {
@@ -76,6 +78,7 @@ function makeFakeClient(opts: FakeOpts = {}): {
     storageFrom: vi.fn(),
     upload: vi.fn(),
     getPublicUrl: vi.fn(),
+    remove: vi.fn(),
   };
 
   const responses = [...(opts.queue ?? [])];
@@ -134,6 +137,10 @@ function makeFakeClient(opts: FakeOpts = {}): {
         getPublicUrl: (path: string) => {
           spies.getPublicUrl(bucket, path);
           return { data: { publicUrl: resp.publicUrl ?? '' } };
+        },
+        remove: (paths: string[]) => {
+          spies.remove(bucket, paths);
+          return Promise.resolve({ data: null, error: null });
         },
       };
     },
@@ -400,6 +407,60 @@ describe('uploadAvatar', () => {
     await expect(uploadAvatar('u1', f)).rejects.toMatchObject({
       message: 'posts denied',
     });
+  });
+});
+
+// ─── removeUploadedAvatar ──────────────────────────────────────────────────
+// 2026-09-17 (achado do Codex): avatar reprovado pela moderação não tinha o
+// ARQUIVO removido do storage (só a linha do banco nunca era gravada) —
+// diferente de uploadArtReference, que já fazia essa limpeza. Este helper
+// fecha isso; os testes provam que ele detecta o bucket certo (dedicado
+// `avatars` OU o fallback `posts`) pela própria URL pública.
+
+describe('removeUploadedAvatar', () => {
+  it('detecta o bucket `avatars` e o path pela URL pública, chama remove', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+
+    await removeUploadedAvatar('https://x.supabase.co/storage/v1/object/public/avatars/u1/123.jpg');
+
+    expect(spies.storageFrom).toHaveBeenCalledWith('avatars');
+    expect(spies.remove).toHaveBeenCalledWith('avatars', ['u1/123.jpg']);
+  });
+
+  it('detecta o bucket `posts` (fallback do avatar) pela URL pública', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+
+    await removeUploadedAvatar(
+      'https://x.supabase.co/storage/v1/object/public/posts/u1/avatar_fallback_123.jpg',
+    );
+
+    expect(spies.storageFrom).toHaveBeenCalledWith('posts');
+    expect(spies.remove).toHaveBeenCalledWith('posts', ['u1/avatar_fallback_123.jpg']);
+  });
+
+  it('URL que não bate no padrão de storage público → não lança, não chama nada', async () => {
+    const { client, spies } = makeFakeClient();
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+
+    await expect(removeUploadedAvatar('https://cdn.outraconta.com/foto.jpg')).resolves.toBeUndefined();
+    expect(spies.storageFrom).not.toHaveBeenCalled();
+  });
+
+  it('falha do storage.remove não lança (best-effort)', async () => {
+    const client = {
+      storage: {
+        from: () => ({
+          remove: () => Promise.reject(new Error('network down')),
+        }),
+      },
+    };
+    __setSupabaseForTests(client as unknown as Parameters<typeof __setSupabaseForTests>[0]);
+
+    await expect(
+      removeUploadedAvatar('https://x.supabase.co/storage/v1/object/public/avatars/u1/123.jpg'),
+    ).resolves.toBeUndefined();
   });
 });
 

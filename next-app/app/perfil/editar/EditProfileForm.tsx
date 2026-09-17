@@ -38,6 +38,7 @@ import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   getCidadesByUF,
   uploadAvatar,
+  removeUploadedAvatar,
 } from '@/lib/services/profile';
 import { fetchLogo, uploadLogo, saveLogo } from '@/lib/services/aiLogo';
 import { assertMediaApproved } from '@/lib/services/moderateMedia';
@@ -373,7 +374,17 @@ export function EditProfileForm() {
       // além de gravar no banco depois), então é essa chamada que fecha
       // a checagem de verdade — o trigger fica como defesa em
       // profundidade, igual sempre foi pra `posts.media_hash`.
-      await assertMediaApproved({ mediaUrl: url });
+      //
+      // Reprovado → apaga o ARQUIVO do storage também (2ª rodada de
+      // revisão do Codex: sem isso, a linha nunca era gravada mas o
+      // arquivo ficava pra sempre no bucket público — reprovado só de
+      // fachada).
+      try {
+        await assertMediaApproved({ mediaUrl: url });
+      } catch (modErr) {
+        await removeUploadedAvatar(url);
+        throw modErr;
+      }
       await update({
         avatar_url: url,
         avatar_hash: hash || null,
