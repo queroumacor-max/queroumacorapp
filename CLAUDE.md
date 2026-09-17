@@ -1,5 +1,67 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA DA PIPELINE CI/CD (2026-09-16, commit `bfa6849`,
+  merge #318 `claude/keen-bell-vyn38f`) — MERGEADA SEM REGISTRO NESTE
+  ARQUIVO, DOCUMENTADA AGORA EM 2026-09-17 pra fechar a lacuna.** Auditoria
+  completa da pipeline (GitHub Actions, supply chain, dependências) sob o
+  modelo de ameaça "PR de fork controla arquivos/deps/scripts, tenta ler
+  secret ou publicar artifact malicioso". **Tudo corrigido no mesmo
+  commit, nada ficou pra depois:**
+  - `deploy.yml` **parava de passar `SUPABASE_SERVICE_ROLE_KEY`** pro
+    ambiente do `next build` — desnecessário (o edge lê essa chave via
+    `getRuntimeEnv()` em RUNTIME, nunca em build-time) e reduzia o que um
+    `postinstall` malicioso já mergeado em `main` conseguiria exfiltrar.
+  - **Actions de terceiros pinadas por commit SHA completo** (antes em tag
+    mutável `@v3`/`@v2`/`@v0.13.0`/`@v1`): `cloudflare/wrangler-action`,
+    `gitleaks/gitleaks-action`, `zaproxy/action-baseline`,
+    `grafana/setup-k6-action` — as quatro têm acesso a secret ou rodam
+    dentro do CI.
+  - `npm install` → **`npm ci`** em `deploy.yml` e `ios-screenshots.yml`
+    (respeita o lockfile de forma determinística).
+  - **`persist-credentials: false`** nos checkouts de jobs que nunca dão
+    push (`ci`, `deploy`, `security`, `load-test`, `ios-screenshots`) —
+    reduz o que um script malicioso na etapa de install/build consegue
+    fazer com o `GITHUB_TOKEN`.
+  - `rollback.yml` **interpolava `${{ github.event.inputs.* }}` direto em
+    `run:`** (padrão de shell injection, mesmo sendo input de quem já tem
+    permissão de escrita) — movido pra `env:`; `target_sha` começando com
+    `-` agora é recusado (argument injection em `git reset --hard`).
+  - `.gitleaksignore` **documentava a chave Gemini vazada como "rotação
+    pendente"** — desatualizado frente à confirmação já registrada aqui
+    em 2026-09-16 de que a chave vazada não existe mais na conta.
+  - **`sharp` 0.34.5 → 0.35.4** via `npm audit fix` (não-forçado): fecha a
+    única CVE HIGH de dependência de produção com fix não-breaking.
+    Validado com `npm ci` limpo + suíte completa (169 arquivos/2160
+    testes) + typecheck + lint + `next build`, todos verdes.
+  - **Scanners novos**: `.github/workflows/codeql.yml` (SAST, javascript-
+    typescript — não existia; só havia `npm audit` e `gitleaks`, nada
+    olhava o CÓDIGO em si), job `sbom` em `security.yml` (SBOM CycloneDX
+    do `next-app`, `--package-lock-only`, sem instalar `node_modules` nem
+    rodar script — artifact interno, não publicado), `.github/SECURITY.md`
+    (canal de reporte de vulnerabilidade que não existia:
+    `loja@calicolors.com.br`).
+  - **Confirmado, já correto, sem mudança**: nenhum workflow usa
+    `pull_request_target`; `pull_request` (`ci.yml`, `security.yml`) roda
+    com `GITHUB_TOKEN` read-only padrão, sem secret exposto a PR de fork;
+    `deploy.yml` só dispara por `workflow_dispatch` com `if: github.ref ==
+    'refs/heads/main'`; `CLOUDFLARE_API_TOKEN`/`ACCOUNT_ID` já são STEP-
+    scoped (só no step do `wrangler-action`, nunca em install/build).
+  - **O commit citava "ver relatório" pra permissões de organização/
+    branch protection — esse relatório nunca saiu do chat daquela sessão,
+    não estava em lugar nenhum do repo.** Conferido À MÃO em 2026-09-17:
+    **só 2 colaboradores no repo** — `jacksongmatos` (write) e
+    `queroumacor-max` (admin, dono) — nenhum externo/desconhecido; branch
+    protection do `main` com o check `validate` obrigatório já era
+    conhecido (confirmado antes pela recusa `405 Required status check`
+    em merges anteriores). **Nada pendente aí também.**
+  - **LIÇÃO DE PROCESSO, não de segurança**: essa sessão fez uma auditoria
+    real e completa, mas não seguiu a própria regra do
+    `SECURITY_AUDIT_LOG.md` ("toda vez que uma sessão fizer auditoria de
+    segurança, registrar aqui") — o trabalho ficou invisível pra memória
+    do projeto até esta entrada. Merge #318 chegou direto na `main` sem
+    passar pelas duas outras entradas de doc-sync que vieram depois (SSL/
+    TLS, DNSSEC/CAA) — nenhuma delas sabia que essa auditoria existia.
+
 - **SEGUNDA RODADA DE VERIFICAÇÃO POR CONSOLE — 15 dos 17 itens pendentes da
   auditoria Cloudflare/Supabase checados (2026-09-16).** Mesma sessão
   "Claude in Chrome" (logada como `queroumacor@gmail.com`), continuação da

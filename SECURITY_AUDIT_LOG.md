@@ -47,6 +47,43 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 
 ## Histórico (mais recente primeiro)
 
+### 2026-09-17 — Auditoria de CI/CD (2026-09-16, commit `bfa6849`) documentada retroativamente
+Merge #318 (`claude/keen-bell-vyn38f`) chegou na `main` em 2026-09-16 com
+uma auditoria completa da pipeline (GitHub Actions, supply chain,
+dependências) sob o modelo de ameaça "PR de fork controla arquivos/deps/
+scripts, tenta ler secret ou publicar artifact malicioso" — mas **sem
+nenhuma entrada aqui nem no `CLAUDE.md`**, quebrando a própria regra de
+manutenção deste arquivo. Registrado agora, um dia depois, ao ser notado
+numa pergunta de rotina ("o que mais tem pendente?").
+
+**Tudo corrigido no mesmo commit — ✅ FIXED, nada ficou de código:**
+`SUPABASE_SERVICE_ROLE_KEY` removida do ambiente de build do
+`deploy.yml` (desnecessária, lida em runtime); 4 actions de terceiros
+com acesso a secret/CI pinadas por SHA completo (antes em tag mutável);
+`npm install` → `npm ci` em `deploy.yml`/`ios-screenshots.yml`;
+`persist-credentials: false` nos checkouts que não dão push;
+`rollback.yml` parou de interpolar input direto em `run:` (shell
+injection) + recusa `target_sha` começando com `-`; `.gitleaksignore`
+atualizado (a chave Gemini vazada não é mais "rotação pendente" — já
+confirmada morta em 2026-09-16); `sharp` 0.34.5→0.35.4 (única CVE HIGH
+de produção com fix não-breaking). Scanners novos: CodeQL (SAST, não
+existia), job `sbom` (CycloneDX do next-app), `.github/SECURITY.md`
+(canal de reporte).
+
+**O único item deixado como "ver relatório" (permissões de organização/
+branch protection) foi CONFERIDO À MÃO em 2026-09-17**, porque o
+relatório original nunca saiu do chat daquela sessão: `list_repository_
+collaborators` retornou só 2 — `jacksongmatos` (write) e
+`queroumacor-max` (admin/dono), nenhum externo; branch protection do
+`main` com `validate` obrigatório já era fato conhecido (confirmado por
+`405 Required status check` em merges anteriores). **Nada pendente.**
+
+**REGRA (reforçada, não nova): merge de auditoria de segurança sem
+entrada aqui é auditoria que não aconteceu, pra efeito de memória do
+projeto** — foi só a pergunta de rotina sobre pendências que expôs o
+buraco; se ninguém tivesse perguntado, o trabalho ficaria permanentemente
+invisível pro `CLAUDE.md`/`SECURITY_AUDIT_LOG.md`.
+
 ### 2026-09-17 — `STAGING.md` reconciliado com o painel (item fechado)
 A 2ª rodada de verificação (2026-09-16) tinha achado uma contradição: o
 painel ao vivo mostrava Preview do Cloudflare Pages com só 5 vars públicas
