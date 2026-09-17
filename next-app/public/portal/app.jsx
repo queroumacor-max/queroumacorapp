@@ -487,7 +487,7 @@ const deleteUsersPermanently = async (profiles, after) => {
   // Auth. A RPC roda a cascata inteira DENTRO do Postgres (sem HTTP pro
   // GoTrue, sem edge no caminho) e valida portal admin + guardas la.
   // Sequencial com pausa curta; falhas AGREGADAS num relatorio unico.
-  let ok = 0; const failed = [];
+  let ok = 0; const failed = []; let storageFailed = 0;
   for (const p of profiles) {
     let msg = '';
     try {
@@ -497,7 +497,17 @@ const deleteUsersPermanently = async (profiles, after) => {
       });
       if (error) msg = error.message || 'erro desconhecido';
     } catch (e) { msg = (e && e.message) || 'falha de rede'; }
-    if (!msg) ok++;
+    if (!msg) {
+      ok++;
+      // Privacidade 2026-09-17: a RPC (SQL puro) apaga login+perfil mas
+      // NUNCA alcança o Storage — avatar/arte da conta ficavam publicos
+      // pra sempre. Chamada SEPARADA, best-effort: se falhar, a conta
+      // AINDA ASSIM foi excluida (o dado sensivel do banco ja sumiu); so
+      // o arquivo publico fica pra limpar depois. Nao entra no relatorio
+      // principal pra nao confundir "conta excluida" com "arquivo sobrou".
+      const cleanup = await adminUsersRaw({ action: 'cleanup_storage', userId: p.id });
+      if (!cleanup.ok) storageFailed++;
+    }
     else failed.push('• ' + (p.name || (p.tag ? '@'+p.tag : p.id.slice(0,8))) + ' — ' + msg);
     await new Promise(res => setTimeout(res, 250));
   }
@@ -506,6 +516,9 @@ const deleteUsersPermanently = async (profiles, after) => {
     (failed.length
       ? '\n\nFALHARAM ' + failed.length + ':\n' + failed.slice(0, 8).join('\n') +
         (failed.length > 8 ? '\n…e mais ' + (failed.length - 8) : '')
+      : '') +
+    (storageFailed
+      ? '\n\n⚠️ ' + storageFailed + ' conta(s) excluidas mas a limpeza de arquivos (foto/arte) falhou — pode rodar de novo depois, ou ignorar (o dado sensivel do banco ja foi apagado).'
       : '')
   );
   if (after) after();

@@ -26,6 +26,7 @@ import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Profile, UserRole, UserType } from '@/lib/types';
 import { descreverArquivo, normalizarArquivo, provadoNaoImagem } from '@/lib/utils/mediaType';
 import { sha256Hex } from '@/lib/utils/sha256';
+import { compressImage } from '@/lib/services/posts';
 
 // (getProfile usa SELECT * defensivamente — não dependemos de uma lista
 // explícita de colunas, então uma migration pendente não quebra a UI.)
@@ -249,6 +250,20 @@ export async function uploadAvatar(
   // 5MB cap igual ao vanilla previewEpLogo line 47.
   if (file.size > 5 * 1024 * 1024) {
     throw new ValidationError('Imagem muito grande (máx 5MB)');
+  }
+
+  // Privacidade 2026-09-17: avatar vai pro bucket PÚBLICO `avatars` — sem
+  // recompressão, o EXIF original (incluindo GPS de onde a foto foi
+  // tirada, se o aparelho gravou) sobrevivia intacto e ficava baixável
+  // por qualquer um. `compressImage` reescreve via canvas (drawImage +
+  // toBlob), que não carrega metadata — o resultado nunca tem EXIF.
+  // Best-effort: HEIC que o canvas não decodifica (comum vindo de iPhone)
+  // cai no arquivo original — mesma regra de resiliência que posts.ts já
+  // usa (comprimir é reforço de privacidade aqui, não porta obrigatória).
+  try {
+    file = await compressImage(file);
+  } catch {
+    // segue com o arquivo original
   }
 
   const sb = getSupabase();

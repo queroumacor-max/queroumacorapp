@@ -121,6 +121,30 @@ describe('privacy audit 2026-09-17: migration existe e faz as correções', () =
     );
   });
 
+  it('H. cleanup_old_errors existe, tolera tabela ausente e é agendada (90 dias)', () => {
+    const sql = readMigration();
+    const fnBlock = sql.match(
+      /CREATE OR REPLACE FUNCTION public\.cleanup_old_errors\(\)[\s\S]{0,600}?\$\$;/
+    );
+    expect(fnBlock).not.toBeNull();
+    expect(fnBlock![0]).toMatch(/90 days/);
+    expect(fnBlock![0]).toMatch(/undefined_table/);
+    expect(sql).toMatch(/cron\.schedule\(\s*'cleanup-old-errors'/);
+  });
+
+  it('I. trigger redige notificação de quem teve a conta deletada, nos dois caminhos', () => {
+    const sql = readMigration();
+    const fnBlock = sql.match(
+      /CREATE OR REPLACE FUNCTION public\.redact_notifications_on_profile_delete\(\)[\s\S]{0,800}?\$\$;/
+    );
+    expect(fnBlock).not.toBeNull();
+    expect(fnBlock![0]).toMatch(/UPDATE public\.notifications/);
+    expect(fnBlock![0]).toMatch(/actor_id = OLD\.id/);
+    expect(sql).toMatch(
+      /CREATE TRIGGER trg_redact_notifications_on_profile_delete\s+AFTER DELETE ON public\.profiles/
+    );
+  });
+
   it('conferência final: tem uma linha `ok` por item corrigido', () => {
     const sql = readMigration();
     const items = [
@@ -136,6 +160,8 @@ describe('privacy audit 2026-09-17: migration existe e faz as correções', () =
       'F. cron: cleanup-old-notifications agendado',
       'F. cron: cleanup-old-audit-events agendado',
       'G. quote_painter_contact existe e é SECURITY DEFINER',
+      'H. cron: cleanup-old-errors agendado',
+      'I. trigger de redação de notificação existe',
     ];
     for (const item of items) {
       expect(sql, `conferência faltando: ${item}`).toContain(item);

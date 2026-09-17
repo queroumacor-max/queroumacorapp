@@ -107,11 +107,31 @@
 --    critério de `quotes_select_participants` (cliente, pintor ou
 --    admin do orçamento específico) substitui a leitura direta.
 --
+-- H. [MÉDIO] Tabela `errors` (log de falha do app — `/api/log-error`,
+--    lida em `/admin/errors`) nasceu FORA do repo (mesma situação de
+--    `leads`: não existe um `CREATE TABLE` dela em migration nenhuma)
+--    e nunca teve cleanup nenhum. Guarda `user_id` + mensagem crua (às
+--    vezes com a causa exata de um erro do Postgres) indefinidamente. FIX:
+--    `cleanup_old_errors()` (90 dias, mesmo prazo de
+--    `cleanup_old_notifications`) + agendada via pg_cron.
+--
+-- I. [MÉDIO] Quando a conta de quem CURTIU/COMENTOU/SEGUIU é apagada,
+--    a notificação que a pessoa recebeu continuava com o NOME e o
+--    PREVIEW do texto antigo (denormalizados em `title`/`body` na hora
+--    da criação) — `actor_id` vira NULL pela FK, mas o texto já escrito
+--    não muda sozinho. FIX: trigger `AFTER DELETE ON profiles` redige
+--    `title`/`body` de toda notificação cujo `actor_id` era a conta
+--    apagada. Dispara nos DOIS caminhos de exclusão (self-service e
+--    admin), porque os dois terminam em `DELETE FROM auth.users`, que
+--    faz CASCADE em `profiles.id REFERENCES auth.users(id) ON DELETE
+--    CASCADE` — um hook só, sem duplicar lógica no TS dos dois lados.
+--
 -- Itens tratados no CÓDIGO (não neste SQL): autosave cross-user no
 -- localStorage, `queryClient.clear()` centralizado no logout, deleção
 -- de conta (falha silenciosa no DELETE do auth.users + limpeza de
--- Storage), payload de IA (agenda-order manda nome desnecessário),
--- Sentry beforeSend. Ver relatório da auditoria.
+-- Storage do usuário — self-service E admin/portal, via helper
+-- compartilhado), payload de IA (agenda-order manda nome
+-- desnecessário), Sentry beforeSend. Ver relatório da auditoria.
 --
 -- Idempotente: DROP/CREATE OR REPLACE em tudo, seguro rerodar.
 -- ════════════════════════════════════════════════════════════════════
@@ -625,6 +645,50 @@ SELECT cron.schedule(
 );
 
 
+-- ─── H. errors: cleanup de 90 dias, agendado ────────────────────────────
+-- `errors` nasceu fora do repo (sem `CREATE TABLE` em migration nenhuma,
+-- mesma situação de `leads`) — assume `created_at timestamptz` (coluna
+-- lida por `/admin/errors`, `ErrorsAdmin.tsx`, confirmada em uso real).
+
+CREATE OR REPLACE FUNCTION public.cleanup_old_errors()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.errors WHERE created_at < now() - interval '90 days';
+EXCEPTION WHEN undefined_table THEN
+  -- `errors` pode não existir neste ambiente (nunca criada fora do repo).
+  NULL;
+END $$;
+REVOKE ALL ON FUNCTION public.cleanup_old_errors() FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.cleanup_old_errors() TO service_role;
+
+SELECT cron.schedule(
+  'cleanup-old-errors',
+  '0 5 * * 0',
+  $$SELECT public.cleanup_old_errors();$$
+);
+
+
+-- ─── I. Redige notificação quando o AUTOR da ação é deletado ────────────
+
+CREATE OR REPLACE FUNCTION public.redact_notifications_on_profile_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE public.notifications
+  SET title = 'Notificação',
+      body = 'Uma pessoa que não está mais no QueroUmaCor interagiu com você'
+  WHERE actor_id = OLD.id;
+  RETURN OLD;
+EXCEPTION WHEN OTHERS THEN
+  -- Best-effort: falha aqui não pode impedir a exclusão da conta em si.
+  RETURN OLD;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_redact_notifications_on_profile_delete ON public.profiles;
+CREATE TRIGGER trg_redact_notifications_on_profile_delete
+  AFTER DELETE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.redact_notifications_on_profile_delete();
+
+
 -- ─── Conferência (só leitura) ───────────────────────────────────────────
 
 SELECT 'A. profiles SELECT restrita a dono/admin' AS item,
@@ -676,5 +740,12 @@ UNION ALL SELECT 'G. quote_painter_contact existe e é SECURITY DEFINER',
        EXISTS (
          SELECT 1 FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
          WHERE p.proname = 'quote_painter_contact' AND p.prosecdef = true
+       )
+UNION ALL SELECT 'H. cron: cleanup-old-errors agendado',
+       EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'cleanup-old-errors')
+UNION ALL SELECT 'I. trigger de redação de notificação existe',
+       EXISTS (
+         SELECT 1 FROM pg_trigger
+         WHERE tgname = 'trg_redact_notifications_on_profile_delete'
        )
 ORDER BY 1;

@@ -17,6 +17,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
+import { cleanupUserStorage } from '@/lib/api/_services/storageCleanup';
 
 export const runtime = 'edge';
 
@@ -74,33 +75,11 @@ export async function POST(request: NextRequest) {
   // (este endpoint e a RPC `admin_delete_user`, que é SQL puro e não pode
   // tocar Storage) deletava arquivo nenhum — o profile ficava anonimizado
   // no banco, mas a foto de perfil/arte publicada continuava baixável pra
-  // sempre pela URL pública antiga. Best-effort: falha aqui não pode
-  // impedir o resto da exclusão.
-  async function deleteUserStorageFolder(bucket: string): Promise<void> {
-    try {
-      const listRes = await fetch(`${supaUrl}/storage/v1/object/list/${bucket}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ prefix: `${userId}/`, limit: 1000 }),
-      });
-      if (!listRes.ok) return;
-      const items = (await listRes.json().catch(() => [])) as Array<{ name?: string }>;
-      const paths = (Array.isArray(items) ? items : [])
-        .map((it) => (typeof it.name === 'string' ? `${userId}/${it.name}` : null))
-        .filter((p): p is string => !!p);
-      if (paths.length === 0) return;
-      await fetch(`${supaUrl}/storage/v1/object/remove/${bucket}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ prefixes: paths }),
-      });
-    } catch {
-      /* silent — best-effort, não bloqueia a exclusão de conta */
-    }
-  }
-  await Promise.all(
-    ['avatars', 'art-refs', 'posts'].map((bucket) => deleteUserStorageFolder(bucket))
-  );
+  // sempre pela URL pública antiga. `cleanupUserStorage` é compartilhada
+  // com `/api/admin/users` (action `cleanup_storage`), que fecha o mesmo
+  // gap pro caminho de exclusão PELO ADMIN. Best-effort: falha aqui não
+  // pode impedir o resto da exclusão.
+  await cleanupUserStorage(userId, supaUrl, serviceKey);
 
   // 1. Soft-delete em cascade nas tabelas do user.
   // PATCH em massa em cada tabela com user_id ou owner. Best-effort:
