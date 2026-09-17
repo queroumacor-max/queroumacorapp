@@ -291,6 +291,34 @@ export async function uploadAvatar(
 }
 
 /**
+ * Apaga um avatar já enviado (bucket `avatars` OU o fallback `posts`,
+ * detectado pela própria URL pública). Best-effort — nunca lança, só loga.
+ *
+ * 2026-09-17 (achado do Codex na revisão da PR que estendeu a blocklist
+ * de hash CSAM pra avatar): a checagem autoritativa de `assertMediaApproved`
+ * já bloqueia GRAVAR a linha quando reprovada, mas antes disso ninguém
+ * apagava o ARQUIVO — ele ficava pra sempre no bucket público, mesmo
+ * reprovado. `uploadArtReference` já fazia essa limpeza (mesmo padrão);
+ * `uploadAvatar` não tinha equivalente porque não sabe, sozinho, quando
+ * o upload vai ser reprovado depois — quem sabe é o caller, então o
+ * helper vive aqui pra ele chamar no catch.
+ */
+export async function removeUploadedAvatar(url: string): Promise<void> {
+  const m = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+  if (!m) return;
+  const [, bucket, path] = m;
+  try {
+    const sb = getSupabase();
+    await sb.storage.from(bucket).remove([decodeURIComponent(path)]);
+  } catch {
+    // Best-effort. `cleanup_orphan_media()` (banco) só varre o bucket
+    // `posts` — cobre o fallback `avatar_fallback_*`, mas NÃO o bucket
+    // dedicado `avatars`. Se este remove falhar, um avatar reprovado no
+    // bucket `avatars` fica órfão sem rede de segurança automática.
+  }
+}
+
+/**
  * Busca cidades por UF via /api/cidades (route já portada que faz proxy do
  * IBGE com cache CDN). Retorna array de nomes ordenado alfabeticamente
  * (a ordenação vem do upstream).

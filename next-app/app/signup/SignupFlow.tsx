@@ -175,12 +175,22 @@ export function SignupFlow() {
       // o ID só existe após auth.signUp resolver).
       if (draft.avatarFile && userId) {
         try {
-          const { uploadAvatar: doUpload } = await import('@/lib/services/profile');
+          const { uploadAvatar: doUpload, removeUploadedAvatar } = await import(
+            '@/lib/services/profile'
+          );
           const { url, hash } = await doUpload(userId, draft.avatarFile);
           // Checagem autoritativa (2026-09-17) — mesmo gate de
-          // EditProfileForm.tsx, ver comentário lá.
+          // EditProfileForm.tsx, ver comentário lá. Reprovado → apaga o
+          // arquivo do storage também (2ª rodada de revisão do Codex:
+          // sem isso, a linha nunca era gravada mas o arquivo ficava pra
+          // sempre no bucket público).
           const { assertMediaApproved } = await import('@/lib/services/moderateMedia');
-          await assertMediaApproved({ mediaUrl: url });
+          try {
+            await assertMediaApproved({ mediaUrl: url });
+          } catch (modErr) {
+            await removeUploadedAvatar(url);
+            throw modErr;
+          }
           // updateProfile separado pra setar avatar_url no row do user.
           const { updateProfile } = await import('@/lib/services/profile');
           await updateProfile(userId, { avatar_url: url, avatar_hash: hash || null });

@@ -42,18 +42,22 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 | Bot Fight Mode/Turnstile server-side em `/login`/`/signup` — E captcha desligado no Supabase Auth (mesma lacuna, dois ângulos) | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação nem captcha no Auth |
 | Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — não é mais bloqueante de segurança |
 | Cloudflare Access na frente de `*.pages.dev` | 🔵 DECISÃO, confirmado que NÃO está configurado | a considerar, Cloudflare Dashboard |
+| INSERT direto em `posts` via PostgREST pula `/api/moderate` inteiro (moderação é só orquestração de cliente) | 🔵 DECISÃO/NÃO CORRIGIDO | exige mover a criação de post pro servidor — ver entrada 2026-09-17 "Moderação Gemini no publish" |
 
 ---
 
 ## Histórico (mais recente primeiro)
 
-### 2026-09-17 — Moderação Gemini no publish + blocklist de hash CSAM em avatar/art-references (PR #325)
-Fecha as 2 pendências deixadas em aberto pela auditoria de lógica de
-negócio de 2026-09-16 (business-logic security audit, PR #319): publicar
-não passava por moderação nenhuma de conteúdo novo (só reenvio de mídia
-já na blocklist de hash era barrado, pelo trigger do banco), e a
+### 2026-09-17 — Moderação Gemini no publish + blocklist de hash CSAM em avatar/art-references (PR #325 + #327)
+Fecha PARTE das 2 pendências deixadas em aberto pela auditoria de lógica
+de negócio de 2026-09-16 (business-logic security audit, PR #319):
+publicar não passava por moderação nenhuma de conteúdo novo (só reenvio
+de mídia já na blocklist de hash era barrado, pelo trigger do banco), e a
 blocklist de hash CSAM só cobria `posts`. Detalhe completo na entrada
-"MODERAÇÃO GEMINI NO PUBLISH..." do `CLAUDE.md`.
+"MODERAÇÃO GEMINI NO PUBLISH..." do `CLAUDE.md`. **"Parte" porque uma
+revisão automática (Codex) na própria PR de documentação (#327) achou que
+a 1ª versão desta entrada marcava tudo como `✅ FIXED` quando um gap
+estrutural segue aberto — ver a linha 🔵 abaixo.**
 
 **✅ FIXED, SQL já executado
 (`migrations/2026-09-17-moderation-quota-and-media-hash-coverage.sql`,
@@ -61,23 +65,43 @@ blocklist de hash CSAM só cobria `posts`. Detalhe completo na entrada
 - `usePublishPost` chama `/api/moderate` pra TODA foto do carrossel
   antes de criar o post (não só a 1ª); `/api/moderate-video` — que
   existia pronto mas sem nenhum caller — passou a rodar depois do
-  insert pra vídeo.
+  insert pra vídeo, e todo caminho `'pending'` dele (soft/flagged,
+  download falhou, análise indisponível, vídeo grande) agora enfileira
+  de verdade em `media_review_queue` (antes não gravava nada — achado
+  de 2ª rodada do Codex, mesmo padrão do gap do avatar abaixo).
 - Cota de moderação separada da cota geral de IA (`reserve_moderation_usage`,
   RPC nova) — sem isso, moderar no publish consumiria a cota de
   chat/legenda que o usuário escolheu gastar em outra coisa.
-- 429 (rate limit/cota) deixou de ser tratado como fail-open — só
-  infra de verdade fora do ar (503/rede) libera; o próprio limite
-  anti-abuso não pode virar bypass.
+- 429 (rate limit/cota) deixou de ser tratado como fail-open — bloqueia,
+  porque é o próprio limite anti-abuso respondendo, não infra fora do
+  ar. **Qualquer OUTRA resposta não-2xx segue fail-open** (503 sem
+  `GEMINI_API_KEY`, mas também 400/401/403/500/rede/parse) — não é só
+  "503/rede" como a 1ª versão desta linha dizia (achado de 2ª rodada do
+  Codex: o texto estava impreciso, o código sempre se comportou assim).
 - `profiles.avatar_hash`/`art_references.image_hash` + triggers de
   blocklist (mesmo padrão de `posts.media_hash`), e — mais importante —
   `uploadAvatar`/`uploadArtReference` chamam a mesma checagem
   autoritativa do publish (hash calculado NO SERVIDOR, não confia no
-  que o cliente manda) antes de persistir a linha.
+  que o cliente manda) antes de persistir a linha. Reprovado → linha
+  nunca gravada **e arquivo apagado do storage nos dois** (`uploadAvatar`
+  não apagava até a 2ª rodada do Codex — só `uploadArtReference` fazia
+  essa limpeza; `removeUploadedAvatar` fecha isso).
 
-4 achados P1 de revisão automática (Codex) nos itens acima, todos
-verificados reais e corrigidos no mesmo PR antes do merge — nenhum
-descartado como falso positivo. 177 arquivos/2244 testes, typecheck e
-build limpos.
+**🔵 DECISÃO/NÃO CORRIGIDO — gap estrutural que segue aberto:** tudo
+acima é orquestração do CLIENTE (`usePublishPost`). `supabase_init.sql`
+continua deixando qualquer `authenticated` inserir a própria linha em
+`posts` direto via PostgREST (RLS de dono), e `createPost` grava
+`status:'approved'`. Um usuário com acesso à API — não precisa ser
+sofisticado — publica sem passar pela moderação nenhuma. A própria
+auditoria de 2026-09-16 já registrava que fechar isso de verdade exige
+mover a CRIAÇÃO do post pro servidor (rota que faz moderação + INSERT
+com service_role); mudança arquitetural maior, não decidida ainda.
+
+8 achados P1/P2 de revisão automática (Codex) no total, entre as duas
+PRs (#325: 4 na correção original; #327: 4 na PR de documentação — 2
+gaps de código reais que a doc escondia, 2 imprecisões de texto),
+todos verificados reais e corrigidos — nenhum descartado como falso
+positivo. Suíte/typecheck/build verdes nas duas.
 
 ### 2026-09-17 — Auditoria de CI/CD (2026-09-16, commit `bfa6849`) documentada retroativamente
 Merge #318 (`claude/keen-bell-vyn38f`) chegou na `main` em 2026-09-16 com
