@@ -9,6 +9,7 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import { normalizarArquivo } from '@/lib/utils/mediaType';
 import { sha256Hex } from '@/lib/utils/sha256';
+import { assertMediaApproved } from '@/lib/services/moderateMedia';
 
 export interface ArtReference {
   id: string;
@@ -139,6 +140,23 @@ export async function uploadArtReference(params: {
   const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(path);
   const imageUrl = pub.publicUrl;
   const imageHash = (await hashPromise) || null;
+
+  // Checagem AUTORITATIVA (2026-09-17, achado do Codex na revisão da PR
+  // que estendeu a blocklist de hash CSAM pra esta tabela): o trigger do
+  // banco confia no `image_hash` que O CLIENTE manda, e RLS deixa o dono
+  // inserir a própria linha direto via PostgREST — falsificável, só não
+  // mandar o hash certo. `/api/moderate` baixa o arquivo e calcula o hash
+  // NO SERVIDOR (não confia em `imageHash` pra decidir nada, só grava ele
+  // depois no banco), então é essa chamada que fecha a checagem de
+  // verdade. Reprovado → limpa o storage (senão vira arquivo órfão
+  // público) e propaga o erro; a mesma limpeza que já existe pra falha de
+  // insert, mais abaixo.
+  try {
+    await assertMediaApproved({ mediaUrl: imageUrl });
+  } catch (e) {
+    sb.storage.from(BUCKET).remove([path]).catch(() => {});
+    throw e;
+  }
 
   const row: Record<string, unknown> = {
     user_id: userId,

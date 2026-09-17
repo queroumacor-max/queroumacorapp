@@ -30,6 +30,7 @@ import { AuthenticationError, ValidationError } from '@/lib/errors';
 import { hapticNotify } from '@/lib/native';
 import { reportFailure } from '@/lib/utils/reportFailure';
 import { fetchGated } from '@/lib/services/fetchGated';
+import { assertMediaApproved } from '@/lib/services/moderateMedia';
 
 export interface PublishPostInput {
   files: File[];                 // já validados pelo componente
@@ -157,45 +158,29 @@ export function usePublishPost(): UsePublishPostResult {
       // auditoria de negócio 2026-09-16: publicar não passava por NENHUMA
       // triagem de conteúdo desconhecido; só reenvio de algo JÁ na
       // blocklist de hash era barrado, e isso pelo trigger do banco, não
-      // por aqui). Só pra posts com FOTO: vídeo tem pipeline própria
-      // (/api/moderate-video), que roda depois do insert porque precisa
-      // de um `postId` — moderar vídeo antes de o post existir é uma
-      // mudança maior, fora deste escopo.
+      // por aqui). TODA foto do carrossel passa, não só a primeira — post
+      // aceita até 5 (MAX_IMAGES em posts.ts) e só a 1ª tinha hash/checagem
+      // (achado do Codex na revisão desta PR: fotos 2-5 furavam tanto o
+      // Gemini quanto a blocklist de hash, que só existe pra
+      // `posts.media_hash`, coluna singular).
       //
-      // Fail-OPEN em falha de infraestrutura (rede, 503 sem
-      // GEMINI_API_KEY, resposta que não parseia) — mesma filosofia do
-      // useSendMessage (chat): moderação é defesa em profundidade, não
-      // pode virar "não consigo publicar nada" quando o Gemini está fora
-      // do ar. Fail-CLOSED só quando o servidor efetivamente responde
-      // flagged/reprovado — aí é a moderação dizendo não, não uma falha.
-      if (input.mediaType !== 'video' && urls[0]) {
-        try {
-          const res = await fetchGated('/api/moderate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: input.caption || undefined,
-              mediaUrl: urls[0],
-            }),
+      // `assertMediaApproved` já decide fail-open (infra fora do ar) vs
+      // fail-closed (reprovado OU 429 — a cota/rate-limit de moderação
+      // respondendo "não agora" NÃO é infra indisponível, é o próprio
+      // limite anti-abuso; tratar como fail-open transformaria estourar o
+      // limite de propósito num jeito de publicar sem moderação nenhuma).
+      if (input.mediaType !== 'video') {
+        for (let i = 0; i < urls.length; i++) {
+          await assertMediaApproved({
+            mediaUrl: urls[i],
+            // Legenda só entra na checagem da 1ª foto — reanalisar o MESMO
+            // texto em cada imagem do carrossel só gastaria cota à toa.
+            text: i === 0 ? input.caption : undefined,
           });
-          if (res.ok) {
-            const json = (await res.json()) as {
-              flagged?: boolean;
-              approved?: boolean;
-            };
-            if (json.flagged === true || json.approved === false) {
-              throw new ValidationError(
-                'Este conteúdo não pode ser publicado por violar as diretrizes da comunidade.',
-              );
-            }
-          }
-        } catch (e) {
-          if (e instanceof ValidationError) throw e;
-          // Rede/parse/503 (Gemini não configurado): segue sem bloquear.
         }
       }
 
-      return createPost({
+      const post = await createPost({
         userId: user.id,
         caption: input.caption || null,
         mediaUrls: urls,
@@ -208,6 +193,46 @@ export function usePublishPost(): UsePublishPostResult {
         artType: input.artType ?? null,
         linkUrl: input.linkUrl ?? null,
       });
+
+      // VÍDEO: moderação roda DEPOIS do insert (precisa de um `postId` —
+      // `/api/moderate-video` relê `media_url` AUTORITATIVO do banco, não
+      // confia em nada que o client mandou). Post nasce `status='approved'`
+      // (mesmo default de sempre) e some do ar se a análise reprovar
+      // (severity 'hard' → o próprio endpoint apaga a linha + o arquivo do
+      // storage). Achado do Codex: este endpoint EXISTIA sem nenhum
+      // caller — a "pipeline própria" documentada aqui nunca rodava, e todo
+      // vídeo publicado ficava permanentemente sem moderação nenhuma.
+      //
+      // Fail-open em qualquer resposta que não seja 'rejected' explícito —
+      // o próprio `moderateVideoPost` já devolve 'pending' (nunca lança)
+      // pra qualquer falha de infra/análise, e é assim que a feature foi
+      // desenhada desde que existe (revisão humana depois, não bloqueio
+      // síncrono). Falha de rede/parse aqui também não derruba o publish:
+      // o post já foi criado, e a pessoa não pode ficar sem saber se
+      // publicou ou não por causa de uma chamada best-effort.
+      if (input.mediaType === 'video' && post?.id) {
+        try {
+          const res = await fetchGated('/api/moderate-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId: post.id, caption: input.caption || '' }),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { status?: string; reasons?: string[] };
+            if (json.status === 'rejected') {
+              throw new ValidationError(
+                'Este vídeo não pôde ser publicado por violar as diretrizes da comunidade.',
+              );
+            }
+          }
+        } catch (e) {
+          if (e instanceof ValidationError) throw e;
+          // Rede/parse/503: a moderação de vídeo é best-effort — o post já
+          // existe e segue no ar até uma revisão posterior.
+        }
+      }
+
+      return post;
     },
     // A falha de publicar só existia na faixa vermelha do Composer: se a
     // pessoa não transcrevesse a mensagem, ninguém aqui ficava sabendo.
