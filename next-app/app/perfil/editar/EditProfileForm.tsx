@@ -362,8 +362,11 @@ export function EditProfileForm() {
     setAvatarPreview(local);
     setAvatarBusy(true);
     try {
-      const url = await uploadAvatar(user.id, f);
-      await update({ avatar_url: url } as Parameters<typeof update>[0]);
+      const { url, hash } = await uploadAvatar(user.id, f);
+      await update({
+        avatar_url: url,
+        avatar_hash: hash || null,
+      } as Parameters<typeof update>[0]);
       setAvatarPreview(null); // a partir daqui vale a do banco
       URL.revokeObjectURL(local);
       showToast('Foto atualizada!', 'success');

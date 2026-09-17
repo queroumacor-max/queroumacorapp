@@ -356,8 +356,11 @@ describe('uploadAvatar', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const f = makeFile('me.jpg', 'image/jpeg', 200);
-    const url = await uploadAvatar('u1', f);
-    expect(url).toBe('https://cdn/avatar.jpg');
+    const result = await uploadAvatar('u1', f);
+    expect(result.url).toBe('https://cdn/avatar.jpg');
+    // Wave 2026-09-17: uploadAvatar também calcula o SHA-256 do arquivo
+    // (mesmo algoritmo de posts.ts, extraído pra lib/utils/sha256.ts).
+    expect(result.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(spies.storageFrom).toHaveBeenCalledWith('avatars');
     // path tem que começar com userId/ (storage policy)
     const uploadCall = spies.upload.mock.calls[0];
@@ -374,8 +377,9 @@ describe('uploadAvatar', () => {
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     const f = makeFile('me.jpg', 'image/jpeg', 200);
-    const url = await uploadAvatar('u1', f);
-    expect(url).toBe('https://cdn/posts/avatar.jpg');
+    const result = await uploadAvatar('u1', f);
+    expect(result.url).toBe('https://cdn/posts/avatar.jpg');
+    expect(result.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(spies.storageFrom).toHaveBeenCalledWith('avatars');
     expect(spies.storageFrom).toHaveBeenCalledWith('posts');
     // Path do fallback tem o prefixo "avatar_fallback_" pra ser identificável.

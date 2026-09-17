@@ -158,6 +158,73 @@ export async function reserveAiUsageViaRest(args: {
 }
 
 /**
+ * Reserva atômica de cota de MODERAÇÃO — RPC `reserve_moderation_usage`.
+ *
+ * Irmã de `reserveAiUsageViaRest`, mesmo formato de resposta e mesma
+ * filosofia fail-open em falha de infra — a diferença é a RPC de baixo:
+ * `reserve_moderation_usage` soma só `ai_usage WHERE feature = p_feature`,
+ * nunca o pool geral do usuário. Moderação (Gemini triage no publish) é
+ * feature de SEGURANÇA que roda em nome da plataforma, não um "uso de IA"
+ * que a pessoa escolheu gastar — cobrá-la do mesmo pool de chat/legenda
+ * faria publicar um post consumir cota que o usuário esperava usar em
+ * outra coisa (pendência fechada da auditoria de negócio 2026-09-16,
+ * ver migrations/2026-09-17-moderation-quota-and-media-hash-coverage.sql
+ * seção Q).
+ */
+export async function reserveModerationUsageViaRest(args: {
+  supaUrl: string;
+  serviceKey: string;
+  userId: string;
+  feature: string;
+  limit: number;
+}): Promise<{ allowed: boolean; used: number; limit: number }> {
+  const { supaUrl, serviceKey, userId, feature, limit } = args;
+  if (!supaUrl || !serviceKey || !userId) {
+    return { allowed: true, used: 0, limit };
+  }
+  try {
+    const res = await fetch(`${supaUrl}/rest/v1/rpc/reserve_moderation_usage`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_feature: feature,
+        p_limit: limit,
+        p_cost: 1,
+      }),
+      signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.warn(`reserveModerationUsageViaRest: rpc ${res.status} - ${t.slice(0, 200)}`);
+      // Infra indisponível: fail-open (mesma filosofia do resto do arquivo).
+      return { allowed: true, used: 0, limit };
+    }
+    const data = (await res.json().catch(() => null)) as
+      | { allowed?: boolean; used?: number; limit?: number }
+      | null;
+    if (!data || typeof data.allowed !== 'boolean') {
+      return { allowed: true, used: 0, limit };
+    }
+    return {
+      allowed: data.allowed,
+      used: typeof data.used === 'number' ? data.used : 0,
+      limit: typeof data.limit === 'number' ? data.limit : limit,
+    };
+  } catch (e) {
+    console.warn(
+      'reserveModerationUsageViaRest: exceção',
+      e instanceof Error ? e.message : String(e)
+    );
+    return { allowed: true, used: 0, limit };
+  }
+}
+
+/**
  * Conta uso do mês via RPC `ai_usage_this_month`. Falha → retorna 0
  * (fail-open: melhor liberar IA do que travar usuário legítimo).
  *

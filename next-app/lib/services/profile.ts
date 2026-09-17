@@ -25,6 +25,7 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Profile, UserRole, UserType } from '@/lib/types';
 import { descreverArquivo, normalizarArquivo, provadoNaoImagem } from '@/lib/utils/mediaType';
+import { sha256Hex } from '@/lib/utils/sha256';
 
 // (getProfile usa SELECT * defensivamente — não dependemos de uma lista
 // explícita de colunas, então uma migration pendente não quebra a UI.)
@@ -50,6 +51,11 @@ export interface ProfilePatch {
   address?: string | null;
   specialties?: string | null;
   avatar_url?: string | null;
+  // SHA-256 do binário do avatar (2026-09-17, extensão da auditoria CSAM:
+  // ver enforce_avatar_hash_blocklist na migration
+  // 2026-09-17-moderation-quota-and-media-hash-coverage.sql). Gravado
+  // junto com avatar_url pra o trigger de blocklist ter o que checar.
+  avatar_hash?: string | null;
   service_radius?: number | null;
   business_logo_url?: string | null;
   business_name?: string | null;
@@ -199,6 +205,16 @@ export async function updateProfile(
   }
 }
 
+export interface UploadAvatarResult {
+  url: string;
+  /**
+   * SHA-256 hex do binário (2026-09-17, extensão da auditoria CSAM — ver
+   * `enforce_avatar_hash_blocklist`). String vazia se `crypto.subtle` não
+   * está disponível; caller então grava `avatar_hash: null`.
+   */
+  hash: string;
+}
+
 /**
  * Upload de avatar pro Supabase Storage. Tenta `avatars/` primeiro
  * (bucket dedicado, policy mais restrita) e cai pra `posts/` se falhar
@@ -214,7 +230,7 @@ export async function updateProfile(
 export async function uploadAvatar(
   userId: string,
   entrada: File,
-): Promise<string> {
+): Promise<UploadAvatarResult> {
   let file = entrada;
   if (!userId) throw new ValidationError('userId obrigatório');
   if (!file) throw new ValidationError('Arquivo obrigatório');
@@ -240,13 +256,19 @@ export async function uploadAvatar(
   const ts = Date.now();
   const path = `${userId}/${ts}.${ext}`;
 
+  // Hash em paralelo com o upload (mesmo padrão de uploadMedia em
+  // posts.ts) — falha em calcular não bloqueia o upload, só grava
+  // avatar_hash vazio (o trigger de blocklist trata NULL como "nada a
+  // checar", não como bloqueio).
+  const hashPromise = sha256Hex(file);
+
   // Tentativa 1: bucket `avatars` (dedicado).
   const primary = await sb.storage
     .from('avatars')
     .upload(path, file, { upsert: true, contentType: file.type });
   if (!primary.error) {
     const { data } = sb.storage.from('avatars').getPublicUrl(path);
-    if (data?.publicUrl) return data.publicUrl;
+    if (data?.publicUrl) return { url: data.publicUrl, hash: await hashPromise };
   }
 
   // Tentativa 2: bucket `posts` (fallback). O path muda pra deixar claro que
@@ -257,7 +279,7 @@ export async function uploadAvatar(
     .upload(fallbackPath, file, { upsert: true, contentType: file.type });
   if (!fallback.error) {
     const { data } = sb.storage.from('posts').getPublicUrl(fallbackPath);
-    if (data?.publicUrl) return data.publicUrl;
+    if (data?.publicUrl) return { url: data.publicUrl, hash: await hashPromise };
   }
 
   // Ambos falharam — surfa o erro mais recente pra a UI.

@@ -8,6 +8,7 @@
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import { normalizarArquivo } from '@/lib/utils/mediaType';
+import { sha256Hex } from '@/lib/utils/sha256';
 
 export interface ArtReference {
   id: string;
@@ -122,6 +123,12 @@ export async function uploadArtReference(params: {
   const objectId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).replace(/-/g, '');
   const path = `${userId}/${objectId}.${ext}`;
 
+  // Hash em paralelo com o upload (mesmo padrão de uploadMedia/uploadAvatar)
+  // — 2026-09-17, extensão da auditoria CSAM: ver
+  // enforce_art_reference_hash_blocklist. Falha em calcular não bloqueia o
+  // upload, só grava image_hash vazio.
+  const hashPromise = sha256Hex(file);
+
   const sb = getSupabase();
   const { error: upErr } = await sb.storage.from(BUCKET).upload(path, file, {
     contentType: file.type,
@@ -131,19 +138,39 @@ export async function uploadArtReference(params: {
 
   const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(path);
   const imageUrl = pub.publicUrl;
+  const imageHash = (await hashPromise) || null;
 
-  const { data, error } = await artClient()
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    title: title ?? null,
+    image_url: imageUrl,
+    image_hash: imageHash,
+    tags,
+    width: dimensions?.width ?? null,
+    height: dimensions?.height ?? null,
+  };
+  let { data, error } = await artClient()
     .from('art_references')
-    .insert({
-      user_id: userId,
-      title: title ?? null,
-      image_url: imageUrl,
-      tags,
-      width: dimensions?.width ?? null,
-      height: dimensions?.height ?? null,
-    })
+    .insert(row)
     .select('id, user_id, title, image_url, tags, width, height, created_at')
     .single();
+  // Tolera migration pendente: `image_hash` é coluna nova (2026-09-17) —
+  // se ainda não rodou, o insert falha com "Could not find the
+  // 'image_hash' column" e a biblioteca de artes pararia de aceitar
+  // upload por causa de um recurso que ninguém pediu ainda. Mesmo padrão
+  // de updateProfile em profile.ts.
+  if (error && /Could not find the 'image_hash' column/i.test(error.message || '')) {
+    // Objeto NOVO (não mutar `row` in-place) — quem chamou `insert(row)` na
+    // 1ª tentativa pode ter guardado a referência (ex.: spy de teste, log);
+    // mutar o mesmo objeto reescreveria a história da 1ª chamada.
+    const rowSemHash: Record<string, unknown> = { ...row };
+    delete rowSemHash.image_hash;
+    ({ data, error } = await artClient()
+      .from('art_references')
+      .insert(rowSemHash)
+      .select('id, user_id, title, image_url, tags, width, height, created_at')
+      .single());
+  }
   if (error) {
     // Best-effort cleanup do storage se o insert falhou (não deixa órfão).
     sb.storage.from(BUCKET).remove([path]).catch(() => {});
