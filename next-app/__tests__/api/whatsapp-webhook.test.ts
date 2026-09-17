@@ -366,3 +366,56 @@ describe('POST /api/whatsapp/webhook — ecos e tipos sem conversa', () => {
     expect(autoReplyMock).not.toHaveBeenCalled();
   });
 });
+
+// GET = verificação de assinatura (a Meta/Dualhook chama isso uma vez, na
+// configuração do webhook, não a cada mensagem). Auditoria CI/CD 2026-09-17:
+// trocou `token === verifyToken` por `safeEqual` (tempo constante) — risco
+// era baixo, mas nenhum segredo deste webhook deveria ficar de fora da regra
+// que os outros já seguem.
+describe('GET /api/whatsapp/webhook — verificação de assinatura', () => {
+  const VERIFY_TOKEN = 'verify-token-de-teste';
+
+  beforeEach(() => {
+    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN = VERIFY_TOKEN;
+  });
+  afterEach(() => {
+    delete process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  });
+
+  async function chamarGet(qs: string) {
+    const mod = await import('@/app/api/whatsapp/webhook/route');
+    const req = new Request(`https://exemplo.com/api/whatsapp/webhook?${qs}`);
+    return mod.GET(req as never);
+  }
+
+  function qs(token: string, challenge = 'desafio-123') {
+    return `token=${URL_SECRET}&hub.mode=subscribe&hub.verify_token=${encodeURIComponent(token)}&hub.challenge=${challenge}`;
+  }
+
+  it('token correto → 200 com o challenge cru', async () => {
+    const res = await chamarGet(qs(VERIFY_TOKEN));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('desafio-123');
+  });
+
+  it('token errado → 403, nunca ecoa o challenge', async () => {
+    const res = await chamarGet(qs('token-errado'));
+    expect(res.status).toBe(403);
+  });
+
+  // O bug que a regra `===` evita: token errado só do MESMO tamanho do
+  // certo não pode passar por coincidência de comprimento.
+  it('token do mesmo tamanho do correto, mas diferente → 403', async () => {
+    const errado = VERIFY_TOKEN.slice(0, -1) + (VERIFY_TOKEN.endsWith('e') ? 'x' : 'e');
+    expect(errado.length).toBe(VERIFY_TOKEN.length);
+    const res = await chamarGet(qs(errado));
+    expect(res.status).toBe(403);
+  });
+
+  it('hub.mode diferente de subscribe → 403 mesmo com token certo', async () => {
+    const res = await chamarGet(
+      `token=${URL_SECRET}&hub.mode=unsubscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=x`
+    );
+    expect(res.status).toBe(403);
+  });
+});

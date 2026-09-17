@@ -55,6 +55,7 @@ import {
   persistStatusDoLead,
   persistStatusEntrega,
   persistWhatsAppMessage,
+  safeEqual,
   statusAvanca,
   TIPOS_SEM_CONVERSA,
   type AtualizacaoDeStatus,
@@ -100,7 +101,11 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === verifyToken && challenge) {
+  // safeEqual (tempo constante) em vez de `===` — mesma regra dos outros
+  // segredos deste webhook (auditoria CI/CD 2026-09-17). Risco era baixo
+  // (a Meta chama este GET só uma vez, na configuração do webhook, não é
+  // o segredo corrente de cada request), mas não custa nada fechar.
+  if (mode === 'subscribe' && challenge && safeEqual(token ?? '', verifyToken)) {
     // A Meta espera o challenge cru em texto puro, status 200.
     return new NextResponse(challenge, {
       status: 200,
