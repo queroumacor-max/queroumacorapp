@@ -40,21 +40,18 @@
     - **Cloudflare Access na frente de `*.pages.dev`**: confirmado que NÃO
       está configurado (zero aplicações). Continua sendo decisão do
       usuário — "a considerar", agora com o estado real confirmado.
-    - **Preview env vars do Cloudflare Pages — achado que CONTRADIZ o
-      `STAGING.md`.** Checando ao vivo o painel (`queroumacor-next` →
+    - **✅ Preview env vars do Cloudflare Pages — RECONCILIADO
+      (2026-09-17).** Checando ao vivo o painel (`queroumacor-next` →
       Settings → Environment variables → Preview): só **5 variáveis
       públicas** (`NEXT_PUBLIC_*` + `VAPID_SUBJECT`) — nenhum secret de
       produção (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA/MP/WhatsApp
-      ausentes). Isso não bate com o que o `STAGING.md` e a auditoria
+      ausentes). Isso CONTRADIZIA o que o `STAGING.md` e a auditoria
       Cloudflare de 13/09 descreviam ("Preview roda com os MESMOS secrets
-      de produção"). **Duas explicações possíveis, nenhuma confirmada**:
-      (a) o usuário já corrigiu isso no painel entre a auditoria original e
-      agora, ou (b) o `STAGING.md` está e sempre esteve descrevendo um
-      risco que não reflete a configuração real. **Não tratar como
-      definitivamente fechado sem reconciliar com o `STAGING.md`** — o
-      texto do arquivo precisa ser corrigido OU o painel precisa ser
-      re-conferido puxando o histórico de mudanças, porque as duas fontes
-      hoje se contradizem e uma delas está desatualizada.
+      de produção"). **`STAGING.md` corrigido para refletir o estado real**
+      — o texto era o desatualizado, não o painel (não dá pra saber se o
+      usuário já tinha corrigido o painel antes da auditoria original, ou
+      se o `STAGING.md` nunca bateu com a config real; de qualquer forma o
+      estado ATUAL é seguro e agora é o que o arquivo descreve). Fechado.
     - **DMARC de `calicolors.com.br`**: CONFIRMADO ausente via lookup DNS
       direto (`_dmarc.calicolors.com.br` → NXDOMAIN) — deixa de ser
       presumido pela falta de confirmação e passa a ser um fato verificado.

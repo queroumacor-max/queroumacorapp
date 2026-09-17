@@ -34,7 +34,6 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 | Item | Status | Onde tratar |
 |---|---|---|
 | DNSSEC ligado no Cloudflare, falta o DS record no registrador | 🟡 MANUAL (passo final) | Registro.br (registrador de `queroumacor.com.br`) — publicar o DS record que o Cloudflare gerou |
-| Preview env vars do Cloudflare Pages — checado ao vivo e SEM secrets hoje, mas contradiz o `STAGING.md` | ⚪ RECONCILIAR DOC | ver nota na entrada 2026-09-16 (continuação) — reconferir/corrigir `STAGING.md` |
 | DMARC de `calicolors.com.br` | ⚪ MANUAL, confirmado ausente via DNS | GoDaddy DNS — `dpo@calicolors.com.br` |
 | Cloudflare CSAM Scanning Tool (opt-in legal) | ⚪ MANUAL | contatar `cloudflare-csam@cloudflare.com` |
 | Login social PKCE (mobile) — código migrado e testado só em unit test, nunca em aparelho real | ⚪ MANUAL | instalar o AAB/IPA da branch mergeada e logar de verdade com Google e Apple, nas duas plataformas |
@@ -47,6 +46,28 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-17 — `STAGING.md` reconciliado com o painel (item fechado)
+A 2ª rodada de verificação (2026-09-16) tinha achado uma contradição: o
+painel ao vivo mostrava Preview do Cloudflare Pages com só 5 vars públicas
+(sem nenhum secret de produção), enquanto `STAGING.md` e a auditoria
+Cloudflare de 13/09 descreviam "Preview roda com os MESMOS secrets de
+produção". Ficou registrado como pendência "reconciliar doc" sem apontar
+qual lado corrigir.
+
+**Resolvido: o texto era o desatualizado, não o painel.** `STAGING.md`
+reescrito pra descrever o estado real e verificado — a seção de risco virou
+"✅ VERIFICADO E FECHADO", e a linha "Diferenças entre staging e produção"
+passou a dizer que Preview tem env vars PRÓPRIAS e mais restritas, não as
+mesmas de produção. **Não dá pra confirmar QUANDO ou COMO o painel chegou
+nesse estado** (correção anterior do usuário, ou o texto nunca bateu com a
+config real desde o início) — só que hoje ele é seguro, e o documento passa
+a refletir isso. O risco residual que sobra (Cloudflare Access ausente na
+frente de `*.pages.dev`) continua registrado, sem mudança — é decisão do
+usuário, não mais bloqueado por segredo de produção exposto.
+
+Item removido da tabela de pendências (linha "Preview env vars ... contradiz
+o STAGING.md").
 
 ### 2026-09-16 (continuação) — 2ª rodada: 15 dos 17 itens pendentes checados por console
 Mesma sessão "Claude in Chrome" (`queroumacor@gmail.com`), na sequência da
