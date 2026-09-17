@@ -1,8 +1,11 @@
 name: Rollback main
 
 # Reverte main pro commit anterior (ou um SHA escolhido) via force-push.
-# Isso dispara automaticamente o deploy.yml que faz o CF Pages deploy
-# da versao anterior. So manual — protegido por input `confirm=ROLLBACK`.
+# O deploy da versão anterior sai do build nativo do Cloudflare Pages (git
+# integration, que observa a branch main diretamente) — NÃO do deploy.yml
+# deste repo, que hoje é workflow_dispatch-only (não dispara em push; ver
+# comentário no topo de deploy.yml). Só manual — protegido por input
+# `confirm=ROLLBACK`.
 on:
   workflow_dispatch:
     inputs:
@@ -23,9 +26,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # Inputs de workflow_dispatch só podem vir de quem já tem permissão de
+      # escrita pra disparar o workflow — não é o modelo de ameaça de PR de
+      # fork. Mesmo assim, passamos por env em vez de interpolar
+      # `${{ github.event.inputs.* }}` direto no `run:` (regra geral do
+      # projeto pra qualquer contexto do GitHub, auditoria 2026-09-16):
+      # interpolação direta vira texto do script ANTES do shell rodar, então
+      # um valor com aspas/backticks quebraria o quoting; via env, o shell
+      # sempre trata o conteúdo como dado.
       - name: Validate confirm input
+        env:
+          CONFIRM_INPUT: ${{ github.event.inputs.confirm }}
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "ROLLBACK" ]; then
+          if [ "$CONFIRM_INPUT" != "ROLLBACK" ]; then
             echo "Confirmacao invalida. Esperado literal 'ROLLBACK'."
             exit 1
           fi
@@ -42,11 +55,21 @@ jobs:
           git config user.email "claude-bot@users.noreply.github.com"
 
       - name: Reset main to target
+        env:
+          TARGET_SHA_INPUT: ${{ github.event.inputs.target_sha }}
         run: |
-          target="${{ github.event.inputs.target_sha }}"
+          target="$TARGET_SHA_INPUT"
           if [ -z "$target" ]; then
             target="HEAD~1"
           fi
+          # Recusa qualquer coisa começando com "-": git interpretaria como
+          # flag em vez de ref (argument injection em `git reset --hard`).
+          case "$target" in
+            -*)
+              echo "target_sha inválido (não pode começar com '-'): $target"
+              exit 1
+              ;;
+          esac
           echo "Resetting main to: $target"
           git reset --hard "$target"
           echo "NEW_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"

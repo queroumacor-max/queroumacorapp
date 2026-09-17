@@ -25,8 +25,14 @@ jobs:
       run:
         working-directory: next-app
     steps:
+      # persist-credentials:false — este job nunca dá `git push` (o deploy é
+      # via wrangler/API do Cloudflare, não via git); sem a credencial
+      # persistida, um postinstall/build script malicioso não tem como usar
+      # o GITHUB_TOKEN pra escrever no repo.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,15 +41,27 @@ jobs:
           cache: npm
           cache-dependency-path: next-app/package-lock.json
 
+      # npm ci (não npm install): respeita o lockfile e falha se ele estiver
+      # desatualizado, em vez de re-resolver dependências silenciosamente.
       - name: Install deps
-        run: npm install
+        run: npm ci
 
+      # Auditoria de segurança CI/CD 2026-09-16: SUPABASE_SERVICE_ROLE_KEY
+      # NÃO é lida em build-time em lugar nenhum — o runtime é o edge do
+      # Cloudflare Workers, que lê segredos via getRuntimeEnv() do CONTEXTO
+      # DA REQUEST (env vars configuradas no painel do CF Pages), nunca de
+      # process.env populado no momento do `next build` (ver regra
+      # "process.env cru" no CLAUDE.md). Só NEXT_PUBLIC_* precisam estar
+      # presentes aqui, porque o next.config.mjs os INLINE no bundle do
+      # cliente durante o build. Passar a service role key pra esta etapa
+      # só aumentava a superfície: qualquer script malicioso rodando durante
+      # `npm ci`/`next build` (postinstall de dependência comprometida)
+      # teria acesso de leitura irrestrita ao banco via essa chave.
       - name: Build Next.js
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Build Cloudflare Pages output
         run: npm run build:cf
@@ -62,8 +80,15 @@ jobs:
             exit 1
           fi
 
+      # Pinado por commit SHA (não a tag mutável @v3): esta action recebe
+      # CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID — se a tag `v3` fosse
+      # remarcada (conta do mantenedor comprometida), o próximo run
+      # executaria código arbitrário com os dois secrets de deploy em mãos.
+      # SHA resolvido de refs/tags/v3 em 2026-09-16; Dependabot (github-
+      # actions ecosystem) mantém isso atualizado abrindo PR quando o SHA
+      # de v3 avançar.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -55,7 +57,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+          persist-credentials: false
+      # Pinado por commit SHA (a tag @v2 é mutável): esta action roda com
+      # GITHUB_TOKEN no ambiente. SHA = tag v2 dereferenciada em 2026-09-16.
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: .gitleaks.toml
@@ -73,6 +78,42 @@ jobs:
           tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
           scripts/secret-scan-selftest.sh /tmp/gitleaks
 
+  sbom:
+    # SBOM (CycloneDX) do next-app — inventário de dependências pra
+    # resposta a incidente (ex.: "isso usa a lib X vulnerável?" vira busca
+    # em vez de investigação). Gerado a partir do package-lock.json real (via
+    # `--type application` e sem rede: cyclonedx-npm lê só o lockfile), não
+    # publicado publicamente — fica só como artifact do run, retenção curta.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # --package-lock-only: lê só o package-lock.json, sem instalar
+      # node_modules nem rodar install script de dependência nenhuma —
+      # o job de SBOM não precisa (nem deve) executar código de terceiros.
+      # --ignore-npm-errors: o `.npmrc` do next-app usa legacy-peer-deps=true
+      # de propósito (ver comentário no arquivo — teto de peer do
+      # @cloudflare/next-on-pages), o que faz `npm ls` reportar peers
+      # "missing" que na prática nunca são usados; sem essa flag o gerador
+      # aborta no mesmo aviso que o install já tolera.
+      - name: Generate CycloneDX SBOM
+        working-directory: next-app
+        run: npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --ignore-npm-errors --output-file sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-next-app
+          path: next-app/sbom.cdx.json
+          retention-days: 30
+
   zap-baseline:
     # Scan passivo (não dispara payloads). Roda só na cron pra não atrasar
     # PR. allow_issue_writing:false → não polui Issues do repo a cada run.
@@ -81,9 +122,13 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
+      # Pinado por commit SHA (tag @v0.13.0 é mutável). Sem secrets neste
+      # job (alvo é a URL pública de produção), risco baixo, mas mesma regra.
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.13.0
+        uses: zaproxy/action-baseline@0619037bb784a56e2e06b104f0ebe157e076f075 # v0.13.0
         with:
           target: 'https://queroumacor.com.br'
           rules_file_name: '.zap/rules.tsv'
