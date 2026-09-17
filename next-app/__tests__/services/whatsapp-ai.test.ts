@@ -1,18 +1,20 @@
 // whatsapp-ai — travas do atendimento automático. O que mais importa aqui
 // NÃO é a IA acertar o texto: é a REGRA DA LOJA (nunca preço, nunca
 // orçamento) valer mesmo quando o modelo desobedece.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildSystemPrompt,
   descreverRegistroDeTemplate,
   PROMPT_BASE_PADRAO,
   clientAsksForPrice,
+  clientHasComplaintOrLegalThreat,
   diaBrt,
   isBusinessHour,
   isOptOut,
   ehRecusaDeAbordagem,
   textoRecusaAgradecida,
   replyLeaksPrice,
+  replyMakesUnverifiedPromise,
   shouldSendAway,
   textoAusencia,
 } from '../../lib/api/_services/whatsapp-ai';
@@ -61,6 +63,71 @@ describe('replyLeaksPrice — trava final na SAÍDA da IA', () => {
     expect(replyLeaksPrice('Temos o galão de 3,6L e a lata de 18L')).toBe(false);
     expect(replyLeaksPrice('Abrimos das 8h às 18h')).toBe(false);
     expect(replyLeaksPrice('Trabalhamos com acrílico e látex, sim!')).toBe(false);
+  });
+
+  // Achado da auditoria de segurança de IA (2026-09-17): a regex original
+  // exigia "R" e "$" colados — um jailbreak que convence o modelo a variar
+  // só o espaçamento ("R $ 120") escapava da trava de saída inteira,
+  // mesmo com a trava de entrada (`clientAsksForPrice`) não tendo disparado
+  // (pergunta indireta). Prova que o bypass fechou.
+  it('não escapa por espaçamento variado em torno do R$ (bypass corrigido)', () => {
+    expect(replyLeaksPrice('Fica R $ 120 o galão')).toBe(true);
+    expect(replyLeaksPrice('São R$120')).toBe(true);
+    expect(replyLeaksPrice('o valor é R  $  95,50')).toBe(true);
+  });
+
+  it('pega frases de preço indireto que a v1 da regex não cobria', () => {
+    expect(replyLeaksPrice('cobramos 300 pela pintura completa')).toBe(true);
+    expect(replyLeaksPrice('gira em torno de 450 dependendo da área')).toBe(true);
+    expect(replyLeaksPrice('sai a 90 o galão')).toBe(true);
+  });
+});
+
+// Achado da auditoria de segurança de IA (2026-09-17): a regra 4 do prompt
+// ("reclamação/cobrança/assunto delicado → precisa_humano=true") dependia
+// só de o modelo obedecer. Esta trava vira código, na mesma forma da trava
+// de preço.
+describe('clientHasComplaintOrLegalThreat — regra 4 virou código, não só prompt', () => {
+  it('detecta reclamação/ameaça legal/pedido de cancelamento ou reembolso', () => {
+    [
+      'Vou no PROCON reclamar disso',
+      'Já falei com meu advogado sobre esse atraso',
+      'quero cancelar meu pedido agora',
+      'não recebi meu pedido ainda, cadê?',
+      'quero reembolso disso',
+      'isso é um absurdo, péssimo atendimento',
+    ].forEach((t) => expect(clientHasComplaintOrLegalThreat(t), t).toBe(true));
+  });
+
+  it('não confunde pergunta normal sobre tinta com reclamação', () => {
+    expect(clientHasComplaintOrLegalThreat('Vocês têm tinta acrílica?')).toBe(false);
+    expect(clientHasComplaintOrLegalThreat('Qual o rendimento por litro?')).toBe(false);
+    expect(clientHasComplaintOrLegalThreat('Bom dia, td bem?')).toBe(false);
+  });
+});
+
+// Achado da auditoria de segurança de IA (2026-09-17): a regra 3 do prompt
+// ("não invente produto, prazo de entrega, estoque nem promessa de prazo")
+// também dependia só do modelo. Mesma filosofia de `replyLeaksPrice`.
+describe('replyMakesUnverifiedPromise — regra 3 virou código, não só prompt', () => {
+  it('barra promessa de prazo concreto', () => {
+    expect(replyMakesUnverifiedPromise('Chega amanhã sem falta!')).toBe(true);
+    expect(replyMakesUnverifiedPromise('Entregamos em 2 dias')).toBe(true);
+    expect(replyMakesUnverifiedPromise('Fica pronto até sexta')).toBe(true);
+  });
+
+  it('barra afirmação categórica de estoque', () => {
+    expect(replyMakesUnverifiedPromise('Temos sim esse produto')).toBe(true);
+    expect(replyMakesUnverifiedPromise('Está disponível na loja')).toBe(true);
+    expect(replyMakesUnverifiedPromise('Garantido para você')).toBe(true);
+  });
+
+  it('deixa passar resposta genérica sem promessa concreta', () => {
+    expect(replyMakesUnverifiedPromise('Trabalhamos com tintas acrílicas e esmalte')).toBe(false);
+    expect(replyMakesUnverifiedPromise('Nosso horário é das 8h às 18h')).toBe(false);
+    expect(replyMakesUnverifiedPromise('Posso verificar isso com a equipe pra confirmar')).toBe(
+      false,
+    );
   });
 });
 
@@ -299,5 +366,67 @@ describe('textoRecusaAgradecida', () => {
 
   it('não anuncia o PARE (decisão da loja, 29/08)', () => {
     expect(texto).not.toMatch(/\bPARE\b/);
+  });
+});
+
+// Prova que as travas 1b/2b estão de fato LIGADAS em `generateAiReply` — uma
+// função pura passando no teste não prova que ela é chamada de verdade no
+// fluxo (foi exatamente essa lacuna que a auditoria de segurança de IA de
+// 2026-09-17 apontou pra regra de preço original, antes de ter trava 1/2).
+describe('generateAiReply — travas 1b/2b realmente conectadas no fluxo', () => {
+  it('reclamação do cliente nem chama a OpenAI (trava 1b, igual à de preço)', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const { generateAiReply } = await import('../../lib/api/_services/whatsapp-ai');
+      const out = await generateAiReply({
+        turns: [{ direction: 'in', body: 'Quero cancelar meu pedido, isso é um absurdo' }],
+      });
+      expect(out.escalate).toBe(true);
+      expect(out.reason).toBe('humano');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('promessa de prazo/estoque da IA é descartada antes de virar `reply` (trava 2b)', async () => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    resposta: 'Pode ficar tranquilo, chega amanhã sem falta!',
+                    precisa_humano: false,
+                    motivo: null,
+                  }),
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    try {
+      const { generateAiReply } = await import('../../lib/api/_services/whatsapp-ai');
+      const out = await generateAiReply({
+        turns: [
+          { direction: 'out', body: 'Oi, tudo bem?' },
+          { direction: 'in', body: 'Vocês têm tinta acrílica branca?' },
+        ],
+      });
+      expect(out.reply).not.toContain('chega amanhã');
+      expect(out.escalate).toBe(true);
+      expect(out.reason).toBe('humano');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
