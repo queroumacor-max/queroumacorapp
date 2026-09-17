@@ -62,6 +62,74 @@
     passar pelas duas outras entradas de doc-sync que vieram depois (SSL/
     TLS, DNSSEC/CAA) — nenhuma delas sabia que essa auditoria existia.
 
+- **MODERAÇÃO GEMINI NO PUBLISH + BLOCKLIST DE HASH CSAM EM AVATAR/ART-
+  REFERENCES (2026-09-17, PR #325, fecha as 2 pendências deixadas em
+  aberto pela auditoria de lógica de negócio de 2026-09-16 — ver entrada
+  "AUDITORIA DE SEGURANÇA DE LÓGICA DE NEGÓCIO" mais abaixo). SQL
+  `/migrations/2026-09-17-moderation-quota-and-media-hash-coverage.sql`
+  — JÁ EXECUTADO no Supabase (2026-09-17, confirmado pelo usuário: as 6
+  linhas de conferência voltaram `ok=true`). Não pedir pra rodar de
+  novo.**
+  - **`usePublishPost` passou a chamar `/api/moderate` de verdade.** Até
+    aqui, publicar não passava por NENHUMA triagem de conteúdo novo — só
+    reenvio de mídia JÁ presente na `media_hash_blocklist` era barrado,
+    e isso pelo trigger do banco (seção H da auditoria 2026-09-16), não
+    pela aplicação. Cobre TODA foto do carrossel, não só a primeira
+    (achado de revisão automática/Codex: fotos 2-5 furavam tanto o
+    Gemini quanto a blocklist); a legenda só é reenviada na checagem da
+    1ª foto (não gasta cota reanalisando o mesmo texto 5x). Bloqueia
+    publicar quando `flagged`/`approved:false`.
+  - **Vídeo ganhou moderação de verdade também.** `/api/moderate-video`
+    existia PRONTO desde o RELEASE_AUDIT (item C4) — relê `media_url`
+    autoritativo do banco, roda Gemini frame-a-frame, apaga a linha +
+    o storage se `severity:'hard'` — mas nunca tinha NENHUM caller
+    (achado do Codex: "the endpoint merely exists"). `usePublishPost`
+    chama ele com `{postId, caption}` depois de `createPost`;
+    `'pending'`/infra indisponível não bloqueia (o post já existe, fica
+    no ar até revisão — é como a função sempre foi desenhada, best-
+    effort).
+  - **Moderação ganhou cota PRÓPRIA, separada da cota geral de IA.**
+    `gateAiUsage` já passava `feature:'moderate'`/`'moderate_video'`,
+    mas `reserve_ai_usage` soma TODO uso do mês sem filtrar por feature
+    — moderação ia consumir a MESMA cota de chat/legenda/Alice/Seu Zé
+    que o usuário escolheu gastar em outra coisa, assim que o publish
+    passasse a chamá-la em todo post. RPC nova `reserve_moderation_usage`
+    (irmã de `reserve_ai_usage`, mesmo padrão atômico com advisory lock)
+    soma só a própria feature; teto de 1000/mês — backstop de abuso, não
+    limite de produto.
+  - **429 (rate limit/cota) deixou de ser fail-open** (achado do Codex):
+    o código original tratava QUALQUER `!res.ok` — incluindo 429 —
+    como "infra fora do ar, segue sem bloquear". Estourar de propósito o
+    rate limit de `/api/moderate` (20/min) ou a cota nova virava um jeito
+    de publicar sem moderação nenhuma. Agora só 503 (Gemini não
+    configurado)/erro de rede ficam fail-open; 429 bloqueia (o servidor
+    respondeu "não agora", não é falha de infra). Lógica extraída pra
+    `lib/services/moderateMedia.ts` (`assertMediaApproved`), reusada por
+    publish, avatar e art-references.
+  - **Blocklist de hash CSAM estendida a avatar e à biblioteca de artes
+    do AR Grafite** (`profiles.avatar_hash`, `art_references.image_hash`
+    + triggers `enforce_avatar_hash_blocklist`/
+    `enforce_art_reference_hash_blocklist`, mesmo padrão de
+    `enforce_media_hash_blocklist` em `posts`, mesma tabela
+    `media_hash_blocklist` — não é uma blocklist nova). **Mas a defesa
+    de verdade não é o trigger** (achado do Codex: o trigger confia no
+    hash que o CLIENTE manda, e RLS deixa o dono escrever a própria
+    linha via PostgREST direto — falsificável só de não mandar o hash
+    certo) — `uploadAvatar` (editar perfil e signup) e
+    `uploadArtReference` agora chamam `assertMediaApproved` ANTES de
+    persistir a linha, que baixa o arquivo e calcula o hash NO SERVIDOR
+    a partir dos bytes reais. Reprovado → a linha nunca é gravada e o
+    arquivo é removido do storage. O trigger fica como defesa em
+    profundidade contra bypass direto da API — mesmo trade-off que
+    `posts.media_hash` sempre teve, não resolvido aqui (exigiria a
+    extensão `http`/`pg_net` fazendo fetch dentro do Postgres).
+  - Hash SHA-256 (client-side) extraído de dentro de `posts.ts` pra
+    `lib/utils/sha256.ts` (`sha256Hex`), compartilhado entre posts,
+    avatar e art-references — antes era código duplicável.
+  - PR #325: fixes originais + o push de correção dos 4 achados P1 do
+    Codex no mesmo PR (commit `f30112a`), squash-mergeados. 177
+    arquivos/2244 testes, typecheck e build limpos.
+
 - **SEGUNDA RODADA DE VERIFICAÇÃO POR CONSOLE — 15 dos 17 itens pendentes da
   auditoria Cloudflare/Supabase checados (2026-09-16).** Mesma sessão
   "Claude in Chrome" (logada como `queroumacor@gmail.com`), continuação da

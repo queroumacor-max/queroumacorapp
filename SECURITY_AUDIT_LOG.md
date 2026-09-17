@@ -47,6 +47,38 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 
 ## Histórico (mais recente primeiro)
 
+### 2026-09-17 — Moderação Gemini no publish + blocklist de hash CSAM em avatar/art-references (PR #325)
+Fecha as 2 pendências deixadas em aberto pela auditoria de lógica de
+negócio de 2026-09-16 (business-logic security audit, PR #319): publicar
+não passava por moderação nenhuma de conteúdo novo (só reenvio de mídia
+já na blocklist de hash era barrado, pelo trigger do banco), e a
+blocklist de hash CSAM só cobria `posts`. Detalhe completo na entrada
+"MODERAÇÃO GEMINI NO PUBLISH..." do `CLAUDE.md`.
+
+**✅ FIXED, SQL já executado
+(`migrations/2026-09-17-moderation-quota-and-media-hash-coverage.sql`,
+6/6 linhas de conferência `ok=true`):**
+- `usePublishPost` chama `/api/moderate` pra TODA foto do carrossel
+  antes de criar o post (não só a 1ª); `/api/moderate-video` — que
+  existia pronto mas sem nenhum caller — passou a rodar depois do
+  insert pra vídeo.
+- Cota de moderação separada da cota geral de IA (`reserve_moderation_usage`,
+  RPC nova) — sem isso, moderar no publish consumiria a cota de
+  chat/legenda que o usuário escolheu gastar em outra coisa.
+- 429 (rate limit/cota) deixou de ser tratado como fail-open — só
+  infra de verdade fora do ar (503/rede) libera; o próprio limite
+  anti-abuso não pode virar bypass.
+- `profiles.avatar_hash`/`art_references.image_hash` + triggers de
+  blocklist (mesmo padrão de `posts.media_hash`), e — mais importante —
+  `uploadAvatar`/`uploadArtReference` chamam a mesma checagem
+  autoritativa do publish (hash calculado NO SERVIDOR, não confia no
+  que o cliente manda) antes de persistir a linha.
+
+4 achados P1 de revisão automática (Codex) nos itens acima, todos
+verificados reais e corrigidos no mesmo PR antes do merge — nenhum
+descartado como falso positivo. 177 arquivos/2244 testes, typecheck e
+build limpos.
+
 ### 2026-09-17 — Auditoria de CI/CD (2026-09-16, commit `bfa6849`) documentada retroativamente
 Merge #318 (`claude/keen-bell-vyn38f`) chegou na `main` em 2026-09-16 com
 uma auditoria completa da pipeline (GitHub Actions, supply chain,
