@@ -62,6 +62,112 @@
     passar pelas duas outras entradas de doc-sync que vieram depois (SSL/
     TLS, DNSSEC/CAA) — nenhuma delas sabia que essa auditoria existia.
 
+- **MODERAÇÃO GEMINI NO PUBLISH + BLOCKLIST DE HASH CSAM EM AVATAR/ART-
+  REFERENCES (2026-09-17, PR #325, fecha as 2 pendências deixadas em
+  aberto pela auditoria de lógica de negócio de 2026-09-16 — ver entrada
+  "AUDITORIA DE SEGURANÇA DE LÓGICA DE NEGÓCIO" mais abaixo). SQL
+  `/migrations/2026-09-17-moderation-quota-and-media-hash-coverage.sql`
+  — JÁ EXECUTADO no Supabase (2026-09-17, confirmado pelo usuário: as 6
+  linhas de conferência voltaram `ok=true`). Não pedir pra rodar de
+  novo.**
+  - **`usePublishPost` passou a chamar `/api/moderate` de verdade.** Até
+    aqui, publicar não passava por NENHUMA triagem de conteúdo novo — só
+    reenvio de mídia JÁ presente na `media_hash_blocklist` era barrado,
+    e isso pelo trigger do banco (seção H da auditoria 2026-09-16), não
+    pela aplicação. Cobre TODA foto do carrossel, não só a primeira
+    (achado de revisão automática/Codex: fotos 2-5 furavam tanto o
+    Gemini quanto a blocklist); a legenda só é reenviada na checagem da
+    1ª foto (não gasta cota reanalisando o mesmo texto 5x). Bloqueia
+    publicar quando `flagged`/`approved:false`.
+  - **Vídeo ganhou moderação de verdade também.** `/api/moderate-video`
+    existia PRONTO desde o RELEASE_AUDIT (item C4) — relê `media_url`
+    autoritativo do banco, roda Gemini frame-a-frame, apaga a linha +
+    o storage se `severity:'hard'` — mas nunca tinha NENHUM caller
+    (achado do Codex: "the endpoint merely exists"). `usePublishPost`
+    chama ele com `{postId, caption}` depois de `createPost`.
+    `'pending'`/infra indisponível não bloqueia o publish (o post já
+    existe) — mas **todo caminho `'pending'` (soft/flagged, download
+    falhou, análise indisponível, vídeo grande) agora ENFILEIRA de
+    verdade em `media_review_queue`** (2ª rodada de revisão do Codex,
+    na própria PR de documentação #327: `moderateVideoPost` devolvia
+    `'pending'` sem gravar NADA — um dos textos dizia "enviado para
+    revisão humana" e não enviava, o post ficava aprovado e público pra
+    sempre sem ninguém olhar). Isso fecha a lacuna — antes só o caminho
+    de imagem (`/api/moderate`) enfileirava.
+  - **Moderação ganhou cota PRÓPRIA, separada da cota geral de IA.**
+    `gateAiUsage` já passava `feature:'moderate'`/`'moderate_video'`,
+    mas `reserve_ai_usage` soma TODO uso do mês sem filtrar por feature
+    — moderação ia consumir a MESMA cota de chat/legenda/Alice/Seu Zé
+    que o usuário escolheu gastar em outra coisa, assim que o publish
+    passasse a chamá-la em todo post. RPC nova `reserve_moderation_usage`
+    (irmã de `reserve_ai_usage`, mesmo padrão atômico com advisory lock)
+    soma só a própria feature; teto de 1000/mês — backstop de abuso, não
+    limite de produto.
+  - **429 (rate limit/cota) deixou de ser fail-open** (achado do Codex):
+    o código original tratava QUALQUER `!res.ok` — incluindo 429 —
+    como "infra fora do ar, segue sem bloquear". Estourar de propósito o
+    rate limit de `/api/moderate` (20/min) ou a cota nova virava um jeito
+    de publicar sem moderação nenhuma. Agora só 429 bloqueia (o servidor
+    respondeu "não agora", não é falha de infra) — **qualquer OUTRA
+    resposta não-2xx (503 sem `GEMINI_API_KEY`, mas também 400/401/403/
+    500 e erro de rede/parse) segue fail-open**, não só 503 como uma
+    versão anterior desta nota chegou a dizer (correção de precisão,
+    achado de 2ª rodada do Codex — o código sempre foi assim, só o
+    TEXTO estava incompleto). Ampliar o fail-closed pra além de 429 é
+    decisão de produto em aberto, não feita aqui. Lógica em
+    `lib/services/moderateMedia.ts` (`assertMediaApproved`), reusada por
+    publish, avatar e art-references.
+  - **Blocklist de hash CSAM estendida a avatar e à biblioteca de artes
+    do AR Grafite** (`profiles.avatar_hash`, `art_references.image_hash`
+    + triggers `enforce_avatar_hash_blocklist`/
+    `enforce_art_reference_hash_blocklist`, mesmo padrão de
+    `enforce_media_hash_blocklist` em `posts`, mesma tabela
+    `media_hash_blocklist` — não é uma blocklist nova). **Mas a defesa
+    de verdade não é o trigger** (achado do Codex: o trigger confia no
+    hash que o CLIENTE manda, e RLS deixa o dono escrever a própria
+    linha via PostgREST direto — falsificável só de não mandar o hash
+    certo) — `uploadAvatar` (editar perfil e signup) e
+    `uploadArtReference` agora chamam `assertMediaApproved` ANTES de
+    persistir a linha, que baixa o arquivo e calcula o hash NO SERVIDOR
+    a partir dos bytes reais. Reprovado → a linha nunca é gravada.
+    **`uploadArtReference` já apagava o arquivo do storage nesse caso;
+    `uploadAvatar` NÃO apagava** (2ª rodada de revisão do Codex, na
+    própria PR de documentação #327: o primeiro texto desta entrada
+    afirmava "o arquivo é removido" pros dois, e só era verdade pra
+    art-references — avatar reprovado ficava pra sempre no bucket
+    público `avatars`/`posts`). `removeUploadedAvatar` (nova, em
+    `lib/services/profile.ts`, detecta o bucket pela própria URL
+    pública) fecha isso nos dois call sites (editar perfil e signup).
+    O trigger fica como defesa em profundidade contra bypass direto da
+    API — mesmo trade-off que `posts.media_hash` sempre teve, não
+    resolvido aqui (exigiria a extensão `http`/`pg_net` fazendo fetch
+    dentro do Postgres).
+  - Hash SHA-256 (client-side) extraído de dentro de `posts.ts` pra
+    `lib/utils/sha256.ts` (`sha256Hex`), compartilhado entre posts,
+    avatar e art-references — antes era código duplicável.
+  - **GAP CONHECIDO, NÃO FECHADO: inserir em `posts` direto via
+    PostgREST pula `/api/moderate` inteiro.** Tudo acima
+    (`usePublishPost`) é orquestração do CLIENTE — protege quem publica
+    pela UI normal, mas `supabase_init.sql` segue deixando qualquer
+    `authenticated` inserir a própria linha em `posts` (RLS de dono), e
+    `createPost` grava `status:'approved'` direto. Um usuário
+    autenticado com acesso à API (não precisa nem ser sofisticado, só
+    saber a URL do REST) publica sem passar pela moderação nenhuma. A
+    PRÓPRIA auditoria de negócio de 2026-09-16
+    (`migrations/2026-09-16-business-logic-security-audit.sql`) já
+    registrava que fechar isso de verdade exige mover a CRIAÇÃO do post
+    pro servidor (rota que faz auth + moderação + INSERT com
+    service_role, cliente nunca insere direto) — mudança arquitetural
+    maior, não decidida ainda. **Achado do Codex numa revisão posterior
+    (PR #327): a 1ª versão desta entrada marcava o item como fechado
+    sem essa ressalva — corrigido aqui pra não esconder a lacuna de
+    quem ler depois.**
+  - PRs #325 (fixes originais + os 4 achados P1 do Codex na mesma PR,
+    commit `f30112a`) e #327 (esta entrada de documentação + mais 4
+    achados do Codex nela mesma: cleanup de avatar reprovado, fila de
+    revisão de vídeo pendente, e as 2 correções de texto acima),
+    squash-mergeadas. Suíte/typecheck/build verdes nas duas.
+
 - **SEGUNDA RODADA DE VERIFICAÇÃO POR CONSOLE — 15 dos 17 itens pendentes da
   auditoria Cloudflare/Supabase checados (2026-09-16).** Mesma sessão
   "Claude in Chrome" (logada como `queroumacor@gmail.com`), continuação da

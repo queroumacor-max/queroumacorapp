@@ -4,6 +4,7 @@
 
 import { ServiceError, getServiceKey, getSupabaseUrl, resolveSupabaseEnv } from '../security';
 import { getRuntimeEnv } from '../env';
+import { enqueueMediaReview } from '../mediaHash';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -106,6 +107,25 @@ export async function moderateVideoPost(args: {
   }
   if (!mediaUrl) throw new ServiceError('post sem media_url', 400);
 
+  // Todo caminho 'pending' ENFILEIRA de verdade pra revisão humana
+  // (2026-09-17, achado do Codex: `status:'pending'` nunca gravava nada
+  // em `media_review_queue` — o post ficava aprovado e público pra
+  // sempre, sem NINGUÉM olhar, apesar de "enviado para revisão humana"
+  // já estar escrito num dos textos abaixo desde antes desta correção).
+  // `enqueueMediaReview` é best-effort (nunca lança) — não precisa de
+  // try/catch aqui em volta.
+  const pending = async (reason: string, reasons?: string[]): Promise<ModerateVideoResult> => {
+    await enqueueMediaReview({
+      postId,
+      userId,
+      mediaUrl,
+      mediaHash: '', // vídeo não passa pelo pipeline de hash (SSRF/2MB guard próprios)
+      reason: reasons && reasons.length > 0 ? reasons.join(',') : reason,
+      severity: 'med',
+    });
+    return reasons ? { status: 'pending', reason, reasons } : { status: 'pending', reason };
+  };
+
   // Defesa em profundidade: só baixa de Supabase Storage do projeto.
   try {
     const u = new URL(mediaUrl);
@@ -114,10 +134,10 @@ export async function moderateVideoPost(args: {
       !/^[A-Za-z0-9-]+\.supabase\.co$/.test(u.hostname) ||
       !u.pathname.startsWith('/storage/')
     ) {
-      return { status: 'pending', reason: 'media_url fora do storage do projeto' };
+      return pending('media_url fora do storage do projeto');
     }
   } catch {
-    return { status: 'pending', reason: 'media_url inválida' };
+    return pending('media_url inválida');
   }
 
   // Baixa o vídeo (com limite de tamanho).
@@ -129,14 +149,11 @@ export async function moderateVideoPost(args: {
     videoMime = (v.headers.get('content-type') || 'video/mp4').split(';')[0];
     videoBuf = await v.arrayBuffer();
     if (videoBuf.byteLength > MAX_BYTES) {
-      return {
-        status: 'pending',
-        reason: 'vídeo grande — enviado para revisão humana',
-      };
+      return pending('vídeo grande — enviado para revisão humana');
     }
   } catch (e) {
     console.warn('moderate-video download err:', e instanceof Error ? e.message : e);
-    return { status: 'pending', reason: 'falha ao baixar vídeo' };
+    return pending('falha ao baixar vídeo');
   }
 
   const geminiKey = getRuntimeEnv('GEMINI_API_KEY') || '';
@@ -149,7 +166,7 @@ export async function moderateVideoPost(args: {
       return { status: 'rejected', reasons: verdict.reasons };
     }
     if (verdict.severity === 'soft' || verdict.flagged) {
-      return { status: 'pending', reasons: verdict.reasons };
+      return pending('gemini_flagged_video', verdict.reasons);
     }
     await fetch(
       `${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`,
@@ -163,7 +180,7 @@ export async function moderateVideoPost(args: {
     return { status: 'approved' };
   } catch (e) {
     console.warn('moderate-video analyze err:', e instanceof Error ? e.message : e);
-    return { status: 'pending', reason: 'análise indisponível' };
+    return pending('análise indisponível');
   }
 }
 
