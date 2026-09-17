@@ -14,7 +14,7 @@ vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...args: unknown[]) => captureMessage(...args),
 }));
 
-import { logSecurityEvent, redactFields, maskSensitiveString } from '@/lib/api/securityEvents';
+import { logSecurityEvent, redactFields, maskSensitiveString, maskPhoneTail } from '@/lib/api/securityEvents';
 
 let warnSpy: ReturnType<typeof vi.spyOn>;
 let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -215,5 +215,68 @@ describe('logSecurityEvent — severidade critical aciona Sentry (mesmo padrão 
     expect(() =>
       logSecurityEvent('security.config.service_role_missing', {}, { severity: 'critical' }),
     ).not.toThrow();
+  });
+});
+
+describe('maskPhoneTail — telefone E.164 (com DDI), não só formato BR local', () => {
+  it('mantém só os últimos 4 dígitos', () => {
+    expect(maskPhoneTail('5511988887777')).toBe('*********7777');
+  });
+
+  it('funciona com número que a regex BR local não cobriria (DDI incluso)', () => {
+    // `maskSensitiveString`/PHONE_BR_RE é calibrada pra 10-11 dígitos sem
+    // DDI — `msg.from` do WhatsApp Cloud API vem com DDI (13 dígitos), e é
+    // exatamente o caso que motivou este helper dedicado.
+    const out = maskPhoneTail('5511988887777');
+    expect(out).not.toContain('988887777'.slice(0, 5));
+    expect(out.endsWith('7777')).toBe(true);
+  });
+
+  it('string vazia/undefined/null não lança', () => {
+    expect(maskPhoneTail('')).toBe('');
+    expect(maskPhoneTail(undefined)).toBe('');
+    expect(maskPhoneTail(null)).toBe('');
+  });
+
+  it('telefone com 4 dígitos ou menos mascara tudo (nunca expõe o valor curto inteiro)', () => {
+    expect(maskPhoneTail('123')).toBe('***');
+  });
+});
+
+describe('log-flood protection (#56/#57/#58) — amostra sob volume sustentado', () => {
+  it('as primeiras N ocorrências do mesmo evento saem normais', () => {
+    for (let i = 0; i < 5; i++) {
+      logSecurityEvent('security.rate_limit.hit', { i }, { severity: 'warning' });
+    }
+    // 5 chamadas, 5 linhas — nenhuma suprimida ainda (limite é bem maior).
+    const calls = warnSpy.mock.calls.filter((c) => c[0] === '[security]');
+    expect(calls.length).toBe(5);
+  });
+
+  it('depois do limiar, passa a amostrar — mas nunca esconde a contagem real', () => {
+    const event = 'security.upload.rejected';
+    for (let i = 0; i < 60; i++) {
+      logSecurityEvent(event, { i }, { severity: 'info' });
+    }
+    const calls = warnSpy.mock.calls.filter((c) => c[0] === '[security]');
+    const records = calls.map((c) => JSON.parse(c[1] as string)).filter((r) => r.event === event);
+    // Bem menos que 60 linhas — a amostragem entrou em ação.
+    expect(records.length).toBeLessThan(60);
+    expect(records.length).toBeGreaterThan(0);
+    // A última linha amostrada carrega o count real, não um número pequeno.
+    const last = records.at(-1);
+    expect(last.count_in_window).toBeGreaterThanOrEqual(40);
+  });
+
+  it('eventos DIFERENTES têm contadores independentes (um flooded não silencia outro)', () => {
+    for (let i = 0; i < 60; i++) {
+      logSecurityEvent('security.rate_limit.fail_open', {}, { severity: 'warning' });
+    }
+    warnSpy.mockClear();
+    logSecurityEvent('security.webhook.unexpected_sender', {}, { severity: 'warning' });
+    const calls = warnSpy.mock.calls.filter((c) => c[0] === '[security]');
+    expect(calls.some((c) => JSON.parse(c[1] as string).event === 'security.webhook.unexpected_sender')).toBe(
+      true,
+    );
   });
 });

@@ -63,7 +63,7 @@ import {
   type InboundWhatsAppMessage,
 } from '@/lib/api/_services/whatsapp';
 import { maybeAutoReply } from '@/lib/api/_services/whatsapp-ai-runner';
-import { logSecurityEvent } from '@/lib/api/securityEvents';
+import { logSecurityEvent, maskPhoneTail } from '@/lib/api/securityEvents';
 import {
   baixarMidiaCloudApi,
   caminhoMidia,
@@ -170,9 +170,13 @@ async function materializarMidia(
 async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<void> {
   for (const msg of messages) {
     // Log estruturado → Cloudflare logs. Não logar o corpo inteiro
-    // (conversa de cliente); preview basta pra depurar entrega.
+    // (conversa de cliente); preview basta pra depurar entrega. Telefone
+    // mascarado (2026-09-17, auditoria de observabilidade de segurança) —
+    // o número completo já mora em `whatsapp_messages` (admin-only); o log
+    // de plataforma tem acesso mais largo, então guarda só o suficiente
+    // pra reconhecer "é o mesmo contato de novo".
     console.log(
-      `[whatsapp-webhook] msg de ${msg.from} (${msg.profileName || 'sem nome'}) ` +
+      `[whatsapp-webhook] msg de ${maskPhoneTail(msg.from)} (${msg.profileName ? '[nome]' : 'sem nome'}) ` +
         `type=${msg.type} id=${msg.messageId} preview="${msg.text.slice(0, 60)}"`
     );
   }
@@ -224,7 +228,7 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
     if (msg.echo || TIPOS_SEM_CONVERSA.has(msg.type)) continue;
     try {
       const r = await maybeAutoReply({ waId: msg.from, text: texto });
-      console.log(`[whatsapp-webhook] ia ${msg.from}: ${r.acted ? '✓' : '·'} ${r.why}`);
+      console.log(`[whatsapp-webhook] ia ${maskPhoneTail(msg.from)}: ${r.acted ? '✓' : '·'} ${r.why}`);
     } catch (e) {
       // maybeAutoReply promete não lançar; se lançar mesmo assim, não pode
       // derrubar o trabalho de fundo das outras mensagens.
@@ -260,7 +264,7 @@ async function processarStatus(lista: AtualizacaoDeStatus[]): Promise<void> {
     if (st.status === 'failed') {
       logSecurityEvent(
         'security.whatsapp.delivery_failed',
-        { messageId: st.messageId, recipient: st.recipientId, reason: st.erro || 'sem detalhe' },
+        { messageId: st.messageId, recipient: maskPhoneTail(st.recipientId), reason: st.erro || 'sem detalhe' },
         { severity: 'info' },
       );
     }

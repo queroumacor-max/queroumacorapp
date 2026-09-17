@@ -48,6 +48,19 @@ function stripControlChars(s: string): string {
 /** Mascara PII conhecida (email/telefone/CPF/CNPJ/JWT/Bearer) numa string.
  * Não é allowlist — é defesa em profundidade: o CHAMADOR ainda deve evitar
  * passar campo inteiro de PII/secret; isto pega o que passar batido. */
+/** Mascara um telefone mantendo só os últimos 4 dígitos (mesmo princípio
+ * já usado no repo pra `userId` em `mp-webhook.ts`: prefixo/sufixo curto
+ * basta pra reconhecer "é o mesmo contato de novo" sem expor o número
+ * inteiro num log). Usar em campos que SABEMOS ser telefone (ex.:
+ * `msg.from` do WhatsApp) — mais confiável que depender de `PHONE_BR_RE`
+ * bater com o formato E.164 (com DDI) que a Cloud API manda. */
+export function maskPhoneTail(phone: string | null | undefined): string {
+  if (typeof phone !== 'string' || !phone) return phone ?? '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length <= 4) return '*'.repeat(digits.length);
+  return '*'.repeat(digits.length - 4) + digits.slice(-4);
+}
+
 export function maskSensitiveString(s: string): string {
   if (typeof s !== 'string' || !s) return s;
   return stripControlChars(s)
@@ -110,6 +123,35 @@ export interface SecurityEventFields {
   route?: string | null;
 }
 
+// ── Log-flood protection ────────────────────────────────────────────────
+// Auditoria de observabilidade de segurança (2026-09-17, item #56/#57/#58):
+// nada impedia um atacante martelando um endpoint de gerar 1 linha
+// `[security]` por request — inofensivo em volume normal, mas sob ataque
+// sustentado (ex.: 50k tentativas de credential stuffing numa hora) isso
+// custa em log storage/parse e, pra severity=critical, custaria em Issues
+// no Sentry. Contador por-isolate, por NOME de evento (nunca por conteúdo
+// arbitrário — `event` é sempre uma string literal do nosso próprio código,
+// nunca controlada por request), janela de 60s: as primeiras
+// `FLOOD_THRESHOLD` linhas saem normais, depois passa a amostrar 1 em
+// `FLOOD_SAMPLE_EVERY` — sempre anexando `count_in_window` pra não perder a
+// magnitude real. Nunca esconde a PRIMEIRA ocorrência de um evento novo.
+const FLOOD_WINDOW_MS = 60_000;
+const FLOOD_THRESHOLD = 20;
+const FLOOD_SAMPLE_EVERY = 25;
+const floodState = new Map<string, { windowStart: number; count: number }>();
+
+function floodGate(event: string): { emit: boolean; countInWindow: number } {
+  const now = Date.now();
+  const entry = floodState.get(event);
+  if (!entry || now - entry.windowStart > FLOOD_WINDOW_MS) {
+    floodState.set(event, { windowStart: now, count: 1 });
+    return { emit: true, countInWindow: 1 };
+  }
+  entry.count += 1;
+  if (entry.count <= FLOOD_THRESHOLD) return { emit: true, countInWindow: entry.count };
+  return { emit: entry.count % FLOOD_SAMPLE_EVERY === 0, countInWindow: entry.count };
+}
+
 function requestIdFrom(headers?: Headers | null): string | null {
   if (!headers) return null;
   try {
@@ -139,13 +181,20 @@ export function logSecurityEvent(
   try {
     const severity = opts.severity ?? 'info';
     const requestId = fields.requestId ?? requestIdFrom(opts.request?.headers ?? null);
+    const safeEvent = stripControlChars(String(event)).slice(0, 120);
+    const { emit, countInWindow } = floodGate(safeEvent);
     const record = {
-      event: stripControlChars(String(event)).slice(0, 120),
+      event: safeEvent,
       severity,
       ts: new Date().toISOString(),
       request_id: requestId,
+      ...(countInWindow > 1 ? { count_in_window: countInWindow } : {}),
       ...(redactFields(fields) as Record<string, unknown>),
     };
+    // Sob flood sustentado, amostra a saída (console + Sentry) em vez de
+    // uma linha/captureMessage por request — `count_in_window` no record
+    // amostrado ainda diz a magnitude real, só a CADÊNCIA de emissão cai.
+    if (!emit) return;
     const line = JSON.stringify(record);
     // eslint-disable-next-line no-console
     if (severity === 'critical' || severity === 'high') console.error('[security]', line);

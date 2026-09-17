@@ -4,6 +4,7 @@
 
 import { ServiceError, getServiceKey, getSupabaseUrl, resolveSupabaseEnv } from '../security';
 import { getRuntimeEnv } from '../env';
+import { logSecurityEvent } from '../securityEvents';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -97,6 +98,17 @@ export async function moderateVideoPost(args: {
     );
     const arr = (await chk.json()) as Array<{ user_id?: string; media_url?: string }>;
     if (!arr?.[0] || arr[0].user_id !== userId) {
+      // Auditoria de observabilidade de segurança (2026-09-17): tentativa
+      // de moderar/tocar num post que não é do caller (padrão IDOR — o
+      // `postId` vem do body, controlado pelo cliente). Um mesmo `userId`
+      // tentando muitos `postId` diferentes é o sinal de enumeration; hoje
+      // não há correlação automática, mas o evento passa a existir pra
+      // quem for investigar.
+      logSecurityEvent(
+        'security.authorization.denied',
+        { reason: 'not_owner', resource: 'post', userId, postId },
+        { severity: 'warning' },
+      );
       throw new ServiceError('não autorizado', 403);
     }
     mediaUrl = arr[0].media_url || '';

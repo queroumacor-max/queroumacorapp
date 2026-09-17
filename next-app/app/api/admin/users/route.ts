@@ -27,6 +27,7 @@ import {
   syncEmailFromAuth,
 } from '@/lib/api/_services/admin-users';
 import { logAuditEvent } from '@/lib/api/audit';
+import { logSecurityEvent } from '@/lib/api/securityEvents';
 
 export const runtime = 'edge';
 
@@ -153,6 +154,30 @@ export async function POST(request: NextRequest) {
       action === 'delete_user' ||
       // Troca de e-mail muda a IDENTIDADE do login — trilha obrigatória.
       action === 'set_email';
+
+    // Auditoria de observabilidade de segurança (2026-09-17): cada ação
+    // crítica JÁ era auditada 1 a 1 em `audit_log` — mas 20 `delete_user`
+    // em 2 minutos do MESMO admin (conta comprometida indo rápido, ou erro
+    // de automação) não gerava nenhum sinal DIFERENTE de 20 deletes
+    // normais espaçados. Reaproveita a MESMA RPC de rate limit (chave
+    // própria, não a de `admin-users` acima) só pra CONTAR — nunca bloqueia
+    // (um admin legítimo limpando spam em lote não pode ser travado por
+    // isto). Limite generoso (10/min) de propósito: é sinal de anomalia,
+    // não controle de acesso.
+    if (isCriticalAction) {
+      const volume = await checkRateLimit({
+        userId: callerId || email,
+        endpoint: 'admin-critical-action-volume',
+        limit: 10,
+      });
+      if (!volume.allowed) {
+        logSecurityEvent(
+          'security.admin.mass_critical_action_suspected',
+          { action, callerId: callerId || null, count: volume.count, limit: volume.limit },
+          { severity: 'high' },
+        );
+      }
+    }
     try {
       await logAuditEvent({
         actorId: callerId || null,

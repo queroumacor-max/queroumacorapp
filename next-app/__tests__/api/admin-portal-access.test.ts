@@ -12,6 +12,7 @@ import { __resetAdminEmailsCacheForTests } from '@/lib/api/admin-config';
 import {
   ensurePortalAdmin,
   isPortalAdminUser,
+  verifyAdminToken,
   _resetPortalAdminCache,
 } from '@/lib/api/_services/_admin-helpers';
 
@@ -67,6 +68,23 @@ describe('ensurePortalAdmin', () => {
     expect(err.message).toContain('Promover');
     expect(err.message).toContain('ADMIN_EMAILS');
   });
+  // Auditoria de observabilidade de segurança (2026-09-17): antes, uma
+  // conta comum martelando rotas admin não deixava sinal nenhum além da
+  // resposta 403 pra ela mesma. `security.authorization.denied` é o que
+  // permite, no futuro, agregar "quantas vezes esse callerId bateu aqui".
+  it('403 loga security.authorization.denied (estruturado, sem vazar email)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    perfil({ portal_access: false, role: 'pintor' });
+    await ensurePortalAdmin({ callerId: 'u4', email: 'joao@gmail.com' }).catch(() => {});
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.authorization.denied');
+    expect(record.reason).toBe('not_portal_admin');
+    expect(record.callerId).toBe('u4');
+    expect(JSON.stringify(record)).not.toContain('joao@gmail.com');
+    warnSpy.mockRestore();
+  });
   it('perfil inexistente → 403', async () => {
     perfil(null);
     await expect(ensurePortalAdmin({ callerId: 'u5', email: 'x@y.com' })).rejects.toMatchObject({ status: 403 });
@@ -98,6 +116,40 @@ describe('ensurePortalAdmin', () => {
     expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com' })).toBe(true);
     expect(await isPortalAdminUser({ callerId: 'u8', email: 'x@y.com' })).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('verifyAdminToken — observabilidade de falha de auth', () => {
+  beforeEach(() => {
+    process.env.SUPABASE_ANON_KEY = 'anon-test-key';
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_ANON_KEY;
+  });
+
+  // Auditoria de observabilidade de segurança (2026-09-17): o gate de token
+  // das rotas admin não logava nada num token inválido — mesma classe de
+  // evento que `requireAuth` já ganhou em `lib/api/security.ts`.
+  it('token inválido (GoTrue recusa) → loga auth.login.failed (estruturado), nunca o token', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401, text: async () => 'bad_jwt' });
+    await expect(verifyAdminToken('token-secreto-xyz')).rejects.toMatchObject({ status: 401 });
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('auth.login.failed');
+    expect(record.reason).toBe('token_invalid');
+    expect(record.admin_route).toBe(true);
+    expect(JSON.stringify(record)).not.toContain('token-secreto-xyz');
+    warnSpy.mockRestore();
+  });
+
+  it('sem token → 401, sem chamar fetch nem logar (caso trivial, alto volume)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(verifyAdminToken('')).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warnSpy.mock.calls.find((c) => c[0] === '[security]')).toBeUndefined();
+    warnSpy.mockRestore();
   });
 });
 
