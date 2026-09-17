@@ -367,6 +367,106 @@ describe('POST /api/whatsapp/webhook — ecos e tipos sem conversa', () => {
   });
 });
 
+// ─── Reentrega do MESMO wamid não pode duplicar o atendimento automático ────
+//
+// Achado da auditoria de webhooks (2026-09-17): a Meta/Dualhook reentregam
+// webhook em retry, e qualquer um que já tenha o segredo de URL pode
+// REPLAYAR um POST capturado — nos dois casos, o mesmo wamid chega de novo.
+// Sem dedupe no disparo da IA, cada entrega rodava `maybeAutoReply` outra
+// vez e mandava uma SEGUNDA resposta de verdade pro cliente. O teste chama
+// autoReplyMock de verdade (não fica satisfeito só com 200) porque é
+// exatamente essa chamada dupla que caracteriza o bug.
+describe('POST /api/whatsapp/webhook — reentrega não duplica o atendimento automático', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = 'service-key-teste';
+  });
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    vi.unstubAllGlobals();
+  });
+
+  /** Simula o UNIQUE + ON CONFLICT DO NOTHING do Postgres: a 2ª gravação do
+   *  mesmo message_id devolve corpo vazio (nenhuma linha nova). */
+  function fetchComDedupeReal() {
+    const gravadas = new Set<string>();
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/rest/v1/whatsapp_messages') && (init?.method || 'GET') === 'POST') {
+        const body = JSON.parse((init?.body as string) || '{}') as { message_id?: string | null };
+        const id = body.message_id;
+        if (id && gravadas.has(id)) {
+          return new Response('[]', { status: 201, headers: { 'content-type': 'application/json' } });
+        }
+        if (id) gravadas.add(id);
+        return new Response(JSON.stringify([{ id: 'row-1', message_id: id }]), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+  }
+
+  it('mesmo wamid entregue 2x seguidas → maybeAutoReply roda só na 1ª', async () => {
+    const fetchSpy = fetchComDedupeReal();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const payload = envelopeDeMensagem('preciso de um orçamento');
+
+    const res1 = await chamarPost(pedido(payload));
+    expect(res1.status).toBe(200);
+    await vi.waitFor(() => expect(autoReplyMock).toHaveBeenCalledTimes(1));
+
+    // Reentrega idêntica — o que a Meta faz em retry, e o que um replay do
+    // mesmo POST (por quem já conhece o segredo de URL) reproduziria.
+    const res2 = await chamarPost(pedido(payload));
+    expect(res2.status).toBe(200);
+    await vi.waitFor(() => {
+      const persistiuDeNovo = fetchSpy.mock.calls.filter(
+        ([u]) => String(u).includes('/rest/v1/whatsapp_messages')
+      ).length;
+      expect(persistiuDeNovo).toBeGreaterThanOrEqual(2);
+    });
+
+    // A gravação repetiu (a Meta reentregou de verdade); o atendimento
+    // automático, não — continua tendo rodado uma única vez.
+    expect(autoReplyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('concorrência: as duas cópias chegam "ao mesmo tempo" → ainda assim só 1 resposta', async () => {
+    // As duas requisições correm em paralelo (Promise.all), sem esperar a
+    // primeira terminar — é o cenário de corrida real (dois PODs do
+    // Dualhook, ou dois replays quase simultâneos). O dedupe tem que ser
+    // atômico no INSERT, não numa leitura prévia, senão as duas passariam
+    // pela checagem "ainda não existe" antes de qualquer uma escrever.
+    const fetchSpy = fetchComDedupeReal();
+    vi.stubGlobal('fetch', fetchSpy);
+    const payload = envelopeDeMensagem('oi de novo');
+
+    const [res1, res2] = await Promise.all([
+      chamarPost(pedido(payload)),
+      chamarPost(pedido(payload)),
+    ]);
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+
+    await vi.waitFor(() => {
+      const persistencias = fetchSpy.mock.calls.filter(([u]) =>
+        String(u).includes('/rest/v1/whatsapp_messages')
+      ).length;
+      expect(persistencias).toBeGreaterThanOrEqual(2);
+    });
+    // As duas gravações terminam antes de qualquer uma decidir se chama a
+    // IA — dá tempo do loop de atendimento automático (também assíncrono)
+    // terminar dos dois lados antes de conferir a contagem final.
+    await vi.waitFor(() => expect(autoReplyMock).toHaveBeenCalledTimes(1));
+  });
+});
+
 // GET = verificação de assinatura (a Meta/Dualhook chama isso uma vez, na
 // configuração do webhook, não a cada mensagem). Auditoria CI/CD 2026-09-17:
 // trocou `token === verifyToken` por `safeEqual` (tempo constante) — risco

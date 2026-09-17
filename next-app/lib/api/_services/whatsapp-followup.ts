@@ -262,6 +262,19 @@ export interface SweepResult {
   erros: string[];
 }
 
+// Trava por isolate: a varredura lê um retrato do banco, decide quem
+// cutucar e SÓ DEPOIS marca `followed_up_at`/`followup_at` — check-then-act
+// clássico (item 38 da auditoria de webhooks 2026-09-17). Quem chama esta
+// rota conhece um segredo (o mesmo `WHATSAPP_WEBHOOK_URL_SECRET` do webhook,
+// ou um token de admin) — ou seja, não é anônimo, mas replayar o MESMO POST
+// (ou clicar "Rodar agora" rápido demais) durante a janela entre o envio e
+// a marcação dispararia a MESMA cobrança/reengajamento duas vezes pro
+// cliente de verdade. Esta trava fecha o caso mais provável (duas
+// invocações batendo no MESMO isolate, que é o que replay rápido da mesma
+// origem tende a fazer) sem exigir SQL novo; a rota também aplica rate
+// limit (ver route.ts) pra reduzir o que sobra entre isolates diferentes.
+let sweepEmAndamento = false;
+
 /**
  * Roda a varredura inteira. Best-effort: nunca lança — o chamador pode
  * ser um cron do banco, e falha aqui não pode virar retry em cascata.
@@ -281,6 +294,14 @@ export async function runFollowupSweep(opts?: {
     foraDaJanela: 0,
     erros: [],
   };
+  // dryRun não manda nada — não precisa da trava, e travar ele atrapalharia
+  // quem só quer conferir o que aconteceria.
+  if (!opts?.dryRun) {
+    if (sweepEmAndamento) {
+      return { ...vazio, why: 'varredura já em andamento (evita envio duplicado)' };
+    }
+    sweepEmAndamento = true;
+  }
   try {
     if (!getSupabaseUrl() || !getServiceKey()) {
       return { ...vazio, ok: false, why: 'sem service key' };
@@ -456,7 +477,14 @@ export async function runFollowupSweep(opts?: {
     return res;
   } catch (e) {
     return { ...vazio, ok: false, why: e instanceof Error ? e.message : String(e) };
+  } finally {
+    if (!opts?.dryRun) sweepEmAndamento = false;
   }
+}
+
+/** Só pra teste: garante que a trava não fica presa entre specs. */
+export function _resetSweepLockParaTeste(): void {
+  sweepEmAndamento = false;
 }
 
 /** Nome pra personalizar: lead da prospecção primeiro, depois usuário. */

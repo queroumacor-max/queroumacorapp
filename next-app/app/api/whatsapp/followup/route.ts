@@ -31,8 +31,10 @@
 import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import {
+  checkRateLimit,
   getToken,
   jsonResponse,
+  rateLimitResponse,
   readBody,
   ServiceError,
   serviceErrorResponse,
@@ -84,6 +86,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const result = await runFollowupSweep({ dryRun: body?.dryRun === true });
+  const dryRun = body?.dryRun === true;
+  // Rate limit só na varredura de VERDADE (dryRun não manda nada). Chave
+  // fixa e global (não por chamador): o que queremos limitar é QUANTAS
+  // VEZES a varredura roda de verdade por minuto, não quem pediu — cron
+  // hourly + um admin clicando "Rodar agora" cabem sobrando; um replay do
+  // mesmo POST em rajada, não. Complementa a trava por isolate em
+  // `runFollowupSweep` (que sozinha não cobre isolates diferentes).
+  if (!dryRun) {
+    const rl = await checkRateLimit({
+      userId: 'whatsapp-followup-sweep',
+      endpoint: 'whatsapp-followup-sweep',
+      limit: 4,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl);
+  }
+
+  const result = await runFollowupSweep({ dryRun });
   return jsonResponse(result);
 }
