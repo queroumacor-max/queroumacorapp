@@ -1,5 +1,97 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE DISASTER RECOVERY / BUSINESS CONTINUITY (2026-09-17,
+  branch `claude/elegant-mayer-a04g5h`). Relatório completo em
+  `docs/DR_AUDIT_2026-09-17.md`; runbooks operacionais em
+  `docs/DR_RUNBOOK.md`. Status final: PARTIALLY RESILIENT.** Pergunta
+  central: "se perdermos banco/storage/deploy/secrets/conta admin/um
+  provider inteiro, dá pra restaurar de forma segura e previsível?" —
+  ainda não totalmente, e os motivos ficam documentados, não escondidos.
+  - **2 achados CRITICAL/HIGH de fundo, ainda SEM correção automática
+    por decisão deliberada (exigem decisão de produto/compliance, não
+    são bug de código):** (1) um PITR restore pra antes de um hash ser
+    bloqueado em `media_hash_blocklist` reverte a proteção CSAM em
+    silêncio — não implementado replicação externa por sensibilidade
+    legal do dado (quem teria acesso a um espelho fora do Postgres);
+    (2) restore pra antes de uma exclusão de conta ressuscita a conta
+    — mitigado parcialmente (ver abaixo), mas o gap de fundo (mesma
+    base sendo restaurada) continua até haver replicação externa.
+  - **Correção de código aplicada** (`/migrations/
+    2026-09-17-dr-deletion-tombstone-and-integrity.sql` — **AINDA NÃO
+    EXECUTADO no Supabase**, colar no SQL Editor quando decidido):
+    tabela `deletion_tombstones` (ledger append-only, sem NENHUMA
+    policy de UPDATE/DELETE pra ninguém logado — só SECURITY DEFINER
+    escreve), `admin_delete_user` recriado (mesma assinatura/guardas)
+    pra gravar nela antes do delete; e `dr_integrity_report()`, função
+    read-only admin-gated que fecha uma lacuna real confirmada pela
+    auditoria — **não existia NENHUMA checagem de reconciliação
+    Storage↔DB na direção "banco referencia arquivo que sumiu do
+    bucket"**, só a oposta (`cleanup_orphan_media()`, que já existia).
+    Rodar `select * from public.dr_integrity_report();` como parte de
+    qualquer restore, e como checagem periódica de saúde.
+  - **`docs/RUNBOOK.md` ganhou aviso**: NUNCA rodar
+    `execute_cleanup_orphan_media()` logo depois de um restore parcial
+    (PITR do Postgres e Storage do Supabase não são garantidamente
+    restaurados no mesmo instante — a janela pode fazer a limpeza
+    apagar mídia de post que "ainda não existe" no banco recém-
+    restaurado, mas vai voltar a existir assim que a reconciliação
+    terminar).
+  - **`.github/workflows/rollback.yml` tinha uma afirmação FALSA** no
+    passo final ("deploy.yml vai rodar automaticamente") — `deploy.yml`
+    é `workflow_dispatch`-only, quem redeploya a versão antiga é o
+    Cloudflare Pages Git integration observando `main` direto. Corrigido
+    a mensagem; travado por teste novo
+    (`__tests__/dr/rollbackWorkflowSafety.test.ts`) pra não regredir.
+  - **Achados confirmados, sem correção de código possível nesta
+    sessão** (documentados em detalhe no relatório): replay ingênuo das
+    101 migrations em ordem de arquivo REGRIDE `get_feed_v2` e
+    `is_portal_admin()` pra versões supersedidas (mitigação só em
+    prosa, `migrations/MIGRATIONS.md` — corrigir de verdade exigiria
+    uma ferramenta de migration real, fora de escopo); Supabase Storage
+    **sem backup confirmável** (PITR cobre só o Postgres — Storage é
+    MANUAL VERIFICATION, pode não ter proteção nenhuma); 2 buckets
+    (`art-refs`, `style-refs`) existem só no dashboard, nunca em
+    migration versionada; `audit_log` sem cópia fora do Postgres
+    (perde a própria trilha forense num restore); nenhum dump lógico
+    independente (`pg_dump`) do banco existe — DR depende 100% do PITR
+    gerenciado; `supabase_init.sql` desatualizado desde 2026-09-07
+    (achado já conhecido de auditoria anterior, não piorado nem
+    corrigido aqui); owner único (Jackson) pra GitHub/Cloudflare/
+    Supabase/Codemagic/Google Play/Firebase — só Apple Developer tem
+    segundo admin documentado (Beatris, já confirmado intencional).
+  - **Confirmado SEGURO por desenho, sem ação necessária**: Mercado
+    Pago é tratado como fonte de verdade a cada webhook (`GET
+    /v1/payments/{id}`/`GET /preapproval/{id}` ao vivo), então um
+    restore de banco reconcilia sozinho sem duplicar benefício — o
+    único domínio do audit com reconciliação automática completa;
+    `message_id UNIQUE` faz reenvio do WhatsApp/Meta ser idempotente
+    pra mensagem em si; push é `AFTER INSERT`-driven sem fila
+    persistente, então não há replay fantasma num restore;
+    `requirePro`/`gateAiUsage`/webhook do MP são fail-closed em
+    produção (reconfirmado no código atual, não só por citação do
+    CLAUDE.md); nenhum secret real nem dump de produção commitado no
+    histórico do git (varredura completa, incluindo `git log --all
+    --diff-filter=A`) — trava nova, `__tests__/dr/
+    noCommittedBackupArtifacts.test.ts`, pra isso continuar verdade.
+  - **RISCO HIGH sem correção automática, exige checagem manual**:
+    opt-out de WhatsApp (`opted_out_at`) pode reverter num restore —
+    se o Meta/Dualhook reenviar ou o cliente escrever de novo depois
+    do restore, o runner pode tratar como opt-in outra vez. Nunca
+    reabrir IA/follow-up automático logo após um restore sem checar
+    manualmente quem pediu PARE no intervalo (fora do nosso banco, nos
+    logs do Dualhook).
+  - **986 contatos reais (`migrations/2026-08-29-import-leads-planilha.sql`)
+    seguem commitados permanentemente no histórico do git** — não é
+    achado novo de disponibilidade, mas relevante pra DR: qualquer
+    estratégia de "clone do repo é backup" também propaga esse dado
+    pra onde o repo for clonado. Não removido (reescrever histórico do
+    git é decisão do usuário, fora do escopo desta sessão).
+  - **RPO/RTO NÃO estão definidos como decisão de negócio** — a
+    tabela de propostas em `docs/DR_AUDIT_2026-09-17.md §5` marca
+    `BUSINESS DECISION REQUIRED`, não inventa meta.
+  - Suíte completa (183 arquivos / 2292 testes), typecheck e
+    `next build` verdes com as mudanças desta auditoria.
+
 - **AUDITORIA DE SEGURANÇA DA PIPELINE CI/CD (2026-09-16, commit `bfa6849`,
   merge #318 `claude/keen-bell-vyn38f`) — MERGEADA SEM REGISTRO NESTE
   ARQUIVO, DOCUMENTADA AGORA EM 2026-09-17 pra fechar a lacuna.** Auditoria
