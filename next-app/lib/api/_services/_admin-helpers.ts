@@ -92,6 +92,30 @@ export function _resetPortalAdminCache(): void {
 }
 
 /**
+ * Mesma regra de `isPortalAdminUser`, mas SEM CACHE — pra ações
+ * destrutivas/irreversíveis (ex.: `/api/admin/moderate` reject = hard
+ * delete do post + storage) onde os 60s de cache do isolate são tempo
+ * demais pra uma conta recém-despromovida ainda conseguir agir. Achado da
+ * auditoria de negócio 2026-09-16: `ensurePortalAdmin` (cached) protegia
+ * bem as ações reversíveis, mas o `/moderate` só chamava ela também — uma
+ * conta despromovida no meio da janela de 60s ainda apagava post/mídia de
+ * qualquer outro usuário.
+ */
+export async function ensurePortalAdminFresh(args: { callerId: string; email: string }): Promise<void> {
+  if (isAdminEmail(args.email)) return;
+  const row = args.callerId ? await lerFlagsDoPerfil(args.callerId) : null;
+  const ok = !!row && (row.portal_access === true || row.role === 'admin');
+  if (!ok) {
+    throw new ServiceError(
+      `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
+        'Promova a pessoa na aba Pessoas do portal (botão Promover) ou adicione o e-mail na env ADMIN_EMAILS ' +
+        '(Cloudflare Pages → Settings → Environment variables → Production) e refaça o deploy.',
+      403,
+    );
+  }
+}
+
+/**
  * Substitui `ensureAdminEmail(email)` nas rotas admin. Sem `callerId` (token
  * sem sub) só a allowlist vale. Mensagem do 403 diz os DOIS caminhos, porque
  * o operador que lê a faixa vermelha precisa saber o que fazer.

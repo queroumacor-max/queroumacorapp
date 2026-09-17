@@ -576,6 +576,11 @@ async function processPreapprovalEvent(opts: {
 
 // ── HMAC / signature ───────────────────────────────────────────────────────
 
+// Janela de tolerância pro `ts` da assinatura do MP — mesma recomendada
+// pela documentação deles. Fora dela, mesmo com HMAC válido, o request é
+// tratado como replay (auditoria de negócio 2026-09-16).
+const MP_SIGNATURE_MAX_SKEW_SECONDS = 600;
+
 /**
  * Verifica o header x-signature do Mercado Pago.
  * Formato: "ts=<unixtime>,v1=<hmac-sha256-hex>"
@@ -648,6 +653,23 @@ async function verifyMpSignature(args: {
   const ts = parts.ts || '';
   const v1 = parts.v1 || '';
   if (!ts || !v1) return false;
+
+  // Auditoria de negócio 2026-09-16: a assinatura provava que o corpo foi
+  // assinado pelo MP EM ALGUM MOMENTO — nunca checava QUANDO. Um webhook
+  // "authorized" capturado (log, proxy) continuava 100% válido pra sempre,
+  // então replay-lo reativava PRO indefinidamente sem pagar de novo (o
+  // ramo de preapproval não tem idempotência própria como o de payment).
+  // MP_SIGNATURE_MAX_SKEW_SECONDS segue a janela que o próprio MP recomenda.
+  const tsSeconds = Number(ts);
+  if (!Number.isFinite(tsSeconds)) return false;
+  const skewSeconds = Math.abs(Math.floor(Date.now() / 1000) - tsSeconds);
+  if (skewSeconds > MP_SIGNATURE_MAX_SKEW_SECONDS) {
+    console.warn(
+      `mp-webhook: assinatura fora da janela de validade (skew=${skewSeconds}s) — possível replay, rejeitando`
+    );
+    return false;
+  }
+
   const dataId = (body && body.data && body.data.id) || '';
   const manifest = `id:${dataId};request-id:${reqId};ts:${ts};`;
   try {

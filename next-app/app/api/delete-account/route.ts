@@ -166,17 +166,42 @@ export async function POST(request: NextRequest) {
 
   // 4. Deleta o auth.user. SECURITY: service_role tem auth.admin.
   // Endpoint: POST /auth/v1/admin/users/{user_id} com DELETE method.
+  //
+  // Auditoria de negócio 2026-09-16: o `await fetch(...)` sozinho, sem
+  // checar `res.ok`, só lança em falha de REDE — um 4xx/5xx do GoTrue
+  // (permissão, falha transitória, alguma FK que a varredura de
+  // 2026-08-28 não cobriu) passava batido e o endpoint respondia
+  // `{ok:true}` mesmo com o `auth.users` intacto. Nesse caso o
+  // access/refresh token da conta CONTINUA válido — `requireAuth`
+  // revalida contra o GoTrue vivo a cada chamada, então a sessão não
+  // morre sozinha até expirar naturalmente (e o refresh token nem isso).
+  // Perfil já fica anonimizado/soft-deleted (LGPD cumprida), mas a conta
+  // "excluída" continuava conseguindo autenticar. Falha agora É VISÍVEL
+  // (log — flui pro Sentry/observability existente) em vez de silenciosa;
+  // a resposta ao cliente segue `{ok:true}` porque o lado que importa pro
+  // usuário (dados removidos) já aconteceu, e bloquear a resposta por
+  // isso pioraria a UX sem mudar o resultado (operador precisa limpar
+  // manualmente de qualquer forma).
   try {
-    await fetch(`${supaUrl}/auth/v1/admin/users/${userId}`, {
+    const authDeleteRes = await fetch(`${supaUrl}/auth/v1/admin/users/${userId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${serviceKey}`,
         apikey: serviceKey,
       },
     });
-  } catch {
-    /* silent — soft delete + anonimização já cumprem LGPD.
-       auth user pode ficar até cleanup manual depois. */
+    if (!authDeleteRes.ok) {
+      const t = await authDeleteRes.text().catch(() => '');
+      console.error(
+        `delete-account: GoTrue DELETE falhou (${authDeleteRes.status}) para ${userId} — ` +
+          `auth.users pode continuar ATIVO (sessão/token seguem válidos). Corpo: ${t.slice(0, 300)}`
+      );
+    }
+  } catch (e) {
+    console.error(
+      `delete-account: exceção ao chamar GoTrue DELETE para ${userId} — auth.users pode continuar ativo`,
+      e instanceof Error ? e.message : e
+    );
   }
 
   return NextResponse.json({ ok: true, deleted_at: now });

@@ -56,7 +56,11 @@ async function mkSignedReq(opts: {
   const {
     body,
     reqId = 'req-1',
-    ts = '1700000000',
+    // Fresca por padrão — a auditoria de 2026-09-16 passou a rejeitar
+    // assinaturas com `ts` fora de uma janela de 10min (anti-replay).
+    // Testes que querem checar especificamente esse comportamento passam
+    // um `ts` velho explícito.
+    ts = String(Math.floor(Date.now() / 1000)),
     dataId = (body as { data?: { id?: string } })?.data?.id || '',
     secret = WEBHOOK_SECRET,
     url = 'https://app.test/api/mp-webhook',
@@ -131,6 +135,43 @@ describe('POST /api/mp-webhook — HMAC signature', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
+  });
+
+  // Auditoria de negócio 2026-09-16: uma assinatura VÁLIDA (HMAC correto
+  // pro secret real) mas com `ts` velho — o cenário de um webhook
+  // capturado/vazado sendo REPLAYADO depois — tinha que continuar
+  // funcionando pra sempre antes deste fix. Prova que não funciona mais.
+  it('rejects with 401 when signature is VALID but ts is outside the replay window (replay attack)', async () => {
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const staleTs = String(Math.floor(Date.now() / 1000) - 3600); // 1h atrás
+    const req = await mkSignedReq({
+      body: { type: 'payment', data: { id: '123' } },
+      ts: staleTs,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it('accepts a signature within the replay window (a few minutes old — clock skew tolerance)', async () => {
+    globalThis.fetch = vi.fn(async (url: string | URL) => {
+      const u = url.toString();
+      if (u.includes('/v1/payments/')) {
+        return new Response(
+          JSON.stringify({ id: '123', status: 'pending', transaction_amount: 1 }),
+          { status: 200 },
+        );
+      }
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    const { POST } = await import('@/app/api/mp-webhook/route');
+    const skewTs = String(Math.floor(Date.now() / 1000) - 120); // 2min atrás
+    const req = await mkSignedReq({
+      body: { type: 'payment', data: { id: '123' } },
+      ts: skewTs,
+    });
+    const res = await POST(req);
+    // Não pode ser 401 — a assinatura é válida e está dentro da janela.
+    expect(res.status).not.toBe(401);
   });
 
   it('rejects with 401 when ts or v1 missing in signature', async () => {

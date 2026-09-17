@@ -150,21 +150,38 @@ async function setAiEnabled(waId: string, enabled: boolean, optedOut?: boolean):
   }).catch(() => {});
 }
 
-async function bumpReplyCount(waId: string, state: AiState | null): Promise<void> {
-  const hoje = diaBrt();
-  const zerou = !state || state.replies_date !== hoje;
-  await fetch(rest('whatsapp_ai_state?on_conflict=wa_id'), {
-    method: 'POST',
-    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
-    body: JSON.stringify({
-      // Sem `enabled` de propósito: contar resposta não é decidir a chave.
-      wa_id: waId,
-      replies_today: zerou ? 1 : (state?.replies_today || 0) + 1,
-      replies_date: hoje,
-      updated_at: new Date().toISOString(),
-    }),
-    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
-  }).catch(() => {});
+/**
+ * Reserva ATÔMICA de 1 slot no teto diário — RPC `bump_wa_ai_reply_count`
+ * (check + increment numa transação só, UPSERT com CASE de virada de dia).
+ *
+ * Auditoria de negócio 2026-09-16: antes disso, o teto era check-then-act
+ * clássico — `decidirEAgir` lia `state.replies_today` (capturado ANTES da
+ * chamada de IA + envio, que levam segundos), e só incrementava DEPOIS de
+ * enviar, usando aquele `state` já desatualizado. Rajada de mensagens do
+ * mesmo número gera invocações concorrentes do webhook que todas leem o
+ * mesmo contador — o teto de 30/dia (anti-loop/custo) não segurava rajada
+ * nenhuma. Chamar ISTO antes de gerar a resposta fecha a janela: a reserva
+ * e o check acontecem juntos, serializados pelo lock da linha em
+ * `whatsapp_ai_state` (mesmo mecanismo comprovado do `check_rate_limit`).
+ *
+ * Fail-open em erro de infra (mesma filosofia best-effort do arquivo
+ * inteiro — o webhook sempre devolve 200).
+ */
+async function reserveReply(waId: string, max: number): Promise<{ allowed: boolean; count: number }> {
+  try {
+    const r = await fetch(rest('rpc/bump_wa_ai_reply_count'), {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ p_wa_id: waId, p_max: max, p_today: diaBrt() }),
+      signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+    });
+    if (!r.ok) return { allowed: true, count: 0 };
+    const data = (await r.json().catch(() => null)) as { allowed?: boolean; count?: number } | null;
+    if (!data || typeof data.allowed !== 'boolean') return { allowed: true, count: 0 };
+    return { allowed: data.allowed, count: typeof data.count === 'number' ? data.count : 0 };
+  } catch {
+    return { allowed: true, count: 0 };
+  }
 }
 
 /**
@@ -474,9 +491,12 @@ async function decidirEAgir(opts: {
       return { acted: avisou, why: avisou ? `${fora} — mandei a mensagem de ausência` : fora };
     }
 
-    const hoje = diaBrt();
-    const jaHoje = state && state.replies_date === hoje ? state.replies_today : 0;
-    if (jaHoje >= MAX_AUTO_REPLIES_PER_DAY) {
+    // Reserva o slot ANTES de gerar a resposta (atômico — ver reserveReply).
+    // Se a IA não produzir resposta (linha abaixo), o slot já foi
+    // consumido mesmo assim — troca deliberada por segurança real do teto
+    // sob concorrência, ver comentário de reserveReply.
+    const reserva = await reserveReply(opts.waId, MAX_AUTO_REPLIES_PER_DAY);
+    if (!reserva.allowed) {
       return { acted: false, why: 'teto diário de respostas atingido' };
     }
 
@@ -503,7 +523,6 @@ async function decidirEAgir(opts: {
       type: 'text',
       body: result.reply,
     });
-    await bumpReplyCount(opts.waId, state);
 
     if (result.escalate) {
       // Chama gente MAS NÃO desliga a IA (2026-08-29). Desligar por causa

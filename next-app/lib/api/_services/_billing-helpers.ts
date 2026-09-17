@@ -88,53 +88,83 @@ export async function recordInvoiceViaRest(args: {
 }
 
 /**
- * Registra um uso de IA via REST direto. Pareado com `recordAiUsage` do
- * service `lib/services/billing.ts`, mas pra edge runtime sem supabase-js.
+ * Reserva atômica de cota mensal de IA — RPC `reserve_ai_usage`.
  *
- * Falha silenciosa (log + return).
+ * Auditoria de negócio 2026-09-16: o par antigo (ler soma do mês via
+ * `getAiUsageThisMonthViaRest`, comparar com o limite, e só gravar via
+ * `recordAiUsageViaRest` DEPOIS da chamada de IA) é um TOCTOU clássico —
+ * N requisições concorrentes (bounded só pelo rate-limit por MINUTO da
+ * rota) passam todas pelo check antes de qualquer uma gravar. Esta RPC
+ * faz check+INSERT em UMA transação, serializada por advisory lock por
+ * usuário (mesmo padrão comprovado do `redeem_pro_with_points`) — chamar
+ * ANTES da chamada de IA (reserva o "slot" antes de gastar dinheiro nela).
+ *
+ * Fail-open só quando a INFRA falha (timeout/rede/config ausente) — igual
+ * ao resto deste arquivo. Erro de negócio (quota estourada) vem no corpo
+ * da resposta (`allowed:false`), não como erro HTTP.
  */
-export async function recordAiUsageViaRest(args: {
+export async function reserveAiUsageViaRest(args: {
   supaUrl: string;
   serviceKey: string;
   userId: string;
   feature: string;
-  costUnits?: number;
-}): Promise<void> {
-  const { supaUrl, serviceKey, userId, feature, costUnits = 1 } = args;
-  if (!supaUrl || !serviceKey || !userId || !feature) return;
+  limit: number;
+}): Promise<{ allowed: boolean; used: number; limit: number }> {
+  const { supaUrl, serviceKey, userId, feature, limit } = args;
+  if (!supaUrl || !serviceKey || !userId) {
+    return { allowed: true, used: 0, limit };
+  }
   try {
-    const res = await fetch(`${supaUrl}/rest/v1/ai_usage`, {
+    const res = await fetch(`${supaUrl}/rest/v1/rpc/reserve_ai_usage`, {
       method: 'POST',
       headers: {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
       },
       body: JSON.stringify({
-        user_id: userId,
-        feature,
-        cost_units: costUnits,
+        p_user_id: userId,
+        p_feature: feature,
+        p_limit: limit,
+        p_cost: 1,
       }),
       signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
     });
     if (!res.ok) {
       const t = await res.text().catch(() => '');
-      console.warn(
-        `recordAiUsageViaRest: ${res.status} - ${t.slice(0, 200)}`
-      );
+      console.warn(`reserveAiUsageViaRest: rpc ${res.status} - ${t.slice(0, 200)}`);
+      // Infra indisponível: fail-open (mesma filosofia do resto do arquivo)
+      // em vez de travar usuário legítimo num blip do banco.
+      return { allowed: true, used: 0, limit };
     }
+    const data = (await res.json().catch(() => null)) as
+      | { allowed?: boolean; used?: number; limit?: number }
+      | null;
+    if (!data || typeof data.allowed !== 'boolean') {
+      return { allowed: true, used: 0, limit };
+    }
+    return {
+      allowed: data.allowed,
+      used: typeof data.used === 'number' ? data.used : 0,
+      limit: typeof data.limit === 'number' ? data.limit : limit,
+    };
   } catch (e) {
     console.warn(
-      'recordAiUsageViaRest: exceção',
+      'reserveAiUsageViaRest: exceção',
       e instanceof Error ? e.message : String(e)
     );
+    return { allowed: true, used: 0, limit };
   }
 }
 
 /**
  * Conta uso do mês via RPC `ai_usage_this_month`. Falha → retorna 0
  * (fail-open: melhor liberar IA do que travar usuário legítimo).
+ *
+ * NÃO usar pra decidir se uma chamada de IA pode prosseguir — isso é
+ * `reserveAiUsageViaRest` agora (atômico). Este helper segue existindo
+ * pra telemetria/exibição ("X/Y usos este mês") onde uma leitura
+ * ligeiramente desatualizada é aceitável.
  */
 export async function getAiUsageThisMonthViaRest(args: {
   supaUrl: string;
@@ -174,6 +204,15 @@ export async function getAiUsageThisMonthViaRest(args: {
  * conta). Fail-open: erro → retorna 0.
  *
  * Não precisa de migration nova — usa a tabela ai_usage já existente.
+ *
+ * CORREÇÃO 2026-09-16: filtrava por `created_at`, coluna que NUNCA
+ * existiu em `ai_usage` (a tabela só tem `used_at` — ver migration
+ * 2026-05-31-payments-hardening.sql). PostgREST recusava o filtro com
+ * coluna inexistente (erro, `!res.ok`), então esta função SEMPRE
+ * retornava 0 — o teto diário de 3/dia da Alice nunca bloqueou UMA
+ * chamada sequer desde que foi escrito (fail-open silencioso e
+ * permanente, não intermitente). Achado da auditoria de negócio
+ * 2026-09-16 ao mexer em código vizinho (reserva atômica de IA).
  */
 export async function getAiUsageTodayViaRest(args: {
   supaUrl: string;
@@ -189,7 +228,7 @@ export async function getAiUsageTodayViaRest(args: {
   // window é 24h sliding na pior das hipóteses.
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const url = `${supaUrl}/rest/v1/ai_usage?user_id=eq.${encodeURIComponent(userId)}&feature=eq.${encodeURIComponent(feature)}&created_at=gte.${today}T00:00:00Z&select=id`;
+    const url = `${supaUrl}/rest/v1/ai_usage?user_id=eq.${encodeURIComponent(userId)}&feature=eq.${encodeURIComponent(feature)}&used_at=gte.${today}T00:00:00Z&select=id`;
     const res = await fetch(url, {
       method: 'GET',
       headers: {
