@@ -97,3 +97,37 @@ describe('POST /api/whatsapp/followup — rate limit da varredura de verdade', (
     expect(contarChamadasDeLimite()).toBe(0);
   });
 });
+
+// ─── Achado L3 (auditoria 2026-09-17): segredo dedicado, opcional ───────────
+//
+// Reusar o segredo do webhook aqui é funcional, mas aumenta o raio de um
+// vazamento. `WHATSAPP_FOLLOWUP_URL_SECRET` deixa a rota pronta pra migrar
+// pra um segredo PRÓPRIO sem nenhuma mudança de código — só configurar a
+// env e trocar a URL do pg_cron.
+describe('POST /api/whatsapp/followup — segredo dedicado (WHATSAPP_FOLLOWUP_URL_SECRET)', () => {
+  const DEDICADO = 'segredo-so-do-followup';
+
+  it('quando configurado, o segredo dedicado autentica sozinho', async () => {
+    process.env.WHATSAPP_FOLLOWUP_URL_SECRET = DEDICADO;
+    stubBancoComContador({ permiteAteEnvio: true });
+    const res = await chamarPost(`token=${DEDICADO}`, { dryRun: true });
+    expect(res.status).toBe(200);
+    delete process.env.WHATSAPP_FOLLOWUP_URL_SECRET;
+  });
+
+  it('sem a env configurada, o token dedicado NÃO autentica (nem por coincidência de string)', async () => {
+    // Confirma que não há um valor hardcoded — sem a env, só o segredo do
+    // webhook (já setado no beforeEach) funciona.
+    stubBancoComContador({ permiteAteEnvio: true });
+    const res = await chamarPost(`token=${DEDICADO}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('o segredo ANTIGO do webhook continua funcionando (compat, nada quebra sem migrar)', async () => {
+    process.env.WHATSAPP_FOLLOWUP_URL_SECRET = DEDICADO;
+    stubBancoComContador({ permiteAteEnvio: true });
+    const res = await chamarPost(`token=${URL_SECRET}`, { dryRun: true });
+    expect(res.status).toBe(200);
+    delete process.env.WHATSAPP_FOLLOWUP_URL_SECRET;
+  });
+});
