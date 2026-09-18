@@ -86,14 +86,82 @@ export function clientAsksForPrice(text: string): 'preco' | 'orcamento' | null {
  * A RESPOSTA DA IA vazou preço? Última linha de defesa antes de enviar.
  * Pega "R$", números com vírgula decimal em contexto de dinheiro, e as
  * palavras que a IA não deveria usar afirmando valor.
+ *
+ * REGRA: esta trava é SINTÁTICA (regex), não semântica — ela não entende o
+ * texto, só reconhece padrões. Achado da auditoria de segurança de IA
+ * (2026-09-17): "R $ 120" (espaço entre R e $) e variações de espaçamento
+ * escapavam do `/r\$/` original porque o regex exigia os dois caracteres
+ * colados. Normalizar espaço solto entre pontuação ANTES de testar fecha
+ * essa classe específica de bypass sem mudar o que a regra tenta pegar.
+ * Isto NÃO torna a trava semanticamente à prova de tudo (por extenso,
+ * unicode look-alike, ofuscação deliberada ainda podem escapar) — por isso
+ * ela é só a ÚLTIMA camada, em cima da trava 1 (`clientAsksForPrice`, que
+ * nem deixa a pergunta chegar no modelo) e nunca a única defesa.
  */
 export function replyLeaksPrice(text: string): boolean {
-  const t = (text || '').toLowerCase();
+  // Colapsa espaço/pontuação solta entre símbolo de moeda e dígito:
+  // "R $ 120", "R$ 120", "r$120" viram todos comparáveis ao mesmo padrão.
+  const t = (text || '')
+    .toLowerCase()
+    .replace(/r\s*\$\s*/g, 'r$')
+    .replace(/\$\s+(?=\d)/g, '$');
   if (/r\$|\breais\b/.test(t)) return true;
-  // "custa 120", "sai por 89,90", "fica 250"
-  if (/\b(custa|sai por|fica em|fica por|por apenas|a partir de)\s*\d/.test(t)) return true;
+  // "custa 120", "sai por 89,90", "fica 250", "cobramos 90", "gira em torno de 300"
+  if (
+    /\b(custa|sai por|sai a|fica em|fica por|por apenas|a partir de|cobra(?:mos)?|em torno de|por volta de|gira em torno de)\s*\d/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
   // Promessa de orçamento fechado pela IA.
   if (/(segue o or[çc]amento|or[çc]amento fica|valor total|te passo o valor de)\b/.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * O CLIENTE está reclamando, ameaçando ação legal ou pedindo cancelamento/
+ * reembolso? Roda na mensagem recebida — igual `clientAsksForPrice`, nem
+ * chama a IA: escala direto. Achado da auditoria de segurança de IA
+ * (2026-09-17): a regra 4 do prompt ("reclamação/cobrança/assunto delicado
+ * → precisa_humano=true") dependia só de o modelo obedecer, sem trava de
+ * código — diferente da regra de preço, que tem duas. Isto fecha essa
+ * lacuna com a MESMA filosofia: código decide, prompt é só o plano B.
+ */
+export function clientHasComplaintOrLegalThreat(text: string): boolean {
+  const t = (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+  return /procon|advogad|vou processar|reclama[cç]|reembolso|estorno|cancelar (o |meu )?pedido|n[aã]o recebi (o |meu )?pedido|pedido atrasado|p[eé]ssimo atendimento|isso [eé] um absurdo|absurdo isso|vou denunciar/.test(
+    t,
+  );
+}
+
+/**
+ * A RESPOSTA DA IA afirmou prazo de entrega ou estoque com certeza que ela
+ * não tem como saber? Última linha de defesa pra regra 3 do prompt ("não
+ * invente produto, prazo de entrega, estoque nem promessa de prazo") — a
+ * mesma lógica de `replyLeaksPrice`: o prompt pede pra não inventar, mas
+ * quem garante é o código, não a boa vontade do modelo.
+ */
+export function replyMakesUnverifiedPromise(text: string): boolean {
+  const t = (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+  // Prazo concreto: "chega amanhã", "entrega em 3 dias", "até sexta".
+  if (
+    /\b(chega|chegam?|entrega(?:mos)?|fica(?:rá)? pronto|estar[aá] pronto)\b[^.?!]{0,25}\b(amanh[aã]|hoje|em \d+\s*(dias?|horas?|semanas?)|at[eé] (segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo))\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // Afirmação categórica de estoque/disponibilidade.
+  if (/\b(temos (sim )?(esse|essa|em estoque|dispon[ií]vel)|est[aá] dispon[ií]vel|tem estoque|garantido (para|pra))\b/.test(t)) {
     return true;
   }
   return false;
@@ -426,6 +494,19 @@ export async function generateAiReply(opts: {
     };
   }
 
+  // Trava 1b: reclamação/ameaça legal/pedido de cancelamento nem chega no
+  // modelo — regra 4 do prompt vira código, mesma filosofia da trava de
+  // preço (auditoria de segurança de IA, 2026-09-17).
+  if (clientHasComplaintOrLegalThreat(textoCliente)) {
+    return {
+      reply: primeiroContato
+        ? 'Oi! Aqui é a Cali Colors 🎨 Recebi sua mensagem e já vou chamar alguém da equipe pra cuidar disso com você, tá?'
+        : 'Entendi. Vou chamar alguém da equipe pra cuidar disso com você agora, tá?',
+      escalate: true,
+      reason: 'humano',
+    };
+  }
+
   const key = getRuntimeEnv('OPENAI_API_KEY');
   if (!key) throw new ServiceError('OPENAI_API_KEY não configurada', 503);
 
@@ -505,6 +586,18 @@ export async function generateAiReply(opts: {
       reply: 'Vou confirmar essa informação com a equipe e já te retorno! 👍',
       escalate: true,
       reason: 'preco',
+    };
+  }
+
+  // Trava 2b: a IA prometeu prazo de entrega ou afirmou estoque que ela não
+  // tem como saber (regra 3: "não invente produto, prazo, estoque nem
+  // promessa de prazo")? Descarta e escala — mesma regra da trava de preço,
+  // pra regra 3 não depender só de o modelo obedecer.
+  if (replyMakesUnverifiedPromise(resposta)) {
+    return {
+      reply: 'Vou confirmar isso direitinho com a equipe e já te retorno! 👍',
+      escalate: true,
+      reason: 'humano',
     };
   }
 

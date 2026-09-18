@@ -179,7 +179,14 @@ describe('moderateVideoPost — todo caminho pending enfileira em media_review_q
 });
 
 describe('moderateVideoPost — os outros desfechos não mudaram', () => {
-  it('severity hard → rejected, apaga o post, NÃO enfileira (já é ação final, não revisão)', async () => {
+  // 2026-09-17 (auditoria de segurança de IA): esta expectativa MUDOU de
+  // propósito. Antes, severity="hard" fazia DELETE PERMANENTE do post sem
+  // enfileirar nada — a IA tinha a palavra final e a ação era irreversível.
+  // Agora "hard" nunca deleta: soft-deleta (some do ar igual antes) e
+  // ENFILEIRA pra revisão humana, como qualquer outro caso ambíguo. Ver
+  // `lib/api/_services/moderate-video.ts` (softRejectAndEnqueue).
+  it('severity hard → rejected, soft-deleta o post (nunca DELETE) e enfileira pra revisão humana', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
     installFetch(
       baseRouter((url) => {
         if (url === MEDIA_URL) {
@@ -193,10 +200,27 @@ describe('moderateVideoPost — os outros desfechos não mudaram', () => {
         return null;
       }),
     );
+    const originalRouterFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      calls.push({ url, method: (init?.method || 'GET').toUpperCase() });
+      return (originalRouterFetch as typeof fetch)(input, init);
+    }) as unknown as typeof fetch;
 
     const out = await moderateVideoPost({ userId: USER_ID, postId: POST_ID, caption: '' });
+
     expect(out.status).toBe('rejected');
-    expect(enqueueMediaReviewMock).not.toHaveBeenCalled();
+    expect(enqueueMediaReviewMock).toHaveBeenCalledTimes(1);
+    const arg = enqueueMediaReviewMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.postId).toBe(POST_ID);
+    expect(arg.severity).toBe('high');
+
+    // Nunca um DELETE — nem no post, nem no arquivo do storage.
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    const patchPost = calls.find(
+      (c) => c.url.includes('/rest/v1/posts?id=eq.') && c.method === 'PATCH',
+    );
+    expect(patchPost).toBeTruthy();
   });
 
   it('conteúdo limpo → approved, NÃO enfileira', async () => {

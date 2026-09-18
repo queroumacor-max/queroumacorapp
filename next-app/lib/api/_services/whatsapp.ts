@@ -489,6 +489,33 @@ export interface PersistWhatsAppMessageInput {
 
 const PERSIST_TIMEOUT_MS = 8000;
 
+function buildWhatsAppMessageRow(input: PersistWhatsAppMessageInput): Record<string, unknown> {
+  let waTimestamp: string | null = null;
+  if (input.waTimestamp && /^\d+$/.test(input.waTimestamp)) {
+    const d = new Date(Number(input.waTimestamp) * 1000);
+    if (!Number.isNaN(d.getTime())) waTimestamp = d.toISOString();
+  }
+
+  return {
+    direction: input.direction,
+    wa_id: input.waId,
+    profile_name: input.profileName || null,
+    message_id: input.messageId || null, // '' vira NULL (UNIQUE permite múltiplos)
+    type: input.type || 'text',
+    body: input.body || null,
+    template: input.template || null,
+    sent_by: input.sentBy || null,
+    // Origem do envio (2026-08-30): 'portal' | 'ia' | 'celular'. É o que
+    // permite marcar no portal quem está tocando cada conversa — antes
+    // IA e celular eram indistinguíveis (os dois gravavam sent_by NULL).
+    ...(input.origin ? { origin: input.origin } : {}),
+    wa_timestamp: waTimestamp,
+    ...(input.mediaUrl ? { media_url: input.mediaUrl } : {}),
+    ...(input.mediaMime ? { media_mime: input.mediaMime } : {}),
+    ...(input.transcript ? { transcript: input.transcript } : {}),
+  };
+}
+
 /**
  * Grava uma mensagem (recebida ou enviada) em `whatsapp_messages` via REST
  * com service_role. BEST-EFFORT: retorna false em qualquer falha (tabela
@@ -503,30 +530,7 @@ export async function persistWhatsAppMessage(
     const serviceKey = getServiceKey();
     if (!url || !serviceKey) return false;
 
-    let waTimestamp: string | null = null;
-    if (input.waTimestamp && /^\d+$/.test(input.waTimestamp)) {
-      const d = new Date(Number(input.waTimestamp) * 1000);
-      if (!Number.isNaN(d.getTime())) waTimestamp = d.toISOString();
-    }
-
-    const row = {
-      direction: input.direction,
-      wa_id: input.waId,
-      profile_name: input.profileName || null,
-      message_id: input.messageId || null, // '' vira NULL (UNIQUE permite múltiplos)
-      type: input.type || 'text',
-      body: input.body || null,
-      template: input.template || null,
-      sent_by: input.sentBy || null,
-      // Origem do envio (2026-08-30): 'portal' | 'ia' | 'celular'. É o que
-      // permite marcar no portal quem está tocando cada conversa — antes
-      // IA e celular eram indistinguíveis (os dois gravavam sent_by NULL).
-      ...(input.origin ? { origin: input.origin } : {}),
-      wa_timestamp: waTimestamp,
-      ...(input.mediaUrl ? { media_url: input.mediaUrl } : {}),
-      ...(input.mediaMime ? { media_mime: input.mediaMime } : {}),
-      ...(input.transcript ? { transcript: input.transcript } : {}),
-    };
+    const row = buildWhatsAppMessageRow(input);
 
     const res = await fetch(
       `${url.replace(/\/$/, '')}/rest/v1/whatsapp_messages?on_conflict=message_id`,
@@ -546,6 +550,66 @@ export async function persistWhatsAppMessage(
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export type ResultadoDePersistenciaInbound = 'inserted' | 'duplicate' | 'error';
+
+/**
+ * Auditoria de webhooks (2026-09-17) — achado: o atendimento automático era
+ * disparado pra TODA mensagem recebida no lote, sem checar se aquele wamid
+ * já tinha sido processado antes. A Meta/Dualhook reentregam webhook em
+ * retry (rede instável, latência) — e quem já conhece o segredo de URL
+ * também pode REPETIR um POST capturado de propósito. Sem dedupe, cada
+ * reentrega do MESMO wamid rodava `maybeAutoReply` de novo: uma segunda
+ * (ou enésima) resposta gerada pela IA e mandada de verdade pro cliente
+ * real — "duplicate send" clássico (a mesma classe de bug que a Wave de
+ * rate-limit já tinha fechado pro teto diário, mas por outro ângulo: aqui
+ * não é volume, é a MESMA mensagem sendo respondida mais de uma vez).
+ *
+ * Corrigido usando a garantia que o Postgres já dá de graça: `message_id`
+ * é UNIQUE (Wave 38) e `ON CONFLICT DO NOTHING` é atômico no banco — não
+ * tem janela de corrida entre "verificar se existe" e "inserir" (o erro
+ * clássico do item 38 do checklist). Com `Prefer: return=representation`,
+ * o PostgREST devolve a linha SÓ quando o INSERT realmente aconteceu; body
+ * vazio = já existia (conflito). Isso responde, sem round-trip extra e sem
+ * corrida, "esta é a primeira vez que vejo este wamid?" — e só quando a
+ * resposta é sim o webhook deixa `maybeAutoReply` rodar.
+ *
+ * Mensagem sem `message_id` (malformada) não tem como ser deduplicada —
+ * `NULL` não colide com `NULL` numa UNIQUE — e cai sempre em 'inserted'
+ * (mesmo comportamento de antes: nesse caso resta o teto diário de
+ * respostas como última linha de defesa contra abuso).
+ */
+export async function persistInboundMessage(
+  input: PersistWhatsAppMessageInput
+): Promise<ResultadoDePersistenciaInbound> {
+  try {
+    const url = getSupabaseUrl();
+    const serviceKey = getServiceKey();
+    if (!url || !serviceKey) return 'error';
+
+    const row = buildWhatsAppMessageRow(input);
+
+    const res = await fetch(
+      `${url.replace(/\/$/, '')}/rest/v1/whatsapp_messages?on_conflict=message_id`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=ignore-duplicates,return=representation',
+        },
+        body: JSON.stringify(row),
+        signal: AbortSignal.timeout(PERSIST_TIMEOUT_MS),
+      }
+    );
+    if (!res.ok) return 'error';
+    const inserted = (await res.json().catch(() => [])) as unknown[];
+    return Array.isArray(inserted) && inserted.length > 0 ? 'inserted' : 'duplicate';
+  } catch {
+    return 'error';
   }
 }
 

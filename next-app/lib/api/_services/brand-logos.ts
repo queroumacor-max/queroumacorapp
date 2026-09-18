@@ -18,6 +18,7 @@
 
 import * as Sentry from '@sentry/nextjs';
 import { getServiceKey, getSupabaseUrl } from '../security';
+import { isPubliclyRoutableHttpsUrl } from '../ssrf-guard';
 
 const BUCKET = 'posts';
 
@@ -127,10 +128,22 @@ function decodeDataUrl(src: string): { bytes: Uint8Array; mime: string } | null 
 }
 
 /** Baixa uma URL http(s) (quando a IA devolve link em vez de base64). */
+/**
+ * Baixa uma URL http(s) (quando a IA devolve link em vez de base64).
+ *
+ * Auditoria de webhooks 2026-09-17 (achado L2): `src` vem da RESPOSTA da
+ * IA (OpenAI), não de input do usuário — mas uma resposta de provider é
+ * dado estruturado, não comando confiável (item 90 do checklist da
+ * auditoria). Sem checagem, um `fetch` aqui podia ser direcionado pra rede
+ * interna/metadado de nuvem se a resposta algum dia trouxer uma URL
+ * assim. `isPubliclyRoutableHttpsUrl` bloqueia loopback/RFC1918/
+ * link-local/CGNAT antes do fetch — ver `lib/api/ssrf-guard.ts` pro porquê
+ * de ser blocklist e não allowlist aqui.
+ */
 async function fetchBytes(
   src: string
 ): Promise<{ bytes: Uint8Array; mime: string } | null> {
-  if (!/^https?:\/\//i.test(src)) return null;
+  if (!isPubliclyRoutableHttpsUrl(src)) return null;
   try {
     const r = await fetch(src, { signal: AbortSignal.timeout(20_000) });
     if (!r.ok) return null;

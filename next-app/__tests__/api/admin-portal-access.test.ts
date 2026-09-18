@@ -118,9 +118,9 @@ describe('toda rota admin usa ensurePortalAdmin (nunca só a allowlist)', () => 
   });
   it('as rotas que autenticam admin passam pelo helper', () => {
     const comToken = rotas.filter((p) => readFileSync(p, 'utf8').includes('verifyAdminToken('));
-    // Baixou de 11 pra 10 na limpeza de código morto 2026-09-17: removida a
-    // rota morta `whatsapp-evo/ping` (diagnóstico do Evolution API, que foi
-    // aposentado — as envs `EVOLUTION_*` não existem mais no Cloudflare
+    // Baixou de 11 pra 10 na auditoria de webhooks 2026-09-17: removida a
+    // rota morta `whatsapp-evo/ping` (diagnóstico do Evolution API, que
+    // foi aposentado — as envs `EVOLUTION_*` não existem mais no Cloudflare
     // Pages, então ela só respondia "envs ausentes" havia meses).
     expect(comToken.length).toBeGreaterThanOrEqual(10);
     const semHelper = comToken.filter((p) => !/ensurePortalAdmin\(|isPortalAdminUser\(/.test(readFileSync(p, 'utf8')));

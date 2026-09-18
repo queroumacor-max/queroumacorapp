@@ -52,6 +52,7 @@ import {
   parseInboundMessages,
   parseEchoMessages,
   parseStatusUpdates,
+  persistInboundMessage,
   persistStatusDoLead,
   persistStatusEntrega,
   persistWhatsAppMessage,
@@ -59,6 +60,7 @@ import {
   statusAvanca,
   TIPOS_SEM_CONVERSA,
   type AtualizacaoDeStatus,
+  type ResultadoDePersistenciaInbound,
   resumirEnvelope,
   type InboundWhatsAppMessage,
 } from '@/lib/api/_services/whatsapp';
@@ -180,16 +182,25 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
   // mostrava "[audio]" e "[sticker]" secos, sem como ouvir nem ver.
   const midias = await Promise.all(messages.map((m) => materializarMidia(m)));
 
-  // SQL Wave 38: grava em `whatsapp_messages` (best-effort; wamid UNIQUE
-  // dedupa retries da Meta).
+  // SQL Wave 38: grava em `whatsapp_messages` (wamid UNIQUE dedupa retries
+  // da Meta). Mensagem recebida de verdade usa `persistInboundMessage`, que
+  // diz se o INSERT foi realmente novo ou se o wamid já existia — é ESSE
+  // sinal (atômico, garantido pelo Postgres via ON CONFLICT DO NOTHING, sem
+  // corrida) que decide abaixo se o atendimento automático roda. Auditoria
+  // de webhooks 2026-09-17: sem isso, toda reentrega da Meta/Dualhook (ou
+  // um replay do mesmo POST por quem já tem o segredo de URL) rodava a IA
+  // de novo pro MESMO wamid e mandava uma segunda resposta de verdade pro
+  // cliente — duplicidade real de efeito colateral externo. Eco do celular
+  // nunca aciona a IA (ver o filtro abaixo), então segue no caminho antigo.
+  const novidade = new Map<number, ResultadoDePersistenciaInbound>();
   const persisted = await Promise.all(
-    messages.map((msg, i) =>
-      persistWhatsAppMessage({
+    messages.map(async (msg, i) => {
+      const input = {
         // Eco do celular (2026-09-09): a loja respondeu pelo app do
         // aparelho. Entra como 'out' com origem 'celular' — é o que o chip
         // 📱 da lista de conversas lê. Sem isto a resposta dada no celular
         // não existia no portal e a conversa parecia abandonada.
-        direction: msg.echo ? 'out' : 'in',
+        direction: msg.echo ? ('out' as const) : ('in' as const),
         waId: msg.from,
         profileName: msg.echo ? undefined : msg.profileName,
         messageId: msg.messageId,
@@ -200,8 +211,12 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
         mediaUrl: midias[i]?.path,
         mediaMime: midias[i]?.mime,
         transcript: midias[i]?.transcript,
-      })
-    )
+      };
+      if (msg.echo) return persistWhatsAppMessage(input);
+      const resultado = await persistInboundMessage(input);
+      novidade.set(i, resultado);
+      return resultado !== 'error';
+    })
   );
   if (persisted.some((ok) => !ok)) {
     console.warn('[whatsapp-webhook] falha ao persistir parte das mensagens (best-effort)');
@@ -215,12 +230,21 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
   // Roda DEPOIS da resposta (este `processarEntrada` inteiro está no
   // waitUntil), então a IA pode levar o tempo dela sem atrasar o 200 que a
   // Meta espera.
-  for (const msg of messages) {
+  for (const [i, msg] of messages.entries()) {
     const texto = (msg.text || '').trim();
     if (!texto) continue;
     // Eco do celular é a LOJA falando; reação/edição não é a pessoa
     // falando. Nenhum dos dois acorda a IA.
     if (msg.echo || TIPOS_SEM_CONVERSA.has(msg.type)) continue;
+    // Reentrega do mesmo wamid (retry da Meta ou replay): o atendimento
+    // automático já rodou pra esta mensagem na primeira vez que ela chegou
+    // — rodar de novo mandaria uma segunda resposta real pro cliente.
+    if (novidade.get(i) === 'duplicate') {
+      console.log(
+        `[whatsapp-webhook] reentrega ignorada: ${msg.messageId} já tinha sido processada`
+      );
+      continue;
+    }
     try {
       const r = await maybeAutoReply({ waId: msg.from, text: texto });
       console.log(`[whatsapp-webhook] ia ${msg.from}: ${r.acted ? '✓' : '·'} ${r.why}`);
