@@ -364,18 +364,14 @@
       Overview → Configure, confirmado pela mensagem "Encryption mode
       updated successfully." Agora a conexão Cloudflare↔origem exige
       certificado válido, não só cifra.
-    - **🟡 DNSSEC — LIGADO NO CLOUDFLARE (2026-09-16, 3ª sessão),
-      FALTA SÓ O DS RECORD NO REGISTRADOR.** Depois de duas rodadas que
-      só CONFIRMARAM o estado desligado (ver regra abaixo), esta terceira
-      sessão executou a ação de verdade: "Enable DNSSEC" ativado em DNS →
-      Settings. O DNSSEC só fica TOTALMENTE ativo depois que o registrador
-      publica o DS record que o Cloudflare gera — e `queroumacor.com.br` é
-      registrado na **Registro.br** (domínio `.com.br`; não confundir com
-      o GoDaddy, que é o registrador de `calicolors.com.br`, usado pro
-      DMARC). **Pendência real agora é só isso**: usuário adicionar o DS
-      record na Registro.br. Enquanto isso não acontece, o DNSSEC está
-      "ligado" do lado Cloudflare mas não protege nada (a cadeia de
-      confiança só fecha com o DS no pai da zona).
+    - **✅ DNSSEC — FECHADO (ligado no Cloudflare em 2026-09-16, DS record
+      publicado na Registro.br confirmado pelo usuário em 2026-09-18).**
+      "Enable DNSSEC" ativado em DNS → Settings no Cloudflare (3ª sessão,
+      2026-09-16); o registrador (`queroumacor.com.br` é `.com.br`, registro
+      na **Registro.br** — não confundir com o GoDaddy, que é o registrador
+      de `calicolors.com.br`, usado pro DMARC) publicou o DS record que o
+      Cloudflare gerou. A cadeia de confiança fecha nos dois lados agora —
+      **não pedir pra confirmar de novo nem listar como pendência.**
     - **✅ Registro CAA — CRIADO E PUBLICADO (2026-09-16, 3ª sessão).**
       6 registros CAA criados na zona: tag `issue` (pode emitir certificado
       padrão) e tag `issuewild` (pode emitir wildcard) para **3 CAs**:
