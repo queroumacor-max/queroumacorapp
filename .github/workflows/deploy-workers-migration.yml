@@ -1,0 +1,103 @@
+name: Deploy Workers Migration (manual, isolado de produção)
+
+# Disparo MANUAL apenas, e só existe pra testar a migração pro Cloudflare
+# Workers (ver docs/adr/0006-opennext-cloudflare-deploy-pipeline.md e
+# docs/adr/0006-workers-migration-artifacts.md) SEM tocar em produção.
+#
+# Diferente de deploy.yml (Pages, produção): este workflow NÃO tem guard de
+# branch — o objetivo é justamente rodar contra uma branch de FEATURE (via
+# `ref` no dispatch), que é onde o código do adapter OpenNext/wrangler.jsonc
+# vive enquanto a migração não é decidida. O comando wrangler nunca usa
+# `--branch=main` nem mexe em Custom Domain/DNS — o resultado é sempre um
+# Worker publicado só em `*.workers.dev` (ou uma Version dele, sem mover
+# tráfego), nunca em queroumacor.com.br.
+#
+# Este arquivo só existe NA raiz de `main` pra o GitHub reconhecer o evento
+# `workflow_dispatch` (exigência da API); quando dispatchado com `ref`
+# apontando pra uma branch de feature, o conteúdo REAL que roda é o desta
+# mesma branch — inclusive as env vars/comandos podem divergir do que está
+# aqui, se a branch tiver uma versão mais nova deste arquivo.
+on:
+  workflow_dispatch:
+    inputs:
+      wrangler_command:
+        description: >-
+          Comando wrangler a rodar depois do build. 'versions upload --env
+          preview' cria uma Version sem mover tráfego (seguro, repetível).
+          'deploy --env production' publica de verdade no Worker
+          queroumacor-next-production (ainda assim só em *.workers.dev,
+          nunca em queroumacor.com.br — routes ficam comentadas no
+          wrangler.jsonc até o corte de DNS ser decidido à parte).
+        required: true
+        default: 'versions upload --env preview'
+        type: choice
+        options:
+          - 'versions upload --env preview'
+          - 'deploy --env production'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-app
+    steps:
+      # persist-credentials:false — mesma regra do deploy.yml: este job
+      # nunca dá git push, deploy é via wrangler/API da Cloudflare.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: next-app/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      # Um step só — opennextjs-cloudflare build (dentro de build:cf) já
+      # roda o next build por conta própria. As 4 NEXT_PUBLIC_* de
+      # build-time (ver docs/adr/0006-workers-migration-artifacts.md seção
+      # 2) precisam estar NESTE step — env: do GitHub Actions é por STEP,
+      # não persiste pro seguinte.
+      - name: Build Cloudflare Worker output
+        run: npm run build:cf
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+
+      - name: Scan artifact for stray source maps / secrets
+        run: |
+          set -e
+          if [ ! -d .open-next ]; then
+            echo "::error::.open-next não existe — build:cf não gerou o artefato esperado (branch sem o adapter OpenNext?)."
+            exit 1
+          fi
+          MAPS=$(find .open-next -iname '*.map' | wc -l)
+          if [ "$MAPS" -ne 0 ]; then
+            echo "::error::$MAPS arquivo(s) .map encontrados no artefato publicado."
+            find .open-next -iname '*.map'
+            exit 1
+          fi
+          if find .open-next -iname '.env*' | grep -q .; then
+            echo "::error::arquivo .env encontrado no artefato publicado."
+            exit 1
+          fi
+
+      # Mesmo SHA pinado que o deploy.yml de produção usa.
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: next-app
+          command: ${{ inputs.wrangler_command }}
