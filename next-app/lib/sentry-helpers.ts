@@ -34,13 +34,24 @@ export function maskPiiDeep<T>(value: T, depth = 0): T {
   return value;
 }
 
-/** beforeSend Sentry compartilhado. Mascara user.email/data + tags + request body. */
+/** beforeSend Sentry compartilhado. Mascara user.email/data + tags + request
+ *  body + a mensagem da própria exceção + breadcrumbs.
+ *
+ *  Auditoria 2026-09-18 (achado MEDIUM): a versão anterior só mascarava
+ *  user.email/request.data/extra/contexts — nunca `exception.values[].value`
+ *  (a mensagem do Error lançado) nem `message`/`breadcrumbs`. Um erro tipo
+ *  `new Error("Falha ao enviar para "+phone)` ou uma mensagem de violação de
+ *  constraint do Postgres ecoando um valor ia pro Sentry (terceiro) sem
+ *  máscara nenhuma. */
 export function sentryBeforeSend<
   E extends {
     user?: { email?: string | null };
     request?: { data?: unknown };
     extra?: Record<string, unknown>;
     contexts?: Record<string, unknown>;
+    message?: string;
+    exception?: { values?: Array<{ value?: string | null }> };
+    breadcrumbs?: Array<{ message?: string | null }>;
   },
 >(event: E): E {
   try {
@@ -52,6 +63,19 @@ export function sentryBeforeSend<
     }
     if (event.extra) event.extra = maskPiiDeep(event.extra);
     if (event.contexts) event.contexts = maskPiiDeep(event.contexts);
+    if (typeof event.message === 'string') {
+      event.message = maskPii(event.message);
+    }
+    if (event.exception?.values) {
+      for (const v of event.exception.values) {
+        if (typeof v.value === 'string') v.value = maskPii(v.value);
+      }
+    }
+    if (event.breadcrumbs) {
+      for (const b of event.breadcrumbs) {
+        if (typeof b.message === 'string') b.message = maskPii(b.message);
+      }
+    }
   } catch {
     // Silent — não bloqueia evento se filtro falhar.
   }

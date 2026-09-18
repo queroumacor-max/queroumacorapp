@@ -31,7 +31,14 @@ const MIME_POR_EXT: Record<string, string> = {
   heic: 'image/heic',
   heif: 'image/heif',
   bmp: 'image/bmp',
-  svg: 'image/svg+xml',
+  // SVG NÃO entra aqui de propósito (auditoria 2026-09-18, achado MEDIUM):
+  // SVG pode embutir <script>/on*=, e a única barreira contra isso hoje é o
+  // `allowed_mime_types` dos buckets do Storage (avatars/posts/art-refs já
+  // não incluem image/svg+xml) — um ponto único de falha, já que esta função
+  // é o que decide "é imagem?" no cliente antes até de chegar no upload. Se
+  // um dia precisar aceitar SVG de verdade, sanitizar o conteúdo primeiro
+  // (remover <script>, event handlers, <foreignObject>), nunca confiar só no
+  // MIME.
   mp4: 'video/mp4',
   mov: 'video/quicktime',
   webm: 'video/webm',
@@ -89,9 +96,13 @@ export function mimeConfiavel(file: File | null | undefined): string {
   return MIME_POR_EXT[extensaoDe(file.name)] || '';
 }
 
-/** É imagem? Aceita o arquivo sem MIME cujo NOME diz que é imagem. */
+/** É imagem? Aceita o arquivo sem MIME cujo NOME diz que é imagem.
+ *  SVG nunca conta como imagem aqui — pode carregar script (ver nota em
+ *  MIME_POR_EXT); mesmo que o navegador declare `file.type==='image/svg+xml'`
+ *  de verdade (ex.: usuário escolheu um .svg de propósito), recusamos. */
 export function ehImagem(file: File | null | undefined): boolean {
-  return mimeConfiavel(file).startsWith('image/');
+  const tipo = mimeConfiavel(file);
+  return tipo.startsWith('image/') && tipo !== 'image/svg+xml';
 }
 
 /** É vídeo? Mesma regra. */
@@ -232,6 +243,7 @@ export async function normalizarArquivo(file: File): Promise<File> {
  * `image/jpeg` existe pelo mesmo motivo.
  */
 export function provadoNaoImagem(file: File): boolean {
+  if (file.type === 'image/svg+xml') return true;
   return !!file.type && !file.type.startsWith('image/');
 }
 

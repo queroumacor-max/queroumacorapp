@@ -51,9 +51,16 @@ jobs:
       # Fail-fast em vulnerabilidades HIGH/CRITICAL de prod deps. Roda
       # cedo pra não desperdiçar tempo de lint/test se já temos CVE
       # bloqueante. --omit=dev ignora devDeps (não vão pro browser).
+      #
+      # SEGURANÇA (auditoria 2026-09-18, achado MEDIUM): este step tinha
+      # `continue-on-error: true`, o que fazia o job (e o check obrigatório
+      # `validate`) ficar VERDE mesmo com CVE HIGH/CRITICAL numa dependência
+      # de produção — o comentário acima sempre disse "fail-fast", mas o
+      # step nunca falhava de verdade. Removido: agora um CVE bloqueante
+      # numa dep de prod barra o merge de verdade, como o nome do step
+      # sempre prometeu.
       - name: npm audit (fail-fast)
         run: npm audit --audit-level=high --omit=dev
-        continue-on-error: true
 
       # ESLint via next lint (config em .eslintrc.json).
       - name: ESLint
