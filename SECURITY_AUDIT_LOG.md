@@ -48,6 +48,45 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 
 ## Histórico (mais recente primeiro)
 
+### 2026-09-17/18 — Auditoria de webhooks/callbacks/integrações externas (PRs #328/#332/#333/#334/#335)
+✅ **FIXED, confirmado em produção pelo usuário (commit `7c4f24f`, painel
+do Cloudflare Pages).** Auditoria completa de Meta/WhatsApp Cloud API,
+Mercado Pago, Dualhook, Evolution legada, Firebase/FCM e push
+notifications. Dois achados críticos/altos corrigidos, um achado médio
+(raio de vazamento de segredo) fechado em rollout de 3 PRs combinado com
+o usuário, mais um achado L2 de SSRF e a limpeza do código morto que a
+própria auditoria expôs. Detalhe completo na entrada "AUDITORIA DE
+SEGURANÇA DE WEBHOOKS/CALLBACKS/INTEGRAÇÕES EXTERNAS" do `CLAUDE.md`.
+
+- **SSRF crítico em `/api/push-notify`** — `push_subscriptions.endpoint`
+  é gravado pelo cliente sem validação de host; `fetch(sub.endpoint,…)`
+  emitiria um POST autenticado (JWT VAPID) pra qualquer URL que um
+  usuário autenticado escolhesse. Fix: allowlist de hostname dos 4/5
+  provedores reais de Web Push. Bônus: bug de corretude achado ao testar
+  o fix (DER/PKCS8 do `VAPID_PRIVATE_KEY` com comprimento ASN.1 errado —
+  Web Push nativo podia estar morto em silêncio em produção).
+- **SSRF (L2) em `brand-logos.ts`** — baixava URL que a resposta da IA
+  (OpenAI) devolve, sem checar host. `lib/api/ssrf-guard.ts` (blocklist
+  de IP privado/reservado/CGNAT) bloqueia antes do fetch.
+- **Duplicidade de efeito colateral externo no WhatsApp** — atendimento
+  automático (IA) e varredura de follow-up não tinham proteção real
+  contra reentrega/replay causar uma SEGUNDA mensagem de verdade pro
+  cliente. Fix: `INSERT…ON CONFLICT DO NOTHING` atômico (mensagem
+  inbound) + reserva atômica no banco ANTES do envio (follow-up,
+  corrigido a partir de um achado P1 do Codex que a 1ª versão — trava só
+  por isolate — não fechava entre isolates diferentes do Cloudflare).
+- **Raio de vazamento do segredo do follow-up** — a varredura horária
+  reusava o mesmo segredo do webhook pra autenticar o cron; quem
+  descobrisse um também disparava o outro. Fechado em 3 PRs combinados
+  com o usuário (segredo dedicado gerado e cadastrado → confirmado
+  funcionando em produção → fallback removido do código → `.env.example`
+  corrigido depois de um achado P2 do Codex mostrar que a env nem estava
+  documentada, junto com uma seção inteira de `.env.example` ainda
+  apontando pra Evolution API já morta).
+- Limpeza do código morto do cliente Evolution API (PR #332, separado de
+  propósito da PR de segurança): zero call site vivo confirmado por grep
+  antes de cada remoção.
+
 ### 2026-09-17 — Moderação Gemini no publish + blocklist de hash CSAM em avatar/art-references (PR #325 + #327)
 Fecha PARTE das 2 pendências deixadas em aberto pela auditoria de lógica
 de negócio de 2026-09-16 (business-logic security audit, PR #319):

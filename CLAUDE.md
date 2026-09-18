@@ -1,5 +1,139 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DE SEGURANÇA DE WEBHOOKS/CALLBACKS/INTEGRAÇÕES EXTERNAS
+  (2026-09-17/18, PRs #328/#332/#333/#334/#335, TODAS MERGEADAS — o
+  CÓDIGO está CONFIRMADO EM PRODUÇÃO (commit `7c4f24f`, verificado pelo
+  usuário no painel do Cloudflare Pages).** Auditoria completa de Meta/
+  WhatsApp Cloud API, Mercado Pago, Dualhook, Evolution legada, Firebase/
+  FCM, push notifications, sob o modelo de ameaça "um atacante consegue
+  falsificar, repetir, atrasar, reordenar ou manipular um evento externo
+  pra causar uma ação que o sistema deveria aceitar só de um provider
+  confiável?".
+  - **RESSALVA (achado do Codex, revisão da PR #336): "código mergeado"
+    e "SQL rodado" são coisas DIFERENTES, e esta entrada quase misturou
+    as duas.** A confirmação de produção acima é só do deploy do CÓDIGO.
+    A migration `/migrations/2026-09-17-whatsapp-followup-claim.sql`
+    (RPC `claim_wa_followup_nudge`, ver PR #328 abaixo) **NÃO tem
+    confirmação registrada de execução no Supabase** — "rodei o
+    `run_whatsapp_followup`, veio ok" (que desbloqueou o rollout do #334)
+    testou só a autenticação da rota com o segredo dedicado, uma
+    migration DIFERENTE
+    (`2026-09-18-whatsapp-followup-dedicated-secret.sql`), não esta RPC.
+    **Enquanto ela não rodar, o próprio código já é fail-safe**: o
+    comentário da migration documenta que `reservarReengajamento` trata
+    RPC ausente (42883/PGRST202/erro de rede) como reserva NEGADA — ou
+    seja, a fase de REENGAJAMENTO do follow-up automático fica PAUSADA
+    em silêncio (não manda nada, não quebra, não avisa) até alguém
+    confirmar que rodou. A fase de COBRANÇA não depende dessa RPC (usa
+    PATCH condicional na linha de `portal_alerts`, que já existe sempre)
+    — só o reengajamento é afetado.
+  - **PR #328 — dois achados reais corrigidos:**
+    - **SSRF crítico em `/api/push-notify`**: `push_subscriptions.endpoint`
+      é gravado pelo CLIENTE (RLS só garante `user_id=auth.uid()`, nunca
+      que o valor é um push service de verdade) e o handler fazia
+      `fetch(sub.endpoint,…)` sem checar nada — qualquer usuário
+      autenticado podia apontar o próprio endpoint pra URL arbitrária
+      (metadado de nuvem, rede interna) e o edge emitiria um POST
+      autenticado (JWT VAPID nosso) pra lá. Fix: allowlist de hostname
+      pros provedores reais de Web Push (`lib/api/_services/
+      push-endpoint-guard.ts`) — só `fcm.googleapis.com`,
+      `android.googleapis.com`, `updates.push.services.mozilla.com`,
+      `web.push.apple.com`, `*.notify.windows.com`/`*.wns.windows.com`,
+      sempre `https://`.
+    - **Bug de corretude achado ESCREVENDO o teste do item acima**: o
+      DER/PKCS8 manual do `VAPID_PRIVATE_KEY` tinha dois comprimentos
+      ASN.1 errados (tamanho TOTAL da estrutura em vez do CONTEÚDO) — Web
+      Push nativo podia estar silenciosamente morto em produção
+      (`sent:0` indistinguível de "sem inscritos"). Corrigido junto.
+    - **Duplicidade de efeito colateral externo no WhatsApp**: o
+      atendimento automático (IA) rodava pra TODA mensagem recebida sem
+      checar se o wamid já tinha sido processado — reentrega da Meta/
+      Dualhook (normal, documentado) ou replay de quem tem o segredo de
+      URL mandava uma SEGUNDA resposta de verdade pro cliente. Fix:
+      `persistInboundMessage` usa `INSERT … ON CONFLICT DO NOTHING` +
+      `return=representation` (atômico no Postgres, sem corrida
+      check-then-act) pra só deixar `maybeAutoReply` rodar em wamid
+      REALMENTE novo. **Gap achado pelo Codex na revisão da PR #336,
+      corrigido na mesma PR**: a checagem original só pulava a IA em
+      `'duplicate'`, não em `'error'` — se a 1ª entrega falhasse ao
+      persistir (timeout/rede, sem gravar o wamid) a IA rodava mesmo
+      assim, e a REENTREGA seguinte (que persiste com sucesso) não via
+      `'duplicate'` porque não havia registro nenhum ainda: rodava a IA
+      de novo, duplicando a resposta pelo lado da FALHA em vez do
+      sucesso repetido. Agora é fail-closed: só roda quando o resultado é
+      exatamente `'inserted'` — `'duplicate'` e `'error'` os dois pulam.
+      Teste de regressão em `__tests__/api/whatsapp-webhook.test.ts`
+      (falha sem o fix, confirmado revertendo-o).
+    - **Mesma classe de corrida na varredura de follow-up horária**:
+      1ª versão do PR só tinha trava de reentrância por isolate + rate
+      limit — **Codex achou (P1) que isso não fecha entre isolates
+      DIFERENTES do Cloudflare**, e estava certo. Fix final: reserva
+      ATÔMICA no banco ANTES do envio — PATCH condicional
+      `followed_up_at=is.null` pra cobrança (linha já existe) e RPC nova
+      `claim_wa_followup_nudge` (`INSERT…ON CONFLICT DO UPDATE…WHERE
+      <fora do cooldown> RETURNING`) pra reengajamento (linha pode não
+      existir ainda). Provado com teste de **isolates de verdade**
+      (`vi.resetModules()` + import dinâmico = duas instâncias de módulo
+      sem NENHUMA trava em memória em comum).
+  - **PR #332 — limpeza do código morto do cliente Evolution API**
+    (feita separada de propósito, pra não misturar achado de segurança
+    com remoção de código): `whatsapp-evo.ts` ficou só com
+    `normalizeWhatsAppTarget` (ainda usada pelo envio via Cloud API);
+    `whatsapp-media.ts` perdeu o caminho de mídia via base64-no-webhook
+    (a Cloud API/Dualhook usa outro, `baixarMidiaCloudApi`); rota morta
+    `/api/whatsapp-evo/ping` removida. Zero call site vivo fora dos
+    próprios arquivos e testes, confirmado por grep antes de cada remoção.
+  - **Achado L3 (raio de vazamento do segredo do follow-up) — rollout
+    combinado com o usuário em 3 PRs, um passo de cada vez:**
+    - **#333**: registra no repo o `UPDATE` que o usuário já tinha rodado
+      no Supabase (trocar `app_settings.whatsapp_followup_url` pro
+      `?token=` do segredo dedicado `WHATSAPP_FOLLOWUP_URL_SECRET`,
+      gerado com `openssl rand -hex 24`, cadastrado no Cloudflare Pages).
+    - **#334**: SÓ DEPOIS do usuário confirmar em produção
+      (`run_whatsapp_followup()` rodado à mão com o token novo, resultado
+      ok), remove os fallbacks pro `WHATSAPP_WEBHOOK_URL_SECRET` (do
+      webhook) e pro `EVOLUTION_WEBHOOK_TOKEN` (Evolution, já morta) —
+      fecha o achado original de vez: reusar o segredo do webhook
+      funcionava mas aumentava o raio de um vazamento.
+    - **#335**: Codex revisou o #334 (P2) e achou que `.env.example` não
+      documentava `WHATSAPP_FOLLOWUP_URL_SECRET` — numa instalação
+      fresca, o cron levaria 401 pra sempre sem ninguém saber por quê.
+      Investigando, o problema era maior: `.env.example` **ainda listava
+      a Evolution API inteira** (código morto desde o #332) e não tinha
+      NENHUMA env real da WhatsApp Cloud API/Dualhook. Corrigido
+      substituindo a seção inteira pelas 6 envs realmente lidas por
+      `getRuntimeEnv()` hoje (`DUALHOOK_API_KEY`,
+      `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_WABA_ID`,
+      `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_WEBHOOK_URL_SECRET`,
+      `WHATSAPP_FOLLOWUP_URL_SECRET`).
+  - **Verificado, sem achado**: `MP_WEBHOOK_SECRET` (Mercado Pago) já
+    bem protegido (HMAC timing-safe, janela anti-replay 600s, sempre
+    busca o estado LIVE do pagamento na API do MP em vez de confiar no
+    corpo do webhook); `/api/quote-pdf-upload`, `/api/reverse-geocode`,
+    `moderate-video.ts`, `/api/upload-style-ref` sem SSRF explorável
+    (guard de host já existente ou input não é URL de terceiro).
+  - **Achado L2 corrigido no mesmo PR (#328)**: `brand-logos.ts` baixava
+    a URL que a resposta da IA (OpenAI) devolve quando não manda base64,
+    sem checar host — resposta de provider é dado estruturado, não
+    comando confiável. `lib/api/ssrf-guard.ts` (blocklist de IPv4/IPv6
+    privado/reservado/CGNAT, escolhida em vez de allowlist porque o
+    conjunto de hosts de imagem da OpenAI não é fechado/estável) bloqueia
+    antes do fetch.
+  - **LIÇÃO DE PROCESSO, corrigida NA HORA em vez de repetida**: o
+    `CLAUDE.md` já tinha uma entrada inteira reclamando de uma sessão
+    anterior que fez auditoria de segurança real e não registrou aqui.
+    Esta sessão fez o mesmo trabalho de auditoria+fix+rollout em 5 PRs e
+    só documentou tudo ao FINAL, depois do usuário perguntar "confirma
+    que o deploy saiu certo" — ou seja, quase repetiu o erro. Registrado
+    agora, imediatamente após a confirmação de produção, não deixado pra
+    uma sessão futura notar a lacuna.
+  - Lista completa de matrizes (Integration Map, Webhook Security Matrix,
+    Provider Trust Matrix, Side Effect Matrix, Retry Matrix, Event
+    Ordering Matrix, Outbound Request Matrix) entregue no chat da sessão
+    original; não copiada pra arquivo por decisão de manter este
+    `CLAUDE.md` enxuto — mesma regra já aplicada à auditoria Cloudflare de
+    13/09.
+
 - **AUDITORIA DE SEGURANÇA DA PIPELINE CI/CD (2026-09-16, commit `bfa6849`,
   merge #318 `claude/keen-bell-vyn38f`) — MERGEADA SEM REGISTRO NESTE
   ARQUIVO, DOCUMENTADA AGORA EM 2026-09-17 pra fechar a lacuna.** Auditoria

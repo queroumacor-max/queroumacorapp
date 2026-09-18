@@ -236,12 +236,20 @@ async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<voi
     // Eco do celular é a LOJA falando; reação/edição não é a pessoa
     // falando. Nenhum dos dois acorda a IA.
     if (msg.echo || TIPOS_SEM_CONVERSA.has(msg.type)) continue;
-    // Reentrega do mesmo wamid (retry da Meta ou replay): o atendimento
-    // automático já rodou pra esta mensagem na primeira vez que ela chegou
-    // — rodar de novo mandaria uma segunda resposta real pro cliente.
-    if (novidade.get(i) === 'duplicate') {
+    // Só roda a IA quando o INSERT desta mensagem REALMENTE aconteceu agora
+    // (`'inserted'`) — nunca em `'duplicate'` (reentrega de wamid já visto)
+    // nem em `'error'` (achado P1 do Codex na PR #336: `persistInboundMessage`
+    // pode falhar por timeout/rede SEM o wamid ter sido gravado; se essa
+    // 1ª entrega já tivesse rodado `maybeAutoReply`, uma reentrega da Meta
+    // que consiga persistir da 2ª vez rodaria a IA de novo pro MESMO wamid —
+    // a mesma duplicidade de resposta real que este dedupe existe pra
+    // fechar, só que pelo lado da falha em vez do lado do sucesso repetido).
+    // Fail-closed: sem confirmação de que o wamid foi gravado, a IA espera
+    // a próxima reentrega em vez de arriscar responder duas vezes.
+    if (novidade.get(i) !== 'inserted') {
       console.log(
-        `[whatsapp-webhook] reentrega ignorada: ${msg.messageId} já tinha sido processada`
+        `[whatsapp-webhook] IA não acionada pra ${msg.messageId}: ` +
+          `resultado da persistência = ${novidade.get(i) ?? 'ausente'}`
       );
       continue;
     }
