@@ -52,10 +52,20 @@ jobs:
         with:
           persist-credentials: false
 
+      # Node 22, não 20 — `wrangler@4.134.0` (o pinado em package.json pra
+      # esta migração) exige >=22 (`engines`). Com Node 20 o wrangler-action
+      # detecta a incompatibilidade e REINSTALA sozinho um `wrangler@3.90.0`
+      # por baixo — versão antiga que não lê `env.preview`/`main` do
+      # `wrangler.jsonc` do jeito esperado ("Missing entry-point", "No
+      # environment found"), falha comprovada rodando de verdade contra
+      # queroumacor-max/queroumacorapp#344 (run 35326111897). deploy.yml
+      # (produção, Pages) continua em Node 20 de propósito — main ainda usa
+      # wrangler ^3.78, que não exige 22; não copiar esta mudança pra lá sem
+      # também migrar o wrangler de produção.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: next-app/package-lock.json
 
