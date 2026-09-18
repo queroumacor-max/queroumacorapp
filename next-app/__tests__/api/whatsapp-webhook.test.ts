@@ -465,6 +465,47 @@ describe('POST /api/whatsapp/webhook — reentrega não duplica o atendimento au
     // terminar dos dois lados antes de conferir a contagem final.
     await vi.waitFor(() => expect(autoReplyMock).toHaveBeenCalledTimes(1));
   });
+
+  // Achado do Codex (revisão da PR #336, P1): a checagem original só pulava
+  // `maybeAutoReply` em `'duplicate'` — não em `'error'`. Se a 1ª entrega
+  // falha ao persistir (timeout/rede, sem gravar o wamid) mas a IA já foi
+  // acionada mesmo assim, e a Meta reentrega o MESMO wamid pouco depois (o
+  // que ela faz de verdade), a 2ª tentativa persiste com sucesso — sem
+  // registro de que já respondeu, o dedupe (que só olha 'duplicate') deixa
+  // passar, e o cliente recebe DUAS respostas reais pra mesma mensagem.
+  it('1ª entrega falha ao persistir (erro) → IA NÃO roda; reentrega que persiste com sucesso → IA roda uma vez só', async () => {
+    let falhouAPrimeira = false;
+    const fetchSpy = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/rest/v1/whatsapp_messages') && (init?.method || 'GET') === 'POST') {
+        if (!falhouAPrimeira) {
+          falhouAPrimeira = true;
+          // Falha transiente: timeout/erro de rede — persistInboundMessage
+          // captura isso no catch e devolve 'error', sem gravar nada.
+          throw new Error('network timeout');
+        }
+        return new Response(JSON.stringify([{ id: 'row-1', message_id: 'wamid.teste' }]), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const payload = envelopeDeMensagem('me manda um orçamento');
+
+    const res1 = await chamarPost(pedido(payload));
+    expect(res1.status).toBe(200);
+    // Dá tempo do waitUntil (best-effort) rodar sem chamar a IA.
+    await new Promise((r) => setTimeout(r, 30));
+    expect(autoReplyMock).not.toHaveBeenCalled();
+
+    // Reentrega da Meta pro MESMO wamid — desta vez persiste com sucesso.
+    const res2 = await chamarPost(pedido(payload));
+    expect(res2.status).toBe(200);
+    await vi.waitFor(() => expect(autoReplyMock).toHaveBeenCalledTimes(1));
+  });
 });
 
 // GET = verificação de assinatura (a Meta/Dualhook chama isso uma vez, na

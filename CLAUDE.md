@@ -1,13 +1,32 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
 - **AUDITORIA DE SEGURANÇA DE WEBHOOKS/CALLBACKS/INTEGRAÇÕES EXTERNAS
-  (2026-09-17/18, PRs #328/#332/#333/#334/#335, TODAS MERGEADAS E
-  CONFIRMADAS EM PRODUÇÃO — commit `7c4f24f`, verificado pelo usuário no
-  painel do Cloudflare Pages).** Auditoria completa de Meta/WhatsApp Cloud
-  API, Mercado Pago, Dualhook, Evolution legada, Firebase/FCM, push
-  notifications, sob o modelo de ameaça "um atacante consegue falsificar,
-  repetir, atrasar, reordenar ou manipular um evento externo pra causar uma
-  ação que o sistema deveria aceitar só de um provider confiável?".
+  (2026-09-17/18, PRs #328/#332/#333/#334/#335, TODAS MERGEADAS — o
+  CÓDIGO está CONFIRMADO EM PRODUÇÃO (commit `7c4f24f`, verificado pelo
+  usuário no painel do Cloudflare Pages).** Auditoria completa de Meta/
+  WhatsApp Cloud API, Mercado Pago, Dualhook, Evolution legada, Firebase/
+  FCM, push notifications, sob o modelo de ameaça "um atacante consegue
+  falsificar, repetir, atrasar, reordenar ou manipular um evento externo
+  pra causar uma ação que o sistema deveria aceitar só de um provider
+  confiável?".
+  - **RESSALVA (achado do Codex, revisão da PR #336): "código mergeado"
+    e "SQL rodado" são coisas DIFERENTES, e esta entrada quase misturou
+    as duas.** A confirmação de produção acima é só do deploy do CÓDIGO.
+    A migration `/migrations/2026-09-17-whatsapp-followup-claim.sql`
+    (RPC `claim_wa_followup_nudge`, ver PR #328 abaixo) **NÃO tem
+    confirmação registrada de execução no Supabase** — "rodei o
+    `run_whatsapp_followup`, veio ok" (que desbloqueou o rollout do #334)
+    testou só a autenticação da rota com o segredo dedicado, uma
+    migration DIFERENTE
+    (`2026-09-18-whatsapp-followup-dedicated-secret.sql`), não esta RPC.
+    **Enquanto ela não rodar, o próprio código já é fail-safe**: o
+    comentário da migration documenta que `reservarReengajamento` trata
+    RPC ausente (42883/PGRST202/erro de rede) como reserva NEGADA — ou
+    seja, a fase de REENGAJAMENTO do follow-up automático fica PAUSADA
+    em silêncio (não manda nada, não quebra, não avisa) até alguém
+    confirmar que rodou. A fase de COBRANÇA não depende dessa RPC (usa
+    PATCH condicional na linha de `portal_alerts`, que já existe sempre)
+    — só o reengajamento é afetado.
   - **PR #328 — dois achados reais corrigidos:**
     - **SSRF crítico em `/api/push-notify`**: `push_subscriptions.endpoint`
       é gravado pelo CLIENTE (RLS só garante `user_id=auth.uid()`, nunca
@@ -34,7 +53,17 @@
       `persistInboundMessage` usa `INSERT … ON CONFLICT DO NOTHING` +
       `return=representation` (atômico no Postgres, sem corrida
       check-then-act) pra só deixar `maybeAutoReply` rodar em wamid
-      REALMENTE novo.
+      REALMENTE novo. **Gap achado pelo Codex na revisão da PR #336,
+      corrigido na mesma PR**: a checagem original só pulava a IA em
+      `'duplicate'`, não em `'error'` — se a 1ª entrega falhasse ao
+      persistir (timeout/rede, sem gravar o wamid) a IA rodava mesmo
+      assim, e a REENTREGA seguinte (que persiste com sucesso) não via
+      `'duplicate'` porque não havia registro nenhum ainda: rodava a IA
+      de novo, duplicando a resposta pelo lado da FALHA em vez do
+      sucesso repetido. Agora é fail-closed: só roda quando o resultado é
+      exatamente `'inserted'` — `'duplicate'` e `'error'` os dois pulam.
+      Teste de regressão em `__tests__/api/whatsapp-webhook.test.ts`
+      (falha sem o fix, confirmado revertendo-o).
     - **Mesma classe de corrida na varredura de follow-up horária**:
       1ª versão do PR só tinha trava de reentrância por isolate + rate
       limit — **Codex achou (P1) que isso não fecha entre isolates
