@@ -40,13 +40,51 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 | `===` no handshake GET de verificação do webhook WhatsApp | 🔵 RISCO BAIXO | não é o segredo corrente, chamado 1x pela Meta na configuração |
 | Janela FIXA de 1 min no `check_rate_limit` (não sliding window) | 🔵 RISCO BAIXO | dá pra dobrar volume na virada do minuto; limites atuais têm folga |
 | Bot Fight Mode/Turnstile server-side em `/login`/`/signup` — E captcha desligado no Supabase Auth (mesma lacuna, dois ângulos) | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação nem captcha no Auth |
-| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — não é mais bloqueante de segurança |
+| Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — o CVE do `postcss`/`next` que motivava essa migração foi fechado à parte (2026-09-18, PR #339, ver Histórico), então isso deixou de ter QUALQUER urgência de segurança; plano de execução (P1-P8) aprofundado no ADR 0006 (PR #340), aguardando decisão do mantenedor |
 | Cloudflare Access na frente de `*.pages.dev` | 🔵 DECISÃO, confirmado que NÃO está configurado | a considerar, Cloudflare Dashboard |
 | INSERT direto em `posts` via PostgREST pula `/api/moderate` inteiro (moderação é só orquestração de cliente) | 🔵 DECISÃO/NÃO CORRIGIDO | exige mover a criação de post pro servidor — ver entrada 2026-09-17 "Moderação Gemini no publish" |
 
 ---
 
 ## Histórico (mais recente primeiro)
+
+### 2026-09-18 — CVE postcss/next fechado de forma isolada + plano Workers aprofundado (PRs #337/#339/#340)
+✅ **FIXED (PR #339), sem depender de migração de adapter.** `next@15.5.25`
+aparecia vulnerável no `npm audit` (moderate, via `postcss`, 4 advisories —
+XSS + path traversal, faixa combinada `<=8.5.22`), com `fixAvailable`
+apontando só pro bump de major (`next@16.3.5`) — o que sugeria precisar da
+migração completa de adapter (`@cloudflare/next-on-pages` → OpenNext,
+investigada na PR #337) antes de conseguir corrigir. Investigando a fundo:
+o `postcss` vulnerável vivia isolado numa ÚNICA cópia privada
+(`node_modules/next/node_modules/postcss@8.4.31`, pinada em versão EXATA
+pelo próprio `next`), nunca deduplicada contra o `postcss@8.5.26` de nível
+superior do projeto (já seguro, usado por `@tailwindcss/postcss`/`vite`/
+`autoprefixer`). Fix: `overrides` escopado em `next-app/package.json`
+(`{"next":{"postcss":"$postcss"}}`) — zero bump de major, zero troca de
+adapter, diff de lockfile cirúrgico (26 linhas, provado isolado contra uma
+regeneração completa do lockfile). `npm audit` confirma: `postcss`/`next`
+somem, resto do relatório idêntico. Detalhe completo na entrada "CVE
+POSTCSS/NEXT FECHADO..." do `CLAUDE.md`.
+- **PR #337 (investigação que motivou a busca pelo fix isolado)**: branch
+  de avaliação provou que `next@16.3.5` + `@opennextjs/cloudflare`
+  builda limpo e fecha o CVE, mas isso muda o MODELO DE DEPLOY (Cloudflare
+  Pages → Workers). Antes de mergear, achamos (relendo o código-fonte do
+  Wrangler instalado, não a doc) que a PR tinha criado um `wrangler.jsonc`
+  coexistindo com o `wrangler.toml` existente — quase-incidente que
+  quebraria o próximo deploy automático de produção. Revertida a troca de
+  adapter, mantidos os 102 fixes de lint (`react-hooks/*`) + o **ADR 0006**
+  documentando o tamanho da migração completa, status `Proposed`.
+- **PR #340 (plano de execução P1-P8 do ADR 0006 aprofundado)**: puramente
+  infra agora que o CVE está fechado sem depender dele. Documentação
+  (`docs/adr/0006-workers-migration-artifacts.md`) com `wrangler.jsonc`
+  completo, roster de env vars, config do Workers Builds, `deploy.yml`
+  reescrito, runbook de corte de DNS — nada executado, nenhuma config real
+  tocada. Uma revisão automática (Codex) achou 5 erros técnicos reais no
+  CONTEÚDO do plano antes do merge (herança de `vars` em Workers
+  Environments, nome do Worker com sufixo `{name}-{env}`, `--env` faltando
+  nos comandos de deploy, 2 vars de build-time faltando, 2 steps de build
+  indevidos no `deploy.yml` reescrito) — todos verificados contra a doc
+  oficial da Cloudflare e corrigidos antes do merge.
 
 ### 2026-09-17/18 — Auditoria de webhooks/callbacks/integrações externas (PRs #328/#332/#333/#334/#335)
 ✅ **FIXED, confirmado em produção pelo usuário (commit `7c4f24f`, painel
