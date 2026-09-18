@@ -99,9 +99,14 @@ export function SignupFlow() {
   // do DRAFT_KEY). Em useEffect, não no initializer: o initializer rodaria
   // diferente no server (sem localStorage) e quebraria a hidratação.
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo) — leitura só existe no
+    // browser, não é derivável no render/SSR (por isso não vai no
+    // initializer, ver comentário acima).
     const saved = readDraft();
     if (saved && (saved.step > 1 || Object.keys(saved.draft).length > 0)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDraft((d) => ({ ...saved.draft, ...d }));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setStep(saved.step);
     }
   }, []);

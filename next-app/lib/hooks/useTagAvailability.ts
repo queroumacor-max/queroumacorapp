@@ -21,8 +21,12 @@ export function useTagAvailability(tag: string, debounceMs = 400): TagStatus {
   const [status, setStatus] = useState<TagStatus>('idle');
 
   useEffect(() => {
+    // Sincroniza com o Supabase (checkTagAvailability, debounced) —
+    // canônico de efeito de busca de dado; os early-returns fazem parte do
+    // MESMO ciclo de validação, não são reset derivado de prop.
     const trimmed = tag.trim();
     if (!trimmed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setStatus('idle');
       return;
     }

@@ -53,9 +53,13 @@ export function CameraCapture({
   const [erro, setErro] = useState('');
   const [tirando, setTirando] = useState(false);
 
-  useEffect(() => {
+  // Ajuste DURANTE o render (idiom oficial) — puramente derivado de
+  // `open`/`facing`, sem trabalho assíncrono/DOM.
+  const [aberturaVista, setAberturaVista] = useState({ open, facing });
+  if (open !== aberturaVista.open || facing !== aberturaVista.facing) {
+    setAberturaVista({ open, facing });
     if (open) setLado(facing);
-  }, [open, facing]);
+  }
 
   // ─── liga a câmera ────────────────────────────────────────────────────
   useEffect(() => {

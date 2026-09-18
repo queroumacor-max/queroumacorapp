@@ -88,9 +88,12 @@ export function LoginForm() {
   // anterior). try/catch: localStorage pode estar indisponível (modo
   // privado) e isso nunca pode quebrar o login.
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo) — leitura só existe no
+    // browser, não é derivável no render/SSR.
     try {
       const saved = localStorage.getItem(SAVED_EMAIL_KEY);
       if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
         setRememberEmail(true);
         setValue('email', saved);
       }

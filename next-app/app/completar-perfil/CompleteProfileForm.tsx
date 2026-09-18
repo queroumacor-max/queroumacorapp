@@ -92,12 +92,16 @@ export function CompleteProfileForm() {
   // reparasse trocava o próprio papel sem querer.
   const preenchido = useRef(false);
   useEffect(() => {
+    // Prefill ÚNICO a partir de dado assíncrono (profile do Supabase +
+    // user_metadata do OAuth) — não é reset derivado de prop, é
+    // sincronização com sistema externo guardada por ref pra rodar 1x.
     if (!ready || preenchido.current) return;
     preenchido.current = true;
     const p = profile as Record<string, unknown> | null | undefined;
     const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
     const inicialNome = texto(p?.name) || metaName;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     if (inicialNome) setName(inicialNome);
 
     const papel = texto(p?.user_type) || texto(p?.role);

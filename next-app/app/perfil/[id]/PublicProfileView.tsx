@@ -101,9 +101,11 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
       ? optimisticFollow
       : !!profile && followingIds.includes(profile.id);
 
-  // 1) Resolve idOrTag → profile row.
+  // 1) Resolve idOrTag → profile row. Sincroniza com o Supabase (fetch) —
+  // canônico de efeito de busca de dado.
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setLoading(true);
     setProfileNotFound(false);
     const sb = getSupabase();

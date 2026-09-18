@@ -73,7 +73,10 @@ export function AppShell({
   // hidratação — no server não há localStorage.
   const [storedSession, setStoredSession] = useState(false);
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo) — leitura só existe no
+    // browser, não é derivável no render/SSR (ver comentário acima).
     if (loading || user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setStoredSession(hasStoredSession());
   }, [loading, user]);
 

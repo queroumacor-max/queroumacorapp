@@ -104,7 +104,10 @@ export function useAiArt(): UseAiArtResult {
   });
 
   // Re-lê localStorage quando user trocar (multi-conta sem refresh).
+  // `tick` é só um invalidador — sincroniza o componente com um valor lido
+  // de localStorage (sistema externo, não reativo) durante o render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setTick((t) => t + 1);
   }, [userId]);
 

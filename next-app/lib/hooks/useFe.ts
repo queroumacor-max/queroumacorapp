@@ -246,11 +246,14 @@ export function useFe(): UseFeResult {
 
   const hydratedForUserRef = useRef<string | null>(userId);
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo, troca de conta) —
+    // leitura só existe no browser, guardada por ref pra rodar 1x por user.
     if (hydratedForUserRef.current === userId) return;
     hydratedForUserRef.current = userId;
     setSessions(readSessions(userId));
     const persisted = readActiveSessionId(userId);
     if (persisted) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setActiveSessionId(persisted);
     } else {
       const all = readSessions(userId);
@@ -287,7 +290,9 @@ export function useFe(): UseFeResult {
   }, [autoSpeak]);
 
   const conversationModeRef = useRef(conversationMode);
-  conversationModeRef.current = conversationMode;
+  useEffect(() => {
+    conversationModeRef.current = conversationMode;
+  }, [conversationMode]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -451,7 +456,9 @@ export function useFe(): UseFeResult {
   });
 
   const startVoiceRef = useRef(recorder.start);
-  startVoiceRef.current = recorder.start;
+  useEffect(() => {
+    startVoiceRef.current = recorder.start;
+  }, [recorder.start]);
 
   const speak = useCallback(
     async (messageId: string) => {

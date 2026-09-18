@@ -289,11 +289,14 @@ export function useSeuZe(): UseSeuZeResult {
   // Re-hidrata quando user troca (multi-conta no mesmo device).
   const hydratedForUserRef = useRef<string | null>(userId);
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo, troca de conta) —
+    // leitura só existe no browser, guardada por ref pra rodar 1x por user.
     if (hydratedForUserRef.current === userId) return;
     hydratedForUserRef.current = userId;
     setSessions(readSessions(userId));
     const persisted = readActiveSessionId(userId);
     if (persisted) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setActiveSessionId(persisted);
     } else {
       const all = readSessions(userId);
@@ -335,7 +338,9 @@ export function useSeuZe(): UseSeuZeResult {
   // Ref pro modo conversa — usado dentro de callbacks que não devem re-criar
   // quando o flag muda (ex.: onended do audio TTS).
   const conversationModeRef = useRef(conversationMode);
-  conversationModeRef.current = conversationMode;
+  useEffect(() => {
+    conversationModeRef.current = conversationMode;
+  }, [conversationMode]);
 
   // Audio HTMLElement vive em ref — não dispara re-render quando troca de URL.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -536,7 +541,9 @@ export function useSeuZe(): UseSeuZeResult {
 
   // Ref do start do recorder pra uso em callbacks (evita re-criar speak/etc).
   const startVoiceRef = useRef(recorder.start);
-  startVoiceRef.current = recorder.start;
+  useEffect(() => {
+    startVoiceRef.current = recorder.start;
+  }, [recorder.start]);
 
   // TTS opt-in: chamado pelo botão "🔊 Ouvir" de uma msg específica.
   // Se já está tocando essa msg, faz toggle (para). Se está tocando outra,

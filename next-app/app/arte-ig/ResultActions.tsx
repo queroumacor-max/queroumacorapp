@@ -40,18 +40,27 @@ export function ResultActions({
   const [applyError, setApplyError] = useState<string | null>(null);
 
   // Quando user gera nova arte, props mudam — recompõe o estado local.
-  useEffect(() => {
+  // Ajuste DURANTE o render em vez de useEffect com setState síncrono
+  // (idiom oficial: https://react.dev/learn/you-might-not-need-an-effect
+  // #adjusting-some-state-when-a-prop-changes).
+  const [propsVistas, setPropsVistas] = useState({ imageDataUrl, initialCaption });
+  if (propsVistas.imageDataUrl !== imageDataUrl || propsVistas.initialCaption !== initialCaption) {
+    setPropsVistas({ imageDataUrl, initialCaption });
     setCaption(initialCaption);
     setDisplayUrl(imageDataUrl);
     setWithLogo(false);
     setApplyError(null);
-  }, [imageDataUrl, initialCaption]);
+  }
 
   // Re-aplica logo quando user troca posição com o toggle ligado, ou liga
   // o toggle. Desligado → volta pro original sem custo.
   useEffect(() => {
     let cancelled = false;
     if (!withLogo) {
+      // Efeito que também dispara trabalho assíncrono (applyLogoToImage)
+      // mais abaixo quando withLogo=true; o ramo síncrono aqui é só o
+      // cedo-cedo do MESMO efeito, não vale separar em dois mecanismos.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDisplayUrl(imageDataUrl);
       setApplyError(null);
       return;

@@ -34,13 +34,18 @@ export function NewChatModal({ open, onClose, excludeIds = [] }: NewChatModalPro
     return () => clearTimeout(t);
   }, [rawQuery]);
 
-  // Reset state ao fechar.
-  useEffect(() => {
+  // Reset state ao fechar. Ajuste DURANTE o render (idiom oficial:
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  // em vez de useEffect com setState síncrono — puramente derivado de
+  // `open`, sem trabalho assíncrono/DOM.
+  const [openVisto, setOpenVisto] = useState(open);
+  if (open !== openVisto) {
+    setOpenVisto(open);
     if (!open) {
       setRawQuery('');
       setDebouncedQuery('');
     }
-  }, [open]);
+  }
 
   if (!open) return null;
 

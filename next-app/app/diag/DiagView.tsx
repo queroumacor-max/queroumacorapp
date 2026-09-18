@@ -19,6 +19,9 @@ export function DiagView() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Sincroniza com sistemas externos (navigator/window/matchMedia,
+    // service worker) — leitura só existe no browser, não é derivável no
+    // render nem em SSR. `setRows` aqui é o resultado dessa sincronização.
     const ua = navigator.userAgent || '';
     const android = isAndroid(ua);
     const wv = isAndroidWebView(ua);
@@ -68,6 +71,7 @@ export function DiagView() {
       // diferentes — e o service worker guarda `/_next/static/` cache-first.
       { k: 'Build do site', v: process.env.NEXT_PUBLIC_BUILD || '—' },
     ];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setRows(out);
 
     // Infos NATIVAS (casca Capacitor): modelo, OS, versão/build do app — o que

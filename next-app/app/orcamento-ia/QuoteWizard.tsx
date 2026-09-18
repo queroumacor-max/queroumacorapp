@@ -163,10 +163,13 @@ export function QuoteWizard() {
   }, [user?.id]);
 
   // Endereço e e-mail do profissional vêm do perfil; a pessoa pode ajustar
-  // neste orçamento sem mexer no perfil.
+  // neste orçamento sem mexer no perfil. Prefill de dado assíncrono
+  // (sincronização com o profile do Supabase), guardado por `f.campo ||`
+  // pra não sobrescrever o que a pessoa já digitou.
   useEffect(() => {
     if (!profile) return;
     const pf = profile as { address?: string | null; email?: string | null; city?: string | null; state?: string | null };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setForm((f) => ({
       ...f,
       profEndereco: f.profEndereco || [pf.address, [pf.city, pf.state].filter(Boolean).join(' - ')].filter(Boolean).join(', '),

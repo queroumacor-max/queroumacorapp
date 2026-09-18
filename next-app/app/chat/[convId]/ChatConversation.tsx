@@ -190,12 +190,16 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     };
   }, [messages, user, storeId, participantInfo]);
 
-  // Pré-hidrata convMeta como participantInfo[otherId].
+  // Pré-hidrata convMeta como participantInfo[otherId]. Não é um "reset
+  // pra X" simples — é um MERGE guardado (`prev.has` evita sobrescrever
+  // dado mais rico já carregado por outro caminho), por isso fica como
+  // efeito em vez do idiom de ajuste-durante-render.
   useEffect(() => {
     if (!convMeta || !convMeta.otherId) return;
     // Pré-narrowing fora do setState pra TS não perder a refinement no
     // callback. Substitui os non-null assertions (otherId!) que existiam.
     const otherId = convMeta.otherId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setParticipantInfo((prev) => {
       if (prev.has(otherId)) return prev;
       const next = new Map(prev);

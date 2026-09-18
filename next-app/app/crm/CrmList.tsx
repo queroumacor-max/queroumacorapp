@@ -18,7 +18,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCrm } from '@/lib/hooks/useCrm';
@@ -75,9 +75,13 @@ function IntervalConfig({
   const [draft, setDraft] = useState(String(current));
 
   // Sincroniza quando o valor server muda (load inicial ou save bem-sucedido).
-  useEffect(() => {
+  // Ajuste DURANTE o render (idiom oficial: puramente derivado de `current`,
+  // sem trabalho assíncrono/DOM) em vez de useEffect com setState síncrono.
+  const [currentVisto, setCurrentVisto] = useState(current);
+  if (current !== currentVisto) {
+    setCurrentVisto(current);
     setDraft(String(current));
-  }, [current]);
+  }
 
   const dirty = draft !== String(current);
 

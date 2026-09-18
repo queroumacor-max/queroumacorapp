@@ -90,11 +90,14 @@ export function useAudioRecording(
   // resolve false e a UI pode mostrar placeholder até o client hidratar.
   const [unsupported, setUnsupported] = useState(false);
   useEffect(() => {
+    // Sincroniza com sistema externo (navigator/MediaRecorder) — não é
+    // derivável no render/SSR (comentário acima).
     const supported =
       typeof window !== 'undefined' &&
       typeof navigator !== 'undefined' &&
       !!navigator.mediaDevices?.getUserMedia &&
       typeof MediaRecorder !== 'undefined';
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setUnsupported(!supported);
   }, []);
 

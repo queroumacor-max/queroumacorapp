@@ -42,6 +42,9 @@ export function PushOptIn() {
   }, []);
 
   useEffect(() => {
+    // Sincroniza com sistema externo (permissão do navegador +
+    // subscription do service worker) — não é derivável no render/SSR.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     refresh();
     // Escuta `pushsubscriptionchange` enviado pelo SW (key rotation etc).
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;

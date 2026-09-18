@@ -41,8 +41,11 @@ export function UndoSnackbar({
 
   useEffect(() => {
     if (!message) return;
-    // Reseta o tick e o flag de dismiss em cada novo message.
+    // Reseta o tick e o flag de dismiss em cada novo message. Mistura
+    // reset de ref (dismissedRef, precisa ficar num efeito) com o timer
+    // (setInterval) — não é reset puro isolável em render.
     dismissedRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setSeconds(Math.max(1, Math.ceil(durationMs / 1000)));
 
     const interval = window.setInterval(() => {

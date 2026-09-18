@@ -90,7 +90,11 @@ export function ChatList() {
   // pre-fill por searchParams indireto — se a UX pedir, expandimos depois).
   // Por enquanto, garantimos que o modal abre se o param `nova=1` existir.
   useEffect(() => {
+    // Sincroniza com a URL (searchParams) — sistema externo por definição
+    // (https://react.dev/learn/synchronizing-with-effects), não state
+    // derivado de props/state internos.
     const nova = searchParams?.get('nova');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     if (nova === '1') setModalOpen(true);
   }, [searchParams]);
 

@@ -289,10 +289,15 @@ export function ProductsList() {
   const [page, setPage] = useState(1);
   const listTopRef = useRef<HTMLDivElement | null>(null);
 
-  // Volta pra página 1 sempre que o filtro muda.
-  useEffect(() => {
+  // Volta pra página 1 sempre que o filtro muda. Ajuste DURANTE o render
+  // (idiom oficial: https://react.dev/learn/you-might-not-need-an-effect) —
+  // puramente derivado dos filtros ativos, sem trabalho assíncrono/DOM.
+  const filtrosAtuais = [category, selectedLine, paintTier, autoTier, sprayTier, madTier, search] as const;
+  const [filtrosVistos, setFiltrosVistos] = useState<readonly unknown[]>(filtrosAtuais);
+  if (filtrosAtuais.some((v, i) => v !== filtrosVistos[i])) {
+    setFiltrosVistos(filtrosAtuais);
     setPage(1);
-  }, [category, selectedLine, paintTier, autoTier, sprayTier, madTier, search]);
+  }
 
   const totalPages = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -310,17 +315,22 @@ export function ProductsList() {
 
   // Reseta a linha selecionada quando o user troca de categoria ou começa
   // a buscar — drill-down não faz sentido fora do escopo da categoria atual.
-  useEffect(() => {
+  // Ajuste DURANTE o render (mesmo idiom acima).
+  const [lineResetVisto, setLineResetVisto] = useState({ category, search });
+  if (category !== lineResetVisto.category || search !== lineResetVisto.search) {
+    setLineResetVisto({ category, search });
     setSelectedLine(null);
-  }, [category, search]);
+  }
 
   // Reseta tiers ao trocar de categoria.
-  useEffect(() => {
+  const [tierResetCategoryVisto, setTierResetCategoryVisto] = useState(category);
+  if (category !== tierResetCategoryVisto) {
+    setTierResetCategoryVisto(category);
     if (category !== 'tintas') setPaintTier(null);
     if (category !== 'tintas_auto') setAutoTier(null);
     if (category !== 'arte_urbana') setSprayTier(null);
     if (category !== 'madeiras_metais') setMadTier(null);
-  }, [category]);
+  }
 
   function handleAddFromSheet(
     prod: Product,

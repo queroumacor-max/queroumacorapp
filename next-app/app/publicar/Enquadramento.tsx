@@ -41,15 +41,30 @@ export function Enquadramento({ files, value, onChange, disabled }: Enquadrament
   // trata a lista como imutável, então a referência é estável).
   const [dims, setDims] = useState<Map<File, Dims>>(() => new Map());
   const quadroRef = useRef<HTMLDivElement | null>(null);
-  const arrastoRef = useRef<{ x: number; y: number; desloc: Deslocamento } | null>(null);
+  // Estado (não ref) de propósito: o cursor 'grab'/'grabbing' na linha do
+  // JSX abaixo depende disso pra re-renderizar — ref não dispara render.
+  // Só muda 2x por gesto de arrasto (down/up), nunca a cada pointermove
+  // (que só LÊ o snapshot tirado no down), então o custo é desprezível.
+  const [arrasto, setArrasto] = useState<{ x: number; y: number; desloc: Deslocamento } | null>(
+    null
+  );
 
   const idx = Math.min(atual, Math.max(0, files.length - 1));
   const file = files[idx];
   const proporcao = ratioDe(value.proporcao);
 
-  useEffect(() => {
-    if (idx !== atual) setAtual(idx);
-  }, [idx, atual]);
+  // Ajusta `atual` (clamp) DURANTE o render quando `files` encolhe e ele
+  // fica fora do intervalo — idiom oficial do React em vez de useEffect com
+  // setState síncrono (https://react.dev/learn/you-might-not-need-an-effect
+  // #adjusting-some-state-when-a-prop-changes). `idx` já reflete o valor
+  // clampado em TODO render (é reusado pra tudo abaixo); isto só existe pra
+  // `atual` não ficar preso num índice inválido se `files` encolher de
+  // novo depois.
+  const [filesLenVisto, setFilesLenVisto] = useState(files.length);
+  if (files.length !== filesLenVisto) {
+    setFilesLenVisto(files.length);
+    if (atual !== idx) setAtual(idx);
+  }
 
   // URL de prévia da foto selecionada.
   const url = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file]);
@@ -98,11 +113,11 @@ export function Enquadramento({ files, value, onChange, disabled }: Enquadrament
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (disabled || !estilo?.arrastavel) return;
-    arrastoRef.current = { x: e.clientX, y: e.clientY, desloc };
+    setArrasto({ x: e.clientX, y: e.clientY, desloc });
     e.currentTarget.setPointerCapture?.(e.pointerId);
   }
   function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    const a = arrastoRef.current;
+    const a = arrasto;
     const quadro = quadroRef.current;
     if (!a || !quadro || !estilo || !d || proporcao == null) return;
     e.preventDefault();
@@ -119,7 +134,7 @@ export function Enquadramento({ files, value, onChange, disabled }: Enquadrament
     setDesloc(idx, novo);
   }
   function onPointerUp() {
-    arrastoRef.current = null;
+    setArrasto(null);
   }
 
   const semRecorte = proporcao == null;
@@ -212,7 +227,7 @@ export function Enquadramento({ files, value, onChange, disabled }: Enquadrament
           maxHeight: 420,
           margin: '0 auto',
           touchAction: estilo?.arrastavel ? 'none' : 'auto',
-          cursor: estilo?.arrastavel ? (arrastoRef.current ? 'grabbing' : 'grab') : 'default',
+          cursor: estilo?.arrastavel ? (arrasto ? 'grabbing' : 'grab') : 'default',
         }}
       >
         {url ? (

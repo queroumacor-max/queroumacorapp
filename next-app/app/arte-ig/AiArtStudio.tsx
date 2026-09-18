@@ -151,9 +151,14 @@ export function AiArtStudio() {
     [ai],
   );
 
-  // Limpa o form quando o post foi publicado com sucesso.
+  // Limpa o form quando o post foi publicado com sucesso. Fica como efeito
+  // de propósito: além de resetar state local, chama `ai.resetResult()`
+  // (limpa o state de um hook EXTERNO) — não é só "ajustar state derivado",
+  // é sincronizar com outro sistema, que é exatamente pra isso que efeitos
+  // existem.
   useEffect(() => {
     if (ai.postResult?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setPhoto1(null);
       setPhoto2(null);
       setHint('');

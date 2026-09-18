@@ -43,6 +43,8 @@ export function EditEspecialidadesForm() {
 
   // Quando o profile carrega, popula o Set local com as specs já salvas.
   // Só roda uma vez (touched=false) pra não sobrescrever edições do usuário.
+  // Prefill de dado assíncrono (profile do Supabase) — sincronização com
+  // sistema externo, não reset derivado de prop.
   useEffect(() => {
     if (!profile || touched) return;
     const csv = profile.specialties || '';
@@ -50,6 +52,7 @@ export function EditEspecialidadesForm() {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setSelected(new Set(arr));
   }, [profile, touched]);
 

@@ -82,6 +82,14 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const [phase, setPhase] = useState<Phase>('init');
   const [status, setStatus] = useState<Status>('loading-camera');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  // Espelha `segmenterRef.current != null` em state — o overlay "Carregando
+  // IA…" (aiModeNotReady, abaixo) precisa disso pra RE-RENDERIZAR quando o
+  // modelo termina de carregar. Ler `segmenterRef.current` direto no corpo
+  // do render (como era antes) funcionava só por coincidência: dependia de
+  // outro re-render (setStatus('ready') do efeito da câmera) acontecer
+  // depois — se o modelo terminasse de carregar DEPOIS da câmera já estar
+  // pronta, o overlay podia ficar preso até algum re-render não relacionado.
+  const [segmenterReady, setSegmenterReady] = useState(false);
   const [brushSize, setBrushSize] = useState<number>(BRUSH_SIZES[1]);
   const [tool, setTool] = useState<'paint' | 'erase'>('paint');
 
@@ -99,9 +107,77 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   const modeRef = useRef<Mode>(mode);
   const phaseRef = useRef<Phase>(phase);
   const colorRef = useRef<string>(color);
-  modeRef.current = mode;
-  phaseRef.current = phase;
-  colorRef.current = color;
+  useEffect(() => {
+    modeRef.current = mode;
+    phaseRef.current = phase;
+    colorRef.current = color;
+  }, [mode, phase, color]);
+
+  // ─── pintura: IA (multiply blend) ───────────────────────────────────────
+  // Movido pra ANTES do efeito de inicialização da câmera (que a referencia
+  // dentro do RAF loop) — achado do react-hooks/immutability: embora o uso
+  // real só aconteça de forma assíncrona (depois que a função já foi
+  // declarada em algum render), referenciar um `useCallback` antes da sua
+  // declaração textual é frágil pra análise estática. Reordenar é
+  // comportamentalmente neutro (não depende de nada declarado entre os dois
+  // pontos, `deps: []`).
+  const paintBackgroundWithAiMask = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      mainW: number,
+      mainH: number,
+      mask: { getAsUint8Array: () => Uint8Array; width: number; height: number },
+      hex: string,
+    ) => {
+      const rgb = hexToRgb(hex);
+      if (!rgb) return;
+      const maskW = mask.width;
+      const maskH = mask.height;
+      const maskData = mask.getAsUint8Array();
+
+      // Composição multi-step pra usar 'multiply' SÓ na região de bg:
+      //  (1) gera offscreen com `target color` onde mask=0 e BRANCO onde mask≠0
+      //      (branco × bottom = bottom; vermelho × bottom = bottom tingido)
+      //  (2) globalCompositeOperation='multiply' aplica em toda a main, mas
+      //      como as áreas não-bg estão BRANCAS, ficam inalteradas.
+      let off = aiMaskRef.current;
+      if (!off) {
+        off = document.createElement('canvas');
+        aiMaskRef.current = off;
+      }
+      if (off.width !== maskW) off.width = maskW;
+      if (off.height !== maskH) off.height = maskH;
+      const offCtx = off.getContext('2d');
+      if (!offCtx) return;
+      const img = offCtx.createImageData(maskW, maskH);
+      const data = img.data;
+      for (let i = 0; i < maskData.length; i += 1) {
+        const j = i * 4;
+        if (maskData[i] === 0) {
+          // Background → cor do produto.
+          data[j] = rgb.r;
+          data[j + 1] = rgb.g;
+          data[j + 2] = rgb.b;
+          data[j + 3] = 255;
+        } else {
+          // Foreground (pessoa/cabelo/etc) → branco opaco (no-op em multiply).
+          data[j] = 255;
+          data[j + 1] = 255;
+          data[j + 2] = 255;
+          data[j + 3] = 255;
+        }
+      }
+      offCtx.putImageData(img, 0, 0);
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(off, 0, 0, mainW, mainH);
+      ctx.restore();
+    },
+    [],
+  );
 
   // ─── inicialização: câmera + (se modo ai) modelo ────────────────────────
   useEffect(() => {
@@ -197,6 +273,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
       if (segmenterRef.current) {
         try { segmenterRef.current.close(); } catch { /* ignore */ }
         segmenterRef.current = null;
+        setSegmenterReady(false);
       }
       const v = videoRef.current;
       if (v) {
@@ -233,6 +310,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
           return;
         }
         segmenterRef.current = segmenter;
+        setSegmenterReady(true);
         // Se a câmera já tá pronta, volta pro status ready.
         if (videoRef.current?.readyState && videoRef.current.readyState >= 2) {
           setStatus('ready');
@@ -245,65 +323,6 @@ export function WallARView({ open, color, productName, onClose }: Props) {
     })();
     return () => { cancelled = true; };
   }, [open, mode]);
-
-  // ─── pintura: IA (multiply blend) ───────────────────────────────────────
-  const paintBackgroundWithAiMask = useCallback(
-    (
-      ctx: CanvasRenderingContext2D,
-      mainW: number,
-      mainH: number,
-      mask: { getAsUint8Array: () => Uint8Array; width: number; height: number },
-      hex: string,
-    ) => {
-      const rgb = hexToRgb(hex);
-      if (!rgb) return;
-      const maskW = mask.width;
-      const maskH = mask.height;
-      const maskData = mask.getAsUint8Array();
-
-      // Composição multi-step pra usar 'multiply' SÓ na região de bg:
-      //  (1) gera offscreen com `target color` onde mask=0 e BRANCO onde mask≠0
-      //      (branco × bottom = bottom; vermelho × bottom = bottom tingido)
-      //  (2) globalCompositeOperation='multiply' aplica em toda a main, mas
-      //      como as áreas não-bg estão BRANCAS, ficam inalteradas.
-      let off = aiMaskRef.current;
-      if (!off) {
-        off = document.createElement('canvas');
-        aiMaskRef.current = off;
-      }
-      if (off.width !== maskW) off.width = maskW;
-      if (off.height !== maskH) off.height = maskH;
-      const offCtx = off.getContext('2d');
-      if (!offCtx) return;
-      const img = offCtx.createImageData(maskW, maskH);
-      const data = img.data;
-      for (let i = 0; i < maskData.length; i += 1) {
-        const j = i * 4;
-        if (maskData[i] === 0) {
-          // Background → cor do produto.
-          data[j] = rgb.r;
-          data[j + 1] = rgb.g;
-          data[j + 2] = rgb.b;
-          data[j + 3] = 255;
-        } else {
-          // Foreground (pessoa/cabelo/etc) → branco opaco (no-op em multiply).
-          data[j] = 255;
-          data[j + 1] = 255;
-          data[j + 2] = 255;
-          data[j + 3] = 255;
-        }
-      }
-      offCtx.putImageData(img, 0, 0);
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(off, 0, 0, mainW, mainH);
-      ctx.restore();
-    },
-    [],
-  );
 
   // ─── captura: congela frame ─────────────────────────────────────────────
   const handleCapture = useCallback(() => {
@@ -577,7 +596,7 @@ export function WallARView({ open, color, productName, onClose }: Props) {
   }
 
   const showLoadingOverlay = status !== 'ready' && status !== 'loading-model';
-  const aiModeNotReady = mode === 'ai' && (!segmenterRef.current || status === 'loading-model');
+  const aiModeNotReady = mode === 'ai' && (!segmenterReady || status === 'loading-model');
 
   // Render via portal pro document.body. O ProductDetailSheet abre esse
   // overlay de DENTRO do BottomSheet, cujo painel anima com `transform`

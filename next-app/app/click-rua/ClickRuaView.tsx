@@ -194,6 +194,10 @@ function Leitor({ edicao, onFechar }: { edicao: EdicaoPronta; onFechar: () => vo
   const gesto = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // "Já passamos pelo commit inicial?" não tem como ser sabido de forma
+  // síncrona durante o render — não existe alternativa sem efeito pra esse
+  // idioma (mount detection pra portal SSR-safe).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
   useEffect(() => setMontado(true), []);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -204,7 +208,9 @@ function Leitor({ edicao, onFechar }: { edicao: EdicaoPronta; onFechar: () => vo
   // "voltar" consome ela e o popstate fecha. `onFechar` fica numa ref pra o
   // efeito não rearmar a cada render e empilhar entradas fantasma.
   const fecharRef = useRef(onFechar);
-  fecharRef.current = onFechar;
+  useEffect(() => {
+    fecharRef.current = onFechar;
+  }, [onFechar]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let consumido = false;

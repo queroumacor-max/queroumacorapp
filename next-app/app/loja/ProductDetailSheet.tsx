@@ -9,7 +9,7 @@
 //     3.1.3e: produto físico vendido fora do app, loja fecha a venda).
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
@@ -137,18 +137,22 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
   const { requireAuth } = useAuthGate();
 
   // Quando variantes carregam, seleciona a primeira (sort_order menor) por
-  // default. Quando product muda, reseta a seleção.
-  useEffect(() => {
-    if (variants.length === 0) {
-      setSelectedVariantId(null);
-      return;
-    }
-    const first = variants[0]!;
-    setSelectedVariantId(first.id);
-  }, [variants, product?.id]);
+  // default. Quando product muda, reseta a seleção. Ajuste DURANTE o render
+  // (idiom oficial: https://react.dev/learn/you-might-not-need-an-effect) —
+  // puramente derivado de `variants`/`product.id`, sem trabalho
+  // assíncrono/DOM.
+  const [variantsVisto, setVariantsVisto] = useState(variants);
+  const [variantsProductIdVisto, setVariantsProductIdVisto] = useState(product?.id);
+  if (variants !== variantsVisto || product?.id !== variantsProductIdVisto) {
+    setVariantsVisto(variants);
+    setVariantsProductIdVisto(product?.id);
+    setSelectedVariantId(variants.length === 0 ? null : variants[0]!.id);
+  }
 
   // Reseta abas ao trocar de produto.
-  useEffect(() => {
+  const [productIdVisto, setProductIdVisto] = useState(product?.id);
+  if (product?.id !== productIdVisto) {
+    setProductIdVisto(product?.id);
     setColorTab('fabrica');
     setLequeBrand('suvinil');
     setCustomSize('lata');
@@ -160,21 +164,27 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
     // Auto-seleciona a primeira variante de grupo (menor preço).
     const srcProduct = firstColor?.product ?? product;
     setSelectedGroupVariant(srcProduct?._groupVariants?.[0] ?? null);
-  }, [product?.id]);
+  }
 
-  // Ao trocar de cor, reseta seleção de tamanho.
-  useEffect(() => {
+  // Ao trocar de cor, reseta seleção de tamanho. Dep deliberadamente
+  // estreita (só o id do produto da cor, não o objeto inteiro).
+  const [colorVariantProductIdVisto, setColorVariantProductIdVisto] = useState(
+    selectedColorVariant?.product.id,
+  );
+  if (selectedColorVariant?.product.id !== colorVariantProductIdVisto) {
+    setColorVariantProductIdVisto(selectedColorVariant?.product.id);
     if (selectedColorVariant) {
       setSelectedGroupVariant(selectedColorVariant.product._groupVariants?.[0] ?? null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColorVariant?.product.id]);
+  }
 
   // Reseta cor selecionada e busca ao trocar de marca.
-  useEffect(() => {
+  const [lequeBrandVisto, setLequeBrandVisto] = useState(lequeBrand);
+  if (lequeBrand !== lequeBrandVisto) {
+    setLequeBrandVisto(lequeBrand);
     setSelectedLequeColor(null);
     setLequeSearch('');
-  }, [lequeBrand]);
+  }
 
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
