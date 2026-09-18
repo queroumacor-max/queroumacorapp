@@ -12,27 +12,20 @@
 //   1. pg_cron do Supabase, de hora em hora, via pg_net:
 //        POST /api/whatsapp/followup?token=<segredo>
 //
-//      MUDANÇA IMPORTANTE (2026-09-05): antes o segredo era o
-//      `EVOLUTION_WEBHOOK_TOKEN`. Essa env foi REMOVIDA do Cloudflare junto
-//      com a aposentadoria da Evolution, e o efeito passou despercebido: sem
-//      ela, `expected` fica vazio, o caminho do cron nunca autentica e a
-//      chamada cai na exigência de token de admin — que o cron não tem.
-//      Resultado: 403 de hora em hora, sem ninguém ver, e o follow-up parado.
-//      Por isso passou a valer o `WHATSAPP_WEBHOOK_URL_SECRET` (o mesmo do
-//      webhook, que existe e está em uso), com o token antigo ainda aceito
-//      pra não quebrar quem já estiver configurado.
-//
-//      Auditoria de webhooks 2026-09-17 (achado L3): reusar o segredo do
-//      WEBHOOK aqui é funcional, mas aumenta o raio de um vazamento — quem
-//      descobre o segredo do webhook também dispara a varredura de
-//      follow-up. `WHATSAPP_FOLLOWUP_URL_SECRET` é uma env NOVA e
-//      OPCIONAL: se configurada, tem prioridade; enquanto não existir, o
-//      comportamento é idêntico ao de antes (cai pro segredo do webhook).
-//      Trocar de segredo é só: gerar um valor novo (`openssl rand -hex 24`,
-//      mesma receita do `WHATSAPP_WEBHOOK_URL_SECRET`), configurar
-//      `WHATSAPP_FOLLOWUP_URL_SECRET` no Cloudflare Pages, e atualizar a URL
-//      chamada pelo pg_cron (`app_settings.whatsapp_followup_url`) com o
-//      novo `?token=`. Nenhuma mudança de código é necessária depois disso.
+//      O segredo é `WHATSAPP_FOLLOWUP_URL_SECRET`, PRÓPRIO desta rota
+//      (achado L3 da auditoria de webhooks 2026-09-17: até 2026-09-18 essa
+//      chamada reusava o `WHATSAPP_WEBHOOK_URL_SECRET` do webhook, o que
+//      funcionava mas aumentava o raio de um vazamento — quem descobrisse o
+//      segredo do webhook também disparava a varredura de follow-up).
+//      Migração feita e confirmada em produção (`run_whatsapp_followup()`
+//      rodado à mão com o token novo, resultado ok) em 2026-09-18: gerado
+//      valor novo (`openssl rand -hex 24`), cadastrado no Cloudflare Pages,
+//      e a URL em `app_settings.whatsapp_followup_url` trocada pro `?token=`
+//      novo — ver `migrations/2026-09-18-whatsapp-followup-dedicated-secret
+//      .sql`. Os fallbacks pro segredo do webhook e pro antigo
+//      `EVOLUTION_WEBHOOK_TOKEN` (Evolution API, aposentada em 2026-09-05)
+//      foram removidos depois dessa confirmação — não sobrou chamador
+//      configurado com o segredo velho.
 //
 //   2. O portal, no botão "🔁 Follow-up agora", com o token do admin no
 //      corpo. Aceita `dryRun` pra ver o que ACONTECERIA sem enviar nada.
@@ -77,16 +70,8 @@ export async function POST(request: NextRequest) {
   }
 
   const provided = request.nextUrl.searchParams.get('token') || '';
-  // Ordem: o segredo DEDICADO primeiro (se configurado — achado L3 da
-  // auditoria 2026-09-17, ver comentário no topo do arquivo), depois o do
-  // webhook (compat com quem ainda não migrou), depois o antigo da
-  // Evolution (ponte histórica).
-  const aceitos = [
-    getRuntimeEnv('WHATSAPP_FOLLOWUP_URL_SECRET') || '',
-    getRuntimeEnv('WHATSAPP_WEBHOOK_URL_SECRET') || '',
-    getRuntimeEnv('EVOLUTION_WEBHOOK_TOKEN') || '',
-  ].filter(Boolean);
-  const viaToken = aceitos.some((s) => segredoConfere(s, provided));
+  const expected = getRuntimeEnv('WHATSAPP_FOLLOWUP_URL_SECRET') || '';
+  const viaToken = Boolean(expected) && segredoConfere(expected, provided);
 
   if (!viaToken) {
     // Caminho 2: admin do portal.

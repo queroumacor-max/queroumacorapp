@@ -1,13 +1,15 @@
-// Testes de POST /api/whatsapp/followup — auditoria de webhooks 2026-09-17.
+// Testes de POST /api/whatsapp/followup — auditoria de webhooks 2026-09-17
+// (achado L3, fallback removido em 2026-09-18 depois de confirmar em
+// produção que o pg_cron já chama com o segredo dedicado).
 //
-// Achado: a rota não tinha rate limit nenhum. Quem já conhece o segredo do
-// cron (`WHATSAPP_WEBHOOK_URL_SECRET`, o MESMO do webhook) ou é admin do
-// portal podia disparar a varredura em rajada — e como ela lê o banco,
-// decide e SÓ DEPOIS marca `followed_up_at`/`followup_at`, rajada
-// suficientemente rápida contornaria a trava por isolate (que só protege
-// concorrência dentro do MESMO isolate) e mandaria a mesma cobrança/
-// reengajamento pro cliente várias vezes. Este arquivo prova que a rota
-// agora nega a 5ª chamada de verdade dentro da janela.
+// Achado original: a rota não tinha rate limit nenhum. Quem já conhece o
+// segredo do cron ou é admin do portal podia disparar a varredura em
+// rajada — e como ela lê o banco, decide e SÓ DEPOIS marca
+// `followed_up_at`/`followup_at`, rajada suficientemente rápida contornaria
+// a trava por isolate (que só protege concorrência dentro do MESMO
+// isolate) e mandaria a mesma cobrança/reengajamento pro cliente várias
+// vezes. Este arquivo prova que a rota agora nega a 5ª chamada de verdade
+// dentro da janela.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
@@ -26,7 +28,7 @@ async function chamarPost(qs: string, body: unknown = {}) {
 
 beforeEach(() => {
   vi.resetModules();
-  process.env.WHATSAPP_WEBHOOK_URL_SECRET = URL_SECRET;
+  process.env.WHATSAPP_FOLLOWUP_URL_SECRET = URL_SECRET;
   process.env.SUPABASE_URL = SUPA_URL;
   process.env.SUPABASE_SERVICE_ROLE = 'service-key-teste';
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -35,7 +37,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.WHATSAPP_WEBHOOK_URL_SECRET;
+  delete process.env.WHATSAPP_FOLLOWUP_URL_SECRET;
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE;
   vi.restoreAllMocks();
@@ -98,36 +100,33 @@ describe('POST /api/whatsapp/followup — rate limit da varredura de verdade', (
   });
 });
 
-// ─── Achado L3 (auditoria 2026-09-17): segredo dedicado, opcional ───────────
+// ─── Achado L3 (auditoria 2026-09-17): segredo dedicado, sem fallback ───────
 //
-// Reusar o segredo do webhook aqui é funcional, mas aumenta o raio de um
-// vazamento. `WHATSAPP_FOLLOWUP_URL_SECRET` deixa a rota pronta pra migrar
-// pra um segredo PRÓPRIO sem nenhuma mudança de código — só configurar a
-// env e trocar a URL do pg_cron.
+// `WHATSAPP_FOLLOWUP_URL_SECRET` é o ÚNICO segredo aceito pra esse caminho.
+// Reusar o segredo do webhook (como era até 2026-09-18) funcionava, mas
+// aumentava o raio de um vazamento — quem descobrisse o segredo do webhook
+// também disparava a varredura de follow-up.
 describe('POST /api/whatsapp/followup — segredo dedicado (WHATSAPP_FOLLOWUP_URL_SECRET)', () => {
-  const DEDICADO = 'segredo-so-do-followup';
-
-  it('quando configurado, o segredo dedicado autentica sozinho', async () => {
-    process.env.WHATSAPP_FOLLOWUP_URL_SECRET = DEDICADO;
-    stubBancoComContador({ permiteAteEnvio: true });
-    const res = await chamarPost(`token=${DEDICADO}`, { dryRun: true });
-    expect(res.status).toBe(200);
+  it('sem a env configurada, nenhum token de URL autentica', async () => {
     delete process.env.WHATSAPP_FOLLOWUP_URL_SECRET;
-  });
-
-  it('sem a env configurada, o token dedicado NÃO autentica (nem por coincidência de string)', async () => {
-    // Confirma que não há um valor hardcoded — sem a env, só o segredo do
-    // webhook (já setado no beforeEach) funciona.
     stubBancoComContador({ permiteAteEnvio: true });
-    const res = await chamarPost(`token=${DEDICADO}`);
+    const res = await chamarPost(`token=${URL_SECRET}`);
     expect(res.status).toBe(401);
   });
 
-  it('o segredo ANTIGO do webhook continua funcionando (compat, nada quebra sem migrar)', async () => {
-    process.env.WHATSAPP_FOLLOWUP_URL_SECRET = DEDICADO;
+  it('o segredo do webhook (WHATSAPP_WEBHOOK_URL_SECRET) NÃO autentica mais — fallback removido', async () => {
+    process.env.WHATSAPP_WEBHOOK_URL_SECRET = 'segredo-do-webhook-nao-deve-funcionar-aqui';
     stubBancoComContador({ permiteAteEnvio: true });
-    const res = await chamarPost(`token=${URL_SECRET}`, { dryRun: true });
-    expect(res.status).toBe(200);
-    delete process.env.WHATSAPP_FOLLOWUP_URL_SECRET;
+    const res = await chamarPost('token=segredo-do-webhook-nao-deve-funcionar-aqui');
+    expect(res.status).toBe(401);
+    delete process.env.WHATSAPP_WEBHOOK_URL_SECRET;
+  });
+
+  it('o segredo antigo da Evolution (EVOLUTION_WEBHOOK_TOKEN) também não autentica mais', async () => {
+    process.env.EVOLUTION_WEBHOOK_TOKEN = 'token-evolution-nao-deve-funcionar-aqui';
+    stubBancoComContador({ permiteAteEnvio: true });
+    const res = await chamarPost('token=token-evolution-nao-deve-funcionar-aqui');
+    expect(res.status).toBe(401);
+    delete process.env.EVOLUTION_WEBHOOK_TOKEN;
   });
 });

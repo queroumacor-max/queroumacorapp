@@ -265,8 +265,8 @@ export interface SweepResult {
 // Trava por isolate: a varredura lê um retrato do banco, decide quem
 // cutucar e SÓ DEPOIS marca `followed_up_at`/`followup_at` — check-then-act
 // clássico (item 38 da auditoria de webhooks 2026-09-17). Quem chama esta
-// rota conhece um segredo (o mesmo `WHATSAPP_WEBHOOK_URL_SECRET` do webhook,
-// ou um token de admin) — ou seja, não é anônimo, mas replayar o MESMO POST
+// rota conhece um segredo (`WHATSAPP_FOLLOWUP_URL_SECRET`, dedicado desde
+// 2026-09-18, ou um token de admin) — ou seja, não é anônimo, mas replayar o MESMO POST
 // (ou clicar "Rodar agora" rápido demais) durante a janela entre o envio e
 // a marcação dispararia a MESMA cobrança/reengajamento duas vezes pro
 // cliente de verdade. Esta trava fecha o caso mais provável (duas
