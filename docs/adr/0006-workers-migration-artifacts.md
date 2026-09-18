@@ -21,6 +21,34 @@
 
 ## 1. `next-app/wrangler.jsonc` — draft completo
 
+**Correção de 2026-09-18 (revisão automática da PR #340, Codex): esta
+seção tinha DOIS erros de mecanismo, os dois confirmados contra a doc
+oficial da Cloudflare (`/workers/best-practices/workers-best-practices/`)
+depois do achado.** Registrados aqui porque mudam o resultado prático, não
+só o texto:
+
+1. **`vars` NÃO é herdado por ambiente nomeado em Workers** — ao
+   contrário de Pages (onde `env.preview`/`env.production` herdam
+   `vars`/`kv_namespaces` do topo quando não sobrescrevem nada), em
+   Workers **"Bindings and vars need to be declared per environment and
+   are not inherited"** (texto literal da doc). O draft anterior deixava
+   `env.production.vars: {}` e `env.preview.vars: {}` vazios "confiando
+   na herança do topo" — isso na prática ZERARIA as 5 vars públicas nos
+   dois ambientes, não as herdaria. Corrigido abaixo: cada ambiente
+   repete as 5 vars explicitamente.
+2. **Ambiente nomeado publica um Worker com NOME DIFERENTE.** A mesma
+   doc: *"Each environment creates a distinct Worker named `{name}-{env}`
+   ... The root Worker (without an environment suffix) is a separate
+   deployment."* Ou seja, com `"name": "queroumacor-next"` +
+   `env.production`, o Worker publicado de verdade é
+   **`queroumacor-next-production`** (não `queroumacor-next` sozinho) —
+   e `env.preview` publica **`queroumacor-next-preview`**. Isso não é
+   cosmético: afeta a URL `*.workers.dev`, o `--name` de
+   `wrangler rollback`/`wrangler deployments list`, e qual Worker recebe
+   o Custom Domain no corte de DNS (seção 5). Todas as referências deste
+   documento foram atualizadas pra usar o nome com sufixo onde é o
+   ambiente nomeado que está sendo endereçado.
+
 Baseado na config mínima que a avaliação `claude/next16-opennext-eval`
 already validou localmente pra build (só `main`/`compatibility_date`/
 `assets`, sem environments), estendida aqui com `env.production` e
@@ -50,12 +78,14 @@ que levou a reverter aquele PR).
     "binding": "ASSETS"
   },
 
-  // ─── Vars públicas no nível TOP (herdadas por qualquer ambiente que
-  // não as sobrescreva) — mesmas 5 que hoje vivem em
+  // ─── Vars públicas no nível TOP — mesmas 5 que hoje vivem em
   // wrangler.toml [vars], nada muda de valor, só de arquivo/formato.
-  // Isto é a superfície de RUNTIME (env.<nome>.vars / topo) — a
-  // superfície de BUILD-TIME é outra, configurada no painel de Workers
-  // Builds, ver seção 3.
+  // Servem de default pro `wrangler dev` local SEM `--env` — NÃO são
+  // herdadas por env.production/env.preview (ver nota no início desta
+  // seção), por isso os dois blocos abaixo repetem as mesmas 5 chaves.
+  // Isto é a superfície de RUNTIME (vars/secrets do wrangler.jsonc/painel
+  // Workers) — a superfície de BUILD-TIME é outra, configurada no painel
+  // de Workers Builds, ver seção 3.
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
@@ -87,17 +117,32 @@ que levou a reverter aquele PR).
       //   { "binding": "KV", "id": "<ID real de queroumacorapp-cidades, do painel>" }
       // ],
 
-      // Runtime vars públicas de produção — herdadas do topo, repetidas
-      // aqui só se algum dia divergirem de preview (hoje não divergem).
-      "vars": {}
+      // Repetidas explicitamente — `vars` NÃO herda do topo em Workers
+      // Environments (ver nota no início desta seção). Valores IDÊNTICOS
+      // aos do topo; se algum dia produção precisar de um valor público
+      // diferente de preview, é aqui que diverge.
+      "vars": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
+        "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
+      }
     },
 
     "preview": {
-      // Preview usa as MESMAS 5 vars públicas do topo (sem sobrescrever
-      // nada) — ZERO secret de produção acessível daqui. É esta seção
-      // vazia, e não uma lista de secrets, que precisa continuar vazia
-      // pra fronteira do STAGING.md se manter fechada no modelo novo.
-      "vars": {}
+      // Preview usa as MESMAS 5 vars públicas, repetidas pelo mesmo
+      // motivo (não herdam do topo) — ZERO secret de produção acessível
+      // daqui. É este conjunto ficar restrito às 5 públicas — nunca
+      // crescer com nomes de secret — que mantém a fronteira do
+      // STAGING.md fechada no modelo novo.
+      "vars": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
+        "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
+      }
     }
   }
 }
@@ -120,12 +165,26 @@ mais completa e mais confiável que `.env.example` (que ficou desatualizado
 depois da rodada de push/WhatsApp de 2026-09-18 — falta `VAPID_PRIVATE_KEY`
 e `PUSH_INTERNAL_SECRET`, por exemplo, apesar do código as ler).
 
+**Correção de 2026-09-18 (revisão automática da PR #340, Codex):** o grep
+acima cobre só `getRuntimeEnv()` (RUNTIME). Faltava cruzar com
+`grep -rn "process\.env\.NEXT_PUBLIC_" app components lib` pra achar TODO
+`NEXT_PUBLIC_*` lido diretamente no código (BUILD-TIME, inlinado pelo Next
+no bundle do cliente) — Codex achou que `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+(`components/PushOptIn.tsx:95`, `lib/services/pushSubscriptions.ts:32`)
+estava faltando dessa lista de build-time, e a mesma checagem achou
+`NEXT_PUBLIC_SENTRY_DSN` (`next.config.mjs`, `sentry.client.config.ts`,
+`lib/config.ts`) no mesmo caso — as duas linhas da tabela abaixo foram
+corrigidas. Sem isso, faltando no "Build Variables and Secrets": o botão
+de ativar push (`PushOptIn`) simplesmente SOME da tela (retorna `null`
+quando `process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY` é `undefined` no bundle
+compilado) — sem erro, sem log, silencioso.
+
 | Variável | Classe | Onde entra |
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | pública | Build vars (produção + preview) **e** Runtime vars (topo do `wrangler.jsonc`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | pública | Build vars (produção + preview) **e** Runtime vars (topo) |
-| `NEXT_PUBLIC_SENTRY_DSN` | pública | Runtime vars (topo) |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | pública | Runtime vars (topo) |
+| `NEXT_PUBLIC_SENTRY_DSN` | pública | Build vars (produção + preview) **e** Runtime vars (topo) — lida via `process.env` em `next.config.mjs`/`sentry.client.config.ts`/`lib/config.ts` |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | pública | Build vars (produção + preview) **e** Runtime vars (topo) — lida via `process.env` em `components/PushOptIn.tsx`/`lib/services/pushSubscriptions.ts`; ausente no build = botão de ativar push some da tela, sem erro |
 | `NEXT_PUBLIC_APP_VERSION` | pública, opcional | Runtime vars, se usado (feature flag de versão exibida) |
 | `VAPID_SUBJECT` | pública (é um `mailto:`) | Runtime vars (topo) |
 | `VAPID_PRIVATE_KEY` | secreta | Runtime secret, só `env.production` |
@@ -179,16 +238,33 @@ está configurado hoje (nunca foi um arquivo neste repo).
    - Build command: `npm run build:cf` (mesmo script hoje, mas apontando
      pro `open-next.config.ts`/`.open-next/` depois da migração de
      adapter — não o `@cloudflare/next-on-pages` atual).
-   - Deploy command (branch de produção): `npx wrangler deploy`.
+   - Deploy command (branch de produção): **`npx wrangler deploy --env
+     production`** — o `--env` é OBRIGATÓRIO, não cosmético (correção de
+     2026-09-18, achado do Codex na revisão da PR #340): sem ele, o
+     comando publica o Worker RAIZ (sem sufixo), que não é nem
+     `env.production` nem `env.preview` — nenhum dos dois blocos de
+     secrets/vars do `wrangler.jsonc` (seção 1) se aplicaria, e a
+     doc oficial da Cloudflare diz literalmente pra nunca fazer deploy
+     sem `--env` quando ambientes nomeados existem. Publica como
+     `queroumacor-next-production` (ver nota de nomenclatura na seção 1).
    - **Branch control**: produção = `main` (igual ao Pages hoje).
    - **Non-production branch builds**: LIGAR. Deploy command pra branch
-     não-produção fica no padrão (`npx wrangler versions upload`) — não
-     precisa customizar.
-3. **Build Variables and Secrets** — preencher as 2 `NEXT_PUBLIC_*` da
-   seção 2 (build-time). Repetir para o trigger de non-production
-   branches (Cloudflare trata isso como configuração separada por
-   trigger — conferir na UI se produção e non-production branches
-   aparecem como abas/seções distintas, e preencher as DUAS).
+     não-produção: **`npx wrangler versions upload --env preview`** —
+     mesma correção, mesmo motivo; o padrão sem `--env` também vai pro
+     Worker raiz. Publica versões de `queroumacor-next-preview` (a URL de
+     preview por branch, P1, sai com esse nome: `<branch>-queroumacor-
+     next-preview.<subdomínio>.workers.dev`, não `<branch>-queroumacor-
+     next...` como a 1ª versão deste documento e do ADR principal
+     mostravam de exemplo).
+3. **Build Variables and Secrets** — preencher as **4** `NEXT_PUBLIC_*`
+   de build-time da seção 2 (correção de 2026-09-18: eram só as 2 do
+   Supabase; faltavam `NEXT_PUBLIC_SENTRY_DSN` e
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, que também são lidas via `process.env`
+   direto no código — sem elas o Sentry client fica sem DSN e o botão de
+   ativar push some da tela, os dois em silêncio). Repetir para o trigger
+   de non-production branches (Cloudflare trata isso como configuração
+   separada por trigger — conferir na UI se produção e non-production
+   branches aparecem como abas/seções distintas, e preencher as DUAS).
 4. **Settings → Variables & Secrets** (runtime) — preencher o roster
    completo da seção 2 pro ambiente de produção; preencher só as 5
    públicas pro ambiente de preview.
@@ -214,7 +290,7 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/builds/trigg
     "build_token_uuid": "<BUILD_TOKEN_UUID>",
     "trigger_name": "Deploy production",
     "build_command": "npm run build:cf",
-    "deploy_command": "npx wrangler deploy",
+    "deploy_command": "npx wrangler deploy --env production",
     "root_directory": "next-app",
     "branch_includes": ["main"],
     "branch_excludes": [],
@@ -233,7 +309,7 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/builds/trigg
     "build_token_uuid": "<BUILD_TOKEN_UUID>",
     "trigger_name": "Deploy preview branches",
     "build_command": "npm run build:cf",
-    "deploy_command": "npx wrangler versions upload",
+    "deploy_command": "npx wrangler versions upload --env preview",
     "root_directory": "next-app",
     "branch_includes": ["*"],
     "branch_excludes": ["main"],
@@ -245,17 +321,43 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/builds/trigg
 (Formato confirmado na documentação oficial de API reference de Workers
 Builds — `deploy_command` é o campo que distingue produção de preview:
 `wrangler deploy` promove a versão pro tráfego ativo, `wrangler versions
-upload` só cria a versão + preview URL, sem mover tráfego.)
+upload` só cria a versão + preview URL, sem mover tráfego. O `--env` em
+cada um é quem faz o comando cair no `queroumacor-next-production`/
+`queroumacor-next-preview` certo — sem ele, os dois cairiam no MESMO
+Worker raiz sem distinção nenhuma entre ambientes.)
 
 ## 4. `.github/workflows/deploy.yml` reescrito — caminho manual/backup
 
 Continua existindo como o dispatch manual restrito a `main` — Workers
-Builds (seção 3) cobre o automático. Reescrita direta do arquivo atual,
-trocando só o que muda de mecanismo (comando `wrangler`, path do artefato,
-sem passar mais `NEXT_PUBLIC_*` pro build do jeito antigo já que Workers
-Builds também builda — este workflow manual precisa continuar buildando
-sozinho, então as env vars do step "Build Next.js" continuam vindo de
-GitHub Secrets, iguais a hoje):
+Builds (seção 3) cobre o automático.
+
+**Correção de 2026-09-18 (revisão automática da PR #340, Codex): a 1ª
+versão desta seção tinha DOIS erros estruturais, corrigidos juntos porque
+têm a mesma causa.** O `deploy.yml` de HOJE (Pages/`next-on-pages`) tem
+dois steps de build porque faz sentido nesse adapter: "Build Next.js"
+(`npm run build`, gera `.next/`) e depois "Build Cloudflare Pages output"
+(`npm run build:cf`, que só REEMPACOTA o `.next/` já pronto pra
+`.vercel/output/static`, sem rodar o build de novo). A 1ª versão deste
+anexo copiou essa forma de dois steps sem reparar que **o OpenNext NÃO
+funciona assim**: `opennextjs-cloudflare build` (o `build:cf` novo, ver
+commit `7aea7bd` da avaliação `claude/next16-opennext-eval`) já FAZ o
+`next build` sozinho, por dentro, como parte do próprio comando — não
+reaproveita um `.next/` de um step anterior. Isso causava dois problemas
+ao mesmo tempo: (1) o Next build rodava DUAS vezes (uma no step "Build
+Next.js", descartada, e outra dentro do `build:cf`); (2) — o achado real
+do Codex — os `env:` do step "Build Next.js" são escopados só àquele
+step no GitHub Actions (não persistem pro step seguinte), então o
+`build:cf` (o que realmente gera o artefato publicado) rodava SEM
+`NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` — o build que
+importa ia com Supabase vazio (`next.config.mjs` cai pro fallback
+`SUPABASE_URL`/`''`), quebrando login/dados no bundle publicado mesmo com
+o "Build Next.js" anterior tendo "passado". Corrigido colapsando pra UM
+step de build só, com todas as 4 `NEXT_PUBLIC_*` de build-time (seção 2)
+nele. O scan de source maps também foi ampliado: o artefato do OpenNext é
+`.open-next/worker.js` (arquivo) + `.open-next/assets/` (pasta) —
+IRMÃOS, não um dentro do outro — e a versão anterior só varria
+`.open-next/assets`, deixando `worker.js` (e qualquer coisa gerada fora
+de `assets/`) fora do scan.
 
 ```yaml
 name: Deploy to Cloudflare Workers
@@ -296,34 +398,42 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # Mesma regra de sempre: só NEXT_PUBLIC_* aqui — SUPABASE_SERVICE_ROLE_KEY
-      # e o resto do roster runtime nunca passam por build-time, ficam só
-      # nas Runtime Variables & Secrets do Worker (seção 2/3 deste anexo).
-      - name: Build Next.js
-        run: npm run build
+      # UM step só — `opennextjs-cloudflare build` (dentro de build:cf) já
+      # roda o `next build` por conta própria, não existe "Build Next.js"
+      # separado nesse adapter (diferente do next-on-pages de hoje). As 4
+      # NEXT_PUBLIC_* de build-time (seção 2) precisam estar NESTE step,
+      # que é o que produz o artefato publicado de verdade —
+      # SUPABASE_SERVICE_ROLE_KEY e o resto do roster runtime continuam
+      # NUNCA passando por aqui, só nas Runtime Variables & Secrets do
+      # Worker (seção 1/2 deste anexo).
+      - name: Build Cloudflare Worker output
+        run: npm run build:cf
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Build Cloudflare Worker output
-        run: npm run build:cf   # aponta pra .open-next/assets depois da migração de adapter
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
 
       - name: Scan artifact for stray source maps / secrets
         run: |
           set -e
-          MAPS=$(find .open-next/assets -iname '*.map' | wc -l)
+          # Varre .open-next INTEIRO — worker.js e assets/ são irmãos, os
+          # dois fazem parte do que é publicado.
+          MAPS=$(find .open-next -iname '*.map' | wc -l)
           if [ "$MAPS" -ne 0 ]; then
             echo "::error::$MAPS arquivo(s) .map encontrados no artefato publicado."
-            find .open-next/assets -iname '*.map'
+            find .open-next -iname '*.map'
             exit 1
           fi
-          if find .open-next/assets -iname '.env*' | grep -q .; then
+          if find .open-next -iname '.env*' | grep -q .; then
             echo "::error::arquivo .env encontrado no artefato publicado."
             exit 1
           fi
 
       # Mesmo SHA pinado que já está em produção hoje — trocar comando
-      # `pages deploy` por `deploy`, mesma action.
+      # `pages deploy` por `deploy --env production` (o --env é
+      # obrigatório, ver seção 1 e 3 deste anexo — sem ele o comando
+      # publica um Worker raiz que não é nem produção nem preview).
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
@@ -334,13 +444,15 @@ jobs:
 ```
 
 Diffs concretos em relação ao `deploy.yml` de hoje: nome do workflow,
-comentário de topo, `MAPS=$(find .vercel/output/static ...)` →
-`.open-next/assets`, `command: pages deploy .vercel/output/static
---project-name=queroumacor-next --branch=main --commit-dirty=true` →
-`command: deploy --env production`. Tudo o resto (checkout,
-`persist-credentials: false`, `npm ci`, guard de branch, SHA pinado da
-action) é idêntico, propositalmente — nenhuma dessas proteções é
-específica de Pages.
+comentário de topo, os dois steps de build viram UM (`build:cf` sozinho,
+com as 4 `NEXT_PUBLIC_*` de build-time no `env:` dele — não 2, e não no
+step errado), `MAPS=$(find .vercel/output/static ...)` → `.open-next`
+(diretório inteiro, não só `assets/`), `command: pages deploy
+.vercel/output/static --project-name=queroumacor-next --branch=main
+--commit-dirty=true` → `command: deploy --env production`. Tudo o resto
+(checkout, `persist-credentials: false`, `npm ci`, guard de branch, SHA
+pinado da action) é idêntico, propositalmente — nenhuma dessas proteções
+é específica de Pages.
 
 ## 5. Runbook de corte de DNS (P8) — passo a passo com comandos
 
@@ -352,14 +464,19 @@ com o mantenedor.
 
 ### 5.1. Antes da janela (sem risco, pode ser feito com antecedência)
 
+**Nome do Worker**: com `env.production` (seção 1), o Worker de produção
+publica como **`queroumacor-next-production`** — não `queroumacor-next`
+sozinho (correção de 2026-09-18, mesmo achado da seção 1). Todos os
+comandos abaixo usam o nome com sufixo.
+
 ```bash
 # Confirma que o Worker de produção responde certo no endereço próprio,
 # ANTES de qualquer coisa tocar em queroumacor.com.br.
-curl -sI https://queroumacor-next.<subdominio-da-conta>.workers.dev/ | head -5
+curl -sI https://queroumacor-next-production.<subdominio-da-conta>.workers.dev/ | head -5
 
 # Lista as versões publicadas — anota o version-id ATUAL antes do corte,
 # pra ter o alvo exato de um `wrangler rollback` se precisar.
-npx wrangler deployments list --name queroumacor-next
+npx wrangler deployments list --name queroumacor-next-production
 ```
 
 Checklist de smoke test manual (não só `curl` — usar o app de verdade
@@ -431,9 +548,14 @@ deletar**, por pelo menos algumas semanas.
   servindo o tempo todo. Corrigir e repetir 5.1.
 - **Algo quebrou DEPOIS do corte, o Worker é o problema (não o
   domínio)**: `npx wrangler rollback <version-id-anotado-em-5.1> --name
-  queroumacor-next --env production` — reverte o Worker pra uma versão
+  queroumacor-next-production` — reverte o Worker pra uma versão
   anterior sem tocar em DNS/Custom Domain nenhum. Mais rápido que reverter
-  domínio.
+  domínio. **Conferir a sintaxe exata com `wrangler rollback --help` no
+  Wrangler instalado no momento da execução** — não achei confirmação
+  direta na doc oficial de como `rollback`/`deployments list` tratam
+  `--name` vs `--env` num Worker com ambientes nomeados; `--name
+  queroumacor-next-production` (o nome já resolvido do ambiente) é a
+  forma mais segura de não depender dessa ambiguidade.
 - **Algo quebrou de um jeito que só reverter o domínio resolve** (ex.:
   suspeita de que o modelo Workers em si tem uma incompatibilidade que
   `wrangler rollback` não cobre): repetir a sequência da seção 5.2 na

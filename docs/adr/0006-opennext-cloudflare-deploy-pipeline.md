@@ -168,16 +168,21 @@ Como funciona, verificado na doc oficial:
   configurável em Settings → Build → Branch control).
 - Ligando **"non-production branch builds"** (mesma tela), TODO push em
   QUALQUER outra branch dispara build + `wrangler versions upload`
-  automaticamente (é o comando padrão pra branch não-produção — não
-  precisa ser configurado à mão, só o deploy command de produção que
-  continua sendo `wrangler deploy`).
+  automaticamente — **com `--env preview` explícito** (correção de
+  2026-09-18, achado do Codex na revisão automática da PR #340: Workers
+  Environments NÃO herdam config e o comando sem `--env` cai no Worker
+  raiz, que não é nem produção nem preview — ver detalhe completo em
+  `docs/adr/0006-workers-migration-artifacts.md` seções 1 e 3). O deploy
+  command de produção correspondente é `wrangler deploy --env production`.
 - Cada versão ganha, automaticamente, **duas Preview URLs**: uma por
   commit (`<version-prefix>-<worker-name>.<subdomínio>.workers.dev`) e
   uma por BRANCH, estável entre commits (`<branch-name>-<worker-name>
-  .<subdomínio>.workers.dev` — ex.: `claude-postcss-cve-override-
-  queroumacor-next.<subdomínio>.workers.dev`). A de branch é a
-  equivalente direta da URL `<branch-slug>.queroumacorapp.pages.dev` que
-  o Pages dá hoje.
+  .<subdomínio>.workers.dev`). Como o `--env preview` publica no Worker
+  **`queroumacor-next-preview`** (não `queroumacor-next` — nome com
+  sufixo, mesma correção acima), o exemplo real seria
+  `claude-postcss-cve-override-queroumacor-next-preview.<subdomínio>
+  .workers.dev`. A de branch é a equivalente direta da URL
+  `<branch-slug>.queroumacorapp.pages.dev` que o Pages dá hoje.
 - **As duas URLs são postadas automaticamente como comentário no PR**
   (mesmo texto da doc: "just like they are in Cloudflare Pages") — sem
   precisar escrever `actions/github-script` nem nenhum passo de CI
