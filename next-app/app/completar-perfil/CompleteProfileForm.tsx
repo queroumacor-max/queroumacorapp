@@ -92,6 +92,9 @@ export function CompleteProfileForm() {
   // reparasse trocava o próprio papel sem querer.
   const preenchido = useRef(false);
   useEffect(() => {
+    // Prefill ÚNICO a partir de dado assíncrono (profile do Supabase +
+    // user_metadata do OAuth) — não é reset derivado de prop, é
+    // sincronização com sistema externo guardada por ref pra rodar 1x.
     if (!ready || preenchido.current) return;
     preenchido.current = true;
     const p = profile as Record<string, unknown> | null | undefined;

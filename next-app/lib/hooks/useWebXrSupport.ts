@@ -13,6 +13,8 @@ export function useWebXrSupport(): WebXrSupport {
 
   useEffect(() => {
     let cancelled = false;
+    // Sincroniza com sistema externo (navigator.xr) — não é derivável no
+    // render/SSR.
     const xr = (navigator as unknown as { xr?: { isSessionSupported?: (m: string) => Promise<boolean> } }).xr;
     if (!xr?.isSessionSupported) {
       setSupport('unsupported');

@@ -51,6 +51,11 @@ export function NativePushOptIn() {
     };
   }, [user?.id]);
 
+  // deps: [user?.id, status], não [user, status] — `activate` só lê
+  // `user.id`, nunca outro campo do perfil. Estreitar de propósito (mesmo
+  // raciocínio de `useAiConsent.accept`): widen pra `[user]` recriaria o
+  // callback a cada mudança não-relacionada do perfil, sem nenhum ganho —
+  // o React Compiler que validaria essa memoização não está ativo aqui.
   const activate = useCallback(async () => {
     if (!user?.id || status === 'working') return;
     setStatus('working');

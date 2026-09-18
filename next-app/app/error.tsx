@@ -30,6 +30,9 @@ export default function Error({
   }, [error]);
 
   useEffect(() => {
+    // Sincroniza com sistema externo: agenda um retry via setTimeout
+    // (agendarRetomada) e espelha se ele foi de fato armado — não é
+    // derivável no render, depende do freio compartilhado com o SW.
     const { agendado, cancelar } = agendarRetomada(reset);
     setTentando(agendado);
     return cancelar;

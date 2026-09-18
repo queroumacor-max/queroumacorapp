@@ -15,6 +15,8 @@ import { ofereceCamera } from '@/lib/utils/camera';
 export function useOfereceCamera(): boolean {
   const [pode, setPode] = useState(false);
   useEffect(() => {
+    // Sincroniza com sistema externo (navigator/matchMedia) — não é
+    // derivável no render/SSR (comentário acima).
     setPode(ofereceCamera());
   }, []);
   return pode;

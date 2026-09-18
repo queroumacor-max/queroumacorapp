@@ -42,7 +42,9 @@ export function BackGuard() {
   // O handler vive fora do ciclo de render; a ref mantém a rota atual sem
   // rearmar o listener a cada navegação.
   const rotaRef = useRef(pathname);
-  rotaRef.current = pathname;
+  useEffect(() => {
+    rotaRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;

@@ -13,7 +13,8 @@ export function OfflineBanner() {
 
   useEffect(() => {
     // Estado inicial só depois de montar (evita divergência de hidratação:
-    // no server não há navigator.onLine).
+    // no server não há navigator.onLine). Sincroniza com sistema externo
+    // (navigator/plugin Network) — não é derivável no render/SSR.
     setOnline(native.network.isOnline());
     const off = native.network.onChange((connected) => setOnline(connected));
     return off;

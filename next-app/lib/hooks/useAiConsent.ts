@@ -17,6 +17,9 @@ export function useAiConsent() {
   const [accepted, setAccepted] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo) — leitura só existe no
+    // browser, não é derivável no render/SSR (por isso `accepted` nasce
+    // null).
     try {
       setAccepted(localStorage.getItem(STORAGE_KEY) === '1');
     } catch {
@@ -24,6 +27,13 @@ export function useAiConsent() {
     }
   }, []);
 
+  // deps: [user?.id], não [user] — `accept` só lê `user.id` (2x abaixo),
+  // nunca outro campo. Estreitar de propósito pra `accept` não trocar de
+  // identidade quando campos não-relacionados do perfil mudam (nome, foto
+  // etc.) — é o que o linter chama de "poderia preservar memoização menos
+  // específica", mas widen pra `[user]` seria regressão de performance
+  // real no React puro de hoje (o compiler que motivaria isso não está
+  // ativo neste projeto).
   const accept = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, '1');

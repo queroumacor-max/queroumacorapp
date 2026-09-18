@@ -19,6 +19,9 @@ export function DiagView() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Sincroniza com sistemas externos (navigator/window/matchMedia,
+    // service worker) — leitura só existe no browser, não é derivável no
+    // render nem em SSR. `setRows` aqui é o resultado dessa sincronização.
     const ua = navigator.userAgent || '';
     const android = isAndroid(ua);
     const wv = isAndroidWebView(ua);

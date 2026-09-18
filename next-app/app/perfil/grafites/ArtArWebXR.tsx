@@ -64,9 +64,11 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
   const [tool, setTool] = useState<'move' | 'rotate'>('move');
 
   const opacityRef = useRef(opacity);
-  opacityRef.current = opacity;
   const toolRef = useRef(tool);
-  toolRef.current = tool;
+  useEffect(() => {
+    opacityRef.current = opacity;
+    toolRef.current = tool;
+  }, [opacity, tool]);
 
   const handleRef = useRef<ArHandle | null>(null);
   // Estado do gesto de toque (drag/pinch).

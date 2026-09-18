@@ -190,7 +190,10 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     };
   }, [messages, user, storeId, participantInfo]);
 
-  // Pré-hidrata convMeta como participantInfo[otherId].
+  // Pré-hidrata convMeta como participantInfo[otherId]. Não é um "reset
+  // pra X" simples — é um MERGE guardado (`prev.has` evita sobrescrever
+  // dado mais rico já carregado por outro caminho), por isso fica como
+  // efeito em vez do idiom de ajuste-durante-render.
   useEffect(() => {
     if (!convMeta || !convMeta.otherId) return;
     // Pré-narrowing fora do setState pra TS não perder a refinement no

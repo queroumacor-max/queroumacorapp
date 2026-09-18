@@ -63,6 +63,8 @@ export function MediaUploader({
   // perdeu no caminho e ninguém contou pra pessoa. Conta aqui, com as
   // saídas — a câmera não passa pelo seletor, então não repete o problema.
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo) — leitura só existe no
+    // browser, no mount, não é derivável no render/SSR.
     if (!consumirEscolhaPendente('publicar')) return;
     setReiniciou(true);
     reportFailure('picker-restart', new Error('app reiniciou com a galeria aberta'), {

@@ -22,6 +22,9 @@ export function PortfolioSection() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Sincroniza com o Supabase (fetch) — os setState aqui (inclusive o
+    // early-return sem usuário) fazem parte do MESMO ciclo de
+    // carregamento, não são reset derivado de prop.
     if (!user) {
       setLoading(false);
       return;

@@ -160,7 +160,9 @@ export function useAutosave<T>({
   const lastSavedRef = useRef(0);
   const restoredRef = useRef(false);
   const onRestoreRef = useRef(onRestore);
-  onRestoreRef.current = onRestore;
+  useEffect(() => {
+    onRestoreRef.current = onRestore;
+  }, [onRestore]);
 
   // Restore no mount — só uma vez por key.
   useEffect(() => {

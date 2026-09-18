@@ -35,6 +35,9 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>('light');
 
   useEffect(() => {
+    // Sincroniza com o atributo data-theme (já setado pelo script inline
+    // no <head>) e com localStorage — sistemas externos, não deriváveis
+    // no render/SSR (comentário acima).
     setThemeState(readTheme());
     // Mantém sincronizado entre abas.
     function onStorage(e: StorageEvent) {

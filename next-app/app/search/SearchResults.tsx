@@ -195,6 +195,7 @@ function SuggestionsList() {
   // Optimistic state local — evita esperar refetch da network depois do toggle.
   const [localFollowing, setLocalFollowing] = useState<Set<string>>(new Set());
 
+  // Sincroniza com o Supabase (fetch) — canônico de efeito de busca de dado.
   useEffect(() => {
     let cancel = false;
     setLoading(true);
@@ -216,9 +217,13 @@ function SuggestionsList() {
     };
   }, [user?.id]);
 
-  useEffect(() => {
+  // Ajuste DURANTE o render (idiom oficial) — puramente derivado de
+  // `followingIds`, sem trabalho assíncrono/DOM.
+  const [followingIdsVisto, setFollowingIdsVisto] = useState(followingIds);
+  if (followingIds !== followingIdsVisto) {
+    setFollowingIdsVisto(followingIds);
     setLocalFollowing(new Set(followingIds));
-  }, [followingIds]);
+  }
 
   async function handleFollow(profileId: string) {
     if (!user) {

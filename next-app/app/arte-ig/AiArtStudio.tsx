@@ -151,7 +151,11 @@ export function AiArtStudio() {
     [ai],
   );
 
-  // Limpa o form quando o post foi publicado com sucesso.
+  // Limpa o form quando o post foi publicado com sucesso. Fica como efeito
+  // de propósito: além de resetar state local, chama `ai.resetResult()`
+  // (limpa o state de um hook EXTERNO) — não é só "ajustar state derivado",
+  // é sincronizar com outro sistema, que é exatamente pra isso que efeitos
+  // existem.
   useEffect(() => {
     if (ai.postResult?.ok) {
       setPhoto1(null);

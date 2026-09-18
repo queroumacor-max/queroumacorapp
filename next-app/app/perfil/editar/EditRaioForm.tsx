@@ -31,6 +31,8 @@ export function EditRaioForm() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Hidrata do profile assim que chega. null no banco → unlimited=true.
+  // Prefill de dado assíncrono — sincronização com sistema externo, não
+  // reset derivado de prop.
   useEffect(() => {
     if (!profile || touched) return;
     if (profile.service_radius == null) {

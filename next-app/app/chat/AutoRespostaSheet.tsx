@@ -73,6 +73,9 @@ export function AutoRespostaSheet({ open, onClose }: AutoRespostaSheetProps) {
   // Carrega config existente quando o modal abre.
   useEffect(() => {
     if (!open || !user) return;
+    // Sincroniza com o Supabase (fetch) — é exatamente pra isso que efeitos
+    // existem; `setLoading(true)` aqui só marca o início do trabalho
+    // assíncrono que segue.
     setLoading(true);
     const sb = getSupabase();
     sb.from('auto_responses')

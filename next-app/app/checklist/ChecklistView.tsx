@@ -26,6 +26,9 @@ export function ChecklistView() {
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
+    // Sincroniza com o Supabase (fetch) — os setState aqui (inclusive o
+    // early-return sem usuário) fazem parte do MESMO ciclo de
+    // carregamento, não são reset derivado de prop.
     if (!user) {
       setLoading(false);
       return;

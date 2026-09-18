@@ -52,6 +52,9 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
   // fazia o sheet subir de novo do zero ao soltar o dedo.
   const [entered, setEntered] = useState(false);
 
+  // Mistura reset síncrono (fechou) com timer de DOM (animação de entrada) —
+  // não dá pra separar sem um efeito extra que reintroduziria a mesma
+  // corrida que isto evita (sheet "subindo de novo" a cada re-render).
   useEffect(() => {
     if (!open) {
       setEntered(false);
@@ -91,7 +94,9 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
     return () => root.removeEventListener('touchmove', onTouchMove);
   }, [open]);
 
-  // Zera o arrasto sempre que fecha.
+  // Zera o arrasto sempre que fecha. Mistura reset de ref (dragStart, que
+  // precisa ficar num efeito) com reset de state — não é puro reset
+  // derivado isolável em render.
   useEffect(() => {
     if (!open) {
       setDragY(0);

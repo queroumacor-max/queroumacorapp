@@ -74,6 +74,10 @@ export function StoryViewer({
   // não há o que dar errado, e o story é justamente a tela que precisa ser
   // imersiva.
   const [montado, setMontado] = useState(false);
+  // "Já passamos pelo commit inicial?" não tem como ser sabido de forma
+  // síncrona durante o render — é exatamente isso que o sinal significa.
+  // Não existe alternativa sem efeito pra esse idioma específico (mount
+  // detection pra portal SSR-safe).
   useEffect(() => setMontado(true), []);
 
   // Story COM SOM por padrão (01/09/2026). Antes o `<video muted>` era fixo:
@@ -86,7 +90,9 @@ export function StoryViewer({
   // ref evita que o efeito do botão VOLTAR (abaixo) rearme e empilhe uma
   // entrada de histórico por render.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // BOTÃO VOLTAR DO ANDROID fecha o story, como no Instagram (pedido do
   // usuário, 01/09/2026). Sem isto o "voltar" saía da TELA inteira — a
@@ -144,7 +150,18 @@ export function StoryViewer({
     // bloqueia. Foi o teste que pegou.
   }, [storyIdx, groupIdx, montado, mudo]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTsRef = useRef<number>(Date.now());
+  // `useRef(Date.now())` chamaria `Date.now()` em TODO render (só o
+  // resultado do 1º é usado, mas o impuro roda de qualquer forma) — o
+  // padrão pra inicializar um ref uma vez só com valor impuro é conferir
+  // `current == null` e atribuir dentro do corpo do render.
+  const startTsRef = useRef<number | null>(null);
+  if (startTsRef.current === null) {
+    // É exatamente o padrão que a própria mensagem de erro do
+    // react-hooks/refs recomenda pra inicializar um ref uma vez só com
+    // valor impuro; não há initializer preguiçoso pra useRef (diferente de
+    // useState) que evite isso.
+    startTsRef.current = Date.now();
+  }
 
   const currentGroup: StoryGroup | undefined = groups[groupIdx];
   const currentStory: StoryRow | undefined = currentGroup?.stories[storyIdx];
@@ -156,7 +173,12 @@ export function StoryViewer({
   // próprio carregamento provou o contrário (kindOverride).
   const showVideo = kindOverride ? kindOverride === 'video' : isVideo;
 
-  // Zera o override a cada story (o próximo pode ser do outro tipo).
+  // Zera o override a cada story (o próximo pode ser do outro tipo). Mistura
+  // reset de STATE com reset de REF no mesmo ponto de sincronização — dividir
+  // em "state ajustado durante o render" + "ref resetada no efeito"
+  // introduziria uma janela onde os dois ficam temporariamente inconsistentes
+  // (o ref só zera depois do commit); manter os dois juntos no efeito garante
+  // que o story novo sempre começa com AMBOS zerados no mesmo instante.
   useEffect(() => {
     setKindOverride(null);
     triedFlipRef.current = false;
@@ -218,7 +240,7 @@ export function StoryViewer({
 
     startTsRef.current = Date.now();
     intervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTsRef.current;
+      const elapsed = Date.now() - (startTsRef.current ?? Date.now());
       const pct = Math.min(100, (elapsed / STORY_DURATION_MS) * 100);
       setProgressPct(pct);
       if (elapsed >= STORY_DURATION_MS) {

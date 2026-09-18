@@ -71,11 +71,15 @@ export function ComboBox({
   const [destaque, setDestaque] = useState(0);
   const raiz = useRef<HTMLDivElement | null>(null);
 
-  // Valor mudou por fora (ex.: trocar o estado limpa a cidade).
-  useEffect(() => {
-    if (aberto) return;
-    setTexto(selecionada?.label ?? (allowFree ? value : ''));
-  }, [selecionada, value, allowFree, aberto]);
+  // Valor mudou por fora (ex.: trocar o estado limpa a cidade). Ajuste
+  // DURANTE o render (idiom oficial) — puramente derivado, sem trabalho
+  // assíncrono/DOM. Só sincroniza fechado: aberto, a pessoa está digitando.
+  const rotuloDerivado = selecionada?.label ?? (allowFree ? value : '');
+  const [rotuloVisto, setRotuloVisto] = useState({ rotulo: rotuloDerivado, aberto });
+  if (rotuloDerivado !== rotuloVisto.rotulo || aberto !== rotuloVisto.aberto) {
+    setRotuloVisto({ rotulo: rotuloDerivado, aberto });
+    if (!aberto) setTexto(rotuloDerivado);
+  }
 
   // Clique fora fecha e devolve o texto pro que está de fato selecionado —
   // senão a tela mostraria uma cidade que o formulário não guardou.

@@ -76,6 +76,10 @@ export function JobFormModal({
 
   // Reset do form quando o modal abre (com defaultDate fresca). Garante que
   // reabrir limpa o conteúdo anterior. Roda só na transição closed→open.
+  // Fica como efeito de propósito: o foco do 1º input (abaixo) exige o DOM
+  // já commitado, então já precisa ser pós-render — juntar o reset de state
+  // no mesmo efeito evita separar duas ações que sempre acontecem juntas em
+  // dois mecanismos com timing diferente.
   useEffect(() => {
     if (open) {
       setForm(emptyState(defaultDate));

@@ -109,8 +109,12 @@ export function ProfileHeader() {
   // tem PRO mas com aviso (vanilla mostra banner amarelo).
   const graceUntil = (profile as { pro_grace_until?: string | null } | null)
     ?.pro_grace_until;
-  const inGrace =
-    isPro && graceUntil ? new Date(graceUntil).getTime() > Date.now() : false;
+  // `Date.now()` no corpo do render é impuro — mesmo raciocínio do
+  // `isBoosted` em PostCard.tsx: aceito porque é cosmético (dias restantes
+  // de grace period exibidos numa tela que já re-renderiza com frequência
+  // — perfil sendo editado, dados carregando —, e o React Compiler que
+  // tornaria a staleness um bug de verdade não está ativo aqui).
+  const inGrace = isPro && graceUntil ? new Date(graceUntil).getTime() > Date.now() : false;
   const graceDays = inGrace && graceUntil
     ? Math.max(
         0,

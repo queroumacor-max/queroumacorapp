@@ -245,6 +245,8 @@ export function useAlice(): UseAliceResult {
 
   const hydratedForUserRef = useRef<string | null>(userId);
   useEffect(() => {
+    // Sincroniza com localStorage (sistema externo, troca de conta) —
+    // leitura só existe no browser, guardada por ref pra rodar 1x por user.
     if (hydratedForUserRef.current === userId) return;
     hydratedForUserRef.current = userId;
     setSessions(readSessions(userId));
@@ -286,7 +288,9 @@ export function useAlice(): UseAliceResult {
   }, [autoSpeak]);
 
   const conversationModeRef = useRef(conversationMode);
-  conversationModeRef.current = conversationMode;
+  useEffect(() => {
+    conversationModeRef.current = conversationMode;
+  }, [conversationMode]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -450,7 +454,9 @@ export function useAlice(): UseAliceResult {
   });
 
   const startVoiceRef = useRef(recorder.start);
-  startVoiceRef.current = recorder.start;
+  useEffect(() => {
+    startVoiceRef.current = recorder.start;
+  }, [recorder.start]);
 
   const speak = useCallback(
     async (messageId: string) => {

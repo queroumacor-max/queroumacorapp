@@ -138,6 +138,8 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
       if (typeof restored.note === 'string') setInternalNote(restored.note);
     },
   });
+  // Sincroniza com o hook useAutosave (sistema externo — grava em
+  // localStorage num ciclo próprio, não é derivável no render).
   useEffect(() => {
     if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
       setDraftSavedAt(autosave.lastSavedAt);
@@ -148,6 +150,8 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // fetch direto se não estiver no cache.
   const quote = quotes.find((q) => q.id === id) ?? localQuote;
 
+  // Sincroniza com o Supabase (fetch) — `setFetching(true)` marca o início
+  // do trabalho assíncrono que segue, canônico de efeito de busca de dado.
   useEffect(() => {
     if (authLoading || !user) return;
     if (quotes.some((q) => q.id === id)) return;

@@ -9,6 +9,8 @@ export function StagingBanner() {
   const [host, setHost] = useState<string | null>(null);
 
   useEffect(() => {
+    // Sincroniza com window.location (sistema externo) — não é derivável
+    // no render/SSR.
     if (typeof window === 'undefined') return;
     const h = window.location.hostname;
     // Produção: queroumacor.com.br ou www.queroumacor.com.br → sem badge.

@@ -132,9 +132,16 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   // nao — mesma tela, duas regras diferentes pro mesmo ato de moderar.
   // Quem autoriza de verdade e a RLS; isto aqui so decide o que aparece.
   const podeModerar = !isOwn && userIsAdmin;
-  // S11: post boost. NULL ou passado = sem destaque.
-  const isBoosted =
-    !!post.boosted_until && new Date(post.boosted_until).getTime() > Date.now();
+  // S11: post boost. NULL ou passado = sem destaque. `Date.now()` no corpo
+  // do render é IMPURO por definição — se ninguém re-renderizar depois do
+  // exato instante em que o boost expira, o badge fica "preso" true por
+  // mais alguns instantes. Aceito: é cosmético (badge "Em destaque"), e
+  // outras coisas no feed já re-renderizam com frequência o bastante
+  // (scroll, curtidas, novos posts) pra essa janela nunca ser perceptível
+  // — adicionar um timer só pra isto seria complexidade desproporcional
+  // pro ganho, e o React Compiler que tornaria isto um bug de verdade não
+  // está ativo neste projeto.
+  const isBoosted = !!post.boosted_until && new Date(post.boosted_until).getTime() > Date.now();
 
   const [optsOpen, setOptsOpen] = useState(false);
 
