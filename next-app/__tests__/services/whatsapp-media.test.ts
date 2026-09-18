@@ -4,8 +4,6 @@
 // webhook.
 import { describe, expect, it } from 'vitest';
 import {
-  base64DoPayload,
-  base64ParaBytes,
   caminhoMidia,
   extensaoDe,
   mimeBase,
@@ -52,31 +50,5 @@ describe('caminhoMidia', () => {
     const p = caminhoMidia('+55 (11) 98827-1552', 'ab/../cd?x=1', 'image/png');
     expect(p).toBe('5511988271552/abcdx1.png');
     expect(p).not.toContain('..');
-  });
-});
-
-describe('base64ParaBytes', () => {
-  it('decodifica e aguenta data URL e quebras de linha', () => {
-    // "Oi" em base64 é "T2k=".
-    expect(Array.from(base64ParaBytes('T2k='))).toEqual([79, 105]);
-    expect(Array.from(base64ParaBytes('data:audio/ogg;base64,T2k='))).toEqual([79, 105]);
-    expect(Array.from(base64ParaBytes('T2\nk='))).toEqual([79, 105]);
-  });
-});
-
-describe('base64DoPayload — o campo muda de lugar conforme a versão', () => {
-  it('acha em message.base64', () => {
-    expect(base64DoPayload({ message: { base64: 'AAA', mimetype: 'image/png' } })).toEqual({
-      base64: 'AAA',
-      mimetype: 'image/png',
-    });
-  });
-  it('acha na raiz', () => {
-    expect(base64DoPayload({ base64: 'BBB', mimetype: 'audio/ogg' })?.base64).toBe('BBB');
-    expect(base64DoPayload({ mediaBase64: 'CCC' })?.base64).toBe('CCC');
-  });
-  it('sem base64 devolve null — aí o webhook busca na Evolution', () => {
-    expect(base64DoPayload({ message: { conversation: 'oi' } })).toBeNull();
-    expect(base64DoPayload(null)).toBeNull();
   });
 });

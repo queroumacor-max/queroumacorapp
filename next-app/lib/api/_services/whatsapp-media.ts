@@ -2,15 +2,17 @@
 // cliente manda no WhatsApp (foto, áudio, vídeo, documento).
 //
 // Por que existe: o evento do WhatsApp não carrega o arquivo, só o aviso
-// de que existe um. Até aqui o webhook gravava um marcador de texto —
-// "[áudio]", "[imagem]" — e o arquivo ficava só no celular da loja. Quem
-// atendia pelo portal respondia sem ter visto a foto da parede.
+// de que existe um. Sem isso o webhook gravaria só um marcador de texto —
+// "[áudio]", "[imagem]" — e o arquivo ficaria só no celular da loja. Quem
+// atendia pelo portal responderia sem ter visto a foto da parede.
 //
-// Caminho: base64 (do próprio webhook, se o Manager estiver com "Webhook
-// Base64" ligado, ou buscado na Evolution) → bucket `whatsapp-media` no
-// Supabase Storage → o path fica em `whatsapp_messages.media_url`. O
-// portal pede uma URL assinada na hora de mostrar; o bucket é PRIVADO,
-// porque é conversa de cliente, não conteúdo público.
+// Caminho (Cloud API/Dualhook, ver `baixarMidiaCloudApi` no fim do
+// arquivo): a Meta manda só um `id`; os bytes se buscam em dois passos
+// (`GET /{id}` devolve URL temporária, a URL entrega o arquivo) → bucket
+// `whatsapp-media` no Supabase Storage → o path fica em
+// `whatsapp_messages.media_url`. O portal pede uma URL assinada na hora de
+// mostrar; o bucket é PRIVADO, porque é conversa de cliente, não conteúdo
+// público.
 //
 // Áudio ainda passa pelo Whisper: a transcrição vai pra coluna
 // `transcript`, aparece embaixo do player e — o que mais importa — entra
@@ -20,10 +22,14 @@
 // TUDO best-effort: qualquer falha aqui devolve o que já tem e a mensagem
 // é gravada mesmo assim, com o marcador de antes. Mídia perdida é chato;
 // webhook falhando é pior.
+//
+// O caminho da Evolution API (base64 dentro do próprio evento do webhook,
+// ou buscado num endpoint dela) foi removido em 2026-09-17 (limpeza de
+// código morto): zero call site fora deste arquivo e dos testes desde a
+// migração pra Cloud API/Dualhook (2026-09-05). Histórico no git.
 
 import { getRuntimeEnv } from '../env';
 import { getServiceKey, getSupabaseUrl } from '../security';
-import { DEFAULT_EVOLUTION_INSTANCE } from './whatsapp-evo';
 
 export const MEDIA_BUCKET = 'whatsapp-media';
 
@@ -65,77 +71,13 @@ export function extensaoDe(mime: string, tipo?: string): string {
 }
 
 /**
- * Caminho no bucket. Vai pelo message_id, que é único: se a Evolution
- * reentregar o mesmo evento, sobrescreve o arquivo em vez de duplicar.
+ * Caminho no bucket. Vai pelo message_id, que é único: se a Meta reentregar
+ * o mesmo evento, sobrescreve o arquivo em vez de duplicar.
  */
 export function caminhoMidia(waId: string, messageId: string, mime: string, tipo?: string): string {
   const id = (messageId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || `${Date.now()}`;
   const num = (waId || 'desconhecido').replace(/\D/g, '') || 'desconhecido';
   return `${num}/${id}.${extensaoDe(mime, tipo)}`;
-}
-
-/** base64 → bytes, sem Buffer (isto roda no edge do Cloudflare). */
-export function base64ParaBytes(b64: string): Uint8Array {
-  const limpo = (b64 || '').replace(/^data:[^;]+;base64,/, '').replace(/\s/g, '');
-  const bin = atob(limpo);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-/**
- * Procura o base64 dentro do payload do webhook. A Evolution só manda
- * isso com "Webhook Base64" ligado no Manager — e o campo muda de lugar
- * conforme a versão, por isso os três palpites.
- */
-export function base64DoPayload(item: unknown): { base64: string; mimetype: string } | null {
-  const d = item as {
-    message?: { base64?: string; mimetype?: string };
-    base64?: string;
-    mediaBase64?: string;
-    mimetype?: string;
-    messageType?: string;
-  } | null;
-  const b64 = d?.message?.base64 || d?.base64 || d?.mediaBase64 || '';
-  if (!b64 || typeof b64 !== 'string') return null;
-  return { base64: b64, mimetype: d?.message?.mimetype || d?.mimetype || '' };
-}
-
-/**
- * Plano B: pede o arquivo pra Evolution a partir da chave da mensagem.
- * Só é usado quando o webhook não trouxe base64.
- */
-export async function baixarMidiaEvolution(key: {
-  id?: string;
-  remoteJid?: string;
-  fromMe?: boolean;
-}): Promise<{ base64: string; mimetype: string } | null> {
-  const base = (getRuntimeEnv('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
-  const apikey = getRuntimeEnv('EVOLUTION_API_KEY') || '';
-  const instance = getRuntimeEnv('EVOLUTION_INSTANCE') || DEFAULT_EVOLUTION_INSTANCE;
-  if (!base || !apikey || !key?.id) return null;
-  try {
-    const r = await fetch(
-      `${base}/chat/getBase64FromMediaMessage/${encodeURIComponent(instance)}`,
-      {
-        method: 'POST',
-        headers: { apikey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: { key }, convertToMp4: false }),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      },
-    );
-    if (!r.ok) {
-      console.warn('wa-media: Evolution recusou o download', r.status);
-      return null;
-    }
-    const j = (await r.json()) as { base64?: string; mimetype?: string; media?: string };
-    const b64 = j?.base64 || j?.media || '';
-    if (!b64) return null;
-    return { base64: b64, mimetype: j?.mimetype || '' };
-  } catch (e) {
-    console.warn('wa-media: falha ao baixar da Evolution:', e instanceof Error ? e.message : e);
-    return null;
-  }
 }
 
 /** Sobe pro bucket privado com a service_role. Devolve o PATH, não a URL. */
@@ -201,64 +143,11 @@ export async function transcreverAudio(bytes: Uint8Array, mime: string): Promise
   }
 }
 
-export interface MidiaProcessada {
-  mediaUrl: string | null;
-  mediaMime: string | null;
-  transcript: string | null;
-}
-
-/**
- * Ponto de entrada do webhook: guarda o arquivo e, se for áudio,
- * transcreve. Nunca lança.
- */
-export async function processarMidia(opts: {
-  waId: string;
-  messageId: string;
-  tipo: string;
-  item: unknown;
-  key?: { id?: string; remoteJid?: string; fromMe?: boolean };
-}): Promise<MidiaProcessada> {
-  const vazio: MidiaProcessada = { mediaUrl: null, mediaMime: null, transcript: null };
-  try {
-    const bruto = base64DoPayload(opts.item) || (await baixarMidiaEvolution(opts.key || {}));
-    if (!bruto) return vazio;
-
-    const bytes = base64ParaBytes(bruto.base64);
-    if (!bytes.length || bytes.length > MAX_MEDIA_BYTES) return vazio;
-
-    const mime = mimeBase(bruto.mimetype) || palpiteMime(opts.tipo);
-    const path = caminhoMidia(opts.waId, opts.messageId, mime, opts.tipo);
-    const salvo = await subirMidia(path, bytes, mime);
-
-    const transcript = opts.tipo === 'audio' ? await transcreverAudio(bytes, mime) : '';
-    return {
-      mediaUrl: salvo,
-      mediaMime: salvo ? mime : null,
-      transcript: transcript || null,
-    };
-  } catch (e) {
-    console.warn('wa-media: processarMidia:', e instanceof Error ? e.message : e);
-    return vazio;
-  }
-}
-
-function palpiteMime(tipo: string): string {
-  if (tipo === 'image') return 'image/jpeg';
-  if (tipo === 'audio') return 'audio/ogg';
-  if (tipo === 'video') return 'video/mp4';
-  if (tipo === 'document') return 'application/pdf';
-  return 'application/octet-stream';
-}
-
 // ─── Cloud API (Meta via Dualhook) ──────────────────────────────────────────
 //
 // Aqui a mídia NÃO vem no webhook: o evento traz só um `id`, e o arquivo se
 // busca em dois passos — `GET /{id}` devolve uma URL temporária, e essa URL
 // entrega os bytes. Os dois pedem o mesmo Bearer.
-//
-// É diferente da Evolution, que mandava o base64 dentro do próprio evento
-// (ou servia o arquivo num endpoint só). Por isso este caminho é novo em vez
-// de reaproveitar `baixarMidiaEvolution`.
 //
 // Falha aqui é BEST-EFFORT: a mensagem já foi gravada e aparece na conversa
 // com o marcador ("[audio]"). Perder o arquivo degrada; derrubar o webhook
