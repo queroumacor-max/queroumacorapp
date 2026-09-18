@@ -42,6 +42,7 @@ export function PreviewView() {
     // early-return sem usuário) fazem parte do MESMO ciclo de
     // carregamento, não são reset derivado de prop.
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setLoading(false);
       return;
     }
@@ -227,7 +228,6 @@ export function PreviewView() {
               >
                 {p.media_url ? (
                   p.media_type === 'video' ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <video
                       src={p.media_url}
                       muted
@@ -235,7 +235,6 @@ export function PreviewView() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={p.media_url}
                       alt={p.caption ?? 'Post'}

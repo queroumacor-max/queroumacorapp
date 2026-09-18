@@ -179,7 +179,6 @@ async function fetchFeedV2(params: FetchFeedParams): Promise<FeedPage | null> {
   if (error) {
     // Sinaliza pro caller cair pro legacy. Loga pra Sentry capturar
     // como breadcrumb — quando Sentry estiver carregado (browser).
-    // eslint-disable-next-line no-console
     console.warn('[feed] get_feed_v2 falhou, fallback legacy:', error.message);
     addFeedBreadcrumb('rpc_error', { error: error.message });
     return null;
@@ -297,7 +296,6 @@ export async function fetchFeed(params: FetchFeedParams = {}): Promise<FeedPage>
   // (authorIds) — a v2 não suporta esse filtro; vai direto pro legacy.
   if (!params.authorIds) {
     const v2 = await fetchFeedV2(params).catch((e) => {
-      // eslint-disable-next-line no-console
       console.warn('[feed] get_feed_v2 throw, fallback legacy:', e);
       addFeedBreadcrumb('rpc_throw', { error: String(e) });
       return null;

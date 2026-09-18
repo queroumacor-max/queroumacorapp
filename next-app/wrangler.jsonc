@@ -1,0 +1,81 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "queroumacor-next",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-05-01",
+  // "nodejs_compat" já era usado em wrangler.toml. @opennextjs/cloudflare
+  // também recomenda "global_fetch_strictly_public" (reduz a superfície de
+  // SSRF interno do runtime — o worker não consegue mais alcançar
+  // endereços internos da rede da Cloudflare por engano via fetch). Não
+  // testado a fundo contra os endpoints de IA/WhatsApp/MP desta app antes
+  // da migração de verdade — validar no smoke test (P8, seção 5.1 de
+  // docs/adr/0006-workers-migration-artifacts.md) antes de confiar.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // Vars públicas no nível TOP — mesmas 5 que hoje vivem em wrangler.toml
+  // [vars], nada muda de valor, só de arquivo/formato. Servem de default
+  // pro `wrangler dev` local sem `--env` — NÃO são herdadas por
+  // env.production/env.preview (Workers Environments não herdam `vars`,
+  // confirmado em /workers/best-practices/workers-best-practices/), por
+  // isso os dois blocos abaixo repetem as mesmas 5 chaves.
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
+    "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+    "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
+  },
+
+  "env": {
+    "production": {
+      // Custom Domain SÓ entra aqui depois do smoke test do P8 confirmar
+      // que o Worker responde certo em endereço próprio — não antes.
+      // Adicionar esta chave é o próprio ATO do corte de DNS (junto com
+      // remover o Custom Domain do lado do Pages primeiro — ver runbook
+      // P8, docs/adr/0006-workers-migration-artifacts.md seção 5). Deixar
+      // COMENTADO até esse momento — NÃO descomentar sem autorização
+      // explícita e específica pro corte de DNS.
+      // "routes": [
+      //   { "pattern": "queroumacor.com.br", "custom_domain": true },
+      //   { "pattern": "www.queroumacor.com.br", "custom_domain": true }
+      // ],
+
+      // KV binding pra cache de cidades IBGE — hoje só configurado no
+      // painel CF Pages, código NÃO lê env.KV ainda. Migrar a declaração
+      // pra cá é melhoria (revisável em PR), mas só faz sentido preencher
+      // o ID real quando/se o código passar a ler `env.KV` de verdade.
+      // "kv_namespaces": [
+      //   { "binding": "KV", "id": "<ID de queroumacorapp-cidades>" }
+      // ],
+
+      // Repetidas explicitamente — `vars` NÃO herda do topo em Workers
+      // Environments. Valores idênticos aos do topo.
+      "vars": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
+        "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
+      }
+    },
+
+    "preview": {
+      // Preview usa as MESMAS 5 vars públicas, repetidas pelo mesmo
+      // motivo (não herdam do topo) — ZERO secret de produção acessível
+      // daqui. É este conjunto ficar restrito às 5 públicas — nunca
+      // crescer com nomes de secret — que mantém a fronteira do
+      // STAGING.md fechada no modelo novo.
+      "vars": {
+        "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
+        "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
+      }
+    }
+  }
+}

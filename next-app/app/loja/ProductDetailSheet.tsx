@@ -294,7 +294,6 @@ export function ProductDetailSheet({ product, onClose, onAdd }: ProductDetailShe
         }}
       >
         {effectiveProduct.image_url ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={effectiveProduct.image_url}
             alt=""

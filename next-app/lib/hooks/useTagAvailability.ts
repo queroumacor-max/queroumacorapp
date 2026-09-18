@@ -26,6 +26,7 @@ export function useTagAvailability(tag: string, debounceMs = 400): TagStatus {
     // MESMO ciclo de validação, não são reset derivado de prop.
     const trimmed = tag.trim();
     if (!trimmed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setStatus('idle');
       return;
     }

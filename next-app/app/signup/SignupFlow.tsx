@@ -104,6 +104,7 @@ export function SignupFlow() {
     // initializer, ver comentário acima).
     const saved = readDraft();
     if (saved && (saved.step > 1 || Object.keys(saved.draft).length > 0)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDraft((d) => ({ ...saved.draft, ...d }));
       setStep(saved.step);
     }

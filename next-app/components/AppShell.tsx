@@ -76,6 +76,7 @@ export function AppShell({
     // Sincroniza com localStorage (sistema externo) — leitura só existe no
     // browser, não é derivável no render/SSR (ver comentário acima).
     if (loading || user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setStoredSession(hasStoredSession());
   }, [loading, user]);
 

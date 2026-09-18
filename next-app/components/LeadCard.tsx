@@ -62,7 +62,6 @@ export function LeadCard({ lead, onComprar, isComprarando, onOrcamento }: LeadCa
         ) : (
           // next/image precisaria de allowlist de domínios no next.config —
           // usamos <img> nativa pra simplificar até a config existir.
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={lead.media_url}
             alt={lead.art_type || 'Lead'}

@@ -231,7 +231,6 @@ export function Enquadramento({ files, value, onChange, disabled }: Enquadrament
         }}
       >
         {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={url}
             alt={`Foto ${idx + 1} no enquadramento`}

@@ -66,6 +66,7 @@ export function MediaUploader({
     // Sincroniza com localStorage (sistema externo) — leitura só existe no
     // browser, no mount, não é derivável no render/SSR.
     if (!consumirEscolhaPendente('publicar')) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setReiniciou(true);
     reportFailure('picker-restart', new Error('app reiniciou com a galeria aberta'), {
       ctx: 'publicar',

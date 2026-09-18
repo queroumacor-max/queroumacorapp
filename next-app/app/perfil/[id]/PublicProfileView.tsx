@@ -105,6 +105,7 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   // canônico de efeito de busca de dado.
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setLoading(true);
     setProfileNotFound(false);
     const sb = getSupabase();
@@ -621,7 +622,6 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
               >
                 {p.media_url ? (
                   p.media_type === 'video' ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <video
                       src={p.media_url}
                       muted
@@ -629,7 +629,6 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={p.media_url}
                       alt={p.caption ?? 'Post'}

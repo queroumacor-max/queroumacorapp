@@ -150,7 +150,6 @@ function SelfStoryAvatar({
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
           {ownStoryAvatar ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={ownStoryAvatar}
               alt=""
@@ -244,7 +243,6 @@ function StoryAvatar({ group, onClick }: StoryAvatarProps) {
           className="w-full h-full rounded-full flex items-center justify-center overflow-hidden"
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={avatarSrc}
             alt=""

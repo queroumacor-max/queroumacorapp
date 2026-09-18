@@ -102,7 +102,6 @@ function buildHarness(): Harness {
     return 0;
   };
 
-  // eslint-disable-next-line no-new-func
   const evaluate = new Function(
     'self',
     'caches',

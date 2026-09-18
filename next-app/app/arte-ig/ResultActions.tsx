@@ -60,6 +60,7 @@ export function ResultActions({
       // Efeito que também dispara trabalho assíncrono (applyLogoToImage)
       // mais abaixo quando withLogo=true; o ramo síncrono aqui é só o
       // cedo-cedo do MESMO efeito, não vale separar em dois mecanismos.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDisplayUrl(imageDataUrl);
       setApplyError(null);
       return;

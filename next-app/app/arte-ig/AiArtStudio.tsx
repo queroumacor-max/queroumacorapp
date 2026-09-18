@@ -158,6 +158,7 @@ export function AiArtStudio() {
   // existem.
   useEffect(() => {
     if (ai.postResult?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setPhoto1(null);
       setPhoto2(null);
       setHint('');
@@ -447,7 +448,6 @@ export function AiArtStudio() {
                       style={{ border: 'none', padding: 0, cursor: 'zoom-in', background: 'none' }}
                       aria-label="Ver arte em tela cheia"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={it.imageDataUrl}
                         alt="Arte anterior"
@@ -517,7 +517,6 @@ export function AiArtStudio() {
               className="fixed inset-0 z-[1100] flex items-center justify-center"
               style={{ background: 'rgba(0,0,0,.88)', padding: 16 }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={viewerUrl}
                 alt="Arte em tela cheia"

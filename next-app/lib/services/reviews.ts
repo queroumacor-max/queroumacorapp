@@ -50,7 +50,6 @@ export async function listPainterReviews(
   );
   if (error) {
     // Não-fatal: loga e devolve vazio.
-    // eslint-disable-next-line no-console
     console.warn('[listPainterReviews] RPC falhou:', error.message);
     return [];
   }

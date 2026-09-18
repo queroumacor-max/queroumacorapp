@@ -253,9 +253,7 @@ function ReviewRow({
               // Imagem da mídia em quarentena — abre nova aba ao clicar.
               // Evita Next/Image porque a URL é externa do Supabase e
               // mídias suspeitas podem ser pesadas; preferimos lazy + tag bruta.
-              // eslint-disable-next-line @next/next/no-img-element
               <a href={row.media_url} target="_blank" rel="noopener noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={row.media_url}
                   alt="mídia em revisão"

@@ -10,15 +10,18 @@
 // baixar `https://queroumacor.com.br/_next/static/chunks/<hash>.js.map`
 // direto e reconstruir o código-fonte legível do app inteiro.
 //
-// Este script roda DEPOIS do `next-on-pages` (que já copiou tudo de
-// `.next` pra `.vercel/output/static`) e apaga todo `.map` do artefato que
-// vai pro Cloudflare Pages — independente de o upload do Sentry ter
-// acontecido ou não. Não afeta a symbolication no Sentry: o upload (quando
-// o token existe) já rodou durante o `next build`, antes deste script.
+// Migração pro adapter OpenNext (docs/adr/0006-opennext-cloudflare-deploy-
+// pipeline.md): este script agora roda DEPOIS do `opennextjs-cloudflare
+// build`, que gera `.open-next/worker.js` (arquivo) + `.open-next/assets/`
+// (pasta) — IRMÃOS, não um dentro do outro. Varre `.open-next` INTEIRO (não
+// só `assets/`) e apaga todo `.map` do artefato publicado — independente de
+// o upload do Sentry ter acontecido ou não. Não afeta a symbolication no
+// Sentry: o upload (quando o token existe) já rodou durante o `next build`,
+// que o `build:cf` roda por dentro.
 import { readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-const OUTPUT_DIR = join(process.cwd(), '.vercel', 'output', 'static');
+const OUTPUT_DIR = join(process.cwd(), '.open-next');
 
 function walkAndStrip(dir) {
   let removed = 0;

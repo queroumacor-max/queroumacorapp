@@ -134,7 +134,6 @@ export function ProView() {
           >
             {f.icon.startsWith('/') ? (
               // Foto da persona no MESMO tamanho visual dos emojis (20px).
-              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={f.icon}
                 alt=""
