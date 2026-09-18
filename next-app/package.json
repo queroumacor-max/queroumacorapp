@@ -5,9 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "npx @cloudflare/next-on-pages@1 && node scripts/strip-source-maps.mjs",
-    "deploy:preview": "wrangler pages deploy .vercel/output/static --project-name=queroumacor-next-preview",
-    "deploy:prod": "wrangler pages deploy .vercel/output/static --project-name=queroumacor-next",
+    "build:cf": "opennextjs-cloudflare build && node scripts/strip-source-maps.mjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -22,7 +20,7 @@
     "@tanstack/react-query": "^5.51.0",
     "caniuse-lite": "^1.0.30001793",
     "jspdf": "^4.2.1",
-    "next": "15.5.25",
+    "next": "16.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.52.0",
@@ -32,7 +30,7 @@
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",
     "@capacitor/ios": "^6.2.0",
-    "@cloudflare/next-on-pages": "^1.13.0",
+    "@opennextjs/cloudflare": "^1.20.6",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/dom": "^10.0.0",
     "@testing-library/jest-dom": "^6.5.0",
@@ -51,6 +49,6 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.0.0",
-    "wrangler": "^3.78.0"
+    "wrangler": "^4.134.0"
   }
 }
