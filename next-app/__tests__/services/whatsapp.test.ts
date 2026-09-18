@@ -36,6 +36,7 @@ import {
   isWhatsAppConfigured,
   normalizeBrPhone,
   parseInboundMessages,
+  persistInboundMessage,
   persistWhatsAppMessage,
   sendWhatsAppTemplate,
   sendWhatsAppText,
@@ -474,6 +475,83 @@ describe('persistWhatsAppMessage', () => {
     expect(await persistWhatsAppMessage({ direction: 'in', waId: 'x' })).toBe(false);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('down')));
     expect(await persistWhatsAppMessage({ direction: 'in', waId: 'x' })).toBe(false);
+  });
+});
+
+// ─── persistInboundMessage (auditoria de webhooks 2026-09-17 — dedupe) ──────
+//
+// `maybeAutoReply` só pode rodar quando o wamid é REALMENTE novo. A garantia
+// vem do Postgres (UNIQUE + ON CONFLICT DO NOTHING), não de uma leitura
+// prévia — leitura-depois-decide teria corrida; aqui o próprio INSERT
+// responde atomicamente. `return=representation`: corpo com a linha = houve
+// INSERT de verdade; corpo `[]` = já existia (conflito).
+describe('persistInboundMessage', () => {
+  const SUPA_URL = 'https://fake.supabase.co';
+  const SERVICE_KEY = 'service-key-teste';
+
+  beforeEach(() => {
+    process.env.SUPABASE_URL = SUPA_URL;
+    process.env.SUPABASE_SERVICE_ROLE = SERVICE_KEY;
+  });
+
+  afterEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE;
+  });
+
+  it('linha nova → "inserted", pede return=representation', async () => {
+    const spy = stubFetchOnce(201, [{ id: 'row-1', message_id: 'wamid.abc' }]);
+    const r = await persistInboundMessage({
+      direction: 'in',
+      waId: '5511988887777',
+      messageId: 'wamid.abc',
+      type: 'text',
+      body: 'oi',
+    });
+    expect(r).toBe('inserted');
+    const [, init] = spy.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Prefer).toContain('ignore-duplicates');
+    expect(headers.Prefer).toContain('return=representation');
+  });
+
+  // O caso central do achado: mesmo wamid entregue de novo (retry da Meta,
+  // ou replay de quem tem o segredo de URL) → corpo vazio, "duplicate" — é
+  // este sinal que a rota usa pra NÃO chamar maybeAutoReply de novo.
+  it('wamid repetido (reentrega/replay) → "duplicate", nunca "inserted"', async () => {
+    stubFetchOnce(201, []);
+    const r = await persistInboundMessage({
+      direction: 'in',
+      waId: '5511988887777',
+      messageId: 'wamid.abc',
+      type: 'text',
+      body: 'oi',
+    });
+    expect(r).toBe('duplicate');
+  });
+
+  it('sem messageId (mensagem malformada) → sempre "inserted" (NULL não deduplica)', async () => {
+    stubFetchOnce(201, [{ id: 'row-2', message_id: null }]);
+    const r = await persistInboundMessage({ direction: 'in', waId: '5511988887777', messageId: '' });
+    expect(r).toBe('inserted');
+  });
+
+  it('falha de infra (REST erro, sem service key, rede) → "error", nunca "duplicate"', async () => {
+    stubFetchOnce(500, { message: 'boom' });
+    expect(
+      await persistInboundMessage({ direction: 'in', waId: 'x', messageId: 'wamid.1' })
+    ).toBe('error');
+
+    delete process.env.SUPABASE_SERVICE_ROLE;
+    expect(
+      await persistInboundMessage({ direction: 'in', waId: 'x', messageId: 'wamid.2' })
+    ).toBe('error');
+    process.env.SUPABASE_SERVICE_ROLE = SERVICE_KEY;
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('down')));
+    expect(
+      await persistInboundMessage({ direction: 'in', waId: 'x', messageId: 'wamid.3' })
+    ).toBe('error');
   });
 });
 

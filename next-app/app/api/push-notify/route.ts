@@ -34,6 +34,7 @@ import {
   type DeviceTokenRow,
   type FcmServiceAccount,
 } from '@/lib/api/_services/fcm';
+import { isAllowedPushEndpoint } from '@/lib/api/_services/push-endpoint-guard';
 
 export const runtime = 'edge';
 
@@ -192,8 +193,26 @@ export async function POST(request: NextRequest): Promise<Response> {
   let webRemoved = 0;
   let webTotal = 0;
   if (webPushOn) {
-    const subs = await fetchSubscriptions(supabaseUrl, serviceKey, userIds);
-    webTotal = subs.length;
+    const todasSubs = await fetchSubscriptions(supabaseUrl, serviceKey, userIds);
+    webTotal = todasSubs.length;
+    // SSRF (auditoria de webhooks 2026-09-17): `endpoint` é gravado pelo
+    // PRÓPRIO CLIENTE (`push_subscriptions_insert_own` só garante
+    // `user_id = auth.uid()`, não que o valor seja um push service de
+    // verdade). Qualquer usuário autenticado pode inserir uma linha com
+    // `endpoint` apontando pra QUALQUER URL — e este handler, chamado pelo
+    // trigger do banco com credencial de serviço, fazia `fetch(sub.endpoint,
+    // …)` sem checar nada. Bastava a pessoa disparar uma notificação pra si
+    // mesma (curtir/comentar/seguir usando uma segunda conta, por exemplo)
+    // pra o edge da Cloudflare emitir um POST autenticado (JWT VAPID) pra
+    // onde ela quisesse — metadado de nuvem, serviço interno, qualquer
+    // terceiro. `subs` agora só inclui endpoint de um push service
+    // CONHECIDO; o resto é ignorado (fica na tabela, só não é chamado).
+    const subs = todasSubs.filter((sub) => isAllowedPushEndpoint(sub.endpoint));
+    if (subs.length !== todasSubs.length) {
+      console.warn(
+        `[push-notify] ${todasSubs.length - subs.length} subscription(s) com endpoint fora do allowlist — ignoradas`,
+      );
+    }
     const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
     const results = await Promise.all(
       subs.map((sub) =>
@@ -452,21 +471,40 @@ async function derivePublicKey(d: Uint8Array): Promise<{ x: Uint8Array; y: Uint8
   //     OCTET STRING (32 bytes, the scalar)
   //   }
 
+  // Auditoria de webhooks 2026-09-17 — BUG DE CORRETUDE achado escrevendo o
+  // teste adversarial de SSRF (que precisou de uma VAPID_PRIVATE_KEY de
+  // verdade pra provar que o endpoint PERMITIDO recebe o fetch): os dois
+  // comprimentos DER abaixo estavam ERRADOS — cada um contava o comprimento
+  // TOTAL da estrutura (header incluso) em vez do comprimento do CONTEÚDO
+  // (que é o que o campo `length` do DER declara). Resultado: a importação
+  // da chave falhava com `DataError: Invalid keyData` /
+  // `asn1 encoding routines::too long` — não em todo `VAPID_PRIVATE_KEY`
+  // (alguns parsers ASN.1 toleram declarar length maior que o disponível em
+  // certas posições), mas de forma consistente com um parser estrito, que é
+  // o caso do Node/OpenSSL usado aqui pra provar o bug e, por precaução,
+  // pode ser o caso do BoringSSL do V8 nos Workers também. Sem log nenhum
+  // (o catch de `sendWebPush` engole silenciosamente), então push nativo
+  // via Web Push (VAPID) podia estar morto em produção sem ninguém notar —
+  // toda notificação teria `sent:0` pra sempre, indistinguível de "endpoint
+  // expirado" ou "sem inscritos".
   const ecPrivKey = concat(
-    new Uint8Array([0x30, 0x27]), // SEQUENCE, length 39
+    new Uint8Array([0x30, 0x25]), // SEQUENCE — conteúdo tem 37 bytes (3 + 2 + 32)
     new Uint8Array([0x02, 0x01, 0x01]), // INTEGER 1
     new Uint8Array([0x04, 0x20]), // OCTET STRING length 32
     d,
   );
   const pkcs8 = concat(
-    new Uint8Array([0x30, 0x41]), // SEQUENCE, length 65
+    new Uint8Array([0x30, 0x41]), // SEQUENCE, length 65 (este já batia)
     new Uint8Array([0x02, 0x01, 0x00]), // INTEGER 0
     // AlgorithmIdentifier: ecPublicKey + prime256v1
     new Uint8Array([
       0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86,
       0x48, 0xce, 0x3d, 0x03, 0x01, 0x07,
     ]),
-    new Uint8Array([0x04, 0x29]), // OCTET STRING, length 41 (wraps the SEQUENCE above + 2 header bytes)
+    // OCTET STRING que embrulha `ecPrivKey` — este tem 39 bytes NO TOTAL
+    // (2 de header + 37 de conteúdo), então a OCTET STRING declara 39
+    // (0x27), não 41.
+    new Uint8Array([0x04, 0x27]),
     ecPrivKey,
   );
 

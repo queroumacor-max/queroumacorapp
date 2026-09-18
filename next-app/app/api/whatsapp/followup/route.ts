@@ -10,7 +10,7 @@
 // Dois chamadores, duas autenticações:
 //
 //   1. pg_cron do Supabase, de hora em hora, via pg_net:
-//        POST /api/whatsapp/followup?token=<WHATSAPP_WEBHOOK_URL_SECRET>
+//        POST /api/whatsapp/followup?token=<segredo>
 //
 //      MUDANÇA IMPORTANTE (2026-09-05): antes o segredo era o
 //      `EVOLUTION_WEBHOOK_TOKEN`. Essa env foi REMOVIDA do Cloudflare junto
@@ -18,9 +18,21 @@
 //      ela, `expected` fica vazio, o caminho do cron nunca autentica e a
 //      chamada cai na exigência de token de admin — que o cron não tem.
 //      Resultado: 403 de hora em hora, sem ninguém ver, e o follow-up parado.
-//      Agora vale o `WHATSAPP_WEBHOOK_URL_SECRET` (o mesmo do webhook, que
-//      existe e está em uso), com o token antigo ainda aceito pra não
-//      quebrar quem já estiver configurado.
+//      Por isso passou a valer o `WHATSAPP_WEBHOOK_URL_SECRET` (o mesmo do
+//      webhook, que existe e está em uso), com o token antigo ainda aceito
+//      pra não quebrar quem já estiver configurado.
+//
+//      Auditoria de webhooks 2026-09-17 (achado L3): reusar o segredo do
+//      WEBHOOK aqui é funcional, mas aumenta o raio de um vazamento — quem
+//      descobre o segredo do webhook também dispara a varredura de
+//      follow-up. `WHATSAPP_FOLLOWUP_URL_SECRET` é uma env NOVA e
+//      OPCIONAL: se configurada, tem prioridade; enquanto não existir, o
+//      comportamento é idêntico ao de antes (cai pro segredo do webhook).
+//      Trocar de segredo é só: gerar um valor novo (`openssl rand -hex 24`,
+//      mesma receita do `WHATSAPP_WEBHOOK_URL_SECRET`), configurar
+//      `WHATSAPP_FOLLOWUP_URL_SECRET` no Cloudflare Pages, e atualizar a URL
+//      chamada pelo pg_cron (`app_settings.whatsapp_followup_url`) com o
+//      novo `?token=`. Nenhuma mudança de código é necessária depois disso.
 //
 //   2. O portal, no botão "🔁 Follow-up agora", com o token do admin no
 //      corpo. Aceita `dryRun` pra ver o que ACONTECERIA sem enviar nada.
@@ -31,8 +43,10 @@
 import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import {
+  checkRateLimit,
   getToken,
   jsonResponse,
+  rateLimitResponse,
   readBody,
   ServiceError,
   serviceErrorResponse,
@@ -63,9 +77,12 @@ export async function POST(request: NextRequest) {
   }
 
   const provided = request.nextUrl.searchParams.get('token') || '';
-  // Ordem: o segredo atual primeiro; o antigo fica só como ponte pra
-  // configuração que ainda não foi trocada.
+  // Ordem: o segredo DEDICADO primeiro (se configurado — achado L3 da
+  // auditoria 2026-09-17, ver comentário no topo do arquivo), depois o do
+  // webhook (compat com quem ainda não migrou), depois o antigo da
+  // Evolution (ponte histórica).
   const aceitos = [
+    getRuntimeEnv('WHATSAPP_FOLLOWUP_URL_SECRET') || '',
     getRuntimeEnv('WHATSAPP_WEBHOOK_URL_SECRET') || '',
     getRuntimeEnv('EVOLUTION_WEBHOOK_TOKEN') || '',
   ].filter(Boolean);
@@ -84,6 +101,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const result = await runFollowupSweep({ dryRun: body?.dryRun === true });
+  const dryRun = body?.dryRun === true;
+  // Rate limit só na varredura de VERDADE (dryRun não manda nada). Chave
+  // fixa e global (não por chamador): o que queremos limitar é QUANTAS
+  // VEZES a varredura roda de verdade por minuto, não quem pediu — cron
+  // hourly + um admin clicando "Rodar agora" cabem sobrando; um replay do
+  // mesmo POST em rajada, não. Complementa a trava por isolate em
+  // `runFollowupSweep` (que sozinha não cobre isolates diferentes).
+  if (!dryRun) {
+    const rl = await checkRateLimit({
+      userId: 'whatsapp-followup-sweep',
+      endpoint: 'whatsapp-followup-sweep',
+      limit: 4,
+    });
+    if (!rl.allowed) return rateLimitResponse(rl);
+  }
+
+  const result = await runFollowupSweep({ dryRun });
   return jsonResponse(result);
 }
