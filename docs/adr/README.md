@@ -17,6 +17,7 @@ negativas) — pra que futuro mantenedor (humano ou agent) entenda
 | 0003 | [Backend em Cloudflare Pages Functions (V8 isolates)](./0003-cloudflare-pages-functions.md)     | Accepted |
 | 0004 | [Arquitetura modular com IIFE + shims (Fase 4 da modularização)](./0004-arquitetura-modular-com-shims.md) | Accepted |
 | 0005 | [Observabilidade em camadas (Sentry + tabela `errors` caseira)](./0005-observability-defense-em-camada.md) | Accepted |
+| 0006 | [Migração @cloudflare/next-on-pages → @opennextjs/cloudflare (deploy pipeline)](./0006-opennext-cloudflare-deploy-pipeline.md) | Proposed |
 
 Status possíveis:
 
