@@ -141,7 +141,6 @@ function PostCardInner({ post, muted, onToggleMute }: PostCardProps) {
   // — adicionar um timer só pra isto seria complexidade desproporcional
   // pro ganho, e o React Compiler que tornaria isto um bug de verdade não
   // está ativo neste projeto.
-  // eslint-disable-next-line react-hooks/purity -- ver comentário acima
   const isBoosted = !!post.boosted_until && new Date(post.boosted_until).getTime() > Date.now();
 
   const [optsOpen, setOptsOpen] = useState(false);

@@ -78,7 +78,6 @@ export function StoryViewer({
   // síncrona durante o render — é exatamente isso que o sinal significa.
   // Não existe alternativa sem efeito pra esse idioma específico (mount
   // detection pra portal SSR-safe).
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
   useEffect(() => setMontado(true), []);
 
   // Story COM SOM por padrão (01/09/2026). Antes o `<video muted>` era fixo:
@@ -161,7 +160,6 @@ export function StoryViewer({
     // react-hooks/refs recomenda pra inicializar um ref uma vez só com
     // valor impuro; não há initializer preguiçoso pra useRef (diferente de
     // useState) que evite isso.
-    // eslint-disable-next-line react-hooks/purity -- ver comentário acima
     startTsRef.current = Date.now();
   }
 
@@ -182,7 +180,6 @@ export function StoryViewer({
   // (o ref só zera depois do commit); manter os dois juntos no efeito garante
   // que o story novo sempre começa com AMBOS zerados no mesmo instante.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setKindOverride(null);
     triedFlipRef.current = false;
   }, [currentStory?.id]);

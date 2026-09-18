@@ -105,7 +105,6 @@ export function PublicProfileView({ idOrTag }: { idOrTag: string }) {
   // canônico de efeito de busca de dado.
   useEffect(() => {
     let cancel = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setLoading(true);
     setProfileNotFound(false);
     const sb = getSupabase();

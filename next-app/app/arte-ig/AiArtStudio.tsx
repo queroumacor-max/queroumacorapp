@@ -158,7 +158,6 @@ export function AiArtStudio() {
   // existem.
   useEffect(() => {
     if (ai.postResult?.ok) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setPhoto1(null);
       setPhoto2(null);
       setHint('');

@@ -25,7 +25,6 @@ export default function GlobalError({
     // (agendarRetomada) e espelha se ele foi de fato armado — não é
     // derivável no render, depende do freio compartilhado com o SW.
     const { agendado, cancelar } = agendarRetomada(() => window.location.reload());
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setTentando(agendado);
     return cancelar;
   }, []);

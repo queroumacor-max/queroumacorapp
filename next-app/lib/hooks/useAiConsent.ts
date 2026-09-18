@@ -21,7 +21,6 @@ export function useAiConsent() {
     // browser, não é derivável no render/SSR (por isso `accepted` nasce
     // null).
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setAccepted(localStorage.getItem(STORAGE_KEY) === '1');
     } catch {
       setAccepted(false);
@@ -35,7 +34,6 @@ export function useAiConsent() {
   // específica", mas widen pra `[user]` seria regressão de performance
   // real no React puro de hoje (o compiler que motivaria isso não está
   // ativo neste projeto).
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- ver comentário acima
   const accept = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, '1');

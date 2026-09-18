@@ -25,7 +25,6 @@ export function NativePushOptIn() {
   // pode registrar depois do 1º paint.
   useEffect(() => {
     const ok = native.push.isAvailable();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setAvailable(ok);
     if (!ok) return;
     // Lê o estado REAL da permissão ao montar. Sem isto o `status` nascia
@@ -57,7 +56,6 @@ export function NativePushOptIn() {
   // raciocínio de `useAiConsent.accept`): widen pra `[user]` recriaria o
   // callback a cada mudança não-relacionada do perfil, sem nenhum ganho —
   // o React Compiler que validaria essa memoização não está ativo aqui.
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- ver comentário acima
   const activate = useCallback(async () => {
     if (!user?.id || status === 'working') return;
     setStatus('working');

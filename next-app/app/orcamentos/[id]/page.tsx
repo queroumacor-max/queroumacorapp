@@ -142,7 +142,6 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // localStorage num ciclo próprio, não é derivável no render).
   useEffect(() => {
     if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDraftSavedAt(autosave.lastSavedAt);
     }
   }, [noteValues, autosave.lastSavedAt, draftSavedAt]);
@@ -156,7 +155,6 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (authLoading || !user) return;
     if (quotes.some((q) => q.id === id)) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setFetching(true);
     fetchQuote(id)
       .then((q) => setLocalQuote(q))

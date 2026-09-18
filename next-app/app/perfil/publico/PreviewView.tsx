@@ -42,7 +42,6 @@ export function PreviewView() {
     // early-return sem usuário) fazem parte do MESMO ciclo de
     // carregamento, não são reset derivado de prop.
     if (!user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setLoading(false);
       return;
     }

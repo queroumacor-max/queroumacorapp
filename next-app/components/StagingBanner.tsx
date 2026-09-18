@@ -15,7 +15,6 @@ export function StagingBanner() {
     const h = window.location.hostname;
     // Produção: queroumacor.com.br ou www.queroumacor.com.br → sem badge.
     if (/(?:^|\.)queroumacor\.com\.br$/i.test(h)) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setHost(h);
   }, []);
 

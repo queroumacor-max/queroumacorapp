@@ -114,13 +114,11 @@ export function ProfileHeader() {
   // de grace period exibidos numa tela que já re-renderiza com frequência
   // — perfil sendo editado, dados carregando —, e o React Compiler que
   // tornaria a staleness um bug de verdade não está ativo aqui).
-  // eslint-disable-next-line react-hooks/purity -- ver comentário acima
   const inGrace = isPro && graceUntil ? new Date(graceUntil).getTime() > Date.now() : false;
   const graceDays = inGrace && graceUntil
     ? Math.max(
         0,
         Math.ceil(
-          // eslint-disable-next-line react-hooks/purity -- ver comentário acima
           (new Date(graceUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
         ),
       )

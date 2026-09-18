@@ -57,7 +57,6 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
   // corrida que isto evita (sheet "subindo de novo" a cada re-render).
   useEffect(() => {
     if (!open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setEntered(false);
       return;
     }
@@ -100,7 +99,6 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
   // derivado isolável em render.
   useEffect(() => {
     if (!open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDragY(0);
       setDragging(false);
       dragStart.current = null;

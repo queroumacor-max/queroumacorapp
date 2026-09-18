@@ -76,7 +76,6 @@ export function AutoRespostaSheet({ open, onClose }: AutoRespostaSheetProps) {
     // Sincroniza com o Supabase (fetch) — é exatamente pra isso que efeitos
     // existem; `setLoading(true)` aqui só marca o início do trabalho
     // assíncrono que segue.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setLoading(true);
     const sb = getSupabase();
     sb.from('auto_responses')

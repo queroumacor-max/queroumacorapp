@@ -166,7 +166,6 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
   // localStorage num ciclo próprio, não é derivável no render).
   useEffect(() => {
     if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDraftSavedAt(autosave.lastSavedAt);
     }
   }, [autosaveValues, autosave.lastSavedAt, draftSavedAt]);

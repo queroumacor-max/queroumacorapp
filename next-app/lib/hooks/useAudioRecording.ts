@@ -97,7 +97,6 @@ export function useAudioRecording(
       typeof navigator !== 'undefined' &&
       !!navigator.mediaDevices?.getUserMedia &&
       typeof MediaRecorder !== 'undefined';
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setUnsupported(!supported);
   }, []);
 

@@ -197,7 +197,6 @@ function Leitor({ edicao, onFechar }: { edicao: EdicaoPronta; onFechar: () => vo
   // "Já passamos pelo commit inicial?" não tem como ser sabido de forma
   // síncrona durante o render — não existe alternativa sem efeito pra esse
   // idioma (mount detection pra portal SSR-safe).
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
   useEffect(() => setMontado(true), []);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);

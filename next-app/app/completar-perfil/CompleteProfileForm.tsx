@@ -101,7 +101,6 @@ export function CompleteProfileForm() {
     const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
     const inicialNome = texto(p?.name) || metaName;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     if (inicialNome) setName(inicialNome);
 
     const papel = texto(p?.user_type) || texto(p?.role);

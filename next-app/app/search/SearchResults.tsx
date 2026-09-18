@@ -198,7 +198,6 @@ function SuggestionsList() {
   // Sincroniza com o Supabase (fetch) — canônico de efeito de busca de dado.
   useEffect(() => {
     let cancel = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setLoading(true);
     setError(null);
     fetchSuggestedProfiles(user?.id ?? null, 18)

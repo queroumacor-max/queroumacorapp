@@ -253,7 +253,6 @@ export function useFe(): UseFeResult {
     setSessions(readSessions(userId));
     const persisted = readActiveSessionId(userId);
     if (persisted) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setActiveSessionId(persisted);
     } else {
       const all = readSessions(userId);

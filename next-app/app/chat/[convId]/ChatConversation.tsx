@@ -199,7 +199,6 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     // Pré-narrowing fora do setState pra TS não perder a refinement no
     // callback. Substitui os non-null assertions (otherId!) que existiam.
     const otherId = convMeta.otherId;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setParticipantInfo((prev) => {
       if (prev.has(otherId)) return prev;
       const next = new Map(prev);

@@ -45,7 +45,6 @@ export function UndoSnackbar({
     // reset de ref (dismissedRef, precisa ficar num efeito) com o timer
     // (setInterval) — não é reset puro isolável em render.
     dismissedRef.current = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setSeconds(Math.max(1, Math.ceil(durationMs / 1000)));
 
     const interval = window.setInterval(() => {
