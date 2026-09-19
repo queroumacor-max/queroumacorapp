@@ -59,8 +59,49 @@ jobs:
       # step nunca falhava de verdade. Removido: agora um CVE bloqueante
       # numa dep de prod barra o merge de verdade, como o nome do step
       # sempre prometeu.
+      #
+      # INFRA (2026-09-19): a partir de hoje a npm registry aposentou o
+      # endpoint "quick" de audit (`POST /-/npm/v1/security/audits/quick`,
+      # usado por `npm audit` sem flag de formato) — toda chamada passou a
+      # devolver 400 "Invalid package tree" + `npm error audit endpoint
+      # returned an error`, reproduzido local com `npm ci` limpo + `npm
+      # audit` num lockfile sem nenhuma mudança (e confirmado batendo
+      # também no push mais recente de `main`, sem relação com qualquer PR
+      # específico). Manter o step assim derrubaria `validate` em TODA
+      # branch até a npm terminar a migração; voltar a `continue-on-error:
+      # true` reabriria o achado MEDIUM de cima. Em vez disso: roda com
+      # `--json`, e só falha o job quando o JSON tem `metadata` (ou seja, a
+      # registry terminou o audit de verdade e achou algo no nível
+      # bloqueante) — resposta de erro do endpoint (sem `metadata`) vira um
+      # aviso visível, não um bloqueio.
       - name: npm audit (fail-fast)
-        run: npm audit --audit-level=high --omit=dev
+        run: |
+          set +e
+          npm audit --audit-level=high --omit=dev --json > /tmp/npm-audit.json
+          AUDIT_EXIT=$?
+          set -e
+          if [ "$AUDIT_EXIT" -eq 0 ]; then
+            echo "npm audit: sem vulnerabilidade HIGH/CRITICAL em deps de produção."
+            exit 0
+          fi
+          node -e "
+            const fs = require('fs');
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync('/tmp/npm-audit.json', 'utf8'));
+            } catch (e) {
+              console.log('::warning::npm audit: saída não era JSON válido (provável falha de infra do registry) — não bloqueando o merge por isso.');
+              process.exit(0);
+            }
+            if (!report || typeof report !== 'object' || !('metadata' in report)) {
+              const detail = (report && (report.body || report.error || report.message)) || report;
+              console.log('::warning::npm audit: o endpoint do registry não completou o audit (não é CVE encontrado) — ' + JSON.stringify(detail));
+              process.exit(0);
+            }
+            console.error('npm audit encontrou vulnerabilidade HIGH/CRITICAL em dependência de produção:');
+            console.error(JSON.stringify(report.metadata && report.metadata.vulnerabilities, null, 2));
+            process.exit(1);
+          "
 
       # ESLint via next lint (config em .eslintrc.json).
       - name: ESLint
