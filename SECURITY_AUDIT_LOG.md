@@ -24,12 +24,13 @@ com este arquivo; se algo aqui contradiz o `CLAUDE.md`, o `CLAUDE.md` ganha.
 
 ---
 
-## 🔴 Pendências abertas agora (2026-09-16, atualizado após 3ª rodada — DNSSEC/CAA executados)
+## 🔴 Pendências abertas agora (2026-09-17, atualizado após DS record publicado)
 
 10 dos 17 itens da lista original foram fechados/verificados na 2ª rodada
-(ver entrada "2026-09-16 (continuação)" no histórico abaixo). Na 3ª rodada,
-DNSSEC foi ligado e o CAA foi criado de verdade (não só confirmados — ver
-entrada "2026-09-16 (3ª rodada)"). Restam:
+(ver entrada "2026-09-16 (continuação)" no histórico abaixo). DNSSEC e CAA
+foram executados de verdade na 3ª rodada, e o DS record na Registro.br —
+último passo do DNSSEC — foi publicado pelo usuário em 2026-09-17 (ver
+entrada própria no histórico). Restam:
 
 | Item | Status | Onde tratar |
 |---|---|---|
@@ -329,6 +330,20 @@ PRs (#325: 4 na correção original; #327: 4 na PR de documentação — 2
 gaps de código reais que a doc escondia, 2 imprecisões de texto),
 todos verificados reais e corrigidos — nenhum descartado como falso
 positivo. Suíte/typecheck/build verdes nas duas.
+### 2026-09-17 — DS record publicado na Registro.br — DNSSEC fechado
+Último passo do DNSSEC (ligado no Cloudflare desde a 3ª rodada de
+2026-09-16): o usuário entrou no painel da **Registro.br** (registrador
+de `queroumacor.com.br`), DNS → "Alterar servidores DNS" → "+ DNSSEC",
+e publicou o DS record gerado pelo Cloudflare (DNS → Settings → DNSSEC →
+"DS Record"): **Key Tag 2371, Algoritmo 13, Digest Type 2 (SHA256)**. A
+Registro.br confirmou "DNS atualizado com sucesso!".
+
+**Propagação (10min-1h segundo o Cloudflare) não foi reverificada** —
+tratado como fechado porque a ação em si (publicar o DS no registrador)
+está confirmada pelos dois lados envolvidos (valores lidos no Cloudflare,
+salvos e confirmados na Registro.br); a cadeia de confiança do DNSSEC só
+completa depois que resolvers externos propagarem, o que é questão de
+tempo, não de ação pendente. Item removido da tabela de pendências.
 
 ### 2026-09-17 — Auditoria de CI/CD (2026-09-16, commit `bfa6849`) documentada retroativamente
 Merge #318 (`claude/keen-bell-vyn38f`) chegou na `main` em 2026-09-16 com
