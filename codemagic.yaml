@@ -37,7 +37,12 @@ workflows:
         - firebase            # fornece GOOGLE_SERVICES_JSON (opcional, push)
         - google_credentials  # fornece GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (deploy Play)
       node: 20
-      java: 17
+      # Capacitor 8.x (bump 6→8, coordenado — ver git log) gera
+      # `android/app/capacitor.build.gradle` com
+      # sourceCompatibility/targetCompatibility VERSION_21 (era 17 no
+      # Capacitor 6.x) — `npx cap sync android` confirmou local. Sem
+      # bumpar aqui junto, o Android build quebra no Codemagic.
+      java: 21
     cache:
       cache_paths:
         # $HOME e não `~`: o til não é expandido aqui, e o cache virava no-op —
