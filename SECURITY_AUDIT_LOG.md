@@ -41,11 +41,13 @@ entrada "2026-09-16 (3ª rodada)"). Restam:
 | Bot Fight Mode/Turnstile server-side em `/login`/`/signup` — E captcha desligado no Supabase Auth (mesma lacuna, dois ângulos) | 🔵 DECISÃO | hoje só proteção de borda, sem camada de aplicação nem captcha no Auth |
 | Migrar adapter de deploy (`@cloudflare/next-on-pages`, descontinuado) pro OpenNext-Cloudflare | 🔵 DECISÃO/NÃO CORRIGIDO | melhoria arquitetural de médio prazo — o CVE do `postcss`/`next` que motivava essa migração foi fechado à parte (2026-09-18, PR #339, ver Histórico), então isso deixou de ter QUALQUER urgência de segurança; plano de execução (P1-P8) aprofundado no ADR 0006 (PR #340), aguardando decisão do mantenedor |
 | Cloudflare Access na frente de `*.pages.dev` | 🔵 DECISÃO, confirmado que NÃO está configurado | a considerar, Cloudflare Dashboard |
-| INSERT direto em `posts` via PostgREST pula `/api/moderate` inteiro (moderação é só orquestração de cliente) | 🔵 DECISÃO/NÃO CORRIGIDO | exige mover a criação de post pro servidor — ver entrada 2026-09-17 "Moderação Gemini no publish" |
+| INSERT direto em `posts` via PostgREST pula `/api/moderate` inteiro (moderação é só orquestração de cliente) | 🔵 DECISÃO/NÃO CORRIGIDO — **reconfirmado CRÍTICO no pentest final de 2026-09-18, exploit reproduzido de novo** | exige unificar fluxo de imagem e vídeo antes de forçar `status='pending'` — ver entrada 2026-09-18 abaixo |
 | MFA/roles/recovery de Cloudflare, Supabase, GCP/Firebase, Apple, Play, Codemagic, Sentry, Meta, Mercado Pago, Registro.br, GoDaddy nunca foram levantados em detalhe (só GCP/Firebase e Apple têm verificação parcial datada) | ⚪ MANUAL | ver `docs/EXTERNAL_SECURITY_BASELINE.md` — auditoria externa 2026-09-17 |
 | Evolution API (Render, "aposentada" 2026-09-05) — confirmar se a instância ainda roda e se a API key ainda é válida | ⚪ MANUAL, candidata a desligar | painel Render — ver `docs/EXTERNAL_SECURITY_BASELINE.md` §14 |
 | `queroumacor@gmail.com` (presumido) concentra recovery de Firebase/GCP, Google AI Studio (2 empresas), Apple Developer Account Holder e provavelmente Cloudflare/Play, sem 2º admin fora do Apple | 🔴 CRITICAL, NÃO CORRIGIDO | decisão do usuário — ver `docs/EXTERNAL_SECURITY_BASELINE.md` §9/§12 e `docs/ACCOUNT_RECOVERY_RUNBOOK.md` |
 | Nenhum break-glass documentado em nenhum provedor | 🔵 DECISÃO/NÃO IMPLEMENTADO | ver `docs/ACCOUNT_RECOVERY_RUNBOOK.md` §1 |
+
+**As 3 linhas de "SQL escrito, execução não confirmada" que este bloco listava (business-logic-security-audit, rate-limit-sliding-window, final-pentest-hardening) foram removidas em 2026-09-19: o usuário confirmou ter rodado, sem erro, os 7 SQLs desta leva de auditorias, na ordem recomendada — ver entrada "2026-09-19 — 7 migrations de segurança confirmadas em produção + 6 PRs reconciliados e mergeados" no histórico abaixo.**
 
 ---
 
@@ -88,6 +90,56 @@ POSTCSS/NEXT FECHADO..." do `CLAUDE.md`.
   nos comandos de deploy, 2 vars de build-time faltando, 2 steps de build
   indevidos no `deploy.yml` reescrito) — todos verificados contra a doc
   oficial da Cloudflare e corrigidos antes do merge.
+### 2026-09-18 — Pentest integrado final (attack chaining, regressão, bypass)
+🟡 **SQL escrito e testado contra Postgres 16 LOCAL, execução em produção
+NÃO confirmada.** 4 agentes paralelos read-only revalidaram todo achado
+histórico crítico/alto do brief contra o código ATUAL — nenhuma regressão
+encontrada (todos PASS: proteção de campo PRO, auto-promoção a admin, PII
+de quotes, ownership de mensagens, path traversal de storage, sequestro
+de push token, rate-limit fail-open, `search_all` anônimo, gate de IA,
+IAP fail-open, webhook de pagamento fail-open, auth de admin, XSS de
+busca, chave Gemini, source maps, `process.env` no edge, normalização de
+telefone, correspondência fuzzy de destinatário, FK de exclusão de
+conta, CSP, enforcement de CSAM, fail-open de moderação, corrida de cota
+de IA/WhatsApp). 4 achados NOVOS, com exploit provado num Postgres local
+antes do fix E depois (pra confirmar que fecha):
+- **A. [CRÍTICO] `get_feed_v2` vazava `saved_posts`/aplicava `blocks` de
+  QUALQUER usuário** via `p_user_id` não verificado contra `auth.uid()`
+  (SECURITY DEFINER + GRANT anon). Fix: ignora o parâmetro, deriva
+  sempre de `auth.uid()`.
+- **B. [ALTO] Bloqueio nunca foi aplicado em nenhuma ESCRITA** —
+  mensagem/seguir/curtir/comentar continuavam funcionando entre pessoas
+  que se bloquearam, via REST direto. Fix: `blocked_between()` no WITH
+  CHECK das 4 tabelas — achado e corrigido um bug real de ESCOPO SQL
+  (`user_id` ambíguo dentro de subquery correlacionada resolvia pro
+  alias errado, deixando a checagem sempre-falsa) só porque o exploit
+  foi reproduzido de verdade contra Postgres, não só revisado visualmente.
+- **C. [ALTO] E-mail confirmado pra publicar/comentar/mensagem era só
+  client-side** (não existe rota de servidor pra essas 3 ações). Fix:
+  `is_email_verified()` no WITH CHECK das 3 tabelas.
+- **D. [MÉDIO, mitigação parcial deliberada] Age gate é só client-side.**
+  CHECK novo fecha só quem chama a API direto E informa uma data real de
+  menor — não impede quem mente sobre a própria idade (limitação
+  inerente de autodeclaração).
+- **Gap arquitetural CRÍTICO reconfirmado ABERTO, não corrigido às
+  cegas**: insert direto em `posts` ainda pula moderação inteiramente.
+  Analisadas 3 opções de fix (RPC forçada, trigger pending+promoção por
+  service_role, fila passiva — descartada por não ter sinal confiável),
+  recomendada a 2ª pra quem tiver Supabase/browser ao vivo pra testar os
+  dois fluxos (foto e vídeo) antes de revogar o INSERT direto.
+- **Achado de processo**: duas migrations anteriores
+  (`2026-09-16-business-logic-security-audit.sql`,
+  `2026-09-17-rate-limit-sliding-window.sql`) não têm confirmação
+  registrada de execução em produção em lugar nenhum — a primeira é o
+  fix do CRÍTICO "PRO grátis pra sempre" (`pro_expires_at`/
+  `pro_grace_until` sem proteção). **Confirmar essas duas é mais urgente
+  que qualquer achado novo deste pentest.**
+- Detalhe completo (attack surface map, trust boundaries, matrizes de
+  achado histórico/cross-user/privilégio/Supabase direto/attack chain/
+  business logic/webhook/AI/rate-limit/mobile/privacidade, PoC de cada
+  exploit) entregue no chat da sessão — ver a entrada "PENTEST INTEGRADO
+  FINAL" no topo do `CLAUDE.md` pro resumo, mesma regra de manter este
+  arquivo enxuto já aplicada às auditorias anteriores.
 
 ### 2026-09-17/18 — Auditoria de webhooks/callbacks/integrações externas (PRs #328/#332/#333/#334/#335)
 ✅ **FIXED, confirmado em produção pelo usuário (commit `7c4f24f`, painel
