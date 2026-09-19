@@ -30,6 +30,15 @@ export interface UseFollowingResult {
 export const followingQueryKey = (userId: string | undefined) =>
   ['following-ids', userId] as const;
 
+// Referência ESTÁVEL pro caso "sem ids" (enquanto `query.data` é undefined
+// — loading, ou usuário deslogado). `query.data ?? []` criaria um array
+// NOVO em toda chamada, e `SearchResults` compara `followingIds` por
+// IDENTIDADE (`followingIds !== followingIdsVisto`) pra ajustar state
+// durante o render — com uma referência nova a cada render, essa
+// comparação nunca estabiliza e vira loop infinito ("Too many
+// re-renders"), quebrando a tela com o error boundary. Ver CLAUDE.md.
+const EMPTY_IDS: string[] = [];
+
 export function useFollowing(): UseFollowingResult {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -56,7 +65,7 @@ export function useFollowing(): UseFollowingResult {
   }, [qc, user?.id]);
 
   return {
-    ids: query.data ?? [],
+    ids: query.data ?? EMPTY_IDS,
     loading: query.isLoading,
     error: query.error ?? null,
     invalidate,
