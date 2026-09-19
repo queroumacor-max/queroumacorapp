@@ -5,6 +5,7 @@
 // `ensureAdminEmail`).
 
 import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
+import { logSecurityEvent } from '../securityEvents';
 
 const ALLOWED_STYLES = ['portrait', 'antesdepois', 'profissional', 'trabalho', 'grafite'];
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -44,6 +45,16 @@ export async function uploadStyleRef(args: {
 
   if (args.file) {
     if (!ALLOWED_MIME.has(args.file.type)) {
+      // Auditoria de observabilidade de segurança (2026-09-17): rejeição
+      // de MIME era silenciosa (só a resposta 400). Este é dos poucos
+      // uploads que valida mime NO APP (a maioria dos uploads de usuário
+      // vai direto pro Supabase Storage, onde a rejeição fica invisível
+      // ao app — achado documentado, não corrigível sem mudar o fluxo).
+      logSecurityEvent(
+        'security.upload.rejected',
+        { reason: 'invalid_mime', mime: args.file.type, route: 'upload-style-ref' },
+        { severity: 'info' },
+      );
       throw new ServiceError('mime inválido (aceita jpeg/png/webp)', 400, {
         allowed: [...ALLOWED_MIME],
       });
@@ -60,6 +71,11 @@ export async function uploadStyleRef(args: {
     if (!m) throw new ServiceError('photoDataUrl inválida', 400);
     mime = m[1];
     if (!ALLOWED_MIME.has(mime)) {
+      logSecurityEvent(
+        'security.upload.rejected',
+        { reason: 'invalid_mime', mime, route: 'upload-style-ref' },
+        { severity: 'info' },
+      );
       throw new ServiceError('mime inválido (aceita jpeg/png/webp)', 400, {
         allowed: [...ALLOWED_MIME],
       });

@@ -125,4 +125,62 @@ describe('sentryBeforeSend', () => {
     const out = sentryBeforeSend(event);
     expect(out.user.email).toBeNull();
   });
+
+  // Auditoria de observabilidade de segurança (2026-09-17) — gap fechado:
+  // breadcrumbs automáticos de fetch/XHR e request.url/headers não
+  // passavam por NENHUM filtro antes desta rodada.
+  it('remove query string de event.request.url (pode carregar token)', () => {
+    const event = {
+      request: { url: 'https://queroumacor.com.br/api/whatsapp/webhook?token=abc123secret' },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.request?.url).toBe('https://queroumacor.com.br/api/whatsapp/webhook');
+    expect(out.request?.url).not.toContain('abc123secret');
+  });
+
+  it('remove fragment de event.request.url', () => {
+    const event = { request: { url: 'https://x.com/callback#access_token=leaked' } };
+    const out = sentryBeforeSend(event);
+    expect(out.request?.url).toBe('https://x.com/callback');
+  });
+
+  it('remove query_string por completo', () => {
+    const event = { request: { query_string: 'token=abc123secret' } };
+    const out = sentryBeforeSend(event);
+    expect(out.request?.query_string).toBe('[REMOVED]');
+  });
+
+  it('redige Authorization/Cookie em request.headers, mascara o resto', () => {
+    const event = {
+      request: {
+        headers: {
+          Authorization: 'Bearer sk-real-secret-token',
+          Cookie: 'sb-session=abc',
+          'X-Custom': 'contato foo@bar.com',
+        },
+      },
+    };
+    const out = sentryBeforeSend(event) as { request?: { headers?: Record<string, unknown> } };
+    expect(out.request?.headers?.Authorization).toBe('[REDACTED]');
+    expect(out.request?.headers?.Cookie).toBe('[REDACTED]');
+    expect(out.request?.headers?.['X-Custom']).toBe('contato foo***@bar.com');
+  });
+
+  it('mascara PII em breadcrumbs.data e breadcrumbs.message', () => {
+    const event = {
+      breadcrumbs: [
+        { message: 'fetch para foo@bar.com', data: { url: 'https://x.com', phone: '11959765031' } },
+      ],
+    };
+    const out = sentryBeforeSend(event) as {
+      breadcrumbs?: Array<{ message?: string; data?: unknown }>;
+    };
+    expect(out.breadcrumbs?.[0]?.message).toContain('foo***@bar.com');
+    expect(out.breadcrumbs?.[0]?.data).toEqual({ url: 'https://x.com', phone: '***********' });
+  });
+
+  it('não quebra com breadcrumbs vazio/ausente', () => {
+    expect(() => sentryBeforeSend({ breadcrumbs: [] })).not.toThrow();
+    expect(() => sentryBeforeSend({})).not.toThrow();
+  });
 });
