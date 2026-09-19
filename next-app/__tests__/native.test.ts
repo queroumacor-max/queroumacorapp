@@ -152,6 +152,65 @@ describe('lib/native — dentro da casca', () => {
   });
 });
 
+// shareNative — regressão de 2026-09-19: os botões "Compartilhar" do
+// ProfileHeader/InviteSection ficavam sem NENHUM feedback (sem toast, sem
+// modal, sem share sheet). Duas causas na `shareNative`: (1) `catch { return
+// true }` tratava QUALQUER erro do Web Share (não só cancelamento) como
+// "entregue" — uma rejeição real (ex.: `NotAllowedError` por falta de
+// user-activation, comum em clique disparado por automação) fazia o caller
+// achar que deu certo e nunca cair pro fallback de copiar; (2)
+// `navigator.share()`/o plugin nativo podem nunca resolver NEM rejeitar (a
+// mesma classe de bug já documentada em getSession/getUserMedia neste
+// projeto), travando o botão pra sempre. Ver lib/native/share.ts.
+describe('shareNative', () => {
+  afterEach(() => {
+    // @ts-expect-error -- limpa o mock de navigator.share entre testes
+    delete navigator.share;
+    vi.useRealTimers();
+  });
+
+  it('Web Share entrega com sucesso → true', async () => {
+    (navigator as unknown as { share: unknown }).share = vi.fn().mockResolvedValue(undefined);
+    await expect(shareNative({ url: 'https://x' })).resolves.toBe(true);
+  });
+
+  it('Web Share cancelado pelo usuário (AbortError) → true (não repete fallback em cima do cancelamento)', async () => {
+    (navigator as unknown as { share: unknown }).share = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('cancel'), { name: 'AbortError' }));
+    await expect(shareNative({ url: 'https://x' })).resolves.toBe(true);
+  });
+
+  it('Web Share falha por outro motivo (ex.: sem user-activation) → false, caller cai pro fallback de copiar', async () => {
+    (navigator as unknown as { share: unknown }).share = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error('Must be handling a user gesture'), { name: 'NotAllowedError' }),
+      );
+    await expect(shareNative({ url: 'https://x' })).resolves.toBe(false);
+  });
+
+  it('Web Share que nunca resolve NEM rejeita não trava pra sempre — timeout devolve false', async () => {
+    vi.useFakeTimers();
+    (navigator as unknown as { share: unknown }).share = vi.fn(() => new Promise(() => {}));
+    const pending = shareNative({ url: 'https://x' });
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await expect(pending).resolves.toBe(false);
+  });
+
+  it('plugin nativo que nunca resolve NEM rejeita também não trava pra sempre', async () => {
+    vi.useFakeTimers();
+    setCapacitor({
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: { Share: { share: () => new Promise(() => {}) } },
+    });
+    const pending = shareNative({ url: 'https://x' });
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await expect(pending).resolves.toBe(false);
+  });
+});
+
 describe('parseAuthCallbackUrl', () => {
   it('extrai o code PKCE da query (caminho ATIVO desde a migração 2026-09-15)', () => {
     const url = `${NATIVE_OAUTH_REDIRECT}?code=abc-123-xyz`;
