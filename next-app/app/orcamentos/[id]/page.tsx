@@ -20,6 +20,7 @@ export const runtime = 'nodejs';
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { AppShell } from '@/components/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { usePipeline } from '@/lib/hooks/usePipeline';
@@ -208,59 +209,67 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
 
   if (authLoading) {
     return (
-      <main className="min-h-screen p-4 max-w-2xl mx-auto">
-        <div className="animate-pulse space-y-3">
-          <div className="h-6 w-2/3 bg-[color:var(--color-border)] rounded" />
-          <div className="h-4 w-1/2 bg-[color:var(--color-border)] rounded" />
-          <div className="h-64 bg-[color:var(--color-border)] rounded-2xl" />
+      <AppShell>
+        <div className="min-h-full p-4 max-w-2xl mx-auto">
+          <div className="animate-pulse space-y-3">
+            <div className="h-6 w-2/3 bg-[color:var(--color-border)] rounded" />
+            <div className="h-4 w-1/2 bg-[color:var(--color-border)] rounded" />
+            <div className="h-64 bg-[color:var(--color-border)] rounded-2xl" />
+          </div>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen p-4 max-w-2xl mx-auto">
-        <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <h2 className="font-semibold mb-2">Entre pra ver o orçamento</h2>
-          <Link
-            href="/login"
-            className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold mt-2"
-          >
-            Entrar
-          </Link>
+      <AppShell>
+        <div className="min-h-full p-4 max-w-2xl mx-auto">
+          <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+            <h2 className="font-semibold mb-2">Entre pra ver o orçamento</h2>
+            <Link
+              href="/login"
+              className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold mt-2"
+            >
+              Entrar
+            </Link>
+          </div>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
   if (fetching && !quote) {
     return (
-      <main className="min-h-screen p-4 max-w-2xl mx-auto">
-        <div className="animate-pulse h-64 bg-[color:var(--color-border)] rounded-2xl" />
-      </main>
+      <AppShell>
+        <div className="min-h-full p-4 max-w-2xl mx-auto">
+          <div className="animate-pulse h-64 bg-[color:var(--color-border)] rounded-2xl" />
+        </div>
+      </AppShell>
     );
   }
 
   if (!quote) {
     return (
-      <main className="min-h-screen p-4 max-w-2xl mx-auto">
-        <Link
-          href="/orcamentos"
-          className="text-sm text-[color:var(--color-muted)] hover:underline"
-        >
-          ← Voltar pro pipeline
-        </Link>
-        <div className="text-center py-12 mt-4 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
-          <div className="text-5xl mb-3" aria-hidden="true">
-            ❓
+      <AppShell>
+        <div className="min-h-full p-4 max-w-2xl mx-auto">
+          <Link
+            href="/orcamentos"
+            className="text-sm text-[color:var(--color-muted)] hover:underline"
+          >
+            ← Voltar pro pipeline
+          </Link>
+          <div className="text-center py-12 mt-4 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
+            <div className="text-5xl mb-3" aria-hidden="true">
+              ❓
+            </div>
+            <h2 className="font-semibold">Orçamento não encontrado</h2>
+            <p className="text-sm text-[color:var(--color-muted)] mt-2">
+              Pode ter sido removido ou você não tem acesso a ele.
+            </p>
           </div>
-          <h2 className="font-semibold">Orçamento não encontrado</h2>
-          <p className="text-sm text-[color:var(--color-muted)] mt-2">
-            Pode ter sido removido ou você não tem acesso a ele.
-          </p>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
@@ -469,7 +478,8 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // ─── render ──────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen p-4 max-w-2xl mx-auto quote-detail-print">
+    <AppShell>
+    <div className="min-h-full p-4 max-w-2xl mx-auto quote-detail-print">
       {/* @media print: esconde header/nav/footer + botões pra impressão limpa */}
       <style>{`
         @media print {
@@ -820,7 +830,8 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           onPick={abrirDestino}
         />
       )}
-    </main>
+    </div>
+    </AppShell>
   );
 }
 
