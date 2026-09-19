@@ -1,5 +1,70 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **CSP/X-Frame-Options/Permissions-Policy/COOP/CORP e o CORS restrito de
+  `/api/*` NUNCA ESTIVERAM ATIVOS EM PRODUÇÃO — achado e corrigido
+  (2026-09-19), disparado por 3 relatórios de scanner externo (CheckVibe/
+  HostedScan: Nmap, OWASP ZAP) que o usuário colou no chat. SEM SQL.**
+  - **O achado do ZAP**: resposta real de `GET https://www.queroumacor.com.br/`
+    (200, `cf-cache-status: DYNAMIC` — não é cache velho) tinha só 3 dos 8
+    headers de `headers()` no `next.config.mjs` (HSTS, Referrer-Policy,
+    X-Content-Type-Options) — CSP, X-Frame-Options, Permissions-Policy,
+    COOP e CORP estavam AUSENTES. `Access-Control-Allow-Origin: *` aparecia
+    até na página HTML, quando a regra de `/api/(.*)` deveria restringir só
+    às rotas de API.
+  - **Investigação eliminou Cloudflare por completo** (usuário conferiu no
+    painel): commit em Production batia com o código, sem split de
+    domínio/projeto, nenhuma Transform Rule/Snippet/Cloud Connector/Workers
+    Route/Page Rule mexendo em header de segurança. E o `next.config.mjs`
+    tinha os 8 headers certos, sem mudança, desde ANTES da auditoria de
+    13/09 (`git show <commit>` provou byte-a-byte).
+  - **CAUSA RAIZ, reproduzida 100% LOCAL** (sem tocar em conta Cloudflare
+    nenhuma): `npm run build:cf` + `wrangler pages dev` + `curl` no
+    artefato mostrou o MESMO padrão quebrado — inclusive em `/api/health`,
+    rota dinâmica de verdade, que devolvia `Access-Control-Allow-Origin: *`
+    em vez do valor restrito. O `routes-manifest.json` (saída do `next
+    build`) tem os 8 headers perfeitos, e a regra chega a ser embutida como
+    objeto literal dentro do `_worker.js` compilado — mas o RUNTIME do
+    worker gerado por `@cloudflare/next-on-pages@1.13.16` nunca aplica essa
+    tabela a NENHUMA resposta. Não é cache, não é rota prerenderizada vs
+    dinâmica, não é nada do Cloudflare: é bug do adapter (já descontinuado
+    pelo mantenedor, ver regra mais abaixo sobre a trava do Next em
+    15.5.x). **A validação "curl real via wrangler pages dev" que a
+    auditoria de 13/09 registrou como prova não pegou esse bug** — não dá
+    pra saber daqui se foi versão diferente do next-on-pages, path
+    diferente testado, ou erro de método; o resultado é que o registro
+    anterior estava errado e ninguém percebeu por meses.
+  - **FIX: os 8 headers de segurança + o CORS de `/api/*` migraram pra
+    `middleware.ts`.** Prova de que middleware funciona nesse adapter: o
+    `x-request-id` que ele seta SEMPRE chegou certo em produção (inclusive
+    no próprio scan do ZAP que achou o bug). `headers()` no
+    `next.config.mjs` foi ESVAZIADO dos headers de segurança (só sobraram
+    as regras de no-cache do `/portal`, que não dependem disso — o valor
+    já é o default do Next pra página dinâmica, confirmado no próprio
+    response do ZAP). **NÃO recriar CSP/X-Frame-Options/etc em
+    `next.config.mjs`** — seria uma segunda fonte sem efeito nenhum em
+    produção nesse adapter.
+  - **`/api/health` mantém `Access-Control-Allow-Origin: *` PRÓPRIO,
+    D E PROPÓSITO** (seta no código da rota, pra aceitar poll de uptime
+    monitor externo tipo UptimeRobot) — o handler da rota sobrescreve o
+    valor restrito do middleware, e isso é o comportamento CERTO, não bug.
+    Toda outra rota de API sem CORS próprio herda o valor restrito do
+    middleware (`https://queroumacor.com.br`) — confirmado com
+    `/api/cidades` no teste local.
+  - **`__tests__/cspHeadersParidade.test.ts` reapontado**: comparava
+    `_headers` da raiz (relíquia inerte) com `next.config.mjs`; agora
+    compara com `middleware.ts`, que é a fonte real.
+  - Suíte inteira (184 arquivos/2300 testes) e `tsc --noEmit` verdes depois
+    do fix, testado local com `build:cf` + `wrangler pages dev` + curl nos
+    4 casos (`/`, `/login`, `/api/health`, `/portal`) antes do commit.
+  - **LIÇÃO: "validado por curl via wrangler pages dev" numa entrada antiga
+    não é garantia eterna.** O mesmo método que comprovou o bug agora foi o
+    método que a auditoria de 13/09 disse ter usado pra provar que estava
+    tudo certo. Perguntar "por que o scanner achou isso se já tinha sido
+    auditado" — em vez de descartar como falso positivo — foi o que expôs
+    um bug real de meses. **Achado de scanner externo em produção sempre
+    merece reproduzir localmente antes de descartar, mesmo quando o código
+    parece óbvio e correto.**
+
 - **CVE POSTCSS/NEXT FECHADO DE FORMA ISOLADA + PLANO DE MIGRAÇÃO WORKERS
   APROFUNDADO (2026-09-18, PRs #337/#339/#340, TODAS MERGEADAS EM `main`).**
   Encadeamento de três PRs, cada uma resolvendo uma parte diferente do
