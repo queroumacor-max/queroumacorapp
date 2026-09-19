@@ -33,9 +33,12 @@ const KNOWN_GET_FEED_V2_FILES = [
   '2026-06-09-feed-verified-fix.sql',
   '2026-06-09-posts-media-dimensions.sql',
   '2026-06-09-rpc-get-feed-v2.sql',
+  '2026-09-17-privacy-audit-hardening.sql',
 ].sort();
 
-const CANONICAL_GET_FEED_V2_FILE = '2026-06-09-feed-verified-fix.sql';
+// Auditoria de privacidade (2026-09-17): trava p_limit em 50 e revoga o
+// GRANT de anon — cumulativa sobre a definição de 2026-06-09.
+const CANONICAL_GET_FEED_V2_FILE = '2026-09-17-privacy-audit-hardening.sql';
 
 const KNOWN_IS_PORTAL_ADMIN_FILES = [
   '2026-06-05-is-portal-admin-permissive.sql',
