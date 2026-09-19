@@ -18,7 +18,9 @@ import {
 import { ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { diagnoseIgArt } from '@/lib/api/_services/ig-art-diag';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const g = await gateProAI(request, {}, {

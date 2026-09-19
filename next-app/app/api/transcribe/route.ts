@@ -12,7 +12,9 @@ import {
 import { transcribeAudio } from '@/lib/api/_services/transcribe';
 import { getRuntimeEnv } from '../../../lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (!getRuntimeEnv('OPENAI_API_KEY')) {

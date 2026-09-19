@@ -13,6 +13,8 @@
 
 // `runtime` PRECISA ser declarado literalmente: o Next nao reconhece o
 // campo quando ele e re-exportado de outro arquivo (o build avisa e usa o
-// default), e esta rota tem que rodar no edge como a nova.
-export const runtime = 'edge';
+// default) — e precisa bater com o da rota original
+// (app/api/whatsapp/followup/route.ts): nodejs, não mais edge
+// (@opennextjs/cloudflare só suporta nodejs; ver ADR 0006).
+export const runtime = 'nodejs';
 export { POST } from '@/app/api/whatsapp/followup/route';

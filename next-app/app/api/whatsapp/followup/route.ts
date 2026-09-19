@@ -47,7 +47,9 @@ import {
 import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { runFollowupSweep } from '@/lib/api/_services/whatsapp-followup';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 /**
  * Compara em tempo constante. O segredo do cron viaja na URL, então uma

@@ -39,7 +39,9 @@ import { whatsappSendSchema } from '@/lib/api/schemas/whatsapp-send';
 import { logAuditEvent } from '@/lib/api/audit';
 import { runAfterResponse } from '@/lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 // ORÇAMENTO TOTAL da rota. Cada hop já tinha o seu timeout (auth 10s, rate
 // limit 10s, envio, gravação 8s, audit 5s), mas ninguém somava: bastava um

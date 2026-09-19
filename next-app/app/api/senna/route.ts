@@ -13,7 +13,9 @@ import {
 import { chatWithPersona } from '@/lib/api/_services/chat-ai';
 import { getRuntimeEnv } from '../../../lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (!getRuntimeEnv('OPENAI_API_KEY') && !getRuntimeEnv('GEMINI_API_KEY')) {

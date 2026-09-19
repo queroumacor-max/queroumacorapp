@@ -19,8 +19,10 @@ import {
   type SupabaseEnvPair,
 } from '@/lib/api/security';
 
-// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages, que exigia o
+// contrário; ver ADR 0006 e docs/adr/0006-workers-migration-artifacts.md).
+export const runtime = 'nodejs';
 
 const SESSION_COOKIE = 'sb-session-token';
 const AUTH_TIMEOUT_MS = 10_000;
