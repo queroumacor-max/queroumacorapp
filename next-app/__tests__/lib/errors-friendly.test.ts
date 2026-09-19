@@ -35,6 +35,19 @@ describe('toFriendlyError — patterns', () => {
     expect(r.title).toBe('Muitas tentativas');
   });
 
+  // Pentest final (2026-09-18): mensagem/curtida/comentário/post agora
+  // podem ser recusados pela RLS de verdade (bloqueio mútuo, e-mail não
+  // confirmado, idade — migrations/2026-09-18-final-pentest-hardening
+  // .sql). A mensagem NÃO pode confirmar "você foi bloqueado" — é
+  // exatamente o dado que a feature de bloqueio existe pra esconder.
+  it('reconhece recusa de RLS com mensagem vaga (nunca confirma bloqueio/motivo)', () => {
+    const r = toFriendlyError(
+      new Error('new row violates row-level security policy for table "messages"'),
+    );
+    expect(r.title).toBe('Não foi possível concluir');
+    expect(r.message.toLowerCase()).not.toMatch(/bloque|e-?mail|idade/);
+  });
+
   it('reconhece falha de rede', () => {
     const r = toFriendlyError(new Error('fetch failed'));
     expect(r.title).toBe('Sem conexão');

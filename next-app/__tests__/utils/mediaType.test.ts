@@ -70,6 +70,19 @@ describe('ehImagem / ehVideo', () => {
     expect(ehImagem(null)).toBe(false);
     expect(ehVideo(undefined)).toBe(false);
   });
+
+  // Pentest final (2026-09-18): SVG carrega <script> executável — servir
+  // um avatar/post/logo como image/svg+xml de propósito abre stored XSS
+  // se alguém navegar direto pra URL pública. `ehImagem` nunca pode
+  // classificar .svg como imagem — nem pela extensão (Android sem MIME),
+  // nem pelo tipo que o PRÓPRIO NAVEGADOR declara sozinho pra um .svg de
+  // verdade (esse é o caminho real, não só o de fallback do Android).
+  it('NUNCA trata .svg como imagem, nem por extensão nem por tipo declarado', () => {
+    expect(mimeConfiavel(arquivo('logo.svg', ''))).toBe('');
+    expect(ehImagem(arquivo('logo.svg', ''))).toBe(false);
+    expect(mimeConfiavel(arquivo('avatar.svg', 'image/svg+xml'))).toBe('');
+    expect(ehImagem(arquivo('avatar.svg', 'image/svg+xml'))).toBe(false);
+  });
 });
 
 describe('comMimeCorrigido', () => {
@@ -191,6 +204,15 @@ describe('provadoNaoImagem', () => {
     expect(
       provadoNaoImagem(await normalizarArquivo(comBytes('semnome', '', PNG))),
     ).toBe(false);
+  });
+
+  // Pentest final (2026-09-18): SVG é o único caso onde "startsWith
+  // ('image/')" mente — o próprio navegador declara file.type=
+  // 'image/svg+xml' pra um .svg de verdade, e essa regra sozinha deixaria
+  // passar exatamente o formato que carrega <script>. uploadAvatar/
+  // uploadArtReference/aiLogo usam ESTA função como o único portão.
+  it('recusa SVG mesmo com type declarado começando com "image/"', () => {
+    expect(provadoNaoImagem(arquivo('avatar.svg', 'image/svg+xml'))).toBe(true);
   });
 });
 
