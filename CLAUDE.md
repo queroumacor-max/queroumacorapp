@@ -1,5 +1,41 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **"Build output directory" do Cloudflare Pages ficou desatualizado após o
+  merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
+  `main` falha, Production está SEGURA mas presa até corrigir.** Achado logo
+  depois do merge, checando os builds mais recentes: `Error: Output
+  directory "..." not found` em TODOS eles, incluindo o próprio build do
+  commit do merge (`e526b3d`) e o preview build de um PR só-de-docs (#355)
+  aberto depois, sem nenhuma relação com o pipeline.
+  - **Causa**: `next-app/package.json` → `build:cf` passou a rodar
+    `opennextjs-cloudflare build` (o novo adapter, `@opennextjs/cloudflare`),
+    cujo artefato vai pra `.open-next/assets` (é o que `wrangler.jsonc`
+    declara em `assets.directory`) — não mais `.vercel/output/static`, que
+    era o output do `@cloudflare/next-on-pages` antigo (o adapter QUE ESTÁ
+    saindo). O painel do projeto Pages (`queroumacor-next` → Settings →
+    Builds & deployments → **Build output directory**) continua apontando
+    pro caminho antigo, `next-app/.vercel/output/static` — ninguém atualizou
+    esse campo no merge, porque é config de dashboard, fora do repo, e não
+    aparece em nenhum diff de PR.
+  - **Production não corre risco enquanto isso não for corrigido**:
+    Cloudflare Pages mantém servindo o último deploy BEM-SUCEDIDO
+    (`32de2c8`, com os 8 headers de segurança da correção de 2026-09-19 —
+    ver entrada logo abaixo) toda vez que um build novo falha. Não há
+    rollback nem downtime — só **nenhum commit novo de `main` consegue ir
+    pro ar** até o campo do painel ser corrigido.
+  - **NÃO CORRIGIDO ainda** — é config de dashboard (não dá pra editar via
+    código/PR) e decisão de quem é dono da migração Workers (ADR 0006):
+    apontar o campo pro novo path do Pages (`next-app/.open-next/assets`),
+    ou cortar de vez o deploy de produção pra Workers via `wrangler deploy`
+    (o que tornaria o campo do Pages irrelevante). Avisado via comentário no
+    PR #344 (https://github.com/queroumacor-max/queroumacorapp/pull/344#issuecomment-5740183752)
+    pra sessão/usuário dono da migração decidir e corrigir.
+  - **LIÇÃO: uma migração de adapter de build muda o CAMINHO DE OUTPUT, e
+    isso vive em config de painel que nenhum `git diff` mostra.** Depois de
+    trocar `build:cf`/adapter em qualquer projeto Cloudflare Pages, conferir
+    o "Build output directory" do painel bate com o novo artefato — não dá
+    pra confiar só em `npm run build:cf` rodar limpo local.
+
 - **CSP/X-Frame-Options/Permissions-Policy/COOP/CORP e o CORS restrito de
   `/api/*` NUNCA ESTIVERAM ATIVOS EM PRODUÇÃO — achado e corrigido
   (2026-09-19), disparado por 3 relatórios de scanner externo (CheckVibe/
