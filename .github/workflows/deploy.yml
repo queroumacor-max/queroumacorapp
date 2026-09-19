@@ -42,7 +42,7 @@ jobs:
       # persistida, um postinstall/build script malicioso não tem como usar
       # o GITHUB_TOKEN pra escrever no repo.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
