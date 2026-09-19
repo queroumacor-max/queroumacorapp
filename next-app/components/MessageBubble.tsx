@@ -200,7 +200,10 @@ function MessageBubbleInner({
           style={{
             background: colors.bub,
             borderColor: colors.bd,
-            color: 'var(--color-ink, #111)',
+            // A bolha é sempre um pastel claro, nos dois temas — não usar
+            // `--color-ink` aqui (ele INVERTE pra creme claro no dark, o que
+            // deixava o texto ilegível sobre o mesmo fundo claro).
+            color: 'var(--color-ink-fixed, #111)',
           }}
         >
           {content}
