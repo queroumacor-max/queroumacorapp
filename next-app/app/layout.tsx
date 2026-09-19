@@ -132,14 +132,29 @@ export default function RootLayout({
             __html: `(function(){try{if(!/Android/i.test(navigator.userAgent||''))return;var s=document.documentElement.style;s.minHeight='calc(100vh + 4px)';s.minHeight='calc(100dvh + 4px)';var pin=function(){if(window.scrollY<2)window.scrollTo(0,2);};pin();document.addEventListener('DOMContentLoaded',pin);window.addEventListener('load',pin);}catch(e){}})();`,
           }}
         />
-        {/* Eruda: console de DevTools mobile, ativa so dentro do app nativo
-            (Capacitor) pra debugar o WebView sem precisar de Mac/Safari
-            Web Inspector. Toca no botao flutuante pra abrir o console. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
-          }}
-        />
+        {/* Eruda: console de DevTools mobile, só carrega dentro do app nativo
+            (Capacitor) E com NEXT_PUBLIC_ENABLE_ERUDA='1' no build — pra
+            debugar o WebView sem Mac/Safari Web Inspector numa build de
+            desenvolvimento/staging.
+            SEGURANÇA (auditoria 2026-09-18, achado HIGH): antes disso a
+            ÚNICA condição era `window.Capacitor`, verdadeiro em TODO AAB/IPA
+            publicado — ou seja, o console (REPL de JS com acesso total a
+            localStorage/sessionStorage, onde mora a sessão do Supabase) subia
+            sozinho pra QUALQUER instalação de produção, sem gate nenhum.
+            Qualquer pessoa com o app instalado (ou acesso rápido ao aparelho
+            de outra pessoa) abria o botão flutuante e tinha um console com
+            acesso à sessão de quem estiver logado — sequestro de conta sem
+            precisar de XSS. Também era vetor de supply-chain: script
+            carregado sem pin de versão do jsdelivr, liberado pela CSP.
+            NEXT_PUBLIC_ENABLE_ERUDA fica de fora do build de produção (só
+            setar em builds internas de debug via env do Codemagic/local). */}
+        {process.env.NEXT_PUBLIC_ENABLE_ERUDA === '1' ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){function loadEruda(){if(window.__erudaLoaded)return;window.__erudaLoaded=true;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=function(){window.eruda&&window.eruda.init();};document.body.appendChild(s);}function check(){if(window.Capacitor){loadEruda();}}check();document.addEventListener('DOMContentLoaded',check);window.addEventListener('load',check);setTimeout(check,1000);})();`,
+            }}
+          />
+        ) : null}
       </head>
       <body>
         {/* AuthProvider envolve toda a árvore — substitui o `currentUser` global

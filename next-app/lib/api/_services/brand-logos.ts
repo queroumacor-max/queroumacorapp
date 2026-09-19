@@ -146,6 +146,16 @@ async function fetchBytes(
   if (!isPubliclyRoutableHttpsUrl(src)) return null;
   try {
     const r = await fetch(src, { signal: AbortSignal.timeout(20_000) });
+    // Auditoria 2026-09-18 (achado SSRF): `fetch` segue redirect por padrão
+    // (`redirect:'follow'`), e a checagem acima só valida a URL de ENTRADA —
+    // um host que passa no guard e responde 3xx pra um alvo privado (rede
+    // interna, metadado de nuvem) seria seguido sem revalidação. `r.url` é a
+    // URL FINAL depois de qualquer redirect (o fetch de verdade sempre
+    // preenche); revalidar ela fecha esse vetor. Só rejeita quando `r.url`
+    // vem preenchido E falha — vazio (resposta sintética de teste, ou uma
+    // opaque response) cai de volta pra confiar na URL de entrada já
+    // validada, nunca no contrário.
+    if (r.url && !isPubliclyRoutableHttpsUrl(r.url)) return null;
     if (!r.ok) return null;
     const buf = await r.arrayBuffer();
     const mime = r.headers.get('content-type') || 'image/png';

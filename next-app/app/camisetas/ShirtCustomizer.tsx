@@ -268,7 +268,7 @@ export function ShirtCustomizer() {
           📤 Já tenho meu logo · {isUploading ? 'Enviando…' : 'Enviar'}
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            accept="image/png,image/jpeg,image/webp"
             className="hidden"
             onChange={handleUpload}
             disabled={isUploading}
