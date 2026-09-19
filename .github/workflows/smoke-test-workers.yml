@@ -17,6 +17,13 @@ name: Smoke Test Workers (manual, leitura/checagem apenas)
 # forma fail-closed (401/403/503) sem secret/assinatura válida, então nada
 # aqui aciona efeito colateral real (nenhum e-mail/push/cobrança/mensagem
 # sai). Não precisa de nenhum secret do Cloudflare — só https pública.
+#
+# Também dispara em `pull_request` (só quando ESTE arquivo muda) — de
+# propósito: `workflow_dispatch` só é aceito pela API do GitHub quando o
+# workflow já existe no branch DEFAULT (`main`); numa PR isolada, sem
+# mergear nada, é o `pull_request` que deixa rodar de verdade a partir do
+# conteúdo do branch de feature. Uma vez que este arquivo (ou uma cópia
+# dele) exista em `main`, o `workflow_dispatch` passa a funcionar também.
 on:
   workflow_dispatch:
     inputs:
@@ -24,6 +31,9 @@ on:
         description: 'Base URL do Worker a testar (sem barra no fim)'
         required: true
         default: 'https://queroumacor-next-production.queroumacor.workers.dev'
+  pull_request:
+    paths:
+      - '.github/workflows/smoke-test-workers.yml'
 
 permissions:
   contents: read
@@ -34,7 +44,9 @@ jobs:
     steps:
       - name: Run checks
         env:
-          BASE: ${{ inputs.target_url }}
+          # `inputs.target_url` só existe em workflow_dispatch; no gatilho
+          # `pull_request` (sem esse contexto) cai no default abaixo.
+          BASE: ${{ inputs.target_url || 'https://queroumacor-next-production.queroumacor.workers.dev' }}
           # Só a anon key pública (mesma que já vai inline no bundle do
           # cliente) — usada SÓ pra o check 2b (RLS direto no Supabase, sem
           # passar pelo Worker). Não é secret de verdade; já é lido como tal
