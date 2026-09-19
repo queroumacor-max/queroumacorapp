@@ -89,6 +89,83 @@ describe('POST /api/admin/users', () => {
     expect(patchBody).toContain('true');
   });
 
+  // Auditoria de observabilidade de segurança (2026-09-17): antes, N ações
+  // críticas (promote/revoke/set_pro/delete_user/set_email) em sequência
+  // rápida do MESMO admin não gerava sinal DIFERENTE de N ações espaçadas
+  // — cada uma só virava 1 linha normal em audit_log. Reaproveita a MESMA
+  // RPC de rate limit (chave própria `admin-critical-action-volume`) só
+  // pra CONTAR, e sinaliza sem nunca bloquear a ação em si.
+  it('ação crítica em volume alto loga security.admin.mass_critical_action_suspected, sem bloquear a ação', async () => {
+    const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+        );
+      }
+      if (url.includes('/rpc/check_rate_limit')) {
+        const body = JSON.parse(String(init?.body || '{}'));
+        if (body.p_endpoint === 'admin-critical-action-volume') {
+          return Promise.resolve(
+            new Response(JSON.stringify({ allowed: false, count: 11, limit: 10 }), { status: 200 })
+          );
+        }
+        return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+      }
+      if (url.includes('select=portal_access')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([{ portal_access: true }]), { status: 200 })
+        );
+      }
+      if (url.includes('/rest/v1/profiles') && init?.method === 'PATCH') {
+        return Promise.resolve(new Response(JSON.stringify([{ id: 'target' }]), { status: 200 }));
+      }
+      return Promise.resolve(new Response('[]', { status: 200 }));
+    });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'promote', userId: 'target' }));
+    // A ação em si NUNCA é bloqueada por este sinal — é observabilidade,
+    // não controle de acesso (um admin legítimo limpando spam em lote não
+    // pode ser travado por isto).
+    expect(res.status).toBe(200);
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.admin.mass_critical_action_suspected');
+    expect(record.action).toBe('promote');
+    expect(record.callerId).toBe('caller');
+    warnSpy.mockRestore();
+  });
+
+  it('ação NÃO crítica (set_tag) não consulta o volume de ações críticas', async () => {
+    const rpcCalls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'caller', email: 'boss@x.com' }), { status: 200 })
+        );
+      }
+      if (url.includes('/rpc/check_rate_limit')) {
+        const body = JSON.parse(String(init?.body || '{}'));
+        rpcCalls.push(body.p_endpoint);
+        return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+      }
+      if (url.includes('select=portal_access')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([{ portal_access: true }]), { status: 200 })
+        );
+      }
+      if (url.includes('/rest/v1/profiles') && init?.method === 'PATCH') {
+        return Promise.resolve(new Response(JSON.stringify([{ id: 'target', tag: 'foo' }]), { status: 200 }));
+      }
+      return Promise.resolve(new Response('[]', { status: 200 }));
+    });
+    const { POST } = await import('@/app/api/admin/users/route');
+    const res = await POST(mkReq({ accessToken: 'good', action: 'set_tag', userId: 'target', tag: 'novatag' }));
+    expect(res.status).toBe(200);
+    expect(rpcCalls).not.toContain('admin-critical-action-volume');
+  });
+
   // O telefone que o portal grava tem que sair no MESMO formato que o app
   // grava (digitos com o DDI 55). Com mascara, o numero deixaria de casar
   // com as conversas do WhatsApp e com os leads, que comparam digitos.

@@ -146,6 +146,9 @@ Use Opção B se a Opção A estiver bloqueada (CI broken, etc.).
   (plano PRO).
 - **Web Vitals**: LCP/FID/CLS gravados em tabela `errors` via
   `POST /api/log-error`.
+- **Log estruturado de segurança** (2026-09-17): `lib/api/securityEvents.ts`
+  — grep por `[security]` nos logs do CF Pages Functions. Ver
+  `INCIDENT_RESPONSE.md` §2/§10 para a taxonomia e os runbooks por evento.
 
 ---
 

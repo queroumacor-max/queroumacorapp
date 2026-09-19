@@ -9,7 +9,7 @@
 // (só olha `Content-Length`, não lê o corpo) que agora roda ANTES desses
 // parses nos 9 handlers listados acima.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
 import { rejectOversizedBody, DEFAULT_MAX_BYTES } from '@/lib/api/security';
 
@@ -55,5 +55,33 @@ describe('rejectOversizedBody', () => {
   it('usa DEFAULT_MAX_BYTES (10MB) quando nenhum limite é passado', () => {
     expect(rejectOversizedBody(mkReq(String(DEFAULT_MAX_BYTES + 1)))).not.toBeNull();
     expect(rejectOversizedBody(mkReq(String(DEFAULT_MAX_BYTES)))).toBeNull();
+  });
+
+  // Auditoria de observabilidade de segurança (2026-09-17): rejeição de
+  // upload/body grande era 413 mudo — sem isto, "quem tentou estourar o
+  // teto do endpoint" era invisível.
+  it('loga security.upload.rejected (estruturado) na rejeição, sem query string', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const req = new Request('https://app.test/api/ig-art?accessToken=should-not-leak', {
+      method: 'POST',
+      headers: { 'content-length': '2048' },
+    }) as unknown as NextRequest;
+    rejectOversizedBody(req, 1024);
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.upload.rejected');
+    expect(record.bytes).toBe(2048);
+    expect(record.maxBytes).toBe(1024);
+    expect(record.route).toBe('/api/ig-art');
+    expect(JSON.stringify(record)).not.toContain('accessToken');
+    warnSpy.mockRestore();
+  });
+
+  it('NÃO loga nada quando libera dentro do limite (sem ruído)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    rejectOversizedBody(mkReq('500'), 1024);
+    expect(warnSpy.mock.calls.find((c) => c[0] === '[security]')).toBeUndefined();
+    warnSpy.mockRestore();
   });
 });

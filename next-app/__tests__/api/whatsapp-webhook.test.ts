@@ -204,11 +204,39 @@ describe('POST /api/whatsapp/webhook', () => {
     expect(res.status).toBe(403);
   });
 
+  // Auditoria de observabilidade de segurança (2026-09-17): antes, isto era
+  // um console.warn de string livre — sem shape, sem como filtrar/agregar
+  // "quantas tentativas de token errado nesta janela".
+  it('token de URL errado → loga security.webhook.invalid_signature sem vazar o token', async () => {
+    await chamarPost(pedido(envelopeDeMensagem(), 'token-errado'));
+    const calls = (console.warn as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const call = calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.webhook.invalid_signature');
+    expect(record.provider).toBe('whatsapp');
+    expect(JSON.stringify(record)).not.toContain('token-errado');
+  });
+
   it('envelope de outra conta → 403', async () => {
     const outro = envelopeDeMensagem();
     outro.entry[0].id = '999999999';
     const res = await chamarPost(pedido(outro));
     expect(res.status).toBe(403);
+  });
+
+  it('envelope de outra conta → loga security.webhook.unexpected_sender com os dois lados (recebido × esperado)', async () => {
+    const outro = envelopeDeMensagem();
+    outro.entry[0].id = '999999999';
+    await chamarPost(pedido(outro));
+    const calls = (console.warn as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const call = calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.webhook.unexpected_sender');
+    expect(record.expectedWaba).toBe(WABA);
+    // Nunca inclui texto de mensagem — só o resumo seguro do envelope.
+    expect(JSON.stringify(record)).not.toContain('oiii');
   });
 
   it('corpo que não é JSON → 403, sem lançar', async () => {

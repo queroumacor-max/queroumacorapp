@@ -138,4 +138,43 @@ describe('POST /api/upload-style-ref', () => {
     const res = await POST(mkMultipartReq(form));
     expect(res.status).toBe(413);
   });
+
+  // Auditoria de observabilidade de segurança (2026-09-17): este é um dos
+  // poucos uploads que valida MIME no APP (a maioria vai direto pro
+  // Supabase Storage, onde a rejeição é invisível a nós) — a rejeição
+  // agora deixa rastro.
+  it('rejects invalid mime with 400 and logs security.upload.rejected', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'c', email: 'boss@x.com' }), { status: 200 })
+        );
+      }
+      return Promise.resolve(new Response('', { status: 200 }));
+    });
+    const { POST } = await import('@/app/api/upload-style-ref/route');
+    const res = await POST(
+      mkJsonReq({
+        accessToken: 'good',
+        styleKey: 'profissional',
+        // "image/gif" casa com o regex de data URL (começa com "image/")
+        // mas não está no allowlist (jpeg/png/webp) — exercita o ramo de
+        // MIME REJEITADO, não o de "formato de data URL inválido".
+        photoDataUrl: `data:image/gif;base64,${TINY_PNG_B64}`,
+      })
+    );
+    expect(res.status).toBe(400);
+    // `enforceRateLimit` (o mock não trata `/rpc/check_rate_limit`) também
+    // loga `security.rate_limit.fail_open` antes disto — filtra pelo
+    // evento certo em vez de pegar a primeira linha `[security]`.
+    const call = warnSpy.mock.calls.find(
+      (c) => c[0] === '[security]' && JSON.parse(c[1] as string).event === 'security.upload.rejected',
+    );
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.reason).toBe('invalid_mime');
+    expect(record.mime).toBe('image/gif');
+    warnSpy.mockRestore();
+  });
 });

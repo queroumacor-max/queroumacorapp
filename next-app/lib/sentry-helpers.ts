@@ -34,13 +34,54 @@ export function maskPiiDeep<T>(value: T, depth = 0): T {
   return value;
 }
 
-/** beforeSend Sentry compartilhado. Mascara user.email/data + tags + request body. */
+/** Remove query string de uma URL antes de mandar pro Sentry — query pode
+ * carregar token/secret (ex.: `?token=` do webhook do WhatsApp,
+ * `WHATSAPP_WEBHOOK_URL_SECRET`, que não é JWT-shaped e por isso não bate
+ * em `JWT_RE`/`maskPii`). Mantém origin+path (útil pra agrupar por rota),
+ * descarta tudo depois de `?`/`#`. */
+function stripQueryAndFragment(url: string): string {
+  if (typeof url !== 'string' || !url) return url;
+  try {
+    const idx = url.search(/[?#]/);
+    return idx === -1 ? url : url.slice(0, idx);
+  } catch {
+    return url;
+  }
+}
+
+const SECRET_HEADER_RE = /^(authorization|cookie|set-cookie|x-.*-secret|x-.*-token)$/i;
+
+/** Mascara headers antes de mandar pro Sentry — Authorization/Cookie nunca
+ * saem, o resto passa por `maskPiiDeep` (defesa em profundidade pra
+ * qualquer header custom com PII). */
+function maskHeaders(headers: unknown): unknown {
+  if (!headers || typeof headers !== 'object') return headers;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+    out[k] = SECRET_HEADER_RE.test(k) ? '[REDACTED]' : maskPiiDeep(v);
+  }
+  return out;
+}
+
+/** beforeSend Sentry compartilhado. Mascara user.email/data + tags +
+ * request body + breadcrumbs + request.url/headers.
+ *
+ * GAP FECHADO (auditoria de observabilidade de segurança, 2026-09-17):
+ * a versão anterior só mascarava `user.email`/`request.data`/`extra`/
+ * `contexts` — os breadcrumbs automáticos de fetch/XHR/navegação do
+ * Sentry (ligados por `browserTracingIntegration`) capturam URL completa
+ * (com query string) sem passar por nenhum desses campos, e um token não
+ * JWT-shaped numa query string (ex.: `?token=<segredo>`) atravessava sem
+ * ser mascarado. `event.request.url` (a URL da página) tinha o mesmo
+ * problema. */
 export function sentryBeforeSend<
   E extends {
     user?: { email?: string | null };
-    request?: { data?: unknown };
+    request?: { data?: unknown; url?: string; headers?: unknown; query_string?: unknown };
     extra?: Record<string, unknown>;
     contexts?: Record<string, unknown>;
+    breadcrumbs?: Array<{ data?: unknown; message?: string }>;
+    tags?: Record<string, unknown>;
   },
 >(event: E): E {
   try {
@@ -50,8 +91,29 @@ export function sentryBeforeSend<
     if (event.request?.data !== undefined) {
       event.request.data = maskPiiDeep(event.request.data);
     }
+    if (event.request?.url) {
+      event.request.url = stripQueryAndFragment(event.request.url);
+    }
+    // Sentry já separa query string em `query_string` quando parseia a URL
+    // — remove por completo em vez de mascarar (não sabemos os nomes dos
+    // parâmetros de toda rota, e query string não é dado útil pro debug).
+    if (event.request?.query_string !== undefined) {
+      event.request.query_string = '[REMOVED]';
+    }
+    if (event.request?.headers) {
+      event.request.headers = maskHeaders(event.request.headers);
+    }
     if (event.extra) event.extra = maskPiiDeep(event.extra);
     if (event.contexts) event.contexts = maskPiiDeep(event.contexts);
+    if (Array.isArray(event.breadcrumbs)) {
+      event.breadcrumbs = event.breadcrumbs.map((b) => {
+        if (!b || typeof b !== 'object') return b;
+        const next = { ...b } as typeof b;
+        if (next.data !== undefined) next.data = maskPiiDeep(next.data) as typeof next.data;
+        if (typeof next.message === 'string') next.message = maskPii(next.message);
+        return next;
+      });
+    }
   } catch {
     // Silent — não bloqueia evento se filtro falhar.
   }

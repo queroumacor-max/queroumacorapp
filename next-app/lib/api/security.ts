@@ -22,6 +22,7 @@ import { getRuntimeEnv, getSupabaseServiceKey } from './env';
 // no startup, R-H6). Re-exportada abaixo pra manter o contrato existente
 // (chamadores já importam de `lib/api/security`).
 import { isAdminEmail } from './admin-config';
+import { logSecurityEvent } from './securityEvents';
 export { isAdminEmail };
 
 // NÃO chamar `assertProductionEnvs()` aqui. Era o que este arquivo fazia
@@ -254,8 +255,10 @@ export async function requireAuth(
   const refUrl = projectRefFromUrl(supabaseUrl);
   const refKey = projectRefFromAnonKey(anonKey);
   if (refUrl && refKey && refUrl !== refKey) {
-    console.warn(
-      `requireAuth: projeto divergente — url=${refUrl} anonKey=${refKey}`,
+    logSecurityEvent(
+      'security.config.supabase_project_mismatch',
+      { where: 'requireAuth', url_ref: refUrl, key_ref: refKey },
+      { severity: 'critical', request },
     );
     return {
       user: null,
@@ -282,6 +285,17 @@ export async function requireAuth(
       } catch {
         // corpo nao-JSON: o status sozinho ja ajuda
       }
+      // Auth failure observável (#15): reason class + IP + timestamp, sem
+      // token/JWT (nunca logado — só o `code` coarse que o GoTrue devolve).
+      // Volume normal (sessão expirada é comum) — por isso `warning`, não
+      // `critical`, e nunca vai pro Sentry: detecção de brute force/
+      // credential stuffing é um agregado sobre estes logs (por IP/janela),
+      // não um alerta por tentativa.
+      logSecurityEvent(
+        'auth.login.failed',
+        { reason: 'token_invalid', gotrue_status: res.status },
+        { severity: 'warning', request },
+      );
       return {
         user: null,
         anon: true,
@@ -329,9 +343,21 @@ export async function requireAuthStrict(
       signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
     });
   } catch {
+    logSecurityEvent(
+      'auth.login.failed',
+      { reason: 'network_error', strict: true },
+      { severity: 'warning', request },
+    );
     throw new ServiceError('falha ao validar token', 401);
   }
-  if (!res.ok) throw new ServiceError('token inválido', 401);
+  if (!res.ok) {
+    logSecurityEvent(
+      'auth.login.failed',
+      { reason: 'token_invalid', gotrue_status: res.status, strict: true },
+      { severity: 'warning', request },
+    );
+    throw new ServiceError('token inválido', 401);
+  }
   const user = await res.json();
   if (!user?.id) throw new ServiceError('sessão inválida', 401);
   return {
@@ -408,15 +434,45 @@ export async function checkRateLimit(opts: {
       }),
       signal: AbortSignal.timeout(RATE_LIMIT_TIMEOUT_MS),
     });
-    if (!res.ok) return { allowed: true, skipped: true };
+    if (!res.ok) {
+      // Auditoria de observabilidade de segurança (2026-09-17): antes desta
+      // linha, um fail-open aqui (RPC fora do ar) era 100% silencioso — um
+      // atacante martelando um endpoint DURANTE uma degradação do Supabase
+      // não deixava rastro nenhum de que o rate limit real estava
+      // desligado. `warning`, não `high`: é raro o bastante pra não ser
+      // log-flood, mas nunca some.
+      logSecurityEvent(
+        'security.rate_limit.fail_open',
+        { endpoint, reason: 'rpc_error', status: res.status },
+        { severity: 'warning' },
+      );
+      return { allowed: true, skipped: true };
+    }
     const data = await res.json();
-    return {
+    const result = {
       allowed: !!data?.allowed,
       count: data?.count || 0,
       limit: data?.limit || limit,
       retry_after_seconds: data?.retry_after_seconds || 60,
     };
+    if (!result.allowed) {
+      // Sinal de abuso agregável (credential stuffing / scraping / AI-cost
+      // abuse batem aqui primeiro). `key` pode ser `ip:<ip>[:ação]` ou um
+      // uuid de usuário — nunca um valor que precise de redaction (mesmo
+      // dado que `audit_log.ip_address`/`target_id` já guardam).
+      logSecurityEvent(
+        'security.rate_limit.hit',
+        { endpoint, key: userId, count: result.count, limit: result.limit },
+        { severity: 'warning' },
+      );
+    }
+    return result;
   } catch {
+    logSecurityEvent(
+      'security.rate_limit.fail_open',
+      { endpoint, reason: 'network_error' },
+      { severity: 'warning' },
+    );
     return { allowed: true, skipped: true };
   }
 }
@@ -680,9 +736,15 @@ export async function gateAiUsage(opts: {
   const serviceKey = getServiceKey();
   if (!serviceKey) {
     if (process.env.NODE_ENV === 'production') {
-      // CRIT-5: env quebrada em prod não pode liberar quota IA.
-      console.error(
-        'gateAiUsage: SUPABASE_SERVICE_ROLE_KEY ausente em produção — 503 (fail-closed)'
+      // CRIT-5: env quebrada em prod não pode liberar quota IA. `critical`
+      // de propósito: service-role key ausente em produção é o mesmo
+      // sintoma que uma chave revogada/rotacionada sem atualizar o painel
+      // do Cloudflare Pages — vale como sinal de possível credential
+      // compromise/rotation incompleta, não só de "esqueceram de setar".
+      logSecurityEvent(
+        'security.config.service_role_missing',
+        { where: 'gateAiUsage', feature },
+        { severity: 'critical' },
       );
       return NextResponse.json(
         { error: 'service_unavailable' },
@@ -722,6 +784,11 @@ export async function gateAiUsage(opts: {
       limit: MODERATION_MONTHLY_LIMIT,
     });
     if (!allowed) {
+      logSecurityEvent(
+        'security.ai.quota_exceeded',
+        { feature, plan, used, limit: MODERATION_MONTHLY_LIMIT, pool: 'moderation', userId },
+        { severity: 'warning' },
+      );
       return NextResponse.json(
         {
           error: `Limite de moderação atingido (${used}/${MODERATION_MONTHLY_LIMIT}). Tente novamente mais tarde.`,
@@ -746,6 +813,14 @@ export async function gateAiUsage(opts: {
   });
 
   if (!allowed) {
+    // Auditoria de observabilidade de segurança (2026-09-17): antes desta
+    // linha, "quem foi rate-limitado/quota-negado na IA na última hora"
+    // não era respondível por NENHUMA fonte de dado dedicada.
+    logSecurityEvent(
+      'security.ai.quota_exceeded',
+      { feature, plan, used, limit, pool: 'general', userId },
+      { severity: 'warning' },
+    );
     return NextResponse.json(
       {
         error: `Limite mensal de IA atingido (${used}/${limit}). ${plan === 'free' ? 'Vire PRO pra mais.' : 'Aguarde o próximo mês.'}`,
@@ -823,12 +898,32 @@ export function rejectOversizedBody(
   const raw = request.headers.get('content-length');
   const len = raw ? parseInt(raw, 10) : NaN;
   if (Number.isFinite(len) && len > maxBytes) {
+    // Auditoria de observabilidade de segurança (2026-09-17): rejeição de
+    // upload/body grande era 413 mudo — sem isso, não dá pra distinguir
+    // "cliente com internet ruim mandando foto grande" de alguém testando
+    // o teto do endpoint repetidamente. Só o path (sem query string) —
+    // nunca o corpo.
+    logSecurityEvent(
+      'security.upload.rejected',
+      { reason: 'oversized_body', bytes: len, maxBytes, route: safeRoutePath(request) },
+      { severity: 'info', request },
+    );
     return jsonResponse(
       { error: `payload muito grande (${len} bytes, limite ${maxBytes})` },
       413
     );
   }
   return null;
+}
+
+/** Path da URL sem query string — nunca logar a query inteira (pode
+ * carregar token, como o `?token=` do webhook do WhatsApp). */
+function safeRoutePath(request: NextRequest | Request): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return 'unknown';
+  }
 }
 
 export interface ReadBodyOptions {
