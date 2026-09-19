@@ -22,16 +22,22 @@ on:
     inputs:
       wrangler_command:
         description: >-
-          Comando wrangler a rodar depois do build. 'versions upload --env
-          preview' cria uma Version sem mover tráfego (seguro, repetível).
+          Comando wrangler a rodar depois do build. 'deploy --env preview'
+          CRIA o Worker queroumacor-next-preview a primeira vez (wrangler
+          recusa 'versions upload' num Worker que ainda não existe —
+          confirmado rodando de verdade, run 35418776307: "You cannot
+          upload a new version of a Worker that does not yet exist").
+          'versions upload --env preview' só funciona DEPOIS que o Worker
+          já existe — cria uma Version sem mover tráfego (repetível).
           'deploy --env production' publica de verdade no Worker
           queroumacor-next-production (ainda assim só em *.workers.dev,
           nunca em queroumacor.com.br — routes ficam comentadas no
           wrangler.jsonc até o corte de DNS ser decidido à parte).
         required: true
-        default: 'versions upload --env preview'
+        default: 'deploy --env preview'
         type: choice
         options:
+          - 'deploy --env preview'
           - 'versions upload --env preview'
           - 'deploy --env production'
 
