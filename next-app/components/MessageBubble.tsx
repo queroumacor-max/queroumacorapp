@@ -200,10 +200,11 @@ function MessageBubbleInner({
           style={{
             background: colors.bub,
             borderColor: colors.bd,
-            // A bolha é sempre um pastel claro, nos dois temas — não usar
-            // `--color-ink` aqui (ele INVERTE pra creme claro no dark, o que
-            // deixava o texto ilegível sobre o mesmo fundo claro).
-            color: 'var(--color-ink-fixed, #111)',
+            // A bolha é sempre um pastel BEM claro, nos dois temas — preto
+            // fixo, sem variável. `--color-ink-fixed` (#1a1a2e) ainda não
+            // bastava pro usuário no dark mode; `--color-ink` puro (que
+            // inverte pra creme claro no dark) é o que deixava ilegível.
+            color: '#000',
           }}
         >
           {content}
