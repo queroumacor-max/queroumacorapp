@@ -34,11 +34,15 @@ const KNOWN_GET_FEED_V2_FILES = [
   '2026-06-09-posts-media-dimensions.sql',
   '2026-06-09-rpc-get-feed-v2.sql',
   '2026-09-17-privacy-audit-hardening.sql',
+  '2026-09-18-final-pentest-hardening.sql',
 ].sort();
 
-// Auditoria de privacidade (2026-09-17): trava p_limit em 50 e revoga o
-// GRANT de anon — cumulativa sobre a definição de 2026-06-09.
-const CANONICAL_GET_FEED_V2_FILE = '2026-09-17-privacy-audit-hardening.sql';
+// Pentest final (2026-09-18): corrige um IDOR real (p_user_id do cliente
+// decidindo saved_by_me/liked_by_me/blocks) e foi reconciliado (2026-09-19)
+// com o clamp de p_limit + REVOKE de anon da auditoria de privacidade
+// (2026-09-17) — as duas branches recriavam a função em paralelo, nunca
+// integradas entre si; esta é a versão final com as três correções juntas.
+const CANONICAL_GET_FEED_V2_FILE = '2026-09-18-final-pentest-hardening.sql';
 
 const KNOWN_IS_PORTAL_ADMIN_FILES = [
   '2026-06-05-is-portal-admin-permissive.sql',

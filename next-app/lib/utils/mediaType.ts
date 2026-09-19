@@ -31,14 +31,14 @@ const MIME_POR_EXT: Record<string, string> = {
   heic: 'image/heic',
   heif: 'image/heif',
   bmp: 'image/bmp',
-  // SVG NÃO entra aqui de propósito (auditoria 2026-09-18, achado MEDIUM):
-  // SVG pode embutir <script>/on*=, e a única barreira contra isso hoje é o
-  // `allowed_mime_types` dos buckets do Storage (avatars/posts/art-refs já
-  // não incluem image/svg+xml) — um ponto único de falha, já que esta função
-  // é o que decide "é imagem?" no cliente antes até de chegar no upload. Se
-  // um dia precisar aceitar SVG de verdade, sanitizar o conteúdo primeiro
-  // (remover <script>, event handlers, <foreignObject>), nunca confiar só no
-  // MIME.
+  // SVG de propósito FORA daqui (pentest final, 2026-09-18; mesmo achado
+  // reconfirmado pela auditoria de release-gate no mesmo dia): é o único
+  // formato de "imagem" que carrega <script> executável — servido direto
+  // (avatar/post/logo/art-reference são sempre URL pública, nunca só
+  // <img>) abre stored XSS se algum dia um bucket for reconfigurado pra
+  // aceitar o MIME. Nenhuma feature do app pede SVG de propósito; cai no
+  // "não dá pra deduzir" (mimeConfiavel devolve '') e é recusado com
+  // prova (`ehImagem`/`ehVideo` = false), igual qualquer não-mídia.
   mp4: 'video/mp4',
   mov: 'video/quicktime',
   webm: 'video/webm',
@@ -86,14 +86,26 @@ export function extensaoDe(nome: string | null | undefined): string {
 }
 
 /**
+ * MIME que NUNCA é aceito, mesmo declarado explicitamente pelo browser
+ * (que marca `file.type='image/svg+xml'` sozinho pra um .svg de verdade —
+ * remover só do `MIME_POR_EXT` não bastava, porque esse branch confia no
+ * tipo DECLARADO antes de olhar a extensão). SVG carrega `<script>`
+ * executável; servido como imagem pública (avatar/post/logo/art-
+ * reference sempre têm URL própria) é stored XSS na cara. Pentest final,
+ * 2026-09-18.
+ */
+const MIME_PROIBIDO = new Set(['image/svg+xml', 'image/svg']);
+
+/**
  * O MIME em que dá pra confiar. Devolve '' quando nem o arquivo nem a
  * extensão dizem o que é — aí é caso de recusar mesmo.
  */
 export function mimeConfiavel(file: File | null | undefined): string {
   if (!file) return '';
   const tipo = (file.type || '').toLowerCase().trim();
-  if (!tipoInutil(tipo)) return tipo;
-  return MIME_POR_EXT[extensaoDe(file.name)] || '';
+  if (!tipoInutil(tipo)) return MIME_PROIBIDO.has(tipo) ? '' : tipo;
+  const porExt = MIME_POR_EXT[extensaoDe(file.name)] || '';
+  return MIME_PROIBIDO.has(porExt) ? '' : porExt;
 }
 
 /** É imagem? Aceita o arquivo sem MIME cujo NOME diz que é imagem.
@@ -243,8 +255,15 @@ export async function normalizarArquivo(file: File): Promise<File> {
  * `image/jpeg` existe pelo mesmo motivo.
  */
 export function provadoNaoImagem(file: File): boolean {
-  if (file.type === 'image/svg+xml') return true;
-  return !!file.type && !file.type.startsWith('image/');
+  const tipo = (file.type || '').toLowerCase().trim();
+  // SVG É EXCEÇÃO à regra "startsWith('image/') passa": o navegador marca
+  // um .svg de verdade com esse tipo sozinho (não depende de extensão nem
+  // de content-sniffing), então "não provei que não é imagem" seria
+  // literalmente falso aqui — SVG É conhecido, e o app não aceita SVG em
+  // lugar nenhum (script executável servido como avatar/logo público).
+  // Pentest final, 2026-09-18.
+  if (MIME_PROIBIDO.has(tipo)) return true;
+  return !!tipo && !tipo.startsWith('image/');
 }
 
 /**
