@@ -114,7 +114,12 @@ export function ArtArWebXR({ open, imageUrl, title, onClose }: Props) {
 
       const loader = new THREE.TextureLoader();
       loader.setCrossOrigin('anonymous');
-      let tex: import('three').Texture;
+      // Texture virou genérica em @types/three ≥0.170 (TImage, default
+      // unknown) — sem o argumento, `tex.image` perde `.width`/`.height`.
+      // `TextureLoader` sempre resolve pra HTMLImageElement (é como o
+      // .load/.loadAsync dela carrega), então anotar isso é o tipo real,
+      // não um `any` disfarçado.
+      let tex: import('three').Texture<HTMLImageElement>;
       try {
         tex = await loader.loadAsync(imageUrl);
       } catch {
