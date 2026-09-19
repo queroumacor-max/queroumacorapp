@@ -302,7 +302,18 @@ export function EntryForm({
                     type="button"
                     role="radio"
                     aria-checked={active}
-                    onClick={() => setTipo(opt.value)}
+                    onClick={() => {
+                      // Trocar de tipo pode REMOVER da árvore o campo
+                      // (Recebido/Gasto) que estava focado — ex.: Receita→Custo
+                      // esconde "Recebido". Se o navegador ainda estava com o
+                      // zoom-on-focus do iOS aplicado nesse campo, removê-lo
+                      // sem dar blur antes deixa a tela "presa" no zoom (o
+                      // relato do usuário: "a tela dá tipo um zoom sozinha").
+                      // Dar blur ANTES do setTipo deixa o navegador voltar o
+                      // zoom de forma limpa antes do campo sumir.
+                      (document.activeElement as HTMLElement | null)?.blur?.();
+                      setTipo(opt.value);
+                    }}
                     className={
                       'flex-1 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ' +
                       (active
