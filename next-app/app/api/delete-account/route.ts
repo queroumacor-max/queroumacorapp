@@ -111,11 +111,16 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Anonimiza profile.
+  // `display_name` NÃO é coluna real de `profiles` (nenhuma migration a
+  // criou — ver a mesma pegadinha em lib/services/profile.ts). Incluí-la
+  // aqui faz o PostgREST rejeitar o PATCH INTEIRO (coluna desconhecida no
+  // schema cache) — e como ninguém checa `res.ok` abaixo, a etapa central
+  // deste endpoint (LGPD Art. 18 VI) falhava em SILÊNCIO: o cliente recebia
+  // 200 "sucesso" e o profile nunca era anonimizado de verdade.
   const anonymizedFields = {
     name: 'Conta excluída',
     tag: null,
     username: null,
-    display_name: null,
     avatar_url: null,
     bio: null,
     phone: null,

@@ -23,6 +23,7 @@ import { Avatar } from '@/components/Avatar';
 import { ProfileLinks } from '@/components/ProfileLinks';
 import { DB } from '@/lib/db';
 import { showToast } from '@/lib/toast';
+import { native, copyToClipboard } from '@/lib/native';
 
 // Normaliza nome no estilo do vanilla (head.js linha 790-791):
 // remove "@..." se vier email-like, troca underscore por espaço,
@@ -262,23 +263,15 @@ export function ProfileHeader() {
               // sempre presente aqui pq o botão só renderiza em /perfil próprio.
               const refQ = user?.id ? `?ref=${encodeURIComponent(user.id)}` : '';
               const url = `${window.location.origin}/perfil/${slug}${refQ}`;
-              if (typeof navigator !== 'undefined' && navigator.share) {
-                try {
-                  await navigator.share({ title: name, url });
-                  return;
-                } catch (e) {
-                  if ((e as Error).name === 'AbortError') return;
-                  // continua pro clipboard fallback
-                }
-              }
+              // Share sheet: plugin nativo (casca) → Web Share API
+              // (navegador/PWA), com timeout embutido — nunca fica sem
+              // feedback (ver lib/native/share.ts). Devolve true se
+              // ENTREGOU (ou o usuário cancelou); aí não cai pro copiar.
+              if (await native.share({ title: name, url })) return;
               // Fallback garantido: copia; se clipboard indisponível/falhar,
               // mostra o link no toast pra copiar à mão (nunca sem feedback).
-              try {
-                await navigator.clipboard.writeText(url);
-                showToast('Link copiado!', 'success');
-              } catch {
-                showToast(url, 'info');
-              }
+              if (await copyToClipboard(url)) showToast('Link copiado!', 'success');
+              else showToast(url, 'info');
             }}
             className="flex-1 text-center py-2.5 rounded-xl text-sm font-bold"
             style={{

@@ -14,45 +14,60 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Achado 2026-09-19 (investigação dos headers de segurança ausentes em
-// produção, /, /feed, /login e /portal — reportado por scan ZAP de outra
-// sessão): `headers()` do next.config.mjs era a fonte declarada, mas o
-// `@cloudflare/next-on-pages` (adapter em produção hoje) embute essas
-// regras num routes-manifest no estilo Vercel Build Output, e a entrada
-// desse manifest que representa O PRÓPRIO MIDDLEWARE é marcada
-// `override:true` — o motor de rotas do adapter ZERA os headers já
-// acumulados sempre que uma requisição bate nessa entrada (função interna
-// `applyRouteOverrides`, achada lendo o `_worker.js/index.js` gerado). Como
-// o matcher abaixo casa quase toda rota (de propósito, pro bloqueio de
-// `Next-Action`), isso zerava CSP/X-Frame-Options/Permissions-Policy/COOP/
-// CORP em quase todo lugar — confirmado com um experimento controlado
-// (estreitar o matcher fazia os headers voltarem, mas destruiria o
-// bloqueio de CVE nas rotas de página — não era a correção, só a prova da
-// causa) e, depois, com a correção abaixo, PROVADO fechando o bug de
-// verdade num build real do `main` (`@cloudflare/next-on-pages`) rodando
-// `wrangler pages dev` local — nunca commitado nessa forma, só validado.
+// RECONCILIAÇÃO 2026-09-19: este achado foi feito de forma INDEPENDENTE em
+// duas sessões Claude Code rodando em paralelo, cada uma sem saber da
+// outra — uma direto em `main` (PR #350, disparada por 3 relatórios de
+// scanner externo: CheckVibe/HostedScan Nmap + OWASP ZAP), outra dentro da
+// branch de migração pros Workers (`claude/workers-migration-execution`,
+// #344, disparada pelo achado do ZAP relatado no chat da outra sessão). As
+// duas convergiram pro MESMO fix — headers de segurança de `headers()`
+// (next.config.mjs) pra AQUI —, cada uma provando a causa e validando a
+// correção contra um adapter diferente. Reconciliado no merge do #344.
+//
+// A CAUSA (achada pelas duas, provada com métodos diferentes): `headers()`
+// do next.config.mjs processa certinho até o `routes-manifest.json` (a
+// regra chega a ser embutida como objeto literal no `_worker.js`
+// compilado), mas o RUNTIME do `@cloudflare/next-on-pages@1.13.16` nunca
+// aplica essa tabela a nenhuma resposta — nem em rota prerenderizada (`/`)
+// nem em rota dinâmica de verdade (`/api/health`, que devolvia
+// `Access-Control-Allow-Origin: *` em produção em vez do valor restrito
+// configurado — achado do lado do #350, batendo com o scan ZAP de
+// 18/09/2026). O lado do #344 leu o mecanismo exato: a entrada do
+// routes-manifest que representa O PRÓPRIO MIDDLEWARE é marcada
+// `override:true`, e o motor de rotas do adapter ZERA os headers já
+// acumulados sempre que uma requisição bate nela (função interna
+// `applyRouteOverrides`, lida direto no `_worker.js/index.js` minificado).
+// Como o matcher do middleware casa quase toda rota (de propósito, pro
+// bloqueio de CVE de Next-Action), isso zerava CSP e os outros headers em
+// quase todo lugar. **A validação "curl real via wrangler pages dev" que a
+// auditoria de 13/09 (PR #163) registrou como prova NÃO pegou esse bug** —
+// não dá pra saber daqui se foi versão diferente do adapter, path
+// diferente testado, ou erro de método; o registro anterior estava errado
+// e ninguém percebeu por meses.
 //
 // FIX: aplicar os headers de segurança AQUI, no próprio response que o
-// middleware devolve, em vez de depender só do `headers()` do
-// next.config.mjs (que SAIU de lá — ver comentário em next.config.mjs). O
-// motor de rotas do adapter MERGEIA de volta os headers que o response do
-// MIDDLEWARE já carrega (função interna `processMiddlewareResp`, roda
-// DEPOIS do `applyRouteOverrides` zerar o acumulado) — setar aqui
-// sobrevive ao mesmo mecanismo que zerava o que vinha do next.config.
+// middleware devolve — middleware É de fato aplicado nesse adapter (prova
+// sem precisar de teoria: o `x-request-id` setado logo abaixo sempre
+// chegou certo em produção, inclusive no próprio scan que achou o bug).
+// `next.config.mjs` foi ESVAZIADO dos headers de segurança — não
+// recriá-los lá: seria uma segunda fonte sem efeito nenhum em produção
+// nesse adapter, e ainda por cima o lado do #344 provou que declarar nos
+// DOIS lugares simultaneamente quebra sob `@opennextjs/cloudflare` (ver
+// abaixo).
+//
 // Confirmado nos DOIS adapters, com build real + servidor local em cada:
-//   - `@opennextjs/cloudflare` (o desta branch): não reproduz o bug do
-//     `override` (roda o middleware do Next de forma mais nativa), mas SE
-//     os headers também ficassem declarados em next.config.mjs, as duas
-//     fontes se combinavam por APPEND (não overwrite) na resposta final —
-//     pra header de valor único isso saía `"DENY, DENY"`, formato que boa
-//     parte dos navegadores não reconhece (podem ignorar a proteção em vez
-//     de aplicá-la). Por isso next.config.mjs não declara mais esses
-//     headers — só existe UMA fonte agora, aqui.
-//   - `@cloudflare/next-on-pages` (produção hoje): reproduz o bug sem esta
-//     correção; com ela, os headers aparecem certos (uma vez cada) em /,
-//     /login, /feed, /portal e /api/*, inclusive na resposta 404 do
-//     bloqueio de CVE — e o bloqueio de Next-Action continua barrando com
-//     404 em toda rota testada, sem exceção.
+//   - `@cloudflare/next-on-pages` (produção hoje): reproduz o bug do
+//     `override` sem esta correção; com ela, os headers aparecem certos
+//     (uma vez cada) em /, /login, /feed, /portal e /api/*, inclusive na
+//     resposta 404 do bloqueio de CVE.
+//   - `@opennextjs/cloudflare` (adapter da migração #344): NÃO reproduz o
+//     bug do `override` (roda o middleware do Next de forma mais nativa),
+//     mas SE os headers também ficassem declarados em next.config.mjs, as
+//     duas fontes se combinavam por APPEND (não overwrite) na resposta
+//     final — pra header de valor único isso saía `"DENY, DENY"`, formato
+//     que boa parte dos navegadores não reconhece. Por isso next.config.mjs
+//     não declara mais esses headers em NENHUM dos dois adapters — só
+//     existe UMA fonte, aqui.
 //   - Ressalva do `@opennextjs/cloudflare`: `/portal` (arquivo estático
 //     puro, `.open-next/assets/portal/index.html`) é servido pelo binding
 //     `ASSETS` do Cloudflare direto — bypassa o worker/middleware por
@@ -63,6 +78,23 @@ import type { NextRequest } from 'next/server';
 //     migração pros Workers for além de teste, fechar esse gap exige um
 //     `_headers` dentro de `.open-next/assets/` (mecanismo nativo do
 //     binding ASSETS) — não feito aqui, fora do escopo desta correção.
+//   - **DIVERGÊNCIA REAL entre os dois adapters, achada na reconciliação**:
+//     `/api/health` seta seu próprio `Access-Control-Allow-Origin: '*'` no
+//     código da rota (de propósito, pra aceitar poll de uptime monitor
+//     externo). O lado do #350 testou e confirmou que, sob
+//     `@cloudflare/next-on-pages`, esse valor da ROTA sobrevive por cima do
+//     valor restrito que este middleware seta. Testado de novo aqui, sob
+//     `@opennextjs/cloudflare`: o valor do MIDDLEWARE é quem sobrevive —
+//     `/api/health` sai com `https://queroumacor.com.br`, não `*`. Mesmo
+//     código de middleware (`applySecurityHeaders` é idêntico nos dois),
+//     resultado diferente — os dois adapters resolvem a ordem de merge
+//     entre "header setado pelo middleware" e "header setado pela própria
+//     rota" de jeitos opostos. Não há como o código deste arquivo forçar
+//     um vencedor: quando o middleware roda, a rota ainda nem executou.
+//     Efeito prático de baixa severidade (CORS só importa pra fetch feito
+//     por JS de browser cross-origin; monitor de uptime típico chama
+//     server-to-server, onde CORS não se aplica) — documentado, não
+//     corrigido nesta reconciliação.
 //
 // MANTER EM SINCRONIA MANUAL com `__tests__/
 // middlewareSecurityHeadersParidade.test.ts` (valores golden — falha se
@@ -86,6 +118,11 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['Cross-Origin-Resource-Policy', 'same-origin'],
 ];
 
+// Mesma regra restrita de CORS que o next.config.mjs já declarava pra
+// /api/* (as respostas OPTIONS 204 das rotas não mandavam header CORS
+// nenhum sem isso) — igualmente sem efeito sob next-on-pages, pelo mesmo
+// bug de cima. Sem Cache-Control aqui de propósito: cada rota gerencia o
+// seu (/api/cidades cacheia no CDN intencionalmente).
 const API_CORS_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['Access-Control-Allow-Origin', 'https://queroumacor.com.br'],
   ['Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS'],
@@ -142,9 +179,10 @@ function bloqueiaServerActionHeader(request: NextRequest): NextResponse | null {
 export function middleware(request: NextRequest) {
   // `new URL(request.url).pathname`, não `request.nextUrl.pathname`: os
   // dois valem o mesmo em runtime real, mas `nextUrl` é uma extensão só do
-  // `NextRequest` — os testes existentes deste arquivo constroem um
-  // `Request` (Fetch API padrão) e o castam pra `NextRequest`, sem essa
-  // propriedade. `request.url` existe nos dois.
+  // `NextRequest` — o teste (`__tests__/api/middleware.test.ts`) simula
+  // `NextRequest` com um `Request` (Fetch API padrão) castado, sem essa
+  // propriedade. `request.url` existe nos dois, e é a mesma forma que o
+  // runtime real usa por baixo — não perde nada.
   const pathname = new URL(request.url).pathname;
 
   const bloqueado = bloqueiaServerActionHeader(request);

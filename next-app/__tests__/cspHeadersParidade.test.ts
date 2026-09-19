@@ -1,19 +1,27 @@
 // Auditoria de segurança mobile (2026-09-13) — a CSP vive em DOIS lugares que
-// têm que se complementar (comentário em next.config.mjs, "mudou um, mude o
-// outro"): `_headers` da raiz (assets estáticos/páginas prerenderizadas no
-// Cloudflare Pages) e a fonte real da CSP (rotas servidas pelo worker).
-// Encontrado NA PRÁTICA um drift real: `_headers` estava sem
+// têm que se complementar: `_headers` da raiz (relíquia inerte no Cloudflare
+// Pages — nada fora do build output é lido de lá, é só documentação) e a
+// fonte real da CSP (rotas servidas pelo worker). Encontrado NA PRÁTICA um
+// drift real (antes desta data): `_headers` estava sem
 // `https://*.supabase.co` em `media-src`, então uma página prerenderizada
 // (ex.: `/feed`, que sai como estática no build) podia bloquear `<video>`/
 // `<audio>` apontando pro Storage do Supabase — WhatsApp media, posts em
 // vídeo — enquanto a MESMA rota servida pelo worker liberava normalmente.
 // Este teste falha se os dois voltarem a divergir.
 //
-// ATUALIZADO 2026-09-19: a CSP (e os outros headers de segurança) saiu do
-// `headers()` de `next.config.mjs` e foi pra `middleware.ts` — ver o
-// comentário lá (`applySecurityHeaders`/`SECURITY_CSP`) pro porquê (bug do
-// `override:true` no adapter de produção, que zerava exatamente esses
-// headers). A fonte comparada contra `_headers` agora é `middleware.ts`.
+// ATUALIZADO 2026-09-19 (achado de forma independente em duas sessões em
+// paralelo, reconciliado no merge do #344 em main): `headers()` no
+// next.config.mjs deixou de ser a fonte real — achado e provado que
+// `@cloudflare/next-on-pages@1.13.16` processa `headers()` até o
+// `routes-manifest.json`, mas o RUNTIME do worker nunca aplica essa tabela a
+// nenhuma resposta (CSP/X-Frame-Options/Permissions-Policy/COOP/CORP nunca
+// estiveram de fato ativos em produção por esse caminho — bug do
+// `override:true` do adapter, que zerava exatamente esses headers). A CSP
+// migrou pra `middleware.ts` (`applySecurityHeaders`/`SECURITY_CSP`), que É
+// aplicado de fato nesse adapter. Este teste agora compara `_headers`
+// (documentação) contra `middleware.ts` (fonte real) — ver `next.config.mjs`
+// e `middleware.ts` pro raciocínio completo, incluindo uma divergência real
+// de comportamento entre os dois adapters pro CORS de `/api/health`.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

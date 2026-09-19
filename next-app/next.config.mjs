@@ -49,37 +49,32 @@ const nextConfig = {
   },
 
   async headers() {
+    // SEGURANÇA (2026-09-19): CSP/X-Frame-Options/Permissions-Policy/COOP/
+    // CORP e o CORS restrito de /api/* SAÍRAM daqui — achado e provado nesta
+    // data que `@cloudflare/next-on-pages@1.13.16` processa `headers()`
+    // corretamente até o `routes-manifest.json`, mas o RUNTIME do worker
+    // nunca aplica essa tabela a nenhuma resposta (reproduzido local com
+    // `npm run build:cf` + `wrangler pages dev` + curl, inclusive em rota
+    // dinâmica de verdade como `/api/health` — não é cache, não é Transform
+    // Rule, não é domínio errado). Esses headers vivem agora em
+    // `middleware.ts`, que É aplicado de fato nesse adapter (prova: o
+    // `x-request-id` setado lá sempre chegou certo em produção).
+    // NÃO recriar esses headers aqui — seria uma segunda fonte sem efeito
+    // nenhum em produção, e confundiria a próxima sessão a achar que estão
+    // duplamente protegidos.
     const noCache = [
       { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
     ];
-    // CSP/X-Frame-Options/Permissions-Policy/COOP/CORP e o CORS de /api/(.*)
-    // SAÍRAM de headers() em 2026-09-19 e foram pra `middleware.ts`
-    // (função `applySecurityHeaders`) — NÃO removidos, MOVIDOS.
-    //
-    // Por quê: o `@cloudflare/next-on-pages` (adapter de produção hoje)
-    // embute as regras deste headers() num routes-manifest interno estilo
-    // Vercel Build Output, e a entrada desse manifest que representa o
-    // MIDDLEWARE é `override:true` — o motor de rotas do adapter ZERA os
-    // headers já acumulados (inclusive os deste headers()) sempre que uma
-    // requisição bate no middleware. Como o matcher do middleware casa
-    // quase toda rota (de propósito, pro bloqueio de CVE de Next-Action),
-    // isso zerava CSP e os outros headers em quase todo lugar — provado
-    // com build real + `wrangler pages dev` contra produção (investigação
-    // 2026-09-19), depois de outra sessão reportar o sintoma via scan ZAP.
-    // Manter a declaração AQUI *e* no middleware duplicaria o header (uma
-    // fonte sobrevive ao `override`, a outra não, e as duas se combinam
-    // por append em vez de overwrite) — pra X-Frame-Options/Permissions-
-    // Policy isso sai como `"DENY, DENY"`, que é formato NÃO reconhecido
-    // pela maioria dos navegadores (podem tratar como header inválido e
-    // deixar de aplicar a proteção) — comprovado rodando local contra o
-    // build desta branch (`@opennextjs/cloudflare`, que não reproduz o
-    // bug do `override` mas SOFRE esse duplicado se os dois lados
-    // declararem o mesmo header).
-    //
-    // Fonte única hoje: `middleware.ts`. Ver `SECURITY_HEADERS`/
-    // `API_CORS_HEADERS`/`SECURITY_CSP` lá. Guardado por
-    // `__tests__/cspHeadersParidade.test.ts` (contra o `_headers` legado
-    // da raiz — inerte em produção, mas mantido documentado).
+    // RECONCILIAÇÃO 2026-09-19: esta correção foi achada e corrigida de
+    // forma INDEPENDENTE em duas sessões em paralelo — uma direto em `main`
+    // (PR #350, contra `@cloudflare/next-on-pages`) e outra dentro da
+    // branch de migração pros Workers (`claude/workers-migration-execution`,
+    // #344, já contra `@opennextjs/cloudflare`). As duas convergiram pro
+    // MESMO fix (mover pra middleware.ts) de forma independente — reconciliado
+    // no merge do #344 em main, mantendo os achados dos dois lados (ver
+    // `middleware.ts` e CLAUDE.md pro detalhe completo, incluindo uma
+    // divergência real de comportamento entre os dois adapters pro CORS de
+    // `/api/health`).
     return [
       { source: '/portal', headers: noCache },
       { source: '/portal/', headers: noCache },
