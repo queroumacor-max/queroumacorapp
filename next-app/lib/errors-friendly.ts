@@ -105,6 +105,20 @@ const PATTERNS: ReadonlyArray<Pattern> = [
       actionable: 'Tentar de novo',
     },
   },
+  // Pentest final (2026-09-18): a RLS de mensagem/curtida/comentário/post
+  // passou a recusar quando há bloqueio mútuo ou e-mail não confirmado
+  // (migrations/2026-09-18-final-pentest-hardening.sql) — antes disso só
+  // o cliente filtrava, e o erro cru do Postgres nunca chegava aqui. A
+  // mensagem fica DE PROPÓSITO vaga (não diz "você foi bloqueado" nem
+  // "confirme seu e-mail") — confirmar bloqueio pro remetente é
+  // exatamente o dado que a feature de bloqueio existe pra não vazar.
+  {
+    match: /row-level security|permission denied for/i,
+    friendly: {
+      title: 'Não foi possível concluir',
+      message: 'Essa ação não pôde ser feita agora.',
+    },
+  },
 ];
 
 const GENERIC: FriendlyError = {
