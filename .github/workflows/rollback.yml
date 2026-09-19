@@ -86,4 +86,9 @@ jobs:
       - name: Report
         run: |
           echo "main agora aponta para: $NEW_SHA"
-          echo "deploy.yml vai rodar automaticamente."
+          echo "deploy.yml NÃO dispara sozinho (é workflow_dispatch-only)."
+          echo "Quem redeploya a versão antiga é o Cloudflare Pages Git"
+          echo "integration, que observa pushes em main diretamente — sem"
+          echo "ação extra aqui. Acompanhar em CF Pages Dashboard >"
+          echo "Deployments (~90s) ou GitHub > Actions (se o build do CF"
+          echo "estiver espelhado como check)."

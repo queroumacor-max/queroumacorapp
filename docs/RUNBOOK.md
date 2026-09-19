@@ -125,9 +125,31 @@ Use Opção B se a Opção A estiver bloqueada (CI broken, etc.).
 
 ### Rollback de banco (Supabase)
 
-- PITR 7 dias (PRO plan).
+- PITR 7 dias (PRO plan) — **retenção não reconfirmada nesta sessão,
+  ver [`DR_RUNBOOK.md`](./DR_RUNBOOK.md) para o estado "NOT VERIFIED"**.
 - Dashboard → Database → Backups → PITR.
 - **Cuidado**: ver seção [SQL migrations](#4-sql-migrations).
+- **⚠️ NUNCA rodar `execute_cleanup_orphan_media()` logo depois de um
+  restore** (PITR ou dump manual), mesmo que pareça inofensivo. Motivo:
+  Supabase Storage e o Postgres PITR não são garantidamente restaurados
+  no MESMO instante — um restore parcial do banco pra um ponto T0 pode
+  deixar, por uma janela, arquivos no bucket `posts` que pertencem a
+  posts que "ainda não existem" no banco recém-restaurado (mas vão
+  voltar a existir assim que a reconciliação terminar). Rodar a limpeza
+  nessa janela apaga permanentemente mídia de posts válidos. Antes de
+  rodar limpeza de órfãos depois de QUALQUER restore: (1) rodar
+  `select * from public.dr_integrity_report();` (migration
+  `2026-09-17-dr-deletion-tombstone-and-integrity.sql`) e confirmar que
+  não há achado `warn`/`fail` em storage; (2) esperar pelo menos 24h
+  úteis depois do restore antes de considerar qualquer exclusão. Ver
+  [`DR_RUNBOOK.md` §Storage](./DR_RUNBOOK.md#storage-recovery) pro
+  procedimento completo.
+- **Rotação de secrets**: ver
+  [`DR_RUNBOOK.md` §Secret Recovery](./DR_RUNBOOK.md#secret-recovery-matrix)
+  pra procedimento por secret (Supabase service role, Gemini, Dualhook/
+  Meta, Mercado Pago, Sentry, Firebase/FCM, APNs, Google Play). Antes
+  desta auditoria (2026-09-17) só a rotação do `SUPABASE_SERVICE_ROLE_KEY`
+  estava documentada (§7.2 abaixo).
 
 ---
 
