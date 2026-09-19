@@ -13,10 +13,17 @@
 // bug já documentada em getSession/getUserMedia/OAuth neste projeto: "no
 // WebView, promessa pendurada não rejeita"). `withTimeout` garante que o
 // caller SEMPRE recebe uma resposta e cai pro fallback de copiar.
-
+// ACHADO do Codex (PR #347): um timeout curto demais NÃO consegue
+// distinguir "travou de verdade" de "a pessoa ainda está escolhendo o
+// destinatário na share sheet" — 60s é pouco pra isso, e o fallback
+// disparando por cima da sheet AINDA ABERTA é mais confuso que o problema
+// original. Mesmo racional/valor do OAUTH_TIMEOUT_MS em lib/native/auth.ts
+// (também "espera interação com UI externa"): 5min é praticamente garantido
+// de nunca disparar em cima de um share genuíno, e ainda fecha o caso de
+// verdade (ambiente sem UI de share nenhuma, que nunca ia resolver mesmo).
 import { getPlugin, isNativePlatform } from './platform';
 
-const SHARE_TIMEOUT_MS = 60_000;
+const SHARE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {

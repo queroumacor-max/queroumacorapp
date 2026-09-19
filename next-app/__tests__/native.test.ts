@@ -194,7 +194,7 @@ describe('shareNative', () => {
     vi.useFakeTimers();
     (navigator as unknown as { share: unknown }).share = vi.fn(() => new Promise(() => {}));
     const pending = shareNative({ url: 'https://x' });
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
     await expect(pending).resolves.toBe(false);
   });
 
@@ -206,7 +206,7 @@ describe('shareNative', () => {
       Plugins: { Share: { share: () => new Promise(() => {}) } },
     });
     const pending = shareNative({ url: 'https://x' });
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
     await expect(pending).resolves.toBe(false);
   });
 });
