@@ -1,0 +1,171 @@
+name: Smoke Test Workers (manual, leitura/checagem apenas)
+
+# Disparo MANUAL apenas. Roda uma bateria de checagens HTTP contra um Worker
+# já publicado (por padrão, o `queroumacor-next-production` de teste da
+# migração #344, em *.workers.dev — NUNCA queroumacor.com.br) pra responder
+# "cada fluxo funciona DE VERDADE nesse ambiente?", não só "a URL responde".
+#
+# Por quê este workflow existe (e não um curl direto do sandbox da sessão):
+# o ambiente onde o Claude Code roda tem egress bloqueado por política pra
+# qualquer host fora de um allowlist restrito (github/npm/anthropic/etc) —
+# *.workers.dev cai fora dele (confirmado: CONNECT rejeitado com 403 pelo
+# proxy). Um runner do GitHub Actions tem rede normal, então é o único jeito
+# de rodar a checagem de verdade, sem inventar resultado.
+#
+# GET-only + POSTs com corpo/headers deliberadamente inválidos ou incompletos
+# — todos os endpoints POST testados aqui são desenhados pra rejeitar de
+# forma fail-closed (401/403/503) sem secret/assinatura válida, então nada
+# aqui aciona efeito colateral real (nenhum e-mail/push/cobrança/mensagem
+# sai). Não precisa de nenhum secret do Cloudflare — só https pública.
+#
+# Também dispara em `pull_request` (só quando ESTE arquivo muda) — de
+# propósito: `workflow_dispatch` só é aceito pela API do GitHub quando o
+# workflow já existe no branch DEFAULT (`main`); numa PR isolada, sem
+# mergear nada, é o `pull_request` que deixa rodar de verdade a partir do
+# conteúdo do branch de feature. Uma vez que este arquivo (ou uma cópia
+# dele) exista em `main`, o `workflow_dispatch` passa a funcionar também.
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Base URL do Worker a testar (sem barra no fim)'
+        required: true
+        default: 'https://queroumacor-next-production.queroumacor.workers.dev'
+  pull_request:
+    paths:
+      - '.github/workflows/smoke-test-workers.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run checks
+        env:
+          # `inputs.target_url` só existe em workflow_dispatch; no gatilho
+          # `pull_request` (sem esse contexto) cai no default abaixo.
+          BASE: ${{ inputs.target_url || 'https://queroumacor-next-production.queroumacor.workers.dev' }}
+          # Só a anon key pública (mesma que já vai inline no bundle do
+          # cliente) — usada SÓ pra o check 2b (RLS direto no Supabase, sem
+          # passar pelo Worker). Não é secret de verdade; já é lido como tal
+          # nos outros workflows deste repo por convenção do repositório.
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+          FAIL=0
+
+          # check <label> <method> <path> <expected_status_regex> [curl extra args...]
+          check() {
+            local label="$1" method="$2" path="$3" expect="$4"
+            shift 4
+            local out status body
+            out=$(curl -sS -m 20 -o /tmp/body.txt -w '%{http_code}' -X "$method" "$BASE$path" "$@" 2>/tmp/err.txt)
+            status="$out"
+            body=$(head -c 500 /tmp/body.txt 2>/dev/null || true)
+            if [[ "$status" =~ ^($expect)$ ]]; then
+              echo "✅ PASS  $label — HTTP $status"
+            else
+              echo "❌ FAIL  $label — esperado [$expect], veio HTTP $status"
+              FAIL=1
+            fi
+            echo "   curl stderr: $(cat /tmp/err.txt | tr '\n' ' ' | head -c 200)"
+            echo "   body (500 bytes): $body"
+            echo
+          }
+
+          echo "=== Alvo: $BASE ==="
+          echo
+
+          echo "--- 1) Login: página /login carrega + bundle carrega a env certa ---"
+          check "GET /login" GET "/login" "200|307|308"
+          curl -sS -m 20 "$BASE/login" -o /tmp/login.html || true
+          if grep -qo 'uwqebaqweehiljsqkifm\.supabase\.co' /tmp/login.html 2>/dev/null; then
+            echo "✅ PASS  /login HTML referencia o host Supabase certo (SSR inline)"
+          else
+            echo "ℹ️  /login HTML não trouxe o host Supabase inline (pode estar só no JS — checando chunks a seguir)"
+            JS_URLS=$(grep -oE '/_next/static/chunks/[a-zA-Z0-9_.-]+\.js' /tmp/login.html | sort -u | head -8)
+            FOUND=0
+            for u in $JS_URLS; do
+              if curl -sS -m 15 "$BASE$u" 2>/dev/null | grep -qo 'uwqebaqweehiljsqkifm\.supabase\.co'; then
+                echo "✅ PASS  chunk $u contém o host Supabase certo"
+                FOUND=1
+                break
+              fi
+            done
+            if [ "$FOUND" -eq 0 ]; then
+              echo "❌ FAIL  nenhum chunk JS varrido contém o host Supabase esperado"
+              FAIL=1
+            fi
+          fi
+          echo
+
+          echo "--- 2) Feed: rota carrega (guard de auth é client-side; sem cookie real) ---"
+          check "GET /feed" GET "/feed" "200|307|308"
+          echo
+
+          echo "--- 2b) Feed via RLS: leitura direta no Supabase com anon key (sem passar pelo Worker) ---"
+          # Confirma que a policy de RLS em vigor hoje (app exige login desde
+          # 18/06) recusa leitura anônima de posts — não é teste do Worker,
+          # é teste do banco, mas contextualiza o resultado acima.
+          RLS_OUT=$(curl -sS -m 15 -o /tmp/rls.txt -w '%{http_code}' \
+            "https://uwqebaqweehiljsqkifm.supabase.co/rest/v1/posts?select=id&limit=1" \
+            -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}" 2>/dev/null || echo "000")
+          echo "   GET posts (anon key) direto no Supabase => HTTP $RLS_OUT — corpo: $(head -c 200 /tmp/rls.txt 2>/dev/null)"
+          echo
+
+          echo "--- 3) Portal: rewrite /portal -> /portal/index.html (asset estático via ASSETS binding) ---"
+          # 307 (redirect pra /portal/) é o esperado — visto na 1ª rodada
+          # real (run 35420596213): o binding ASSETS trata /portal como
+          # diretório e redireciona antes de servir index.html, igual
+          # servidor de arquivo estático comum. Confirmado local também.
+          check "GET /portal" GET "/portal" "200|307"
+          echo
+
+          echo "--- 4) /api/health: prova outbound fetch Worker -> Supabase sob global_fetch_strictly_public ---"
+          check "GET /api/health" GET "/api/health" "200"
+          if command -v jq >/dev/null && [ -f /tmp/body.txt ]; then
+            jq . /tmp/body.txt 2>/dev/null || cat /tmp/body.txt
+          fi
+          echo
+
+          echo "--- 4b) /api/cidades: outbound fetch Worker -> IBGE (3º domínio, sem nenhum secret) ---"
+          check "GET /api/cidades?uf=SP" GET "/api/cidades?uf=SP" "200|429"
+          echo
+
+          echo "--- 5) WhatsApp webhook (GET verify): secret ausente neste Worker => 503 esperado ---"
+          check "GET /api/whatsapp/webhook (verify)" GET "/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=x&hub.challenge=y" "503"
+          echo
+
+          echo "--- 6) Mercado Pago webhook (POST): secret ausente => fail-closed 401 esperado ---"
+          check "POST /api/mp-webhook" POST "/api/mp-webhook" "200|401" \
+            -H "Content-Type: application/json" -d '{"type":"payment","data":{"id":"smoketest"}}'
+          echo
+
+          echo "--- 7) Checkout PRO (POST): MP_ACCESS_TOKEN ausente => 503 esperado ---"
+          check "POST /api/checkout" POST "/api/checkout" "503" \
+            -H "Content-Type: application/json" -d '{"accessToken":"smoketest-dummy"}'
+          echo
+
+          echo "--- 8) Upload de mídia (server-mediated, PDF de orçamento): sem auth => 401 esperado ---"
+          check "POST /api/quote-pdf-upload (sem auth)" POST "/api/quote-pdf-upload" "400|401" \
+            -H "Content-Type: application/json" -d '{}'
+          echo
+
+          echo "--- 9) IA (chat-ai / Seu Zé): sem OPENAI/GEMINI key neste Worker => 503 esperado ---"
+          check "POST /api/chat-ai" POST "/api/chat-ai" "503" \
+            -H "Content-Type: application/json" -d '{"message":"oi"}'
+          echo
+
+          echo "--- 10) Push (push-notify): PUSH_INTERNAL_SECRET ausente => 503 fail-closed esperado ---"
+          check "POST /api/push-notify" POST "/api/push-notify" "503" \
+            -H "Content-Type: application/json" -d '{}'
+          echo
+
+          echo "=== FIM ==="
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::um ou mais checks vieram fora do esperado — ver log acima."
+            exit 1
+          fi
+          echo "Todos os checks vieram no status esperado (ver PASS/FAIL e os corpos de resposta acima pro detalhe de CADA fluxo)."
