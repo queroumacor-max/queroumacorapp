@@ -16,6 +16,7 @@ import {
 import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import {
   buildPatch,
+  cleanupUserStorageAction,
   deleteUserPermanently,
   ensureCallerHasPortalAccess,
   listUsers,
@@ -107,6 +108,14 @@ export async function POST(request: NextRequest) {
       // própria conta, nunca admin/portal sem revogar antes.
       result = await deleteUserPermanently({ userId, callerId });
       auditChanges = { deleted: true, admin_email: email };
+    } else if (action === 'cleanup_storage') {
+      // Privacy audit 2026-09-17: chamada pelo portal DEPOIS de
+      // `admin_delete_user` (RPC) ter apagado a conta — apaga Storage,
+      // que a RPC (SQL puro) não alcança. Não exige o guard de admin/
+      // portal-access do alvo (a conta já pode ter sido apagada; o
+      // userId aqui só identifica o PREFIXO de path a limpar).
+      result = await cleanupUserStorageAction({ userId });
+      auditChanges = { cleaned_storage: true, admin_email: email };
     } else if (action === 'set_tag') {
       // Regra do app: @tag nunca vazia (busca/link dependem dela).
       result = await setTag({ userId, tag: body?.tag });
@@ -154,6 +163,8 @@ export async function POST(request: NextRequest) {
       action === 'promote' ||
       action === 'revoke' ||
       action === 'delete_user' ||
+      // Apaga arquivo permanentemente — mesma trilha obrigatória de delete_user.
+      action === 'cleanup_storage' ||
       // Troca de e-mail muda a IDENTIDADE do login — trilha obrigatória.
       action === 'set_email';
 

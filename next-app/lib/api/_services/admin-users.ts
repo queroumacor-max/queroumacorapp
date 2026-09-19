@@ -5,6 +5,7 @@
 
 import { ServiceError, getServiceKey, getSupabaseUrl } from '../security';
 import { captureDrAuditEvent } from '@/lib/drAuditTrail';
+import { cleanupUserStorage } from './storageCleanup';
 
 const TIMEOUT_MS = 10000;
 
@@ -552,6 +553,31 @@ export async function deleteUserPermanently(args: {
   });
 
   return { ok: true, deleted: userId };
+}
+
+/**
+ * Apaga os arquivos do usuário em Storage (avatars/art-refs/posts).
+ *
+ * Privacidade 2026-09-17: a exclusão de conta pelo PORTAL passou a usar a
+ * RPC `admin_delete_user` (SQL puro, roda a cascata inteira dentro do
+ * Postgres — ver comentário em `admin_delete_user` sobre o 502 que a
+ * rota HTTP antiga dava no meio da chamada ao GoTrue) — mas SQL não
+ * alcança a API de Storage, então avatar/arte da conta apagada pelo
+ * admin ficava público pra sempre. Esta action é CHAMADA SEPARADAMENTE
+ * pelo portal (depois da RPC ter sucesso), best-effort — nunca reverte
+ * nem impede a exclusão já feita no banco, e não toca em `auth.users`/
+ * `profiles` (só Storage), então não reintroduz o risco de timeout que
+ * motivou tirar a exclusão de conta da rota HTTP.
+ */
+export async function cleanupUserStorageAction(args: {
+  userId: string;
+}): Promise<{ ok: true; cleaned: string }> {
+  const { userId } = args;
+  const serviceKey = getServiceKey();
+  if (!serviceKey) throw new ServiceError('Gestão de usuários não configurada', 503);
+  const supaUrl = getSupabaseUrl();
+  await cleanupUserStorage(userId, supaUrl, serviceKey);
+  return { ok: true, cleaned: userId };
 }
 
 /**

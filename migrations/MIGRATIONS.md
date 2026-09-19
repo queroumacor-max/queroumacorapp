@@ -27,12 +27,13 @@ garante ordem** entre arquivos do mesmo dia. Onde a ordem importa, o próprio
 SQL tem guardas de idempotência. Cuidado registrado pela auditoria:
 
 - **`get_feed_v2` foi recriada várias vezes** (Waves 16/17/21/22/23, todas em
-  2026-06-09). A definição **canônica/vigente** é a de
-  `2026-06-09-feed-verified-fix.sql` (cumulativa: boost + blocks + verified +
-  media dims). Se rodar a pasta em ordem alfabética de nome, `posts-media-
-  dimensions.sql` e `rpc-get-feed-v2.sql` vêm depois e **regridem** a função
-  — então, ao reaplicar do zero, rodar `feed-verified-fix.sql` POR ÚLTIMO
-  entre as de feed.
+  2026-06-09, mais uma vez em 2026-09-17). A definição **canônica/vigente**
+  é a de `2026-09-17-privacy-audit-hardening.sql` (cumulativa: boost +
+  blocks + verified + media dims + clamp de `p_limit` em 50 + REVOKE de
+  `anon`). Se rodar a pasta em ordem alfabética de nome, `posts-media-
+  dimensions.sql` e `rpc-get-feed-v2.sql` (ambas de 2026-06-09) vêm depois
+  de `feed-verified-fix.sql` e **regridem** a função — então, ao reaplicar
+  do zero, rodar `privacy-audit-hardening.sql` POR ÚLTIMO entre as de feed.
 - **`is_portal_admin()`** teve 3 definições ao longo do tempo. A vigente é a
   de `2026-09-03-fix-quotes-policy-and-is-portal-admin.sql` (padrão
   `to_jsonb`, que tolera a coluna fantasma `is_admin`).

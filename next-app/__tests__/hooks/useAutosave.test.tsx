@@ -21,6 +21,7 @@ import {
   readDraft,
   writeDraft,
   clearDraft,
+  clearAllAutosaveDrafts,
 } from '../../lib/hooks/useAutosave';
 
 beforeEach(() => {
@@ -153,5 +154,44 @@ describe('useAutosave — quota', () => {
     expect(readDraft('small')).toEqual(small);
     clearDraft('small');
     expect(localStorage.getItem('autosave_small')).toBeNull();
+  });
+});
+
+// Privacy audit 2026-09-17: as chaves de autosave (`profile_edit`,
+// `post_composer`) eram GLOBAIS, não escopadas por usuário — rascunho de A
+// (nome/telefone/legenda ainda não enviado) sobrevivia no localStorage e
+// era restaurado pra B, se B logasse no mesmo aparelho sem A ter
+// submetido o formulário. As telas passaram a incluir o uid na key
+// (defesa primária); `clearAllAutosaveDrafts()` é a defesa em
+// profundidade chamada no logout (`AuthProvider.signOut`), que varre
+// TODAS as chaves com o prefixo, independente de qual/quantas existirem.
+describe('clearAllAutosaveDrafts', () => {
+  it('apaga todos os drafts de autosave, de qualquer key', () => {
+    writeDraft('profile_edit_user-a', { name: 'Alice' });
+    writeDraft('post_composer_user-a', { caption: 'legenda da Alice' });
+    writeDraft('quote_123', { note: 'algo' });
+    expect(localStorage.getItem('autosave_profile_edit_user-a')).not.toBeNull();
+
+    clearAllAutosaveDrafts();
+
+    expect(readDraft('profile_edit_user-a')).toBeNull();
+    expect(readDraft('post_composer_user-a')).toBeNull();
+    expect(readDraft('quote_123')).toBeNull();
+  });
+
+  it('não mexe em chaves de localStorage que não são autosave (ex.: tema, flags de tour)', () => {
+    localStorage.setItem('theme', 'dark');
+    localStorage.setItem('app_tour_seen_v1', '1');
+    writeDraft('profile_edit_user-b', { name: 'Bob' });
+
+    clearAllAutosaveDrafts();
+
+    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(localStorage.getItem('app_tour_seen_v1')).toBe('1');
+    expect(readDraft('profile_edit_user-b')).toBeNull();
+  });
+
+  it('não lança quando não há draft nenhum', () => {
+    expect(() => clearAllAutosaveDrafts()).not.toThrow();
   });
 });

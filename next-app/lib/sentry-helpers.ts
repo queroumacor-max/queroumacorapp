@@ -67,16 +67,16 @@ function maskHeaders(headers: unknown): unknown {
  * request body + a mensagem da própria exceção + breadcrumbs (message
  * E data) + request.url/headers/query_string.
  *
- * Duas auditorias em paralelo fecharam gaps complementares na mesma
- * função, reconciliados aqui em 2026-09-19: a de release-gate
- * (2026-09-18) achou que `exception.values[].value`/`message` nunca
- * eram mascarados (a mensagem do Error lançado, ou uma violação de
- * constraint do Postgres ecoando um valor, ia pro Sentry sem máscara);
- * a de observabilidade de segurança (2026-09-17) achou que os
- * breadcrumbs automáticos de fetch/XHR/navegação (ligados por
- * `browserTracingIntegration`) capturam URL completa com query string
- * fora de `user.email`/`request.data`/`extra`/`contexts`, e que
- * `request.headers`/`query_string` também vazavam sem filtro. */
+ * Três auditorias em paralelo fecharam gaps complementares na mesma
+ * função, reconciliados aqui em 2026-09-19: privacidade (2026-09-17)
+ * achou que `message`/`exception.value`/`request.url`/`breadcrumbs`
+ * passavam crus (um erro de constraint do Postgres pode ecoar telefone/
+ * email); observabilidade de segurança (2026-09-17) achou que os
+ * breadcrumbs automáticos de fetch/XHR (browserTracingIntegration)
+ * carregam URL completa com query string fora de qualquer campo
+ * mascarado, e que `request.headers`/`query_string` vazavam sem filtro;
+ * release-gate (2026-09-18) achou o mesmo gap em `exception.values[].
+ * value`/`message`/breadcrumbs por um ângulo independente. */
 export function sentryBeforeSend<
   E extends {
     user?: { email?: string | null };

@@ -28,6 +28,16 @@ import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { reportFailure } from '@/lib/utils/reportFailure';
 import { clearDeviceTokenOnLogout } from '@/lib/services/pushTokens';
+import { clearAllAutosaveDrafts } from '@/lib/hooks/useAutosave';
+
+// Evento central de logout — quem precisa reagir (ex.: QueryProvider, que
+// fica DENTRO deste provider e por isso não pode ser chamado direto daqui)
+// escuta em `window`. Privacy audit 2026-09-17: antes só 3 telas (Profile
+// Footer/Header, DeleteAccountSection) chamavam `queryClient.clear()` na
+// PRÓPRIA lógica de clique — qualquer encerramento de sessão que não
+// passasse por esse botão exato (refresh falho, revogação do lado do
+// servidor) nunca limpava o cache do react-query.
+export const LOGOUT_EVENT = 'quc:logout';
 
 interface AuthContextValue {
   user: User | null;
@@ -337,6 +347,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     } catch {
       // Silencioso.
+    }
+    // Privacy audit 2026-09-17: limpa rascunhos de autosave (podem conter
+    // nome/telefone/legenda ainda não enviados) e avisa quem tem acesso ao
+    // queryClient (fora da árvore deste provider) pra zerar o cache — sempre
+    // que a sessão termina, não só quando o botão específico é tocado.
+    clearAllAutosaveDrafts();
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new Event(LOGOUT_EVENT));
+      } catch {
+        // Silencioso — CustomEvent indisponível não pode travar o logout.
+      }
     }
     await getSupabase().auth.signOut();
   }, []);
