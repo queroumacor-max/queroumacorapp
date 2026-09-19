@@ -5,7 +5,7 @@
   "description": "QueroUmaCor - iOS/Android PWA wrapper via Capacitor",
   "dependencies": {
     "@capacitor-firebase/messaging": "^6.3.1",
-    "@capacitor/app": "^6.0.2",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^6.0.5",
     "@capacitor/camera": "^6.1.2",
     "@capacitor/clipboard": "^8.0.1",
