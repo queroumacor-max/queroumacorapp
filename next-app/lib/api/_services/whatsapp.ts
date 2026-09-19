@@ -644,7 +644,8 @@ export async function persistStatusEntrega(
 
     const res = await fetch(
       `${url.replace(/\/$/, '')}/rest/v1/whatsapp_messages` +
-        `?message_id=eq.${encodeURIComponent(st.messageId)}`,
+        `?message_id=eq.${encodeURIComponent(st.messageId)}` +
+        `&${filtroSoAvancaEntrega(st.status)}`,
       {
         method: 'PATCH',
         headers: {
@@ -1243,6 +1244,26 @@ export function statusAvanca(
 ): boolean {
   const antes = PESO_STATUS[(atual || '') as StatusEntrega] ?? 0;
   return PESO_STATUS[novo] > antes;
+}
+
+/**
+ * Filtro PostgREST que deixa passar só a linha cujo `delivery_status` atual
+ * é MENOR que `novo` (ou nulo) — mesmo padrão de `filtroSoAvanca` (abordagem
+ * de lead), aplicado aqui a `whatsapp_messages`.
+ *
+ * Auditoria 2026-09-18 (achado MEDIUM): `statusAvanca`/`PESO_STATUS` só
+ * dedupam DENTRO de uma mesma entrega de webhook (Map em memória do
+ * `processarStatus`); duas entregas HTTP SEPARADAS (a Meta reentrega, ou
+ * manda `sent` depois de `read` fora de ordem — documentado como
+ * comportamento normal dela) não compartilham esse Map, e o PATCH antigo
+ * era incondicional — um `sent` atrasado podia regredir um `read` já
+ * gravado. Este filtro fecha isso no PRÓPRIO banco, entre requisições.
+ */
+export function filtroSoAvancaEntrega(novo: StatusEntrega): string {
+  const maiores = (Object.keys(PESO_STATUS) as StatusEntrega[]).filter(
+    (s) => PESO_STATUS[s] >= PESO_STATUS[novo]
+  );
+  return `or=(delivery_status.is.null,delivery_status.not.in.(${maiores.join(',')}))`;
 }
 
 /**

@@ -4728,7 +4728,13 @@ const Leads = () => {
   const exportCSV = () => {
     const header = ['#','Nome','Cidade','Bairro','Endereco','Segmento','Categoria','Rating','Reviews','Telefone','Prioridade','Status','Entrega','Erro da entrega','Entrega em'];
     const rows = filtered.map((l,i) => { const d = descreverAbordagem(l); return [i+1, l.name||'', l.city||'', l.neighborhood||'', l.address||'', l.segment||'', l.category||'', l.rating||'', l.review_count||'', l.phone||'', l.priority||'', l.status||'', d ? d.rotulo : '', d ? d.erro : '', d ? d.quando : '']; });
-    const csv = [header, ...rows].map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+    // Segurança (2026-09-18): `name`/`city`/`segment`/`category` vem de leads
+    // importados de planilha (dado externo/scraped) e de perfis que o
+    // proprio usuario preenche — celula comecando com =/+/-/@ e tratada
+    // como FORMULA pelo Excel ao abrir o CSV, mesmo entre aspas
+    // (CWE-1236). Prefixo com aspas simples desarma sem mudar o texto
+    // visivel. So nas linhas de DADO — o cabecalho e string fixa nossa.
+    const csv = [header, ...rows].map((r, i) => r.map(c => { let s = String(c); if (i > 0 && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"'+s.replace(/"/g,'""')+'"'; }).join(',')).join('\n');
     const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'leads_calicolors.csv'; a.click();
@@ -8325,7 +8331,12 @@ const csvDoUso = (pessoas) => {
     ['Orçamentos pedidos','orcamentosPedidos'],['Avaliações','avaliacoes'],['Nota média','notaMedia'],
     ['Última atividade','ultimaAtividade'],['Atividade (pts)','atividade']];
   const linhas = [cols.map(c => c[0])].concat(pessoas.map(p => cols.map(c => p[c[1]] == null ? '' : p[c[1]])));
-  return '\uFEFF' + linhas.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\n');
+  // Seguran\u00E7a (2026-09-18): mesma prote\u00E7\u00E3o de CSV/formula injection de
+  // `exportCSV` \u2014 `nome`/`cidade`/`tag` vem de campo que o proprio usuario
+  // preenche; celula comecando com =/+/-/@ vira formula no Excel mesmo
+  // entre aspas (CWE-1236). So nas linhas de DADO \u2014 o cabecalho (`cols[*][0]`,
+  // ex. "@tag") e string fixa nossa, nao precisa e nao deve ser escapada.
+  return '\uFEFF' + linhas.map((r, i) => r.map(v => { let s = String(v); if (i > 0 && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; }).join(';')).join('\n');
 };
 // [teste:uso-fim]
 
