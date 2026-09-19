@@ -101,8 +101,43 @@ import type { NextRequest } from 'next/server';
 // alguém editar um valor aqui sem querer) e com `_headers` da raiz, via
 // `__tests__/cspHeadersParidade.test.ts` (mesmo padrão que este repo já
 // usava entre `_headers` e a CSP — só que agora aponta pra cá).
+//
+// PENTEST (2026-09-19, achado reaberto depois de fechar #298 — a PR
+// original implementava nonce em cima do `headers()` do `next.config.mjs`,
+// que o achado ACIMA já provou nunca aplicar em produção nesse adapter;
+// reimplementado do zero contra `middleware.ts`): `script-src` tinha
+// `'unsafe-inline'`, que anula boa parte do valor de ter CSP — qualquer
+// XSS que injete um `<script>` inline roda igual. Removido.
+//
+// Optou-se por HASH em vez de NONCE por request: nenhum dos scripts
+// inline deste app carrega dado por-requisição (são strings estáticas —
+// tema, fuso, pin de scroll do Android, o loader do Eruda, o retry da
+// tela de erro, os 3 scripts do `/portal` estático) — um nonce por
+// requisição exigiria ler `headers()` em Server Component pra repassar o
+// valor, o que força TODA página coberta pelo middleware a virar
+// dinâmica (perde geração estática das páginas de `/info/*`, sem
+// necessidade real aqui) — e ainda dependeria do MESMO mecanismo de
+// propagação de headers que este arquivo já documentou como
+// adapter-dependente. Hash não tem nenhuma dessas dependências: casa
+// pelo CONTEÚDO do script, então funciona igual em qualquer adapter,
+// estático ou dinâmico.
+//
+// Cada hash abaixo (na ordem em que aparece em `script-src`) é sha256
+// base64 do conteúdo EXATO (`__html`/RETRY/texto do `<script>`) de UM
+// script: (1) app/layout.tsx tema claro/escuro; (2) app/layout.tsx patch
+// de fuso horário (Brasília); (3) app/layout.tsx pin de scroll
+// pré-hidratação (Android pull-to-refresh); (4) app/layout.tsx loader do
+// Eruda (só builds com NEXT_PUBLIC_ENABLE_ERUDA=1); (5) components/
+// TelaReconectando.tsx auto-retry da tela de erro 500/offline; (6)
+// public/portal/index.html init do Sentry loader; (7) public/portal/
+// index.html patch de fuso horário; (8) public/portal/index.html config
+// SUPA_URL/SUPA_KEY. `__tests__/lib/csp-script-hashes.test.ts` recalcula
+// os 8 a partir do fonte real e falha se um sair de sincronia com o que
+// está aqui — editar QUALQUER um desses scripts sem rodar esse teste
+// quebra o script em produção (CSP bloqueia silenciosamente, sem erro
+// visível pra quem não olhar o console).
 const SECURITY_CSP =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-1g/4/q5hhnu9i8wkSe7iaa6xAsgBLnRt2ax5yKttwrs=' 'sha256-JDH5f4Zr1/oCxPN2ffwQpeNHP+q6sofe4JbkmgTK6oc=' 'sha256-aTvPZGOmLmPxnWSX8uEtE5pFy1yfeYOI6lTfU3psjdA=' 'sha256-caEV9gkPUz2B2VLH1MN8r5EizN6XNLSsLBdR7Y9fMRI=' 'sha256-G8Md6VEAAcAjKEG9ogYeZK8mUsQ7rrspan0dYs0hn/Y=' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
 
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['Content-Security-Policy', SECURITY_CSP],

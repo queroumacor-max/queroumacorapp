@@ -75,6 +75,16 @@ function paginaVisualizadora(): Response {
   // Nada dinâmico entra no HTML (o id vem de location.pathname no client),
   // então não há o que escapar. CSP próprio e mínimo — o _headers do Pages
   // não se aplica a resposta de function.
+  //
+  // PENTEST (2026-09-19): a CSP própria tinha `'unsafe-inline'` em
+  // script-src — removido. Diferente de `middleware.ts` (que foi pra
+  // hash, porque cobre scripts ESTÁTICOS), esta rota é um Route Handler
+  // que já roda por requisição, então nonce aqui é simples e não tem o
+  // custo de "força toda página a virar dinâmica" que teria em Server
+  // Component — a rota já É dinâmica. `<script src="${PDFJS}">` segue
+  // coberto pelo host allowlist (`cdn.jsdelivr.net`); só o `<script>`
+  // inline (que chama `pdfjsLib`) precisa do nonce.
+  const nonce = crypto.randomUUID();
   const html = `<!doctype html><html lang="pt-BR"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Orçamento — QueroUmaCor</title>
@@ -105,7 +115,7 @@ function paginaVisualizadora(): Response {
   <div id="paginas"></div>
 </main>
 <script src="${PDFJS}"></script>
-<script>
+<script nonce="${nonce}">
 (async function(){
   var st = document.getElementById('st');
   function falhou(){
@@ -145,7 +155,7 @@ function paginaVisualizadora(): Response {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
       'Content-Security-Policy':
-        "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
+        `default-src 'none'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; ` +
         "style-src 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; " +
         "img-src 'self' data: blob:; worker-src blob:; base-uri 'none'; form-action 'none'",
       'X-Content-Type-Options': 'nosniff',
