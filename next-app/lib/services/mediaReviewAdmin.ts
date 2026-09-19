@@ -19,6 +19,7 @@
 
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
+import { captureDrAuditEvent } from '@/lib/drAuditTrail';
 
 export type MediaReviewStatus =
   | 'pending'
@@ -254,6 +255,16 @@ export async function blockMediaPermanent(args: {
     .eq('id', reviewId);
   if (upErr)
     throw new NetworkError(upErr.message || 'Falha ao atualizar fila', upErr);
+
+  // DR audit 2026-09-17 (CRITICAL-1): espelha o bloqueio no Sentry, FORA
+  // do Postgres — um PITR restore reverte `media_hash_blocklist` pra antes
+  // do bloqueio sem nenhum alarme; isto dá uma fonte pra reconciliação
+  // pós-restore reaplicar bloqueios perdidos. Ver lib/drAuditTrail.ts.
+  captureDrAuditEvent('media_hash_blocked', {
+    hash,
+    category,
+    postId: postId ?? null,
+  });
 }
 
 /**
@@ -311,4 +322,12 @@ export async function escalateToNcmec(args: {
     })
     .eq('id', reviewId);
   if (upErr) throw new NetworkError(upErr.message || 'Falha ao escalar', upErr);
+
+  // DR audit 2026-09-17 (CRITICAL-1) — ver blockMediaPermanent acima.
+  captureDrAuditEvent('media_hash_blocked', {
+    hash,
+    category: 'csam',
+    postId: postId ?? null,
+    reportedToNcmec: true,
+  });
 }

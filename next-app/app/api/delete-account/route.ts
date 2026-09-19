@@ -17,6 +17,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
+import { captureDrAuditEvent } from '@/lib/drAuditTrail';
 
 // @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
 // Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
@@ -170,6 +171,17 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json({ error: 'erro interno' }, { status: 500 });
   }
+
+  // DR audit 2026-09-17 (HIGH-1): espelha o evento no Sentry, FORA do
+  // Postgres — um PITR restore rola `audit_log` pra trás junto com o
+  // resto do banco; isto dá à reconciliação pós-restore uma fonte
+  // independente pra saber quais contas foram excluídas entre o backup e
+  // o disaster. Ver lib/api/drAuditTrail.ts.
+  captureDrAuditEvent('account_deletion', {
+    userId,
+    deletedAt: now,
+    source: 'self-service',
+  });
 
   // 4. Deleta o auth.user. SECURITY: service_role tem auth.admin.
   // Endpoint: POST /auth/v1/admin/users/{user_id} com DELETE method.
