@@ -80,6 +80,47 @@ describe('enforceRateLimit', () => {
     expect(res!.headers.get('retry-after')).toBe('42');
   });
 
+  // Auditoria de observabilidade de segurança (2026-09-17): antes, um hit
+  // de rate limit não deixava rastro NENHUM — nem console, nem audit. Este
+  // teste é o guard de regressão desse gap.
+  it('loga security.rate_limit.hit (estruturado) quando bloqueia', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-key';
+    process.env.SUPABASE_URL = 'https://supa.test';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ allowed: false, count: 61, limit: 60, retry_after_seconds: 42 }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await enforceRateLimit(mkReq({ 'cf-connecting-ip': '2.2.2.2' }), {
+      endpoint: 'whatsapp-send',
+      limit: 60,
+    });
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.rate_limit.hit');
+    expect(record.endpoint).toBe('whatsapp-send');
+    warnSpy.mockRestore();
+  });
+
+  it('loga security.rate_limit.fail_open quando a RPC responde erro (fail-open silencioso antes)', async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-key';
+    process.env.SUPABASE_URL = 'https://supa.test';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await enforceRateLimit(mkReq({ 'cf-connecting-ip': '9.9.9.9' }), {
+      endpoint: 'whatsapp-send',
+    });
+    expect(res).toBeNull(); // fail-open: continua liberando
+    const call = warnSpy.mock.calls.find((c) => c[0] === '[security]');
+    expect(call).toBeDefined();
+    const record = JSON.parse(call![1] as string);
+    expect(record.event).toBe('security.rate_limit.fail_open');
+    warnSpy.mockRestore();
+  });
+
   it('libera (null) quando a RPC diz allowed=true', async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc-key';
     process.env.SUPABASE_URL = 'https://supa.test';

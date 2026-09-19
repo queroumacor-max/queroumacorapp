@@ -15,6 +15,7 @@ import {
   getServiceKey,
   getSupabaseUrl,
 } from '../security';
+import { logSecurityEvent } from '../securityEvents';
 export { isAdminEmail, ensureAdminEmail, getServiceKey } from '../security';
 
 const AUTH_TIMEOUT_MS = 10000;
@@ -106,6 +107,15 @@ export async function ensurePortalAdminFresh(args: { callerId: string; email: st
   const row = args.callerId ? await lerFlagsDoPerfil(args.callerId) : null;
   const ok = !!row && (row.portal_access === true || row.role === 'admin');
   if (!ok) {
+    // Auditoria de observabilidade de segurança (2026-09-17): gate admin
+    // (a maior parte das rotas /api/admin/* passa por aqui ou por
+    // `ensurePortalAdmin`) negava em silêncio — nenhum sinal pra detectar
+    // uma conta comum tentando repetidamente rotas admin.
+    logSecurityEvent(
+      'security.authorization.denied',
+      { reason: 'not_portal_admin', fresh: true, callerId: args.callerId || null },
+      { severity: 'warning' },
+    );
     throw new ServiceError(
       `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
         'Promova a pessoa na aba Pessoas do portal (botão Promover) ou adicione o e-mail na env ADMIN_EMAILS ' +
@@ -122,6 +132,11 @@ export async function ensurePortalAdminFresh(args: { callerId: string; email: st
  */
 export async function ensurePortalAdmin(args: { callerId: string; email: string }): Promise<void> {
   if (await isPortalAdminUser(args)) return;
+  logSecurityEvent(
+    'security.authorization.denied',
+    { reason: 'not_portal_admin', fresh: false, callerId: args.callerId || null },
+    { severity: 'warning' },
+  );
   throw new ServiceError(
     `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
       'Promova a pessoa na aba Pessoas do portal (botão Promover) ou adicione o e-mail na env ADMIN_EMAILS ' +
@@ -154,7 +169,14 @@ export async function verifyAdminToken(
   } catch {
     throw new ServiceError('falha ao validar token', 401);
   }
-  if (!res.ok) throw new ServiceError('token inválido (auth ' + res.status + ': ' + (await res.text()).slice(0, 120) + ')', 401);
+  if (!res.ok) {
+    logSecurityEvent(
+      'auth.login.failed',
+      { reason: 'token_invalid', gotrue_status: res.status, admin_route: true },
+      { severity: 'warning' },
+    );
+    throw new ServiceError('token inválido (auth ' + res.status + ': ' + (await res.text()).slice(0, 120) + ')', 401);
+  }
   const data = (await res.json()) as { id?: string; email?: string };
   return {
     callerId: data?.id || '',
