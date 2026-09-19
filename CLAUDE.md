@@ -33,6 +33,20 @@
     pra saber daqui se foi versão diferente do next-on-pages, path
     diferente testado, ou erro de método; o resultado é que o registro
     anterior estava errado e ninguém percebeu por meses.
+  - **MECANISMO EXATO achado depois, por uma sessão em paralelo** (branch
+    da migração pros Workers, `@opennextjs/cloudflare`, PR #344,
+    reconciliada com esta em `main`): a entrada do `routes-manifest` que
+    representa o PRÓPRIO MIDDLEWARE vem marcada `override:true`, e a
+    função interna `applyRouteOverrides` do `@cloudflare/
+    next-on-pages@1.13.16` ZERA os headers já acumulados sempre que uma
+    requisição bate nela (lido direto no `_worker.js/index.js`
+    minificado). Como o matcher do middleware casa quase toda rota (de
+    propósito, pro bloqueio do CVE de Next-Action), isso zerava CSP e os
+    outros headers do `next.config.mjs` em quase todo lugar. Detalhe
+    completo no comentário de `middleware.ts` — inclusive uma
+    DIVERGÊNCIA REAL entre os dois adapters (`next-on-pages` vs
+    `opennextjs/cloudflare`) em quem vence quando `/api/health` seta o
+    próprio CORS por cima do middleware.
   - **FIX: os 8 headers de segurança + o CORS de `/api/*` migraram pra
     `middleware.ts`.** Prova de que middleware funciona nesse adapter: o
     `x-request-id` que ele seta SEMPRE chegou certo em produção (inclusive
@@ -64,6 +78,35 @@
     um bug real de meses. **Achado de scanner externo em produção sempre
     merece reproduzir localmente antes de descartar, mesmo quando o código
     parece óbvio e correto.**
+  - **SUSTO PÓS-MERGE, e a lição é sobre DEPLOY, não sobre código
+    (2026-09-19).** Depois do merge do PR #350, o usuário testou em
+    produção de verdade (fetch com `cache:'no-store'` + query string única,
+    SW desregistrado e caches apagados — teste irretocável) e os 5 headers
+    continuavam ausentes. Isso disparou uma investigação de ~2h buscando
+    bug no `middleware.ts`/no bundler: eliminamos Cloudflare Trace (nenhuma
+    Transform Rule/Managed Transform/WAF tocando esses headers), Managed
+    Transforms (tudo desligado), divergência de versão do next-on-pages
+    (idêntica: `1.13.16`, install limpo, mesmo comando `npm install && npm
+    run build:cf`), e até um warning real do esbuild (`duplicate-case`) que
+    parecia suspeito mas era código morto ISOLADO em duas rotas sem relação
+    (`/loja/pedido-confirmado`, `/orcamentos/[id]`). **A causa real:** o
+    deployment de produção do commit do merge (`32de2c8`) tinha
+    ESTOURADO O TIMEOUT DE BUILD (`"build exceeded the time limit and was
+    terminated"`, ~35min contra os ~4min normais do projeto) por
+    CONTENÇÃO NA FILA — outra sessão do usuário rodava em paralelo no
+    mesmo projeto Cloudflare Pages (a mesma que gerou o PR #344), disputando
+    o limite de builds simultâneos da conta. Como o deployment com FALHA
+    tinha rodado DEPOIS de um deployment mais antigo bem-sucedido, o painel
+    manteve esse commit ANTERIOR (`40b6743`, sem nenhuma das mudanças desta
+    correção) como "Production" — reproduzindo exatamente o bug antigo,
+    porque era literalmente o código antigo ainda no ar. Um "Retry
+    deployment" manual no commit certo resolveu; os 8 headers confirmados
+    em produção logo depois. **REGRA NOVA: depois de mergear pra `main`,
+    checar o STATUS do deployment de Production no painel do Cloudflare
+    Pages (não só que o PR foi mergeado nem que existe um check verde) —
+    "Production" pode ficar presa num commit anterior se o deploy do
+    commit novo falhar/travar, especialmente com múltiplas sessões
+    disparando build no mesmo projeto ao mesmo tempo.**
 
 - **CVE POSTCSS/NEXT FECHADO DE FORMA ISOLADA + PLANO DE MIGRAÇÃO WORKERS
   APROFUNDADO (2026-09-18, PRs #337/#339/#340, TODAS MERGEADAS EM `main`).**
