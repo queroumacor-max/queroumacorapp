@@ -1,10 +1,22 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Workers
 
-# Disparo MANUAL apenas. O deploy automático de produção é feito pelo build
-# nativo do Cloudflare Pages (Git integration, env vars do painel CF). Este
-# workflow rodava também em push pra main e competia com ele pelo slot de
-# production do projeto queroumacor-next — quem terminasse por último vencia,
-# com env vars de fontes diferentes (GitHub Secrets vs painel CF).
+# Disparo MANUAL apenas.
+#
+# ATUALIZADO pro layout do #344 (migração @cloudflare/next-on-pages →
+# @opennextjs/cloudflare + wrangler.jsonc, ver docs/adr/0006-*). Publica via
+# `wrangler deploy --env production`, alvo = Worker `queroumacor-next-
+# production` — AINDA só em *.workers.dev, nunca em queroumacor.com.br:
+# `routes`/Custom Domain de `env.production` em wrangler.jsonc seguem
+# COMENTADOS até o corte de DNS (P8) ser decidido e autorizado à parte, sem
+# relação com este arquivo. Preparado como PR isolada, aberta pra revisão —
+# NÃO MERGEAR sem autorização específica pro corte em si, e só faz sentido
+# mergeado JUNTO da #344 (depende do build:cf/wrangler.jsonc de lá).
+#
+# O deploy automático de produção continua sendo o build nativo do
+# Cloudflare Pages (Git integration, painel CF, projeto `queroumacor-next`)
+# — este workflow NUNCA foi o que publica produção a cada push; é só o
+# caminho manual/alternativo. Ele competia com o automático quando também
+# rodava em push pra main (por isso hoje é só workflow_dispatch).
 on:
   workflow_dispatch:
 
@@ -16,7 +28,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # workflow_dispatch deixa escolher QUALQUER branch/ref na UI do Actions,
-    # mas o comando wrangler abaixo é fixo em `--branch=main` (produção) —
+    # mas o comando wrangler abaixo publica sempre no Worker de PRODUÇÃO —
     # sem este guard, rodar o dispatch numa branch de feature publicaria o
     # conteúdo dela como produção, sem passar pelo `validate` do ci.yml nem
     # por revisão de PR. Auditoria de segurança CI/CD, 2026-09-13.
@@ -34,10 +46,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # Node 22, não 20 — wrangler@4.134.0 (pinado em next-app/package.json
+      # pro adapter @opennextjs/cloudflare) exige >=22 (engines). Com Node 20
+      # o wrangler-action detecta a incompatibilidade e reinstala sozinho um
+      # wrangler@3.x por baixo — versão que não lê env.production do
+      # wrangler.jsonc do jeito esperado. Falha real, comprovada rodando de
+      # verdade contra queroumacor-max/queroumacorapp#344 (run 35326111897),
+      # antes deste arquivo ser atualizado. O pipeline antigo (next-on-pages
+      # + wrangler ^3.78) não exigia 22 — não há mais versão antiga pra
+      # manter compatível aqui, porque este arquivo só serve o layout novo.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: next-app/package-lock.json
 
@@ -46,36 +67,52 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      # Um step só — `opennextjs-cloudflare build` (dentro de `build:cf`) já
+      # roda o `next build` por conta própria; não existe mais um step
+      # separado "Build Next.js" antes deste. As 4 NEXT_PUBLIC_* de
+      # build-time têm que estar NESTE step — `env:` do GitHub Actions é por
+      # STEP, não persiste pro seguinte (achado do Codex na revisão do ADR
+      # 0006, PR #340: um desenho anterior de 2 steps deixava o 2º, o que
+      # gera o artefato de verdade, sem essas vars — o botão de ativar push
+      # e o Sentry sumiam em silêncio do bundle de produção).
+      #
       # Auditoria de segurança CI/CD 2026-09-16: SUPABASE_SERVICE_ROLE_KEY
       # NÃO é lida em build-time em lugar nenhum — o runtime é o edge do
       # Cloudflare Workers, que lê segredos via getRuntimeEnv() do CONTEXTO
-      # DA REQUEST (env vars configuradas no painel do CF Pages), nunca de
-      # process.env populado no momento do `next build` (ver regra
-      # "process.env cru" no CLAUDE.md). Só NEXT_PUBLIC_* precisam estar
-      # presentes aqui, porque o next.config.mjs os INLINE no bundle do
-      # cliente durante o build. Passar a service role key pra esta etapa
-      # só aumentava a superfície: qualquer script malicioso rodando durante
-      # `npm ci`/`next build` (postinstall de dependência comprometida)
-      # teria acesso de leitura irrestrita ao banco via essa chave.
-      - name: Build Next.js
-        run: npm run build
+      # DA REQUEST (env vars configuradas no painel do CF Pages/Workers),
+      # nunca de process.env populado no momento do build (ver regra
+      # "process.env cru" no CLAUDE.md). Só as NEXT_PUBLIC_* + a chave
+      # pública VAPID precisam estar presentes aqui, porque o
+      # next.config.mjs/o bundle do cliente as inlinam durante o build.
+      # Passar a service role key pra esta etapa só aumentaria a superfície:
+      # qualquer script malicioso rodando durante `npm ci`/`next build`
+      # (postinstall de dependência comprometida) teria acesso de leitura
+      # irrestrita ao banco via essa chave.
+      - name: Build Cloudflare Worker output
+        run: npm run build:cf
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
 
-      - name: Build Cloudflare Pages output
-        run: npm run build:cf
-
+      # `opennextjs-cloudflare build` gera `.open-next/` (worker.js + assets),
+      # não mais `.vercel/output/static` (isso era next-on-pages). Mesmo
+      # scan já provado em `deploy-workers-migration.yml`.
       - name: Scan artifact for stray source maps / secrets
         run: |
           set -e
-          MAPS=$(find .vercel/output/static -iname '*.map' | wc -l)
-          if [ "$MAPS" -ne 0 ]; then
-            echo "::error::$MAPS arquivo(s) .map encontrados no artefato publicado — source maps não podem ir pro Cloudflare Pages."
-            find .vercel/output/static -iname '*.map'
+          if [ ! -d .open-next ]; then
+            echo "::error::.open-next não existe — build:cf não gerou o artefato esperado."
             exit 1
           fi
-          if find .vercel/output/static -iname '.env*' | grep -q .; then
+          MAPS=$(find .open-next -iname '*.map' | wc -l)
+          if [ "$MAPS" -ne 0 ]; then
+            echo "::error::$MAPS arquivo(s) .map encontrados no artefato publicado."
+            find .open-next -iname '*.map'
+            exit 1
+          fi
+          if find .open-next -iname '.env*' | grep -q .; then
             echo "::error::arquivo .env encontrado no artefato publicado."
             exit 1
           fi
@@ -87,10 +124,18 @@ jobs:
       # SHA resolvido de refs/tags/v3 em 2026-09-16; Dependabot (github-
       # actions ecosystem) mantém isso atualizado abrindo PR quando o SHA
       # de v3 avançar.
-      - name: Deploy to Cloudflare Pages
+      #
+      # `deploy --env production` (não `pages deploy`): publica o Worker
+      # `queroumacor-next-production` a partir de `wrangler.jsonc`
+      # (`env.production`) — não mexe no projeto Pages `queroumacor-next`
+      # nem em `--branch=main`/Custom Domain/DNS, que não existem mais
+      # nesse arquivo de config. Comando confirmado de ponta a ponta contra
+      # *.workers.dev via workflow_dispatch em queroumacor-max/
+      # queroumacorapp#344 (run 35419217130) antes deste arquivo adotá-lo.
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: next-app
-          command: pages deploy .vercel/output/static --project-name=queroumacor-next --branch=main --commit-dirty=true
+          command: deploy --env production

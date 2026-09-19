@@ -297,7 +297,6 @@ export function ShirtCustomizer() {
                     cursor: 'pointer',
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={url}
                     alt={`Logo opção ${idx + 1}`}
@@ -373,7 +372,6 @@ export function ShirtCustomizer() {
                   cursor: isSaving ? 'wait' : 'pointer',
                 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.image_url}
                   alt={item.prompt_name || 'Logo'}
@@ -440,7 +438,6 @@ export function ShirtCustomizer() {
               aspectRatio: '1 / 1',
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/img/shirt-white.webp"
               alt={`Camiseta ${colorMeta?.label}`}
@@ -481,7 +478,6 @@ export function ShirtCustomizer() {
 
             {/* Logo do user — peito esquerdo (vanilla left:30% top:22% width:14%) */}
             {previewLogo ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={previewLogo}
                 alt=""
@@ -524,7 +520,6 @@ export function ShirtCustomizer() {
             )}
 
             {/* Cali Colors — peito direito (vanilla right:30% top:22% width:14%) */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/img/cali-colors-logo.webp"
               alt="Cali Colors"

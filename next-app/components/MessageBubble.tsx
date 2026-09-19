@@ -111,7 +111,6 @@ function MessageBubbleInner({
   let content: React.ReactNode;
   if (message.type === 'image' || (message.type === 'text' && isImageUrl(message.content))) {
     content = (
-      // eslint-disable-next-line @next/next/no-img-element -- intencional: URLs de Supabase Storage não estão em remotePatterns do next.config; mais robusto que <Image>.
       <img
         src={message.content}
         alt="anexo"
@@ -138,7 +137,6 @@ function MessageBubbleInner({
     content = (
       <span className="block">
         <span className="flex items-center gap-1.5 mb-1" style={{ opacity: 0.8 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- asset estático local */}
           <img
             src="/img/seu-ze.webp"
             alt=""
@@ -173,7 +171,6 @@ function MessageBubbleInner({
         {isStore ? (
           'CC'
         ) : senderAvatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
         ) : (
           (senderName ?? '?').charAt(0).toUpperCase()

@@ -12,7 +12,9 @@ import {
 import { createProCheckout } from '@/lib/api/_services/checkout';
 import { checkoutSchema, formatZodError } from '@/lib/api/schemas/checkout';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(request, { endpoint: 'checkout', limit: 10 });

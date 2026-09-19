@@ -186,7 +186,6 @@ export function LogoStudio() {
           className="bg-white rounded-xl border border-[color:var(--color-border)] p-4 flex items-center gap-4"
           aria-label="Logo atual salvo no perfil"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={savedLogo}
             alt="Seu logo atual"
@@ -309,7 +308,6 @@ export function LogoStudio() {
                       : 'border-[color:var(--color-border)] hover:border-[color:var(--color-p1)]/50')
                   }
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={url}
                     alt={`Variante ${i + 1}`}

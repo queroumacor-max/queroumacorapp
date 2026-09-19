@@ -1,17 +1,27 @@
-// Auditoria de segurança mobile (2026-09-13) — a CSP vivia em DOIS lugares
-// que tinham que se complementar: `_headers` da raiz (relíquia inerte, o
-// Cloudflare Pages não lê nada fora do build output — só documentação) e
-// `headers()` do next.config.mjs. Este teste comparava os dois.
+// Auditoria de segurança mobile (2026-09-13) — a CSP vive em DOIS lugares que
+// têm que se complementar: `_headers` da raiz (relíquia inerte no Cloudflare
+// Pages — nada fora do build output é lido de lá, é só documentação) e a
+// fonte real da CSP (rotas servidas pelo worker). Encontrado NA PRÁTICA um
+// drift real (antes desta data): `_headers` estava sem
+// `https://*.supabase.co` em `media-src`, então uma página prerenderizada
+// (ex.: `/feed`, que sai como estática no build) podia bloquear `<video>`/
+// `<audio>` apontando pro Storage do Supabase — WhatsApp media, posts em
+// vídeo — enquanto a MESMA rota servida pelo worker liberava normalmente.
+// Este teste falha se os dois voltarem a divergir.
 //
-// ATUALIZADO (2026-09-19): `headers()` no next.config.mjs deixou de ser a
-// fonte real — achado e provado que `@cloudflare/next-on-pages@1.13.16`
-// processa `headers()` até o `routes-manifest.json`, mas o RUNTIME do
-// worker nunca aplica essa tabela a nenhuma resposta (CSP/X-Frame-Options/
-// Permissions-Policy/COOP/CORP nunca estiveram de fato ativos em produção
-// por esse caminho). A CSP migrou pra `middleware.ts`, que É aplicado de
-// fato nesse adapter. Este teste agora compara `_headers` (documentação)
-// contra `middleware.ts` (fonte real) — ver `next.config.mjs` e
-// `middleware.ts` pro raciocínio completo.
+// ATUALIZADO 2026-09-19 (achado de forma independente em duas sessões em
+// paralelo, reconciliado no merge do #344 em main): `headers()` no
+// next.config.mjs deixou de ser a fonte real — achado e provado que
+// `@cloudflare/next-on-pages@1.13.16` processa `headers()` até o
+// `routes-manifest.json`, mas o RUNTIME do worker nunca aplica essa tabela a
+// nenhuma resposta (CSP/X-Frame-Options/Permissions-Policy/COOP/CORP nunca
+// estiveram de fato ativos em produção por esse caminho — bug do
+// `override:true` do adapter, que zerava exatamente esses headers). A CSP
+// migrou pra `middleware.ts` (`applySecurityHeaders`/`SECURITY_CSP`), que É
+// aplicado de fato nesse adapter. Este teste agora compara `_headers`
+// (documentação) contra `middleware.ts` (fonte real) — ver `next.config.mjs`
+// e `middleware.ts` pro raciocínio completo, incluindo uma divergência real
+// de comportamento entre os dois adapters pro CORS de `/api/health`.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -25,8 +35,8 @@ function cspFromHeadersFile(): string {
 
 function cspFromMiddleware(): string {
   const raw = readFileSync('middleware.ts', 'utf8');
-  const m = raw.match(/const CSP =\s*\n\s*"([^"]*)"/);
-  if (!m) throw new Error('middleware.ts sem `const CSP = "..."` no formato esperado');
+  const m = raw.match(/const SECURITY_CSP =\s*\n?\s*"([^"]*)"/);
+  if (!m) throw new Error('middleware.ts sem `const SECURITY_CSP = "..."` no formato esperado');
   return m[1];
 }
 

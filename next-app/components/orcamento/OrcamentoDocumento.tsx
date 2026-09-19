@@ -57,7 +57,6 @@ export function OrcamentoDocumento({ doc }: { doc: DocumentoOrcamento }) {
       {/* ── Cabeçalho do profissional ── */}
       <header style={{ display: 'flex', gap: 14, alignItems: 'flex-start', paddingBottom: 14, borderBottom: `4px solid ${CINZA_CLARO}` }}>
         {pr.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={pr.logo} alt="" style={{ width: 84, height: 84, objectFit: 'contain', flexShrink: 0 }} />
         ) : null}
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -255,7 +254,6 @@ export function OrcamentoDocumento({ doc }: { doc: DocumentoOrcamento }) {
           <div style={{ marginTop: 2, marginBottom: 12 }}>Saiba mais sobre seu prestador de serviços.</div>
           <div style={{ background: CINZA, borderRadius: 14, padding: 16, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
             {pr.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={pr.logo} alt="" style={{ width: 64, height: 64, borderRadius: 32, objectFit: 'cover', background: '#fff', flexShrink: 0 }} />
             ) : null}
             <div style={{ minWidth: 0 }}>

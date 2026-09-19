@@ -65,6 +65,16 @@ const nextConfig = {
     const noCache = [
       { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
     ];
+    // RECONCILIAÇÃO 2026-09-19: esta correção foi achada e corrigida de
+    // forma INDEPENDENTE em duas sessões em paralelo — uma direto em `main`
+    // (PR #350, contra `@cloudflare/next-on-pages`) e outra dentro da
+    // branch de migração pros Workers (`claude/workers-migration-execution`,
+    // #344, já contra `@opennextjs/cloudflare`). As duas convergiram pro
+    // MESMO fix (mover pra middleware.ts) de forma independente — reconciliado
+    // no merge do #344 em main, mantendo os achados dos dois lados (ver
+    // `middleware.ts` e CLAUDE.md pro detalhe completo, incluindo uma
+    // divergência real de comportamento entre os dois adapters pro CORS de
+    // `/api/health`).
     return [
       { source: '/portal', headers: noCache },
       { source: '/portal/', headers: noCache },

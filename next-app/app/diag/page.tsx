@@ -11,7 +11,9 @@
 import type { Metadata } from 'next';
 import { DiagView } from './DiagView';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },

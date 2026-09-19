@@ -77,22 +77,18 @@ export const logger: Logger = {
   },
   debug(msg, ctx) {
     if (!shouldLog('debug')) return;
-    // eslint-disable-next-line no-console
     console.debug('[debug]', truncate(msg, 500), normCtx(ctx));
   },
   info(msg, ctx) {
     if (!shouldLog('info')) return;
-    // eslint-disable-next-line no-console
     console.info('[info]', truncate(msg, 500), normCtx(ctx));
   },
   warn(msg, ctx) {
     if (!shouldLog('warn')) return;
-    // eslint-disable-next-line no-console
     console.warn('[warn]', truncate(msg, 500), normCtx(ctx));
   },
   error(msg, errOrCtx) {
     if (!shouldLog('error')) return;
-    // eslint-disable-next-line no-console
     console.error('[error]', truncate(msg, 500), errOrCtx);
   },
   // exception() é a variante pra Error objects: extrai message+stack pra
@@ -101,7 +97,6 @@ export const logger: Logger = {
     const e = err as { message?: string; stack?: string } | null;
     const m = e?.message ? e.message : String(err ?? 'unknown');
     if (!shouldLog('error')) return;
-    // eslint-disable-next-line no-console
     console.error('[exception]', truncate(m, 500), err, normCtx(ctx));
   },
   setLevel(lvl) {

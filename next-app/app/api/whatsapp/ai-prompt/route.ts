@@ -18,7 +18,9 @@ import {
 import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-helpers';
 import { PROMPT_BASE_PADRAO } from '@/lib/api/_services/whatsapp-ai';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {

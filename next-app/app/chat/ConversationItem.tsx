@@ -76,7 +76,6 @@ function ConversationItemInner({ conv }: ConversationItemProps) {
           aria-hidden="true"
         >
           {conv.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={conv.avatarUrl}
               alt=""

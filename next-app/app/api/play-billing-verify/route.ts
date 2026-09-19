@@ -45,7 +45,9 @@ import {
 import { logAuditEvent } from '@/lib/api/audit';
 import { getRuntimeEnv } from '../../../lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const PRO_AMOUNT_BRL = 39;
 const INSERT_TIMEOUT_MS = 8000;

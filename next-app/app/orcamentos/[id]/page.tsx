@@ -10,11 +10,12 @@
 
 'use client';
 
-// Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
-// edge runtime (Node runtime não está disponível em CF Pages Functions).
-// Next.js 15 aceita route segment config em arquivos 'use client' — a
-// diretiva é lida pelo framework no compile-time, não em runtime no client.
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages, que exigia o
+// contrário; ver ADR 0006). Next.js 15 aceita route segment config em
+// arquivos 'use client' — a diretiva é lida pelo framework no
+// compile-time, não em runtime no client.
+export const runtime = 'nodejs';
 
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -142,6 +143,7 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // localStorage num ciclo próprio, não é derivável no render).
   useEffect(() => {
     if (autosave.lastSavedAt && autosave.lastSavedAt !== draftSavedAt) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setDraftSavedAt(autosave.lastSavedAt);
     }
   }, [noteValues, autosave.lastSavedAt, draftSavedAt]);
@@ -155,6 +157,7 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (authLoading || !user) return;
     if (quotes.some((q) => q.id === id)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setFetching(true);
     fetchQuote(id)
       .then((q) => setLocalQuote(q))
@@ -196,7 +199,6 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
       }
     })();
     return () => { cancel = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quote?.painter_id]);
 
   const mutationError = sendError || approveError || rejectError || advanceError;

@@ -64,7 +64,6 @@ function ProductCardInner({ product, onAdd, onOpen, isAdding }: ProductCardProps
           aria-hidden="true"
         >
           {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.image_url}
               alt=""

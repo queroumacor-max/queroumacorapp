@@ -259,7 +259,6 @@ export async function fetchFollowupInterval(
     .eq('id', painterId)
     .maybeSingle();
   if (error) {
-    // eslint-disable-next-line no-console
     console.warn('fetchFollowupInterval failed:', error.message);
     return 12;
   }

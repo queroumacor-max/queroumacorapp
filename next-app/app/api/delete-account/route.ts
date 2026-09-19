@@ -18,7 +18,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   // Ação destrutiva e rara — limite baixo por IP antes de validar token.

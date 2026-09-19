@@ -203,7 +203,6 @@ function ArtCard({
       <div
         className="aspect-square bg-[color:var(--color-border)] relative"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cfImg(ref_.image_url, { width: 320, fit: 'cover' })}
           alt={ref_.title ?? 'Arte sem título'}

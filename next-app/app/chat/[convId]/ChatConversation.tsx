@@ -199,6 +199,7 @@ export function ChatConversation({ convId }: ChatConversationProps) {
     // Pré-narrowing fora do setState pra TS não perder a refinement no
     // callback. Substitui os non-null assertions (otherId!) que existiam.
     const otherId = convMeta.otherId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setParticipantInfo((prev) => {
       if (prev.has(otherId)) return prev;
       const next = new Map(prev);
@@ -374,7 +375,6 @@ export function ChatConversation({ convId }: ChatConversationProps) {
                 }}
               >
                 {convMeta?.avatarUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={convMeta.avatarUrl}
                     alt=""
@@ -404,7 +404,6 @@ export function ChatConversation({ convId }: ChatConversationProps) {
               aria-hidden="true"
             >
               {peerAvatar ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={peerAvatar}
                   alt=""

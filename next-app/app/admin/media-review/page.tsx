@@ -10,8 +10,10 @@ import type { Metadata } from 'next';
 import { MediaReviewAdmin } from './MediaReviewAdmin';
 import { requireAdminServer } from '@/lib/auth-server';
 
-// Cloudflare Pages (next-on-pages) exige edge runtime explícito por rota.
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages, que exigia o
+// contrário; ver ADR 0006 e docs/adr/0006-workers-migration-artifacts.md).
+export const runtime = 'nodejs';
 
 export const metadata: Metadata = {
   // Página autenticada — fora do índice de busca.

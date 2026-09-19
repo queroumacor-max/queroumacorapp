@@ -370,7 +370,6 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
     >
       <div className="text-[28px] leading-none mb-1.5" style={{ color: textColor }}>
         {tile.gradient === 'pro' ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src="/img/seu-ze.webp"
             alt="Seu Zé"
@@ -389,7 +388,6 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
             }}
           />
         ) : tile.gradient === 'designer' ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src="/img/alice.webp"
             alt="Alice Codessi"
@@ -409,7 +407,6 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
             }}
           />
         ) : tile.gradient === 'graf' ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src="/img/fe.webp"
             alt="Fê"
@@ -429,7 +426,6 @@ function BusinessCard({ tile, onOpen }: BusinessCardProps) {
             }}
           />
         ) : tile.gradient === 'auto' ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src="/img/senna.webp"
             alt="Senna"

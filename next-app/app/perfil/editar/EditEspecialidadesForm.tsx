@@ -52,6 +52,7 @@ export function EditEspecialidadesForm() {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setSelected(new Set(arr));
   }, [profile, touched]);
 

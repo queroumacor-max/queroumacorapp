@@ -16,7 +16,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
 import { resolveSupabaseEnv } from '@/lib/api/security';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const SUPABASE_TIMEOUT_MS = 2000;
 

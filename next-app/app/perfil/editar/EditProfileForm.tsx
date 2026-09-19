@@ -506,7 +506,6 @@ export function EditProfileForm() {
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-full bg-[color:var(--color-border)] overflow-hidden flex-shrink-0">
           {currentAvatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={currentAvatarUrl}
               alt="Sua foto"
@@ -660,7 +659,6 @@ export function EditProfileForm() {
             }}
           >
             {savedLogoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={savedLogoUrl}
                 alt="Logo do negócio"

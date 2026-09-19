@@ -76,7 +76,6 @@ export function MediaPreview({ files, onRemove, disabled }: MediaPreviewProps) {
               aria-label={`Vídeo ${i + 1}`}
             />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={it.url}
               alt={`Mídia ${i + 1}`}

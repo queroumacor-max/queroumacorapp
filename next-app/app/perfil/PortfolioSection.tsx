@@ -26,6 +26,7 @@ export function PortfolioSection() {
     // early-return sem usuário) fazem parte do MESMO ciclo de
     // carregamento, não são reset derivado de prop.
     if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setLoading(false);
       return;
     }
@@ -117,7 +118,6 @@ export function PortfolioSection() {
             >
               {p.media_url ? (
                 isVideoPost(p.media_url, p.media_type) ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
                   <video
                     src={p.media_url}
                     muted
@@ -125,7 +125,6 @@ export function PortfolioSection() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={p.media_url}
                     alt={p.caption ?? 'Post'}

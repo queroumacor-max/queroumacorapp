@@ -169,6 +169,7 @@ export function QuoteWizard() {
   useEffect(() => {
     if (!profile) return;
     const pf = profile as { address?: string | null; email?: string | null; city?: string | null; state?: string | null };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setForm((f) => ({
       ...f,
       profEndereco: f.profEndereco || [pf.address, [pf.city, pf.state].filter(Boolean).join(' - ')].filter(Boolean).join(', '),

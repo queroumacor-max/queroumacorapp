@@ -38,7 +38,9 @@ import {
   type TemplateAprovado,
 } from '@/lib/api/_services/whatsapp-templates';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const TIMEOUT_MS = 12000;
 const CACHE_MS = 5 * 60 * 1000;

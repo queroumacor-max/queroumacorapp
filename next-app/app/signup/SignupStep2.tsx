@@ -303,7 +303,6 @@ export function SignupStep2({ userType, initial, onNext, onBack, onPersist }: Pr
             }}
           >
             {avatarPreview ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={avatarPreview}
                 alt="Pré-visualização"

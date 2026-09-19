@@ -94,6 +94,7 @@ export function ChatList() {
     // (https://react.dev/learn/synchronizing-with-effects), não state
     // derivado de props/state internos.
     const nova = searchParams?.get('nova');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     if (nova === '1') setModalOpen(true);
   }, [searchParams]);
 

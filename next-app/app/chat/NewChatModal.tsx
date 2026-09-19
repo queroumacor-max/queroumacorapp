@@ -133,7 +133,6 @@ export function NewChatModal({ open, onClose, excludeIds = [] }: NewChatModalPro
                   >
                     <span className="w-10 h-10 rounded-full overflow-hidden bg-[color:var(--color-border,#e5e5e5)] flex items-center justify-center text-sm font-bold flex-shrink-0">
                       {u.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={u.avatarUrl}
                           alt=""

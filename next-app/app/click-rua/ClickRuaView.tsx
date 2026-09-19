@@ -43,7 +43,6 @@ export function ClickRuaView() {
 
   return (
     <div className="px-3.5 pt-4 pb-8">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/click-rua/logo.webp"
         alt="Click Rua"
@@ -116,7 +115,6 @@ function CardEdicao({ edicao, onAbrir }: { edicao: Edicao; onAbrir: () => void }
     >
       <div style={{ aspectRatio: '1 / 1', background: '#1a1a2e', position: 'relative' }}>
         {pronta ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={edicao.capa ?? ''}
             alt={`Capa da ${rotuloEdicao(edicao.numero)} da Click Rua`}
@@ -197,6 +195,7 @@ function Leitor({ edicao, onFechar }: { edicao: EdicaoPronta; onFechar: () => vo
   // "Já passamos pelo commit inicial?" não tem como ser sabido de forma
   // síncrona durante o render — não existe alternativa sem efeito pra esse
   // idioma (mount detection pra portal SSR-safe).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
   useEffect(() => setMontado(true), []);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
@@ -479,7 +478,6 @@ function Folha({
   if (!src) return null;
   return (
     <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt={`Página ${numero} de ${total}`}

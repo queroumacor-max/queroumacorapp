@@ -82,6 +82,7 @@ export function JobFormModal({
   // dois mecanismos com timing diferente.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setForm(emptyState(defaultDate));
       setLocalError(null);
       // Foca o primeiro input após o paint (microtask via requestAnimationFrame

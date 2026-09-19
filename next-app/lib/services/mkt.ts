@@ -237,7 +237,6 @@ function normTxt(s: unknown): string {
     String(s ?? '')
       .toLowerCase()
       .normalize('NFD')
-      // eslint-disable-next-line no-misleading-character-class
       .replace(/[̀-ͯ]/g, '') +
     ' '
   );

@@ -21,7 +21,9 @@ import { chatWithPersona, ALICE_LAST_OF_DAY_HINT } from '@/lib/api/_services/cha
 import { getAiUsageTodayViaRest } from '@/lib/api/_services/_billing-helpers';
 import { getRuntimeEnv } from '../../../lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const ALICE_DAILY_LIMIT = 3;
 

@@ -18,7 +18,9 @@ import { verifyAdminToken, ensurePortalAdmin } from '@/lib/api/_services/_admin-
 import { gerarRelatorioDeUso } from '@/lib/api/_services/admin-stats';
 import { getRuntimeEnv } from '@/lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   const serviceKey = getServiceKey();

@@ -71,6 +71,7 @@ export function DiagView() {
       // diferentes — e o service worker guarda `/_next/static/` cache-first.
       { k: 'Build do site', v: process.env.NEXT_PUBLIC_BUILD || '—' },
     ];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     setRows(out);
 
     // Infos NATIVAS (casca Capacitor): modelo, OS, versão/build do app — o que

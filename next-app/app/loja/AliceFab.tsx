@@ -82,7 +82,6 @@ export function AliceFab() {
           flexShrink: 0,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/img/alice.webp"
           alt=""

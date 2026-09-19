@@ -88,7 +88,6 @@ export function ProductDetail({ id }: { id: string }) {
         style={{ background: product.image_url ? '#f5f5f5' : bg }}
       >
         {product.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.image_url}
             alt={product.name}

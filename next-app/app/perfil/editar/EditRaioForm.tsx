@@ -36,6 +36,7 @@ export function EditRaioForm() {
   useEffect(() => {
     if (!profile || touched) return;
     if (profile.service_radius == null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
       setUnlimited(true);
       setKm(DEFAULT_KM);
     } else {

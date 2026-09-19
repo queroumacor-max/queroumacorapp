@@ -82,7 +82,6 @@ export async function fetchLeads(painterId: string): Promise<Lead[]> {
   // Erro aqui é não-fatal: prefere mostrar leads (com chance de duplicar
   // compra que a RPC vai rejeitar) a quebrar a tela inteira. Loga e segue.
   if (qErr) {
-    // eslint-disable-next-line no-console
     console.warn('fetchLeads: bought filter failed:', qErr.message);
     return postsList;
   }
