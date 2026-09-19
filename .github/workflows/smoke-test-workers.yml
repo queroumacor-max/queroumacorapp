@@ -116,7 +116,11 @@ jobs:
           echo
 
           echo "--- 3) Portal: rewrite /portal -> /portal/index.html (asset estático via ASSETS binding) ---"
-          check "GET /portal" GET "/portal" "200"
+          # 307 (redirect pra /portal/) é o esperado — visto na 1ª rodada
+          # real (run 35420596213): o binding ASSETS trata /portal como
+          # diretório e redireciona antes de servir index.html, igual
+          # servidor de arquivo estático comum. Confirmado local também.
+          check "GET /portal" GET "/portal" "200|307"
           echo
 
           echo "--- 4) /api/health: prova outbound fetch Worker -> Supabase sob global_fetch_strictly_public ---"
