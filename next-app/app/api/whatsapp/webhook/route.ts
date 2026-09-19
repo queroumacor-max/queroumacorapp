@@ -76,7 +76,9 @@ import {
   GRAPH_API_VERSION,
 } from '@/lib/api/_services/whatsapp';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const verifyToken = getRuntimeEnv('WHATSAPP_WEBHOOK_VERIFY_TOKEN');

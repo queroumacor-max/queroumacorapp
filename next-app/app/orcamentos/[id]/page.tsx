@@ -10,11 +10,12 @@
 
 'use client';
 
-// Cloudflare Pages via @cloudflare/next-on-pages: rotas dinâmicas precisam
-// edge runtime (Node runtime não está disponível em CF Pages Functions).
-// Next.js 15 aceita route segment config em arquivos 'use client' — a
-// diretiva é lida pelo framework no compile-time, não em runtime no client.
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages, que exigia o
+// contrário; ver ADR 0006). Next.js 15 aceita route segment config em
+// arquivos 'use client' — a diretiva é lida pelo framework no
+// compile-time, não em runtime no client.
+export const runtime = 'nodejs';
 
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';

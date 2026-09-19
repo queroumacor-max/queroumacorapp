@@ -13,7 +13,9 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { processMpWebhook } from '@/lib/api/_services/mp-webhook';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   let rawBody = '';

@@ -14,7 +14,9 @@ import {
 import { errorResponse } from '@/lib/api/errors';
 import { generateIgArt } from '@/lib/api/_services/ig-art';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const OUTER_HARD_TIMEOUT_MS = 28000;
 

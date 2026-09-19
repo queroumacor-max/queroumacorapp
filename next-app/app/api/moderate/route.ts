@@ -28,7 +28,9 @@ import {
 import { moderateSchema, formatZodError } from '@/lib/api/schemas/moderate';
 import { getRuntimeEnv } from '../../../lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 // Tamanho máximo da mídia baixada pra hash. Bucket `posts` permite 50MB
 // mas pra hash + scan rápido capamos em 20MB (vídeos grandes não precisam

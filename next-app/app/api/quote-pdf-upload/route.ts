@@ -38,7 +38,9 @@ import {
   serviceErrorResponse,
 } from '@/lib/api/security';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 const BUCKET = 'exports';
 const MAX_PDF_BYTES = 8 * 1024 * 1024; // bucket aceita 10MB; folga de cabeçalho

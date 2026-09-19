@@ -36,7 +36,9 @@ import {
 } from '@/lib/api/_services/fcm';
 import { isAllowedPushEndpoint } from '@/lib/api/_services/push-endpoint-guard';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 interface PushSubscriptionRow {
   id: string;

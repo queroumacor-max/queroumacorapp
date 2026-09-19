@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { OrderConfirmView } from './OrderConfirmView';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 export const metadata: Metadata = {
   title: 'Pedido Confirmado — Cali Colors',
   // Página autenticada — fora do índice de busca.

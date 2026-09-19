@@ -33,7 +33,9 @@ import { logAuditEvent } from '@/lib/api/audit';
 // `process.env` volta vazio aqui. Ver lib/api/env.ts.
 import { getRuntimeEnv } from '@/lib/api/env';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(request, { endpoint: 'upload-style-ref', limit: 20 });

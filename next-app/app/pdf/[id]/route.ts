@@ -22,7 +22,9 @@
 import type { NextRequest } from 'next/server';
 import { getSupabaseUrl } from '@/lib/api/security';
 
-export const runtime = 'edge';
+// @opennextjs/cloudflare (adapter atual) só suporta o runtime nodejs do
+// Next — não 'edge' (herança do @cloudflare/next-on-pages; ver ADR 0006).
+export const runtime = 'nodejs';
 
 // pdf.js do jsdelivr (host que o projeto já usa em CSP; versão PINADA).
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
