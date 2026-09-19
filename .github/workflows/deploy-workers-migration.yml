@@ -54,7 +54,7 @@ jobs:
       # persist-credentials:false — mesma regra do deploy.yml: este job
       # nunca dá git push, deploy é via wrangler/API da Cloudflare.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 

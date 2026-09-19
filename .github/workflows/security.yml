@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -108,7 +108,7 @@ jobs:
         run: npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --ignore-npm-errors --output-file sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-next-app
           path: next-app/sbom.cdx.json
@@ -121,14 +121,14 @@ jobs:
     timeout-minutes: 15
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       # Pinado por commit SHA (tag @v0.13.0 é mutável). Sem secrets neste
       # job (alvo é a URL pública de produção), risco baixo, mas mesma regra.
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@0619037bb784a56e2e06b104f0ebe157e076f075 # v0.13.0
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
         with:
           target: 'https://queroumacor.com.br'
           rules_file_name: '.zap/rules.tsv'
