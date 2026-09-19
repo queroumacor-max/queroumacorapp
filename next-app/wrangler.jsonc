@@ -26,7 +26,16 @@
     "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
     "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
-    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+    // Rotacionada em 2026-09-19: o par VAPID original se perdeu (ninguém
+    // guardou a saída do `npx web-push generate-vapid-keys`) — ver CLAUDE.md
+    // pra o mecanismo completo (por que tem que ser um PAR, e o formato
+    // exato: ponto não-comprimido P-256, 65 bytes, base64url sem padding).
+    // Par novo gerado 100% no navegador via SubtleCrypto (a privada nunca
+    // passou por chat de IA nem terminal — só o dashboard do Cloudflare).
+    // Efeito colateral aceito: inscrições de Web Push (navegador/PWA) feitas
+    // ANTES desta troca param de receber push até a pessoa reativar — push
+    // NATIVO (FCM via app) não é afetado, é canal totalmente separado.
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BB7w4A8bh01R8qAsqQbCMrNH7DTMPSIEubgB279ZK7T2_oOf_uJTr-dx3p5h6wt2GdXhJQuAP-Z5Le9TLNgg8FI",
     "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
   },
 
@@ -58,7 +67,7 @@
         "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
         "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
-        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BB7w4A8bh01R8qAsqQbCMrNH7DTMPSIEubgB279ZK7T2_oOf_uJTr-dx3p5h6wt2GdXhJQuAP-Z5Le9TLNgg8FI",
         "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
       }
     },
@@ -73,7 +82,7 @@
         "NEXT_PUBLIC_SUPABASE_URL": "https://uwqebaqweehiljsqkifm.supabase.co",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3cWViYXF3ZWVoaWxqc3FraWZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMjYzMjgsImV4cCI6MjA4OTgwMjMyOH0.yp-z4iMifiOV3ftLVIHOFEQBLcMBdU8VFok7VKlSFg8",
         "NEXT_PUBLIC_SENTRY_DSN": "https://e19aa766953a6e70aeb09a52ea1046a7@o4511481806716928.ingest.us.sentry.io/4511482011189249",
-        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BGQI6K-7dVPeAEIoICoNVN3iM11WYgULjGgNc4I3_dfywulmlNmvYYKmHx99N8sREfJzVwvTy-COFSyyOHbAIdA",
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BB7w4A8bh01R8qAsqQbCMrNH7DTMPSIEubgB279ZK7T2_oOf_uJTr-dx3p5h6wt2GdXhJQuAP-Z5Le9TLNgg8FI",
         "VAPID_SUBJECT": "mailto:loja@calicolors.com.br"
       }
     }
