@@ -65,6 +65,113 @@
     merece reproduzir localmente antes de descartar, mesmo quando o código
     parece óbvio e correto.**
 
+- **CVE POSTCSS/NEXT FECHADO DE FORMA ISOLADA + PLANO DE MIGRAÇÃO WORKERS
+  APROFUNDADO (2026-09-18, PRs #337/#339/#340, TODAS MERGEADAS EM `main`).**
+  Encadeamento de três PRs, cada uma resolvendo uma parte diferente do
+  mesmo problema original (CVE de `postcss` herdado por `next@15.5.25`,
+  achado numa investigação de migração pro Next 16):
+  - **PR #337 (`d598194`) — investigação da migração `next@16` +
+    `@opennextjs/cloudflare`, adapter revertido de propósito.** Branch
+    isolada (`claude/next16-opennext-eval`) provou que `next@16.3.5` +
+    `@opennextjs/cloudflare@1.20.6` builda limpo e fecha o CVE — mas o
+    adapter atual (`@cloudflare/next-on-pages`, deprecado) trava o peer
+    range em `next<=15.5.2`, então migrar de verdade exigiria trocar de
+    adapter TAMBÉM, o que muda o MODELO DE DEPLOY (Cloudflare Pages →
+    Workers), não só uma dependência. **Antes de mergear, o usuário pediu
+    confirmação do risco real** — lendo o código-fonte do Wrangler
+    instalado (não a doc), achamos que a PR tinha criado um
+    `wrangler.jsonc` NOVO coexistindo com o `wrangler.toml` existente, e
+    Wrangler resolve `wrangler.json > wrangler.jsonc > wrangler.toml`
+    (primeiro que existir vence) — isso quebraria o próximo deploy
+    automático de produção via Pages. **Revertido a troca de adapter**
+    (`package.json`, `package-lock.json`, `.npmrc`, `wrangler.jsonc`,
+    `open-next.config.ts`, `eslint.config.mjs` — todos de volta ao
+    estado exato de `main`), mantendo só os 102 achados de lint
+    corrigidos (`react-hooks/*`, regras de "React Compiler readiness" —
+    cosmético, o Compiler não está instalado) e o **ADR 0006**
+    (`docs/adr/0006-opennext-cloudflare-deploy-pipeline.md`), que
+    documenta o TAMANHO da mudança pro mantenedor decidir depois, status
+    `Proposed`. Revalidado do zero (`npm ci`, tsc, vitest 184/184
+    arquivos, lint, `next build`, `build:cf` via `@cloudflare/
+    next-on-pages` gerando o `.vercel/output/static/_worker.js/index.js`
+    que produção espera) antes do merge.
+  - **PR #339 (`cd02b88`) — o CVE do postcss fechado SEM esperar a
+    migração de adapter.** Investigação separada: `npm audit --json`
+    mostrava `next` vulnerável só via `postcss` (4 advisories —
+    GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp,
+    GHSA-r28c-9q8g-f849, faixa combinada `<=8.5.22`), com `fixAvailable`
+    apontando só pro `next@16.3.5` — mas o `postcss` vulnerável existia
+    numa ÚNICA cópia privada e isolada (`node_modules/next/node_modules/
+    postcss@8.4.31`, pinada em versão EXATA pelo próprio `package.json`
+    do `next`). O `postcss` de nível superior do projeto
+    (`@tailwindcss/postcss`, `vite`, `autoprefixer`) já estava em
+    `8.5.26`, acima da faixa vulnerável, só nunca deduplicava contra a
+    cópia do `next` por causa do pin exato. **Fix**: `overrides` escopado
+    em `next-app/package.json` (`{"next":{"postcss":"$postcss"}}`,
+    sintaxe `$postcss` do npm apontando sempre pro `postcss` já resolvido
+    no topo) — sem bump de major do `next`, sem trocar de adapter. Diff
+    do lockfile cirúrgico (26 linhas removidas, a entrada nested), provado
+    isolado comparando contra uma regeneração completa do lockfile (que
+    traria dezenas de bumps não relacionados — não foi isso que foi
+    commitado). `npm audit` confirma: `postcss`/`next` somem, resto do
+    relatório (capacitor/cli, next-on-pages, vitest/mocker, cookie,
+    esbuild, miniflare, sharp, tar, undici, vite, vite-node, ws) idêntico,
+    achados pré-existentes não tocados.
+  - **PR #340 (`104ce8b`) — plano de execução P1-P8 do ADR 0006
+    aprofundado, e CORRIGIDO por revisão automática (Codex) antes do
+    merge.** Com o CVE fechado sem depender da migração de adapter, a
+    migração Workers virou puramente uma melhoria de infra (sair de um
+    adapter deprecado), sem pressa de segurança. Documentação pura —
+    **nenhuma config real tocada** (`next-app/wrangler.toml` intacto,
+    produção segue em Pages) — mas checando o plano anterior (P1/P4 do
+    ADR) contra a documentação VIVA da Cloudflare (não só memória),
+    achamos que descrevia um mecanismo mais trabalhoso do que o que
+    existe: **Workers Builds** é o produto nativo da Cloudflare
+    equivalente ao Git integration que Pages já usa hoje (preview URL por
+    branch + comentário automático no PR, sem workflow de GitHub Actions
+    bespoke); e Workers separa vars de BUILD-TIME de vars de RUNTIME em
+    duas superfícies distintas (Pages usa uma só). Novo arquivo
+    `docs/adr/0006-workers-migration-artifacts.md` com os artefatos
+    prontos pra execução: `wrangler.jsonc` completo, roster de ~30 env
+    vars levantado por grep de `getRuntimeEnv()` real (não do
+    `.env.example`, desatualizado), config do Workers Builds, `deploy.yml`
+    reescrito, runbook de corte de DNS (P8). **A revisão automática do
+    Codex achou 5 erros técnicos REAIS no conteúdo do plano antes do
+    merge, todos verificados contra a doc oficial e corrigidos**: (1)
+    Workers Environments NÃO herdam `vars` do topo (confirmado em
+    `/workers/best-practices/workers-best-practices/`) — o draft deixava
+    `env.production.vars`/`env.preview.vars` vazios "confiando na
+    herança", o que na prática ZERARIA as vars públicas nos dois
+    ambientes; (2) ambiente nomeado publica um Worker com NOME DIFERENTE
+    (`{name}-{env}` — `queroumacor-next-production`/`-preview`, não
+    `queroumacor-next` sozinho), afetando toda referência de rollback/URL
+    no runbook; (3) os comandos de deploy do Workers Builds não tinham
+    `--env production`/`--env preview` — sem o flag, cai no Worker RAIZ,
+    que não é nem produção nem preview; (4)
+    `NEXT_PUBLIC_VAPID_PUBLIC_KEY`/`NEXT_PUBLIC_SENTRY_DSN` faltavam na
+    lista de Build Variables (lidas via `process.env` direto em
+    `PushOptIn.tsx`/`sentry.client.config.ts` — ausentes no build, o
+    botão de ativar push some da tela em silêncio); (5) o `deploy.yml`
+    reescrito tinha DOIS steps de build copiados do `next-on-pages` atual,
+    quando o OpenNext só precisa de UM (`opennextjs-cloudflare build` já
+    roda o `next build` sozinho por dentro) — o 2º step, o que gera o
+    artefato de verdade, rodava SEM as env vars `NEXT_PUBLIC_*` que só o
+    1º step recebia (escopo de `env:` é por STEP no GitHub Actions, não
+    persiste). Todos os 5 corrigidos e as threads de review resolvidas
+    antes do merge.
+  - **O QUE FICA EM ABERTO, POR DESENHO — não é pendência esquecida**: a
+    migração de verdade pro adapter `@opennextjs/cloudflare` + Cloudflare
+    Workers (P1-P8) **não foi executada**. ADR 0006 continua `Proposed`;
+    execução depende de decisão futura do mantenedor sobre quando abrir a
+    janela de corte de DNS (P8, único passo com produção ao vivo em
+    risco). O CVE que motivava essa migração já está fechado (PR #339),
+    então não há mais urgência de segurança empurrando essa decisão — é
+    puramente melhoria de infra agora.
+  - **LIÇÃO DE PROCESSO**: as duas frentes (#339 e #340) foram trabalhadas
+    em branches isoladas, sem push nem deploy, até o usuário revisar o
+    diff de cada uma e autorizar push + PR + merge explicitamente, uma de
+    cada vez — nenhuma delas foi ao ar sem essa aprovação intermediária.
+
 - **AUDITORIA DE SEGURANÇA DE WEBHOOKS/CALLBACKS/INTEGRAÇÕES EXTERNAS
   (2026-09-17/18, PRs #328/#332/#333/#334/#335, TODAS MERGEADAS — o
   CÓDIGO está CONFIRMADO EM PRODUÇÃO (commit `7c4f24f`, verificado pelo

@@ -83,8 +83,17 @@ export interface ProfilePatch {
 // Efeito: admin de portal nunca era admin no client (badge PRO em vez de
 // ADMIN, "Sem acesso" em /admin/whatsapp, /admin/errors etc.). NÃO
 // recolocar is_admin aqui sem antes criar a coluna no banco.
+// MESMA PEGADINHA (2026-09-19): `display_name` também NÃO existe na tabela
+// real — nenhuma migration jamais a criou (só aparece em
+// `lib/database.types.ts`, que está desatualizado em relação ao banco
+// vivo). Com ela na lista, TODO getProfile() falhava (42703) e caía no
+// fallback profiles_public em produção — dobrando o round-trip pra CADA
+// perfil carregado (autor de post no feed, etc.) e perdendo phone/email/
+// address/portal_access nessa chamada. `name` já cobre o caso de uso (é a
+// 1ª opção em `policies.ts` na hora de escolher um nome pra exibir). NÃO
+// recolocar sem antes criar a coluna no banco.
 const PROFILE_COLS =
-  'id, name, tag, username, display_name, avatar_url, bio, phone, email, ' +
+  'id, name, tag, username, avatar_url, bio, phone, email, ' +
   'city, state, address, business_logo_url, business_name, role, user_type, ' +
   'profession, specialties, service_radius, is_pro, pro_expires_at, ' +
   'pro_grace_until, portal_access, verified, rating_avg, ' +
