@@ -35,7 +35,7 @@ jobs:
       # o GITHUB_TOKEN pra escrever no repo (defesa em profundidade — o
       # token de PR de fork já é read-only por padrão do GitHub, isto cobre
       # também o caso de push de branch same-repo).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
