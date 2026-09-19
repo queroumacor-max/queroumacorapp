@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { showToast } from '@/lib/toast';
+import { native, copyToClipboard } from '@/lib/native';
 
 export function InviteSection() {
   const { user } = useAuth();
@@ -29,22 +30,17 @@ export function InviteSection() {
         (profile as { name?: string | null } | null)?.name ?? 'um pintor';
       const text =
         `Te indica! Conhece ${name} no QueroUmaCor — o app dos pintores profissionais. O link libera o cadastro:`;
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try {
-          await navigator.share({ title: 'QueroUmaCor', text, url });
-          return;
-        } catch (e) {
-          if ((e as Error).name === 'AbortError') return;
-          // outros erros: cai pro fallback de copiar abaixo
-        }
-      }
+      // Share sheet: plugin nativo (casca) → Web Share API (navegador/PWA),
+      // com timeout embutido — nunca fica sem feedback (ver
+      // lib/native/share.ts). Devolve true se ENTREGOU (ou o usuário
+      // cancelou); aí não cai pro copiar.
+      if (await native.share({ title: 'QueroUmaCor', text, url })) return;
       // Fallback garantido (desktop / sem Web Share): copia e avisa. Se o
       // clipboard também não rolar, mostra o link no toast pra copiar à mão —
       // nunca fica sem feedback (Bug #23 / padrão #9).
-      try {
-        await navigator.clipboard.writeText(`${text} ${url}`);
+      if (await copyToClipboard(`${text} ${url}`)) {
         showToast('Link copiado! Manda pro amigo no WhatsApp.', 'success');
-      } catch {
+      } else {
         showToast(url, 'info');
       }
     } finally {
