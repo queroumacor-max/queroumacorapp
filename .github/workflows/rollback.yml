@@ -25,6 +25,12 @@ jobs:
   rollback:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Maior blast radius do repo (force-push em `main`). Referenciar este
+    # environment permite anexar uma proteção de "required reviewers" em
+    # Settings → Environments → production-rollback (ação manual — sem
+    # essa configuração, o environment aqui é inerte e não muda o
+    # comportamento do job). Ver docs/EXTERNAL_SECURITY_BASELINE.md §15.
+    environment: production-rollback
     steps:
       # Inputs de workflow_dispatch só podem vir de quem já tem permissão de
       # escrita pra disparar o workflow — não é o modelo de ameaça de PR de

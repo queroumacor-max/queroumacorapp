@@ -384,6 +384,64 @@
     original; não copiada pra arquivo por decisão de manter este
     `CLAUDE.md` enxuto — mesma regra já aplicada à auditoria Cloudflare de
     13/09.
+- **DNSSEC de `queroumacor.com.br` FECHADO (2026-09-17) — DS record
+  publicado na Registro.br.** Última pendência do item aberto em
+  2026-09-16 (3ª rodada Cloudflare, ver entrada mais abaixo): o DNSSEC
+  estava "ligado" só do lado Cloudflare, sem proteger nada até o
+  registrador publicar o DS. **Confirmado pelo usuário**: pegou o DS
+  record em Cloudflare → DNS → Settings → DNSSEC (Key Tag `2371`,
+  Algoritmo `13`, Digest Type `2` / SHA-256, Digest
+  `622EAF7E13F810DC8DFE5A78127EC1EDEB19CCAE3398EE0CB4AB758D003E6CE7`),
+  publicou no formulário "Alterar servidores DNS → + DNSSEC" da
+  Registro.br, que confirmou "DNS atualizado com sucesso!". Propagação
+  estimada pelo Cloudflare: 10min-1h. **Não pedir pra reconfirmar antes
+  dessa janela** — depois dela, o jeito de checar é Cloudflare → DNS →
+  Settings → DNSSEC mostrando "Status: Active" (não só "Enabled").
+  Fecha o item 10 (MEDIUM) da auditoria externa de identidade abaixo.
+
+- **AUDITORIA EXTERNA DE IDENTIDADE E CONTAS ADMINISTRATIVAS (2026-09-17,
+  branch `claude/inspiring-thompson-yh6hc9`) — diferente das auditorias
+  de RLS/código acima: aqui o escopo é IAM/MFA/recovery/break-glass de
+  TODA a infraestrutura externa (GitHub, Cloudflare, Supabase, GCP/
+  Firebase, Apple Developer, Google Play, Codemagic, Sentry, Meta/
+  WhatsApp/Dualhook, Mercado Pago, Google AI Studio, registrars,
+  e-mail). Entregue em `docs/EXTERNAL_SECURITY_BASELINE.md` (inventário +
+  matrizes + achados) e `docs/ACCOUNT_RECOVERY_RUNBOOK.md` (break-glass +
+  tabletops + ordem de rotação de emergência). Detalhe completo em
+  `SECURITY_AUDIT_LOG.md`.**
+  - **Sessão sem browser/console** — só GitHub via API (verificado agora:
+    repo é conta pessoal, não org; 2 collaborators —
+    `queroumacor-max` admin/dono, `jacksongmatos` write, nenhum
+    desconhecido; 8 workflows todos com `permissions:` explícito, sem
+    `pull_request_target`, actions de terceiro pinadas por SHA) e o
+    histórico já registrado neste arquivo (verificações de console de
+    sessões anteriores). **Tentei até DNS público (sem login nenhum) via
+    DoH — o proxy de rede do ambiente bloqueou com 403.** Todo o resto
+    (Cloudflare, Supabase, GCP além do já registrado, Apple além do já
+    registrado, Play, Codemagic, Sentry, Meta, Mercado Pago, os 2
+    registrars) ficou `NOT VERIFIED`, nunca presumido PASS.
+  - **CRITICAL, não corrigido (decisão do usuário)**: `queroumacor@gmail.com`
+    (presumido — é a identidade usada em toda verificação de console já
+    feita) parece concentrar Firebase/GCP, Google AI Studio (INCLUSIVE um
+    projeto de outra empresa, "JR Erp"), Apple Developer Account Holder e
+    provavelmente Cloudflare/Play — **sem 2º admin confirmado em nenhum
+    exceto o Apple** (`beatrisporsebon@icloud.com`, já confirmado
+    intencional em 2026-09-16). Maior single point of failure do
+    sistema.
+  - **HIGH, achados novos desta auditoria**: **Dualhook** (o proxy que
+    intermedeia TODO o WhatsApp desde 2026-09-05) não estava no
+    inventário de serviços externos do usuário — vendor com acesso total
+    ao número oficial, sem MFA/rotação documentados; **Evolution API**
+    (Render, "aposentada" 2026-09-05) tem env vars ainda em
+    `.env.example` e NENHUMA confirmação de que a instância no Render foi
+    desligada/revogada — candidata clássica a serviço esquecido com
+    credencial viva; `MP_ACCESS_TOKEN` de produção segue no código sem
+    call-site de UI ativa.
+  - **Nada foi rotacionado/revogado/alterado automaticamente.** `FINAL
+    STATUS`: **HIGH ACCOUNT-TAKEOVER RISK** (concentração de identidade +
+    MFA não confirmado em nenhum dos 12 provedores externos críticos +
+    Evolution API dormant não resolvida + nenhum break-glass em nenhum
+    provedor). Ações manuais ficam listadas nos dois documentos novos.
 
 - **AUDITORIA DE SEGURANÇA DA PIPELINE CI/CD (2026-09-16, commit `bfa6849`,
   merge #318 `claude/keen-bell-vyn38f`) — MERGEADA SEM REGISTRO NESTE
@@ -615,8 +673,9 @@
       Overview → Configure, confirmado pela mensagem "Encryption mode
       updated successfully." Agora a conexão Cloudflare↔origem exige
       certificado válido, não só cifra.
-    - **🟡 DNSSEC — LIGADO NO CLOUDFLARE (2026-09-16, 3ª sessão),
-      FALTA SÓ O DS RECORD NO REGISTRADOR.** Depois de duas rodadas que
+    - **✅ DNSSEC — FECHADO EM 2026-09-17 (DS record publicado na
+      Registro.br; ver entrada no topo deste arquivo).** Ligado no
+      Cloudflare nesta sessão (2026-09-16, 3ª sessão); depois de duas rodadas que
       só CONFIRMARAM o estado desligado (ver regra abaixo), esta terceira
       sessão executou a ação de verdade: "Enable DNSSEC" ativado em DNS →
       Settings. O DNSSEC só fica TOTALMENTE ativo depois que o registrador

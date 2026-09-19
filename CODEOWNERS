@@ -1,0 +1,15 @@
+# CODEOWNERS — auditoria externa 2026-09-17 (docs/EXTERNAL_SECURITY_BASELINE.md).
+#
+# Só passa a EXIGIR review de verdade quando "Require review from Code
+# Owners" for ligado em Settings → Branches → main (ação manual — não
+# incluída aqui; sem esse toggle, este arquivo é inerte). Escopo
+# deliberadamente restrito aos paths de maior blast radius do repo —
+# o resto do código NÃO exige code owner, pra não travar PR de rotina.
+#
+# GitHub lê da entrada mais ESPECÍFICA pra mais GERAL — a última regra
+# que casa um path vence.
+
+/.github/workflows/  @queroumacor-max
+/CODEOWNERS          @queroumacor-max
+/.github/SECURITY.md @queroumacor-max
+/migrations/         @queroumacor-max
