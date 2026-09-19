@@ -198,8 +198,12 @@ export function EditProfileForm() {
   // restaura no mount. Não cobre avatar (File) nem campos readonly.
   // O onRestore só dispara se já existir draft válido (TTL 7d).
   const watchedValues = watch();
+  // Chave escopada por usuário (privacy audit 2026-09-17): antes era a
+  // string fixa 'profile_edit' — rascunho de A (nome/telefone/bio ainda
+  // não salvo) sobrevivia no localStorage e era restaurado pra B, se B
+  // logasse no mesmo aparelho sem A ter enviado o formulário.
   const autosave = useAutosave<FormData>({
-    key: 'profile_edit',
+    key: `profile_edit_${user?.id ?? 'anon'}`,
     values: watchedValues as FormData,
     onRestore: (restored) => {
       // Não restaura rascunho por cima do perfil já carregado do servidor:

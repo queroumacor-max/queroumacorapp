@@ -183,4 +183,47 @@ describe('sentryBeforeSend', () => {
     expect(() => sentryBeforeSend({ breadcrumbs: [] })).not.toThrow();
     expect(() => sentryBeforeSend({})).not.toThrow();
   });
+
+  // Privacidade 2026-09-17: `message`/`exception.value` passavam CRUS antes
+  // — se um erro do Postgres ecoasse um valor de coluna (ex. "duplicate key
+  // ... (phone)=(11999998888)"), chegava sem máscara no Sentry mesmo com
+  // `sendDefaultPii` desligado. Não há teste dedicado aqui pra masking de
+  // `request.url` mantendo query string mascarada — a versão final
+  // (reconciliada com a auditoria de observabilidade) REMOVE a query
+  // inteira em vez de mascará-la seletivamente (ver os dois testes de
+  // "remove query string"/"remove fragment" acima), mais seguro por não
+  // depender de reconhecer todo padrão de PII possível numa query string.
+  it('mascara event.message', () => {
+    const event = { message: 'falha pro usuário foo@bar.com' };
+    const out = sentryBeforeSend(event);
+    expect(out.message).toBe('falha pro usuário foo***@bar.com');
+  });
+
+  it('mascara exception.values[].value', () => {
+    const event = {
+      exception: {
+        values: [{ value: 'duplicate key (phone)=(11959765031) violates constraint' }],
+      },
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.exception?.values?.[0].value).toBe(
+      'duplicate key (phone)=(***********) violates constraint',
+    );
+  });
+
+  it('mascara breadcrumbs[].message e breadcrumbs[].data (formato alternativo)', () => {
+    const event = {
+      breadcrumbs: [
+        { message: 'contato foo@bar.com', data: { phone: '11959765031' } },
+      ],
+    };
+    const out = sentryBeforeSend(event);
+    expect(out.breadcrumbs?.[0].message).toBe('contato foo***@bar.com');
+    expect(out.breadcrumbs?.[0].data).toEqual({ phone: '***********' });
+  });
+
+  it('não quebra com exception/breadcrumbs ausentes ou vazios', () => {
+    expect(() => sentryBeforeSend({ exception: { values: [] }, breadcrumbs: [] })).not.toThrow();
+    expect(() => sentryBeforeSend({ exception: {}, breadcrumbs: undefined })).not.toThrow();
+  });
 });

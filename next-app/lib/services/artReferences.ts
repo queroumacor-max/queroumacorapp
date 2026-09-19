@@ -10,6 +10,7 @@ import { NetworkError, ValidationError } from '@/lib/errors';
 import { normalizarArquivo } from '@/lib/utils/mediaType';
 import { sha256Hex } from '@/lib/utils/sha256';
 import { assertMediaApproved } from '@/lib/services/moderateMedia';
+import { compressImage } from '@/lib/services/posts';
 
 export interface ArtReference {
   id: string;
@@ -117,6 +118,21 @@ export async function uploadArtReference(params: {
   }
   if (file.size > MAX_BYTES) {
     throw new ValidationError('Arquivo maior que 20MB.');
+  }
+
+  // Privacidade 2026-09-17: `art-refs` é bucket PÚBLICO. JPEG de foto tirada
+  // no celular (ex.: o pintor fotografando o próprio grafite pronto) pode
+  // carregar GPS/dados do aparelho no EXIF, que sobrevivia intacto sem
+  // recompressão. Só reencoda JPEG — PNG/WebP ficam como estão de propósito
+  // (a arte de referência pode depender de TRANSPARÊNCIA pro overlay em AR;
+  // `compressImage` sempre preenche fundo branco e vira JPEG, o que
+  // quebraria esse uso). PNG/WebP raramente carregam EXIF de GPS.
+  if (file.type === 'image/jpeg') {
+    try {
+      file = await compressImage(file);
+    } catch {
+      // segue com o arquivo original
+    }
   }
 
   // Path: userId/uuid.ext — RLS exige primeiro segmento = auth.uid().

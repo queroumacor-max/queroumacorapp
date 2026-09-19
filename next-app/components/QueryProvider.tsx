@@ -27,6 +27,7 @@ import {
   hydrateQueryCache,
   installQueryPersistence,
 } from '@/lib/queryPersistence';
+import { LOGOUT_EVENT } from '@/components/AuthProvider';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
@@ -59,6 +60,18 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   // remove o listener quando provider desmonta.
   useEffect(() => {
     return installQueryPersistence(client);
+  }, [client]);
+
+  // Privacy audit 2026-09-17: zera o cache (memória + persistência em
+  // localStorage) em QUALQUER encerramento de sessão, não só quando a
+  // pessoa toca no botão "Sair" de uma tela específica. `AuthProvider`
+  // fica FORA desta árvore (ver comentário no topo do arquivo), então não
+  // dá pra chamar `useQueryClient()` de lá — ele dispara este evento em
+  // `window` em vez disso.
+  useEffect(() => {
+    const onLogout = () => client.clear();
+    window.addEventListener(LOGOUT_EVENT, onLogout);
+    return () => window.removeEventListener(LOGOUT_EVENT, onLogout);
   }, [client]);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
