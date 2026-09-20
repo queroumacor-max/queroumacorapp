@@ -41,17 +41,18 @@
 
   "env": {
     "production": {
-      // Custom Domain SÓ entra aqui depois do smoke test do P8 confirmar
-      // que o Worker responde certo em endereço próprio — não antes.
-      // Adicionar esta chave é o próprio ATO do corte de DNS (junto com
-      // remover o Custom Domain do lado do Pages primeiro — ver runbook
-      // P8, docs/adr/0006-workers-migration-artifacts.md seção 5). Deixar
-      // COMENTADO até esse momento — NÃO descomentar sem autorização
-      // explícita e específica pro corte de DNS.
-      // "routes": [
-      //   { "pattern": "queroumacor.com.br", "custom_domain": true },
-      //   { "pattern": "www.queroumacor.com.br", "custom_domain": true }
-      // ],
+      // Custom Domain — descomentado em 2026-09-19 com autorização explícita
+      // do Jackson pro corte de DNS (P8). Mergear/deployar isto SOZINHO não
+      // corta nada: o passo 1 do runbook (remover o Custom Domain do lado
+      // do Pages, projeto `queroumacor-next`) é manual, feito por fora
+      // deste repo, e tem que acontecer ANTES — ver runbook P8,
+      // docs/adr/0006-workers-migration-artifacts.md seção 5.2. Esta PR é
+      // só o preparo do lado do Worker; o merge+deploy fica pra depois da
+      // confirmação de que o passo 1 já foi feito.
+      "routes": [
+        { "pattern": "queroumacor.com.br", "custom_domain": true },
+        { "pattern": "www.queroumacor.com.br", "custom_domain": true }
+      ],
 
       // KV binding pra cache de cidades IBGE — hoje só configurado no
       // painel CF Pages, código NÃO lê env.KV ainda. Migrar a declaração
