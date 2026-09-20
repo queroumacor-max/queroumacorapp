@@ -84,7 +84,7 @@ export function SignupStep1({ initialValue, onNext }: Props) {
       <button
         type="button"
         onClick={() => onNext({ userType: selected })}
-        className="w-full py-3 bg-[color:var(--color-p1-text)] text-white rounded-xl font-bold text-base hover:opacity-90 transition-opacity"
+        className="w-full py-3 bg-[color:var(--color-p1-button)] text-[color:var(--color-white-fixed)] rounded-xl font-bold text-base hover:opacity-90 transition-opacity"
       >
         Continuar →
       </button>

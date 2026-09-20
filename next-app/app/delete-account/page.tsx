@@ -59,8 +59,8 @@ export default function DeleteAccountPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/login?next=${encodeURIComponent('/delete-account')}`}
-              className="px-4 py-2 text-sm font-semibold rounded-lg text-white"
-              style={{ background: 'var(--color-p1-text)' }}
+              className="px-4 py-2 text-sm font-semibold rounded-lg text-[color:var(--color-white-fixed)]"
+              style={{ background: 'var(--color-p1-button)' }}
             >
               Fazer login pra excluir
             </Link>

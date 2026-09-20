@@ -23,22 +23,37 @@
      Texto/ícone sobre chrome fixo usa este. */
   --color-white-fixed: #ffffff;
   --color-p1: #ff6b35;   /* orange */
-  /* Variante de `--color-p1` SEGURA PRA TEXTO/BOTÃO (auditoria Playwright +
-     axe-core, 2026-09-20): o laranja puro dá só 2,56:1 como texto sobre o
-     fundo creme e 2,83:1 como fundo do botão com texto branco em cima — os
-     dois abaixo do mínimo de 4,5:1 do WCAG AA (achado em /login e /signup,
-     mas o mesmo par de classes — `text-[color:var(--color-p1)]` solto e
-     `bg-[color:var(--color-p1)] text-white` — se repete em ~377 lugares do
-     app; só as páginas alcançáveis sem login foram auditadas de verdade).
-     `#ad4924` é o MESMO matiz escurecido (RGB×0.68) até passar os dois
-     casos com folga (5,59:1 texto-branco-no-fundo / 5,06:1 texto-no-creme)
-     — troca só de LUMINOSIDADE, não de matiz, pra não fugir muito da marca.
-     Usar em texto/link solto e em botão de fundo p1 com texto branco;
-     ícone/borda/fundo decorativo (sem texto em cima) continua em
-     `--color-p1` puro, mais vibrante. Sobrescrito no dark mode logo abaixo
-     porque LÁ o laranja puro já sobra de contraste (6,37:1 num fundo
-     escuro) — escurecer teria o efeito contrário e derrubaria pra 3,62:1. */
+  /* DUAS variantes de `--color-p1` SEGURAS (auditoria Playwright + axe-core,
+     2026-09-20 — revisadas depois que o Codex achou um furo na 1ª versão
+     desta correção): o laranja puro dá só 2,56:1 como TEXTO sobre fundo
+     creme e 2,83:1 como FUNDO DE BOTÃO com texto branco em cima — os dois
+     abaixo do mínimo 4,5:1 do WCAG AA.
+
+     Por que são DUAS variáveis, não uma: as duas situações têm exigências
+     OPOSTAS no dark mode. `--color-p1-text` (link/texto solto) precisa ficar
+     CLARO no escuro — o próprio laranja puro já dá 6,37:1 contra o fundo
+     `#14161d`, e escurecer pra `#ad4924` derrubaria pra 3,23:1. Já
+     `--color-p1-button` (fundo de botão com texto BRANCO em cima) não liga
+     pro fundo da página — é sempre branco-contra-o-próprio-botão, os mesmos
+     2,83:1 num app claro OU escuro — e por isso tem que ficar escuro nos
+     DOIS temas. Uma variável só que "no dark mode volta a ser --color-p1"
+     (a versão original desta correção) resolvia o primeiro caso e REABRIA
+     exatamente o segundo — é o que o Codex pegou na revisão da PR #376: o
+     botão "Entrar"/"Continuar →" com dark mode ligado voltava pro laranja
+     puro reprovado.
+
+     `#ad4924` é o MESMO matiz de `--color-p1`, só escurecido (RGB×0.68) até
+     passar os dois papéis com folga (5,59:1 texto-branco-no-fundo / 5,06:1
+     texto-no-creme) — troca só de LUMINOSIDADE, não de matiz, pra não fugir
+     muito da marca. Ícone/borda/fundo decorativo (sem texto em cima)
+     continua em `--color-p1` puro, mais vibrante, nos dois papéis. */
   --color-p1-text: #ad4924;
+  /* Fundo de botão com texto branco (`bg-[color:var(--color-p1-button)]
+     text-white`) — CONSTANTE nos dois temas, de propósito (ver comentário
+     acima). `#ad4924` contra o fundo escuro `#14161d` também passa o limiar
+     mais frouxo de 3:1 pra objeto gráfico/limite de UI (WCAG 1.4.11), então
+     o botão continua se destacando da página no dark mode. */
+  --color-p1-button: #ad4924;
   --color-p2: #f7c59f;   /* peach */
   --color-p3: #2ec4b6;   /* teal */
   --color-p4: #e63946;   /* red (alertas/badges) */

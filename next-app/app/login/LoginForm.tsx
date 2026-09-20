@@ -258,7 +258,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-[color:var(--color-p1-text)] text-white font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+        className="w-full bg-[color:var(--color-p1-button)] text-[color:var(--color-white-fixed)] font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         style={{ padding: 15, borderRadius: 14, marginTop: 8 }}
       >
         {isSubmitting ? 'Entrando…' : 'Entrar'}
