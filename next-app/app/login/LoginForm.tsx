@@ -240,7 +240,7 @@ export function LoginForm() {
             Por enquanto link estático — rota retorna 404 até feature ser portada. */}
         <Link
           href="/reset-password"
-          className="text-sm text-[color:var(--color-p1)] font-semibold hover:underline"
+          className="text-sm text-[color:var(--color-p1-text)] font-semibold hover:underline"
         >
           Esqueceu a senha?
         </Link>
@@ -258,7 +258,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-[color:var(--color-p1)] text-white font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+        className="w-full bg-[color:var(--color-p1-button)] text-[color:var(--color-white-fixed)] font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         style={{ padding: 15, borderRadius: 14, marginTop: 8 }}
       >
         {isSubmitting ? 'Entrando…' : 'Entrar'}

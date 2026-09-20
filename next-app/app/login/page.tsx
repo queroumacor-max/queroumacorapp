@@ -59,7 +59,7 @@ export default function LoginPage() {
         <Link
           href="/termos-de-uso"
           className="hover:underline"
-          style={{ color: 'var(--color-p1)' }}
+          style={{ color: 'var(--color-p1-text)' }}
         >
           Termos de Uso
         </Link>{' '}
@@ -67,7 +67,7 @@ export default function LoginPage() {
         <Link
           href="/politica-de-privacidade"
           className="hover:underline"
-          style={{ color: 'var(--color-p1)' }}
+          style={{ color: 'var(--color-p1-text)' }}
         >
           Política de Privacidade
         </Link>

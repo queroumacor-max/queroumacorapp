@@ -301,7 +301,7 @@ export function SignupFlow() {
         Já tem conta?{' '}
         <Link
           href="/login"
-          className="text-[color:var(--color-p1)] font-semibold hover:underline"
+          className="text-[color:var(--color-p1-text)] font-semibold hover:underline"
         >
           Entrar
         </Link>
