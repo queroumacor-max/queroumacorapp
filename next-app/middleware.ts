@@ -109,18 +109,46 @@ import type { NextRequest } from 'next/server';
 // `'unsafe-inline'`, que anula boa parte do valor de ter CSP — qualquer
 // XSS que injete um `<script>` inline roda igual. Removido.
 //
-// Optou-se por HASH em vez de NONCE por request: nenhum dos scripts
-// inline deste app carrega dado por-requisição (são strings estáticas —
-// tema, fuso, pin de scroll do Android, o loader do Eruda, o retry da
-// tela de erro, os 3 scripts do `/portal` estático) — um nonce por
-// requisição exigiria ler `headers()` em Server Component pra repassar o
-// valor, o que força TODA página coberta pelo middleware a virar
-// dinâmica (perde geração estática das páginas de `/info/*`, sem
-// necessidade real aqui) — e ainda dependeria do MESMO mecanismo de
-// propagação de headers que este arquivo já documentou como
-// adapter-dependente. Hash não tem nenhuma dessas dependências: casa
-// pelo CONTEÚDO do script, então funciona igual em qualquer adapter,
-// estático ou dinâmico.
+// Optou-se por HASH pros scripts do PRÓPRIO app (nenhum carrega dado
+// por-requisição — são strings estáticas: tema, fuso, pin de scroll do
+// Android, o loader do Eruda, o retry da tela de erro, os 3 scripts do
+// `/portal` estático). Hash não depende de propagação de header nem força
+// página nenhuma a virar dinâmica: casa pelo CONTEÚDO do script, funciona
+// igual em qualquer adapter, estático ou dinâmico.
+//
+// INCIDENTE (2026-09-20, achado no PRIMEIRO deploy real com tráfego pra
+// uma página com streaming de verdade sob o adapter `@opennextjs/
+// cloudflare`): remover `'unsafe-inline'` sem NADA no lugar pros scripts
+// do PRÓPRIO NEXT.JS quebrou a hidratação — o App Router injeta os
+// próprios `<script>self.__next_f.push(...)</script>` pra fazer streaming
+// de Server Components, com conteúdo DIFERENTE a cada requisição
+// (payload serializado da página). Hash não cobre isso por definição (não
+// dá pra pré-calcular hash de conteúdo que muda a cada request) — cada um
+// desses scripts tomava bloqueio de CSP, silencioso pro usuário (só
+// aparece no console), e a página ficava presa esperando dados de
+// streaming que nunca chegavam: React estourava "Minified error #412"
+// (Connection closed) e a tela nunca saía do "Carregando…". Reproduzido
+// localmente com `wrangler dev` contra o artefato real antes do fix.
+//
+// FIX: NONCE por requisição, ADICIONADO ao lado dos hashes — não no lugar
+// deles. `'nonce-<valor>'` e as 8 hashes convivem na mesma `script-src`
+// (CSP aceita múltiplos critérios; um script passa se casar com QUALQUER
+// um). O Next.js detecta e aplica esse nonce SOZINHO em todo `<script>`
+// que ELE MESMO injeta (streaming incluso) desde que o valor apareça no
+// header `Content-Security-Policy` do REQUEST que chega no render — não
+// exige `headers()` em Server Component nenhum, então NENHUMA página
+// (incluindo as estáticas de `/info/*`) precisa virar dinâmica por causa
+// disso. Os scripts do PRÓPRIO app continuam pareando por hash, sem
+// mudança nenhuma nelas.
+//
+// O literal `__CSP_NONCE__` abaixo é um TOKEN fixo, não uma interpolação
+// — mantém `SECURITY_CSP` como string estática de propósito, pra
+// `__tests__/middlewareSecurityHeadersParidade.test.ts` e
+// `__tests__/cspHeadersParidade.test.ts` continuarem comparando um valor
+// GOLDEN de verdade. `applySecurityHeaders` substitui esse token pelo
+// nonce de cada requisição, gerado em `middleware()` via
+// `crypto.randomUUID()` (mesma API já usada ali embaixo pro
+// `x-request-id`, comprovadamente disponível neste runtime).
 //
 // Cada hash abaixo (na ordem em que aparece em `script-src`) é sha256
 // base64 do conteúdo EXATO (`__html`/RETRY/texto do `<script>`) de UM
@@ -137,7 +165,7 @@ import type { NextRequest } from 'next/server';
 // quebra o script em produção (CSP bloqueia silenciosamente, sem erro
 // visível pra quem não olhar o console).
 const SECURITY_CSP =
-  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-1g/4/q5hhnu9i8wkSe7iaa6xAsgBLnRt2ax5yKttwrs=' 'sha256-JDH5f4Zr1/oCxPN2ffwQpeNHP+q6sofe4JbkmgTK6oc=' 'sha256-aTvPZGOmLmPxnWSX8uEtE5pFy1yfeYOI6lTfU3psjdA=' 'sha256-caEV9gkPUz2B2VLH1MN8r5EizN6XNLSsLBdR7Y9fMRI=' 'sha256-G8Md6VEAAcAjKEG9ogYeZK8mUsQ7rrspan0dYs0hn/Y=' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
+  "default-src 'self'; script-src 'self' 'nonce-__CSP_NONCE__' 'wasm-unsafe-eval' 'sha256-1g/4/q5hhnu9i8wkSe7iaa6xAsgBLnRt2ax5yKttwrs=' 'sha256-JDH5f4Zr1/oCxPN2ffwQpeNHP+q6sofe4JbkmgTK6oc=' 'sha256-aTvPZGOmLmPxnWSX8uEtE5pFy1yfeYOI6lTfU3psjdA=' 'sha256-caEV9gkPUz2B2VLH1MN8r5EizN6XNLSsLBdR7Y9fMRI=' 'sha256-G8Md6VEAAcAjKEG9ogYeZK8mUsQ7rrspan0dYs0hn/Y=' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
 
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['Content-Security-Policy', SECURITY_CSP],
@@ -170,9 +198,9 @@ const API_CORS_HEADERS: ReadonlyArray<readonly [string, string]> = [
 // mas o middleware vê o pathname ORIGINAL, antes da rewrite resolver — por
 // isso `/api/v1/...` já cai em `startsWith('/api/')` mesmo assim (é
 // literalmente um prefixo da string), sem precisar de um segundo check.
-function applySecurityHeaders(response: NextResponse, pathname: string): NextResponse {
+function applySecurityHeaders(response: NextResponse, pathname: string, nonce: string): NextResponse {
   for (const [key, value] of SECURITY_HEADERS) {
-    response.headers.set(key, value);
+    response.headers.set(key, key === 'Content-Security-Policy' ? value.replace('__CSP_NONCE__', nonce) : value);
   }
   if (pathname.startsWith('/api/')) {
     for (const [key, value] of API_CORS_HEADERS) {
@@ -220,16 +248,27 @@ export function middleware(request: NextRequest) {
   // runtime real usa por baixo — não perde nada.
   const pathname = new URL(request.url).pathname;
 
+  // Nonce da CSP — um por requisição, mesmo em caminhos que nem chegam a
+  // renderizar página (ex.: o bloqueio abaixo). crypto.randomUUID() já é
+  // usado logo adiante pro x-request-id, mesma API, mesmo runtime.
+  const nonce = crypto.randomUUID();
+
   const bloqueado = bloqueiaServerActionHeader(request);
-  if (bloqueado) return applySecurityHeaders(bloqueado, pathname);
+  if (bloqueado) return applySecurityHeaders(bloqueado, pathname, nonce);
 
   const incoming = request.headers.get('x-request-id');
   const requestId = incoming && incoming.trim() ? incoming.trim() : crypto.randomUUID();
 
-  // Clona headers do request e seta x-request-id. NextResponse.next com
-  // `request.headers` reescreve os headers vistos pelo route handler.
+  // Clona headers do request e seta x-request-id + a CSP (com o nonce já
+  // substituído) no REQUEST que segue pro render — é lendo o `Content-
+  // Security-Policy` daqui que o Next.js detecta o nonce sozinho e passa a
+  // aplicá-lo em todo <script> que ELE injeta (streaming de Server
+  // Components incluso), sem precisar de `headers()` em nenhuma página.
+  // NextResponse.next com `request.headers` reescreve os headers vistos
+  // pelo route handler/render.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-request-id', requestId);
+  requestHeaders.set('Content-Security-Policy', SECURITY_CSP.replace('__CSP_NONCE__', nonce));
 
   const response = NextResponse.next({
     request: {
@@ -237,7 +276,7 @@ export function middleware(request: NextRequest) {
     },
   });
   response.headers.set('x-request-id', requestId);
-  return applySecurityHeaders(response, pathname);
+  return applySecurityHeaders(response, pathname, nonce);
 }
 
 export const config = {
