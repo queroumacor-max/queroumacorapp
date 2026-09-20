@@ -1,5 +1,90 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **CORTE DE DNS (P8) JÁ FEITO — `queroumacor.com.br` e `www.queroumacor.com.br`
+  já estão vinculados ao Worker `queroumacor-next-production`, não mais ao
+  projeto Cloudflare Pages (2026-09-20). NÃO tratar isso como pendência nem
+  reabrir a PR #358 (obsoleta) achando que falta habilitar Custom Domain —
+  já foi habilitado, direto no painel.**
+  - **Como foi descoberto**: uma sessão de auditoria (pedido explícito do
+    usuário: "verifique se o corte de DNS já foi realmente concluído, sem
+    presumir nada") concluiu inicialmente, corretamente NA HORA, que o corte
+    **não** tinha sido feito — toda a evidência de repo (PR #358 aberta em
+    draft, `wrangler.jsonc` com `routes` comentado, PR #351 dizendo "corte
+    continua fora de cogitação") apontava nesse sentido. **Enquanto essa
+    auditoria ainda rodava**, outra sessão Claude em paralelo
+    (`session_01WivWUTa5TA5knAqPHQakoq`, também operada pelo usuário) fez o
+    corte de verdade DIRETO NO PAINEL do Cloudflare e mergeou a
+    **PR #372** (`f1d4b33`, 2026-09-20T04:50:50Z) só pra declarar no
+    `wrangler.jsonc` o que já tinha virado realidade — sem isso, o próximo
+    `wrangler deploy --env production` IA REMOVER os Custom Domains de novo
+    (Wrangler reconcilia `routes` de forma declarativa: o que não está no
+    arquivo é tratado como "deve sair"). A auditoria só percebeu a mudança
+    ao re-conferir `origin/main` alguns minutos depois — **prova de que
+    "auditei agora" tem validade de minutos quando há mais de uma sessão
+    mexendo no mesmo projeto ao mesmo tempo**, mesma lição já registrada
+    neste arquivo pro susto de deploy de 2026-09-19 (contenção de fila entre
+    sessões).
+  - **`env.production.routes` no `wrangler.jsonc` agora é**:
+    ```jsonc
+    "routes": [
+      { "pattern": "queroumacor.com.br", "custom_domain": true },
+      { "pattern": "www.queroumacor.com.br", "custom_domain": true }
+    ],
+    ```
+  - **CONFIRMADO NA HORA (2026-09-20, o próprio usuário testou pelo Claude in
+    Chrome — navegador real, sessão já logada de antes, fora do sandbox desta
+    sessão): o site funciona normalmente pra usuário real.**
+    `https://queroumacor.com.br` carregou sem página de bloqueio, feed
+    renderizou com posts/avatares/imagens reais (via `/cdn-cgi/image`
+    proxiando o Supabase Storage — confirma que o Image Resizing também
+    sobreviveu ao corte), leitura RLS em `profiles_public` voltando 200,
+    prefetch RSC (`_rsc=`) em `/pro`, `/chat`, `/perfil`, `/hashtag/*`,
+    `/search`, `/loja`, `/notificacoes`, `/feed` todos 200, service worker
+    registrado, zero erro no console. **Isso resolve o item 3 abaixo** — o
+    corte não quebrou a navegação básica nem a leitura via Supabase/RLS.
+    **O usuário também reproduziu o 403 desta sessão rodando `curl` de um
+    sandbox externo contra `queroumacor.com.br`/`www` — mesmo padrão (bot-
+    management por IP de datacenter), confirmando que o 403 é só bloqueio de
+    tráfego automatizado, não sinal de problema em produção.**
+  - **CONFIRMADO PELO USUÁRIO (2026-09-20): os secrets de produção
+    (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA, `MP_ACCESS_TOKEN`/
+    `MP_WEBHOOK_SECRET`, segredos do WhatsApp, `PUSH_INTERNAL_SECRET`) JÁ
+    FORAM PROVISIONADOS no Worker `queroumacor-next-production` ANTES do
+    corte** (não aparecem no `wrangler.jsonc` — foram setados via
+    `wrangler secret put`/painel, por isso não tem como ver isso num diff
+    de código). **Não pedir pra confirmar de novo nem tratar como
+    pendência** — WhatsApp/IA/pagamento/push em produção devem estar
+    operando normalmente pós-corte, não fail-closed.
+  - **AINDA NÃO CONFIRMADO — único item real que sobra, só o painel do
+    Cloudflare resolve (nem sessão de navegador real distingue isso: é
+    coisa que só aparece no dashboard, não em request/response HTTP)**:
+    **se o Custom Domain foi de fato REMOVIDO do lado do Pages** (projeto
+    `queroumacor-next`) ou se ainda está lá duplicado/conflitando — o
+    próprio usuário apontou que isso só se resolve olhando as duas abas
+    "Custom Domains" no painel (a do Worker `queroumacor-next-production`
+    e a do Pages project `queroumacor-next`) — nenhum teste de HTTP de
+    fora distingue com certeza qual dos dois está de fato vinculado ao
+    hostname hoje.
+  - **O bug do "Build output directory" do Cloudflare Pages (entrada logo
+    abaixo) pode ter ficado IRRELEVANTE** — se o Pages não é mais quem serve
+    o domínio, não importa que os builds dele continuem falhando. Mas isso
+    também não está confirmado (ver item acima, sobre o Custom Domain do
+    Pages) — não apagar a entrada abaixo até alguém confirmar que o Pages
+    saiu de cena de vez.
+  - **Achado extra desta sessão, útil pra qualquer smoke test futuro contra
+    produção**: o `smoke-test-workers.yml` disparado contra
+    `https://queroumacor.com.br` a partir de um runner do GitHub Actions
+    tomou **403 "Sorry, you have been blocked" / "Attention Required! |
+    Cloudflare"** (página de bloqueio do WAF/Bot Fight Mode, não erro de
+    app) em 9 dos 10 checks — IP de datacenter do GitHub Actions é tratado
+    como bot pelo Cloudflare. **Só `/api/whatsapp/webhook` passou** (voltou
+    JSON de verdade, `{"error":"verificação inválida"}`), porque já existe
+    allowlist de WAF pra esse path especificamente (pra não bloquear a
+    Meta). **Isso significa que curl/CI a partir de IP de datacenter NÃO
+    serve pra validar produção depois deste corte** — só navegador/app real
+    (humano) passa pelo WAF. Qualquer validação futura do corte de DNS tem
+    que ser manual, num navegador de verdade, não automatizada via CI.
+
 - **"Build output directory" do Cloudflare Pages ficou desatualizado após o
   merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
   `main` falha, Production está SEGURA mas presa até corrigir.** Achado logo
