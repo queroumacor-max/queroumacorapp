@@ -46,34 +46,31 @@
     sandbox externo contra `queroumacor.com.br`/`www` — mesmo padrão (bot-
     management por IP de datacenter), confirmando que o 403 é só bloqueio de
     tráfego automatizado, não sinal de problema em produção.**
-  - **AINDA NÃO CONFIRMADO — pendência real, só o painel do Cloudflare
-    resolve (nem sessão de navegador real distingue isso: são coisas que só
-    aparecem no dashboard, não em request/response HTTP)**:
-    1. **Se os secrets de produção já estão no Worker.** `wrangler.jsonc` só
-       declara as 5 vars PÚBLICAS (Supabase URL/anon key, Sentry DSN, VAPID
-       public key/subject) — secret de verdade (`SUPABASE_SERVICE_ROLE_KEY`,
-       chaves de IA, `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET`, segredos do
-       WhatsApp, `PUSH_INTERNAL_SECRET`) é setado via `wrangler secret put`
-       ou pelo painel (Workers & Pages → `queroumacor-next-production` →
-       Settings → Variables and Secrets) e **NUNCA aparece em nenhum arquivo
-       do repo** — não dá pra saber daqui se já foram migrados pro Worker.
-       O teste de navegador real confirmou só os fluxos que dependem de
-       ANON KEY + RLS (já pública, já em `wrangler.jsonc`) — WhatsApp/IA/
-       pagamento/push dependem de SECRET de verdade, e continuam
-       fail-closed (503) enquanto isso não for confirmado, mesmo com o
-       domínio já certo.
-    2. **Se o Custom Domain foi de fato REMOVIDO do lado do Pages** (projeto
-       `queroumacor-next`) ou se ainda está lá duplicado/conflitando — o
-       próprio usuário apontou que isso só se resolve olhando as duas abas
-       "Custom Domains" no painel (a do Worker `queroumacor-next-production`
-       e a do Pages project `queroumacor-next`) — nenhum teste de HTTP de
-       fora distingue com certeza qual dos dois está de fato vinculado ao
-       hostname hoje.
+  - **CONFIRMADO PELO USUÁRIO (2026-09-20): os secrets de produção
+    (`SUPABASE_SERVICE_ROLE_KEY`, chaves de IA, `MP_ACCESS_TOKEN`/
+    `MP_WEBHOOK_SECRET`, segredos do WhatsApp, `PUSH_INTERNAL_SECRET`) JÁ
+    FORAM PROVISIONADOS no Worker `queroumacor-next-production` ANTES do
+    corte** (não aparecem no `wrangler.jsonc` — foram setados via
+    `wrangler secret put`/painel, por isso não tem como ver isso num diff
+    de código). **Não pedir pra confirmar de novo nem tratar como
+    pendência** — WhatsApp/IA/pagamento/push em produção devem estar
+    operando normalmente pós-corte, não fail-closed.
+  - **AINDA NÃO CONFIRMADO — único item real que sobra, só o painel do
+    Cloudflare resolve (nem sessão de navegador real distingue isso: é
+    coisa que só aparece no dashboard, não em request/response HTTP)**:
+    **se o Custom Domain foi de fato REMOVIDO do lado do Pages** (projeto
+    `queroumacor-next`) ou se ainda está lá duplicado/conflitando — o
+    próprio usuário apontou que isso só se resolve olhando as duas abas
+    "Custom Domains" no painel (a do Worker `queroumacor-next-production`
+    e a do Pages project `queroumacor-next`) — nenhum teste de HTTP de
+    fora distingue com certeza qual dos dois está de fato vinculado ao
+    hostname hoje.
   - **O bug do "Build output directory" do Cloudflare Pages (entrada logo
     abaixo) pode ter ficado IRRELEVANTE** — se o Pages não é mais quem serve
     o domínio, não importa que os builds dele continuem falhando. Mas isso
-    também não está confirmado (ver item 2 acima) — não apagar a entrada
-    abaixo até alguém confirmar que o Pages saiu de cena de vez.
+    também não está confirmado (ver item acima, sobre o Custom Domain do
+    Pages) — não apagar a entrada abaixo até alguém confirmar que o Pages
+    saiu de cena de vez.
   - **Achado extra desta sessão, útil pra qualquer smoke test futuro contra
     produção**: o `smoke-test-workers.yml` disparado contra
     `https://queroumacor.com.br` a partir de um runner do GitHub Actions
