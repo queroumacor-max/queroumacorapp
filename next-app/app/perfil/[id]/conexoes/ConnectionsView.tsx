@@ -222,6 +222,7 @@ export function ConnectionsView({ profileId }: { profileId: string }) {
                     onClick={() => toggleFollow(p)}
                     disabled={busy}
                     aria-label={`Deixar de seguir ${p.tag || p.name || ''}`}
+                    title="Toque para deixar de seguir"
                     className="font-bold"
                     style={{
                       padding: '7px 10px',
@@ -234,7 +235,7 @@ export function ConnectionsView({ profileId }: { profileId: string }) {
                       opacity: busy ? 0.6 : 1,
                     }}
                   >
-                    ✓
+                    {busy ? '…' : 'Seguindo'}
                   </button>
                 </div>
               ) : (
