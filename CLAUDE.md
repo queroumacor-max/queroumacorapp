@@ -15,6 +15,74 @@
   espalhadas por este arquivo — a mesma lição, aprendida de novo várias
   vezes, é exatamente o que essa regra tenta parar de acontecer.
 
+- **AUDITORIA EXTERNA HOSTEDSCAN (2026-09-20) — comparada contra todo o
+  histórico de auditorias já feitas. Quase tudo já estava corrigido; 1
+  achado NOVO e REAL, confirmado no painel Cloudflare pelo usuário —
+  "Resize images from any origin" está LIGADO em Image Resizing, sem
+  correção aplicada, pendente de decisão.**
+  - **Contexto**: usuário colou relatório de scan (OWASP ZAP + OpenVAS +
+    Nmap + Sslyze + Nuclei) contra `www.queroumacor.com.br`. Pedido
+    explícito: só analisar/comparar/opinar, sem agir.
+  - **Achado de CSP com `'unsafe-inline'` em `script-src`**: não é
+    discrepância real — o scan foi feito ANTES do hardening de CSP
+    (hash-only, 19/09) e do fix de nonce (20/09, ver entrada de
+    `middleware.ts` mais abaixo/acima neste arquivo) irem ao ar. Foto
+    antiga, sem ação necessária.
+  - **Maioria dos outros achados** (headers inconsistentes, CORS amplo,
+    SRI ausente em Google Fonts, DNSSEC/CAA "pendentes", DOMPurify
+    desatualizada) já estavam cobertos por correções/decisões
+    documentadas neste arquivo, ou são de terceiro (DOMPurify é script da
+    Apple, `appleid.cdn-apple.com`) ou infra padrão da borda Cloudflare
+    (port scan/TCP timestamp) — sem ação necessária.
+  - **ACHADO NOVO E REAL, CONFIRMADO PELO USUÁRIO NO PAINEL (2026-09-20)**:
+    Cloudflare → zona `queroumacor.com.br` → Speed → **Settings** →
+    dropdown **"Image Optimization"** (não confundir com o dropdown
+    "Recommendations", que aparece por padrão e não mostra essa opção) →
+    seção "Image Transformations": toggle **LIGADO**, checkbox **"Resize
+    images from any origin" MARCADO**. Isso significa que o endpoint
+    público `/cdn-cgi/image/.../<qualquer-url>` aceita redimensionar
+    imagem de QUALQUER origem da web, não só do próprio domínio — achado
+    do Nuclei confirmado real, não falso positivo.
+  - **Por que está assim (não é esquecimento, é uso real)**: `next-app/
+    lib/cfImg.ts` depende disso ligado pra redimensionar/otimizar (WebP/
+    AVIF automático, srcset 1x/2x/3x, qualidade 85) as fotos de post/
+    avatar/produto, que ficam no Supabase Storage (`*.supabase.co`) — um
+    domínio EXTERNO ao `queroumacor.com.br`. O próprio código já documenta
+    essa dependência e tem fallback gracioso: se a opção fosse desligada,
+    a imagem cai pro `onError` dos componentes (placeholder), sem crash.
+  - **Impacto de segurança de deixar como está (real, mas não crítico)**:
+    NÃO vaza dado de usuário, sessão, banco ou credencial (é só
+    transformação de imagem; quem busca a imagem é a borda Cloudflare,
+    não o servidor próprio, então também não serve pra sondar rede
+    interna). O risco real é: (1) abuso de banda/cache Cloudflare às
+    custas da conta; (2) phishing com link tipo
+    `queroumacor.com.br/cdn-cgi/image/.../golpe.jpg`, que parece
+    "hospedado" no domínio confiável; (3) **o mais relevante pra este
+    projeto especificamente**: é uma porta de conteúdo arbitrário de
+    terceiro sendo processado/cacheado sob o domínio, TOTALMENTE FORA do
+    pipeline de moderação (Gemini, `media_hash_blocklist`,
+    `media_review_queue`, acordo NCMEC) que o projeto já construiu com
+    tanto cuidado em outras frentes — não gera post no banco, mas é um
+    ângulo de exposição de conteúdo que a auditoria de CSAM/moderação
+    nunca cobriu porque não é um caminho de upload do app.
+  - **Impacto de performance de desligar sem mais nada** (real, imediato):
+    toda foto de post/avatar/produto vinda do Supabase (maioria do
+    conteúdo visual do app) deixaria de ser otimizada pela Cloudflare —
+    volta pra arquivo original sem WebP/AVIF/srcset, LCP pior, mais dado
+    consumido no celular. Não é teórico: é o que sustenta o item B2 já
+    documentado como "LIGADO E FUNCIONANDO" neste arquivo.
+  - **NÃO CORRIGIDO — decisão do usuário, duas opções levantadas, nenhuma
+    implementada**: (a) desligar "Resize images from any origin" agora
+    (fecha o vetor, perde otimização das imagens do Supabase até resolver
+    a opção b); (b) proxiar o Supabase Storage por trás do próprio
+    domínio (`_redirects`/rewrite — o comentário do `cfImg.ts` sugere que
+    algo nesse sentido já existe parcialmente pra outro caso, não
+    confirmado se cobre 100% das URLs de mídia hoje) — se cobrisse tudo,
+    toda URL cairia no branch "mesma zona" do `cfImg.ts` e dá pra desligar
+    "any origin" sem perder nenhuma otimização. Ação futura: auditar
+    quanto da URL de mídia realmente passa por proxy vs. Supabase direto,
+    antes de decidir.
+
 - **CORTE DE DNS (P8) JÁ FEITO — `queroumacor.com.br` e `www.queroumacor.com.br`
   já estão vinculados ao Worker `queroumacor-next-production`, não mais ao
   projeto Cloudflare Pages (2026-09-20). NÃO tratar isso como pendência nem

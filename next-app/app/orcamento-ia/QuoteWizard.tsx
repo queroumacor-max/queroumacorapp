@@ -827,7 +827,7 @@ export function QuoteWizard() {
             {totaisServicos.semValor > 0 && totaisServicos.sugerido > 0 ? (
               <div className="flex items-center justify-between gap-2">
                 <span>
-                  Sugestão pela Tabela ABRAPP: <b>R$ {fmtBRL(totaisServicos.sugerido)}</b>
+                  Sugestão pela Tabela de Preços: <b>R$ {fmtBRL(totaisServicos.sugerido)}</b>
                   {totaisServicos.semSugestao > 0 ? ' (parcial)' : ''}
                 </span>
                 <BotaoUsar onClick={() => update('price', fmtBRL(totaisServicos.sugerido))} />

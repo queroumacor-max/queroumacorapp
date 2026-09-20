@@ -9,7 +9,7 @@ import { TabelaPrecosView } from './TabelaPrecosView';
 export const metadata: Metadata = {
   title: 'Tabela de Preços de Pintura | QueroUmaCor',
   description:
-    'Sugestão de preços de pintura da ABRAPP 2026: mão de obra por m², metro linear, peça e diária, com faixas mínima, média e máxima.',
+    'Sugestão de preços de pintura 2026: mão de obra por m², metro linear, peça e diária, com faixas mínima, média e máxima.',
 };
 
 export default function TabelaPrecosPage() {
