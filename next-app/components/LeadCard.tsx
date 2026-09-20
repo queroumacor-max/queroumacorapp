@@ -57,6 +57,15 @@ export function LeadCard({ lead, onComprar, isComprarando, onOrcamento }: LeadCa
             muted
             playsInline
             preload="metadata"
+            onLoadedMetadata={(e) => {
+              // WebView Android não pinta o primeiro quadro de um vídeo
+              // parado — fica o play cinza do sistema (mesmo bug do feed,
+              // corrigido em PostMedia.tsx). Um seek mínimo força a pintura.
+              const v = e.currentTarget;
+              try {
+                if (v.currentTime === 0) v.currentTime = 0.001;
+              } catch { /* seek indisponível — segue sem poster */ }
+            }}
             aria-label="Prévia do vídeo do lead"
           />
         ) : (

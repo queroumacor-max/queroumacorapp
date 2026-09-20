@@ -74,6 +74,18 @@ export function HashtagFeed({ tag }: { tag: string }) {
               muted
               playsInline
               preload="metadata"
+              onLoadedMetadata={(e) => {
+                // WebView Android não pinta o primeiro quadro de um vídeo
+                // parado — fica o play cinza do sistema (mesmo bug do feed,
+                // corrigido em PostMedia.tsx; achado aqui também em
+                // 2026-09-20). Um seek mínimo força a pintura; sem autoplay
+                // nesta grade, sem isso a miniatura ficava eternamente no
+                // placeholder do sistema.
+                const v = e.currentTarget;
+                try {
+                  if (v.currentTime === 0) v.currentTime = 0.001;
+                } catch { /* seek indisponível — segue sem poster */ }
+              }}
               className="w-full h-full object-cover"
             />
           ) : p.media_url ? (

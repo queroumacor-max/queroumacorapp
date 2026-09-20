@@ -73,6 +73,18 @@ export function MediaPreview({ files, onRemove, disabled }: MediaPreviewProps) {
               muted
               playsInline
               preload="metadata"
+              onLoadedMetadata={(e) => {
+                // WebView Android não pinta o primeiro quadro de um vídeo
+                // parado — fica o play cinza do sistema (mesmo bug do feed,
+                // corrigido em PostMedia.tsx). Um seek mínimo força a
+                // pintura — sem isso a pessoa via o placeholder do sistema
+                // no lugar do vídeo que acabou de escolher, antes mesmo de
+                // publicar.
+                const v = e.currentTarget;
+                try {
+                  if (v.currentTime === 0) v.currentTime = 0.001;
+                } catch { /* seek indisponível — segue sem poster */ }
+              }}
               aria-label={`Vídeo ${i + 1}`}
             />
           ) : (
