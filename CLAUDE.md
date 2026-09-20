@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **REGRA PERMANENTE (2026-09-20, pedido explícito do usuário) — registrar
+  neste arquivo IMEDIATAMENTE, sempre, sem exceção:** toda vez que (a) uma
+  correção for aplicada (bug fix, mudança de config, deploy) OU (b) o
+  usuário fizer algo manual fora do código (painel do Cloudflare/Supabase/
+  GitHub, rodar SQL, trocar segredo, clicar em algo no dashboard), isso
+  entra aqui NA HORA — não no fim da sessão, não "se sobrar tempo". Não
+  esperar confirmação de que "funcionou" pra registrar: registrar o que foi
+  feito e o estado conhecido até aquele momento (mesmo incerto/parcial) e
+  atualizar depois se mudar. Esta regra existe porque este arquivo já
+  documentou, repetidas vezes, sessões que fizeram auditoria/correção real
+  e só registraram no fim (ou nunca) — deixando a próxima sessão cega ou
+  repetindo trabalho já feito. Ver as várias entradas "LIÇÃO DE PROCESSO"
+  espalhadas por este arquivo — a mesma lição, aprendida de novo várias
+  vezes, é exatamente o que essa regra tenta parar de acontecer.
+
 - **CORTE DE DNS (P8) JÁ FEITO — `queroumacor.com.br` e `www.queroumacor.com.br`
   já estão vinculados ao Worker `queroumacor-next-production`, não mais ao
   projeto Cloudflare Pages (2026-09-20). NÃO tratar isso como pendência nem
@@ -84,6 +99,53 @@
     serve pra validar produção depois deste corte** — só navegador/app real
     (humano) passa pelo WAF. Qualquer validação futura do corte de DNS tem
     que ser manual, num navegador de verdade, não automatizada via CI.
+
+- **DEPLOY DO WORKER `queroumacor-next-production`: erro de permissão em
+  `/zones/.../workers/routes` (2026-09-20) — EM ABERTO, só o painel
+  resolve.** No 2º deploy manual consecutivo (mesmo token, mesmo
+  `wrangler.jsonc`, rotas idênticas ao 1º deploy que tinha funcionado
+  minutos antes), o step `wrangler deploy --env production` subiu o código
+  com sucesso (`Uploaded queroumacor-next-production`) mas falhou no passo
+  seguinte, de sincronizar rotas: `A request to the Cloudflare API
+  (/zones/9f9e32d439524affe34c4b53fe4ceb08/workers/routes) failed. No
+  access to the specified resource.`
+  - **O código novo foi pro ar mesmo assim** — confirmado pelo usuário
+    testando o app real logo depois (voltou a carregar normalmente).
+    Hipótese não confirmada: subir o script já ativa a versão nova pros
+    domínios JÁ vinculados; o passo que falhou só tenta reconciliar/
+    confirmar rotas, redundante quando o conjunto desejado não mudou.
+  - **Causa provável, pela doc oficial da Cloudflare**
+    (`/workers/authorization/workers/`): tanto Routes quanto Custom
+    Domains são gates pela MESMA permissão de zona, `Zone > Workers
+    Routes > Edit` (o texto da doc: "To add, update, or remove Routes or
+    Custom Domains, you need Editor access to the Worker and Workers
+    Routes Write permission for every affected zone"). O
+    `CLOUDFLARE_API_TOKEN` (secret do GitHub Actions, usado por
+    `deploy.yml`) claramente tem `Account > Workers Scripts > Edit` (o
+    upload do código NUNCA falhou, nas duas execuções) mas
+    aparentemente não tem — ou tem de forma inconsistente — essa
+    permissão de ZONA especificamente pra `queroumacor.com.br` (zone id
+    `9f9e32d439524affe34c4b53fe4ceb08`).
+  - **O que não fecha, e fica como pergunta em aberto**: o MESMO token,
+    minutos antes, completou com sucesso o passo equivalente ("Deployed
+    queroumacor-next-production triggers... queroumacor.com.br (custom
+    domain)... www.queroumacor.com.br (custom domain)") pro MESMO
+    conjunto de rotas, sem nenhuma mudança de config entre as duas
+    execuções. A doc da Cloudflare não confirma nem nega se o Wrangler
+    faz uma chamada de LEITURA/diff contra esse endpoint antes de decidir
+    se precisa escrever — se isso existir, um token com permissão
+    assimétrica (Write mas não Read, por exemplo, ou a zona caindo da
+    lista de recursos do token entre as duas execuções) explicaria a
+    inconsistência. **Não confirmado — só hipótese informada**, verificada
+    via pesquisa na documentação oficial, não via inspeção do token real
+    (sem acesso a isso).
+  - **AÇÃO PENDENTE, só o painel resolve**: conferir o token usado no
+    secret `CLOUDFLARE_API_TOKEN` (dashboard Cloudflare → My Profile → API
+    Tokens) e garantir que ele tem `Zone > Workers Routes > Edit`
+    explicitamente escopado pra zona de `queroumacor.com.br` — não só
+    permissão de conta pra Workers Scripts. Enquanto isso não for
+    confirmado/corrigido, deploys futuros por este workflow podem repetir
+    esse erro no passo de rotas (mesmo que o código suba normalmente).
 
 - **"Build output directory" do Cloudflare Pages ficou desatualizado após o
   merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
