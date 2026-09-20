@@ -41,17 +41,25 @@
 
   "env": {
     "production": {
-      // Custom Domain SÓ entra aqui depois do smoke test do P8 confirmar
-      // que o Worker responde certo em endereço próprio — não antes.
-      // Adicionar esta chave é o próprio ATO do corte de DNS (junto com
-      // remover o Custom Domain do lado do Pages primeiro — ver runbook
-      // P8, docs/adr/0006-workers-migration-artifacts.md seção 5). Deixar
-      // COMENTADO até esse momento — NÃO descomentar sem autorização
-      // explícita e específica pro corte de DNS.
-      // "routes": [
-      //   { "pattern": "queroumacor.com.br", "custom_domain": true },
-      //   { "pattern": "www.queroumacor.com.br", "custom_domain": true }
-      // ],
+      // O corte de DNS (P8) JÁ ACONTECEU — os dois Custom Domains
+      // (queroumacor.com.br e www.queroumacor.com.br, zona
+      // queroumacor.com.br) já estão vinculados a este Worker pelo painel
+      // (Workers & Pages → queroumacor-next-production → Domains and
+      // routes), confirmado visualmente em 2026-09-20. O que faltava era
+      // ESTE ARQUIVO refletir isso: sem `routes` declarado aqui, o
+      // Wrangler trata rotas/custom domains como fonte-de-verdade
+      // declarativa a cada `wrangler deploy` — a doc oficial confirma que
+      // o que não está no arquivo é tratado como "deve sair", não como
+      // "deixa quieto" (mesmo comportamento documentado pra `workers_dev`
+      // implícito). Ou seja: rodar `wrangler deploy --env production` com
+      // o bloco comentado arriscava REMOVER os dois Custom Domains e
+      // tirar o site do ar. Declarar os dois aqui, IDÊNTICOS ao que já
+      // está no painel, torna o deploy um no-op de roteamento — só
+      // atualiza o código/assets do Worker.
+      "routes": [
+        { "pattern": "queroumacor.com.br", "custom_domain": true },
+        { "pattern": "www.queroumacor.com.br", "custom_domain": true }
+      ],
 
       // KV binding pra cache de cidades IBGE — hoje só configurado no
       // painel CF Pages, código NÃO lê env.KV ainda. Migrar a declaração
