@@ -195,7 +195,7 @@ export const PROFILE_TOUR_STEPS: ReadonlyArray<TourStep> = [
     selector: '[data-tour="tile-tabela-precos"]',
     emoji: '📊',
     title: 'Tabela de Preços',
-    text: 'A tabela da ABRAPP com o preço sugerido de cada serviço de pintura. Diz o mínimo, o médio e o máximo pra você não cobrar menos do que vale.',
+    text: 'A tabela de referência com o preço sugerido de cada serviço de pintura. Diz o mínimo, o médio e o máximo pra você não cobrar menos do que vale.',
   },
   {
     id: 'p-agenda',

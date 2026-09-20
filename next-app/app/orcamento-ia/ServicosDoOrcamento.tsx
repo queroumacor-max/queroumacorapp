@@ -83,7 +83,7 @@ export function ServicosDoOrcamento({ servicos, onChange }: ServicosDoOrcamentoP
       {servicos.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--color-muted)', lineHeight: 1.6 }}>
           Escolha um serviço na Tabela de Preços pra começar. O valor fica em branco pra
-          você decidir, com a sugestão da Tabela ABRAPP (mão de obra) do lado. Área, tinta e
+          você decidir, com a sugestão da Tabela de Preços (mão de obra) do lado. Área, tinta e
           preparação são opcionais, em “Detalhes”.
         </p>
       ) : null}
@@ -612,7 +612,7 @@ function LinhaDeItem({
           style={{ marginTop: 6, fontSize: 11, color: 'var(--color-muted)', lineHeight: 1.5 }}
         >
           <span style={{ minWidth: 0 }}>
-            Tabela ABRAPP: <b style={{ color: 'var(--color-ink)' }}>R$ {fmtBRL(sug.medio)}</b>/{unid}
+            Tabela de Preços: <b style={{ color: 'var(--color-ink)' }}>R$ {fmtBRL(sug.medio)}</b>/{unid}
             {sug.min !== null && sug.max !== null ? (
               <> · faixa R$ {fmtBRL(sug.min)} a R$ {fmtBRL(sug.max)}</>
             ) : null}
@@ -745,7 +745,7 @@ function SeletorDeItens({
               📊 Tabela de Preços
             </h3>
             <p style={{ fontSize: 11, color: 'var(--color-muted)' }}>
-              ABRAPP 2026 · mão de obra · toque pra adicionar
+              2026 · mão de obra · toque pra adicionar
             </p>
           </div>
           <button

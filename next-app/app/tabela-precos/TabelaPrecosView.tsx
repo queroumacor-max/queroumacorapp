@@ -65,7 +65,7 @@ export function TabelaPrecosView() {
         📊 Tabela de Preços
       </h1>
       <p style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 14 }}>
-        Sugestão da ABRAPP · 2026 · valor de <strong>mão de obra</strong>, material não incluso.
+        Sugestão de preços · 2026 · valor de <strong>mão de obra</strong>, material não incluso.
       </p>
 
       <div
@@ -168,8 +168,7 @@ function ListaDePrecos() {
     return (
       <Aviso tom="neutro">
         A tabela ainda não foi carregada no banco. Peça para a Cali Colors rodar a migration
-        <code style={{ fontSize: 11 }}> 2026-09-05-tabela-precos-abrapp </code>
-        que os 328 itens aparecem aqui.
+        da tabela de preços que os 328 itens aparecem aqui.
       </Aviso>
     );
   }
@@ -472,7 +471,7 @@ function DetalheDoItem({ item }: { item: PriceItem }) {
       item.preco_min !== null && item.preco_max !== null
         ? `Faixa: R$ ${fmtBRL(item.preco_min)} a R$ ${fmtBRL(item.preco_max)}`
         : null,
-      'Fonte: Tabela ABRAPP 2026 (mão de obra, material não incluso)',
+      'Fonte: Tabela de Preços 2026 (mão de obra, material não incluso)',
     ].filter(Boolean);
     const ok = await copyToClipboard(linhas.join('\n'));
     showToast(ok ? 'Copiado' : 'Não deu para copiar', ok ? 'success' : 'error');
@@ -489,7 +488,7 @@ function DetalheDoItem({ item }: { item: PriceItem }) {
           lineHeight: 1.6,
         }}
       >
-        Este item aparece zerado no documento da ABRAPP — não há valor publicado para ele.
+        Este item aparece zerado no documento de referência — não há valor publicado para ele.
         Trate como orçamento sob medida.
       </div>
     );

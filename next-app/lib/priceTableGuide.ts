@@ -172,4 +172,4 @@ export const AVISOS_DA_FONTE: readonly string[] = [
 ];
 
 export const FONTE_CREDITO =
-  'Sugestão de Preços de Pintura 2026 — ABRAPP (Associação Brasileira dos Pintores Profissionais) e Movimento Brasil por um Pintor Melhor. Atualização de janeiro de 2026. Sugestões e correções: WhatsApp (11) 92006-1357, com Douglas de Assis.';
+  'Sugestão de Preços de Pintura 2026 — Movimento Brasil por um Pintor Melhor. Atualização de janeiro de 2026. Sugestões e correções: WhatsApp (11) 92006-1357, com Douglas de Assis.';
