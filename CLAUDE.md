@@ -258,8 +258,9 @@
   IAM, regressão histórica+attack chaining, build/test/secret-scan real).
   Achados de código-fixável CORRIGIDOS NA HORA nesta mesma sessão — não
   ficaram só documentados. SQL em
-  `/migrations/2026-09-18-final-release-gate-hardening.sql` — AINDA NÃO
-  EXECUTADO no Supabase, pendente de rodar pelo usuário.**
+  `/migrations/2026-09-18-final-release-gate-hardening.sql` — JÁ
+  EXECUTADO no Supabase (2026-09-20, confirmado pelo usuário: as 4 linhas
+  de conferência voltaram `ok=true`). Não pedir pra rodar de novo.**
   - **Nenhum CRITICAL.** Um HIGH, achados MEDIUM/LOW listados abaixo por
     categoria. Suíte inteira (184 arquivos/2300 testes), typecheck e os
     testes do portal reconferidos DEPOIS de cada fix — verdes.
@@ -314,9 +315,9 @@
       `filtroSoAvancaEntrega` (mesmo padrão de `filtroSoAvanca`, já usado
       pra abordagem de lead) no PATCH, fechando a corrida ENTRE
       requisições, não só dentro de uma.
-  - **MEDIUM que precisam do SQL em
-    `2026-09-18-final-release-gate-hardening.sql` (pendente, colado no
-    chat da sessão, 3 blocos):**
+  - **MEDIUM que precisavam do SQL em
+    `2026-09-18-final-release-gate-hardening.sql` (JÁ EXECUTADO, ver nota
+    no início desta entrada):**
     - `comments_select_auth` (`USING(true)`, recuperação de 2026-06-06)
       ainda coexistia com a policy restritiva `"View comments active"` —
       MESMA classe de bug já corrigida pra `quotes` em 2026-09-03 (policies
@@ -408,10 +409,23 @@
 - **PENTEST INTEGRADO FINAL (2026-09-18, branch `claude/determined-volta-
   bo7wah`) — attack chaining, regressão, bypass, multi-layer. SQL
   `/migrations/2026-09-18-final-pentest-hardening.sql` — escrito e
-  TESTADO PONTA A PONTA contra um Postgres 16 LOCAL (não a produção —
-  este ambiente não tem acesso ao Supabase do projeto), mas AINDA NÃO
-  CONFIRMADO como executado lá. Não marcar como "JÁ EXECUTADO" até o
-  usuário rodar e confirmar — mesma regra de sempre.** 4 agentes
+  TESTADO PONTA A PONTA contra um Postgres 16 LOCAL (não a produção),
+  e agora **JÁ EXECUTADO no Supabase de verdade também (2026-09-20,
+  confirmado pelo usuário: as 8 linhas de conferência voltaram
+  `ok=true`). Não pedir pra rodar de novo.** **Pegadinha real que
+  aconteceu na primeira tentativa**: colar o SQL inteiro pelo celular
+  (Supabase SQL Editor mobile) rodou sem erro de sintaxe, mas o
+  `CREATE OR REPLACE FUNCTION public.get_feed_v2(...)` (achado A, a
+  correção do IDOR) especificamente não pegou — os outros 7 itens do
+  arquivo aplicaram normal. A checagem por item (não só um boolean
+  agregado) foi o que revelou qual dos 8 tinha ficado pra trás; colar
+  só essa função sozinha (sem o resto do arquivo em volta) resolveu.
+  **Lição pro celular**: preview de arquivo anexado no chat pode estar
+  VIRTUALIZADO (só renderiza o que está visível na tela) — "selecionar
+  tudo" nesse preview pega só o trecho renderizado, não o arquivo
+  inteiro. Colar como texto CRU direto na mensagem do chat (sem bloco
+  de código, sem anexo) foi o que funcionou de forma confiável neste
+  aparelho.** 4 agentes
   paralelos revalidaram (não presumiram) toda correção histórica
   relevante contra o código ATUAL, com foco em encadear achados
   pequenos em algo maior. 4 achados REAIS, NOVOS, com exploit provado
@@ -603,6 +617,105 @@
     `__tests__/lib/errors-friendly.test.ts` (mensagem vaga de RLS).
     Suíte completa, typecheck, lint e `next build`/`build:cf` verdes
     antes do commit.
+
+- **AUDITORIA DE PRIVACIDADE / LGPD PONTA A PONTA (2026-09-17, PR #359,
+  branch `claude/funny-ramanujan-0zrao0`, mergeada 2026-09-19). SQL
+  `/migrations/2026-09-17-privacy-audit-hardening.sql` — JÁ EXECUTADO no
+  Supabase (2026-09-20, confirmado pelo usuário: as 14 linhas de
+  conferência voltaram `ok=true`). Não pedir pra rodar de novo.** 6
+  sub-auditorias paralelas (RLS/views/RPC, deleção de conta, fluxos a
+  terceiros, storage local/mobile, logs/admin/moderação, política vs.
+  realidade técnica).
+  - **ACHADO CRÍTICO, confirmado por DUAS sub-auditorias independentes:
+    `public.profiles` (tabela BASE, não a view) tinha policy de SELECT
+    `USING (true)` SEM `TO authenticated`** — valia pra PUBLIC, incluindo
+    `anon`. Qualquer um com a anon key (pública em todo bundle do app)
+    baixava a tabela INTEIRA: email, phone, lat/lng, birth_date,
+    `portal_access` (quem é admin), `is_pro`, `pro_expires_at`,
+    `mp_preapproval_id`, etc. — de TODO usuário, sem login. Isso tornava
+    a `profiles_public` (view curada, criada pra esconder essas colunas)
+    uma formalidade sem efeito real. FIX: policy da tabela base virou
+    dono-ou-admin; `profiles_public` foi recriada de propósito SEM
+    `security_invoker` (roda com privilégio do criador, então continua
+    projetando o subconjunto seguro de QUALQUER perfil mesmo com a
+    tabela base fechada) — isso reabre o aviso "Security Definer View"
+    do Security Advisor, aceito e documentado como trade-off correto.
+  - **`role='admin'` também vazava** via `profiles_public`/`get_feed_v2`
+    (reabria o mesmo vazamento que a Wave 32 de 2026-06-12 achava ter
+    fechado removendo só `portal_access`) — `NULLIF(role,'admin')` na
+    view fecha isso.
+  - `get_feed_v2`/`get_trending_posts` (SECURITY DEFINER, GRANT pra
+    `anon` herdado do modo visitante removido em 2026-06-18) ganharam
+    teto de LIMIT + REVOKE anon, mesmo padrão do `search_all` de
+    2026-09-13.
+  - **Regressão corrigida em `search_all`**: o hardening de 2026-09-13
+    tinha recriado a função a partir de uma versão mais antiga do corpo,
+    perdendo sem querer as sentinelas anti-XSS do `ts_headline` (CRIT-3)
+    e o match parcial/prefixo por nome — restaurado, mantendo o clamp/
+    revoke. De quebra, passou a filtrar `posts.deleted_at IS NULL`
+    (nunca filtrava antes).
+  - Push de COMENTÁRIO passou a redigir o texto no corpo do push (mesmo
+    tratamento que `type='message'` já tinha desde 2026-09-15).
+  - RPC nova `quote_painter_contact(p_quote_id)` substitui a leitura
+    direta de `profiles` que a tela `/orcamentos/[id]` fazia pro cliente
+    ver contato do pintor — dependia da RLS aberta do achado crítico.
+  - `cleanup_orphan_media()` passou a cobrir os buckets `avatars` e
+    `art-refs` também (antes só `posts`) — foto de perfil de conta
+    deletada ficava pública pra sempre, sem nenhum caminho de limpeza.
+  - `cleanup_old_errors()` novo (tabela `errors`, 90 dias) + as 3
+    funções de cleanup que existiam mas nunca tinham sido agendadas
+    (`cleanup_rate_limits`, `cleanup_old_notifications`,
+    `cleanup_old_audit_events`) foram pro pg_cron.
+  - Trigger novo redige `title`/`body` de notificação quando o AUTOR da
+    ação (quem curtiu/comentou/seguiu) tem a conta deletada depois.
+  - Nota de reconciliação: esta migration e a
+    `2026-09-18-final-pentest-hardening.sql` recriavam `get_feed_v2` de
+    formas incompatíveis — a versão final reconciliada (IDOR + clamp +
+    sem anon) ficou na do pentest, que roda DEPOIS desta.
+
+- **AUDITORIA DE SECURITY LOGGING / MONITORING / ALERTING / AUDIT TRAILS
+  (2026-09-17, PR #331, branch `claude/optimistic-davinci-h2ol1l`,
+  mergeada 2026-09-19). SQL
+  `/migrations/2026-09-17-security-observability-audit-trail.sql` — JÁ
+  EXECUTADO no Supabase (2026-09-20, confirmado pelo usuário:
+  `tentativa_bloqueada_e_auditada=true`, `role_change_auditado=true`,
+  `crons_agendados_esperado_3=3`). Não pedir pra rodar de novo.**
+  Pergunta que guiou a auditoria: "se alguém atacar ou abusar do
+  sistema, conseguimos perceber, investigar e reconstruir sem vazar
+  dado sensível?".
+  - **Vários caminhos de segurança eram 100% silenciosos**: rate-limit
+    hits, negação de quota de IA, rejeição de upload, assinatura de
+    webhook inválida (WhatsApp e Mercado Pago), falha de envio de
+    WhatsApp — e o mais grave, **tentativa de auto-escalada de
+    privilégio (`role`/`is_pro`/`portal_access`) era revertida pelo
+    trigger `protect_profile_columns` sem deixar rastro nenhum.** Agora
+    a tentativa BLOQUEADA é gravada em `audit_events`
+    (`security.privilege_escalation_blocked`) antes de ser revertida —
+    mesmo comportamento de bloqueio, só ganhou trilha.
+  - **`audit_profile_changes` nunca cobriu mudança de `role`** — só
+    `is_pro`/`portal_access` tinham trilha old→new. Promoção/rebaixamento
+    de admin feito por um admin de verdade (via `/api/admin/users`) não
+    tinha registro nenhum de qual era o valor ANTERIOR. Agora
+    `security.role_change` grava old_role/new_role.
+  - Helper novo `lib/api/securityEvents.ts`: log estruturado (JSON de
+    uma linha), convenção `dominio.assunto.verbo`, redação de secret por
+    chave + PII por conteúdo (email/telefone/CPF/CNPJ/JWT/Bearer),
+    defesa contra log injection, correlação por `x-request-id`, nunca
+    lança. Plugado em `checkRateLimit`/`rejectOversizedBody`/
+    `gateAiUsage`/`requireAuth`/webhooks do WhatsApp e MP/envio de
+    WhatsApp.
+  - `sentryBeforeSend` passou a filtrar também `breadcrumbs`,
+    `request.url` (remove query string/fragment), `request.query_string`
+    e `request.headers` (Authorization/Cookie → `[REDACTED]`) — antes só
+    mascarava `user.email`/`request.data`/`extra`/`contexts`.
+  - `docs/INCIDENT_RESPONSE.md` novo: runbooks §10.1–§10.12 por tipo de
+    credencial/incidente (API key, service-role, GitHub, Cloudflare,
+    Firebase, APNs, account takeover, admin compromise, payment/
+    WhatsApp/AI abuse, data leak) + nota sobre ausência de kill switch
+    central.
+  - As 3 funções de cleanup (`cleanup_old_audit_events`,
+    `cleanup_old_notifications`, `cleanup_rate_limits`) que já existiam
+    como função mas nunca tinham sido agendadas via pg_cron foram pro ar.
 
 - **AUDITORIA DE SEGURANÇA DE WEBHOOKS/CALLBACKS/INTEGRAÇÕES EXTERNAS
   (2026-09-17/18, PRs #328/#332/#333/#334/#335, TODAS MERGEADAS — o
@@ -830,8 +943,11 @@
     caminhos de `next-app` (`/api/delete-account` e a rota admin)
     agora capturam o evento, além do `deletion_tombstones` (mesma DB).
   - **Correção de código aplicada** (`/migrations/
-    2026-09-17-dr-deletion-tombstone-and-integrity.sql` — **AINDA NÃO
-    EXECUTADO no Supabase**, colar no SQL Editor quando decidido):
+    2026-09-17-dr-deletion-tombstone-and-integrity.sql` — **JÁ EXECUTADO
+    no Supabase (2026-09-20, confirmado pelo usuário: `deletion_tombstones`
+    existe com RLS habilitada, `admin_delete_user` e `dr_integrity_report`
+    existem, e a primeira grava tombstone antes do delete). Não pedir pra
+    rodar de novo.**):
     tabela `deletion_tombstones` (ledger append-only, sem NENHUMA
     policy de UPDATE/DELETE pra ninguém logado — só SECURITY DEFINER
     escreve), `admin_delete_user` recriado (mesma assinatura/guardas)
