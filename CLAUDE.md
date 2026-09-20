@@ -232,6 +232,19 @@
     o conjunto de domínios não muda (linha acima) segue sem confirmação
     definitiva, mas o padrão "upload ok, rotas falha" já é consistente o
     bastante pra não investigar de novo do zero a cada ocorrência.
+  - **CONFIRMADO PELO USUÁRIO EM PRODUÇÃO (2026-09-20), mesmo dia da 3ª
+    ocorrência: "funcionou".** Depois desse mesmo deploy #742 (rotas
+    falhando, upload ok), o usuário testou o app de verdade e confirmou que
+    está funcionando — reforça, com mais um caso, a hipótese já registrada
+    acima de que a falha no passo de sincronizar rotas NÃO impede o código
+    novo de ir ao ar (são domínios já vinculados; só a reconciliação de
+    rotas falha, não a entrega em si). As correções desta sessão que foram
+    ao ar por esse deploy: remoção da palavra "ABRAPP" dos textos visíveis
+    do app (Tabela de Preços/Orçamento — PR #377), fix de preview de vídeo
+    quebrado (ícone genérico de play em vez do primeiro quadro, em 7 telas:
+    Em alta, hashtag, lead card, preview de perfil próprio/público,
+    portfólio, preview do composer — PR #378), e o botão "Seguindo" da tela
+    de conexões que antes mostrava só "✓" e confundia (mesma PR #378).
 
 - **"Build output directory" do Cloudflare Pages ficou desatualizado após o
   merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
