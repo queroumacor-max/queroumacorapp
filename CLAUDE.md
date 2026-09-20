@@ -214,6 +214,24 @@
     permissão de conta pra Workers Scripts. Enquanto isso não for
     confirmado/corrigido, deploys futuros por este workflow podem repetir
     esse erro no passo de rotas (mesmo que o código suba normalmente).
+  - **3ª OCORRÊNCIA, mesma assinatura exata (2026-09-20, run #742,
+    workflow_dispatch disparado por Claude a pedido do usuário pra publicar
+    as correções de vídeo/botão/ABRAPP desta sessão).** Log completo lido
+    (`get_job_logs`): `Uploaded queroumacor-next-production (7.39 sec)` com
+    sucesso, e a MESMA linha de erro no passo seguinte, char por char:
+    `A request to the Cloudflare API (/zones/
+    9f9e32d439524affe34c4b53fe4ceb08/workers/routes) failed. No access to
+    the specified resource.` — confirma que não foi acidente isolado das
+    duas primeiras vezes; o problema de permissão do
+    `CLOUDFLARE_API_TOKEN` na zona segue sem correção. **Não peço mais pra
+    "ver se foi bug único"** — nos próximos deploys por este workflow,
+    esperar esse erro no passo de rotas como padrão, não exceção, até a
+    AÇÃO PENDENTE acima ser resolvida no painel. O upload do código
+    continua funcionando normalmente (3 de 3 vezes) — só a etapa de
+    rotas/custom domain falha; a hipótese de que isso é redundante quando
+    o conjunto de domínios não muda (linha acima) segue sem confirmação
+    definitiva, mas o padrão "upload ok, rotas falha" já é consistente o
+    bastante pra não investigar de novo do zero a cada ocorrência.
 
 - **"Build output directory" do Cloudflare Pages ficou desatualizado após o
   merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
