@@ -60,7 +60,7 @@ export default function DeleteAccountPage() {
             <Link
               href={`/login?next=${encodeURIComponent('/delete-account')}`}
               className="px-4 py-2 text-sm font-semibold rounded-lg text-white"
-              style={{ background: 'var(--color-p1)' }}
+              style={{ background: 'var(--color-p1-text)' }}
             >
               Fazer login pra excluir
             </Link>

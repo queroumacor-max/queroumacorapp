@@ -161,7 +161,7 @@ export function SignupStep3({ submitting, serverError, onSubmit, onBack }: Props
         <button
           type="submit"
           disabled={submitting}
-          className="flex-1 py-3 bg-[color:var(--color-p1)] text-white rounded-xl font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          className="flex-1 py-3 bg-[color:var(--color-p1-text)] text-white rounded-xl font-bold text-base hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           {submitting ? 'Criando…' : 'Criar conta'}
         </button>

@@ -89,7 +89,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={`${syne.variable} ${dmSans.variable}`}>
+    <html
+      lang="pt-BR"
+      className={`${syne.variable} ${dmSans.variable}`}
+      // O script logo abaixo seta `data-theme` no <html> ANTES da
+      // hidratação (é o que faz o dark mode não "piscar" claro no boot —
+      // ver comentário dele). Isso sempre vai divergir do HTML que o
+      // servidor renderizou (que nunca conhece o localStorage do
+      // navegador), e SEM suppressHydrationWarning aqui o React loga "A
+      // tree hydrated but some attributes... didn't match" em TODA
+      // navegação, em TODA página, pra TODO usuário — achado numa
+      // auditoria Playwright (2026-09-20) rodando com console aberto:
+      // 100% das páginas testadas emitiam esse erro. É exatamente o caso
+      // que a própria doc do React cita pra usar este atributo (mudança
+      // de tema/estilo por script fora do controle do React) — sem ele,
+      // um hydration bug de verdade ficaria escondido no meio desse ruído
+      // que aparece sempre.
+      suppressHydrationWarning
+    >
       <head>
         {/* Preconnect ao Supabase — DNS + TCP + TLS handshake antecipado.
             Economiza 100-300ms na primeira requisição (Auth, RLS query). */}

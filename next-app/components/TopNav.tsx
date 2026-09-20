@@ -128,7 +128,7 @@ export function TopNav({ proStatus }: TopNavProps) {
           <Link
             href="/login"
             className="text-sm font-extrabold px-4 py-1.5 rounded-full text-[color:var(--color-white-fixed)] whitespace-nowrap"
-            style={{ background: 'var(--color-p1)', fontFamily: 'var(--font-display)' }}
+            style={{ background: 'var(--color-p1-text)', fontFamily: 'var(--font-display)' }}
             aria-label="Entrar ou cadastrar"
           >
             Entrar
