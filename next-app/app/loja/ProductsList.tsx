@@ -171,7 +171,9 @@ function Pagination({ page, total, onPage }: { page: number; total: number; onPa
   );
 }
 
-export function ProductsList() {
+export function ProductsList({
+  onBackToStores,
+}: { onBackToStores?: () => void } = {}) {
   const {
     all,
     filtered,
@@ -425,14 +427,44 @@ export function ProductsList() {
         }}
       >
         <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
-          <div
-            className="font-extrabold text-[color:var(--color-white-fixed)]"
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 18,
-            }}
-          >
-            Loja <span style={{ color: 'var(--color-p1)' }}>Cali Colors</span>
+          <div className="flex items-center gap-2 min-w-0">
+            {onBackToStores ? (
+              <button
+                type="button"
+                onClick={onBackToStores}
+                aria-label="Voltar para lojas"
+                className="flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,.1)',
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+            ) : null}
+            <div
+              className="font-extrabold text-[color:var(--color-white-fixed)] truncate"
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 18,
+              }}
+            >
+              Loja <span style={{ color: 'var(--color-p1)' }}>Cali Colors</span>
+            </div>
           </div>
           <Link
             href="/loja/carrinho"
