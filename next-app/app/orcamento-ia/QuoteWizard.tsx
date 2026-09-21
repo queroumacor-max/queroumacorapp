@@ -224,6 +224,20 @@ export function QuoteWizard() {
     () => parseDesconto(form.desconto, totaisServicos.preenchido),
     [form.desconto, totaisServicos.preenchido],
   );
+  // O campo de desconto vira toggle R$/% + número — o teclado numérico
+  // (inputMode="decimal") do Android não tem tecla de "%", então digitar
+  // "10%" era impossível no aparelho e o valor sempre caía no ramo "é
+  // valor em R$" do parseDesconto. `form.desconto` continua sendo a MESMA
+  // string "10%"/"500,00" (compatível com parseDesconto/orcamentoDocumento/
+  // PDF); só a forma de digitar mudou.
+  const descontoTipo: 'percentual' | 'valor' = form.desconto.trim().endsWith('%') ? 'percentual' : 'valor';
+  const descontoDigitos = descontoTipo === 'percentual' ? form.desconto.trim().slice(0, -1) : form.desconto;
+  function setDescontoTipo(tipo: 'percentual' | 'valor') {
+    update('desconto', tipo === 'percentual' ? `${descontoDigitos}%` : descontoDigitos);
+  }
+  function setDescontoDigitos(v: string) {
+    update('desconto', descontoTipo === 'percentual' ? `${v}%` : v);
+  }
   const effectivePrice = useMemo(() => {
     // parseBRL, não parseFloat: o botão "Usar" escreve "1.616,00" e o
     // teclado do Android oferece ponto — parseFloat leria 1.616 (regra P1).
@@ -782,15 +796,51 @@ export function QuoteWizard() {
 
       {/* ── 6. VALOR FINAL ── */}
       <Card title="💰 Valor final">
-        <Row label="Desconto (R$ ou %)">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={form.desconto}
-            onChange={(e) => update('desconto', e.target.value)}
-            placeholder="ex: 10% ou 500,00"
-            className={inputCls}
-          />
+        <Row label="Desconto">
+          <div className="flex gap-2">
+            <div
+              className="flex flex-shrink-0 rounded-xl overflow-hidden border"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setDescontoTipo('valor')}
+                className="font-bold text-xs"
+                style={{
+                  padding: '0 12px',
+                  background: descontoTipo === 'valor' ? 'var(--color-ink)' : '#fff',
+                  color: descontoTipo === 'valor' ? '#fff' : 'var(--color-muted)',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                R$
+              </button>
+              <button
+                type="button"
+                onClick={() => setDescontoTipo('percentual')}
+                className="font-bold text-xs"
+                style={{
+                  padding: '0 12px',
+                  background: descontoTipo === 'percentual' ? 'var(--color-ink)' : '#fff',
+                  color: descontoTipo === 'percentual' ? '#fff' : 'var(--color-muted)',
+                  border: 'none',
+                  borderLeft: '1px solid var(--color-border)',
+                  cursor: 'pointer',
+                }}
+              >
+                %
+              </button>
+            </div>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={descontoDigitos}
+              onChange={(e) => setDescontoDigitos(e.target.value)}
+              placeholder={descontoTipo === 'percentual' ? 'ex: 10' : 'ex: 500,00'}
+              className={inputCls + ' flex-1 min-w-0'}
+            />
+          </div>
         </Row>
         <Row label="Valor do orçamento (R$)">
           <input
@@ -995,132 +1045,101 @@ export function QuoteWizard() {
         <QuotePreviewModal
           onClose={() => setPreviewOpen(false)}
           doc={montarDocumento(quoteAtual(), profile as Parameters<typeof montarDocumento>[1])}
+          onPdf={() => void handlePdf()}
+          pdfBusy={pdfBusy}
         />
       ) : null}
     </section>
   );
 }
 
-// ─── Preview modal (full screen — também usado pelo print → PDF) ────────────
+// ─── Preview modal (full screen) ────────────────────────────────────────────
 // Renderiza o MESMO documento do PDF (`OrcamentoDocumento` a partir de
 // `montarDocumento`): a prévia é o arquivo, não uma versão resumida dele.
 
 interface PreviewProps {
   onClose: () => void;
   doc: DocumentoOrcamento;
+  onPdf: () => void;
+  pdfBusy: boolean;
 }
 
-function QuotePreviewModal({ onClose, doc }: PreviewProps) {
+function QuotePreviewModal({ onClose, doc, onPdf, pdfBusy }: PreviewProps) {
   const content = (
-    <>
-      {/* Print styles: mostra só .quote-pdf-content e neutraliza os ancestrais
-          que clipavam/posicionavam (overlay fixo + card com max-height/overflow). */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          .quote-pdf-content, .quote-pdf-content * { visibility: visible !important; }
-          html, body { background: #fff !important; overflow: visible !important; height: auto !important; }
-          .quote-pdf-overlay, .quote-pdf-card {
-            position: static !important;
-            inset: auto !important;
-            max-height: none !important;
-            height: auto !important;
-            overflow: visible !important;
-            background: #fff !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            padding: 0 !important;
-            display: block !important;
-          }
-          .quote-pdf-content {
-            position: static !important;
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
-            padding: 16px !important;
-            background: #fff !important;
-            color: #000 !important;
-          }
-          .quote-pdf-noprint { display: none !important; }
-        }
-      `}</style>
-
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,.55)', padding: 12, zIndex: 1100 }}
+      onClick={onClose}
+    >
       <div
-        className="fixed inset-0 flex items-center justify-center quote-pdf-overlay"
-        style={{ background: 'rgba(0,0,0,.55)', padding: 12, zIndex: 1100 }}
-        onClick={onClose}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white"
+        style={{
+          width: '100%',
+          maxWidth: 560,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          borderRadius: 16,
+          background: '#fff',
+        }}
       >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white quote-pdf-card"
-          style={{
-            width: '100%',
-            maxWidth: 560,
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            borderRadius: 16,
-            background: '#fff',
-          }}
+        <header
+          className="flex items-center justify-between"
+          style={{ padding: '12px 16px', borderBottom: '1px solid #e5e5e5', color: '#1a1a1a' }}
         >
-          <header
-            className="flex items-center justify-between quote-pdf-noprint"
-            style={{ padding: '12px 16px', borderBottom: '1px solid #e5e5e5', color: '#1a1a1a' }}
+          <h2 className="font-bold text-sm">Preview do orçamento</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
           >
-            <h2 className="font-bold text-sm">Preview do orçamento</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fechar"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
-            >
-              ✕
-            </button>
-          </header>
+            ✕
+          </button>
+        </header>
 
-          <article className="quote-pdf-content" style={{ padding: 20, background: '#fff' }}>
-            <OrcamentoDocumento doc={doc} />
-          </article>
+        <article style={{ padding: 20, background: '#fff' }}>
+          <OrcamentoDocumento doc={doc} />
+        </article>
 
-          <footer
-            className="quote-pdf-noprint flex gap-2"
-            style={{ padding: 12, borderTop: '1px solid #e5e5e5' }}
+        <footer className="flex gap-2" style={{ padding: 12, borderTop: '1px solid #e5e5e5' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 font-bold text-sm"
+            style={{
+              padding: 10,
+              background: '#fff',
+              color: '#1a1a1a',
+              borderRadius: 10,
+              border: '1.5px solid #e5e5e5',
+              cursor: 'pointer',
+            }}
           >
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 font-bold text-sm"
-              style={{
-                padding: 10,
-                background: '#fff',
-                color: '#1a1a1a',
-                borderRadius: 10,
-                border: '1.5px solid #e5e5e5',
-                cursor: 'pointer',
-              }}
-            >
-              Fechar
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex-1 font-bold text-white text-sm"
-              style={{
-                padding: 10,
-                background: '#111',
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              🖨️ Imprimir (navegador)
-            </button>
-          </footer>
-        </div>
+            Fechar
+          </button>
+          <button
+            type="button"
+            onClick={onPdf}
+            disabled={pdfBusy}
+            className="flex-1 font-bold text-white text-sm"
+            style={{
+              padding: 10,
+              background: '#111',
+              borderRadius: 10,
+              border: 'none',
+              cursor: pdfBusy ? 'wait' : 'pointer',
+              opacity: pdfBusy ? 0.7 : 1,
+            }}
+          >
+            {pdfBusy ? 'Gerando…' : '🖨️ Salvar / Compartilhar PDF'}
+          </button>
+        </footer>
       </div>
-    </>
+    </div>
   );
   // Portaliza pro body: o QuoteWizard abre dentro de um BottomSheet (transform
-  // + overflow + max-height) que cortava o conteúdo no print → PDF em branco.
+  // + overflow + max-height) que cortava o conteúdo.
   return typeof document !== 'undefined' ? createPortal(content, document.body) : null;
 }
 
