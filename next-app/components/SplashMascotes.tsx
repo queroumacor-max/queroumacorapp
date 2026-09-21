@@ -5,10 +5,16 @@
 // as duas telas que o app instalado mostra logo depois do splash do wrapper.
 //
 // Decisões:
-//   - A arte é UMA imagem (/mascotes-calicolors.webp, 968w ≈ 68KB) — os 4
+//   - A arte é UMA imagem (/mascotes-calicolors.webp, 968w ≈ 57KB) — os 4
 //     mascotes (Alice, Seu Zé, Senna, Fê) com o logo. Animar a imagem
 //     inteira (flutuação suave) custa só CSS; nada de rede além do arquivo,
 //     que o browser cacheia depois do primeiro boot.
+//   - Os nomes ("Alice • Seu Zé • Senna • Fê") são texto HTML aqui embaixo,
+//     não parte do arquivo — a imagem original (gerada por IA) trazia essa
+//     legenda JÁ desenhada, junto com um selo "AI-generated content" do
+//     próprio gerador colado por cima. Recortamos o rodapé da arte (selo +
+//     legenda) e recriamos só a legenda como texto de verdade: fica nítida
+//     em qualquer densidade de tela e não carrega o selo pra produção.
 //   - Primeira abertura da vida: a imagem pode chegar DEPOIS da tela. Por
 //     isso os pontinhos de tinta + texto animam sozinhos desde o primeiro
 //     frame — a tela nunca fica morta esperando a própria máscara.
@@ -35,13 +41,19 @@ export function SplashMascotes({ texto = 'Carregando…' }: { texto?: string }) 
     >
       <img
         src="/mascotes-calicolors.webp"
-        alt=""
+        alt="Alice, Seu Zé, Senna e Fê"
         width={968}
-        height={1153}
+        height={1066}
         decoding="async"
         className="w-full max-w-[560px] h-auto"
         style={{ animation: 'splashFloat 3.2s ease-in-out infinite' }}
       />
+      <div
+        className="font-bold"
+        style={{ marginTop: -12, fontSize: 15, letterSpacing: '.01em', color: '#3f3729' }}
+      >
+        Alice • Seu Zé • Senna • Fê
+      </div>
       <div className="flex items-center gap-2" aria-hidden="true">
         {CORES_TINTA.map((cor, i) => (
           <span
