@@ -18,12 +18,23 @@ Tabela nasceu FORA do repo (sem `CREATE TABLE`, só `ALTER TABLE ... ADD COLUMN`
 ## Aceito como risco baixo, não corrigido
 `push_device_tokens` UPDATE usa `USING(true) WITH CHECK(auth.uid()=user_id)` de propósito (reatribuição de token físico entre contas). Exploração exigiria adivinhar um UUID que não vaza em nenhum SELECT. **Nota histórica**: isso foi corrigido depois via RPC `upsert_push_device_token` — ver [[Segurança - Firebase FCM e Push]].
 
-## Não verificado nesta rodada
-Matriz completa 50 tabelas × 4 operações (só sweep de `USING(true)`); Storage buckets além de `whatsapp-media`; Realtime publications além de `whatsapp_messages`; config de Auth (redirect URLs, MFA, captcha) — tudo no Dashboard, MANUAL VERIFICATION.
+## Não verificado nesta rodada (2026-09-13)
+Matriz completa 50 tabelas × 4 operações (só sweep de `USING(true)`); Storage buckets além de `whatsapp-media`; Realtime publications além de `whatsapp_messages`; config de Auth (redirect URLs, expiração de JWT, MFA, leaked password protection, captcha) — tudo no Dashboard, MANUAL VERIFICATION REQUIRED; execução real em produção do DROP de `exec_sql`/`executar_sql` (o arquivo existe e está correto, mas não havia como confirmar de dentro do código se rodou).
+
+## Config de Auth do Supabase — verificado via console (2026-09-16, "Claude in Chrome")
+Sessão separada, logada como `queroumacor@gmail.com`, checou ao vivo o painel Authentication → Settings, fechando o "MANUAL VERIFICATION" acima:
+- **"Confirm email" DESLIGADO** — login sem confirmar e-mail é aceito. Não é regressão: a trava real está no APP (`AuthProvider.emailVerified`), que bloqueia publicar/comentar/mandar mensagem — não o login em si.
+- **"Allow anonymous sign-ins" DESLIGADO** — consistente com o modo visitante removido em 2026-06-18.
+- **Redirect URLs (3)** escopadas certo, sem wildcard perigoso.
+- **Access token**: 3600s de expiração + refresh token rotation + reuse detection, todos ligados.
+- **"Prevent use of leaked passwords" LIGADO** (bom).
+- **MFA**: TOTP disponível; SMS desligado.
+- **Achado — "Enable Captcha protection" DESLIGADO**: mesma lacuna já conhecida como "Bot Fight Mode/Turnstile ausente em `/login`/`/signup`" na borda Cloudflare (ver [[Segurança - Cloudflare]]) — vista agora pelo lado do Supabase Auth. Não é um achado novo, é a MESMA decisão pendente sob outro ângulo — login/signup hoje não têm nenhuma proteção anti-bot.
+- `exec_sql`/`executar_sql`: **confirmado removido em produção** nesta mesma rodada — query direta no SQL Editor (`select … from pg_proc where proname ilike '%exec_sql%' or '%executar_sql%'`) voltou **0 rows**. O `/migrations/2026-06-18-rls-phase3-drop-exec-sql.sql` rodou de fato.
 
 ## Regra de conferência de constraint
-**"Verificar que X está desligado" não é o mesmo que "ligar X".** E: conferência de constraint deve **listar** (`pg_constraint` da tabela), não perguntar por nome conhecido — nome só cobre o que você já sabe que existe. (Achado na auditoria do papel "arquiteto": dois CHECKs distintos de role, um corrigido e outro esquecido por essa razão.)
+**"Verificar que X está desligado" não é o mesmo que "ligar X".** E: conferência de constraint deve **listar** (`pg_constraint` da tabela), não perguntar por nome conhecido — nome só cobre o que você já sabe que existe. (Achado na auditoria do papel "arquiteto": dois CHECKs distintos de role, um corrigido e outro esquecido por essa razão — `profiles_user_type_check` e `profiles_role_check`, ver [[Auth - OAuth, Cadastro e RLS de Sessão]].)
 
 ---
 ## Ver também
-[[Segurança - Rate Limiting e Abuse]] · [[Auth - OAuth, Cadastro e RLS de Sessão]] · [[Pendências Reais (Ação Manual Necessária)]]
+[[Segurança - Rate Limiting e Abuse]] · [[Segurança - Cloudflare]] · [[Auth - OAuth, Cadastro e RLS de Sessão]] · [[Segurança - Auditoria de Privacidade e LGPD]] · [[Segurança - Pentest Integrado Final]] · [[Pendências Reais (Ação Manual Necessária)]]

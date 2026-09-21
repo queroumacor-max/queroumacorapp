@@ -37,4 +37,4 @@ Sessão anterior já tinha reclamado no CLAUDE.md de auditoria não documentada.
 
 ---
 ## Ver também
-[[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]] · [[Segurança - Firebase FCM e Push]] · [[Pendências Reais (Ação Manual Necessária)]]
+[[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]] · [[Segurança - Firebase FCM e Push]] · [[Segurança - Auditoria Final (Bloco 21, OWASP ASVS, Release Gate)]] · [[Segurança - Disaster Recovery e Business Continuity]] · [[Pendências Reais (Ação Manual Necessária)]]

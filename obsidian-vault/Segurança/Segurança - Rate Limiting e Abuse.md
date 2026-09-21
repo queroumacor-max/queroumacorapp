@@ -22,8 +22,17 @@ Tokens de IA já têm teto; `moderate-video` já tem SSRF guard + timeout 20s + 
 Corpo cru lido sem `Content-Length` check antes do parse. `rejectOversizedBody(request, maxBytes)` (`lib/api/security.ts`) como primeira linha do handler: chat-ai, alice, senna, fe (256KB), generate-logo (64KB), ig-art (24MB), transcribe (27MB), area-from-photo/receipt-ocr (9MB). **Limitação declarada**: só pega corpo com `Content-Length` presente; chunked sem header passa até o teto do Cloudflare Workers (~100MB, fora do nosso controle).
 
 ## Não coberto nesta rodada (reportado, não corrigido)
-Janela FIXA de 1 minuto no `check_rate_limit` (não sliding window); comparação `===` no handshake GET do webhook WhatsApp; rotas `whatsapp-evo/*` (aposentadas, ver [[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]]).
+Janela FIXA de 1 minuto no `check_rate_limit` (não sliding window — uma migration posterior, `/migrations/2026-09-17-rate-limit-sliding-window.sql`, substitui por sliding window, mas **sem confirmação registrada de execução em produção** — ver [[Segurança - Pentest Integrado Final]]); comparação `===` no handshake GET do webhook WhatsApp; rotas `whatsapp-evo/*` (aposentadas, ver [[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]]).
+
+## Rate limit em mensagens de chat + push de mensagem sem texto
+
+**Data:** 2026-09-15, pedido do usuário, fechando 2 pendências desta auditoria de FCM/push (ver [[Segurança - Firebase FCM e Push]]). SQL `/migrations/2026-09-15-chat-safety-hardening.sql` — **JÁ EXECUTADO** no Supabase (2026-09-15, confirmado pelo usuário: "feito"). **Não pedir pra rodar de novo.**
+
+- **`messages` ganhou rate limit PRÓPRIO** (antes só existia no dispatch do push, 20/min por destinatário — continha o SINTOMA, não a causa). Trigger `BEFORE INSERT` chama `check_rate_limit` com chave por PAR remetente→destinatário (`sender>receiver`, não o remetente sozinho — pra não travar a loja respondendo muita gente rápido), **30 msgs/min**. Estourou → INSERT recusado com mensagem que contém "rate limit" (já bate no pattern existente de `lib/errors-friendly.ts` → "Muitas tentativas", nenhuma mudança de client necessária). `type='system'` (marcadores internos) não conta. Falha na checagem não bloqueia o envio.
+- **`dispatch_push_on_notification` para de mandar o texto da mensagem no push.** Antes copiava `notifications.body`, que pra `type='message'` inclui até 80 chars do texto real (ex. "Fulano: manda o endereço que..."), direto pro corpo da notificação — aparecia na tela de bloqueio. Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>` enviou uma mensagem" (nome vem do `actor_id`, já gravado na notificação). **`notifications.body` NÃO muda** — a tela `/notificacoes` dentro do app continua mostrando o preview completo; só o que SAI pelo push foi redigido.
+- Testes: `__tests__/chatSafetyHardening.test.ts` (lê o SQL e trava os dois invariantes) + caso novo em `__tests__/lib/errors-friendly.test.ts`.
+- Essa redação de push foi estendida a comentários (`type='comment'`) só depois, na auditoria Bloco 21 — ver [[Segurança - Auditoria Final (Bloco 21, OWASP ASVS, Release Gate)]].
 
 ---
 ## Ver também
-[[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Segurança - Firebase FCM e Push]]
+[[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Segurança - Firebase FCM e Push]] · [[Segurança - Auditoria Final (Bloco 21, OWASP ASVS, Release Gate)]] · [[Segurança - Pentest Integrado Final]]
