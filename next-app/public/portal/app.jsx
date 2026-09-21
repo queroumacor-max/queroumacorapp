@@ -181,6 +181,16 @@ const announcementsService = {
   remove: async (id) => { const r = await supa.from('announcements').delete().eq('id', id); if (r.error) throw r.error; }
 };
 
+// Cadastro de lojas parceiras — o StoreSelector do app (next-app/app/loja)
+// le a tabela `stores` direto do banco (migrations/2026-09-21-stores.sql).
+// `id` e o slug estavel (ex.: 'calicolors') que o app usa como chave.
+const storesService = {
+  list: async () => { const r = await supa.from('stores').select('*').order('sort_order').order('name'); if (r.error) throw r.error; return r.data || []; },
+  insert: async (s) => { const r = await supa.from('stores').insert(s); if (r.error) throw r.error; },
+  update: async (id, patch) => { const r = await supa.from('stores').update(patch).eq('id', id); if (r.error) throw r.error; },
+  remove: async (id) => { const r = await supa.from('stores').delete().eq('id', id); if (r.error) throw r.error; }
+};
+
 const postsService = {
   setStatus: async (id, status) => { const r = await supa.from('posts').update({status}).eq('id', id); if (r.error) throw r.error; },
   deleteWithChildren: async (id) => {
@@ -5411,6 +5421,162 @@ const CursosList = () => {
   );
 };
 
+// ══ LOJAS (cadastro de lojas parceiras da /loja) ══
+// Fonte unica da tela StoreSelector do app — cadastrar/editar aqui aparece
+// la sem deploy. `id` (slug) e criado uma vez e nao muda depois; os demais
+// campos dao pra editar inline. A Cali Colors ja nasce cadastrada pelo
+// proprio SQL (seed), entao esta tela normalmente abre com 1 linha.
+const LojasList = () => {
+  const { data, loading, error, refetch } = useSupabaseQuery((sb) => sb
+    .from('stores').select('*').order('sort_order').order('name'), []);
+  const lojas = data || [];
+  const tableMissing = error && /relation .*stores.* does not exist|42P01/i.test(error.message || error.code || '');
+
+  const vazio = { id: '', name: '', subtitle: '', emoji: '🏪', sort_order: 0 };
+  const [novo, setNovo] = useState(vazio);
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+
+  const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid ' + C.border, fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif' };
+
+  const criarLoja = async () => {
+    // Slug: so letra minuscula/numero/hifen — e a chave que o app usa,
+    // digitar "Cali Colors" tem que virar "cali-colors", nao ficar cru.
+    const id = novo.id.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!id) { alert('Informe um identificador (slug) para a loja, ex.: "tintas-abc".'); return; }
+    if (!novo.name.trim()) { alert('Informe o nome da loja.'); return; }
+    setSaving(true);
+    try {
+      await storesService.insert({
+        id,
+        name: novo.name.trim(),
+        subtitle: novo.subtitle.trim() || null,
+        emoji: novo.emoji.trim() || '🏪',
+        sort_order: Number(novo.sort_order) || 0,
+        active: true,
+      });
+      setNovo(vazio);
+      refetch();
+    } catch (e) { alert('Erro ao cadastrar loja: ' + (e.message || 'tente novamente')); }
+    setSaving(false);
+  };
+
+  const iniciarEdicao = (loja) => {
+    setEditId(loja.id);
+    setEditForm({ name: loja.name || '', subtitle: loja.subtitle || '', emoji: loja.emoji || '🏪', sort_order: loja.sort_order ?? 0 });
+  };
+  const cancelarEdicao = () => { setEditId(null); setEditForm(null); };
+  const salvarEdicao = async (id) => {
+    if (!editForm.name.trim()) { alert('Informe o nome da loja.'); return; }
+    try {
+      await storesService.update(id, {
+        name: editForm.name.trim(),
+        subtitle: editForm.subtitle.trim() || null,
+        emoji: editForm.emoji.trim() || '🏪',
+        sort_order: Number(editForm.sort_order) || 0,
+      });
+      cancelarEdicao();
+      refetch();
+    } catch (e) { alert('Erro ao salvar loja: ' + (e.message || 'tente novamente')); }
+  };
+
+  const alternarAtiva = async (loja) => {
+    try { await storesService.update(loja.id, { active: !loja.active }); refetch(); }
+    catch (e) { console.warn('alternarAtiva loja error:', e); }
+  };
+
+  const excluirLoja = async (id) => {
+    if (!confirm('Excluir esta loja? Ela some do app na hora.')) return;
+    try { await storesService.remove(id); refetch(); }
+    catch (e) { alert('Erro ao excluir loja: ' + (e.message || 'tente novamente')); }
+  };
+
+  if (tableMissing) {
+    return (
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 8, color: C.ink }}>🏬 Lojas</div>
+        <div style={{ fontSize: 13, color: C.muted }}>
+          A tabela <code>stores</code> ainda não existe. Rode a migration <code>migrations/2026-09-21-stores.sql</code> no SQL Editor do Supabase — ela já cadastra a Cali Colors sozinha.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>🏬 Nova Loja</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 1fr 90px', gap: 12, marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Emoji</div>
+            <input value={novo.emoji} onChange={e => setNovo(n => ({ ...n, emoji: e.target.value }))} style={inputStyle} maxLength={4} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Identificador (slug)</div>
+            <input value={novo.id} onChange={e => setNovo(n => ({ ...n, id: e.target.value }))} placeholder="ex: tintas-abc" style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Nome</div>
+            <input value={novo.name} onChange={e => setNovo(n => ({ ...n, name: e.target.value }))} placeholder="Ex: Tintas ABC" style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Ordem</div>
+            <input type="number" value={novo.sort_order} onChange={e => setNovo(n => ({ ...n, sort_order: e.target.value }))} style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Subtítulo (aparece embaixo do nome no app)</div>
+          <input value={novo.subtitle} onChange={e => setNovo(n => ({ ...n, subtitle: e.target.value }))} placeholder="Ex: Tintas, texturas e ferramentas" style={inputStyle} />
+        </div>
+        <button disabled={saving} onClick={criarLoja} style={{ padding: '10px 24px', background: C.p1, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+          {saving ? 'Salvando...' : '+ Cadastrar loja'}
+        </button>
+      </div>
+
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 16, color: C.ink }}>Lojas Cadastradas</div>
+        {loading && <div style={{ color: C.muted, fontSize: 13 }}>Carregando...</div>}
+        {!loading && lojas.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhuma loja cadastrada ainda.</div>}
+        {lojas.map(s => (
+          <div key={s.id} style={{ borderBottom: '1px solid ' + C.border, padding: '14px 0' }}>
+            {editId === s.id ? (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 90px', gap: 10, marginBottom: 10 }}>
+                  <input value={editForm.emoji} onChange={e => setEditForm(f => ({ ...f, emoji: e.target.value }))} style={inputStyle} maxLength={4} />
+                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
+                  <input type="number" value={editForm.sort_order} onChange={e => setEditForm(f => ({ ...f, sort_order: e.target.value }))} style={inputStyle} />
+                </div>
+                <input value={editForm.subtitle} onChange={e => setEditForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="Subtítulo" style={{ ...inputStyle, marginBottom: 10 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => salvarEdicao(s.id)} style={{ padding: '6px 14px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Salvar</button>
+                  <button onClick={cancelarEdicao} style={{ padding: '6px 14px', background: 'none', border: '1px solid ' + C.border, borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ fontSize: 28, lineHeight: 1 }}>{s.emoji || '🏬'}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: s.active ? C.ink : C.muted }}>{s.name}{!s.active ? ' (inativa)' : ''}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{s.subtitle || '—'}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>id: {s.id} · ordem: {s.sort_order ?? 0}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => iniciarEdicao(s)} style={{ background: 'none', border: '1px solid ' + C.border, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+                  <button onClick={() => alternarAtiva(s)} style={{ background: s.active ? C.p7 + '33' : C.p6 + '33', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: s.active ? '#b8860b' : C.p6 }}>
+                    {s.active ? 'Desativar' : 'Ativar'}
+                  </button>
+                  <button onClick={() => excluirLoja(s.id)} style={{ background: C.p4 + '22', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: C.p4 }}>Excluir</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const MarketingPage = () => {
   const { data, loading } = useSupabaseQuery(async (sb) => {
     const [pRes, lRes, qRes] = await Promise.all([
@@ -8570,6 +8736,7 @@ const PAGES_DEF = [
   { id:'clientes', icon:'👥', label:'Clientes', section:'PESSOAS', badgeKey:'clientes', component:<ClientesList /> },
   { id:'portal-users', icon:'🔐', label:'Portal', section:'PESSOAS', badgeKey:'portalUsers', component:<PortalUsersList /> },
   { id:'leads', icon:'🧲', label:'Leads', section:'LOJA', badgeKey:'leads', component:<Leads /> },
+  { id:'lojas', icon:'🏬', label:'Lojas', section:'LOJA', component:<LojasList /> },
   { id:'pedidos-loja', icon:'🛒', label:'Pedidos da Loja', section:'LOJA', component:<PedidosLoja /> },
   { id:'produtos', icon:'🎨', label:'Produtos / Tintas', section:'LOJA', component:<ProdutosList /> },
   { id:'camisetas', icon:'👕', label:'Camisetas Personalizadas', section:'LOJA', component:<Camisetas /> },

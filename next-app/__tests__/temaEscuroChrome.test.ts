@@ -17,6 +17,7 @@ const CHROME = [
   'components/BottomNav.tsx',
   'app/perfil/ProfileHeader.tsx',
   'app/loja/ProductsList.tsx',
+  'app/loja/StoreSelector.tsx',
 ];
 
 describe('texto sobre o chrome escuro', () => {

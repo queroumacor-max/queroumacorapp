@@ -1,5 +1,86 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
+  (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
+  imediatamente depois do PR #392: "crie dentro do portal uma opção
+  Lojas... isso ta sendo salvo no BD tbm"). SQL
+  `/migrations/2026-09-21-stores.sql` — **JÁ EXECUTADO no Supabase
+  (2026-09-21, confirmado pelo usuário: "sql rodado"). Não pedir pra rodar
+  de novo.**
+  - **Tabela `stores`** (`id` text PK = slug estável, `name`, `subtitle`,
+    `emoji`, `active`, `sort_order`, timestamps) — RLS leitura aberta
+    (`anon, authenticated`, mesmo padrão de `click_rua_editions`: é
+    diretório público de lojas, não dado sensível), escrita só
+    `is_portal_admin()`. Seed grava a Cali Colors (`id='calicolors'`) —
+    "já aparece" sem precisar cadastrar na mão.
+  - **App (`next-app/lib/services/stores.ts` +
+    `lib/hooks/useStores.ts`)**: `StoreSelector.tsx` (a tela criada no
+    PR #392) deixou de ler um array hardcoded e passou a ler
+    `fetchStores()` — só lojas `active=true`, ordenadas por
+    `sort_order`/nome. **Fallback pra `FALLBACK_STORES` (só Cali Colors)
+    em QUALQUER falha** — tabela ainda não migrada (42P01), tabela vazia,
+    ou erro de rede genuíno — porque a /loja é a porta de entrada da
+    compra inteira: não pode ficar sem tela nenhuma por causa de SQL
+    pendente. Mesmo padrão de `lib/services/clickRua.ts`.
+  - **Portal**: item novo **"🏬 Lojas"** no menu lateral (seção LOJA, ao
+    lado de Leads) → `LojasList` (`storesService` + formulário de criação
+    + lista com edição inline, ativar/desativar, excluir). Se a tabela
+    ainda não existir, a tela mostra o caminho do SQL em vez de erro cru
+    (mesmo padrão do `ClickRua`/`Reports`).
+  - **`app.js` recompilado do `app.jsx`** pela receita documentada
+    (babel + `@babel/preset-react` runtime classic +
+    `jsescOption.minimal:false`), SRI e `?v=` do `index.html` atualizados
+    (`20260919a`→`20260921a`). Diff do `app.js` confere: só INSERÇÃO, zero
+    linha alterada no que já existia — prova de que a recompilação é fiel
+    ao que estava publicado.
+  - **ACHADO DO CODEX na revisão do PR #392, corrigido antes do merge**:
+    `LojaShell` usava `storeId` só como flag (truthy/falsy) — escolher
+    QUALQUER loja diferente da Cali Colors abria escondido o mesmo
+    `ProductsList` (catálogo da Cali Colors), com o nome da loja errada no
+    header. Real e ficou mais alcançável depois desta entrada: antes o
+    array de lojas era hardcoded com 1 item só e não dava pra criar uma
+    segunda sem mexer em código; agora o portal deixa cadastrar loja nova
+    em 2 cliques. Fix: `LojaShell` só abre o `ProductsList` quando
+    `store.id === 'calicolors'`; qualquer outra loja cai no
+    `StoreComingSoon` (tela nova, mostra nome/emoji da loja escolhida +
+    "Catálogo em preparação"). `StoreSelector.onSelect` passou a entregar
+    o objeto `Store` inteiro (não só o id), pra `StoreComingSoon` poder
+    mostrar nome/emoji sem buscar de novo. **Não é solução de catálogo
+    multi-loja** (isso exigiria `store_id` em `products`, precificação por
+    loja etc. — fora do pedido) — é só a trava pra nunca mostrar o
+    catálogo errado por baixo do nome certo.
+  - Suíte inteira (204/204 arquivos, 2474/2474 testes), `tsc --noEmit` e
+    `next build` verdes antes do commit. Testes novos:
+    `__tests__/services/stores.test.ts` (mapeamento + os 2 caminhos de
+    fallback + propagação de erro genuíno) e
+    `__tests__/components/LojaShell.test.tsx` (trava o roteamento por
+    loja — não deixa a correção do Codex regredir).
+
+- **LOJA: tela de seleção de LOJAS antes das categorias (2026-09-21). SEM
+  SQL.** Pedido do usuário: vão existir mais lojas parceiras além da Cali
+  Colors, então clicar no ícone "loja" (bottom nav) precisa mostrar antes
+  uma grade de LOJAS — só depois de escolher uma é que entra no catálogo de
+  categorias/produtos que já existia.
+  - `app/loja/StoreSelector.tsx` (novo): grade de lojas, hoje só um tile
+    "🎨 Cali Colors" (subtítulo + contagem de itens via `useProducts`).
+    Lista vive num array `STORES` — loja nova é uma entrada a mais, não
+    reescrita de tela.
+  - `app/loja/LojaShell.tsx` (novo, client): state `storeId` decide entre
+    `StoreSelector` (nenhuma loja escolhida) e `ProductsList` + `AliceFab` +
+    `CorDoAnoModal` (loja escolhida). `page.tsx` (Server Component, mantém
+    o `metadata`) só renderiza `<LojaShell/>` dentro do `AppShell`.
+  - `ProductsList` ganhou prop opcional `onBackToStores` — seta de volta
+    `storeId=null`. Botão "‹" novo no header dark, à esquerda de "Loja Cali
+    Colors", só aparece quando a prop existe (sem quebrar quem ainda chama
+    `<ProductsList/>` sem prop, ex. algum teste futuro).
+  - **Não resolvido de propósito (fora do pedido)**: links internos que
+    apontam pra `/loja` de fora (carrinho vazio, confirmação de pedido,
+    detalhe de produto `/loja/[id]`, calculadora, pedidos) voltam pra tela
+    de SELEÇÃO de loja, não direto pro catálogo — como só existe uma loja
+    hoje, é um toque a mais até essas telas serem revisadas (ou até isso
+    incomodar de verdade). Suíte inteira (202/202, 2466/2466), `tsc
+    --noEmit` e `next build` verdes.
+
 - **REGRA PERMANENTE (2026-09-20, pedido explícito do usuário) — registrar
   neste arquivo IMEDIATAMENTE, sempre, sem exceção:** toda vez que (a) uma
   correção for aplicada (bug fix, mudança de config, deploy) OU (b) o

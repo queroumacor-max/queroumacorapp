@@ -1,12 +1,10 @@
 // Página /loja — Server Component shell.
 // Equivalente à `#screen-mkt` do vanilla (index.html linha 1505). Todo o
-// layout (header dark sticky + tabs + busca + cards) fica no ProductsList
-// porque o header precisa de state pra sticky+busca interativos.
+// layout (seleção de loja + header dark sticky + tabs + busca + cards)
+// fica no LojaShell/ProductsList porque precisa de state interativo.
 
 import type { Metadata } from 'next';
-import { ProductsList } from './ProductsList';
-import { AliceFab } from './AliceFab';
-import { CorDoAnoModal } from './CorDoAnoModal';
+import { LojaShell } from './LojaShell';
 import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
@@ -18,9 +16,7 @@ export const metadata: Metadata = {
 export default function LojaPage() {
   return (
     <AppShell>
-      <ProductsList />
-      <AliceFab />
-      <CorDoAnoModal />
+      <LojaShell />
     </AppShell>
   );
 }
