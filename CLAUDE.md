@@ -1,5 +1,44 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
+  (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
+  imediatamente depois do PR #392: "crie dentro do portal uma opção
+  Lojas... isso ta sendo salvo no BD tbm"). SQL
+  `/migrations/2026-09-21-stores.sql` — escrito e testado (build + suíte
+  verdes), **AINDA NÃO CONFIRMADO EXECUTADO no Supabase** — enquanto não
+  rodar, tanto o app quanto o portal caem no fallback (ver abaixo), sem
+  quebrar nada.**
+  - **Tabela `stores`** (`id` text PK = slug estável, `name`, `subtitle`,
+    `emoji`, `active`, `sort_order`, timestamps) — RLS leitura aberta
+    (`anon, authenticated`, mesmo padrão de `click_rua_editions`: é
+    diretório público de lojas, não dado sensível), escrita só
+    `is_portal_admin()`. Seed grava a Cali Colors (`id='calicolors'`) —
+    "já aparece" sem precisar cadastrar na mão.
+  - **App (`next-app/lib/services/stores.ts` +
+    `lib/hooks/useStores.ts`)**: `StoreSelector.tsx` (a tela criada no
+    PR #392) deixou de ler um array hardcoded e passou a ler
+    `fetchStores()` — só lojas `active=true`, ordenadas por
+    `sort_order`/nome. **Fallback pra `FALLBACK_STORES` (só Cali Colors)
+    em QUALQUER falha** — tabela ainda não migrada (42P01), tabela vazia,
+    ou erro de rede genuíno — porque a /loja é a porta de entrada da
+    compra inteira: não pode ficar sem tela nenhuma por causa de SQL
+    pendente. Mesmo padrão de `lib/services/clickRua.ts`.
+  - **Portal**: item novo **"🏬 Lojas"** no menu lateral (seção LOJA, ao
+    lado de Leads) → `LojasList` (`storesService` + formulário de criação
+    + lista com edição inline, ativar/desativar, excluir). Se a tabela
+    ainda não existir, a tela mostra o caminho do SQL em vez de erro cru
+    (mesmo padrão do `ClickRua`/`Reports`).
+  - **`app.js` recompilado do `app.jsx`** pela receita documentada
+    (babel + `@babel/preset-react` runtime classic +
+    `jsescOption.minimal:false`), SRI e `?v=` do `index.html` atualizados
+    (`20260919a`→`20260921a`). Diff do `app.js` confere: só INSERÇÃO, zero
+    linha alterada no que já existia — prova de que a recompilação é fiel
+    ao que estava publicado.
+  - Suíte inteira (203/203 arquivos, 2471/2471 testes), `tsc --noEmit` e
+    `next build` verdes antes do commit. Teste novo:
+    `__tests__/services/stores.test.ts` (mapeamento + os 2 caminhos de
+    fallback + propagação de erro genuíno).
+
 - **LOJA: tela de seleção de LOJAS antes das categorias (2026-09-21). SEM
   SQL.** Pedido do usuário: vão existir mais lojas parceiras além da Cali
   Colors, então clicar no ícone "loja" (bottom nav) precisa mostrar antes
