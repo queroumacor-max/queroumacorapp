@@ -4,10 +4,9 @@
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
   imediatamente depois do PR #392: "crie dentro do portal uma opção
   Lojas... isso ta sendo salvo no BD tbm"). SQL
-  `/migrations/2026-09-21-stores.sql` — escrito e testado (build + suíte
-  verdes), **AINDA NÃO CONFIRMADO EXECUTADO no Supabase** — enquanto não
-  rodar, tanto o app quanto o portal caem no fallback (ver abaixo), sem
-  quebrar nada.**
+  `/migrations/2026-09-21-stores.sql` — **JÁ EXECUTADO no Supabase
+  (2026-09-21, confirmado pelo usuário: "sql rodado"). Não pedir pra rodar
+  de novo.**
   - **Tabela `stores`** (`id` text PK = slug estável, `name`, `subtitle`,
     `emoji`, `active`, `sort_order`, timestamps) — RLS leitura aberta
     (`anon, authenticated`, mesmo padrão de `click_rua_editions`: é
@@ -34,10 +33,28 @@
     (`20260919a`→`20260921a`). Diff do `app.js` confere: só INSERÇÃO, zero
     linha alterada no que já existia — prova de que a recompilação é fiel
     ao que estava publicado.
-  - Suíte inteira (203/203 arquivos, 2471/2471 testes), `tsc --noEmit` e
-    `next build` verdes antes do commit. Teste novo:
+  - **ACHADO DO CODEX na revisão do PR #392, corrigido antes do merge**:
+    `LojaShell` usava `storeId` só como flag (truthy/falsy) — escolher
+    QUALQUER loja diferente da Cali Colors abria escondido o mesmo
+    `ProductsList` (catálogo da Cali Colors), com o nome da loja errada no
+    header. Real e ficou mais alcançável depois desta entrada: antes o
+    array de lojas era hardcoded com 1 item só e não dava pra criar uma
+    segunda sem mexer em código; agora o portal deixa cadastrar loja nova
+    em 2 cliques. Fix: `LojaShell` só abre o `ProductsList` quando
+    `store.id === 'calicolors'`; qualquer outra loja cai no
+    `StoreComingSoon` (tela nova, mostra nome/emoji da loja escolhida +
+    "Catálogo em preparação"). `StoreSelector.onSelect` passou a entregar
+    o objeto `Store` inteiro (não só o id), pra `StoreComingSoon` poder
+    mostrar nome/emoji sem buscar de novo. **Não é solução de catálogo
+    multi-loja** (isso exigiria `store_id` em `products`, precificação por
+    loja etc. — fora do pedido) — é só a trava pra nunca mostrar o
+    catálogo errado por baixo do nome certo.
+  - Suíte inteira (204/204 arquivos, 2474/2474 testes), `tsc --noEmit` e
+    `next build` verdes antes do commit. Testes novos:
     `__tests__/services/stores.test.ts` (mapeamento + os 2 caminhos de
-    fallback + propagação de erro genuíno).
+    fallback + propagação de erro genuíno) e
+    `__tests__/components/LojaShell.test.tsx` (trava o roteamento por
+    loja — não deixa a correção do Codex regredir).
 
 - **LOJA: tela de seleção de LOJAS antes das categorias (2026-09-21). SEM
   SQL.** Pedido do usuário: vão existir mais lojas parceiras além da Cali

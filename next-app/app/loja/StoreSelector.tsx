@@ -8,8 +8,9 @@
 
 import { useStores } from '@/lib/hooks/useStores';
 import { useProducts } from '@/lib/hooks/useProducts';
+import type { Store } from '@/lib/services/stores';
 
-export function StoreSelector({ onSelect }: { onSelect: (storeId: string) => void }) {
+export function StoreSelector({ onSelect }: { onSelect: (store: Store) => void }) {
   const { stores, loading: storesLoading } = useStores();
   // Contagem de itens só faz sentido pra Cali Colors hoje — é o único
   // catálogo que existe. Loja nova vai precisar da própria fonte de contagem.
@@ -46,7 +47,7 @@ export function StoreSelector({ onSelect }: { onSelect: (storeId: string) => voi
               <li key={store.id}>
                 <button
                   type="button"
-                  onClick={() => onSelect(store.id)}
+                  onClick={() => onSelect(store)}
                   className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
                   style={{ padding: '22px 12px', minHeight: 148 }}
                 >
