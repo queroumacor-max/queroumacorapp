@@ -15,6 +15,38 @@
   espalhadas por este arquivo — a mesma lição, aprendida de novo várias
   vezes, é exatamente o que essa regra tenta parar de acontecer.
 
+- **SPLASH DE BOOT: arte dos mascotes trocada + selo "AI-generated content"
+  removido (2026-09-21, PR #383, MERGEADA — ainda sem deploy disparado).
+  SEM SQL.** O usuário perguntou se eu sabia que a tela de loading inicial
+  tinha uma imagem "dos bears" (os 4 mascotes-ursinhos da Cali Colors —
+  Alice, Seu Zé, Senna, Fê — em `public/mascotes-calicolors.webp`,
+  renderizada por `components/SplashMascotes.tsx` na raiz `/` e no
+  `AppShell` enquanto a sessão resolve) e mandou uma imagem nova pra
+  substituir.
+  - **A imagem nova vinha com um selo semi-transparente "✨ AI-generated
+    content"** colado no rodapé pelo próprio gerador de imagem, sobrepondo
+    bem em cima da legenda "Alice • Seu Zé • Senna • Fê" que também estava
+    desenhada DENTRO da arte. Publicar assim seria carregar um selo de
+    "conteúdo gerado por IA" pra dentro da tela de loading do app — não dá
+    pra simplesmente trocar o arquivo sem tratar isso primeiro.
+  - **Fix por recorte, não por IA generativa**: medido pixel a pixel
+    (histograma de brilho por linha) onde os pés dos ursinhos terminam
+    (~y=1066 de uma imagem de 1152px de altura) — abaixo disso só tinha o
+    selo + a legenda, nada de arte útil. Cortou o rodapé inteiro fora
+    (selo E legenda desenhada, os dois juntos) e reconverteu pra WebP
+    (968×1066, ~57KB, contra os 968×1153/~68KB de antes).
+  - **A legenda "Alice • Seu Zé • Senna • Fê" voltou como TEXTO HTML de
+    verdade** em `SplashMascotes.tsx`, logo abaixo da `<img>` (cor
+    `#3f3729`, negrito, `marginTop:-12` pra ficar coladinha na imagem como
+    estava antes) — não como parte do arquivo. Fica nítida em qualquer
+    densidade de tela e a legenda nunca mais depende de ficar presa dentro
+    de uma imagem gerada por terceiro.
+  - `width`/`height` do `<img>` ajustados pro novo recorte (968×1066).
+  - Suíte (202/202 arquivos, 2466/2466 testes), `tsc --noEmit` e
+    `next build` verdes antes do commit. Conferido visualmente (crop
+    ampliado da borda inferior) que o corte não deixou resquício do selo
+    nem cortou os pés dos ursinhos.
+
 - **ORÇAMENTO: "Imprimir (navegador)" não funcionava + desconto em % não
   calculava certo (2026-09-21, PR #381, MERGEADA — ainda sem deploy
   disparado). SEM SQL.** Dois relatos do usuário sobre o QuoteWizard
