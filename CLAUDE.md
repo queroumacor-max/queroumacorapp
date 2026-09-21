@@ -15,6 +15,38 @@
   espalhadas por este arquivo — a mesma lição, aprendida de novo várias
   vezes, é exatamente o que essa regra tenta parar de acontecer.
 
+- **ORÇAMENTO: "Imprimir (navegador)" não funcionava + desconto em % não
+  calculava certo (2026-09-21, PR #381, MERGEADA — ainda sem deploy
+  disparado). SEM SQL.** Dois relatos do usuário sobre o QuoteWizard
+  (`/orcamento-ia`), o 1º pelo chat, o 2º via print de conversa no WhatsApp
+  com um lead ("Fabio Irmao Nv") mostrando a mesma tela.
+  - **"Imprimir" não fazia nada.** O botão "🖨️ Imprimir (navegador)" do
+    modal **Visualizar** chamava `window.print()` — mesma classe de bug já
+    documentada várias vezes neste arquivo (window.print é no-op na WebView
+    do Capacitor). O botão "PDF" ao lado JÁ funcionava (gera com jsPDF +
+    share nativo/Filesystem/download, `handlePdf()`), só o da tela de
+    Visualizar tinha ficado pra trás. Fix: o modal (`QuotePreviewModal`)
+    passou a chamar o MESMO `handlePdf()` via prop, em vez de reimplementar
+    outro caminho. O CSS `@media print` + classes `quote-pdf-*` que só
+    existiam pra esse `window.print()` saíram junto (código morto).
+  - **Desconto em % calculava como se fosse R$.** `parseDesconto` sempre
+    tratou "10%" como percentual e "500,00" como valor — a lógica estava
+    certa. O problema era o TECLADO: o campo é `inputMode="decimal"`, e o
+    teclado numérico que o Android mostra pra esse modo **não tem tecla de
+    `%`** — fisicamente impossível digitar "10%" no aparelho, então todo
+    desconto pretendido como percentual caía no ramo "é R$" e descontava um
+    valor absurdo (ou nada, se o número digitado sozinho excedesse o
+    subtotal). Fix: campo virou toggle **R$ / %** + input só numérico
+    (`descontoDigitos`/`setDescontoTipo`/`setDescontoDigitos`, derivados de
+    `form.desconto`, sem novo state) — a string gravada em
+    `quote_data.desconto` continua exatamente no mesmo formato ("10%" /
+    "500,00"), então `parseDesconto`/`orcamentoDocumento`/PDF nem precisaram
+    mudar.
+  - Suíte (202/202 arquivos, 2466/2466 testes), `tsc --noEmit` e
+    `next build` verdes antes do commit. **Deploy NÃO disparado ainda** —
+    esperando o usuário confirmar se quer que eu acione o workflow manual
+    (`deploy.yml`, `workflow_dispatch`) ou se prefere disparar ele mesmo.
+
 - **AUDITORIA EXTERNA HOSTEDSCAN (2026-09-20) — comparada contra todo o
   histórico de auditorias já feitas. Quase tudo já estava corrigido; 1
   achado NOVO e REAL, confirmado no painel Cloudflare pelo usuário —
