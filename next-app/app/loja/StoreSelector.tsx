@@ -32,7 +32,7 @@ export function StoreSelector({ onSelect }: { onSelect: (store: Store) => void }
             fontSize: 18,
           }}
         >
-          Lojas
+          Selecione sua loja
         </div>
       </header>
 
@@ -42,35 +42,45 @@ export function StoreSelector({ onSelect }: { onSelect: (store: Store) => void }
             Carregando lojas…
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 pb-4" aria-label="Lojas disponíveis">
-            {stores.map((store) => (
-              <li key={store.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(store)}
-                  className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
-                  style={{ padding: '22px 12px', minHeight: 148 }}
-                >
-                  <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
-                    {store.emoji}
-                  </span>
-                  <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
-                    {store.name}
-                  </span>
-                  {store.subtitle ? (
-                    <span className="text-xs text-[color:var(--color-muted)]">
-                      {store.subtitle}
+          <>
+            {/* Um tile por linha, ocupando a largura toda — com só uma
+                loja hoje, 2 colunas deixava metade da tela vazia. A
+                mensagem "mais lojas em breve" vem DEPOIS da lista (não é
+                absoluta), então ela desce sozinha conforme lojas novas
+                forem cadastradas pelo portal. */}
+            <ul className="grid grid-cols-1 gap-3 pb-3" aria-label="Lojas disponíveis">
+              {stores.map((store) => (
+                <li key={store.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(store)}
+                    className="w-full h-full flex flex-col items-center justify-center text-center gap-2 bg-white rounded-2xl border border-[color:var(--color-border)] hover:shadow-md transition-shadow"
+                    style={{ padding: '22px 12px', minHeight: 148 }}
+                  >
+                    <span aria-hidden="true" style={{ fontSize: 38, lineHeight: 1 }}>
+                      {store.emoji}
                     </span>
-                  ) : null}
-                  {store.id === 'calicolors' ? (
-                    <span className="text-xs text-[color:var(--color-muted)]">
-                      {productsLoading ? 'Carregando…' : `${all.length} ${all.length === 1 ? 'item' : 'itens'}`}
+                    <span className="text-sm font-semibold text-[color:var(--color-ink)] leading-tight">
+                      {store.name}
                     </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+                    {store.subtitle ? (
+                      <span className="text-xs text-[color:var(--color-muted)]">
+                        {store.subtitle}
+                      </span>
+                    ) : null}
+                    {store.id === 'calicolors' ? (
+                      <span className="text-xs text-[color:var(--color-muted)]">
+                        {productsLoading ? 'Carregando…' : `${all.length} ${all.length === 1 ? 'item' : 'itens'}`}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="text-center text-xs text-[color:var(--color-muted)] pb-4">
+              Mais lojas em breve...
+            </p>
+          </>
         )}
       </div>
     </>
