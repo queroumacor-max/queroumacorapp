@@ -4,33 +4,124 @@ tags: [posts, feed, stories, carrossel, moderação]
 
 # Posts, Stories e Feed
 
-## Carrossel de fotos (Wave 57, SQL executado)
-Composer sempre deixou escolher até 5 fotos, mas só a 1ª era gravada (`media_url`) — as outras 4 viravam arquivo órfão. Fix: `posts.media_urls text[]`. Post antigo não ganha carrossel retroativo (fotos extras foram descartadas no ato). `media_url` continua sendo a 1ª foto (feed legado lê ela). `createPost` tolera 42703 (coluna ausente) refazendo sem `media_urls`. Scroll-snap nativo (não arrasto por JS).
+## Carrossel de fotos no post — Wave 57 (2026-09-01, SQL executado)
+O composer sempre deixou escolher **até 5 fotos**, subia TODAS pro bucket `posts` e gravava **só a primeira** em `posts.media_url` — as outras quatro viravam arquivo órfão, pagas em banda e storage, invisíveis. O próprio tipo já dizia: `mediaUrls: string[]; // resto ignorado`.
+- `/migrations/2026-09-01-posts-media-urls.sql`: **uma linha** (`ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_urls text[]`) — curta de propósito, porque colar SQL grande pelo celular corta o bloco.
+- **Post ANTIGO não ganha carrossel**: as fotos extras dele foram descartadas no ato da publicação (nunca chegaram a `media_url` nem a lugar nenhum consultável), então só post novo tem o conjunto. Os arquivos órfãos velhos seguem no bucket — `cleanup_orphan_media()` os lista como órfãos, e quem apaga é `execute_cleanup_orphan_media()` na mão.
+- **`media_url` NÃO muda de papel**: segue sendo a primeira foto, e é o que o RPC `get_feed_v2`, o grid do perfil e todo post antigo leem. Foi o que permitiu **não recriar a `get_feed_v2`** (bloco grande, arriscado no aparelho): o feed busca as extras numa consulta leve à parte (`anexarFotosExtras`), que só traz os posts com mais de uma foto.
+- **`createPost` tolera 42703**: se a migration ainda não rodou, o insert é refeito sem `media_urls` e o post sai com a primeira foto. Publicar não pode quebrar por causa de SQL pendente.
+- `PostCarousel` usa **scroll-snap**, não arrasto por JS: o gesto fica com o navegador (inércia e encaixe nativos) e não briga com o scroll vertical do feed — `overscrollBehaviorX: 'contain'` corta o encadeamento. Contador `1/5` no canto e bolinhas clicáveis. Só a PRIMEIRA foto usa `media_width/height` gravados; aplicar nas outras reservaria o espaço errado e causaria salto.
 
-## Enquadramento ao publicar
-Proporção Original/1:1/4:5/16:9, modo Preencher/Ajustar. "Original" não passa pelo canvas (quem não mexe publica como sempre). Recorte feito NO ARQUIVO antes do upload (não CSS) — feed/perfil/carrossel renderizam a mesma URL. Prévia e recorte usam a MESMA conta (`lib/enquadramento.ts`).
+## Enquadramento da foto ao publicar + legenda com quebra de linha (2026-09-07)
+Um pintor publicou um quadro em pé (80×120) e a obra saiu cortada em cima e embaixo, e a descrição (Título/Artista/Dimensões em linhas) virou um bloco só.
+- **Legenda:** `whiteSpace: 'pre-wrap'` na legenda e nos comentários do `PostCard` — o HTML colapsa `\n` em espaço a menos que o CSS peça pra preservar. Nada muda no banco: o texto sempre foi gravado com as quebras. Teste de fonte em `__tests__/legendaQuebraDeLinha.test.ts`.
+- **Enquadramento:** seção nova no composer (`app/publicar/Enquadramento.tsx`) — proporção Original / 1:1 / 4:5 / 16:9, modo **Preencher** (corta a sobra; arrasta a foto pra escolher o que aparece) ou **Ajustar** (foto inteira, sobra fundo desfocado). **"Original" é o padrão e não passa pelo canvas**: quem não mexe publica como sempre.
+  - **O recorte é feito NO ARQUIVO antes do upload** (`lib/services/enquadrarImagem.ts`), não em CSS: feed, perfil, carrossel e "Em alta" renderizam a mesma URL de jeitos diferentes, e a primeira tela que esquecesse um deslocamento gravado voltaria a cortar a obra.
+  - **A prévia e o recorte usam a MESMA conta** (`lib/enquadramento.ts`, pura e testada): `estiloPreview` (CSS em %) e `recorteCover` (px do canvas) descrevem a mesma janela. Se fossem duas contas, a prévia mentiria.
+  - **Falha no recorte NÃO sobe cru em silêncio** — diferente da compressão (que é otimização). A pessoa escolheu um quadro; publicar a obra cortada no meio depois disso é trair a escolha. Estoura `ValidationError` com o nome do arquivo.
+  - Story (tela cheia) e vídeo não têm enquadramento.
+- **Carrossel: todas as fotos no quadro da PRIMEIRA.** Só a foto 1 tinha dimensões gravadas; as outras caíam no 1:1 com `object-cover` — a foto 2 de um quadro em pé saía sem cabeça. `PostMedia` ganhou a prop `aspectRatio` e o `PostCarousel` impõe a proporção da primeira a todas. Post novo enquadra todas iguais no composer, então nada corta; post antigo ganha altura constante (a foto 2 corta na proporção da 1, não mais no quadrado).
 
-## Vídeo em `<img>` — miniaturas quebradas
-Regra de "é vídeo?" vivia em 4 lugares de 3 jeitos diferentes. Unificado em `isVideoPost(url, mediaType)` — `media_type` sozinho NÃO diz se é vídeo (marca STORY), extensão sozinha também não basta (upload legado sem extensão). Usa os dois sinais.
+## Vídeo em `<img>` — miniaturas quebradas no "Em alta" (2026-09-05)
+A tela `/explore` mostrava metade do grid como ícone de imagem quebrada, e uma miniatura exibia a LEGENDA como texto (o `alt` de um `<img>` que não carregou). Causa: post de VÍDEO renderizado dentro de `<img>`.
+- **A regra vivia em QUATRO lugares de TRÊS jeitos**: `PostMedia` (extensão OU `media_type` — o certo), `StoryViewer` (só extensão), `PortfolioSection` (só `media_type`) e `TrendingGrid`/`HashtagFeed` (nenhum dos dois). Agora é `isVideoPost(url, mediaType)` em `lib/utils.ts`, usada por todas — regra duplicada é regra que diverge.
+- **`media_type` NÃO diz se a mídia é vídeo** — ele marca que o post é STORY. Vídeo com `media_type` 'story' ou nulo escapa de qualquer teste que olhe só esse campo. E só a extensão também não basta: upload legado tem path sem extensão. Por isso os DOIS sinais.
+- O helper é type predicate (`url is string`): quem chama usa `media_url` direto no `<video>` sem repetir guard de nulo.
+- Grade nova que mostra post = `isVideoPost`, nunca `<img>` seco.
 
-## Moderação no publish
-Ver [[Moderação de Conteúdo (Gemini e CSAM)]].
+## Preview de vídeo quebrado (PR #378, 2026-09-20)
+Ícone genérico de play em vez do primeiro quadro, em 7 telas: Em alta, hashtag, lead card, preview de perfil próprio/público, portfólio, preview do composer. Corrigido junto com o botão "Seguindo" da tela de conexões (mostrava só "✓" e confundia quem olhava). Foi ao ar pelo mesmo deploy do PR #377 (remoção da palavra "ABRAPP" dos textos visíveis) — ver contexto de deploy em [[Infraestrutura - Cloudflare, Env Vars e Deploy]].
 
 ## Story
-Sem legenda nem link (decisão da loja, 2026-09-01) — conteúdo que some em 24h. X ficava POR BAIXO das barras do app (`z-50` vs BottomNav `z-[300]`) — corrigido pra `z-[400]` + portal no `<body>`. Botão voltar do Android fecha o story (empurra entrada no histórico). Som: tenta com áudio (há gesto do toque que abriu), cai pra mudo com botão 🔊/🔇.
+Sem legenda nem link (decisão da loja, 2026-09-01) — conteúdo que some em 24h, pedir texto só atrasa quem quer postar a foto da obra e seguir trabalhando. O payload vai com `caption: ''` e `linkUrl: null` — sem isso um rascunho antigo restaurado pelo autosave mandaria texto que a pessoa não tem mais como ver nem editar. A coluna `posts.link_url` e o CTA do `StoryViewer` continuam existindo pros stories antigos; só não há mais como criar novos. A aba "Foto / Vídeo" passou a se chamar **"Post"**.
 
-## Admin apaga post de outra pessoa
-App já deixava apagar comentário de qualquer um; post não — `.eq('user_id', userId)` filtrava mesmo pra admin. `comoAdmin` remove esse filtro, permissão real segue sendo da RLS. **Lacuna conhecida: apagar post alheio não deixa rastro de quem apagou** (audit_log sem policy de INSERT pra authenticated).
+**O X ficava POR BAIXO das barras do app (2026-09-01).** O relato foi "não tem um X pra fechar?" — tinha, só que o `StoryViewer` era `fixed inset-0 z-50` e a **BottomNav é `z-[300]`**, a TopNav `z-50`. As barras de progresso (`top-2`) e o botão de fechar (`top-6`) nasciam atrás delas. O `fixed inset-0` sempre cobriu a tela toda; o que faltava era z-index. Agora **`z-[400]`**, o story fica imersivo (as barras do app somem enquanto ele está aberto, como no Instagram), o viewer é montado em **portal no `<body>`** (o z-index sozinho bastaria hoje, mas basta um ancestral ganhar `transform` pro `fixed` deixar de cobrir a tela) e o X virou alvo de 40px com fundo próprio — antes era um `×` de texto solto, invisível sobre story claro. Progresso e header respeitam `env(safe-area-inset-top)`.
+
+**Botão VOLTAR do Android fecha o story.** Ao abrir, o viewer empurra uma entrada no histórico; o "voltar" consome ela e dispara `popstate`, que fecha sem navegar. Fechando pelo X ou pelo arrasto, a entrada fantasma é desfeita na limpeza — senão o próximo "voltar" não sairia da tela, só apagaria a sobra. `onClose` fica numa ref pra o efeito não rearmar e empilhar uma entrada por render.
+
+**PLAY gigante no vídeo:** a WebView bloqueia `autoPlay` até haver gesto (`setMediaPlaybackRequiresUserGesture` é true por padrão no wrapper) e o player nativo desenha o botão. Correção em dois tempos: `play()` explícito quando o story entra em cena (aproveita o gesto que abriu o viewer) + `poster` 1×1 transparente, pra que o intervalo até o primeiro quadro fique preto em vez de exibir a arte do player.
+
+**Som:** `<video muted>` era fixo — `muted` é o que a WebView exige pra tocar SEM gesto, então todo story rodava mudo. Mas ali existe gesto (um toque abriu o viewer): agora tenta com áudio e, se o aparelho recusar o `play()`, cai pra mudo e acende o botão 🔊/🔇 no cabeçalho, em vez de deixar o vídeo parado com o PLAY gigante.
+
+## Admin apaga post de outra pessoa (2026-09-07) — SEM SQL PENDENTE
+O app já deixava o admin apagar COMENTÁRIO de qualquer um (Wave 9), mas não POST: mesma tela, duas regras pro mesmo ato de moderar. O que impedia era o `.eq('user_id', userId)` do UPDATE em `deletePost` — filtrando pelo dono, o admin nunca casava linha. `comoAdmin` remove só esse filtro; **a permissão continua sendo da RLS**, e cliente adulterado mandando a flag sem ser admin bate na policy e volta zero linhas.
+- **CONFERIDO NO BANCO (2026-09-07): `moderacao_ok = true`, `update_restritivas = 0`.** A policy `posts_owner_update` viva JÁ aceita `is_portal_admin()`. **Não pedir pra rodar `/migrations/2026-09-07-posts-admin-moderation.sql`** — o arquivo é conferência re-executável, e os passos de DROP/CREATE existem só pro caso de a conferência voltar false.
+- **`update` que não acha linha é SUCESSO com zero linhas** — a mesma armadilha do `/completar-perfil`. Aqui seria pior: o post sumiria pelo update otimista, voltaria no refetch, e o admin concluiria que o app está quebrado. `deletePost`/`undoDeletePost` agora pedem `.select('id')` e **estouram** em zero linhas, com mensagem que aponta pra policy (moderação) ou pro post (dono). Conferido que isso não gera falso erro: a policy de SELECT (`View posts active`) enxerga a linha depois do UPDATE tanto pro dono quanto pro admin.
+- **`SELECT public.is_portal_admin()` NO SQL EDITOR NÃO RESPONDE "minha conta é admin?"** — ali a sessão é `postgres`/`service_role`, `auth.uid()` é NULL e a função devolve **false mesmo com a conta sendo admin**. Escrevi essa checagem, ela voltou false e não provou nada. Mesmo erro de método do `profiles_role_check`: **checagem que responde false pra sempre é pior que checagem nenhuma.** Pra valer: ler `prosrc` da função + a linha do perfil por `to_jsonb` (coluna ausente vira 42703 num `select` direto).
+- **Colar bloco de SQL com DROP+CREATE juntos faz o CREATE rodar sozinho** (42710 aqui; 42601 na Wave 26). Postgres não tem `CREATE POLICY IF NOT EXISTS`, então a ordem importa — **uma instrução por vez**. E, por sorte, o DROP não passou: ele teria derrubado e recriado uma policy que já estava certa. **Conferir SEMPRE antes de alterar RLS de produção.**
+- **LACUNA CONHECIDA, não resolvida:** apagar post alheio **não deixa rastro de quem apagou**. `audit_log` não tem policy de INSERT pra `authenticated`, então gravar isso exigiria rota nova. O soft delete é recuperável por 30 dias, mas hoje ninguém sabe qual admin agiu.
+
+## Composer: venda só pra profissional + story sem legenda IA (2026-08-21)
+`canMarkPostForSale` em `lib/policies.ts` (nega `role='cliente'`, libera o resto inclusive role vazio, admin sempre pode) esconde o "Marcar como venda" do `Composer`; `CaptionInput` ganhou prop `showGenerate` e o botão "✨ Gerar legenda (IA)" some na aba Story (story expira em 24h e a chamada consome cota de IA). O payload do publish reconfere a permissão em vez de confiar no state — o `forSale` sobrevivia a troca de aba/autosave/deep-link `?forSale=1` e vazava `for_sale=true` pra story.
+
+**SQL Wave 34 (2026-08-21) — D1 FECHADO, JÁ EXECUTADO no Supabase.** A regra também vive no banco: trigger `trg_enforce_post_for_sale_role` (BEFORE INSERT OR UPDATE em `posts`) zera `for_sale`/`price`/`art_type` quando o autor tem `role='cliente'` — admin e role vazio passam, igual ao `canMarkPostForSale`. Os 3 posts antigos que violavam foram limpos (só a marcação de venda; os posts seguem no feed). Migration em `/migrations/2026-08-21-posts-for-sale-role-guard.sql`.
+
+**Pegadinha do schema:** `profiles.is_admin` NÃO existe na tabela real, apesar de aparecer no código legado e em migrations antigas (a v1 desta migration quebrou com 42703 por causa disso). Por isso a função lê a linha do autor via `to_jsonb(p) ->> 'campo'`: coluna ausente vira chave ausente → NULL, em vez de abortar. **Usar esse padrão em qualquer SQL novo que toque colunas de admin do `profiles`.** Suspeita aberta na época: a função `is_portal_admin()` (usada nas policies de RLS de ~13 tabelas) referencia `is_admin` na migration que a criou — se estivesse mesmo assim no banco, estaria quebrada em runtime. Checar com `SELECT is_portal_admin();`.
+
+## Tela cortada na direita nas IAs (2026-09-05)
+Ao abrir a Alice num celular estreito, o ícone de mensagem do `TopNav` aparecia CORTADO pela direita.
+- **O `TopNav` é `sticky`, não `fixed`** — ele tem a largura do CONTAINER, não da janela. Quando um filho da página é mais largo que o viewport, o container estica e a barra vai junto; o que sai da tela é a ponta direita dela. **Barra cortada = overflow em OUTRO lugar da página.** Procurar o defeito no topo é procurar no lugar errado.
+- O filho largo era a linha de digitar: `<textarea class="flex-1">` + microfone (44px) + botão Enviar. **Item de flex não encolhe abaixo da largura intrínseca sem `min-w-0`**, e `<textarea>` tem intrínseca alta (cols=20 ≈ 190px) — a linha passava de 360px.
+- **REGRA: `flex-1` em campo de texto pede `min-w-0`**; o que fica ao lado (botão, ícone) pede `shrink-0`. O mesmo padrão já registrado no comentário do feed (A3, 2026-09-01) virou teste agora porque são QUATRO telas clonadas (Alice/Seu Zé/Senna/Fê), e corrigir uma esquecendo as outras é o modo de falha natural delas.
+
+## Auditoria 2 (2026-09-01) — achados A1-A4 no feed/PRO/dados
+Ver [[Incidentes Notáveis]] pro detalhe completo — A1 (selo PRO mentia pra quem venceu: TopNav e `canSeeProFeature` eram duas fontes de verdade), A2 (fuso "hoje" saía do aparelho, não de Brasília), A3 (legenda/comentário sem `overflowWrap` — mesma classe de bug do item acima, corrigido antes), A4 (`cartTotal` somava float e gravava `269.70000000000005` no pedido).
+
+## Revista Click Rua — tile só pra GRAFITEIRO (2026-09-05)
+Banca da revista digital de graffiti dentro do app: tile **Click Rua** em `ROLE_TILES` (`roles: ['grafiteiro']`, admin vê como em todos), abre uma grade de edições; a #01 (setembro/2020, 8 páginas, B.Girl LU BSB) está pronta e as outras 5 aparecem como "Em breve". Rota `/click-rua`.
+
+**AS PÁGINAS FORAM PRO BUCKET (2026-09-06)** — a decisão anterior caiu junto com a premissa. No PR #228 elas eram arquivo estático porque edição nova só chegava com um commit; quando o usuário pediu upload PELO PORTAL, deixou de existir onde gravar em runtime: virou bucket `click-rua` + tabela `click_rua_editions` (migration `/migrations/2026-09-06-click-rua-bucket.sql`). **JÁ EXECUTADA no Supabase (2026-09-06)** — confirmado nos dois lados: a consulta de conferência devolveu as 6 edições (a #01 `pronta`), e `storage.objects` mostra `ed01/<ts>/1..24.webp` + `capa.webp` no bucket.
+- **A tabela guarda a URL de CADA página, não um padrão de caminho.** É isso que deixa a #01 (que nasceu em `/click-rua/ed01/`, publicada junto com o app) conviver com as que a loja sobe: o leitor só usa a string como `src`. O botão "Copiar páginas do site para o bucket" no portal migra quando quiserem, sem downtime.
+- **`lib/clickRua.ts` guarda um catálogo de FALLBACK** usado só enquanto a tabela não existir (42P01) — deploy antes do SQL não pode deixar a banca vazia. Depois de migrar tudo, os arquivos de `public/click-rua/` podem sair (menos o `logo.webp`, que a tela usa direto).
+- **Edição marcada 'pronta' SEM página volta a ser "em breve"** (`edicaoDeLinha`): a linha existe antes do upload, e abrir um leitor de zero páginas é tela preta sem saída.
+- **Portal converte pra WebP NO NAVEGADOR** (canvas + `toBlob`, qualidade 82), então a loja manda PNG/JPG direto. O que o canvas não decodifica (HEIC de iPhone) o bucket recusa e a tela diz QUAL arquivo foi. **A pasta do bucket leva carimbo de tempo (`edNN/<ts>/`) de propósito:** republicar sobrescrevendo a mesma URL faria o navegador e o CDN continuarem servindo a página velha — a loja trocaria o conteúdo e não veria diferença. O custo é deixar a publicação anterior no bucket.
+- **Mexeu no `app.jsx` do portal? O `app.js` é compilado e o `index.html` tem hash SRI — hash errado = portal eternamente em "Carregando".** O build é reproduzível byte a byte: compile o `app.jsx` do HEAD e compare com o `app.js` do HEAD. Opções: `@babel/preset-react` com `runtime:'classic'`, `generatorOpts.jsescOption.minimal:false` (com `true` o arquivo sai ~900 bytes menor e o hash não bate), `compact:false`, `configFile:false`, sem quebra de linha no fim.
+- **O leitor é TELA CHEIA** (portal no body), não continua no bottom-sheet: a página é quadrada e cheia de texto e, dentro do sheet, nasceria com metade da largura útil. Truque do histórico do `StoryViewer` pro botão VOLTAR do Android fechar. Tem zoom (toque duplo 1x/2,5x + arrastar) porque página de entrevista a 1483px encolhida pra 390px é ilegível.
+  - **z-[1100], NÃO z-[400].** Copiei o z-index do `StoryViewer` e o leitor abriu ATRÁS do sheet — o `BottomSheet` é **z-[1000]**, e este leitor é aberto de dentro dele (o story não é). No desktop dava pra ver o leitor no fundo; no celular o sheet cobre a tela toda e parecia que o toque não fazia nada. **Overlay aberto de dentro de um sheet tem que passar de 1000.**
+  - **A virada é uma FOLHA girando na lombada** (`transformOrigin: left`, rotateY 0 → -180, `backfaceVisibility: hidden` pra sumir aos 90° e revelar a de baixo), não scroll-snap horizontal. Acompanha o dedo e, ao soltar, completa ou desiste conforme passou da metade. A conta vive em `lib/clickRua.ts` (`anguloDaVirada`/`confirmaVirada`) e é testada — inclusive a trava dos extremos, sem a qual arrastar demais faz a página reaparecer girando ao contrário.
+- **Gradiente novo `revista`** (laranja+preto da Click Rua) no `BusinessCard`. **NÃO reaproveitar `graf`**: aquele valor dá o gradiente certo e o ícone ERRADO — faz o card desenhar a foto da Fê no lugar do emoji.
+- **O logo em `public/click-rua/logo.webp` foi RECORTADO DA CAPA** da #01 — o zip trazia só as 8 páginas. Se aparecer o arquivo original do logo, é só trocar esse WebP.
+
+## Tabela de Preços da ABRAPP 2026 — tile novo, SQL JÁ EXECUTADO (2026-09-05)
+O PDF da ABRAPP ("Sugestão de Preços de Pintura 2026", 26 folhas) virou ferramenta no app: tile **Tabela de Preços** no `BusinessGrid`, ao lado da Calculadora (uma calcula material, a outra o preço da mão de obra), **visível só pra `role='pintor'`** (e admin) — a tabela é de mão de obra de PINTURA. O gate fica no filtro `visibleTiles`, junto com o das personas de IA, e NÃO em `ROLE_TILES` (aquele array renderiza antes de tudo e jogaria o tile pro topo da tela, longe da Calculadora). Com busca, filtro por categoria e por altura, faixas mín/média/máx e uma calculadora de quantidade por item. Rota `/tabela-precos` pra deep link.
+
+**SQL COMPLETO no Supabase (2026-09-05).** Schema + os 19 blocos de dados. O que sustenta essa afirmação não é "alguém disse que rodou": é a consulta de conferência devolvendo **328 itens · 212 com `altura` · 19 folhas**, os três números que o arquivo de dados prevê. Reconferir por `/migrations/2026-09-05-conferencia-pendencias.sql` (2 linhas) antes de afirmar qualquer coisa, nos dois sentidos.
+
+**DOIS ERROS no caminho, os dois pegos por essa consulta** — vale mais que a feature em si:
+1. Marcar "todas as migrations executadas" a partir de um "rodei todas" no chat. A consulta devolveu `97 itens / 5 folhas`: só as folhas 1-5 tinham entrado. **Relato não é evidência, nem vindo do usuário.**
+2. A própria linha de conferência exigia **213** linhas com altura — número que estimei de cabeça. O real, contado do arquivo de dados simulando o `UPDATE`, é **212**. Checagem com número errado reporta `false` pra sempre e ensina a ignorar a checagem, que é pior do que não ter checagem. **Número de conferência se conta do fonte.**
+
+O `UPDATE` de `altura` é o último statement do arquivo e é o fácil de pular: sem ele nada quebra, o filtro de altura da tela só para de filtrar, **em silêncio**. Cada bloco do arquivo de dados é uma folha e é **idempotente** (upsert por `(edicao, sheet_no, sort_order)`): repetir não duplica, e corrigir um valor no arquivo e rodar de novo ATUALIZA a linha.
+
+**O PDF é IMAGEM PURA** (print-to-PDF do CorelDRAW, sem camada de texto): os 328 itens foram transcritos à mão a partir de recortes em 300 dpi das colunas de preço. `__tests__/priceTableData.test.ts` lê o arquivo de migration e trava estrutura, vocabulário de unidade e **mínimo ≤ média ≤ máximo** em toda linha — erro de transcrição não quebra build, vira preço errado no orçamento de um cliente.
+
+Nada de dado embutido no bundle: o banco é fonte única, então a loja corrige um valor com UPDATE, sem deploy. O texto editorial (folhas 20-25: as 13 variáveis, "tabela do jeitinho") fica em código (`lib/priceTableGuide.ts`).
+
+Fidelidade ao impresso é regra: erro de digitação do PDF fica ("Econônico", "chapisto", "Fléxivel"), linha zerada da folha 13 vira "sem valor publicado" na tela em vez de "R$ 0,00", e as descrições cortadas da folha 12/19 NÃO foram completadas por dedução. As colunas `grupo`/`tipo` trazem os termos escritos certo, então a busca acha mesmo assim.
+
+**Remoção da palavra "ABRAPP" dos textos visíveis do app (PR #377, 2026-09-20)** — Tabela de Preços/Orçamento — foi ao ar pelo deploy #742. Ver [[Infraestrutura - Cloudflare, Env Vars e Deploy]].
 
 ## Boost + Trending (Wave 22)
-`boost_post`/`unboost_post` RPCs, até 30 dias, badge "Em destaque". `get_trending_posts`: score = likes_window + 3×comments_window.
+Coluna `posts.boosted_until timestamptz` (NULL = sem destaque) + índice parcial `idx_posts_boosted_active WHERE boosted_until > now()`. RPCs: `boost_post(uuid, int days=7)` valida ownership + PRO/portal, atomic swap (limpa boost ativo anterior do mesmo user antes de aplicar; 1-30 dias); `unboost_post(uuid)` cancela. `get_feed_v2` recriada inserindo até 3 posts boosted no TOPO da PRIMEIRA página (cursor NULL); páginas seguintes não inflam — boosted reaparece só por created_at. `get_trending_posts(limit, window_days)` retorna posts ordenados por score = likes_window + 3*comments_window, exclui blocked do user logado, default 7 dias. Frontend: serviços `boost.ts` + `trending.ts`, badge "Em destaque" no topo do PostCard com gradient laranja, menu opt "Destacar 7 dias (PRO)" / "Remover destaque" no opts (só dono), página `/explore` (RSC + client `TrendingGrid`) grid 3 colunas com score no canto, atalho "Em alta esta semana" no `/search` quando input vazio.
+
+**SQL Wave 23 — fix B1 badge verified no feed.** `get_feed_v2` (Wave 22) omitia `verified` no jsonb_build_object do author, então o badge ✓ (Wave 20) só renderizava no fallback legacy. DROP+CREATE adicionando `'verified', pr.verified` no author_json.
 
 ## Blocks e sugestões sociais (Wave 21)
-Tabela `blocks` (owner-only RLS), RPC `list_blocked_ids()`, `suggest_to_follow`. `renderRichText` parseia `@user`/`#hashtag`/URLs.
+Tabela `blocks(blocker_id, blocked_id)` com UNIQUE, CHECK (blocker <> blocked), índices em ambas colunas, RLS owner-only (SELECT/INSERT/DELETE só pra blocker = auth.uid()). RPC `list_blocked_ids()` retorna uuid[] do user logado. RPC `get_feed_v2` filtra `NOT EXISTS` blocks. RPC nova `suggest_to_follow(limit)` — top pintores não-seguidos (exclui blocked, admin, portal_access), ordenando por mesma cidade > mesma UF > rating_avg > review_count > created_at. `<SuggestionsList>` no FeedView quando `posts.length=0`. `renderRichText(text)` transforma `@user`→`/perfil/<tag>`, `#hashtag`→`/hashtag/<tag>`, URLs→`<a target=_blank>`. Página `/hashtag/[tag]` via ILIKE `'%#tag%'` em caption (adequado pra volume médio; se virar gargalo, adicionar índice GIN trigram).
 
-## Busca full-text (Wave 6)
-`search_vector` gerado em posts/products/profiles, RPC `search_all` com `ts_headline`. **CRIT-3 XSS**: sentinelas `⟦HL_OPEN⟧`/`⟦HL_CLOSE⟧` viram `<b>` só depois de sanitização client-side (`sanitizeSearchSnippet`).
+**IMPORTANTE — o gap de aplicação de bloqueio em escrita foi achado depois e é do domínio de Segurança**: ver [[Segurança - Auditoria Supabase (RLS e Banco)]] pro achado do pentest 2026-09-18 (item B) — `blocks` filtrava só o feed client-side desde esta Wave, mas NUNCA foi aplicado em INSERT de messages/follows/likes/comments até essa auditoria fechar.
+
+## Quick wins sociais (Wave 20)
+`profiles.verified` (S1), `profiles.instagram_url`+`website_url` (S4), `posts.link_url` (S5). Badge ✓ azul pra `verified || is_pro` (backward compat com is_pro). `EditProfileForm` ganhou inputs Instagram + Site; `ProfileHeader` renderiza ícones IG+Site no header dark quando preenchidos. Composer com input "Link 'ver mais'" só em postType='story', grava em `posts.link_url`; `StoryViewer` renderiza CTA "Ver mais" quando o story tem `link_url`.
+
+## Busca full-text (Wave 6, com regressões corrigidas depois)
+`search_vector` gerado em posts (caption), products (name+description), profiles (name+bio+tag), RPC `search_all(p_query, p_limit)` agrega os 3 (`plainto_tsquery('portuguese')`, `ts_headline` pro snippet, `ts_rank` pro score), filtrando posts por `status='approved'`. **CRIT-3 XSS**: sentinelas `⟦HL_OPEN⟧`/`⟦HL_CLOSE⟧` viram `<b>` só depois de sanitização client-side (`sanitizeSearchSnippet`).
+- **Recriada em 2026-06-12** pra incluir `profession` (peso A) + `specialties` (peso B) — buscar "pintor"/"grafiteiro"/"textura" passou a casar (achado do QA de produção, BUG-02).
+- **Regressão corrigida em 2026-09-17 (auditoria de privacidade)**: o hardening de rate-limiting de 2026-09-13 tinha recriado a função a partir de uma versão mais antiga do corpo, perdendo sem querer as sentinelas anti-XSS do `ts_headline` (CRIT-3) e o match parcial/prefixo por nome — restaurado, mantendo o clamp/revoke de `anon`. De quebra, passou a filtrar `posts.deleted_at IS NULL` (nunca filtrava antes). Ver [[Segurança - Rate Limiting e Abuse]] pro clamp/revoke original.
+
+## Moderação no publish
+Ver [[Moderação de Conteúdo (Gemini e CSAM)]] pro fluxo completo de `/api/moderate`/`/api/moderate-video`, cota própria de moderação, e o gap conhecido de insert direto em `posts` via PostgREST pulando a moderação inteira.
 
 ---
 ## Ver também
-[[Moderação de Conteúdo (Gemini e CSAM)]] · [[Performance - Índices, RPCs e Paginação]]
+[[Moderação de Conteúdo (Gemini e CSAM)]] · [[Performance - Índices, RPCs e Paginação]] · [[Portal - Pessoas, Produtos e Ferramentas]] · [[Incidentes Notáveis]] · [[Segurança - Auditoria Supabase (RLS e Banco)]]

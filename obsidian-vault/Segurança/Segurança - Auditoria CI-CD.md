@@ -29,4 +29,4 @@ Essa sessão não seguiu a própria regra do `SECURITY_AUDIT_LOG.md` de registra
 
 ---
 ## Ver também
-[[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Infraestrutura - Cloudflare, Env Vars e Deploy]]
+[[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Infraestrutura - Cloudflare, Env Vars e Deploy]] · [[Segurança - CVEs e Dependências (Next.js, postcss, adapters)]] · [[Segurança - Auditoria Final (Bloco 21, OWASP ASVS, Release Gate)]]

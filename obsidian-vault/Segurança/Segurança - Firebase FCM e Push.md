@@ -22,8 +22,12 @@ Rate limit do `/api/push-notify` é por IP de quem chama (o próprio Postgres), 
 `<NativeBadge>` (Onda C, 2026-09-04) causou "Algo deu errado" em todo usuário logado: dois consumidores dos hooks `useUnreadMessageCount`/`useUnreadNotificationCount` colidiam no MESMO nome de canal realtime (`msg-count:<uid>`) → `cannot add postgres_changes callbacks after subscribe()`. **Regra: hook com canal realtime = nome único por instância (`useId()`).**
 
 ## SEGUNDA RODADA — verificação manual de console (2026-09-16)
-IAM Firebase/GCP limpo (3 principals); service account keys limpo (1 chave ativa por conta); quotas/billing FCM limpo (Spark plan, sem cobrança); Apple Developer "Users and Access" tem `beatrisporsebon@icloud.com` com Admin — **confirmado INTENCIONAL pelo usuário**, não vulnerabilidade.
+Os 4 itens "MANUAL VERIFICATION" que esta auditoria tinha deixado em aberto (fora do alcance de uma sessão sem browser) foram checados pelo usuário numa sessão separada de "Claude in Chrome", logado como `queroumacor@gmail.com` (dono do Firebase/GCP/Apple Developer):
+- **IAM do Firebase/GCP**: limpo — 3 principals (owner + 2 service accounts, uma delas `codemagic-play-publisher`, uso esperado pro AAB da Play Store via Codemagic).
+- **Service account keys**: limpo — 1 chave ativa por conta, ambas com ~13 dias (criadas 2026-09-03), nenhuma órfã/duplicada.
+- **Quotas/billing do FCM**: limpo — sem billing account vinculada (Spark plan confirmado), quota 600k req/min em 0% de uso. 0 alert policies no Cloud Monitoring, mas isso é esperado: FCM não tem custo/teto no Spark, então não existe categoria de alerta aplicável (não é gap).
+- **Apple Developer — Users and Access**: além de `queroumacor@gmail.com` (Account Holder+Admin), existe `beatrisporsebon@icloud.com` (Beatris Porsebon) com **Admin**, acesso completo à chave APNs `2R6FW9F2F6`. Esse contato não aparecia em nenhuma entrada anterior. Cross-checado contra o Firebase Console (colaboradores batem 1:1 com a IAM do GCP, sem discrepância). **Confirmado pelo usuário: o acesso é INTENCIONAL** — não era vulnerabilidade, só um colaborador que a memória do projeto ainda não tinha registrado. Ver contexto mais amplo de concentração de identidade em [[Segurança - Identidade Externa e Contas Administrativas]].
 
 ---
 ## Ver também
-[[Segurança - Auditorias Externas (Webhooks e Integrações)]] · [[Mobile - Build, Deploy e Push Nativo]] · [[Segurança - Auditoria Supabase (RLS e Banco)]]
+[[Segurança - Auditorias Externas (Webhooks e Integrações)]] · [[Mobile - Build, Deploy e Push Nativo]] · [[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Segurança - Rate Limiting e Abuse]] · [[Segurança - Identidade Externa e Contas Administrativas]]
