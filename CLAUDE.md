@@ -11,11 +11,13 @@
   novo). Template segue com o fluxo antigo (botão com estágio). `app.js`
   recompilado pela receita (build do HEAD conferido idêntico antes), SRI e
   `?v=` (`20260921a`→`20260923a`→`20260923b`) atualizados. Teste em
-  `portalWhatsAppNaoLidas.test.ts`.
+  `portalWhatsAppNaoLidas.test.ts`. Deploy: mesmo run #745 do chat abaixo.
 
 - **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23,
-  PR #394). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
-  — PENDENTE (linha nova na `2026-09-05-conferencia-pendencias.sql`).** O
+  PR #394, MERGEADA). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
+  — NÃO PRECISA RODAR: a versão viva no banco JÁ filtra `deleted_at` e não
+  tem `email` (conferido pelo `pg_get_functiondef` colado pelo usuário em
+  2026-09-23). O arquivo agora espelha a versão viva.** O
   `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva
   de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o
   campo ("...") nesse intervalo. Agora grava direto (bolha otimista) e
@@ -38,13 +40,25 @@
     Continua não sendo fronteira de segurança: INSERT direto via REST pula
     o pedido de moderação (igual antes). Fechar isso = trigger/pg_net no
     banco chamando a rota, fora do escopo.
-  - **SQL pendente:** `get_conversations` é SECURITY DEFINER e nunca
-    filtrou `deleted_at` — sem o SQL, a PRÉVIA da lista de conversas segue
-    mostrando o texto apagado até chegar mensagem nova (vale também pra
-    mensagem apagada pelo dono, bug antigo). Fallback client já filtra.
+  - **`get_conversations` já estava certa no banco — o erro foi meu.** A
+    1ª versão da migration foi montada a partir do `supabase_init.sql`
+    (desatualizado, ainda com `email` no retorno) e o Postgres recusou com
+    42P13 "cannot change return type" — nada mudou. A versão viva já tinha
+    `AND m.deleted_at IS NULL` e já não expõe `email`. **REGRA: recriar
+    função a partir do banco (`pg_get_functiondef`), nunca do
+    `supabase_init.sql`.** (Mesma lição da Wave 42/53: o init não é o
+    schema vivo.) O arquivo virou DROP+CREATE numa transação + GRANTs
+    refeitos (achado do Codex no #395): roda também em banco criado do
+    init; provado em Postgres 16 local (assinatura antiga → nova, re-run,
+    anon sem EXECUTE, mensagem apagada fora da prévia).
   - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
     `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
-    `next build` verdes. **Ainda sem deploy disparado.**
+    `next build` verdes. **NO AR: deploy run #745 do `deploy.yml`
+    (2026-09-23, commit `07c2d1e`, a pedido do usuário) terminou
+    `success`, versão `56811f9f-37d1-41ca-aacd-7ee3ce14fc62`, e desta vez
+    o passo de rotas/custom domain também passou (`queroumacor.com.br` +
+    `www` listados) — sem o erro `/workers/routes` das 3 ocorrências de
+    2026-09-20. Teste no aparelho ainda não confirmado pelo usuário.**
 
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário

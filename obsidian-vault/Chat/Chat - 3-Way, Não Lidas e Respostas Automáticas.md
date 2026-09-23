@@ -59,7 +59,7 @@ Mandar mensagem levava ~5s: o `useSendMessage` esperava `/api/moderate` (GoTrue 
 - **Por que broadcast:** a policy de SELECT esconde linha apagada e o realtime respeita RLS — o destinatário nunca receberia o UPDATE.
 - **Achados do Codex na 1ª versão (P1, corrigidos no mesmo PR):** moderar no navegador morria com o app fechado; o soft delete só saía do cache do remetente.
 - **Trade-off:** mensagem reprovada fica visível alguns segundos; INSERT direto via REST segue pulando a moderação (igual antes).
-- **SQL PENDENTE:** `/migrations/2026-09-23-get-conversations-skip-deleted.sql` — `get_conversations` (SECURITY DEFINER) nunca filtrou `deleted_at`; sem ele a prévia da lista mostra o texto apagado.
+- **SQL: não precisa rodar.** `get_conversations` no banco JÁ filtra `deleted_at` e não expõe `email` (conferido por `pg_get_functiondef` em 2026-09-23). A 1ª versão da migration, montada do `supabase_init.sql` desatualizado, foi recusada com 42P13 sem alterar nada — recriar função sempre a partir do banco, nunca do init.
 - Testes: `__tests__/chatEnvioInstantaneo.test.ts`, `__tests__/services/chat-moderation.test.ts`.
 
 ## Ver também
