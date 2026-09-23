@@ -20,8 +20,11 @@
   metade que quebrou.** Mensagens perdidas no intervalo NÃO voltam (a Meta
   recebeu 200). Estado: PR #397 MERGEADA (squash `ef50473`, 2026-09-23) e
   **NO AR: deploy run #746 do `deploy.yml` (commit `ef50473`) terminou
-  `success`.** Confirmação em produção (responder um template e ver chegar
-  no portal) ainda PENDENTE do usuário.
+  `success`.** **Usuário testou DEPOIS do deploy #746 (2026-09-23): a
+  resposta ao template AINDA NÃO chegou no portal** — o fix do waitUntil
+  era bug real mas não era (só) a causa. Investigação continua: falta saber
+  se o webhook está sendo chamado (painel do Dualhook / `whatsapp_messages`
+  direction='in' e `delivery_status_at` recentes).
 
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
