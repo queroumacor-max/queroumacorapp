@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
+  TRD appflow brief ui and ux esquema backend plano de implementacao").**
+  `docs/produto/` com README, BRIEF, PRD, TRD, APP_FLOW, UI_UX,
+  BACKEND_SCHEMA e PLANO_DE_IMPLEMENTACAO, levantados do código (não de
+  memória). O `BACKLOG.md` da raiz está DESATUALIZADO — o plano vigente é
+  `docs/produto/PLANO_DE_IMPLEMENTACAO.md`. Divergências achadas no
+  levantamento, a conferir no banco (BACKEND_SCHEMA §9): policies antigas
+  `USING true` em follows/likes/qualifications/courses nunca derrubadas no
+  repo; jobs de cron duplicados (`cleanup-notifications` e
+  `cleanup-old-notifications`, idem audit-events); custo real de
+  `redeem_pro_with_points` (função só existe no banco; a tela diz 1000 pts).
+  Mudou regra/tela/tabela → atualizar o documento correspondente.
+
 - **WHATSAPP: resposta do cliente NÃO CHEGAVA no portal — `runAfterResponse`
   sem `waitUntil` desde a migração pro OpenNext (2026-09-23, SEM SQL).**
   Relato: template chegou no celular, a resposta não apareceu no portal.
@@ -18,7 +31,22 @@
   `__tests__/lib/run-after-response.test.ts`. **REGRA: trocou de adapter,
   conferir de onde sai o `ctx`/`env` — fallback que "funciona" esconde a
   metade que quebrou.** Mensagens perdidas no intervalo NÃO voltam (a Meta
-  recebeu 200). Estado: corrigido no código; deploy/confirmação abaixo.
+  recebeu 200). Estado: PR #397 MERGEADA (squash `ef50473`, 2026-09-23) e
+  **NO AR: deploy run #746 do `deploy.yml` (commit `ef50473`) terminou
+  `success`.** **Usuário testou DEPOIS do deploy #746 (2026-09-23): a
+  resposta ao template AINDA NÃO chegou no portal** — o fix do waitUntil
+  era bug real mas não era (só) a causa. Investigação continua: falta saber
+  se o webhook está sendo chamado (painel do Dualhook / `whatsapp_messages`
+  direction='in' e `delivery_status_at` recentes).
+  **DADO DO BANCO (2026-09-23): última mensagem recebida E último status
+  de entrega = 2026-09-17 ~21:09 UTC (18:09 Brasília).** O webhook está
+  MUDO desde então — nem mensagem nem ✓✓ chegam; o envio (saída) segue
+  gravando (última out 09-23 05:13). Parou ANTES do corte pro Worker
+  (09-20), então não é a migração. Nenhum merge na `main` entre 21:09 de
+  09-17 e 03:54 de 09-18 (#328). Hipóteses: (a) o Dualhook parou de entregar
+  (webhook desativado/URL trocada no painel dele) ou (b) nosso endpoint
+  recusa toda entrega (403 de token/envelope). Só o log de entregas do
+  Dualhook ou o teste de verificação do webhook distingue.
 
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
