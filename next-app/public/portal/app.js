@@ -13283,7 +13283,12 @@ const mesclarMensagens = (atual, chegadas) => {
   });
   porId.forEach((m, id) => {
     if (!ehEcoLocal(m)) return;
-    const real = chegadas.some(r => !ehEcoLocal(r) && r.direction === 'out' && r.wa_id === m.wa_id && (r.body || '') === (m.body || ''));
+    // Eco que FALHOU fica na tela (e o aviso do operador). E so casa com
+    // linha real criada perto do eco — senao um "oi" antigo do mesmo
+    // contato apagaria o eco de um "oi" novo ainda no ar.
+    if (m._envio === 'falhou') return;
+    const t0 = new Date(m.created_at).getTime() - 120000;
+    const real = chegadas.some(r => !ehEcoLocal(r) && r.direction === 'out' && r.wa_id === m.wa_id && (r.body || '') === (m.body || '') && !(new Date(r.created_at).getTime() < t0));
     if (real) {
       porId.delete(id);
       mudou = true;
@@ -13412,6 +13417,18 @@ const StatusEntrega = ({
   m
 }) => {
   if (m.direction !== 'out') return null;
+  if (m._envio === 'enviando') return /*#__PURE__*/React.createElement("span", {
+    title: "Enviando\u2026",
+    style: {
+      opacity: .8
+    }
+  }, "\uD83D\uDD53");
+  if (m._envio === 'falhou') return /*#__PURE__*/React.createElement("span", {
+    title: "N\xE3o saiu \u2014 veja o motivo acima do campo",
+    style: {
+      fontWeight: 700
+    }
+  }, "\u26A0 falhou");
   const st = m.delivery_status;
   if (!st) {
     // Sem status pode ser mensagem antiga (anterior a Wave 58) ou aviso
@@ -14507,11 +14524,39 @@ const WhatsAppTab = () => {
     cidade: cidadeDoLead(leadDoContatoAberto),
     segmento: ramoDoLead(leadDoContatoAberto)
   } : null;
+
+  // ENVIO OTIMISTA (2026-09-23): a bolha entra NA HORA com 🕓 e o campo
+  // limpa, sem esperar a rota (auth + Dualhook levavam alguns segundos, e o
+  // botao ficava travado em "Enviando…" nesse meio tempo). A resposta so
+  // decide o destino do eco: ok → some quando a linha real chega (dedupe
+  // por corpo em `mesclarMensagens`); falha → vira "⚠ falhou" com o motivo
+  // e o texto volta pro campo se ele estiver vazio. Da pra mandar a
+  // proxima sem esperar a anterior.
   const enviar = async () => {
     const body = text.trim();
-    if (!body || !openWa || sending) return;
-    setSending(true);
+    if (!body || !openWa) return;
     setErr('');
+    const ecoId = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const para = openWa;
+    setText('');
+    setMsgs(prev => [{
+      id: ecoId,
+      direction: 'out',
+      wa_id: para,
+      _envio: 'enviando',
+      type: 'text',
+      body,
+      created_at: new Date().toISOString(),
+      wa_timestamp: null
+    }, ...prev]);
+    const falhou = motivo => {
+      setErr(motivo);
+      setMsgs(prev => prev.map(m => m.id === ecoId ? {
+        ...m,
+        _envio: 'falhou'
+      } : m));
+      setText(t => t ? t : body);
+    };
     try {
       const {
         data: {
@@ -14519,11 +14564,9 @@ const WhatsAppTab = () => {
         }
       } = await supa.auth.getSession();
       if (!session) {
-        setErr('Sessao expirada — entre de novo.');
-        setSending(false);
+        falhou('Sessao expirada — entre de novo.');
         return;
       }
-      setSendStage('Enviando…');
       const r = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: {
@@ -14531,7 +14574,7 @@ const WhatsAppTab = () => {
         },
         body: JSON.stringify({
           accessToken: session.access_token,
-          to: openWa,
+          to: para,
           body
         })
       });
@@ -14547,29 +14590,19 @@ const WhatsAppTab = () => {
       } catch (_) {}
       if (!r.ok || !res.ok) {
         const snippet = res.error ? '' : (raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
-        setErr(res.error || 'Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')');
+        falhou(res.error || 'Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')');
       } else {
-        setText('');
-        // Mostra a mensagem enviada NA HORA (o realtime/poll depois traz a
-        // linha real do banco; o dedupe por id evita duplicar).
-        setMsgs(prev => [{
-          id: 'local-' + Date.now(),
-          direction: 'out',
-          wa_id: openWa,
-          type: 'text',
-          body,
-          created_at: new Date().toISOString(),
-          wa_timestamp: null
-        }, ...prev]);
+        setMsgs(prev => prev.map(m => m.id === ecoId ? {
+          ...m,
+          _envio: undefined
+        } : m));
         // So o que mudou ha pouco (resumo + conversa aberta). O `load()`
         // sem argumento aqui recarregava os 90 dias inteiros A CADA ENVIO.
         load(1);
       }
     } catch (_) {
-      setErr('Falha de rede ao enviar.');
+      falhou('Falha de rede ao enviar.');
     }
-    setSending(false);
-    setSendStage('');
   };
 
   // Envio de TEMPLATE — o unico caminho quando a janela de 24h esta fechada
@@ -15421,7 +15454,7 @@ const WhatsAppTab = () => {
     }
   }, sugerindo ? '✨ Pensando…' : '✨ Sugerir'), /*#__PURE__*/React.createElement("button", {
     onClick: enviar,
-    disabled: sending || !text.trim(),
+    disabled: !text.trim(),
     style: {
       background: C.p1,
       color: '#fff',
@@ -15430,10 +15463,10 @@ const WhatsAppTab = () => {
       padding: '0 20px',
       fontWeight: 700,
       fontSize: 14,
-      cursor: sending ? 'wait' : 'pointer',
-      opacity: sending || !text.trim() ? .6 : 1
+      cursor: 'pointer',
+      opacity: !text.trim() ? .6 : 1
     }
-  }, sending ? sendStage || 'Enviando…' : 'Enviar')), restanteDaJanela(thread) ? /*#__PURE__*/React.createElement("div", {
+  }, "Enviar")), restanteDaJanela(thread) ? /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '0 16px 10px',
       background: '#fff',

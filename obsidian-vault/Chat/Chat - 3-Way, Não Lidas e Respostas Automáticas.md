@@ -52,5 +52,11 @@ Mesma auditoria de 2026-09-18: não existe rota de servidor pra enviar mensagem 
 `dispatch_push_on_notification` parou de mandar o texto da mensagem no push — antes copiava `notifications.body`, que pra `type='message'` inclui até 80 chars do texto real, direto pro corpo da notificação (aparecia na tela de bloqueio). Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>` enviou uma mensagem" (nome vem do `actor_id`). `notifications.body` NÃO muda — a tela `/notificacoes` dentro do app continua mostrando o preview completo; só o que SAI pelo push foi redigido. Mesmo tratamento estendido depois pra comentário (auditoria "Bloco 21", 2026-09-18): comentário caía no ELSE e mandava `notifications.body` verbatim — `dispatch_push_on_notification` ganhou ramo próprio pra `'comment'` ("`<nome>` comentou no seu post", sem o texto).
 
 ---
+## Envio instantâneo — moderação depois do INSERT (2026-09-23, PR #394, SEM SQL)
+Mandar mensagem levava ~5s: o `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o campo ("...") nesse intervalo. Agora grava direto (bolha otimista como antes) e a moderação roda DEPOIS, em segundo plano (`moderarDepoisDeEnviar`); reprovada → soft delete + aviso "Mensagem removida pela moderação". Campo/botão não travam mais — cada envio é uma mutação própria.
+
+- **Trade-off aceito:** mensagem reprovada pode ficar visível pro destinatário por alguns segundos antes de sumir. A moderação de chat nunca foi fronteira de segurança (REST direto sempre pulou ela) — só mudou QUANDO roda.
+- Trava em `__tests__/chatEnvioInstantaneo.test.ts` (moderação não volta pra antes do INSERT; composer não volta a travar).
+
 ## Ver também
 [[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]] · [[WhatsApp - Portal e Mídia]] · [[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Segurança - Firebase FCM e Push]] · [[Auth - OAuth, Cadastro e RLS de Sessão]] · [[Mobile - Build, Deploy e Push Nativo]]

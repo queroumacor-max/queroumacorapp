@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
+  SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
+  `/api/whatsapp/send` responder (auth + Dualhook, alguns segundos) e o
+  botão ficava em "Enviando…" travado. Agora `enviar` põe o eco na hora
+  (`_envio:'enviando'`, 🕓), limpa o campo e não trava o botão; falha →
+  eco vira "⚠ falhou", erro acima do campo e o texto volta pro input.
+  `mesclarMensagens` não apaga eco que falhou e só casa eco com linha real
+  criada até 2min antes dele (um "oi" antigo apagaria o eco de um "oi"
+  novo). Template segue com o fluxo antigo (botão com estágio). `app.js`
+  recompilado pela receita (build do HEAD conferido idêntico antes), SRI e
+  `?v=` (`20260921a`→`20260923a`) atualizados. Teste em
+  `portalWhatsAppNaoLidas.test.ts`.
+
 - **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23).
   SEM SQL.** O `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit
   + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer
