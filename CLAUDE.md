@@ -19,9 +19,9 @@
   conferir de onde sai o `ctx`/`env` — fallback que "funciona" esconde a
   metade que quebrou.** Mensagens perdidas no intervalo NÃO voltam (a Meta
   recebeu 200). Estado: PR #397 MERGEADA (squash `ef50473`, 2026-09-23) e
-  `deploy.yml` disparado na `main` a pedido do usuário — resultado do run e
-  confirmação em produção (responder um template e ver chegar no portal)
-  ainda PENDENTES.
+  **NO AR: deploy run #746 do `deploy.yml` (commit `ef50473`) terminou
+  `success`.** Confirmação em produção (responder um template e ver chegar
+  no portal) ainda PENDENTE do usuário.
 
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
