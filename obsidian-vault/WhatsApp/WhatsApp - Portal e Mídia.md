@@ -78,3 +78,6 @@ A bolha só aparecia depois de `/api/whatsapp/send` responder (auth + Dualhook, 
 
 ## Ver também
 [[WhatsApp - IA, Follow-up e Leads]] · [[Performance - Índices, RPCs e Paginação]] · [[Portal - Pessoas, Produtos e Ferramentas]] · [[Leads - Importação e Funil de Abordagem]]
+
+## 2026-09-23 — resposta do cliente não chegava no portal
+Desde a migração pro OpenNext (Workers), `runAfterResponse` não achava o `ctx.waitUntil` (lia o symbol do next-on-pages, `__cloudflare-request-context__`; o OpenNext usa `__cloudflare-context__`). O webhook respondia 200 e a gravação em `whatsapp_messages` era cortada. Corrigido no PR #397 (`lib/api/env.ts` lê os dois symbols). Mensagens perdidas nesse intervalo não voltam.
