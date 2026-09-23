@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
+  TRD appflow brief ui and ux esquema backend plano de implementacao").**
+  `docs/produto/` com README, BRIEF, PRD, TRD, APP_FLOW, UI_UX,
+  BACKEND_SCHEMA e PLANO_DE_IMPLEMENTACAO, levantados do código (não de
+  memória). O `BACKLOG.md` da raiz está DESATUALIZADO — o plano vigente é
+  `docs/produto/PLANO_DE_IMPLEMENTACAO.md`. Divergências achadas no
+  levantamento, a conferir no banco (BACKEND_SCHEMA §9): policies antigas
+  `USING true` em follows/likes/qualifications/courses nunca derrubadas no
+  repo; jobs de cron duplicados (`cleanup-notifications` e
+  `cleanup-old-notifications`, idem audit-events); custo real de
+  `redeem_pro_with_points` (função só existe no banco; a tela diz 1000 pts).
+  Mudou regra/tela/tabela → atualizar o documento correspondente.
+
 - **WHATSAPP: resposta do cliente NÃO CHEGAVA no portal — `runAfterResponse`
   sem `waitUntil` desde a migração pro OpenNext (2026-09-23, SEM SQL).**
   Relato: template chegou no celular, a resposta não apareceu no portal.
