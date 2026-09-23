@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23).
+  SEM SQL.** O `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit
+  + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer
+  travava o campo ("...") até voltar. Agora: INSERT direto (bolha otimista
+  como antes) e a moderação roda DEPOIS, em segundo plano
+  (`moderarDepoisDeEnviar`); reprovada → soft delete da mensagem + aviso
+  "Mensagem removida pela moderação" no composer. Campo e botão não travam
+  mais (cada envio é uma mutação própria). **Trade-off aceito:** mensagem
+  reprovada pode ficar visível pro destinatário por alguns segundos antes
+  de sumir. A moderação de chat nunca foi fronteira de segurança (REST
+  direto sempre pulou ela), então só mudou QUANDO roda. Trava em
+  `__tests__/chatEnvioInstantaneo.test.ts`. Suíte (205/205), `tsc` verdes.
+  **Ainda sem deploy disparado.**
+
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
   imediatamente depois do PR #392: "crie dentro do portal uma opção

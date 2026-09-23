@@ -20,16 +20,15 @@
 //  - Anti double-submit: o componente checa `mutation.isPending` antes de
 //    chamar mutate. Como mutate é fire-and-forget, isPending vira true
 //    sincronicamente após a chamada.
-//  - Moderação: useSendMessage chama /api/moderate ANTES de inserir. Se o
-//    backend bloquear, o erro vira `mutation.error.message`. NÃO faz a
-//    chamada do banco se reject — sem cleanup de placeholder.
+//  - Moderação: roda DEPOIS do INSERT, em segundo plano (antes custava ~5s
+//    por mensagem). Reprovada → soft delete + erro no composer.
 //  - Roteamento receiverId: pra 1:1 a outra ponta é trivial (strip do
 //    convId). Pra 3-way, caller passa otherId explícito (componente sabe
 //    se é o pintor ou a loja).
 
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   useQuery,
   useMutation,
@@ -115,14 +114,35 @@ export function useMessages(convId: string | null): UseMessagesResult {
   };
 }
 
+// Moderação pós-envio: chama /api/moderate e, se reprovar, soft-deleta a
+// mensagem (o remetente pode — RLS de UPDATE). Falha de rede/503/429 não
+// apaga nada (mesmo fail-open de antes). Devolve true se apagou.
+async function moderarDepoisDeEnviar(msg: Message, userId: string): Promise<boolean> {
+  try {
+    const res = await fetchGated('/api/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: msg.content }),
+    });
+    if (!res.ok) return false;
+    const json = (await res.json()) as { flagged?: boolean; approved?: boolean };
+    const blocked = json.flagged === true || json.approved === false;
+    if (!blocked) return false;
+    await softDeleteMessageSvc(msg.id, userId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── useSendMessage ─────────────────────────────────────────────────────
 // Mutação otimista. O caller passa o convId e o otherId (resolvido por
 // rota dinâmica /chat/[convId]). Aqui só fazemos:
 //   1. Append da msg temp-* no cache de mensagens (UI vê imediato);
-//   2. POST /api/moderate (se reject → throw, mutation marca failed);
-//   3. INSERT na tabela messages;
-//   4. Replace da temp pela real (com ID novo) no cache;
-//   5. Invalida `conversations` pra que last-msg atualize na sidebar.
+//   2. INSERT na tabela messages;
+//   3. Replace da temp pela real (com ID novo) no cache;
+//   4. Invalida `conversations` pra que last-msg atualize na sidebar;
+//   5. Moderação em segundo plano (reprovada → soft delete + aviso).
 // Em erro: marca a temp como status='failed' (UI mostra retry button).
 
 interface SendMessageVars {
@@ -143,6 +163,7 @@ export function useSendMessage(
 ): UseSendMessageResult {
   const { user, emailVerified } = useAuth();
   const qc = useQueryClient();
+  const [moderationError, setModerationError] = useState<Error | null>(null);
 
   const mutation = useMutation<Message, Error, SendMessageVars>({
     mutationFn: async ({ text, attachment }) => {
@@ -157,31 +178,12 @@ export function useSendMessage(
       const finalContent = attachment ? attachment.url : text;
       const finalType: MessageType = attachment ? attachment.messageType : 'text';
 
-      // Moderação — só pra texto (attachments têm validação MIME/size própria).
-      // POST pro endpoint server-side; se 4xx/5xx ou flagged=true → throw.
-      if (finalType === 'text') {
-        const trimmed = (text || '').trim();
-        if (!trimmed) throw new Error('Mensagem vazia');
-        try {
-          const res = await fetchGated('/api/moderate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: trimmed }),
-          });
-          // Endpoint pode estar 503 (sem GEMINI_API_KEY) — nesse caso
-          // seguimos sem bloquear, igual o vanilla (moderateContentAsync
-          // fallback graceful).
-          if (res.ok) {
-            const json = (await res.json()) as { flagged?: boolean; approved?: boolean };
-            const blocked = json.flagged === true || json.approved === false;
-            if (blocked) throw new Error('Mensagem bloqueada pela moderação');
-          }
-        } catch (e) {
-          // Network/parse error do moderate — não bloqueia envio. Re-throw
-          // só se foi o nosso "Mensagem bloqueada".
-          if (e instanceof Error && e.message.includes('moderação')) throw e;
-        }
-      }
+      // Moderação NÃO roda mais aqui (2026-09-23): esperar o Gemini antes do
+      // INSERT custava ~5s por mensagem (auth + rate limit + cota + IA). Ela
+      // roda DEPOIS, em segundo plano (`moderarDepoisDeEnviar`), e apaga a
+      // mensagem se for reprovada. Não é fronteira de segurança — REST direto
+      // sempre pulou essa checagem — então só muda QUANDO ela acontece.
+      if (finalType === 'text' && !(text || '').trim()) throw new Error('Mensagem vazia');
 
       return sendMessage(convId, user.id, toId, finalContent, finalType);
     },
@@ -221,6 +223,15 @@ export function useSendMessage(
       });
       // Atualiza last-msg da sidebar.
       qc.invalidateQueries({ queryKey: ['chat', 'conversations', user?.id ?? null] });
+      if (real.type === 'text' && user) {
+        void moderarDepoisDeEnviar(real, user.id).then((bloqueada) => {
+          if (!bloqueada) return;
+          qc.setQueryData<Message[]>(['chat', 'messages', convId], (curr) =>
+            (curr ?? []).filter((m) => m.id !== real.id),
+          );
+          setModerationError(new Error('Mensagem removida pela moderação'));
+        });
+      }
     },
 
     onError: (_err, _vars, ctx) => {
@@ -237,14 +248,17 @@ export function useSendMessage(
 
   return {
     send: (vars) => {
-      // Guard de double-submit: TanStack já bloqueia mutate duplicado de
-      // forma cooperativa via isPending, mas explicitar deixa o intent claro.
-      if (mutation.isPending) return;
+      // Sem trava de isPending: cada envio é uma mutação própria (o contexto
+      // do onMutate carrega o tempId de cada uma), então dá pra mandar a
+      // próxima mensagem sem esperar a anterior voltar do banco. O duplo
+      // toque é barrado pelo composer, que limpa o campo no ato.
+      setModerationError(null);
       mutation.mutate(vars);
     },
     sending: mutation.isPending,
-    error: mutation.error ?? null,
+    error: mutation.error ?? moderationError,
     reset: () => {
+      setModerationError(null);
       mutation.reset();
     },
   };
