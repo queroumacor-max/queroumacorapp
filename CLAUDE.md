@@ -14,8 +14,10 @@
   `portalWhatsAppNaoLidas.test.ts`.
 
 - **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23,
-  PR #394). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
-  — PENDENTE (linha nova na `2026-09-05-conferencia-pendencias.sql`).** O
+  PR #394, MERGEADA). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
+  — NÃO PRECISA RODAR: a versão viva no banco JÁ filtra `deleted_at` e não
+  tem `email` (conferido pelo `pg_get_functiondef` colado pelo usuário em
+  2026-09-23). O arquivo agora espelha a versão viva.** O
   `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva
   de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o
   campo ("...") nesse intervalo. Agora grava direto (bolha otimista) e
@@ -38,10 +40,14 @@
     Continua não sendo fronteira de segurança: INSERT direto via REST pula
     o pedido de moderação (igual antes). Fechar isso = trigger/pg_net no
     banco chamando a rota, fora do escopo.
-  - **SQL pendente:** `get_conversations` é SECURITY DEFINER e nunca
-    filtrou `deleted_at` — sem o SQL, a PRÉVIA da lista de conversas segue
-    mostrando o texto apagado até chegar mensagem nova (vale também pra
-    mensagem apagada pelo dono, bug antigo). Fallback client já filtra.
+  - **`get_conversations` já estava certa no banco — o erro foi meu.** A
+    1ª versão da migration foi montada a partir do `supabase_init.sql`
+    (desatualizado, ainda com `email` no retorno) e o Postgres recusou com
+    42P13 "cannot change return type" — nada mudou. A versão viva já tinha
+    `AND m.deleted_at IS NULL` e já não expõe `email`. **REGRA: recriar
+    função a partir do banco (`pg_get_functiondef`), nunca do
+    `supabase_init.sql`.** (Mesma lição da Wave 42/53: o init não é o
+    schema vivo.)
   - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
     `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
     `next build` verdes. **Ainda sem deploy disparado.**
