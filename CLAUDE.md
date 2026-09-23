@@ -47,7 +47,10 @@
     `AND m.deleted_at IS NULL` e já não expõe `email`. **REGRA: recriar
     função a partir do banco (`pg_get_functiondef`), nunca do
     `supabase_init.sql`.** (Mesma lição da Wave 42/53: o init não é o
-    schema vivo.)
+    schema vivo.) O arquivo virou DROP+CREATE numa transação + GRANTs
+    refeitos (achado do Codex no #395): roda também em banco criado do
+    init; provado em Postgres 16 local (assinatura antiga → nova, re-run,
+    anon sem EXECUTE, mensagem apagada fora da prévia).
   - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
     `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
     `next build` verdes. **Ainda sem deploy disparado.**

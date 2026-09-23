@@ -11,10 +11,21 @@
 -- (`SELECT pg_get_functiondef('public.get_conversations()'::regprocedure)`),
 -- nunca do supabase_init.sql.
 --
+-- EXECUTÁVEL COM SEGURANÇA em qualquer ambiente (achado do Codex no PR
+-- #395): num banco criado a partir do supabase_init.sql a assinatura antiga
+-- tem `email`, e CREATE OR REPLACE não consegue remover coluna de saída
+-- (42P13). Por isso DROP + CREATE numa transação só (ou vai tudo, ou nada)
+-- e os GRANTs refeitos — DROP apaga os privilégios, e função recriada nasce
+-- com EXECUTE pra PUBLIC.
+--
 -- Conferência:
 --   SELECT prosrc LIKE '%deleted_at IS NULL%' AS ok FROM pg_proc WHERE proname = 'get_conversations';
 
-CREATE OR REPLACE FUNCTION public.get_conversations()
+BEGIN;
+
+DROP FUNCTION IF EXISTS public.get_conversations();
+
+CREATE FUNCTION public.get_conversations()
  RETURNS TABLE(conv_id text, other_id uuid, last_msg text, last_msg_time timestamp with time zone, last_sender uuid, is3way boolean, name text, avatar_url text, tag text, role text, user_type text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -46,3 +57,8 @@ AS $function$
   LEFT JOIN public.profiles p ON p.id = l.oid
   ORDER BY l.created_at DESC;
 $function$;
+
+REVOKE ALL ON FUNCTION public.get_conversations() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_conversations() TO authenticated;
+
+COMMIT;
