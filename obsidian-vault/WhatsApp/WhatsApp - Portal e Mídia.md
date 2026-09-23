@@ -69,6 +69,7 @@ Detalhe completo das regras de template (`calicolors`, `calicolors_nome`, `calic
 
 ---
 ## Envio de texto otimista no portal (2026-09-23, PR #394, v=20260923a, SEM SQL)
+**NO AR e CONFIRMADO pelo usuário em produção (2026-09-23): "funcionou, tá instantâneo agora"** — deploy run #745 (`07c2d1e`).
 A bolha só aparecia depois de `/api/whatsapp/send` responder (auth + Dualhook, alguns segundos) e o botão travava em "Enviando…". Agora `enviar` põe o eco na hora (`_envio:'enviando'`, 🕓), limpa o campo e não trava o botão; falha → eco vira "⚠ falhou", erro acima do campo e o texto volta pro input.
 
 - `mesclarMensagens` não apaga eco que falhou e só casa eco com linha real criada até 2min antes dele (senão um "oi" antigo do mesmo contato apagaria o eco de um "oi" novo).

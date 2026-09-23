@@ -53,6 +53,7 @@ Mesma auditoria de 2026-09-18: não existe rota de servidor pra enviar mensagem 
 
 ---
 ## Envio instantâneo — moderação depois do INSERT, no servidor (2026-09-23, PR #394)
+**NO AR e CONFIRMADO pelo usuário em produção (2026-09-23): "funcionou, tá instantâneo agora"** — deploy run #745 (`07c2d1e`).
 Mandar mensagem levava ~5s: o `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o campo ("..."). Agora grava direto (bolha otimista) e pede a moderação ao SERVIDOR: `POST /api/chat/moderate-message {messageId}` (fetch `keepalive`) responde 202 e modera por `runAfterResponse`/`waitUntil` — conteúdo lido do BANCO com service role, só o remetente pode pedir, cota `moderate`, rate limit 60/min.
 
 - Reprovada (qualquer `flagged`) → PATCH `deleted_at` + broadcast `msg-removed` no canal `chat-global-<uuid>` de cada participante. `useChatRealtime` escuta e REFAZ a consulta (payload é só aviso); remetente ganha toast. Portal 3-way filtra `deleted_at` e ouve UPDATE (v=20260923b).
