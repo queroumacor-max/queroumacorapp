@@ -52,5 +52,15 @@ Mesma auditoria de 2026-09-18: não existe rota de servidor pra enviar mensagem 
 `dispatch_push_on_notification` parou de mandar o texto da mensagem no push — antes copiava `notifications.body`, que pra `type='message'` inclui até 80 chars do texto real, direto pro corpo da notificação (aparecia na tela de bloqueio). Agora, só pra `type='message'`, o push manda "`<nome de quem mandou>` enviou uma mensagem" (nome vem do `actor_id`). `notifications.body` NÃO muda — a tela `/notificacoes` dentro do app continua mostrando o preview completo; só o que SAI pelo push foi redigido. Mesmo tratamento estendido depois pra comentário (auditoria "Bloco 21", 2026-09-18): comentário caía no ELSE e mandava `notifications.body` verbatim — `dispatch_push_on_notification` ganhou ramo próprio pra `'comment'` ("`<nome>` comentou no seu post", sem o texto).
 
 ---
+## Envio instantâneo — moderação depois do INSERT, no servidor (2026-09-23, PR #394)
+Mandar mensagem levava ~5s: o `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o campo ("..."). Agora grava direto (bolha otimista) e pede a moderação ao SERVIDOR: `POST /api/chat/moderate-message {messageId}` (fetch `keepalive`) responde 202 e modera por `runAfterResponse`/`waitUntil` — conteúdo lido do BANCO com service role, só o remetente pode pedir, cota `moderate`, rate limit 60/min.
+
+- Reprovada (qualquer `flagged`) → PATCH `deleted_at` + broadcast `msg-removed` no canal `chat-global-<uuid>` de cada participante. `useChatRealtime` escuta e REFAZ a consulta (payload é só aviso); remetente ganha toast. Portal 3-way filtra `deleted_at` e ouve UPDATE (v=20260923b).
+- **Por que broadcast:** a policy de SELECT esconde linha apagada e o realtime respeita RLS — o destinatário nunca receberia o UPDATE.
+- **Achados do Codex na 1ª versão (P1, corrigidos no mesmo PR):** moderar no navegador morria com o app fechado; o soft delete só saía do cache do remetente.
+- **Trade-off:** mensagem reprovada fica visível alguns segundos; INSERT direto via REST segue pulando a moderação (igual antes).
+- **SQL PENDENTE:** `/migrations/2026-09-23-get-conversations-skip-deleted.sql` — `get_conversations` (SECURITY DEFINER) nunca filtrou `deleted_at`; sem ele a prévia da lista mostra o texto apagado.
+- Testes: `__tests__/chatEnvioInstantaneo.test.ts`, `__tests__/services/chat-moderation.test.ts`.
+
 ## Ver também
 [[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]] · [[WhatsApp - Portal e Mídia]] · [[Segurança - Auditoria Supabase (RLS e Banco)]] · [[Segurança - Firebase FCM e Push]] · [[Auth - OAuth, Cadastro e RLS de Sessão]] · [[Mobile - Build, Deploy e Push Nativo]]

@@ -34,7 +34,7 @@ export function MessageComposer({
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (sending || disabled) return;
+    if (disabled) return;
     onSendText(trimmed);
     setText('');
   }
@@ -47,7 +47,10 @@ export function MessageComposer({
   }
 
   const acceptAttr = ALLOWED_ATTACHMENT_MIMES.join(',');
-  const busy = sending || uploading;
+  // `sending` não trava mais o campo: o envio é otimista e a mensagem
+  // seguinte pode sair sem esperar a anterior voltar do banco.
+  void sending;
+  const busy = uploading;
 
   return (
     <div className="border-t border-[color:var(--color-border,#e5e5e5)] bg-white p-3">
@@ -103,7 +106,7 @@ export function MessageComposer({
           disabled={busy || disabled || !text.trim()}
           className="flex-shrink-0 px-4 h-10 rounded-full bg-[color:var(--color-p1,#ff6a00)] text-white font-semibold text-sm disabled:opacity-40"
         >
-          {sending ? '...' : 'Enviar'}
+          Enviar
         </button>
       </form>
     </div>

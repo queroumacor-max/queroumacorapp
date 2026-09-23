@@ -54,6 +54,7 @@ export async function fetchConversations(
         .from('messages')
         .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
         .eq('sender_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200),
     ),
@@ -62,6 +63,7 @@ export async function fetchConversations(
         .from('messages')
         .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
         .eq('receiver_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(200),
     ),

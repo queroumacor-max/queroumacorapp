@@ -68,5 +68,12 @@ A 1ª versão do modal trazia 500 leads + 500 perfis e filtrava em memória. Com
 Detalhe completo das regras de template (`calicolors`, `calicolors_nome`, `calicolors_abordagem_v2`), variável `{{1}}` nunca vazia e aviso de marketing para número dos EUA: [[WhatsApp - Canais e Envio (Evolution, Cloud API, Dualhook)]]. Uso das variáveis especificamente na abordagem de lead (`{{2}}` cidade, `{{3}}` ramo): [[WhatsApp - IA, Follow-up e Leads]].
 
 ---
+## Envio de texto otimista no portal (2026-09-23, PR #394, v=20260923a, SEM SQL)
+A bolha só aparecia depois de `/api/whatsapp/send` responder (auth + Dualhook, alguns segundos) e o botão travava em "Enviando…". Agora `enviar` põe o eco na hora (`_envio:'enviando'`, 🕓), limpa o campo e não trava o botão; falha → eco vira "⚠ falhou", erro acima do campo e o texto volta pro input.
+
+- `mesclarMensagens` não apaga eco que falhou e só casa eco com linha real criada até 2min antes dele (senão um "oi" antigo do mesmo contato apagaria o eco de um "oi" novo).
+- Template segue com o fluxo antigo (botão com estágio).
+- `app.js` recompilado pela receita (build do HEAD conferido idêntico antes); SRI e `?v=` (`20260921a`→`20260923a`→`20260923b`) atualizados. Teste em `portalWhatsAppNaoLidas.test.ts`.
+
 ## Ver também
 [[WhatsApp - IA, Follow-up e Leads]] · [[Performance - Índices, RPCs e Paginação]] · [[Portal - Pessoas, Produtos e Ferramentas]] · [[Leads - Importação e Funil de Abordagem]]

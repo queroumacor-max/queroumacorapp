@@ -357,13 +357,23 @@ describe('a aba e o badge usam o resumo do banco, com fallback', () => {
     // Só os envios DA ABA (os da tela de Leads não recarregam lista nenhuma).
     const aba = fonte.slice(fonte.indexOf('const WhatsAppTab = () => {'));
     const envios = aba.split("fetch('/api/whatsapp/send', {").slice(1)
-      .filter(t => t.indexOf('setSending(false); setSendStage') > 0);
+      .map(t => t.slice(0, t.indexOf('} catch(_) {')))
+      .filter(t => t.includes('load('));
     expect(envios.length).toBe(2);
     for (const trecho of envios) {
-      const ate = trecho.indexOf('setSending(false); setSendStage');
-      expect(trecho.slice(0, ate)).not.toMatch(/\bload\(\);/);
-      expect(trecho.slice(0, ate)).toContain('load(1)');
+      expect(trecho).not.toMatch(/\bload\(\);/);
+      expect(trecho).toContain('load(1)');
     }
+  });
+  it('envio de texto é otimista: eco entra ANTES do fetch e o botão não trava', () => {
+    // 2026-09-23: o eco só aparecia depois da rota responder (segundos) e o
+    // botão ficava em "Enviando…". Agora a bolha entra na hora com 🕓.
+    const ini = fonte.indexOf('  const enviar = async () => {');
+    const corpo = fonte.slice(ini, fonte.indexOf('  const enviarTemplate', ini));
+    expect(corpo.indexOf("_envio: 'enviando'")).toBeGreaterThan(-1);
+    expect(corpo.indexOf("_envio: 'enviando'")).toBeLessThan(corpo.indexOf("fetch('/api/whatsapp/send'"));
+    expect(corpo).not.toContain('setSending(true)');
+    expect(fonte).toContain("if(m._envio === 'falhou') return;");
   });
   it('o status de entrega chega por realtime (UPDATE), não só pelo poll', () => {
     expect(fonte).toContain("{ event:'UPDATE', schema:'public', table:'whatsapp_messages' }");

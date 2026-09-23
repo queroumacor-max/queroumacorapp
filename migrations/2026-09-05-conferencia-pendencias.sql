@@ -103,3 +103,8 @@ SELECT 'auditoria: search_all sem GRANT pra anon/public — 2026-09-13' AS item,
 -- admin) lê/escreve a tabela inteira direto pela API REST do Supabase.
 SELECT 'auditoria supabase: leads com RLS — 2026-09-13' AS item, (SELECT relrowsecurity FROM pg_class WHERE relname='leads' AND relnamespace='public'::regnamespace) AS ok;
 SELECT 'auditoria supabase: policy leads_admin_all existe — 2026-09-13' AS item, EXISTS (SELECT 1 FROM pg_policies WHERE tablename='leads' AND policyname='leads_admin_all') AS ok;
+
+-- 2026-09-23 (chat: moderação pós-envio). Sem isto a prévia da lista de
+-- conversas segue mostrando o texto de mensagem apagada (pelo dono ou pela
+-- moderação) — get_conversations é SECURITY DEFINER e ignorava deleted_at.
+SELECT 'chat: get_conversations ignora deleted_at — 2026-09-23' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='get_conversations' AND prosrc LIKE '%deleted_at IS NULL%') AS ok;

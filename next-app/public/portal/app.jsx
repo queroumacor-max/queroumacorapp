@@ -2229,6 +2229,7 @@ const Chats = () => {
       .from('messages')
       .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
       .eq('conversation_id', convId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
       .limit(200);
 
@@ -2248,6 +2249,14 @@ const Chats = () => {
           });
           marcarConvLida(convId); // esta aberta na tela: ja foi lida
           setTimeout(scrollToBottom, 100);
+        })
+      // Mensagem apagada (pelo dono ou pela moderacao pos-envio do chat,
+      // 2026-09-23) sai da tela na hora. O admin recebe o UPDATE porque a
+      // RLS de SELECT o deixa ver linha apagada.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId },
+        (payload) => {
+          if(!payload.new || !payload.new.deleted_at) return;
+          setChatMsgs(prev => prev.filter(m => m.id !== payload.new.id));
         })
       .subscribe();
   };
@@ -6703,7 +6712,13 @@ const mesclarMensagens = (atual, chegadas) => {
   });
   porId.forEach((m, id) => {
     if(!ehEcoLocal(m)) return;
-    const real = chegadas.some(r => !ehEcoLocal(r) && r.direction === 'out' && r.wa_id === m.wa_id && (r.body || '') === (m.body || ''));
+    // Eco que FALHOU fica na tela (e o aviso do operador). E so casa com
+    // linha real criada perto do eco — senao um "oi" antigo do mesmo
+    // contato apagaria o eco de um "oi" novo ainda no ar.
+    if(m._envio === 'falhou') return;
+    const t0 = new Date(m.created_at).getTime() - 120000;
+    const real = chegadas.some(r => !ehEcoLocal(r) && r.direction === 'out' && r.wa_id === m.wa_id && (r.body || '') === (m.body || '')
+      && !(new Date(r.created_at).getTime() < t0));
     if(real){ porId.delete(id); mudou = true; }
   });
   if(!mudou) return atual;
@@ -6807,6 +6822,8 @@ const aplicarMensagemNoResumo = (resumos, m, nova) => {
 // ja conhece — inventar simbolo novo aqui seria custo sem ganho.
 const StatusEntrega = ({ m }) => {
   if(m.direction !== 'out') return null;
+  if(m._envio === 'enviando') return <span title="Enviando…" style={{ opacity:.8 }}>🕓</span>;
+  if(m._envio === 'falhou') return <span title="Não saiu — veja o motivo acima do campo" style={{ fontWeight:700 }}>⚠ falhou</span>;
   const st = m.delivery_status;
   if(!st){
     // Sem status pode ser mensagem antiga (anterior a Wave 58) ou aviso
@@ -7586,18 +7603,36 @@ const WhatsAppTab = () => {
     : null;
 
 
+  // ENVIO OTIMISTA (2026-09-23): a bolha entra NA HORA com 🕓 e o campo
+  // limpa, sem esperar a rota (auth + Dualhook levavam alguns segundos, e o
+  // botao ficava travado em "Enviando…" nesse meio tempo). A resposta so
+  // decide o destino do eco: ok → some quando a linha real chega (dedupe
+  // por corpo em `mesclarMensagens`); falha → vira "⚠ falhou" com o motivo
+  // e o texto volta pro campo se ele estiver vazio. Da pra mandar a
+  // proxima sem esperar a anterior.
   const enviar = async () => {
     const body = text.trim();
-    if(!body || !openWa || sending) return;
-    setSending(true); setErr('');
+    if(!body || !openWa) return;
+    setErr('');
+    const ecoId = 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const para = openWa;
+    setText('');
+    setMsgs(prev => [{
+      id: ecoId, direction:'out', wa_id: para, _envio: 'enviando',
+      type:'text', body, created_at: new Date().toISOString(), wa_timestamp: null
+    }, ...prev]);
+    const falhou = (motivo) => {
+      setErr(motivo);
+      setMsgs(prev => prev.map(m => m.id === ecoId ? { ...m, _envio: 'falhou' } : m));
+      setText(t => t ? t : body);
+    };
     try {
       const { data: { session } } = await supa.auth.getSession();
-      if(!session){ setErr('Sessao expirada — entre de novo.'); setSending(false); return; }
-      setSendStage('Enviando…');
+      if(!session){ falhou('Sessao expirada — entre de novo.'); return; }
       const r = await fetch('/api/whatsapp/send', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ accessToken: session.access_token, to: openWa, body })
+        body: JSON.stringify({ accessToken: session.access_token, to: para, body })
       });
       // Texto primeiro: 5xx do PROPRIO Cloudflare vem como HTML — o trecho
       // cru no erro aponta a camada (mesma tatica do relatorio de exclusao).
@@ -7605,22 +7640,15 @@ const WhatsAppTab = () => {
       let res = {}; try { res = JSON.parse(raw); } catch(_){}
       if(!r.ok || !res.ok){
         const snippet = res.error ? '' : (raw || '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,140);
-        setErr(res.error || ('Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')'));
+        falhou(res.error || ('Falha no envio (HTTP ' + r.status + (snippet ? ' — ' + snippet : '') + ')'));
       }
       else {
-        setText('');
-        // Mostra a mensagem enviada NA HORA (o realtime/poll depois traz a
-        // linha real do banco; o dedupe por id evita duplicar).
-        setMsgs(prev => [{
-          id: 'local-' + Date.now(), direction:'out', wa_id: openWa,
-          type:'text', body, created_at: new Date().toISOString(), wa_timestamp: null
-        }, ...prev]);
+        setMsgs(prev => prev.map(m => m.id === ecoId ? { ...m, _envio: undefined } : m));
         // So o que mudou ha pouco (resumo + conversa aberta). O `load()`
         // sem argumento aqui recarregava os 90 dias inteiros A CADA ENVIO.
         load(1);
       }
-    } catch(_) { setErr('Falha de rede ao enviar.'); }
-    setSending(false); setSendStage('');
+    } catch(_) { falhou('Falha de rede ao enviar.'); }
   };
 
   // Envio de TEMPLATE — o unico caminho quando a janela de 24h esta fechada
@@ -8012,10 +8040,10 @@ const WhatsAppTab = () => {
                     cursor: sugerindo ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
                   {sugerindo ? '✨ Pensando…' : '✨ Sugerir'}
                 </button>
-                <button onClick={enviar} disabled={sending || !text.trim()}
+                <button onClick={enviar} disabled={!text.trim()}
                   style={{ background:C.p1, color:'#fff', border:'none', borderRadius:12, padding:'0 20px', fontWeight:700, fontSize:14,
-                    cursor: sending ? 'wait' : 'pointer', opacity: sending || !text.trim() ? .6 : 1 }}>
-                  {sending ? (sendStage || 'Enviando…') : 'Enviar'}
+                    cursor:'pointer', opacity: !text.trim() ? .6 : 1 }}>
+                  Enviar
                 </button>
               </div>
               {restanteDaJanela(thread) ? (
