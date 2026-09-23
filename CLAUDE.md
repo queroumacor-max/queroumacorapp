@@ -53,9 +53,12 @@
     anon sem EXECUTE, mensagem apagada fora da prévia).
   - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
     `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
-    `next build` verdes. **Deploy DISPARADO em 2026-09-23 (run #745 do
-    `deploy.yml`, commit `07c2d1e`, a pedido do usuário) — resultado
-    ainda não conferido.**
+    `next build` verdes. **NO AR: deploy run #745 do `deploy.yml`
+    (2026-09-23, commit `07c2d1e`, a pedido do usuário) terminou
+    `success`, versão `56811f9f-37d1-41ca-aacd-7ee3ce14fc62`, e desta vez
+    o passo de rotas/custom domain também passou (`queroumacor.com.br` +
+    `www` listados) — sem o erro `/workers/routes` das 3 ocorrências de
+    2026-09-20. Teste no aparelho ainda não confirmado pelo usuário.**
 
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
