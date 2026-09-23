@@ -1,5 +1,25 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **WHATSAPP: resposta do cliente NÃO CHEGAVA no portal — `runAfterResponse`
+  sem `waitUntil` desde a migração pro OpenNext (2026-09-23, SEM SQL).**
+  Relato: template chegou no celular, a resposta não apareceu no portal.
+  Causa: `lib/api/env.ts` lia o contexto da request só em
+  `Symbol.for('__cloudflare-request-context__')` (next-on-pages). O
+  `@opennextjs/cloudflare` publica em **`Symbol.for('__cloudflare-context__')`**
+  (getter sobre AsyncLocalStorage, `{env, ctx, cf}`). As envs seguiram
+  funcionando POR ACASO (o OpenNext copia o env pra `process.env`, nosso
+  fallback) e escondeu o bug; mas `runAfterResponse` nunca mais achou o
+  `ctx.waitUntil` e deixava o trabalho como promessa solta, que o workerd
+  cancela ao fim da resposta. Afetava tudo que roda depois da resposta: o
+  webhook do WhatsApp (gravar em `whatsapp_messages`, mídia, IA), a
+  escrituração do `/api/whatsapp/send` e a moderação do chat
+  (`/api/chat/moderate-message`). Fix: `readRequestContext` tenta o symbol
+  do OpenNext primeiro e o antigo como fallback. Teste de regressão em
+  `__tests__/lib/run-after-response.test.ts`. **REGRA: trocou de adapter,
+  conferir de onde sai o `ctx`/`env` — fallback que "funciona" esconde a
+  metade que quebrou.** Mensagens perdidas no intervalo NÃO voltam (a Meta
+  recebeu 200). Estado: corrigido no código; deploy/confirmação abaixo.
+
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
   `/api/whatsapp/send` responder (auth + Dualhook, alguns segundos) e o

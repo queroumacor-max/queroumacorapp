@@ -116,3 +116,27 @@ describe('runAfterResponse', () => {
     expect(() => runAfterResponse(Promise.resolve())).not.toThrow();
   });
 });
+
+// Regressão 2026-09-23: depois da migração pro @opennextjs/cloudflare o
+// contexto passou a morar em `__cloudflare-context__`. Lendo só o symbol
+// antigo, o waitUntil nunca era achado e o webhook do WhatsApp perdia a
+// gravação da mensagem recebida (promessa solta, cancelada pelo workerd).
+describe('runAfterResponse no OpenNext (Workers)', () => {
+  const OPENNEXT = Symbol.for('__cloudflare-context__');
+  afterEach(() => {
+    delete (globalThis as Record<symbol, unknown>)[OPENNEXT];
+  });
+
+  it('acha o ctx.waitUntil no symbol do OpenNext', () => {
+    const waitUntil = vi.fn();
+    (globalThis as Record<symbol, unknown>)[OPENNEXT] = { env: {}, ctx: { waitUntil } };
+    runAfterResponse(Promise.resolve());
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+  });
+
+  it('getRuntimeEnv lê o env do symbol do OpenNext', async () => {
+    const { getRuntimeEnv } = await import('@/lib/api/env');
+    (globalThis as Record<symbol, unknown>)[OPENNEXT] = { env: { X_TESTE_OPENNEXT: 'ok' } };
+    expect(getRuntimeEnv('X_TESTE_OPENNEXT')).toBe('ok');
+  });
+});

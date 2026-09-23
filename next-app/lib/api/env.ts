@@ -18,8 +18,29 @@
 // Use estas funções — nunca `process.env` direto — pra qualquer secret ou
 // configuração lida em runtime.
 
-/** Symbol onde o runtime do Cloudflare publica o contexto da request. */
-const CF_REQUEST_CONTEXT = Symbol.for('__cloudflare-request-context__');
+/**
+ * Symbols onde o runtime publica o contexto da request, em ordem de
+ * preferência.
+ *
+ * `__cloudflare-context__` é o do @opennextjs/cloudflare (adapter atual,
+ * produção em Workers desde 2026-09-20) — um getter sobre AsyncLocalStorage
+ * que devolve `{ env, ctx, cf }` da request corrente.
+ * `__cloudflare-request-context__` é o do @cloudflare/next-on-pages (adapter
+ * antigo), mantido só como fallback.
+ *
+ * INCIDENTE (2026-09-23): este arquivo lia SÓ o symbol antigo. Depois da
+ * migração pro OpenNext ele nunca mais existiu — as envs continuaram
+ * funcionando por acaso (o OpenNext copia o env do worker pra `process.env`,
+ * que é o nosso fallback), mas `runAfterResponse` perdeu o `ctx.waitUntil` e
+ * passou a deixar o trabalho de fundo como promessa solta, que o workerd
+ * cancela quando a resposta termina. Efeito visível: resposta de cliente no
+ * WhatsApp não chegava no portal (o webhook respondia 200 e a gravação em
+ * `whatsapp_messages` era cortada no meio).
+ */
+const CF_CONTEXT_SYMBOLS = [
+  Symbol.for('__cloudflare-context__'),
+  Symbol.for('__cloudflare-request-context__'),
+];
 
 interface CloudflareRequestContext {
   env?: Record<string, unknown>;
@@ -29,13 +50,17 @@ interface CloudflareRequestContext {
 
 /** Lê o contexto da request publicado pelo runtime, se houver. */
 function readRequestContext(): CloudflareRequestContext | undefined {
-  try {
-    return (globalThis as Record<symbol, unknown>)[CF_REQUEST_CONTEXT] as
-      | CloudflareRequestContext
-      | undefined;
-  } catch {
-    return undefined;
+  for (const sym of CF_CONTEXT_SYMBOLS) {
+    try {
+      const c = (globalThis as Record<symbol, unknown>)[sym] as
+        | CloudflareRequestContext
+        | undefined;
+      if (c && typeof c === 'object') return c;
+    } catch {
+      // getter do ALS pode lançar fora de request — tenta o próximo.
+    }
   }
+  return undefined;
 }
 
 /**
