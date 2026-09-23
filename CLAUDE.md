@@ -5812,8 +5812,17 @@
   `handle_new_user` + colunas de `profiles`) **JÁ FOI EXECUTADO no Supabase**.
   Não perguntar de novo nem pedir para rodar.
 - Regra de fluxo: após cada correção/melhoria concluída, fazer commit no
-  branch de trabalho e **merge para `main`** automaticamente (deploy do
-  Cloudflare Pages é automático a partir do `main`).
+  branch de trabalho e **merge para `main`** automaticamente. **DESATUALIZADO
+  o parêntese sobre "deploy automático do Cloudflare Pages"** — produção não
+  é mais servida pelo Pages (ver corte de DNS, P8, mais abaixo neste
+  arquivo); é o Worker `queroumacor-next-production`, publicado só por
+  disparo MANUAL do workflow `deploy.yml` (`workflow_dispatch`, sem input).
+  **REGRA PERMANENTE (2026-09-23, pedido explícito do usuário): toda vez que
+  o usuário disser "merge" (aprovando o merge de uma PR), disparar o
+  `deploy.yml` em seguida, sempre — sem perguntar de novo.** Mergear sem
+  disparar deixa o código só em `main`, sem ir ao ar; foi o que aconteceu nas
+  PRs #392/#393 (2026-09-21), corrigido só quando o usuário perguntou "merged?"
+  e reparou que a tela não tinha mudado.
 - **Preview deploys do Cloudflare Pages**: toda branch que NÃO é `main`
   ganha um preview deploy automático em `<branch-slug>.queroumacorapp.pages.dev`.
   Pra features arriscadas (mudanças visuais, fluxos críticos, refactors),
