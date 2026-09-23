@@ -11,7 +11,7 @@
   novo). Template segue com o fluxo antigo (botão com estágio). `app.js`
   recompilado pela receita (build do HEAD conferido idêntico antes), SRI e
   `?v=` (`20260921a`→`20260923a`→`20260923b`) atualizados. Teste em
-  `portalWhatsAppNaoLidas.test.ts`.
+  `portalWhatsAppNaoLidas.test.ts`. Deploy: mesmo run #745 do chat abaixo.
 
 - **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23,
   PR #394, MERGEADA). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
@@ -53,7 +53,9 @@
     anon sem EXECUTE, mensagem apagada fora da prévia).
   - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
     `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
-    `next build` verdes. **Ainda sem deploy disparado.**
+    `next build` verdes. **Deploy DISPARADO em 2026-09-23 (run #745 do
+    `deploy.yml`, commit `07c2d1e`, a pedido do usuário) — resultado
+    ainda não conferido.**
 
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
