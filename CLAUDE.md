@@ -25,6 +25,15 @@
   era bug real mas não era (só) a causa. Investigação continua: falta saber
   se o webhook está sendo chamado (painel do Dualhook / `whatsapp_messages`
   direction='in' e `delivery_status_at` recentes).
+  **DADO DO BANCO (2026-09-23): última mensagem recebida E último status
+  de entrega = 2026-09-17 ~21:09 UTC (18:09 Brasília).** O webhook está
+  MUDO desde então — nem mensagem nem ✓✓ chegam; o envio (saída) segue
+  gravando (última out 09-23 05:13). Parou ANTES do corte pro Worker
+  (09-20), então não é a migração. Nenhum merge na `main` entre 21:09 de
+  09-17 e 03:54 de 09-18 (#328). Hipóteses: (a) o Dualhook parou de entregar
+  (webhook desativado/URL trocada no painel dele) ou (b) nosso endpoint
+  recusa toda entrega (403 de token/envelope). Só o log de entregas do
+  Dualhook ou o teste de verificação do webhook distingue.
 
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
