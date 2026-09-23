@@ -58,7 +58,8 @@
     `success`, versão `56811f9f-37d1-41ca-aacd-7ee3ce14fc62`, e desta vez
     o passo de rotas/custom domain também passou (`queroumacor.com.br` +
     `www` listados) — sem o erro `/workers/routes` das 3 ocorrências de
-    2026-09-20. Teste no aparelho ainda não confirmado pelo usuário.**
+    2026-09-20. CONFIRMADO PELO USUÁRIO EM PRODUÇÃO (2026-09-23):
+    "funcionou, tá instantâneo agora" — chat do app e WhatsApp do portal.**
 
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
