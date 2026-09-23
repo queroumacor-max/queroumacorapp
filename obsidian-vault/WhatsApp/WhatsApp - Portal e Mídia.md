@@ -73,7 +73,7 @@ A bolha só aparecia depois de `/api/whatsapp/send` responder (auth + Dualhook, 
 
 - `mesclarMensagens` não apaga eco que falhou e só casa eco com linha real criada até 2min antes dele (senão um "oi" antigo do mesmo contato apagaria o eco de um "oi" novo).
 - Template segue com o fluxo antigo (botão com estágio).
-- `app.js` recompilado pela receita (build do HEAD conferido idêntico antes); SRI e `?v=` (`20260921a`→`20260923a`) atualizados. Teste em `portalWhatsAppNaoLidas.test.ts`.
+- `app.js` recompilado pela receita (build do HEAD conferido idêntico antes); SRI e `?v=` (`20260921a`→`20260923a`→`20260923b`) atualizados. Teste em `portalWhatsAppNaoLidas.test.ts`.
 
 ## Ver também
 [[WhatsApp - IA, Follow-up e Leads]] · [[Performance - Índices, RPCs e Paginação]] · [[Portal - Pessoas, Produtos e Ferramentas]] · [[Leads - Importação e Funil de Abordagem]]

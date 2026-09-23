@@ -2229,6 +2229,7 @@ const Chats = () => {
       .from('messages')
       .select('id, sender_id, receiver_id, conversation_id, content, type, created_at')
       .eq('conversation_id', convId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
       .limit(200);
 
@@ -2248,6 +2249,14 @@ const Chats = () => {
           });
           marcarConvLida(convId); // esta aberta na tela: ja foi lida
           setTimeout(scrollToBottom, 100);
+        })
+      // Mensagem apagada (pelo dono ou pela moderacao pos-envio do chat,
+      // 2026-09-23) sai da tela na hora. O admin recebe o UPDATE porque a
+      // RLS de SELECT o deixa ver linha apagada.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + convId },
+        (payload) => {
+          if(!payload.new || !payload.new.deleted_at) return;
+          setChatMsgs(prev => prev.filter(m => m.id !== payload.new.id));
         })
       .subscribe();
   };

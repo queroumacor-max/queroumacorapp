@@ -20,15 +20,15 @@
 //  - Anti double-submit: o componente checa `mutation.isPending` antes de
 //    chamar mutate. Como mutate é fire-and-forget, isPending vira true
 //    sincronicamente após a chamada.
-//  - Moderação: roda DEPOIS do INSERT, em segundo plano (antes custava ~5s
-//    por mensagem). Reprovada → soft delete + erro no composer.
+//  - Moderação: roda DEPOIS do INSERT, no servidor (/api/chat/moderate-message,
+//    antes custava ~5s por mensagem). Reprovada → soft delete + aviso realtime.
 //  - Roteamento receiverId: pra 1:1 a outra ponta é trivial (strip do
 //    convId). Pra 3-way, caller passa otherId explícito (componente sabe
 //    se é o pintor ou a loja).
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import {
   useQuery,
   useMutation,
@@ -114,25 +114,20 @@ export function useMessages(convId: string | null): UseMessagesResult {
   };
 }
 
-// Moderação pós-envio: chama /api/moderate e, se reprovar, soft-deleta a
-// mensagem (o remetente pode — RLS de UPDATE). Falha de rede/503/429 não
-// apaga nada (mesmo fail-open de antes). Devolve true se apagou.
-async function moderarDepoisDeEnviar(msg: Message, userId: string): Promise<boolean> {
-  try {
-    const res = await fetchGated('/api/moderate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: msg.content }),
-    });
-    if (!res.ok) return false;
-    const json = (await res.json()) as { flagged?: boolean; approved?: boolean };
-    const blocked = json.flagged === true || json.approved === false;
-    if (!blocked) return false;
-    await softDeleteMessageSvc(msg.id, userId);
-    return true;
-  } catch {
-    return false;
-  }
+// Moderação pós-envio: pede ao SERVIDOR (`/api/chat/moderate-message`), que
+// responde 202 na hora e modera por `waitUntil` — fechar o app depois do
+// envio não cancela mais a moderação (achado do Codex no PR #394: a 1ª
+// versão moderava aqui no navegador e morria junto com ele). `keepalive`
+// deixa o pedido sair mesmo se a página for descarregada logo em seguida.
+// Reprovada → o servidor soft-deleta e avisa todos os participantes pelo
+// canal realtime (`useChatRealtime`, evento `msg-removed`).
+function pedirModeracao(messageId: string): void {
+  void fetchGated('/api/chat/moderate-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messageId }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 // ─── useSendMessage ─────────────────────────────────────────────────────
@@ -142,7 +137,7 @@ async function moderarDepoisDeEnviar(msg: Message, userId: string): Promise<bool
 //   2. INSERT na tabela messages;
 //   3. Replace da temp pela real (com ID novo) no cache;
 //   4. Invalida `conversations` pra que last-msg atualize na sidebar;
-//   5. Moderação em segundo plano (reprovada → soft delete + aviso).
+//   5. Pede a moderação ao servidor (reprovada → soft delete + aviso realtime).
 // Em erro: marca a temp como status='failed' (UI mostra retry button).
 
 interface SendMessageVars {
@@ -163,7 +158,6 @@ export function useSendMessage(
 ): UseSendMessageResult {
   const { user, emailVerified } = useAuth();
   const qc = useQueryClient();
-  const [moderationError, setModerationError] = useState<Error | null>(null);
 
   const mutation = useMutation<Message, Error, SendMessageVars>({
     mutationFn: async ({ text, attachment }) => {
@@ -223,15 +217,7 @@ export function useSendMessage(
       });
       // Atualiza last-msg da sidebar.
       qc.invalidateQueries({ queryKey: ['chat', 'conversations', user?.id ?? null] });
-      if (real.type === 'text' && user) {
-        void moderarDepoisDeEnviar(real, user.id).then((bloqueada) => {
-          if (!bloqueada) return;
-          qc.setQueryData<Message[]>(['chat', 'messages', convId], (curr) =>
-            (curr ?? []).filter((m) => m.id !== real.id),
-          );
-          setModerationError(new Error('Mensagem removida pela moderação'));
-        });
-      }
+      if (real.type === 'text') pedirModeracao(real.id);
     },
 
     onError: (_err, _vars, ctx) => {
@@ -252,13 +238,11 @@ export function useSendMessage(
       // do onMutate carrega o tempId de cada uma), então dá pra mandar a
       // próxima mensagem sem esperar a anterior voltar do banco. O duplo
       // toque é barrado pelo composer, que limpa o campo no ato.
-      setModerationError(null);
       mutation.mutate(vars);
     },
     sending: mutation.isPending,
-    error: mutation.error ?? moderationError,
+    error: mutation.error ?? null,
     reset: () => {
-      setModerationError(null);
       mutation.reset();
     },
   };

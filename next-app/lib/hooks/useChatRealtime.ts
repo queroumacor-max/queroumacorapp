@@ -20,6 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getSupabase } from '@/lib/supabase';
+import { showToast } from '@/lib/toast';
 import type { Message, MessageType } from '@/lib/services/chat';
 
 // LRU cap pra anti-duplicate. Mesmo valor do vanilla.
@@ -147,6 +148,19 @@ export function useChatRealtime(userId: string | null): void {
         },
         handlePayload,
       )
+      // Mensagem reprovada pela moderação pós-envio (2026-09-23). O UPDATE
+      // do soft delete NÃO chega por postgres_changes pro destinatário (a
+      // RLS de SELECT esconde linha apagada), então o servidor avisa por
+      // broadcast neste mesmo canal. O payload é só um AVISO: refazemos a
+      // consulta (RLS-filtrada) em vez de confiar nele — broadcast forjado
+      // não esconde nada, só provoca um refetch.
+      .on('broadcast', { event: 'msg-removed' }, (msg: { payload?: { id?: string; conversationId?: string; senderId?: string } }) => {
+        const p = msg?.payload;
+        if (!p?.conversationId) return;
+        qc.invalidateQueries({ queryKey: ['chat', 'messages', p.conversationId] });
+        qc.invalidateQueries({ queryKey: ['chat', 'conversations', userId] });
+        if (p.senderId === userId) showToast('Sua mensagem foi removida pela moderação', 'error');
+      })
       .subscribe();
 
     return () => {

@@ -24,9 +24,17 @@ describe('chat — envio instantâneo', () => {
     expect(mutationFnDoSend()).toContain('sendMessage(');
   });
 
-  it('moderação roda depois do envio e apaga a reprovada', () => {
-    expect(hook).toContain('moderarDepoisDeEnviar(real');
-    expect(hook).toMatch(/async function moderarDepoisDeEnviar[\s\S]*softDeleteMessageSvc/);
+  it('moderação é pedida ao SERVIDOR depois do envio (não roda no navegador)', () => {
+    // Achado do Codex (PR #394): moderar no cliente morria junto com o app.
+    expect(hook).toContain('pedirModeracao(real.id)');
+    expect(hook).toContain("'/api/chat/moderate-message'");
+    expect(hook).toContain('keepalive: true');
+  });
+
+  it('destinatário recebe a remoção por broadcast e refaz a consulta', () => {
+    const rt = readFileSync(resolve(__dirname, '../lib/hooks/useChatRealtime.ts'), 'utf8');
+    expect(rt).toContain("{ event: 'msg-removed' }");
+    expect(rt).toMatch(/msg-removed[\s\S]*invalidateQueries\(\{ queryKey: \['chat', 'messages', p\.conversationId\] \}\)/);
   });
 
   it('send não é barrado por mutation.isPending', () => {

@@ -10,22 +10,41 @@
   criada até 2min antes dele (um "oi" antigo apagaria o eco de um "oi"
   novo). Template segue com o fluxo antigo (botão com estágio). `app.js`
   recompilado pela receita (build do HEAD conferido idêntico antes), SRI e
-  `?v=` (`20260921a`→`20260923a`) atualizados. Teste em
+  `?v=` (`20260921a`→`20260923a`→`20260923b`) atualizados. Teste em
   `portalWhatsAppNaoLidas.test.ts`.
 
-- **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23).
-  SEM SQL.** O `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit
-  + reserva de cota + Gemini) ANTES do INSERT em `messages`, e o composer
-  travava o campo ("...") até voltar. Agora: INSERT direto (bolha otimista
-  como antes) e a moderação roda DEPOIS, em segundo plano
-  (`moderarDepoisDeEnviar`); reprovada → soft delete da mensagem + aviso
-  "Mensagem removida pela moderação" no composer. Campo e botão não travam
-  mais (cada envio é uma mutação própria). **Trade-off aceito:** mensagem
-  reprovada pode ficar visível pro destinatário por alguns segundos antes
-  de sumir. A moderação de chat nunca foi fronteira de segurança (REST
-  direto sempre pulou ela), então só mudou QUANDO roda. Trava em
-  `__tests__/chatEnvioInstantaneo.test.ts`. Suíte (205/205), `tsc` verdes.
-  **Ainda sem deploy disparado.**
+- **CHAT: envio de mensagem levava ~5s — agora é instantâneo (2026-09-23,
+  PR #394). SQL `/migrations/2026-09-23-get-conversations-skip-deleted.sql`
+  — PENDENTE (linha nova na `2026-09-05-conferencia-pendencias.sql`).** O
+  `useSendMessage` esperava `/api/moderate` (GoTrue + rate limit + reserva
+  de cota + Gemini) ANTES do INSERT em `messages`, e o composer travava o
+  campo ("...") nesse intervalo. Agora grava direto (bolha otimista) e
+  pede a moderação ao SERVIDOR: `POST /api/chat/moderate-message
+  {messageId}` (fetch `keepalive`) responde 202 e modera por
+  `runAfterResponse`/`waitUntil` — lê o conteúdo do BANCO com service role,
+  só aceita pedido do remetente, cota `moderate`, rate limit 60/min.
+  Reprovada (qualquer `flagged`) → PATCH `deleted_at` + broadcast
+  `msg-removed` no canal `chat-global-<uuid>` de cada participante (UUIDs
+  do sender/receiver/convId). `useChatRealtime` escuta e REFAZ a consulta
+  (payload é só aviso — broadcast forjado só provoca refetch); remetente
+  ganha toast. Portal 3-way filtra `deleted_at` e ouve UPDATE (v=20260923b).
+  - **Por que broadcast e não postgres_changes UPDATE:** a policy de SELECT
+    esconde linha com `deleted_at`, e o realtime respeita RLS — o
+    destinatário nunca recebe o UPDATE do soft delete.
+  - **Achados do Codex na 1ª versão (os dois P1, corrigidos no mesmo PR):**
+    (1) moderar no NAVEGADOR morria se o app fechasse depois do envio;
+    (2) o soft delete só sumia do cache do remetente.
+  - **Trade-off aceito:** mensagem reprovada fica visível alguns segundos.
+    Continua não sendo fronteira de segurança: INSERT direto via REST pula
+    o pedido de moderação (igual antes). Fechar isso = trigger/pg_net no
+    banco chamando a rota, fora do escopo.
+  - **SQL pendente:** `get_conversations` é SECURITY DEFINER e nunca
+    filtrou `deleted_at` — sem o SQL, a PRÉVIA da lista de conversas segue
+    mostrando o texto apagado até chegar mensagem nova (vale também pra
+    mensagem apagada pelo dono, bug antigo). Fallback client já filtra.
+  - Testes: `__tests__/chatEnvioInstantaneo.test.ts`,
+    `__tests__/services/chat-moderation.test.ts`. Suíte (206/206), `tsc` e
+    `next build` verdes. **Ainda sem deploy disparado.**
 
 - **LOJA: cadastro de lojas no PORTAL, ligado à tela de seleção do app
   (2026-09-21, mesma sessão da entrada abaixo — pedido do usuário
