@@ -5,7 +5,7 @@
 // as duas telas que o app instalado mostra logo depois do splash do wrapper.
 //
 // Decisões:
-//   - A arte é UMA imagem (/mascotes-calicolors.webp, 968w ≈ 57KB) — os 4
+//   - A arte é UMA imagem (/mascotes-calicolors-v2.webp, 968w ≈ 57KB) — os 4
 //     mascotes (Alice, Seu Zé, Senna, Fê) com o logo. Animar a imagem
 //     inteira (flutuação suave) custa só CSS; nada de rede além do arquivo,
 //     que o browser cacheia depois do primeiro boot.
@@ -15,6 +15,11 @@
 //     próprio gerador colado por cima. Recortamos o rodapé da arte (selo +
 //     legenda) e recriamos só a legenda como texto de verdade: fica nítida
 //     em qualquer densidade de tela e não carrega o selo pra produção.
+//   - O NOME do arquivo é versionado (-v2) de propósito: o sw.js serve
+//     imagem CACHE-FIRST, então trocar a arte mantendo a mesma URL deixa o
+//     aparelho com a imagem velha pra sempre. Foi o que aconteceu no #383:
+//     a arte antiga (com a legenda desenhada) seguia no cache e a legenda
+//     em texto aparecia por cima dela. Trocou a arte → troque o nome.
 //   - Primeira abertura da vida: a imagem pode chegar DEPOIS da tela. Por
 //     isso os pontinhos de tinta + texto animam sozinhos desde o primeiro
 //     frame — a tela nunca fica morta esperando a própria máscara.
@@ -40,7 +45,7 @@ export function SplashMascotes({ texto = 'Carregando…' }: { texto?: string }) 
       }}
     >
       <img
-        src="/mascotes-calicolors.webp"
+        src="/mascotes-calicolors-v2.webp"
         alt="Alice, Seu Zé, Senna e Fê"
         width={968}
         height={1066}

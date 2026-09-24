@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **SPLASH DOS URSOS COM DUAS LEGENDAS SOBREPOSTAS (2026-09-24, relato do
+  usuário: "parece que tá as duas sobrepostas"). SEM SQL.** O #383 trocou a
+  arte MANTENDO o nome `/mascotes-calicolors.webp`, e o `sw.js` serve imagem
+  CACHE-FIRST — aparelho que já tinha a arte antiga (com "Alice • Seu Zé •
+  Senna • Fê" desenhado DENTRO da imagem) seguiu com ela, e a legenda nova em
+  texto HTML (`marginTop:-12`) caía por cima. Fix: arquivo renomeado pra
+  `/mascotes-calicolors-v2.webp` (URL nova = cache antigo não casa), refs no
+  `SplashMascotes` e no "Reconectando…" do `AppShell` (que também tinha a
+  proporção antiga 640×762 → 968×1066). Teste `__tests__/splashMascotes.test.ts`
+  trava que a ref existe em `public/` e que o nome sem versão não volta.
+  **REGRA: trocou arte estática servida pelo SW → troque o NOME do arquivo**
+  (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). Precisa de
+  deploy pra valer.
+
 - **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
   TRD appflow brief ui and ux esquema backend plano de implementacao").**
   `docs/produto/` com README, BRIEF, PRD, TRD, APP_FLOW, UI_UX,

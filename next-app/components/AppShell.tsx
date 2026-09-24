@@ -158,10 +158,10 @@ export function AppShell({
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center gap-4">
           <img
-            src="/mascotes-calicolors.webp"
+            src="/mascotes-calicolors-v2.webp"
             alt=""
-            width={640}
-            height={762}
+            width={968}
+            height={1066}
             className="w-[44vw] max-w-[170px] h-auto rounded-2xl"
           />
           <div>
