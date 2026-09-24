@@ -198,6 +198,6 @@ Legenda: **PRO-IA** = login + PRO + rate limit + cota mensal;
    everyone"` não existem mais no banco.
 2. ✅ **Jobs de cron duplicados (2026-09-24):** `cleanup-audit-events` e
    `cleanup-notifications` repetiam `cleanup-old-*` (mesmo comando e
-   horário). Desagendados por `migrations/2026-09-24-cron-dedupe.sql`.
+   horário). Desagendados por `migrations/2026-09-24-cron-dedupe.sql` (executado; 8 jobs, 1 por comando).
 3. Custo de `redeem_pro_with_points`: a tela diz 1000 pontos; a função só
    existe no banco — conferir com `pg_get_functiondef`.
