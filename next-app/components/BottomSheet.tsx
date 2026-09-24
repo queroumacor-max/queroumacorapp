@@ -35,6 +35,22 @@ export interface BottomSheetProps {
   maxWidth?: number;
 }
 
+/**
+ * Existe, entre o alvo do toque e o corpo do sheet, um elemento que rola de
+ * verdade na vertical? (overflow auto/scroll + conteúdo maior que a caixa.)
+ */
+export function temRolavelInterno(alvo: Node | null, corpo: HTMLElement): boolean {
+  let el: Node | null = alvo;
+  while (el && el !== corpo) {
+    if (el instanceof HTMLElement) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+}
+
 /** Quanto o dedo precisa descer pra fechar (px). */
 const CLOSE_DISTANCE = 110;
 /** Velocidade que fecha mesmo sem chegar na distância (px/ms). */
@@ -88,8 +104,12 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
         return;
       }
       // Dentro do corpo, mas sem conteúdo pra rolar: também segura, senão o
-      // gesto atravessa pro `<main>` do app.
-      if (body && body.scrollHeight <= body.clientHeight) e.preventDefault();
+      // gesto atravessa pro `<main>` do app. EXCETO se o dedo está num
+      // rolável INTERNO (lista, tabela, coluna) — antes a trava cancelava o
+      // gesto e esse rolável interno ficava travado (2026-09-24).
+      if (body && body.scrollHeight <= body.clientHeight && !temRolavelInterno(e.target as Node, body)) {
+        e.preventDefault();
+      }
     };
     root.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => root.removeEventListener('touchmove', onTouchMove);
@@ -257,7 +277,7 @@ export function BottomSheet({ open, onClose, children, ariaLabel, maxWidth = 430
             = 76px + safe-area. Aumentado pra 100px pra margem extra. */}
         <div
           ref={bodyRef}
-          className="hide-scrollbar"
+          className="sheet-body"
           style={{
             flex: 1,
             overflowY: 'auto',

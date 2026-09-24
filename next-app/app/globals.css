@@ -117,17 +117,47 @@ body {
    aplicamos no body + main + qualquer container marcado .hide-scrollbar
    (carrosséis horizontais, dropdowns). Scroll continua funcional via
    gesto/wheel. */
-html, body, main, .hide-scrollbar {
+html, body, main, .sheet-body, .hide-scrollbar {
   scrollbar-width: none;       /* Firefox */
   -ms-overflow-style: none;    /* IE/Legacy Edge */
 }
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 main::-webkit-scrollbar,
+.sheet-body::-webkit-scrollbar,
 .hide-scrollbar::-webkit-scrollbar {
   display: none;               /* Chromium/WebKit */
   width: 0;
   height: 0;
+}
+
+/* COM MOUSE (computador), a barra VOLTA — fina — no <main> e no corpo do
+   BottomSheet (relato do pintor Léo, 2026-09-24: "não tenho barra de
+   rolagem pra descer ou subir" no pipeline). Sem ela, no PC não há pista
+   de que a tela rola nem alça pra arrastar. No celular (dedo) segue
+   escondida como sempre. Carrosséis `.hide-scrollbar` continuam sem. */
+@media (pointer: fine) {
+  main, .sheet-body {
+    scrollbar-width: thin;
+    scrollbar-color: #a39a8b transparent;
+  }
+  main::-webkit-scrollbar,
+  .sheet-body::-webkit-scrollbar {
+    display: block;
+    width: 10px;
+    height: 10px;
+  }
+  main::-webkit-scrollbar-thumb,
+  .sheet-body::-webkit-scrollbar-thumb {
+    background: #a39a8b;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  main::-webkit-scrollbar-track,
+  .sheet-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 /* ─── Tour guiado (coach marks) ────────────────────────────────────────────

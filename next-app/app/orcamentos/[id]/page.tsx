@@ -495,12 +495,22 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           .quote-detail-print { padding: 0 !important; max-width: none !important; }
         }
       `}</style>
-      <Link
-        href="/orcamentos"
-        className="text-sm text-[color:var(--color-muted)] hover:underline"
+      {/* FIXO no topo (relato do pintor Léo, 2026-09-24): o link ficava só no
+          começo da página e, depois de rolar um orçamento longo, não havia
+          como voltar ao pipeline. `sticky` dentro do <main> do AppShell (o
+          único scroller da tela) mantém o botão sempre à vista. */}
+      <div
+        className="quote-pdf-noprint sticky top-0 z-10 -mx-4 px-4 py-2"
+        style={{ background: 'var(--color-bg)' }}
       >
-        ← Voltar pro pipeline
-      </Link>
+        <Link
+          href="/orcamentos"
+          className="inline-flex items-center gap-1 text-sm font-bold rounded-full px-3 border border-[color:var(--color-border)] bg-[color:var(--color-white)] text-[color:var(--color-ink)]"
+          style={{ minHeight: 44 }}
+        >
+          ← Voltar pro pipeline
+        </Link>
+      </div>
 
       <header className="flex items-start gap-3 mt-3 mb-4">
         <div className="flex-1 min-w-0">
