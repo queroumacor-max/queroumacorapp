@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **3 MIGRATIONS "SEM REGISTRO DE EXECUÇÃO" CONFERIDAS NO BANCO — TODAS
+  APLICADAS (2026-09-24, pelo usuário no SQL Editor).** A consulta de
+  conferência combinada (as 22 checagens dos blocos de conferência dos
+  próprios arquivos, filtrada por `WHERE NOT ok`) voltou "No rows returned":
+  `2026-09-16-business-logic-security-audit.sql` (inclui a brecha de PRO
+  grátis via `pro_expires_at` — FECHADA em produção, e as RPCs
+  `reserve_ai_usage`/`bump_wa_ai_reply_count`),
+  `2026-09-17-rate-limit-sliding-window.sql` e
+  `2026-09-17-whatsapp-followup-claim.sql` (`claim_wa_followup_nudge` existe
+  — o reengajamento do follow-up NÃO está pausado por falta dela). **Não
+  pedir pra rodar de novo nem listar como pendência** — as menções "sem
+  confirmação de execução" nas entradas do pentest (09-18), do Bloco 21 e da
+  auditoria de webhooks mais abaixo estão superadas por esta.
+
 - **SPLASH DOS URSOS COM DUAS LEGENDAS SOBREPOSTAS (2026-09-24, relato do
   usuário: "parece que tá as duas sobrepostas"). SEM SQL.** O #383 trocou a
   arte MANTENDO o nome `/mascotes-calicolors.webp`, e o `sw.js` serve imagem
@@ -11,8 +25,10 @@
   proporção antiga 640×762 → 968×1066). Teste `__tests__/splashMascotes.test.ts`
   trava que a ref existe em `public/` e que o nome sem versão não volta.
   **REGRA: trocou arte estática servida pelo SW → troque o NOME do arquivo**
-  (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). Precisa de
-  deploy pra valer.
+  (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). PR #399
+  MERGEADA (`5cc9818`) e **NO AR: deploy run #747 do `deploy.yml`
+  (2026-09-24) terminou `success`.** Falta o usuário confirmar no aparelho
+  que aparece uma legenda só.
 
 - **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
   TRD appflow brief ui and ux esquema backend plano de implementacao").**
