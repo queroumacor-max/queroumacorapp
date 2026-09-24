@@ -1,5 +1,32 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **ORÇAMENTO: EDITAR, DUPLICAR e MODELO ⭐ (sugestões do pintor Léo,
+  2026-09-24). SEM SQL.** O assistente já gravava o formulário INTEIRO em
+  `quote_data` (`...form`); `lib/orcamentoModelo.ts`
+  (`formularioDeQuoteData`, testado em `__tests__/orcamentoModelo.test.ts`)
+  faz o caminho de volta. Detalhe do orçamento (só pro DONO) ganhou
+  "✏️ Editar" (`/orcamento-ia?base=<id>&modo=editar`, grava por cima via
+  `updateQuoteContent` — `.select('id')` + erro em zero linhas; preserva a
+  marca de modelo; não toca status nem `scope_snapshot`; pede confirmação
+  se já aprovado), "📑 Duplicar" (copia tudo MENOS cliente, endereço,
+  visita e número — nada de dado pessoal do cliente anterior vai pra
+  cópia) e "☆ Usar como modelo" (`quote_data.modelo=true`, um por pintor,
+  `setQuoteModelo`). Orçamento novo do zero mostra "⭐ Começar do seu
+  modelo". **De brinde: "Gravar" duas vezes criava DOIS orçamentos no
+  pipeline — agora o segundo atualiza o primeiro.** `FormState` do wizard
+  mudou-se pra `FormularioDoOrcamento` na lib. `?base` validado por regex.
+  - **ACHADO DE SEGURANÇA PRÉ-EXISTENTE, NÃO CORRIGIDO (precisa SQL,
+    decidir com o usuário):** a policy "Users can update own quotes"
+    (`USING/WITH CHECK client_id OR painter_id`) ainda deixa o CLIENTE do
+    orçamento alterar colunas de conteúdo — `price`, `quote_data`,
+    `status` — via PATCH direto no REST. A migration de 09-16 só congelou
+    `client_id`/`painter_id`. Esta feature não amplia isso (escreve com
+    filtro `painter_id`), mas o cliente poderia, p.ex., marcar
+    `quote_data.modelo` ou mudar o preço. Fix proposto: trigger BEFORE
+    UPDATE que, pra quem é só `client_id` (não painter, não admin), reverte
+    tudo menos as colunas de aprovação que o fluxo do cliente usa —
+    exige mapear antes quais colunas o cliente escreve de verdade.
+
 - **PIPELINE "NÃO ROLA / NÃO VOLTA" (relato do pintor Léo, 2026-09-24).
   SEM SQL. Não reproduzido no aparelho dele — correções pelas causas
   prováveis achadas no código:** (1) o app ESCONDE a barra de rolagem em
@@ -12,7 +39,8 @@
   não transbordava, prendendo roláveis INTERNOS — `temRolavelInterno`
   libera. Teste `__tests__/components/BottomSheetRolagem.test.ts`. Pedir
   pro Léo confirmar se resolveu (e se usa PC ou celular).
-  **Frete (#403) MERGEADO (squash `23dff6c`).**
+  **Frete (#403) MERGEADO (squash `23dff6c`); rolagem (#404) MERGEADO
+  (squash `34725d2`).**
 
 - **TILE "FRETE" (2026-09-24, pedido do usuário: "cálculo de frete, KM por
   litro vs valor do litro"). SEM SQL.** `lib/frete.ts` (`calcularFrete`,
