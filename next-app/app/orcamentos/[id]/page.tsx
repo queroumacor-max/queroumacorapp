@@ -20,6 +20,9 @@ export const runtime = 'nodejs';
 import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { ehModelo } from '@/lib/orcamentoModelo';
+import { showToast } from '@/lib/toast';
 import { AppShell } from '@/components/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
@@ -29,6 +32,7 @@ import { useAutosave } from '@/lib/hooks/useAutosave';
 import {
   QUOTE_STATUS,
   fetchQuote,
+  setQuoteModelo,
   type PipelineStatus,
 } from '@/lib/services/pipeline';
 import type { Quote } from '@/lib/types';
@@ -152,6 +156,48 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
   // Prefere a quote do hook (mantida fresh pelo realtime); fallback pra
   // fetch direto se não estiver no cache.
   const quote = quotes.find((q) => q.id === id) ?? localQuote;
+
+  // ⭐ Modelo: a marca vive em quote_data.modelo. `modeloAgora` segura a
+  // resposta até o realtime/refetch trazer a linha nova.
+  const qc = useQueryClient();
+  const [modeloAgora, setModeloAgora] = useState<boolean | null>(null);
+  const [modeloBusy, setModeloBusy] = useState(false);
+  const ehModeloAtual = modeloAgora ?? ehModelo(quote?.quote_data);
+  // Editar depois de APROVADO muda o documento e o valor que o Financeiro
+  // soma — o escopo aprovado segue congelado no scope_snapshot, mas pede
+  // confirmação explícita pra não virar correção silenciosa do que o
+  // cliente aceitou.
+  async function handleEditar() {
+    if (!quote) return;
+    const posAprovacao = quote.status === 'aprovado' || quote.status === 'em_execucao' || quote.status === 'concluido';
+    if (posAprovacao) {
+      const ok = await dialog.confirm(
+        'Este orçamento já foi aprovado. Editar muda o documento e o valor no Financeiro; o escopo aprovado pelo cliente continua guardado. Editar mesmo assim?',
+        { title: 'Editar orçamento aprovado', okLabel: 'Editar' },
+      );
+      if (!ok) return;
+    }
+    router.push(`/orcamento-ia?base=${quote.id}&modo=editar`);
+  }
+
+  async function handleToggleModelo() {
+    if (!quote || !user?.id || modeloBusy) return;
+    const ligar = !ehModeloAtual;
+    setModeloBusy(true);
+    try {
+      await setQuoteModelo(quote.id, user.id, ligar);
+      setModeloAgora(ligar);
+      qc.invalidateQueries({ queryKey: ['pipeline', user.id] });
+      showToast(
+        ligar ? 'Modelo salvo ⭐ — o próximo orçamento pode começar dele' : 'Deixou de ser o modelo',
+        'success',
+      );
+    } catch (e) {
+      showToast((e as Error).message || 'Não foi possível salvar o modelo', 'error');
+    } finally {
+      setModeloBusy(false);
+    }
+  }
 
   // Sincroniza com o Supabase (fetch) — `setFetching(true)` marca o início
   // do trabalho assíncrono que segue, canônico de efeito de busca de dado.
@@ -734,6 +780,37 @@ export default function OrcamentoDetailPage({ params }: PageProps) {
           💭 Chat
         </button>
       </section>
+
+      {/* Editar / duplicar / modelo (sugestões do pintor Léo, 2026-09-24).
+          Só pro DONO do orçamento. Editar não mexe no escopo congelado na
+          aprovação (scope_snapshot) — só no documento. */}
+      {user?.id && quote.painter_id === user.id ? (
+        <section className="flex flex-wrap gap-2 mb-3 quote-pdf-noprint">
+          <button
+            type="button"
+            onClick={() => void handleEditar()}
+            className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+          >
+            ✏️ Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push(`/orcamento-ia?base=${quote.id}&modo=duplicar`)}
+            className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm"
+          >
+            📑 Duplicar
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleModelo}
+            disabled={modeloBusy}
+            aria-pressed={ehModeloAtual}
+            className="px-3 py-2 bg-white border border-[color:var(--color-border)] rounded-xl font-semibold text-sm disabled:opacity-60"
+          >
+            {ehModeloAtual ? '⭐ É o seu modelo (tirar)' : '☆ Usar como modelo'}
+          </button>
+        </section>
+      ) : null}
 
       {/* Ações disponíveis por status */}
       <section className="flex flex-wrap gap-2">

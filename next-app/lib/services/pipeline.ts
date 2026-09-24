@@ -25,6 +25,7 @@ import type { Json } from '@/lib/database.types';
 import { ymdBrt } from '@/lib/utils';
 
 import { fetchGated } from './fetchGated';
+import { ehModelo } from '@/lib/orcamentoModelo';
 // QUOTE_STATUS — const tipada que define vocabulário + label/cor por status.
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
 // vida do orçamento). UI lê daqui pra montar lanes do kanban e badges dos
@@ -197,6 +198,97 @@ export async function saveQuote(
     throw new NetworkError('RPC create_painter_draft retornou vazio.');
   }
   return { quoteId: String(data) };
+}
+
+/**
+ * Atualiza o CONTEÚDO de um orçamento já gravado (editar pra corrigir —
+ * pedido do pintor Léo, 2026-09-24). Não mexe em status, datas nem no
+ * `scope_snapshot`: o que o cliente APROVOU continua congelado lá.
+ *
+ * Preserva a marca de modelo (`quote_data.modelo`) — o formulário não
+ * carrega essa marca, e regravar sem ela desmarcaria o modelo em silêncio.
+ *
+ * `update` que não acha linha volta SUCESSO com zero linhas (lição do
+ * /completar-perfil): por isso o `.select('id')` e o erro explícito.
+ */
+export async function updateQuoteContent(
+  id: string,
+  painterId: string,
+  input: SaveQuoteInput,
+): Promise<void> {
+  if (!id) throw new ValidationError('Orçamento inválido.');
+  if (!painterId) throw new AuthorizationError('Faça login pra editar.');
+  if (!input || !input.price || input.price <= 0) {
+    throw new ValidationError('Informe um valor pro orçamento.');
+  }
+  const sb = getSupabase();
+  const atual = await sb.from('quotes').select('quote_data').eq('id', id).eq('painter_id', painterId).maybeSingle();
+  if (atual.error) throw new NetworkError(atual.error.message, atual.error);
+  if (!atual.data) throw new AuthorizationError('Orçamento não encontrado ou não é seu.');
+  const eraModelo = ehModelo((atual.data as { quote_data?: unknown }).quote_data);
+  const qd = (input.quote_data && typeof input.quote_data === 'object' ? input.quote_data : {}) as Record<string, unknown>;
+  const { data, error } = await sb
+    .from('quotes')
+    .update({
+      client_name: input.client_name || 'Cliente',
+      service_type: input.service_type || 'Orçamento',
+      title: input.title || input.service_type || 'Orçamento',
+      area_m2: input.area_m2 ?? null,
+      price: input.price,
+      quote_data: (eraModelo ? { ...qd, modelo: true } : qd) as Json,
+    })
+    .eq('id', id)
+    .eq('painter_id', painterId)
+    .select('id');
+  if (error) throw new NetworkError(error.message, error);
+  if (!data || data.length === 0) {
+    throw new AuthorizationError('Não foi possível salvar: orçamento não encontrado ou sem permissão.');
+  }
+}
+
+/**
+ * Marca (ou desmarca) o orçamento como MODELO do pintor. Só existe um
+ * modelo por vez: marcar um desmarca o anterior. A marca vive em
+ * `quote_data.modelo` (jsonb que já existe — sem SQL).
+ */
+export async function setQuoteModelo(id: string, painterId: string, ligar: boolean): Promise<void> {
+  if (!id) throw new ValidationError('Orçamento inválido.');
+  if (!painterId) throw new AuthorizationError('Faça login.');
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('quotes')
+    .select('id, quote_data')
+    .eq('painter_id', painterId)
+    .eq('quote_data->>modelo', 'true');
+  if (error) throw new NetworkError(error.message, error);
+  const atuais = (data ?? []) as Array<{ id: string; quote_data: unknown }>;
+
+  const gravar = async (qid: string, qdAtual: unknown, marca: boolean) => {
+    const base = qdAtual && typeof qdAtual === 'object' && !Array.isArray(qdAtual) ? (qdAtual as Record<string, unknown>) : {};
+    const { modelo: _antigo, ...resto } = base;
+    void _antigo;
+    const { data: linhas, error: e } = await sb
+      .from('quotes')
+      .update({ quote_data: (marca ? { ...resto, modelo: true } : resto) as Json })
+      .eq('id', qid)
+      .eq('painter_id', painterId)
+      .select('id');
+    if (e) throw new NetworkError(e.message, e);
+    if (!linhas || linhas.length === 0) throw new AuthorizationError('Orçamento não encontrado ou sem permissão.');
+  };
+
+  for (const q of atuais) {
+    if (q.id !== id || !ligar) await gravar(q.id, q.quote_data, false);
+  }
+  if (ligar) {
+    const alvo = atuais.find((q) => q.id === id);
+    if (!alvo) {
+      const r = await sb.from('quotes').select('quote_data').eq('id', id).eq('painter_id', painterId).maybeSingle();
+      if (r.error) throw new NetworkError(r.error.message, r.error);
+      if (!r.data) throw new AuthorizationError('Orçamento não encontrado ou não é seu.');
+      await gravar(id, (r.data as { quote_data?: unknown }).quote_data, true);
+    }
+  }
 }
 
 /**

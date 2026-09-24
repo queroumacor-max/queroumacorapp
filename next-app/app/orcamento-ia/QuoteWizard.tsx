@@ -33,7 +33,13 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
-import { saveQuote, fetchQuotes } from '@/lib/services/pipeline';
+import { saveQuote, fetchQuotes, fetchQuote, updateQuoteContent } from '@/lib/services/pipeline';
+import {
+  acharModelo,
+  formularioDeQuoteData,
+  type FormularioDoOrcamento,
+  type ModoDeReabrir,
+} from '@/lib/orcamentoModelo';
 import type { Quote } from '@/lib/types';
 import { showToast } from '@/lib/toast';
 import { abrirLinkExterno } from '@/lib/native';
@@ -48,7 +54,6 @@ import {
   temAvulsoSemNome,
   tituloDosServicos,
   totaisDoOrcamento,
-  type ServicoDoOrcamento,
 } from '@/lib/orcamentoServicos';
 import {
   ENDERECO_VAZIO,
@@ -63,42 +68,16 @@ import { OrcamentoDocumento } from '@/components/orcamento/OrcamentoDocumento';
 import { fmtBRL, parseBRL } from '@/lib/utils';
 import { ServicosDoOrcamento } from './ServicosDoOrcamento';
 
-interface FormState {
-  // Número do orçamento ("12/2026") — calculado na abertura a partir dos
-  // orçamentos já gravados; gravado em quote_data.numero.
-  numero: string;
-  // Cliente
-  clientName: string;
-  clientPhone: string;
-  cliente: EnderecoDoCliente;
-  visitaTecnica: string; // valor do <input type="datetime-local">
-  // Profissional — o que o perfil NÃO tem (CNPJ/CPF) e o que pode divergir
-  // do perfil neste orçamento. Prefill do último orçamento gravado.
-  profCnpj: string;
-  profCpf: string;
-  profEndereco: string;
-  profEmail: string;
-  // Serviços — cada um com espaço, material e itens da Tabela ABRAPP.
-  // Gravados em quote_data.servicos. Começa vazio; o Gravar exige ≥ 1.
-  servicos: ServicoDoOrcamento[];
-  // Logística
-  durationDays: string;
-  includeMaterial: boolean;
-  includeLabor: boolean;
-  warranty: string; // ex.: 90 dias retoques
-  // Preço
-  price: string;
-  desconto: string; // "10%" ou "500,00"
-  // Pagamento
-  pagamento: string[];
-  chavePix: string;
-  // Textos
-  laudoTecnico: string;
-  description: string; // "Informações adicionais" no PDF
-  scope: string;
+type FormState = FormularioDoOrcamento;
+
+export interface QuoteWizardProps {
+  /** Orçamento de origem (`/orcamento-ia?base=<id>&modo=…`). */
+  baseId?: string;
+  /** `editar` grava no MESMO orçamento; `duplicar` cria um novo a partir dele. */
+  modo?: ModoDeReabrir;
 }
 
-export function QuoteWizard() {
+export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
@@ -138,6 +117,8 @@ export function QuoteWizard() {
       try {
         const quotes = await fetchQuotes(user.id);
         if (cancel) return;
+        // Modelo (⭐) só é oferecido num orçamento NOVO do zero.
+        if (!baseId) setModelo(acharModelo(quotes));
         const ano = new Date().getFullYear();
         const doAno = quotes.filter((q) => (q.created_at || '').startsWith(String(ano)));
         const ultimo = quotes
@@ -160,7 +141,7 @@ export function QuoteWizard() {
     return () => {
       cancel = true;
     };
-  }, [user?.id]);
+  }, [user?.id, baseId]);
 
   // Endereço e e-mail do profissional vêm do perfil; a pessoa pode ajustar
   // neste orçamento sem mexer no perfil. Prefill de dado assíncrono
@@ -180,6 +161,41 @@ export function QuoteWizard() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
+  // Editar / duplicar / modelo — ver lib/orcamentoModelo.ts.
+  const [modelo, setModelo] = useState<Quote | null>(null);
+  const [origem, setOrigem] = useState<{ titulo: string; modo: ModoDeReabrir } | null>(null);
+
+  useEffect(() => {
+    if (!baseId || !user?.id) return;
+    let cancel = false;
+    (async () => {
+      try {
+        const q = await fetchQuote(baseId);
+        if (cancel) return;
+        if (!q || q.painter_id !== user.id) {
+          showToast('Orçamento de origem não encontrado', 'error');
+          return;
+        }
+        setForm((f) => ({ ...f, ...formularioDeQuoteData(q.quote_data, modo) }));
+        setOrigem({ titulo: q.client_name || q.title || 'orçamento', modo });
+        // Editar = o próximo "Gravar" atualiza ESTE orçamento.
+        if (modo === 'editar') setSavedQuoteId(q.id);
+      } catch (e) {
+        if (!cancel) showToast((e as Error).message || 'Erro ao abrir o orçamento', 'error');
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [baseId, modo, user?.id]);
+
+  function usarModelo() {
+    if (!modelo) return;
+    setForm((f) => ({ ...f, ...formularioDeQuoteData(modelo.quote_data, 'duplicar') }));
+    setOrigem({ titulo: modelo.title || modelo.service_type || 'modelo', modo: 'duplicar' });
+    setModelo(null);
+    showToast('Modelo aplicado — agora é só ajustar o cliente', 'success');
+  }
 
   // Monta a descrição rica que vai pra IA — concatena todos os campos
   // preenchidos. Quanto mais info, mais preciso o escopo/preço.
@@ -373,14 +389,22 @@ export function QuoteWizard() {
     setSaving(true);
     try {
       const titulo = tituloDosServicos(form.servicos);
-      const { quoteId } = await saveQuote({
+      const dados = {
         client_name: form.clientName || 'Cliente',
         service_type: titulo,
         title: titulo,
         area_m2: areaTotal(form.servicos),
         price: effectivePrice,
         quote_data: montarQuoteData(),
-      });
+      };
+      // Já gravado (ou aberto em modo editar)? Atualiza o MESMO orçamento —
+      // antes, cada "Gravar" criava um orçamento novo no pipeline.
+      if (savedQuoteId && user?.id) {
+        await updateQuoteContent(savedQuoteId, user.id, dados);
+        showToast('Orçamento atualizado ✅', 'success');
+        return savedQuoteId;
+      }
+      const { quoteId } = await saveQuote(dados);
       setSavedQuoteId(quoteId);
       showToast('Orçamento salvo no pipeline ✅', 'success');
       return quoteId;
@@ -513,6 +537,35 @@ export function QuoteWizard() {
 
   return (
     <section className="space-y-4 quote-wizard-root">
+      {origem ? (
+        <div
+          role="status"
+          className="text-sm rounded-xl px-3 py-2.5"
+          style={{ background: 'var(--color-cream)', border: '1px solid var(--color-border)', color: 'var(--color-ink)' }}
+        >
+          {origem.modo === 'editar'
+            ? <>✏️ Editando o orçamento de <b>{origem.titulo}</b>. &quot;Gravar&quot; salva por cima dele.</>
+            : <>📑 Cópia de <b>{origem.titulo}</b> — preencha o cliente. &quot;Gravar&quot; cria um orçamento novo.</>}
+        </div>
+      ) : null}
+      {modelo && !origem ? (
+        <div
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+          style={{ background: 'var(--color-cream)', border: '1px solid var(--color-border)' }}
+        >
+          <div className="flex-1 min-w-0 text-sm" style={{ color: 'var(--color-ink)' }}>
+            ⭐ Começar do seu modelo: <b>{modelo.title || modelo.service_type || 'orçamento'}</b>
+          </div>
+          <button
+            type="button"
+            onClick={usarModelo}
+            className="shrink-0 font-bold text-sm rounded-lg px-3 text-white"
+            style={{ minHeight: 44, background: 'var(--color-p1-button, #ad4924)' }}
+          >
+            Usar modelo
+          </button>
+        </div>
+      ) : null}
       {/* ── 0. CLIENTE ── */}
       <Card title="👤 Cliente">
         <Row label="Nome do cliente">

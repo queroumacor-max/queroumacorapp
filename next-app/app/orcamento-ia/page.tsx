@@ -10,6 +10,7 @@
 import type { Metadata } from 'next';
 import { QuoteWizard } from './QuoteWizard';
 import { AppShell } from '@/components/AppShell';
+import { lerReabertura } from '@/lib/orcamentoModelo';
 
 export const metadata: Metadata = {
   // Página autenticada — fora do índice de busca.
@@ -19,7 +20,14 @@ export const metadata: Metadata = {
     'Gere um orçamento de pintura completo com sugestão de escopo e preço pelo Seu Zé.',
 };
 
-export default function OrcamentoIaPage() {
+export default async function OrcamentoIaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ base?: string | string[]; modo?: string | string[] }>;
+}) {
+  // Editar / duplicar um orçamento do pipeline: `?base=<id>&modo=editar|duplicar`.
+  const sp = await searchParams;
+  const reabrir = lerReabertura(sp.base, sp.modo);
   return (
     <AppShell><div className="min-h-full p-4 max-w-3xl mx-auto pb-24">
       <h1
@@ -31,7 +39,7 @@ export default function OrcamentoIaPage() {
       <p className="text-sm text-[color:var(--color-muted)] mb-6">
         Descreva o serviço, escolha a área e o Seu Zé sugere escopo e preço.
       </p>
-      <QuoteWizard />
+      <QuoteWizard key={reabrir ? `${reabrir.modo}:${reabrir.baseId}` : 'novo'} baseId={reabrir?.baseId} modo={reabrir?.modo} />
     </div></AppShell>
   );
 }
