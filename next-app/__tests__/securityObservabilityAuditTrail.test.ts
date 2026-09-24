@@ -111,9 +111,9 @@ describe('audit_profile_changes — role ganha trilha old->new (gap fechado)', (
 
 describe('cron — os 3 cleanups que só existiam como função ganham agendamento', () => {
   it('agenda cleanup_old_audit_events, cleanup_old_notifications e cleanup_rate_limits', () => {
-    expect(SQL).toMatch(/cron\.schedule\(\s*'cleanup-audit-events'/);
+    expect(SQL).toMatch(/cron\.schedule\(\s*'cleanup-old-audit-events'/);
     expect(SQL).toMatch(/cleanup_old_audit_events\(\)/);
-    expect(SQL).toMatch(/cron\.schedule\(\s*'cleanup-notifications'/);
+    expect(SQL).toMatch(/cron\.schedule\(\s*'cleanup-old-notifications'/);
     expect(SQL).toMatch(/cleanup_old_notifications\(\)/);
     expect(SQL).toMatch(/cron\.schedule\(\s*'cleanup-rate-limits'/);
     expect(SQL).toMatch(/cleanup_rate_limits\(\)/);

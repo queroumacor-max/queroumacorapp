@@ -192,9 +192,12 @@ Legenda: **PRO-IA** = login + PRO + rate limit + cota mensal;
 
 ## 9. Divergências a conferir no banco
 
-1. Policies antigas `"… viewable by everyone"` (`USING true`, inclusive
-   anon) em `follows`, `likes`, `qualifications` e `courses` nunca são
-   derrubadas no repo — podem coexistir com as restritas.
-2. Jobs de cron duplicados (seção 7).
+1. ✅ **Conferido (2026-09-24): sem problema.** As 4 tabelas (`follows`,
+   `likes`, `qualifications`, `courses`) têm UMA policy de SELECT cada
+   (`*_select_auth`, `{authenticated}`); as antigas `"… viewable by
+   everyone"` não existem mais no banco.
+2. ✅ **Jobs de cron duplicados (2026-09-24):** `cleanup-audit-events` e
+   `cleanup-notifications` repetiam `cleanup-old-*` (mesmo comando e
+   horário). Desagendados por `migrations/2026-09-24-cron-dedupe.sql` (executado; 8 jobs, 1 por comando).
 3. Custo de `redeem_pro_with_points`: a tela diz 1000 pontos; a função só
    existe no banco — conferir com `pg_get_functiondef`.

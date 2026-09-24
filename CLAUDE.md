@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **LIMPEZA DO BANCO (2026-09-24, conferido pelo usuário no SQL Editor).**
+  (1) Policies de SELECT de `follows`/`likes`/`qualifications`/`courses`:
+  UMA por tabela (`*_select_auth`, `{authenticated}`) — as antigas "…
+  viewable by everyone" já não existem. Nada a fazer. (2) Cron: 10 jobs,
+  2 DUPLICADOS — `cleanup-audit-events` = `cleanup-old-audit-events` e
+  `cleanup-notifications` = `cleanup-old-notifications` (mesmo comando e
+  horário; vinham das migrations de observability e de privacidade de
+  09-17). SQL `/migrations/2026-09-24-cron-dedupe.sql` desagenda as cópias
+  — **JÁ EXECUTADO no Supabase (2026-09-24, conferido: 8 jobs, 1 por
+  comando, o 2 `unschedule` voltaram true). Não pedir pra rodar de novo.** A migration de
+  observability foi alterada no repo pra usar os nomes `cleanup-old-*`,
+  então re-rodar qualquer uma das duas não duplica de novo.
+
 - **3 MIGRATIONS "SEM REGISTRO DE EXECUÇÃO" CONFERIDAS NO BANCO — TODAS
   APLICADAS (2026-09-24, pelo usuário no SQL Editor).** A consulta de
   conferência combinada (as 22 checagens dos blocos de conferência dos
