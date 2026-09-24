@@ -1,5 +1,50 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS + GASTOS POR CATEGORIA + QUOTES SÓ-PINTOR (2026-09-24,
+  pedido do usuário + sugestões do pintor Léo). SQL em 3 arquivos, NESTA
+  ORDEM: `/migrations/2026-09-24-a-quotes-update-so-pintor.sql`,
+  `…-b-gestao-obras-tabelas.sql`, `…-c-gestao-obras-funcoes.sql` —
+  PENDENTE de execução no Supabase (colados no chat).** Testados ponta a
+  ponta num Postgres 16 LOCAL com stubs do Supabase (34 testes de ataque e
+  fluxo, idempotência conferida rodando 2x) — não é o banco de produção.
+  - **A:** derruba toda policy de UPDATE de `quotes` e recria
+    `quotes_update_painter` (pintor ou admin). Fecha o furo do cliente
+    alterando preço/`quote_data`/status via REST. Nenhum fluxo do app
+    escrevia em `quotes` como cliente (mapeado antes).
+  - **B/C:** `obras` (dono), `obra_equipe` (gestor; `membro_id` = usuário
+    do app ou NULL pra funcionário sem conta, com telefone e diária),
+    `obra_escala` (obra × pessoa × dia, presença). O FUNCIONÁRIO não tem
+    policy em nenhuma tabela — só RPC SECURITY DEFINER que devolve o
+    necessário (nunca valor da obra, observações nem diária de colegas).
+    Trigger `protect_obra_equipe`: gestor nunca coloca usuário do app como
+    "ativo" (só o aceite dele), não troca dono/membro depois, convite exige
+    e-mail confirmado, respeita `blocked_between`, teto de 100 pessoas e
+    rate limit 20/h (também no reconvite). Escala só com gente ATIVA da
+    própria equipe. `enviar_escala_obras` = 1 aviso por pessoa (não por
+    dia) + lista dos sem-conta pro app abrir o WhatsApp. `jobs.categoria`
+    (CHECK) + `jobs.obra_id`/`notes.obra_id` com trigger `check_obra_link`
+    (só obra do próprio dono).
+  - **App:** tile "🏗️ Gestão de Obras" (só pintor/admin) + rota `/obras`
+    (`?aba=agenda`, destino dos avisos `obra_convite`/`obra_escala` — o
+    funcionário pode não ser pintor). Abas Obras (criar/editar, vincular
+    orçamento, detalhe com custos por categoria → Financeiro, mão de obra
+    ESTIMADA pela escala × diária quando não lançada, anotações da obra,
+    como chegar), Equipe, Escala (semana seg–sáb, enviar) e Minha agenda
+    (convites, confirmar presença). Sem o SQL, a tela mostra quais
+    arquivos rodar (`ObrasSqlPendenteError`), nunca erro cru.
+  - **Financeiro:** categoria virou SELECT fixo (texto livre gerava
+    "Material"/"material"/"Materiais"); grava na coluna E no prefixo antigo
+    do `service_type` (funciona antes do SQL); card "Gastos por categoria"
+    completo só PRO, resumo pra todos (regra pedida pelo Léo). Select/insert
+    de `jobs` tolera 42703 (coluna ausente) — o Financeiro não cai por SQL
+    pendente.
+  - Testes: `__tests__/obras.test.ts` (lógica + guardas estáticas do SQL:
+    RLS, `(SELECT auth.uid())`, colunas qualificadas, search_path, anon).
+  - **Deploy run #748 do `deploy.yml` (commit `bb27d1c`, a pedido do
+    usuário) terminou `success`: Frete (#403), rolagem do pipeline (#404) e
+    editar/duplicar/modelo (#405) NO AR.** Esta entrada (Gestão de Obras,
+    PR #406) precisa de OUTRO deploy depois do merge + o SQL a/b/c.
+
 - **ORÇAMENTO: EDITAR, DUPLICAR e MODELO ⭐ (sugestões do pintor Léo,
   2026-09-24). SEM SQL.** O assistente já gravava o formulário INTEIRO em
   `quote_data` (`...form`); `lib/orcamentoModelo.ts`

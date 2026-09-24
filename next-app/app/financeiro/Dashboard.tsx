@@ -26,6 +26,9 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { useFinanceiro } from '@/lib/hooks/useFinanceiro';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { canSeeProFeature } from '@/lib/policies';
+import { gastosPorCategoria } from '@/lib/categoriasGasto';
 import { fmtBRL, escapeHtml } from '@/lib/utils';
 import { EntryForm } from './EntryForm';
 import { LaunchCostSheet } from './LaunchCostSheet';
@@ -230,6 +233,44 @@ function Skeleton() {
   );
 }
 
+// Detalhe dos gastos por categoria (sugestão do pintor Léo, 2026-09-24):
+// o resumo receita/custo/lucro acima é de todos; ver ONDE foi o dinheiro
+// (funcionários, veículo, transporte…) é PRO.
+function GastosPorCategoriaCard({ entries }: { entries: Job[] }) {
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
+  const gastos = gastosPorCategoria(entries);
+  if (gastos.length === 0) return null;
+  const total = gastos.reduce((s, g) => s + g.total, 0) || 1;
+  return (
+    <section className="bg-white rounded-2xl border border-[color:var(--color-border)] p-4">
+      <h2 className="text-xs font-bold uppercase tracking-wider text-[color:var(--color-muted)] mb-3">
+        Gastos por categoria
+      </h2>
+      {isPro ? (
+        <ul className="flex flex-col gap-2">
+          {gastos.map((g) => (
+            <li key={g.id} className="text-sm">
+              <div className="flex justify-between gap-2">
+                <span>{g.rotulo}</span>
+                <b>R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>
+              </div>
+              <div className="h-1.5 rounded-full bg-[color:var(--color-cream)] mt-1 overflow-hidden" aria-hidden="true">
+                <div className="h-full bg-[color:var(--color-p1-button)]" style={{ width: `${Math.round((g.total / total) * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-[color:var(--color-muted)]">
+          Veja quanto vai pra material, funcionários, veículo e transporte até chegar no lucro.{' '}
+          <Link href="/pro" className="font-bold underline text-[color:var(--color-ink)]">Disponível no PRO</Link>
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function Dashboard() {
   const { user, loading: authLoading } = useAuth();
   const {
@@ -327,6 +368,8 @@ export function Dashboard() {
         lucro={summary.lucro}
         count={summary.count}
       />
+
+      <GastosPorCategoriaCard entries={entries} />
 
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-[color:var(--color-muted)]">

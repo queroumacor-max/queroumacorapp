@@ -40,6 +40,11 @@ function hrefFor(n: Notification): string | null {
       return '/orcamentos';
     case 'order':
       return '/pedidos';
+    case 'obra_convite':
+    case 'obra_escala':
+      return '/obras?aba=agenda';
+    case 'obra_convite_resposta':
+      return '/obras?aba=equipe';
     default:
       return null;
   }
@@ -67,6 +72,10 @@ function iconFor(type?: string | null): string {
       return '⭐';
     case 'announcement':
       return '📢';
+    case 'obra_convite':
+    case 'obra_convite_resposta':
+    case 'obra_escala':
+      return '🏗️';
     case 'system':
     case 'info':
     default:

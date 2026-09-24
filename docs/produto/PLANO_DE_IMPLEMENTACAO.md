@@ -52,6 +52,7 @@
 | 2.6 | CNPJ/CPF no perfil (hoje vivem só no `quote_data`) | P | Menos digitação no orçamento |
 | 2.7 | Aviso "atualize o app" | P | Adiado por decisão — reavaliar |
 | 2.8 | Reels verticais, editor de story, antes/depois real | G | Paridade com redes sociais |
+| 2.9 | ✅ Feito (2026-09-24): tile Frete, editar/duplicar/modelo de orçamento, rolagem do pipeline, Gestão de Obras (obras, equipe, escala, agenda do funcionário) e gastos por categoria no Financeiro (PRO) | — | Sugestões do pintor Léo + pedido do usuário. Gestão de Obras depende das migrations 2026-09-24-a/b/c |
 
 ## 5. Fase 3 — Plataforma e operação
 

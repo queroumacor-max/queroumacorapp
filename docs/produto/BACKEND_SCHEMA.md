@@ -60,10 +60,11 @@ RLS está habilitada em **todas**. "Admin" = `is_portal_admin()`.
 ### Negócio do profissional
 | Tabela | Para quê | Observação |
 |---|---|---|
-| `quotes` | Orçamentos | `client_id`, `painter_id`, `post_id`, `status`, `quote_data` jsonb (serviços, itens, desconto, laudo, pagamento…). Partes ou admin. Cliente ≠ pintor. Realtime |
+| `quotes` | Orçamentos | `client_id`, `painter_id`, `post_id`, `status`, `quote_data` jsonb (serviços, itens, desconto, laudo, pagamento…; `modelo=true` marca o modelo do pintor). Partes leem; **só o pintor (ou admin) altera** desde 2026-09-24. Cliente ≠ pintor. Realtime |
 | `reviews` | Avaliações 1–5 | UNIQUE(quote_id, reviewer_id); INSERT só via `submit_review` |
-| `jobs`, `follow_ups` | Agenda, follow-ups de orçamento | Dono |
-| `notes`, `checklists` | Anotações e checklists | Dono; soft delete |
+| `jobs`, `follow_ups` | Agenda, follow-ups de orçamento; `jobs` também é o livro caixa do Financeiro | Dono. `jobs.categoria` (material/mao_de_obra/veiculo/transporte/outros) e `jobs.obra_id` desde 2026-09-24 |
+| `obras`, `obra_equipe`, `obra_escala` | Gestão de Obras (gestor, equipe, escala) | Só o gestor lê/escreve; o funcionário usa RPC (`meus_convites_equipe`, `responder_convite_equipe`, `sair_da_equipe`, `minha_agenda_obras`, `confirmar_presenca_obra`); `enviar_escala_obras` avisa a equipe. Usuário do app só vira "ativo" aceitando o convite (trigger `protect_obra_equipe`) |
+| `notes`, `checklists` | Anotações e checklists | Dono; soft delete. `notes.obra_id` liga a nota a uma obra |
 | `qualifications`, `courses`, `certificates` | Formação | Leitura pública; dono escreve |
 | `art_references` | Biblioteca do AR Grafite | Dono; hash contra blocklist |
 | `brand_logos` | Histórico de logos | Dono; admin lê (camisetas) |

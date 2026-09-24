@@ -212,6 +212,13 @@ export const PROFILE_TOUR_STEPS: ReadonlyArray<TourStep> = [
     text: 'Marque os dias de cada obra pra não prometer dois serviços no mesmo dia.',
   },
   {
+    id: 'p-gestao-obras',
+    selector: '[data-tour="tile-gestao-obras"]',
+    emoji: '🏗️',
+    title: 'Gestão de Obras',
+    text: 'Cadastre suas obras e sua equipe, monte a escala da semana e mande pra cada um. Quem usa o app recebe o aviso; quem não usa, recebe pelo WhatsApp.',
+  },
+  {
     id: 'p-crm',
     selector: '[data-tour="tile-crm"]',
     emoji: '🔁',

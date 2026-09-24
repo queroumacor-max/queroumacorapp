@@ -26,6 +26,15 @@ import { useEffect, useRef, useState } from 'react';
 import { parseBRL } from '@/lib/utils';
 import { showToast } from '@/lib/toast';
 import { canSeeProFeature } from '@/lib/policies';
+import { CATEGORIAS_GASTO, ehCategoriaGasto, type CategoriaGasto } from '@/lib/categoriasGasto';
+
+const PREFIXO_CATEGORIA: Record<CategoriaGasto, string> = {
+  material: 'Material',
+  mao_de_obra: 'Mão de obra',
+  veiculo: 'Veículo',
+  transporte: 'Transporte',
+  outros: 'Outros',
+};
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import type { FinEntryInput } from '@/lib/services/financeiro';
 
@@ -101,7 +110,7 @@ export function EntryForm({
       setOcrResult(data);
       // Auto-preenche os campos do form com o resultado.
       setTipo('custo');
-      setCategoria('Material');
+      setCategoria('material');
       setNome(
         data.merchant
           ? `Compra em ${data.merchant}`
@@ -158,7 +167,10 @@ export function EntryForm({
 
     // Categoria entra como prefixo no service_type pra não perder o dado
     // sem precisar de migration. Ex.: "Material: tinta acrílica 18L".
-    const catT = categoria.trim();
+    // O prefixo segue indo no service_type ("Material: tinta 18L") — é o que
+    // o app entende se a coluna `categoria` ainda não existir no banco.
+    const cat = ehCategoriaGasto(categoria) ? categoria : null;
+    const catT = cat ? PREFIXO_CATEGORIA[cat] : '';
     const serviceType = catT && nomeT ? `${catT}: ${nomeT}` : catT || nomeT;
 
     onSubmit({
@@ -166,6 +178,7 @@ export function EntryForm({
       client_name: clienteT,
       revenue,
       material_cost: materialCost,
+      categoria: cat,
     });
     // Fechamos otimisticamente. Se o create estourar erro, o caller (Dashboard)
     // mostra createError inline na tela — o modal já se foi. Tradeoff: UX
@@ -376,15 +389,20 @@ export function EntryForm({
             >
               Categoria (opcional)
             </label>
-            <input
+            {/* Lista fixa (sugestão do pintor Léo, 2026-09-24): texto livre
+                virava "Material", "material", "Materiais" — três categorias
+                pro mesmo gasto, e o detalhe por categoria (PRO) não fecha. */}
+            <select
               id="fin-cat"
-              type="text"
               value={categoria}
               onChange={(e) => setCategoria(e.target.value)}
-              placeholder="Ex: Material, Mão de obra, Outros"
-              className="w-full px-3 py-2 border border-[color:var(--color-border)] rounded-xl text-sm"
-              maxLength={40}
-            />
+              className="w-full px-3 py-2 border border-[color:var(--color-border)] rounded-xl text-sm bg-white"
+            >
+              <option value="">Sem categoria</option>
+              {CATEGORIAS_GASTO.map((c) => (
+                <option key={c.id} value={c.id}>{c.rotulo}</option>
+              ))}
+            </select>
           </div>
 
           {/* Valores */}

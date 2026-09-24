@@ -286,6 +286,10 @@ export interface Job {
   revenue?: number | null;
   material_cost?: number | null;
   created_at?: string | null;
+  /** Categoria do gasto (lib/categoriasGasto) — migration 2026-09-24-b. */
+  categoria?: string | null;
+  /** Obra da Gestão de Obras a que o lançamento pertence. */
+  obra_id?: string | null;
 }
 
 // Input pra createJob — subset gravável pelo usuário (sem id/created_at/

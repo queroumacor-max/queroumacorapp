@@ -21,13 +21,19 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import type { Job } from '@/lib/types';
 import { ymdBrt } from '@/lib/utils';
+import { ehCategoriaGasto } from '@/lib/categoriasGasto';
 
 import { fetchGated } from './fetchGated';
 // Colunas que o dashboard renderiza. Mesmo subset do vanilla
 // (modules/financeiro.js linha 24) — sem `notes`/`address` que o financeiro
 // não usa, pra economizar payload.
-const ENTRY_COLS =
+const ENTRY_COLS_BASE =
   'id, painter_id, service_type, client_name, revenue, material_cost, status, scheduled_date, created_at';
+// `categoria` e `obra_id` vêm da migration 2026-09-24-b (Gestão de Obras).
+// Enquanto ela não roda, o select com essas colunas volta 42703 — aí cai
+// no conjunto antigo (o Financeiro não pode sumir por SQL pendente).
+const ENTRY_COLS = `${ENTRY_COLS_BASE}, categoria, obra_id`;
+const colunaAusente = (e: { code?: string } | null) => e?.code === '42703';
 
 // 500 alinhado com agenda.ts pra coerência de defaults entre features que
 // leem `jobs`. Janelas típicas (3, 6, 12 meses) ficam bem abaixo disso.
@@ -46,6 +52,8 @@ export interface FinEntryInput {
   revenue: number;
   /** Custo de material em R$ (>= 0). */
   material_cost: number;
+  /** Categoria do gasto (lib/categoriasGasto). Opcional. */
+  categoria?: string | null;
 }
 
 export interface MonthSummary {
@@ -108,19 +116,22 @@ export async function fetchEntries(
 
   const cutoff = monthsAgoIso(monthsBack);
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('jobs')
-    .select(ENTRY_COLS)
-    .eq('painter_id', painterId)
-    .eq('status', 'concluido')
-    .gte('created_at', cutoff)
-    .order('created_at', { ascending: false })
-    .limit(ENTRY_LIMIT);
+  const consulta = (cols: string) =>
+    sb
+      .from('jobs')
+      .select(cols)
+      .eq('painter_id', painterId)
+      .eq('status', 'concluido')
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+      .limit(ENTRY_LIMIT);
+  let { data, error } = await consulta(ENTRY_COLS);
+  if (colunaAusente(error)) ({ data, error } = await consulta(ENTRY_COLS_BASE));
 
   if (error) {
     throw new NetworkError(error.message, error);
   }
-  return (data ?? []) as Job[];
+  return (data ?? []) as unknown as Job[];
 }
 
 /**
@@ -175,11 +186,17 @@ export async function createEntry(
   };
 
   const sb = getSupabase();
-  const { data, error } = await sb
-    .from('jobs')
-    .insert(row)
-    .select(ENTRY_COLS)
-    .single();
+  const categoria = ehCategoriaGasto(input.categoria) ? input.categoria : null;
+  const inserir = (comCategoria: boolean) =>
+    sb
+      .from('jobs')
+      .insert((comCategoria && categoria ? { ...row, categoria } : row) as typeof row)
+      .select(comCategoria ? ENTRY_COLS : ENTRY_COLS_BASE)
+      .single();
+  let { data, error } = await inserir(true);
+  // Coluna ainda não existe (SQL pendente): grava sem ela — a categoria
+  // continua no prefixo do service_type, que o app também entende.
+  if (colunaAusente(error)) ({ data, error } = await inserir(false));
 
   if (error) {
     throw new NetworkError(error.message, error);
@@ -187,7 +204,7 @@ export async function createEntry(
   if (!data) {
     throw new NetworkError('Insert de lançamento retornou vazio');
   }
-  return data as Job;
+  return data as unknown as Job;
 }
 
 /**
