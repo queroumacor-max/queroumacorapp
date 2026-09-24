@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **PIPELINE "NÃO ROLA / NÃO VOLTA" (relato do pintor Léo, 2026-09-24).
+  SEM SQL. Não reproduzido no aparelho dele — correções pelas causas
+  prováveis achadas no código:** (1) o app ESCONDE a barra de rolagem em
+  todo lugar (`globals.css`), e no COMPUTADOR isso tira a única pista de
+  que a tela rola — agora, com mouse (`@media (pointer: fine)`), `<main>`
+  e o corpo do BottomSheet (classe nova `.sheet-body`) mostram barra fina;
+  no celular segue escondida. (2) `/orcamentos/[id]`: "← Voltar pro
+  pipeline" ficava só no topo; virou barra `sticky` sempre visível.
+  (3) BottomSheet: a trava de `touchmove` cancelava o gesto quando o corpo
+  não transbordava, prendendo roláveis INTERNOS — `temRolavelInterno`
+  libera. Teste `__tests__/components/BottomSheetRolagem.test.ts`. Pedir
+  pro Léo confirmar se resolveu (e se usa PC ou celular).
+  **Frete (#403) MERGEADO (squash `23dff6c`).**
+
 - **TILE "FRETE" (2026-09-24, pedido do usuário: "cálculo de frete, KM por
   litro vs valor do litro"). SEM SQL.** `lib/frete.ts` (`calcularFrete`,
   puro, testado em `__tests__/frete.test.ts`) + `app/frete/FreteView.tsx`
