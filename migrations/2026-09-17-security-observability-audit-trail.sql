@@ -177,7 +177,7 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 -- audit_events > 1 ano — semanal domingo 04:00 UTC (mesmo horário
 -- sugerido, nunca executado, em supabase_init.sql).
 SELECT cron.schedule(
-  'cleanup-audit-events',
+  'cleanup-old-audit-events',
   '0 4 * * 0',
   $$SELECT public.cleanup_old_audit_events();$$
 );
@@ -185,7 +185,7 @@ SELECT cron.schedule(
 -- notifications > 90 dias — semanal domingo 03:00 UTC (mesmo horário
 -- sugerido, nunca executado, em supabase_init.sql).
 SELECT cron.schedule(
-  'cleanup-notifications',
+  'cleanup-old-notifications',
   '0 3 * * 0',
   $$SELECT public.cleanup_old_notifications();$$
 );
@@ -208,4 +208,4 @@ SELECT
   EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'audit_profile_changes'
           AND prosrc LIKE '%security.role_change%') AS role_change_auditado,
   (SELECT count(*) FROM cron.job
-   WHERE jobname IN ('cleanup-audit-events', 'cleanup-notifications', 'cleanup-rate-limits')) AS crons_agendados_esperado_3;
+   WHERE jobname IN ('cleanup-old-audit-events', 'cleanup-old-notifications', 'cleanup-rate-limits')) AS crons_agendados_esperado_3;

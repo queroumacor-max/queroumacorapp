@@ -35,7 +35,7 @@
 |---|---|---|---|
 | 1.1 | **Moderação obrigatória no servidor para posts.** Hoje um INSERT direto via API pula a moderação. Proposta registrada: posts nascem `pending` e só a rota de moderação (service role) promove para `approved`; unificar foto e vídeo no mesmo modelo; testar os dois fluxos antes de revogar o INSERT direto | G | Código |
 | 1.2 | Decidir "Resize images from any origin" no Cloudflare: auditar quanto da mídia passa por proxy do domínio; proxiar o Supabase Storage e então desligar | M | Código + Painel |
-| 1.3 | Conferir no banco as divergências do [BACKEND_SCHEMA §9](BACKEND_SCHEMA.md#9-divergências-a-conferir-no-banco): policies `USING true` antigas, cron duplicado | P | Código (SQL colado) |
+| 1.3 | ✅ **Feito (2026-09-24).** Policies das 4 tabelas conferidas (só `authenticated`, sem sobra antiga); cron duplicado removido por `2026-09-24-cron-dedupe.sql` | P | Código (SQL colado) |
 | 1.4 | ✅ **Feito (2026-09-24).** Conferido no banco: `2026-09-16-business-logic-security-audit.sql`, `2026-09-17-rate-limit-sliding-window.sql` e `2026-09-17-whatsapp-followup-claim.sql` estão aplicados (22/22 checagens `true`) | P | Painel |
 | 1.5 | Segundo admin em GitHub, Cloudflare, Supabase, Firebase, Play; MFA em todos; revisar Dualhook e desligar a instância Evolution no Render | M | Painel |
 | 1.6 | Remover o Custom Domain do projeto Cloudflare Pages antigo, se ainda estiver lá | P | Painel |
