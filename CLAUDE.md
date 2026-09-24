@@ -11,8 +11,10 @@
   proporção antiga 640×762 → 968×1066). Teste `__tests__/splashMascotes.test.ts`
   trava que a ref existe em `public/` e que o nome sem versão não volta.
   **REGRA: trocou arte estática servida pelo SW → troque o NOME do arquivo**
-  (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). Precisa de
-  deploy pra valer.
+  (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). PR #399
+  MERGEADA (`5cc9818`) e **NO AR: deploy run #747 do `deploy.yml`
+  (2026-09-24) terminou `success`.** Falta o usuário confirmar no aparelho
+  que aparece uma legenda só.
 
 - **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
   TRD appflow brief ui and ux esquema backend plano de implementacao").**
