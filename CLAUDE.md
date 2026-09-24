@@ -27,8 +27,8 @@
   **REGRA: trocou arte estática servida pelo SW → troque o NOME do arquivo**
   (ou bumpe `CACHE_VERSION`, que limpa TODO o cache de imagem). PR #399
   MERGEADA (`5cc9818`) e **NO AR: deploy run #747 do `deploy.yml`
-  (2026-09-24) terminou `success`.** Falta o usuário confirmar no aparelho
-  que aparece uma legenda só.
+  (2026-09-24) terminou `success`.** **CONFIRMADO PELO USUÁRIO NO APARELHO
+  (2026-09-24): "splash certinho" — uma legenda só.** Caso fechado.
 
 - **DOCUMENTAÇÃO DE PRODUTO CRIADA (2026-09-23, pedido do usuário: "PRD
   TRD appflow brief ui and ux esquema backend plano de implementacao").**
