@@ -40,9 +40,10 @@
     pendente.
   - Testes: `__tests__/obras.test.ts` (lógica + guardas estáticas do SQL:
     RLS, `(SELECT auth.uid())`, colunas qualificadas, search_path, anon).
-  - **Deploy (run do `deploy.yml`) disparado a pedido do usuário pra
-    Frete/rolagem/editar-duplicar ANTES deste PR** — esta entrada precisa
-    de outro deploy depois do merge.
+  - **Deploy run #748 do `deploy.yml` (commit `bb27d1c`, a pedido do
+    usuário) terminou `success`: Frete (#403), rolagem do pipeline (#404) e
+    editar/duplicar/modelo (#405) NO AR.** Esta entrada (Gestão de Obras,
+    PR #406) precisa de OUTRO deploy depois do merge + o SQL a/b/c.
 
 - **ORÇAMENTO: EDITAR, DUPLICAR e MODELO ⭐ (sugestões do pintor Léo,
   2026-09-24). SEM SQL.** O assistente já gravava o formulário INTEIRO em
