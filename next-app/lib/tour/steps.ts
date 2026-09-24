@@ -191,6 +191,13 @@ export const PROFILE_TOUR_STEPS: ReadonlyArray<TourStep> = [
     text: 'Diga o tamanho da parede e ela calcula quantos litros de tinta você vai precisar.',
   },
   {
+    id: 'p-frete',
+    selector: '[data-tour="tile-frete"]',
+    emoji: '🚚',
+    title: 'Frete',
+    text: 'Coloque a distância até a obra, quantos km o carro faz por litro e o preço do litro. Ela mostra quanto custa ir e voltar, pra você não esquecer de cobrar.',
+  },
+  {
     id: 'p-tabela-precos',
     selector: '[data-tour="tile-tabela-precos"]',
     emoji: '📊',

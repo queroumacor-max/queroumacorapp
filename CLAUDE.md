@@ -1,5 +1,27 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **TILE "FRETE" (2026-09-24, pedido do usuário: "cálculo de frete, KM por
+  litro vs valor do litro"). SEM SQL.** `lib/frete.ts` (`calcularFrete`,
+  puro, testado em `__tests__/frete.test.ts`) + `app/frete/FreteView.tsx`
+  (sheet no BusinessGrid, ao lado da Calculadora; visível pra todo papel
+  MENOS cliente). Distância × ida/volta × viagens ÷ km/L × preço do litro +
+  pedágio/estacionamento por viagem; mostra km, litros, custo por km e por
+  viagem, e copia o texto pro orçamento. Dado faltando → "preencha", nunca
+  R$ 0,00. Nada é gravado (só cálculo); passo novo no tour (`p-frete`).
+  - **EM ABERTO, planejado e NÃO feito (aguardando OK do usuário):**
+    (1) **Gestão de Obras** (tile pintor): protótipo em
+    https://claude.ai/artifact/XoADjescHo2T7Ww8ULs6fU — obras, equipe
+    (convite por @tag ou funcionário sem conta via WhatsApp), escala
+    semanal, agenda do funcionário. Usuário pediu que seja LIGADA aos tiles
+    Financeiro, Orçamento, Agenda e Anotações (e o Frete entra como custo da
+    obra). Precisa de SQL novo (obras/obra_equipe/obra_escala).
+    (2) **Sugestões do pintor Léo Pinheiro** (via WhatsApp do usuário):
+    orçamento mestre como modelo + "Duplicar"; "Editar" orçamento gravado;
+    BUG: no pipeline/detalhe do orçamento não consegue rolar nem voltar
+    (todas as abas) — não reproduzido ainda; Financeiro com categorias de
+    gasto (funcionários, veículos, transporte) — ele sugere resumido no
+    FREE e detalhado no PRO.
+
 - **LIMPEZA DO BANCO (2026-09-24, conferido pelo usuário no SQL Editor).**
   (1) Policies de SELECT de `follows`/`likes`/`qualifications`/`courses`:
   UMA por tabela (`*_select_auth`, `{authenticated}`) — as antigas "…
