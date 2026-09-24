@@ -108,3 +108,8 @@ SELECT 'auditoria supabase: policy leads_admin_all existe — 2026-09-13' AS ite
 -- conversas segue mostrando o texto de mensagem apagada (pelo dono ou pela
 -- moderação) — get_conversations é SECURITY DEFINER e ignorava deleted_at.
 SELECT 'chat: get_conversations ignora deleted_at — 2026-09-23' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='get_conversations' AND prosrc LIKE '%deleted_at IS NULL%') AS ok;
+
+-- 2026-09-24 (Gestão de Obras + quotes só-pintor). Arquivos a/b/c.
+SELECT 'quotes: UPDATE só do pintor — 2026-09-24-a' AS item, NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='quotes' AND cmd IN ('UPDATE','ALL') AND policyname <> 'quotes_update_painter') AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='quotes' AND policyname='quotes_update_painter') AS ok;
+SELECT 'gestão de obras: tabelas com RLS — 2026-09-24-b' AS item, (SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ('obras','obra_equipe','obra_escala') AND relrowsecurity) = 3 AS ok;
+SELECT 'gestão de obras: funções — 2026-09-24-c' AS item, (SELECT count(*) FROM pg_proc WHERE proname IN ('protect_obra_equipe','minha_agenda_obras','enviar_escala_obras','responder_convite_equipe')) = 4 AS ok;

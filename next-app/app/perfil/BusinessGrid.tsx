@@ -22,6 +22,9 @@ const PontosView = lazy(() =>
 const CalcView = lazy(() =>
   import('@/app/calculadora/CalcView').then((m) => ({ default: m.CalcView })),
 );
+const GestaoObras = lazy(() =>
+  import('@/app/obras/GestaoObras').then((m) => ({ default: m.GestaoObras })),
+);
 const FreteView = lazy(() =>
   import('@/app/frete/FreteView').then((m) => ({ default: m.FreteView })),
 );
@@ -90,6 +93,7 @@ type SheetKey =
   | 'frete'
   | 'tabela-precos'
   | 'agenda'
+  | 'gestao-obras'
   | 'crm'
   | 'checklist'
   | 'financeiro'
@@ -127,6 +131,7 @@ const SHEETS: Partial<Record<SheetKey, SheetConfig>> = {
   frete: { label: 'Calculadora de Frete', Component: FreteView as ComponentType },
   'tabela-precos': { label: 'Tabela de Preços', Component: TabelaPrecosView as ComponentType },
   agenda: { label: 'Agenda', Component: AgendaCalendar as ComponentType },
+  'gestao-obras': { label: 'Gestão de Obras', Component: GestaoObras as ComponentType },
   crm: { label: 'Reativar Clientes', Component: CrmList as ComponentType },
   checklist: { label: 'Checklist de Obra', Component: ChecklistView as ComponentType },
   financeiro: { label: 'Financeiro', Component: FinanceiroDashboard as ComponentType },
@@ -162,6 +167,9 @@ const TILES: readonly Tile[] = [
   // Só pintor (e admin) enxerga — filtrado em `visibleTiles` logo abaixo.
   { sheet: 'tabela-precos', emoji: '📊', title: 'Tabela de Preços', subtitle: '' },
   { sheet: 'agenda', emoji: '📅', title: 'Agenda', subtitle: 'Meus projetos' },
+  // Só pintor (e admin) — filtrado em `visibleTiles`. O funcionário
+  // escalado usa /obras (aviso no sininho), não precisa do tile.
+  { sheet: 'gestao-obras', emoji: '🏗️', title: 'Gestão de Obras', subtitle: 'Equipe e escala' },
   { sheet: 'crm', emoji: '🔁', title: 'Reativar clientes', subtitle: 'Follow-up · PRO' },
   { sheet: 'financeiro', emoji: '💰', title: 'Financeiro', subtitle: 'Lucro e comissão' },
   { sheet: 'notes', emoji: '📝', title: 'Anotações', subtitle: 'Notas e lembretes' },
@@ -260,6 +268,7 @@ export function BusinessGrid() {
     // pularia da vizinhança da Calculadora pro topo da tela.
     // Tabela ABRAPP é de mão de obra de PINTURA: serve a quem pinta e a
     // quem contrata pintor pra saber se o preço da proposta faz sentido.
+    if (t.sheet === 'gestao-obras') return showAdmin || userRole === 'pintor';
     if (t.sheet === 'frete') return showAdmin || userRole !== 'cliente';
     if (t.sheet === 'tabela-precos')
       return showAdmin || userRole === 'pintor' || userRole === 'arquiteto';
