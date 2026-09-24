@@ -1,5 +1,19 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **3 MIGRATIONS "SEM REGISTRO DE EXECUÇÃO" CONFERIDAS NO BANCO — TODAS
+  APLICADAS (2026-09-24, pelo usuário no SQL Editor).** A consulta de
+  conferência combinada (as 22 checagens dos blocos de conferência dos
+  próprios arquivos, filtrada por `WHERE NOT ok`) voltou "No rows returned":
+  `2026-09-16-business-logic-security-audit.sql` (inclui a brecha de PRO
+  grátis via `pro_expires_at` — FECHADA em produção, e as RPCs
+  `reserve_ai_usage`/`bump_wa_ai_reply_count`),
+  `2026-09-17-rate-limit-sliding-window.sql` e
+  `2026-09-17-whatsapp-followup-claim.sql` (`claim_wa_followup_nudge` existe
+  — o reengajamento do follow-up NÃO está pausado por falta dela). **Não
+  pedir pra rodar de novo nem listar como pendência** — as menções "sem
+  confirmação de execução" nas entradas do pentest (09-18), do Bloco 21 e da
+  auditoria de webhooks mais abaixo estão superadas por esta.
+
 - **SPLASH DOS URSOS COM DUAS LEGENDAS SOBREPOSTAS (2026-09-24, relato do
   usuário: "parece que tá as duas sobrepostas"). SEM SQL.** O #383 trocou a
   arte MANTENDO o nome `/mascotes-calicolors.webp`, e o `sw.js` serve imagem
