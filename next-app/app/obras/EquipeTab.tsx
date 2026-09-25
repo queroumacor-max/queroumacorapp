@@ -13,6 +13,8 @@ import {
   atualizarMembro,
   convidarPorTag,
   listEquipe,
+  normalizarTag,
+  pessoasQueSigo,
   type MembroEquipe,
 } from '@/lib/services/obras';
 import { Botao, Campo, Chip, ErroObras, brl, cls } from './ui';
@@ -28,9 +30,16 @@ export function EquipeTab({ uid }: { uid: string }) {
   const qc = useQueryClient();
   const dialog = useDialog();
   const q = useQuery({ queryKey: ['obra-equipe', uid], queryFn: () => listEquipe(uid), enabled: !!uid });
+  const seguindo = useQuery({ queryKey: ['pessoas-que-sigo', uid], queryFn: () => pessoasQueSigo(uid), enabled: !!uid });
   const [modo, setModo] = useState<'app' | 'sem'>('app');
   const [f, setF] = useState({ tag: '', nome: '', telefone: '', funcao: '', diaria: '' });
+  const [sugestoesAbertas, setSugestoesAbertas] = useState(false);
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
+
+  const termoTag = normalizarTag(f.tag);
+  const sugestoes = (seguindo.data ?? [])
+    .filter((p) => !termoTag || normalizarTag(p.tag).includes(termoTag) || p.nome.toLowerCase().includes(termoTag))
+    .slice(0, 6);
 
   const adicionar = useMutation({
     mutationFn: () => {
@@ -90,7 +99,45 @@ export function EquipeTab({ uid }: { uid: string }) {
         </div>
         {modo === 'app' ? (
           <Campo id="eq-tag" label="@tag do profissional">
-            <input id="eq-tag" className={cls.input} value={f.tag} onChange={(e) => set('tag', e.target.value)} placeholder="@fulano" autoCapitalize="none" />
+            <div className="relative">
+              <input
+                id="eq-tag"
+                className={cls.input}
+                value={f.tag}
+                onChange={(e) => set('tag', e.target.value)}
+                onFocus={() => setSugestoesAbertas(true)}
+                onBlur={() => setTimeout(() => setSugestoesAbertas(false), 150)}
+                placeholder="@fulano"
+                autoCapitalize="none"
+                autoComplete="off"
+              />
+              {sugestoesAbertas && sugestoes.length > 0 ? (
+                <ul
+                  role="listbox"
+                  aria-label="Pessoas que você segue"
+                  className="absolute left-0 right-0 top-full mt-1 z-10 rounded-xl border border-[color:var(--color-border)] bg-white shadow-lg overflow-hidden"
+                >
+                  {sugestoes.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          set('tag', `@${p.tag}`);
+                          setSugestoesAbertas(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-[color:var(--color-cream)]"
+                        style={{ minHeight: 44 }}
+                      >
+                        <span className="font-bold">{p.nome || `@${p.tag}`}</span>
+                        {p.nome ? <span className="text-[color:var(--color-muted)]"> · @{p.tag}</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </Campo>
         ) : (
           <>
