@@ -9,16 +9,18 @@ import { useAuth } from '@/components/AuthProvider';
 import { meusConvites } from '@/lib/services/obras';
 import { EquipeTab } from './EquipeTab';
 import { EscalaTab } from './EscalaTab';
+import { MeuProgresso } from './MeuProgresso';
 import { MinhaAgenda } from './MinhaAgenda';
 import { ObrasTab } from './ObrasTab';
 
-export type AbaObras = 'obras' | 'equipe' | 'escala' | 'agenda';
+export type AbaObras = 'obras' | 'equipe' | 'escala' | 'agenda' | 'cliente';
 
 const ABAS: ReadonlyArray<{ id: AbaObras; rotulo: string }> = [
   { id: 'obras', rotulo: 'Obras' },
   { id: 'equipe', rotulo: 'Equipe' },
   { id: 'escala', rotulo: 'Escala' },
   { id: 'agenda', rotulo: 'Minha agenda' },
+  { id: 'cliente', rotulo: 'Meu progresso' },
 ];
 
 export function GestaoObras({ abaInicial = 'obras' }: { abaInicial?: AbaObras }) {
@@ -37,7 +39,11 @@ export function GestaoObras({ abaInicial = 'obras' }: { abaInicial?: AbaObras })
       <h2 className="font-extrabold text-2xl" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}>
         🏗️ Gestão de Obras
       </h2>
-      <div role="tablist" aria-label="Seções" className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[color:var(--color-cream)]">
+      <div
+        role="tablist"
+        aria-label="Seções"
+        className="flex gap-1 p-1 rounded-xl bg-[color:var(--color-cream)] overflow-x-auto"
+      >
         {ABAS.map((a) => {
           const on = aba === a.id;
           return (
@@ -47,7 +53,7 @@ export function GestaoObras({ abaInicial = 'obras' }: { abaInicial?: AbaObras })
               type="button"
               aria-selected={on}
               onClick={() => setAba(a.id)}
-              className={`rounded-lg text-xs font-bold ${on ? 'bg-[color:var(--color-ink)] text-[color:var(--color-white)]' : 'text-[color:var(--color-ink)]'}`}
+              className={`shrink-0 rounded-lg text-xs font-bold px-3 whitespace-nowrap ${on ? 'bg-[color:var(--color-ink)] text-[color:var(--color-white)]' : 'text-[color:var(--color-ink)]'}`}
               style={{ minHeight: 44 }}
             >
               {a.rotulo}
@@ -61,6 +67,7 @@ export function GestaoObras({ abaInicial = 'obras' }: { abaInicial?: AbaObras })
         {aba === 'equipe' ? <EquipeTab uid={uid} /> : null}
         {aba === 'escala' ? <EscalaTab uid={uid} /> : null}
         {aba === 'agenda' ? <MinhaAgenda uid={uid} /> : null}
+        {aba === 'cliente' ? <MeuProgresso uid={uid} /> : null}
       </div>
     </div>
   );

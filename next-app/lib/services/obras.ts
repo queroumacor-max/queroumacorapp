@@ -48,6 +48,7 @@ export interface Obra {
   quote_id: string | null;
   valor: number | null;
   observacoes: string | null;
+  client_id: string | null;
   created_at: string;
 }
 
@@ -103,7 +104,12 @@ export interface LancamentoObra {
   created_at: string;
 }
 
-const OBRA_COLS = 'id, owner_id, nome, cliente, endereco, status, inicio, fim, quote_id, valor, observacoes, created_at';
+const OBRA_COLS_BASE = 'id, owner_id, nome, cliente, endereco, status, inicio, fim, quote_id, valor, observacoes, created_at';
+// client_id é de uma migration posterior (2026-09-25) — tolera coluna
+// ausente pra quem ainda não rodou o SQL do vínculo de cliente (mesmo
+// padrão do Financeiro com `categoria`/`obra_id`).
+const OBRA_COLS = `${OBRA_COLS_BASE}, client_id`;
+const colunaAusente = (code?: string) => code === '42703';
 const EQUIPE_COLS = 'id, gestor_id, membro_id, nome, telefone, funcao, diaria, status';
 const ESCALA_COLS = 'id, obra_id, equipe_id, dia, hora_inicio, hora_fim, tarefa, presenca';
 
@@ -116,10 +122,16 @@ const txt = (v: unknown, max: number) => {
 
 export async function listObras(uid: string): Promise<Obra[]> {
   if (!uid) return [];
-  const { data, error } = await db().from('obras').select(OBRA_COLS).eq('owner_id', uid)
+  const r1 = await db().from('obras').select(OBRA_COLS).eq('owner_id', uid)
     .order('created_at', { ascending: false }).limit(200);
-  if (error) falha(error);
-  return (data ?? []) as Obra[];
+  if (r1.error && colunaAusente(r1.error.code)) {
+    const r2 = await db().from('obras').select(OBRA_COLS_BASE).eq('owner_id', uid)
+      .order('created_at', { ascending: false }).limit(200);
+    if (r2.error) falha(r2.error);
+    return (r2.data ?? []).map((o) => ({ ...o, client_id: null })) as Obra[];
+  }
+  if (r1.error) falha(r1.error);
+  return (r1.data ?? []) as Obra[];
 }
 
 export interface ObraInput {
@@ -157,10 +169,43 @@ export async function salvarObra(uid: string, input: ObraInput, id?: string): Pr
   if (linha.inicio && linha.fim && linha.fim < linha.inicio) {
     throw new ValidationError('A data de fim é antes do início.');
   }
-  const q = id
-    ? db().from('obras').update(linha).eq('id', id).eq('owner_id', uid).select(OBRA_COLS)
-    : db().from('obras').insert({ ...linha, owner_id: uid }).select(OBRA_COLS);
-  const { data, error } = await q;
+  const r1 = id
+    ? await db().from('obras').update(linha).eq('id', id).eq('owner_id', uid).select(OBRA_COLS)
+    : await db().from('obras').insert({ ...linha, owner_id: uid }).select(OBRA_COLS);
+  if (r1.error && colunaAusente(r1.error.code)) {
+    // já gravou (o erro é só no SELECT de retorno) — refaz sem client_id.
+    const r2 = id
+      ? await db().from('obras').select(OBRA_COLS_BASE).eq('id', id).eq('owner_id', uid)
+      : await db().from('obras').select(OBRA_COLS_BASE).eq('owner_id', uid).order('created_at', { ascending: false }).limit(1);
+    if (r2.error) falha(r2.error);
+    const row2 = (r2.data ?? []).map((o) => ({ ...o, client_id: null }))[0];
+    if (!row2) throw new NetworkError('Obra não encontrada ou sem permissão.');
+    return row2 as Obra;
+  }
+  if (r1.error) falha(r1.error);
+  const row = (r1.data ?? [])[0];
+  if (!row) throw new NetworkError('Obra não encontrada ou sem permissão.');
+  return row as Obra;
+}
+
+/**
+ * GESTOR: vincula (ou desvincula, tag='') a obra a um cliente do app pela
+ * @tag — o cliente ganha uma tela de acompanhamento (status, equipe
+ * escalada, agenda), nunca valor nem observações do gestor.
+ */
+export async function vincularCliente(uid: string, obraId: string, tagBruta: string): Promise<Obra> {
+  let clientId: string | null = null;
+  const tag = normalizarTag(tagBruta);
+  if (tag) {
+    if (tag.length < 2) throw new ValidationError('Digite a @tag do cliente.');
+    const { data: perfis, error: e1 } = await db().from('profiles_public').select('id').eq('tag', tag).limit(1);
+    if (e1) throw new NetworkError(e1.message, e1);
+    const alvo = (perfis ?? [])[0] as { id: string } | undefined;
+    if (!alvo) throw new ValidationError(`Não achei ninguém com a @${tag} no app.`);
+    if (alvo.id === uid) throw new ValidationError('Você não pode se vincular como cliente da própria obra.');
+    clientId = alvo.id;
+  }
+  const { data, error } = await db().from('obras').update({ client_id: clientId }).eq('id', obraId).eq('owner_id', uid).select(OBRA_COLS);
   if (error) falha(error);
   const row = (data ?? [])[0];
   if (!row) throw new NetworkError('Obra não encontrada ou sem permissão.');
@@ -393,4 +438,50 @@ export async function minhaAgenda(de: string, ate: string): Promise<MeuDia[]> {
 export async function confirmarPresenca(escalaId: string, confirmar: boolean): Promise<void> {
   const { error } = await db().rpc('confirmar_presenca_obra', { p_escala_id: escalaId, p_confirmar: confirmar });
   if (error) falha(error);
+}
+
+// ─── CLIENTE (tudo por RPC — só o que o gestor vinculou, nunca valor
+// nem observações) ──────────────────────────────────────────────────────
+
+export interface ObraCliente {
+  obra_id: string;
+  nome: string;
+  status: string;
+  endereco: string | null;
+  inicio: string | null;
+  fim: string | null;
+  gestor_nome: string | null;
+  gestor_tag: string | null;
+}
+
+export interface MembroObraCliente {
+  nome: string;
+  funcao: string | null;
+}
+
+export interface DiaAgendaCliente {
+  dia: string;
+  hora_inicio: string | null;
+  hora_fim: string | null;
+  tarefa: string | null;
+  presenca: 'pendente' | 'confirmada' | 'faltou';
+  equipe: string | null;
+}
+
+export async function minhasObrasCliente(): Promise<ObraCliente[]> {
+  const { data, error } = await db().rpc('minhas_obras_cliente');
+  if (error) falha(error);
+  return (data ?? []) as ObraCliente[];
+}
+
+export async function equipeDaObraCliente(obraId: string): Promise<MembroObraCliente[]> {
+  const { data, error } = await db().rpc('obra_equipe_cliente', { p_obra_id: obraId });
+  if (error) falha(error);
+  return (data ?? []) as MembroObraCliente[];
+}
+
+export async function agendaDaObraCliente(obraId: string, de: string, ate: string): Promise<DiaAgendaCliente[]> {
+  const { data, error } = await db().rpc('obra_agenda_cliente', { p_obra_id: obraId, p_de: de, p_ate: ate });
+  if (error) falha(error);
+  return (data ?? []) as DiaAgendaCliente[];
 }

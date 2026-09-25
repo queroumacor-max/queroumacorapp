@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const ABAS: readonly AbaObras[] = ['obras', 'equipe', 'escala', 'agenda'];
+const ABAS: readonly AbaObras[] = ['obras', 'equipe', 'escala', 'agenda', 'cliente'];
 
 export default async function ObrasPage({ searchParams }: { searchParams: Promise<{ aba?: string | string[] }> }) {
   const { aba } = await searchParams;

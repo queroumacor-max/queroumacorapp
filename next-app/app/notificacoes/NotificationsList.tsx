@@ -45,6 +45,8 @@ function hrefFor(n: Notification): string | null {
       return '/obras?aba=agenda';
     case 'obra_convite_resposta':
       return '/obras?aba=equipe';
+    case 'obra_cliente_vinculo':
+      return '/obras?aba=cliente';
     default:
       return null;
   }
@@ -75,6 +77,7 @@ function iconFor(type?: string | null): string {
     case 'obra_convite':
     case 'obra_convite_resposta':
     case 'obra_escala':
+    case 'obra_cliente_vinculo':
       return '🏗️';
     case 'system':
     case 'info':
