@@ -268,7 +268,8 @@ export function BusinessGrid() {
     // pularia da vizinhança da Calculadora pro topo da tela.
     // Tabela ABRAPP é de mão de obra de PINTURA: serve a quem pinta e a
     // quem contrata pintor pra saber se o preço da proposta faz sentido.
-    if (t.sheet === 'gestao-obras') return showAdmin || userRole === 'pintor';
+    if (t.sheet === 'gestao-obras')
+      return showAdmin || userRole === 'pintor' || userRole === 'grafiteiro' || userRole === 'automotivo';
     if (t.sheet === 'frete') return showAdmin || userRole !== 'cliente';
     if (t.sheet === 'tabela-precos')
       return showAdmin || userRole === 'pintor' || userRole === 'arquiteto';
