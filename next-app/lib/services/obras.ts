@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabase';
+import { DB } from '@/lib/db';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import { ehCategoriaGasto, type CategoriaGasto } from '@/lib/categoriasGasto';
 import { ymdBrt } from '@/lib/utils';
@@ -200,6 +201,33 @@ export async function adicionarSemConta(uid: string, input: MembroInput): Promis
   }).select(EQUIPE_COLS);
   if (error) falha(error);
   return (data ?? [])[0] as MembroEquipe;
+}
+
+export interface PessoaSeguida {
+  id: string;
+  nome: string;
+  tag: string;
+}
+
+/**
+ * Quem o gestor SEGUE, pra sugerir no campo @tag (a pessoa mais provável de
+ * ser convidada é alguém que ele já segue). Só entra quem tem @tag — sem
+ * tag não dá pra convidar por essa rota mesmo. Best-effort: erro aqui não
+ * pode travar o formulário de convite.
+ */
+export async function pessoasQueSigo(uid: string): Promise<PessoaSeguida[]> {
+  if (!uid) return [];
+  try {
+    const ids = await DB.follows.listFollowingIds(uid);
+    if (!ids.length) return [];
+    const { data, error } = await db().from('profiles_public').select('id, name, tag').in('id', ids.slice(0, 300));
+    if (error) return [];
+    return (data ?? [])
+      .map((p: { id: string; name: string | null; tag: string | null }) => ({ id: p.id, nome: p.name || '', tag: p.tag || '' }))
+      .filter((p) => p.tag);
+  } catch {
+    return [];
+  }
 }
 
 /** Normaliza "@Fulano.Pinta " → "fulano.pinta" (mesmo alfabeto da @tag). */
