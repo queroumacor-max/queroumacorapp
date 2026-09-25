@@ -118,3 +118,43 @@ describe('SQL da Gestão de Obras segue as regras das auditorias', () => {
     expect(a).not.toMatch(/CREATE POLICY[\s\S]*client_id/);
   });
 });
+
+describe('SQL do acesso do cliente à obra segue as regras das auditorias', () => {
+  const dir = join(__dirname, '../../migrations');
+  const d = readFileSync(join(dir, '2026-09-25-obra-cliente.sql'), 'utf8');
+
+  it('toda SECURITY DEFINER tem search_path', () => {
+    const defs = d.match(/LANGUAGE \w+ (?:STABLE )?SECURITY DEFINER[^\n]*/g) ?? [];
+    expect(defs.length).toBeGreaterThanOrEqual(5);
+    for (const def of defs) expect(def).toContain('SET search_path = public');
+  });
+
+  it('vínculo com cliente respeita e-mail confirmado, bloqueio e rate limit (mesma trava do convite de equipe)', () => {
+    expect(d).toContain('public.is_email_verified()');
+    expect(d).toContain('public.blocked_between(NEW.owner_id, NEW.client_id)');
+    expect(d).toContain("public.check_rate_limit(NEW.owner_id::text, 'obra-cliente-link', 20, 60)");
+  });
+
+  it('gestor não pode se vincular como cliente da própria obra', () => {
+    expect(d).toContain('NEW.client_id = NEW.owner_id');
+  });
+
+  it('RPCs do cliente não abertas pra anon', () => {
+    expect(d).toMatch(/REVOKE ALL ON FUNCTION public\.minhas_obras_cliente\(\) FROM PUBLIC, anon/);
+    expect(d).toMatch(/REVOKE ALL ON FUNCTION public\.obra_equipe_cliente\(uuid\) FROM PUBLIC, anon/);
+    expect(d).toMatch(/REVOKE ALL ON FUNCTION public\.obra_agenda_cliente\(uuid, date, date\) FROM PUBLIC, anon/);
+  });
+
+  it('RPCs do cliente nunca selecionam valor nem observações da obra', () => {
+    const rpcs = d.slice(d.indexOf('CREATE OR REPLACE FUNCTION public.minhas_obras_cliente'));
+    expect(rpcs).not.toMatch(/\bo\.valor\b/);
+    expect(rpcs).not.toMatch(/\bo\.observacoes\b/);
+  });
+
+  it('agenda e equipe do cliente sempre filtram pelo próprio vínculo (o.client_id = auth.uid())', () => {
+    const agenda = d.slice(d.indexOf('CREATE OR REPLACE FUNCTION public.obra_agenda_cliente'));
+    const equipe = d.slice(d.indexOf('CREATE OR REPLACE FUNCTION public.obra_equipe_cliente'), d.indexOf('CREATE OR REPLACE FUNCTION public.obra_agenda_cliente'));
+    expect(agenda).toContain('o.client_id = auth.uid()');
+    expect(equipe).toContain('o.client_id = auth.uid()');
+  });
+});

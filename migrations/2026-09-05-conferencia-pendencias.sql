@@ -113,3 +113,6 @@ SELECT 'chat: get_conversations ignora deleted_at — 2026-09-23' AS item, EXIST
 SELECT 'quotes: UPDATE só do pintor — 2026-09-24-a' AS item, NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='quotes' AND cmd IN ('UPDATE','ALL') AND policyname <> 'quotes_update_painter') AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='quotes' AND policyname='quotes_update_painter') AS ok;
 SELECT 'gestão de obras: tabelas com RLS — 2026-09-24-b' AS item, (SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ('obras','obra_equipe','obra_escala') AND relrowsecurity) = 3 AS ok;
 SELECT 'gestão de obras: funções — 2026-09-24-c' AS item, (SELECT count(*) FROM pg_proc WHERE proname IN ('protect_obra_equipe','minha_agenda_obras','enviar_escala_obras','responder_convite_equipe')) = 4 AS ok;
+
+-- 2026-09-25 (Gestão de Obras: acesso do cliente).
+SELECT 'obra-cliente: obras.client_id + trigger + RPCs — 2026-09-25' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='obras' AND column_name='client_id') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_protect_obra_cliente') AND (SELECT count(*) FROM pg_proc WHERE proname IN ('minhas_obras_cliente','obra_equipe_cliente','obra_agenda_cliente')) = 3 AS ok;

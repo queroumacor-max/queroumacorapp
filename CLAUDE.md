@@ -1,5 +1,50 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
+  "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
+  sendo feito, agenda"). SQL `/migrations/2026-09-25-obra-cliente.sql`
+  — PENDENTE de execução (colado no chat).**
+  - **Decisão (perguntado ao usuário):** o cliente acessa **logado no
+    app** — precisa ter conta e o gestor vincula pela @tag. Não é link
+    público sem login (mesmo padrão de segurança do resto do app, RLS/
+    RPC). Diferente do convite de EQUIPE (que exige aceite, porque
+    implica obrigação de trabalho), o vínculo de cliente segue o mesmo
+    precedente de `quotes.client_id`: o gestor vincula direto, sem passo
+    de aceite — o cliente já sabe que contratou o serviço.
+  - **`obras.client_id`** (nullable, FK profiles). Trigger
+    `protect_obra_cliente` (defesa em profundidade, cobre PATCH direto
+    via REST): só quem tem e-mail confirmado vincula, nunca vincula
+    gente bloqueada (`blocked_between`), rate limit 20/60min, e o gestor
+    não pode se vincular como cliente da própria obra. Aviso no sininho
+    (`obra_cliente_vinculo`) quando vinculado.
+  - **O CLIENTE NUNCA lê `obras`/`obra_equipe`/`obra_escala` direto** —
+    só por 3 RPCs SECURITY DEFINER: `minhas_obras_cliente()` (status,
+    endereço, datas, gestor — nunca valor nem observações),
+    `obra_equipe_cliente(obra_id)` (nome+função de quem foi ESCALADO
+    nessa obra — equipe não é "da obra", é do gestor; quem trabalha ali
+    é definido pela escala — nunca telefone/diária) e
+    `obra_agenda_cliente(obra_id, de, ate)` (dia, horário, tarefa,
+    presença, quem vai — janela de até 62 dias, mesmo teto do
+    `minha_agenda_obras` do funcionário).
+  - **App**: aba nova "Meu progresso" em Gestão de Obras
+    (`app/obras/MeuProgresso.tsx`) — vê SUAS obras vinculadas, entra e
+    vê status/equipe/agenda. Notificação linka `/obras?aba=cliente`
+    (mesmo padrão do `?aba=agenda` do funcionário — a aba fica sempre
+    visível, não é gated por role, porque quem recebe o vínculo pode não
+    ser cliente "profissionalmente"). Aba **Obras** do gestor ganhou
+    seção "Cliente acompanha pelo app" (vincular/remover por @tag,
+    `vincularCliente` em `lib/services/obras.ts`).
+  - **`Obra.client_id` tolera coluna ausente** (42703) nos dois pontos
+    que selecionam a linha inteira (`listObras`/`salvarObra`) — mesmo
+    padrão de `jobs.categoria`/`obra_id` no Financeiro: recurso novo não
+    derruba o que já funciona por SQL pendente.
+  - Testes: bloco novo em `__tests__/obras.test.ts` (SECURITY DEFINER com
+    search_path, e-mail confirmado + bloqueio + rate limit no vínculo,
+    trava contra auto-vínculo, RPCs sem GRANT pra anon, RPCs nunca
+    selecionam `valor`/`observacoes`, agenda/equipe sempre filtram por
+    `client_id = auth.uid()`). Suíte inteira (211/211 arquivos, 2533/2533
+    testes) e `tsc --noEmit` verdes antes do commit.
+
 - **GESTÃO DE OBRAS: tile também pra grafiteiro e funileiro (2026-09-25,
   pedido do usuário). SEM SQL.** `visibleTiles` do `BusinessGrid.tsx` só
   liberava o tile 🏗️ pra `role==='pintor'` (+ admin) — a ferramenta em si

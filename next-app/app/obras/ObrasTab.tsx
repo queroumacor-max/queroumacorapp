@@ -22,9 +22,11 @@ import {
   listObras,
   notasDaObra,
   salvarObra,
+  vincularCliente,
   type Obra,
   type ObraInput,
 } from '@/lib/services/obras';
+import { getSupabase } from '@/lib/supabase';
 import { Botao, Campo, Chip, ErroObras, brl, cls } from './ui';
 
 type Filtro = 'ativas' | 'concluidas' | 'todas';
@@ -218,6 +220,34 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
   const escala = useQuery({ queryKey: ['obra-escala-da', obra.id], queryFn: () => escalaDaObra(obra.id) });
   const equipe = useQuery({ queryKey: ['obra-equipe', uid], queryFn: () => listEquipe(uid) });
   const notas = useQuery({ queryKey: ['obra-notas', obra.id], queryFn: () => notasDaObra(uid, obra.id) });
+  const clienteVinculado = useQuery({
+    queryKey: ['obra-cliente-vinculado', obra.client_id],
+    queryFn: async () => {
+      if (!obra.client_id) return null;
+      const { data } = await getSupabase().from('profiles_public').select('id, name, tag').eq('id', obra.client_id).maybeSingle();
+      return data as { id: string; name: string | null; tag: string | null } | null;
+    },
+    enabled: !!obra.client_id,
+  });
+  const [tagCliente, setTagCliente] = useState('');
+  const vincular = useMutation({
+    mutationFn: () => vincularCliente(uid, obra.id, tagCliente),
+    onSuccess: () => {
+      setTagCliente('');
+      showToast('Cliente vinculado — ele já pode acompanhar a obra no app dele', 'success');
+      qc.invalidateQueries({ queryKey: ['obras', uid] });
+      qc.invalidateQueries({ queryKey: ['obra-cliente-vinculado'] });
+    },
+    onError: (e) => showToast((e as Error).message, 'error'),
+  });
+  const desvincular = useMutation({
+    mutationFn: () => vincularCliente(uid, obra.id, ''),
+    onSuccess: () => {
+      showToast('Vínculo removido', 'success');
+      qc.invalidateQueries({ queryKey: ['obras', uid] });
+    },
+    onError: (e) => showToast((e as Error).message, 'error'),
+  });
 
   const resumo = useMemo(() => {
     const diaria = new Map((equipe.data ?? []).map((m) => [m.id, m.diaria]));
@@ -348,6 +378,50 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
           <p className="text-xs text-[color:var(--color-muted)]">
             Frete: use o tile Frete em Meu Negócio pra calcular, e lance aqui em &quot;Transporte / frete&quot;.
           </p>
+        </div>
+      </section>
+
+      <section>
+        <h4 className={cls.sec}>Cliente acompanha pelo app</h4>
+        <div className={`${cls.card} flex flex-col gap-2 text-sm`}>
+          {obra.client_id ? (
+            <div className="flex items-center justify-between gap-2">
+              <span>
+                <b>{clienteVinculado.data?.name || 'Cliente vinculado'}</b>
+                {clienteVinculado.data?.tag ? ` · @${clienteVinculado.data.tag}` : ''}
+                {' '}vê status, equipe e agenda no app dele.
+              </span>
+              <Botao onClick={() => desvincular.mutate()} disabled={desvincular.isPending}>Remover</Botao>
+            </div>
+          ) : (
+            <>
+              <p className="text-[color:var(--color-muted)]">
+                Dê ao cliente uma tela pra acompanhar o andamento (status, equipe escalada, agenda — nunca valor
+                nem suas anotações). Ele precisa ter conta no app.
+              </p>
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  vincular.mutate();
+                }}
+              >
+                <label htmlFor="ob-cli-tag" className="sr-only">@tag do cliente</label>
+                <input
+                  id="ob-cli-tag"
+                  className={`${cls.input} flex-1 min-w-0`}
+                  value={tagCliente}
+                  onChange={(e) => setTagCliente(e.target.value)}
+                  placeholder="@tag do cliente"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                />
+                <Botao primario type="submit" disabled={vincular.isPending || !tagCliente.trim()}>
+                  {vincular.isPending ? 'Vinculando…' : 'Vincular'}
+                </Botao>
+              </form>
+            </>
+          )}
         </div>
       </section>
 
