@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS: tile também pra grafiteiro e funileiro (2026-09-25,
+  pedido do usuário). SEM SQL.** `visibleTiles` do `BusinessGrid.tsx` só
+  liberava o tile 🏗️ pra `role==='pintor'` (+ admin) — a ferramenta em si
+  (obras/equipe/escala) não é específica de pintura. Ampliado pra
+  `grafiteiro` e `automotivo` (funileiro) também. PR #407 (squash
+  `c8292703`), **deploy run #750 do `deploy.yml` terminou `success`, NO
+  AR.**
+  - **Ainda não confirmado no aparelho**: falta o usuário abrir o app numa
+    conta pintor de verdade e confirmar que as 4 abas (Obras/Equipe/Escala/
+    Minha agenda) funcionam ponta a ponta com o SQL da entrada abaixo já
+    rodado — a suíte local só prova a lógica pura e as regras do SQL, não
+    a experiência real.
+
 - **GESTÃO DE OBRAS + GASTOS POR CATEGORIA + QUOTES SÓ-PINTOR (2026-09-24,
   pedido do usuário + sugestões do pintor Léo). SQL em 3 arquivos, NESTA
   ORDEM: `/migrations/2026-09-24-a-quotes-update-so-pintor.sql`,
