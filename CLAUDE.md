@@ -36,7 +36,9 @@
     `brand_logos_image_url_https` = true (SQL 1 e 2 APLICADOS). As 6
     constraints do SQL 3 = false — só a pré-conferência tinha sido colada
     no chat; o resto do arquivo (3 UPDATEs + 6 DO) foi passado depois.
-    Conferir de novo antes de afirmar que o SQL 3 rodou.
+    Conferir de novo antes de afirmar que o SQL 3 rodou. Depois disso o
+    usuário informou "rodei tudo" (3 UPDATEs + 6 DO, linha a linha) —
+    conferência pós-execução ainda não devolvida.
     **Não feito:** chave de idempotência do pedido da loja no servidor;
     CSP com script-src no portal. Conferir pós-deploy: `curl -I
     /portal/` e o console na tela de AR (mediapipe/wasm).
