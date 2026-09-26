@@ -10,9 +10,14 @@
 //   approval_method, approval_note, completed_at, scope_snapshot (jsonb),
 //   quote_data (jsonb), images (jsonb), client_followup_optin, created_at.
 //
-// RLS (linha 569+): INSERT só por client_id == auth.uid(); UPDATE por
-// client_id OR painter_id. Por isso o painter usa RPC create_painter_draft
-// (SECURITY DEFINER) pra inserir — INSERT direto seria rejeitado.
+// RLS: INSERT direto é rejeitado pra todo mundo (painter usa a RPC
+// create_painter_draft, SECURITY DEFINER). UPDATE é policy ÚNICA
+// `quotes_update_painter` (2026-09-24-a-quotes-update-so-pintor.sql) —
+// só painter_id OU admin; o client NUNCA tem UPDATE direto em quotes.
+// approveQuote/rejectQuote/setQuoteStage por isso sempre filtram
+// `.eq('painter_id', painterId)` — não existe fluxo de aprovação do
+// cliente escrevendo na tabela (aprovar/recusar pelo cliente é link
+// wa.me pro pintor, ver ORÇAMENTO no CLAUDE.md).
 
 import { getSupabase } from '@/lib/supabase';
 import {

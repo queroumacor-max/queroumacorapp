@@ -204,17 +204,23 @@
   modelo". **De brinde: "Gravar" duas vezes criava DOIS orçamentos no
   pipeline — agora o segundo atualiza o primeiro.** `FormState` do wizard
   mudou-se pra `FormularioDoOrcamento` na lib. `?base` validado por regex.
-  - **ACHADO DE SEGURANÇA PRÉ-EXISTENTE, NÃO CORRIGIDO (precisa SQL,
-    decidir com o usuário):** a policy "Users can update own quotes"
-    (`USING/WITH CHECK client_id OR painter_id`) ainda deixa o CLIENTE do
-    orçamento alterar colunas de conteúdo — `price`, `quote_data`,
-    `status` — via PATCH direto no REST. A migration de 09-16 só congelou
-    `client_id`/`painter_id`. Esta feature não amplia isso (escreve com
-    filtro `painter_id`), mas o cliente poderia, p.ex., marcar
-    `quote_data.modelo` ou mudar o preço. Fix proposto: trigger BEFORE
-    UPDATE que, pra quem é só `client_id` (não painter, não admin), reverte
-    tudo menos as colunas de aprovação que o fluxo do cliente usa —
-    exige mapear antes quais colunas o cliente escreve de verdade.
+  - **ACHADO DE SEGURANÇA PRÉ-EXISTENTE — FECHADO (2026-09-26, verificado
+    contra o código e o banco, sem SQL novo).** A policy "Users can update
+    own quotes" (`USING/WITH CHECK client_id OR painter_id`) que deixava o
+    CLIENTE alterar `price`/`quote_data`/`status` via PATCH direto no REST
+    **já não existe**: a migration `2026-09-24-a-quotes-update-so-pintor.sql`
+    (rodada no mesmo dia, ver entrada "GESTÃO DE OBRAS + GASTOS POR
+    CATEGORIA…" acima) derrubou TODA policy de UPDATE de `quotes` e recriou
+    só `quotes_update_painter` (painter_id OU admin) — **conferido no banco**
+    que essa é a ÚNICA policy de UPDATE/ALL na tabela. Reli
+    `approveQuote`/`rejectQuote`/`setQuoteStage` em `lib/services/pipeline.ts`:
+    os três SEMPRE filtram `.eq('painter_id', painterId)` — nenhum fluxo do
+    app escreve em `quotes` como cliente (aprovar/recusar pelo cliente é link
+    `wa.me` pro pintor, nunca grava na tabela). Ou seja: o fix da migration
+    `a` já fechou este achado por completo, sem quebrar nenhum caminho
+    legítimo — não precisou do trigger proposto. Comentário desatualizado em
+    `pipeline.ts` (linha 13, ainda descrevia "UPDATE por client_id OR
+    painter_id") corrigido junto.
 
 - **PIPELINE "NÃO ROLA / NÃO VOLTA" (relato do pintor Léo, 2026-09-24).
   SEM SQL. Não reproduzido no aparelho dele — correções pelas causas
