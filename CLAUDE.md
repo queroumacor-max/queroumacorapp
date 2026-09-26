@@ -47,7 +47,7 @@
     220/220 arquivos, 2589 testes, `tsc` e `next build` verdes. Portal
     v=20260926a (`urlSegura` nos hrefs, trava no Criar Produto, app.js
     recompilado + SRI); `next-app/public/_headers` com frame-ancestors/XFO
-    pra `/portal` (sem script-src — CSP completa do portal segue pendente);
+    pra `/portal` (o script-src veio depois, PR #420 — ver abaixo);
     `script-src` do jsdelivr restrito a pdfjs/mediapipe/eruda, `onrender`
     fora do connect-src; `lib/errors.ts` troca mensagem técnica crua por
     texto amigável (crua em `.raw`/`cause`); IA/ig-art/401/403/envs sem
@@ -93,10 +93,17 @@
       trava os 5 sources exatos e confere que os 3 hashes batem com o
       conteúdo atual dos `<script>` inline — trocar um deles sem
       recalcular o hash quebra Sentry/fuso/Supabase em silêncio (CSP
-      recusa sem erro na tela). **Não verificado no navegador real** (só
-      teste + leitura de código) — conferir o console do `/portal` em
-      produção depois do deploy não custa nada. Suíte completa (222/222
-      arquivos), `tsc --noEmit` e `next build` verdes.
+      recusa sem erro na tela). **VERIFICADO EM CHROMIUM REAL (2026-09-26,
+      outra sessão, servidor local aplicando o header lido do `_headers`):**
+      portal sobe até o login sem NENHUMA violação, xlsx dinâmico carrega,
+      e `<script>` inline injetado é BLOQUEADO (controle negativo). Não
+      testado: telas logadas e o Loader do Sentry de verdade. **NO AR:
+      deploy run #755 do `deploy.yml` (commit `acab3a8`, a pedido do
+      usuário) terminou `success`.** Um PR paralelo com a mesma CSP + mais
+      diretivas (connect/img/media, #421) foi FECHADO como duplicado — as
+      diretivas extras ficaram de fora por não terem sido validadas nas
+      telas logadas. Suíte completa (222/222 arquivos), `tsc --noEmit` e
+      `next build` verdes.
       - **CUIDADO, achado ao reconciliar com a `main`:** uma 1ª tentativa
         desta correção (PR #418) também reimplementava a chave de
         idempotência do pedido — só que DEPOIS que o PR #417 (entrada
