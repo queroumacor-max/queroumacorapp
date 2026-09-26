@@ -1,5 +1,16 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS › EQUIPE: "×" virou "Cancelar convite" e a mudança é
+  instantânea (2026-09-26, pedido do usuário com print). SEM SQL.** Convite
+  pendente mostra "Cancelar convite"; ativo mostra "Remover da equipe"; saiu
+  mostra "Convidar de novo"/"Reativar". A demora vinha de esperar o UPDATE
+  (com os triggers da equipe/escala) + a releitura da lista, sem nenhum aviso:
+  agora `mudar` troca o status no cache do React Query NA HORA, mostra o
+  toast e confirma no banco por trás — se falhar, desfaz e mostra o erro.
+  Card reorganizado (ação numa linha própria; nome longo/e-mail quebra em vez
+  de passar por cima do chip). Teste
+  `__tests__/obrasEquipeCancelarConvite.test.ts`. Precisa de deploy.
+
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL
   `migrations/2026-09-26-posts-sweep-pending.sql` — JÁ RODADO no Supabase

@@ -57,21 +57,48 @@ export function EquipeTab({ uid }: { uid: string }) {
     onError: (e) => showToast((e as Error).message, 'error'),
   });
 
+  // Otimista: a tela muda NA HORA e o banco confirma por trás. Antes a
+  // pessoa confirmava e ficava olhando a mesma lista até o UPDATE (triggers
+  // da equipe/escala) + a releitura voltarem — sem nenhum aviso no meio.
+  const [emAndamento, setEmAndamento] = useState<Set<string>>(new Set());
+
   async function mudar(m: MembroEquipe, status: MembroEquipe['status']) {
     if (status === 'saiu') {
-      const ok = await dialog.confirm(`Tirar ${m.nome} da equipe? Os dias já escalados dele saem da agenda dele.`, {
-        title: 'Tirar da equipe',
-        okLabel: 'Tirar',
-        danger: true,
-      });
+      const convite = m.status === 'convidado';
+      const ok = await dialog.confirm(
+        convite
+          ? `Cancelar o convite de ${m.nome}? Se mudar de ideia, dá pra convidar de novo.`
+          : `Remover ${m.nome} da equipe? Os dias já escalados saem da agenda dessa pessoa.`,
+        {
+          title: convite ? 'Cancelar convite' : 'Remover da equipe',
+          okLabel: convite ? 'Cancelar convite' : 'Remover',
+          danger: true,
+        },
+      );
       if (!ok) return;
     }
+    const chave = ['obra-equipe', uid];
+    const antes = qc.getQueryData<MembroEquipe[]>(chave);
+    qc.setQueryData<MembroEquipe[]>(chave, (l) => (l ?? []).map((x) => (x.id === m.id ? { ...x, status } : x)));
+    setEmAndamento((s) => new Set(s).add(m.id));
+    showToast(
+      status === 'saiu'
+        ? m.status === 'convidado' ? 'Convite cancelado' : `${m.nome} saiu da equipe`
+        : status === 'convidado' ? 'Convite reenviado' : `${m.nome} voltou pra equipe`,
+      'success',
+    );
     try {
       await atualizarMembro(uid, m.id, { status });
-      qc.invalidateQueries({ queryKey: ['obra-equipe', uid] });
-      if (status === 'convidado') showToast('Convite reenviado', 'success');
     } catch (e) {
-      showToast((e as Error).message, 'error');
+      qc.setQueryData(chave, antes);
+      showToast(`Não deu certo: ${(e as Error).message}`, 'error');
+    } finally {
+      setEmAndamento((s) => {
+        const n = new Set(s);
+        n.delete(m.id);
+        return n;
+      });
+      qc.invalidateQueries({ queryKey: chave });
     }
   }
 
@@ -171,30 +198,42 @@ export function EquipeTab({ uid }: { uid: string }) {
         <h3 className={cls.sec}>Minha equipe · {lista.filter((m) => m.status === 'ativo').length} ativos</h3>
         {q.error ? <ErroObras erro={q.error} /> : null}
         <div className="flex flex-col gap-2">
-          {lista.map((m) => (
-            <div key={m.id} className={`${cls.card} flex items-center gap-3`}>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm">{m.nome}</div>
-                <div className="text-xs text-[color:var(--color-muted)]">
-                  {[m.funcao, m.membro_id ? 'no app' : 'por WhatsApp', m.diaria ? `diária ${brl(m.diaria)}` : null].filter(Boolean).join(' · ')}
+          {lista.map((m) => {
+            const ocupado = emAndamento.has(m.id);
+            const botao = 'text-xs font-bold px-3 rounded-xl border border-[color:var(--color-border)] bg-white text-[color:var(--color-ink)] disabled:opacity-60';
+            return (
+              <div key={m.id} className={`${cls.card} flex flex-col gap-2`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm" style={{ overflowWrap: 'anywhere' }}>{m.nome}</div>
+                    <div className="text-xs text-[color:var(--color-muted)]">
+                      {[m.funcao, m.membro_id ? 'no app' : 'por WhatsApp', m.diaria ? `diária ${brl(m.diaria)}` : null].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
+                </div>
+                <div className="flex justify-end">
+                  {m.status === 'convidado' ? (
+                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
+                      Cancelar convite
+                    </button>
+                  ) : m.status === 'ativo' ? (
+                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
+                      Remover da equipe
+                    </button>
+                  ) : m.membro_id ? (
+                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'convidado')} className={botao} style={{ minHeight: 40 }}>
+                      Convidar de novo
+                    </button>
+                  ) : (
+                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'ativo')} className={botao} style={{ minHeight: 40 }}>
+                      Reativar
+                    </button>
+                  )}
                 </div>
               </div>
-              <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
-              {m.status === 'ativo' || m.status === 'convidado' ? (
-                <button type="button" onClick={() => mudar(m, 'saiu')} aria-label={`Tirar ${m.nome} da equipe`} className="text-lg px-2" style={{ minHeight: 44, minWidth: 44 }}>
-                  ×
-                </button>
-              ) : m.membro_id ? (
-                <button type="button" onClick={() => mudar(m, 'convidado')} className="text-xs font-bold underline px-1" style={{ minHeight: 44 }}>
-                  Reconvidar
-                </button>
-              ) : (
-                <button type="button" onClick={() => mudar(m, 'ativo')} className="text-xs font-bold underline px-1" style={{ minHeight: 44 }}>
-                  Reativar
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {!q.isLoading && lista.length === 0 && !q.error ? (
             <p className="text-sm text-[color:var(--color-muted)] text-center py-4">Sua equipe ainda está vazia.</p>
           ) : null}
