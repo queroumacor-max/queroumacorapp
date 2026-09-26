@@ -113,6 +113,10 @@
     por origem): a 2ª aba só começa depois da 1ª e cai na checagem de pedido
     recente. Sem Web Locks roda direto. Teste
     `__tests__/services/orderIdempotencyLock.test.ts`. Suíte 222/222, 2601.
+  - **CÓDIGO NO AR: PR #417 (squash `973cf69`) + deploy run #754 do
+    `deploy.yml` terminou `success` (2026-09-26).** O SQL segue PENDENTE —
+    até rodar, o pedido sai sem a chave (só a checagem por assinatura +
+    trava entre abas protegem).
 
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
