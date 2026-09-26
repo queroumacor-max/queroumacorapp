@@ -1,0 +1,20 @@
+# Config do CodeQL (SAST) — .github/workflows/codeql.yml referencia este
+# arquivo via `config-file:`.
+#
+# 2026-09-26: `__tests__/**` fica de fora do escopo. Onze arquivos de teste
+# (portalLinksSeguros, portalJanela24h, portalRamoDoLead, sw, recuperacao500,
+# portalAbordagemEntrega, portalWhatsAppNaoLidas, portalEspecialidades,
+# portalImportarExcel, portalUsoDoApp, portalLeadsJanela) usam `new Function`
+# de propósito, pra extrair e RODAR a função de verdade do arquivo-fonte
+# (o portal vanilla não tem bundler/módulos) em vez de reimplementá-la no
+# teste — é a única forma de garantir que o teste valida o código que vai
+# pro ar, não uma cópia que pode divergir. CodeQL (js/code-injection) marca
+# isso como "high" porque `new Function` roda string dinâmica — correto
+# como regra geral, falso positivo aqui: a string vem de um ARQUIVO DO
+# PRÓPRIO REPO, lido em tempo de teste, nunca de input externo, e o código
+# de teste não é publicado nem executado em produção (o `next build`/deploy
+# não inclui `__tests__/`). Vitest já cobre a correção desses arquivos;
+# CodeQL deve proteger código que roda em produção, não gerar ruído
+# recorrente bloqueando PR por um padrão revisado e documentado.
+paths-ignore:
+  - next-app/__tests__/**
