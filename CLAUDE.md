@@ -17,7 +17,8 @@
   equipe e PDF. "Versão 1.0" → 1.2. **Não validado por advogado** —
   recomendado antes de considerar definitivo. "Mensagens e orçamentos 2
   anos" e "registros de acesso 6 meses" seguem como compromisso, não há
-  job que apague/guarde nesses prazos.
+  job que apague/guarde nesses prazos. **NO AR: PR #442 (squash `55b213f`),
+  deploy run #761 do `deploy.yml` terminou `success`.**
 
 - **STORY (24h) COM VÁRIAS FOTOS SÓ MOSTRAVA A 1ª (2026-09-26, relato do
   usuário). SEM SQL.** O composer deixava escolher várias fotos na aba 24h e
