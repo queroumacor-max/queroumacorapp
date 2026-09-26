@@ -46,12 +46,48 @@
     (`NEXT_PUBLIC_SUPABASE_URL`) + `/storage/v1/object/` (qualquer
     `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
     `mascararTelefones` pega telefone formatado no log do Dualhook.
-    **Não feito:** chave de idempotência do pedido da loja no servidor;
-    CSP com script-src no portal. **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    **TESTADO EM PRODUÇÃO PELO USUÁRIO
     (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
     relatada.** **Confirmado pelo usuário: portal e tela de AR OK**
     (os dois pontos de maior risco — CSP do jsdelivr restrito e
-    `_headers`/`urlSegura` do portal). Caso fechado.
+    `_headers`/`urlSegura` do portal).
+    - **Os 2 itens "Não feito" — FECHADOS (2026-09-26, sem pedido explícito
+      do usuário, a partir de "alguma pendência? / faz esses").**
+      **(1) CSP com `script-src` no portal**: `next-app/public/_headers`
+      ganhou `script-src 'self' https://*.sentry-cdn.com` + os 3 hashes
+      sha256 dos `<script>` inline de `index.html` (Sentry.onLoad, patch
+      de fuso, `SUPA_URL`/`SUPA_KEY`) — os MESMOS já provados em produção
+      em `middleware.ts` (não é allowlist nova). `'self'` cobre React/
+      Supabase/xlsx, todos vendorados em `/` ou `/portal` (o xlsx do
+      importador de leads é carregado de `/portal/xlsx.full.min.js?v=`,
+      nunca de CDN externo — confirmado por grep). Teste
+      `portalLinksSeguros.test.ts` trava os 5 sources exatos e confere que
+      os 3 hashes batem com o conteúdo atual dos `<script>` inline —
+      trocar um deles sem recalcular o hash quebra Sentry/fuso/Supabase em
+      silêncio (CSP recusa sem erro na tela). **Não verificado no
+      navegador real** (só teste + leitura de código) — o Sentry Loader
+      injeta o SDK completo doutro host do mesmo domínio-pai
+      (`*.sentry-cdn.com`, coberto pelo wildcard), mas conferir o console
+      do portal em produção depois do deploy não custa nada.
+      **(2) Chave de idempotência do pedido da loja no servidor**:
+      `submitOrder` (`lib/services/mkt.ts`) ganhou 4º parâmetro opcional
+      `clientOrderKey`, que `useCart.ts` gera (`crypto.randomUUID()`) UMA
+      VEZ por tentativa de checkout e reusa em qualquer retry da MESMA
+      tentativa (reseta só no `onSuccess`). RPC nova `submit_order_idempotent`
+      (SECURITY DEFINER, migration
+      `/migrations/2026-09-26-orders-idempotency-key.sql`, **AINDA NÃO
+      RODADA — colar no chat/SQL Editor**) tem UNIQUE parcial em
+      `orders(user_id, client_order_key) WHERE client_order_key IS NOT
+      NULL`: INSERT com `ON CONFLICT ... DO NOTHING` + SELECT de fallback
+      devolve o pedido JÁ criado em vez de duplicar — fecha a corrida real
+      que o `enviandoRef` do CartView (síncrono, só no componente) não
+      cobre: retry de rede depois de um timeout (o pedido pode ter sido
+      criado no servidor sem o cliente saber) ou duas abas. **Sem quebrar
+      nada enquanto o SQL não roda**: RPC ausente (42883/PGRST202) cai
+      direto no dedupe antigo por assinatura de carrinho (não-atômico, o
+      que já existia) — mesmo padrão de `increment_material_cost`/
+      `pushTokens`. Suíte completa (221/221 arquivos, 2602/2602 testes),
+      `tsc --noEmit` e `next build` verdes.
   Achados originais, por gravidade:
   - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
     NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum

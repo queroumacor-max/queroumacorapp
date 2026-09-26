@@ -1080,10 +1080,24 @@ export async function saveCart(userId: string, items: CartItem[]): Promise<void>
  * `address` é opcional — schema atual (supabase_init.sql linha 425) não tem
  * coluna shipping_address. O param fica aceito pra quando essa coluna for
  * adicionada por migration; até lá, ignorado.
+ *
+ * `clientOrderKey` (2026-09-26, fecha o "Não feito" da auditoria dos 19
+ * pontos): idempotência de VERDADE, atômica no servidor via RPC
+ * `submit_order_idempotent` (UNIQUE em `user_id + client_order_key`,
+ * migration `2026-09-26-orders-idempotency-key.sql`). `useCart.ts` gera a
+ * chave uma vez por tentativa de checkout e reusa em qualquer retry —
+ * clique duplo escapando da trava síncrona do CartView, retry de rede
+ * depois de um timeout, ou duas abas com o mesmo pedido em voo, todos
+ * colidem na UNIQUE e devolvem o MESMO pedido em vez de duplicar. Sem a
+ * chave (chamador antigo/teste) cai direto no dedupe por assinatura
+ * abaixo. Com a chave mas a RPC ainda não existir no banco (SQL pendente),
+ * cai no mesmo caminho — recurso novo não pode derrubar o checkout.
  */
-// Assinatura estável de um carrinho pra comparar pedidos (dedupe). Ordena
-// por id pra ser invariante à ordem dos itens; inclui qty pra distinguir
-// quantidades. Usada por submitOrder pra detectar pedido pending idêntico.
+// Assinatura estável de um carrinho pra comparar pedidos (dedupe legado,
+// não-atômico — mantido como fallback enquanto a RPC não roda em algum
+// ambiente, e como único caminho quando não há clientOrderKey). Ordena por
+// id pra ser invariante à ordem dos itens; inclui qty pra distinguir
+// quantidades.
 function cartSignature(items: CartItem[]): string {
   return items
     .map((it) => `${it.id}x${Number(it.qty) || 1}`)
@@ -1094,7 +1108,8 @@ function cartSignature(items: CartItem[]): string {
 export async function submitOrder(
   userId: string,
   items: CartItem[],
-  address?: string | null
+  address?: string | null,
+  clientOrderKey?: string | null
 ): Promise<OrderSubmitResult> {
   if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
@@ -1106,10 +1121,37 @@ export async function submitOrder(
 
   const sb = getSupabase();
 
-  // Dedupe (BUG 3): se já existe um pedido `pending` recente (< 1h) com
-  // exatamente os mesmos itens, reusa o id em vez de criar uma duplicata.
-  // Cenário: o usuário clica "Enviar Lista" várias vezes, acumulando
-  // pedidos pendentes órfãos.
+  if (clientOrderKey) {
+    // Função fora do schema TS gerado → cast manual (mesmo padrão de
+    // pushTokens.ts/financeiro.ts increment_material_cost).
+    const rpc = (await sb.rpc('submit_order_idempotent' as never, {
+      p_items: items as unknown as Json,
+      p_total: total,
+      p_client_order_key: clientOrderKey,
+    } as never)) as unknown as {
+      data: Array<{ order_id: string; total: number; reused: boolean }> | null;
+      error: { code?: string; message: string } | null;
+    };
+    if (!rpc.error) {
+      const row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+      const orderId = row?.order_id;
+      if (!orderId) {
+        throw new NetworkError('Pedido criado sem ID (Supabase retornou vazio).');
+      }
+      await tryPersistAddress(sb, orderId, address);
+      return { orderId, total: Number(row?.total ?? total) };
+    }
+    const rpcCode = rpc.error.code;
+    if (rpcCode !== 'PGRST202' && rpcCode !== '42883') {
+      throw new NetworkError(rpc.error.message, rpc.error);
+    }
+    // RPC ainda não existe no banco (SQL pendente) — cai no caminho antigo.
+  }
+
+  // Dedupe legado (BUG 3): se já existe um pedido `pending` recente (< 1h)
+  // com exatamente os mesmos itens, reusa o id em vez de criar uma
+  // duplicata. Não-atômico (check-then-act) — só roda quando não há
+  // clientOrderKey, ou a RPC acima ainda não existe.
   // UPDATE de orders é admin-only no RLS, então só lemos/reusamos (o user
   // pode SELECT os próprios pedidos via policy "Users can view own orders").
   const sig = cartSignature(items);
@@ -1154,20 +1196,29 @@ export async function submitOrder(
     throw new NetworkError('Pedido criado sem ID (Supabase retornou vazio).');
   }
 
-  // Tenta gravar o endereço — ignora silenciosamente se a coluna ainda não
-  // existe no banco (migration 2026-06-20-orders-delivery-address.sql pendente).
-  if (address) {
-    try {
-      await sb
-        .from('orders')
-        .update({ delivery_address: address } as never)
-        .eq('id', orderId);
-    } catch {
-      // silently ignore — delivery_address column may not exist yet
-    }
-  }
+  await tryPersistAddress(sb, orderId, address);
 
   return { orderId, total };
+}
+
+// Tenta gravar o endereço — ignora silenciosamente se a coluna ainda não
+// existe no banco (migration 2026-06-20-orders-delivery-address.sql
+// pendente). Compartilhada pelos dois caminhos de submitOrder (RPC
+// idempotente + fallback legado).
+async function tryPersistAddress(
+  sb: ReturnType<typeof getSupabase>,
+  orderId: string,
+  address?: string | null
+): Promise<void> {
+  if (!address) return;
+  try {
+    await sb
+      .from('orders')
+      .update({ delivery_address: address } as never)
+      .eq('id', orderId);
+  } catch {
+    // silently ignore — delivery_address column may not exist yet
+  }
 }
 
 // ─── camisetas personalizadas ─────────────────────────────────────────────

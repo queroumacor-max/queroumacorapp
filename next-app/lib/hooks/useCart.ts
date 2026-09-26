@@ -191,14 +191,26 @@ export function useCart(): UseCartResult {
   // NÃO limpa o carrinho aqui: a limpeza é decisão do CartView e só deve
   // acontecer após o pedido ser gravado com sucesso (a loja fecha a venda
   // fora do app, via WhatsApp). Se o submitOrder falhar, o carrinho precisa
-  // sobreviver pra o usuário tentar de novo (e o submitOrder faz dedupe pra
-  // não duplicar o pedido pending).
+  // sobreviver pra o usuário tentar de novo — e a mesma `clientOrderKey` é
+  // reusada nesse retry (gerada uma vez por TENTATIVA de checkout, não por
+  // chamada), pra o servidor devolver o pedido já criado em vez de duplicar
+  // (idempotência real via RPC — ver submitOrder em lib/services/mkt.ts).
+  const checkoutKeyRef = useRef<string | null>(null);
   const checkoutMutation = useMutation<OrderSubmitResult, Error, string | undefined>({
     mutationFn: async (address) => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];
-      return submitOrder(user!.id, items, address);
+      if (!checkoutKeyRef.current) {
+        checkoutKeyRef.current =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      return submitOrder(user!.id, items, address, checkoutKeyRef.current);
     },
     onSuccess: () => {
+      // Pedido concluído — a PRÓXIMA chamada de checkout é outro pedido de
+      // verdade, precisa de chave nova.
+      checkoutKeyRef.current = null;
       // Reflete a nova order na tela /pedidos. Carrinho intocado de propósito.
       qc.invalidateQueries({ queryKey: ['pedidos', user?.id] });
     },

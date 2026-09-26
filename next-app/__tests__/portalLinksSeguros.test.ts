@@ -72,8 +72,40 @@ describe('public/_headers: /portal protegido no binding ASSETS', () => {
       expect(b).toContain("object-src 'none'");
       expect(b).toContain('X-Content-Type-Options: nosniff');
       expect(b).toContain('Referrer-Policy: strict-origin-when-cross-origin');
-      // Escopo só de quadro: script-src não validado contra o portal.
-      expect(b).not.toContain('script-src');
+    });
+    // 2026-09-26: script-src fechado (fim do "Não feito" da auditoria dos 19
+    // pontos). 'self' cobre React/Supabase/xlsx vendorados; os 3 hashes e o
+    // https://*.sentry-cdn.com são os MESMOS já provados em produção pelo
+    // resto do app (ver middlewareSecurityHeadersParidade.test.ts) — trocar
+    // um <script> inline de index.html sem atualizar o hash aqui quebra o
+    // portal em silêncio (CSP recusa sem erro na tela).
+    it(`${rota} restringe script-src a self + sentry-cdn + hashes dos inline`, () => {
+      const b = bloco(rota);
+      const m = b.match(/script-src ([^;\n]+)/);
+      if (!m) throw new Error(`${rota}: _headers sem script-src`);
+      const sources = m[1].trim().split(/\s+/);
+      expect(sources).toEqual([
+        "'self'",
+        'https://*.sentry-cdn.com',
+        "'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk='",
+        "'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8='",
+        "'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0='",
+      ]);
     });
   }
+
+  it('os 3 hashes batem com o conteúdo exato dos <script> inline de index.html', async () => {
+    const { createHash } = await import('node:crypto');
+    const html = readFileSync('public/portal/index.html', 'utf8');
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts.length).toBe(3);
+    const hashes = scripts.map(
+      (s) => `sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}`
+    );
+    expect(hashes).toEqual([
+      'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=',
+      'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=',
+      'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=',
+    ]);
+  });
 });

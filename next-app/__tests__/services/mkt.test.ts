@@ -51,6 +51,7 @@ interface ChainSpies {
   range: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
 }
 
 interface QueueItem {
@@ -76,6 +77,7 @@ function makeFakeClient(queue: QueueItem[] = []): {
     range: vi.fn(),
     single: vi.fn(),
     maybeSingle: vi.fn(),
+    rpc: vi.fn(),
   };
 
   const responses = [...queue];
@@ -143,6 +145,13 @@ function makeFakeClient(queue: QueueItem[] = []): {
     },
     maybeSingle: () => {
       spies.maybeSingle();
+      const r = nextResponse();
+      return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
+    },
+    // sb.rpc(name, args) — ponto de entrada separado do .from(...) chain,
+    // mas consome da MESMA fila (ordem importa nos testes que o usam).
+    rpc: (name: string, args: unknown) => {
+      spies.rpc(name, args);
       const r = nextResponse();
       return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
     },
@@ -580,6 +589,72 @@ describe('submitOrder', () => {
     await expect(
       submitOrder('u1', [{ id: 'a', name: 'A', price: 10, qty: 1 }])
     ).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  // ─── clientOrderKey: idempotência atômica via RPC (2026-09-26) ──────────
+
+  it('com clientOrderKey: RPC nova (reused=false) — não passa pelo dedupe/insert legado', async () => {
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 2 }];
+    const { client, spies } = makeFakeClient([
+      { data: [{ order_id: 'order-rpc-novo', total: 20, reused: false }] },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await submitOrder('u1', items, null, 'chave-1');
+    expect(out).toEqual({ orderId: 'order-rpc-novo', total: 20 });
+    expect(spies.rpc).toHaveBeenCalledWith('submit_order_idempotent', {
+      p_items: items,
+      p_total: 20,
+      p_client_order_key: 'chave-1',
+    });
+    expect(spies.insert).not.toHaveBeenCalled();
+  });
+
+  it('com clientOrderKey: RPC devolve pedido já existente (reused=true) — mesmo id, sem duplicar', async () => {
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    const { client, spies } = makeFakeClient([
+      { data: [{ order_id: 'order-ja-existente', total: 10, reused: true }] },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out1 = await submitOrder('u1', items, null, 'chave-2');
+    expect(out1.orderId).toBe('order-ja-existente');
+    expect(spies.insert).not.toHaveBeenCalled();
+  });
+
+  it('com clientOrderKey mas RPC ainda não existe no banco (42883) — cai no dedupe/insert legado', async () => {
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    const { client, spies } = makeFakeClient([
+      { data: null, error: { code: '42883', message: 'function does not exist' } },
+      { data: [] }, // dedupe legado: nenhum pending recente
+      { data: { id: 'order-legado' } }, // insert legado
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await submitOrder('u1', items, null, 'chave-3');
+    expect(out).toEqual({ orderId: 'order-legado', total: 10 });
+    expect(spies.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('com clientOrderKey e RPC falha por outro motivo → NetworkError, sem cair no legado', async () => {
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    const { client, spies } = makeFakeClient([
+      { data: null, error: { code: '23514', message: 'carrinho vazio' } },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(
+      submitOrder('u1', items, null, 'chave-4')
+    ).rejects.toBeInstanceOf(NetworkError);
+    expect(spies.insert).not.toHaveBeenCalled();
+  });
+
+  it('sem clientOrderKey: comportamento antigo intocado (nenhuma chamada de rpc)', async () => {
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    const { client, spies } = makeFakeClient([
+      { data: [] },
+      { data: { id: 'order-sem-chave' } },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await submitOrder('u1', items);
+    expect(out.orderId).toBe('order-sem-chave');
+    expect(spies.rpc).not.toHaveBeenCalled();
   });
 });
 
