@@ -46,12 +46,43 @@
     (`NEXT_PUBLIC_SUPABASE_URL`) + `/storage/v1/object/` (qualquer
     `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
     `mascararTelefones` pega telefone formatado no log do Dualhook.
-    **Não feito:** CSP com script-src no portal. (A chave de idempotência
-    do pedido da loja foi feita depois — ver entrada logo abaixo.) **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    **TESTADO EM PRODUÇÃO PELO USUÁRIO
     (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
     relatada.** **Confirmado pelo usuário: portal e tela de AR OK**
     (os dois pontos de maior risco — CSP do jsdelivr restrito e
-    `_headers`/`urlSegura` do portal). Caso fechado.
+    `_headers`/`urlSegura` do portal). (A chave de idempotência do pedido
+    da loja foi feita depois — ver entrada logo abaixo.)
+    - **CSP com `script-src` no portal — FECHADO (2026-09-26, sem pedido
+      explícito, a partir de "alguma pendência? / faz esses").**
+      `next-app/public/_headers` ganhou `script-src 'self'
+      https://*.sentry-cdn.com` + os 3 hashes sha256 dos `<script>` inline
+      de `index.html` (Sentry.onLoad, patch de fuso, `SUPA_URL`/
+      `SUPA_KEY`) — os MESMOS já provados em produção em `middleware.ts`
+      (não é allowlist nova). `'self'` cobre React/Supabase/xlsx, todos
+      vendorados em `/` ou `/portal` (o xlsx do importador de leads é
+      carregado de `/portal/xlsx.full.min.js?v=`, nunca de CDN externo —
+      confirmado por grep). Teste novo em `portalLinksSeguros.test.ts`
+      trava os 5 sources exatos e confere que os 3 hashes batem com o
+      conteúdo atual dos `<script>` inline — trocar um deles sem
+      recalcular o hash quebra Sentry/fuso/Supabase em silêncio (CSP
+      recusa sem erro na tela). **Não verificado no navegador real** (só
+      teste + leitura de código) — conferir o console do `/portal` em
+      produção depois do deploy não custa nada. Suíte completa (222/222
+      arquivos), `tsc --noEmit` e `next build` verdes.
+      - **CUIDADO, achado ao reconciliar com a `main`:** uma 1ª tentativa
+        desta correção (PR #418) também reimplementava a chave de
+        idempotência do pedido — só que DEPOIS que o PR #417 (entrada
+        abaixo) já tinha resolvido a MESMA coisa, de um jeito diferente
+        (coluna `idempotency_key` + INSERT direto capturando `23505`, em
+        vez de RPC), e com o MESMO nome de arquivo de migration
+        (`2026-09-26-orders-idempotency-key.sql`, conteúdo diferente). O
+        PR #418 foi abandonado e a parte de idempotência descartada —
+        **a versão vigente da chave de idempotência é a do PR #417**, não
+        recriar por cima. Lição: duas sessões atacando a mesma pendência
+        listada aqui ao mesmo tempo é esperado neste projeto (já
+        documentado em vários lugares) — antes de reimplementar algo
+        marcado como "Não feito", checar `git log origin/main` por commits
+        recentes que já tenham resolvido.
   Achados originais, por gravidade:
   - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
     NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
