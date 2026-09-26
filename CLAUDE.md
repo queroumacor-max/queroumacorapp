@@ -855,6 +855,18 @@
     de código). **Não pedir pra confirmar de novo nem tratar como
     pendência** — WhatsApp/IA/pagamento/push em produção devem estar
     operando normalmente pós-corte, não fail-closed.
+  - **RESOLVIDO (2026-09-26, conferido pelo usuário no painel):**
+    `queroumacor.com.br` e `www` estão como Custom Domains SÓ no Worker
+    `queroumacor-next-production`; no Pages `queroumacor-next` (deployments
+    pausados) já não aparecem. **Achado junto: `app2.queroumacor.com.br`
+    (staging da migração pro Next, ver `next-app/DEPLOY.md`) AINDA está
+    preso nesse Pages pausado** — serve pra sempre uma build antiga,
+    anterior às correções de segurança (Next vulnerável, CSP/headers), sob
+    o domínio de confiança e contra o Supabase de produção.
+    **PENDENTE (painel, decisão do usuário): remover o custom domain `app2`
+    do Pages + o CNAME no DNS.** Depois, limpar as referências no repo
+    (`load-test.yml`/`scripts/load-test.js` usam app2 como padrão;
+    `openapi.yaml`, `DEPLOY.md`, `DEPLOYMENT.md`, `README.md`).
   - **AINDA NÃO CONFIRMADO — único item real que sobra, só o painel do
     Cloudflare resolve (nem sessão de navegador real distingue isso: é
     coisa que só aparece no dashboard, não em request/response HTTP)**:
@@ -924,6 +936,12 @@
     inconsistência. **Não confirmado — só hipótese informada**, verificada
     via pesquisa na documentação oficial, não via inspeção do token real
     (sem acesso a isso).
+  - **RESOLVIDO (2026-09-26, conferido pelo usuário no painel):** o token
+    do deploy (`claude-code-pages-deploy`) JÁ tem `Zone > Workers Routes >
+    Edit` escopado pra `queroumacor.com.br` (+ Pages: Edit + Workers
+    Scripts: Edit). E o deploy #755 passou a etapa de rotas SEM o erro
+    (`queroumacor.com.br`/`www` listados como custom domain) — o problema
+    abaixo não se repete mais. Não listar como pendência.
   - **AÇÃO PENDENTE, só o painel resolve**: conferir o token usado no
     secret `CLOUDFLARE_API_TOKEN` (dashboard Cloudflare → My Profile → API
     Tokens) e garantir que ele tem `Zone > Workers Routes > Edit`
