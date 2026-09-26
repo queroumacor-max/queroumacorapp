@@ -15,7 +15,7 @@
   anteriores; auditados agora 2 (validação front), 9 (clique duplo), 10
   (CSRF), 12 (vazamento de info), 18 (cookies).
   - **CORRIGIDO NO CÓDIGO (2026-09-26, pedido "corrija"; branch
-    `claude/verificar-edicoes-memoria-sm9dzg`, SEM deploy ainda).** Suíte
+    `claude/verificar-edicoes-memoria-sm9dzg`, NO AR desde o deploy #753).** Suíte
     220/220 arquivos, 2589 testes, `tsc` e `next build` verdes. Portal
     v=20260926a (`urlSegura` nos hrefs, trava no Criar Produto, app.js
     recompilado + SRI); `next-app/public/_headers` com frame-ancestors/XFO
@@ -39,10 +39,19 @@
     **SQL 3 CONFERIDO APLICADO (2026-09-26): as 9 linhas da conferência
     combinada voltaram `true`** (RPC, anon sem EXECUTE e as 7 constraints —
     nenhuma pulada por legado). **Os 3 SQLs de 26/09 estão TODOS no banco.
-    Não pedir pra rodar de novo.** Falta só publicar o código (PR/deploy).
+    Não pedir pra rodar de novo.** **CÓDIGO NO AR: PR #412 (squash
+    `5810283`) + deploy run #753 do `deploy.yml` terminou `success`
+    (2026-09-26).** O Codex achou 2 P2 no PR, corrigidos antes do merge:
+    mídia confiável no chat agora exige o host EXATO do projeto
+    (`NEXT_PUBLIC_SUPABASE_URL`) + `/storage/v1/object/` (qualquer
+    `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
+    `mascararTelefones` pega telefone formatado no log do Dualhook.
     **Não feito:** chave de idempotência do pedido da loja no servidor;
-    CSP com script-src no portal. Conferir pós-deploy: `curl -I
-    /portal/` e o console na tela de AR (mediapipe/wasm).
+    CSP com script-src no portal. **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
+    relatada.** **Confirmado pelo usuário: portal e tela de AR OK**
+    (os dois pontos de maior risco — CSP do jsdelivr restrito e
+    `_headers`/`urlSegura` do portal). Caso fechado.
   Achados originais, por gravidade:
   - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
     NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
