@@ -19,9 +19,8 @@
   - **Diagnóstico + correção passados ao usuário no chat** (SQL de
     conferência read-only + o bloco idempotente que recria a função/
     trigger + backfill dos convites já `'convidado'` sem notificação).
-    **Resultado ainda não confirmado** — depende do usuário rodar o
-    diagnóstico. Se vier `false`, o bloco de correção resolve sem precisar
-    de nova sessão.
+    **RESOLVIDO (2026-09-26, informado pelo usuário: "feitos").** Não pedir
+    pra rodar de novo nem listar como pendência.
   - **Lição, a mesma de sempre**: conferência de migration que aprova o
     arquivo sem checar CADA objeto que ele cria (tabela, coluna, índice,
     trigger, função, policy) pode dar `ok=true` com uma peça inteira
@@ -246,11 +245,9 @@
   `grafiteiro` e `automotivo` (funileiro) também. PR #407 (squash
   `c8292703`), **deploy run #750 do `deploy.yml` terminou `success`, NO
   AR.**
-  - **Ainda não confirmado no aparelho**: falta o usuário abrir o app numa
-    conta pintor de verdade e confirmar que as 4 abas (Obras/Equipe/Escala/
-    Minha agenda) funcionam ponta a ponta com o SQL da entrada abaixo já
-    rodado — a suíte local só prova a lógica pura e as regras do SQL, não
-    a experiência real.
+  - **TESTADO NO APARELHO PELO USUÁRIO (2026-09-26, "feitos"):** as 4 abas
+    (Obras/Equipe/Escala/Minha agenda) numa conta pintor real. Não é mais
+    pendência.
 
 - **GESTÃO DE OBRAS + GASTOS POR CATEGORIA + QUOTES SÓ-PINTOR (2026-09-24,
   pedido do usuário + sugestões do pintor Léo). SQL em 3 arquivos, NESTA
@@ -463,6 +460,10 @@
   (webhook desativado/URL trocada no painel dele) ou (b) nosso endpoint
   recusa toda entrega (403 de token/envelope). Só o log de entregas do
   Dualhook ou o teste de verificação do webhook distingue.
+  **RESOLVIDO (2026-09-26, informado pelo usuário: "feitos") — o
+  recebimento voltou.** A causa não foi relatada no chat; se voltar a
+  parar, recomeçar pelo log de entregas do Dualhook. Não listar como
+  pendência.
 
 - **WHATSAPP DO PORTAL: envio de texto otimista (2026-09-23, v=20260923a,
   SEM SQL).** Mesmo sintoma do chat do app: a bolha só aparecia depois de
