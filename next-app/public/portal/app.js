@@ -12041,7 +12041,7 @@ const PortalUsersList = () => {
     style: {
       borderBottom: '2px solid ' + C.border
     }
-  }, ['Nome', 'Email', 'Telefone', 'Papel', 'PRO', 'Criado em', 'Acoes'].map(h => /*#__PURE__*/React.createElement("th", {
+  }, ['Nome', 'Email', 'Telefone', 'Papel', 'Tipo', 'PRO', 'Criado em', 'Acoes'].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: {
       textAlign: 'left',
@@ -12103,7 +12103,20 @@ const PortalUsersList = () => {
       fontSize: 11,
       fontWeight: 600
     }
-  }, u.role || u.user_type || 'admin')), /*#__PURE__*/React.createElement("td", {
+  }, u.role || '—')), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '10px 12px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: C.border,
+      color: C.muted,
+      borderRadius: 6,
+      padding: '2px 8px',
+      fontSize: 11,
+      fontWeight: 600
+    }
+  }, u.user_type || '—')), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: '10px 12px'
     }

@@ -6006,7 +6006,7 @@ const PortalUsersList = () => {
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:600 }}>
           <thead>
             <tr style={{ borderBottom:'2px solid '+C.border }}>
-              {['Nome','Email','Telefone','Papel','PRO','Criado em','Acoes'].map(h => (
+              {['Nome','Email','Telefone','Papel','Tipo','PRO','Criado em','Acoes'].map(h => (
                 <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:C.muted, fontWeight:600, fontSize:11, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -6022,7 +6022,8 @@ const PortalUsersList = () => {
                 </td>
                 <td style={{ padding:'10px 12px', fontSize:12 }}><EmailCell profile={u} after={fetchUsers} /></td>
                 <td style={{ padding:'10px 12px', fontSize:12 }}><PhoneCell profile={u} after={fetchUsers} /></td>
-                <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.role || u.user_type || 'admin'}</span></td>
+                <td style={{ padding:'10px 12px' }}><span style={{ background:C.p5+'22', color:C.p5, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.role || '—'}</span></td>
+                <td style={{ padding:'10px 12px' }}><span style={{ background:C.border, color:C.muted, borderRadius:6, padding:'2px 8px', fontSize:11, fontWeight:600 }}>{u.user_type || '—'}</span></td>
                 <td style={{ padding:'10px 12px' }}>
                   <ProBadgeCell profile={u} onChange={fetchUsers} />
                 </td>
