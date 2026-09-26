@@ -14,7 +14,10 @@
     RODADO (2026-09-26, print: 3 conferências `true`) — antes do deploy do
     PR seguinte, sem problema: o código do #435 já pedia reaprovação ao
     editar legenda. `…-portal-audit-trail.sql`: AINDA NÃO confirmado.**
-  - **Achados do Codex no #435 (4× P1), corrigidos no PR seguinte, com SQL
+  - **Correções do Codex (#435 e #437) NO AR: PR #437 (squash `8f87b3d`),
+    deploy run #759 do `deploy.yml` terminou `success`.** Falta testar no
+    aparelho: foto, carrossel, vídeo, story e editar legenda.
+  - **Achados do Codex no #435 (4× P1), corrigidos no #437, com SQL
     `migrations/2026-09-26-posts-moderation-codex-fixes.sql` (roda DEPOIS
     do primeiro; o código tem ponte se ele faltar):** (a) editar
     legenda/link de post aprovado não voltava pra moderação → trigger agora
