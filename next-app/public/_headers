@@ -7,18 +7,29 @@
 #
 # ESCOPO SÓ DO /portal, de propósito. NÃO copiar aqui a CSP completa do app:
 # a fonte única dela é middleware.ts (rotas do worker), e duplicar criaria
-# uma segunda CSP divergente. Aqui NÃO há script-src: restringir script no
-# portal não foi validado (React/Sentry/Supabase vendorados + scripts
-# inline) e quebrá-lo deixaria a loja sem painel. Só proteção de quadro,
-# plugin, <base> e sniffing.
+# uma segunda CSP divergente.
+#
+# script-src (2026-09-26, fecha o "Não feito" da auditoria dos 19 pontos):
+# só 'self' (React/Supabase/xlsx vendorados em /portal e /, todos same-origin
+# — inclusive o xlsx, carregado dinamicamente de /portal/xlsx.full.min.js
+# com SRI, nunca de CDN externo) + https://*.sentry-cdn.com (loader do
+# Sentry em index.html, que injeta o SDK completo doutro host do mesmo
+# domínio-pai) + os 3 hashes sha256 dos <script> inline do index.html
+# (Sentry.onLoad, patch de fuso horário, SUPA_URL/SUPA_KEY). Os mesmos 3
+# hashes e o mesmo https://*.sentry-cdn.com já valem pro app inteiro em
+# middleware.ts — não é allowlist nova, é a mesma comprovada lá.
+# Trocou algum desses 3 <script> inline no index.html? Recalcular o hash
+# (sha256 do conteúdo exato entre as tags, base64) e atualizar aqui — hash
+# errado quebra o Sentry/fuso/Supabase em silêncio (CSP recusa sem erro
+# visível na tela, só no console).
 /portal
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'; script-src 'self' https://*.sentry-cdn.com 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0='
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
 /portal/*
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'; script-src 'self' https://*.sentry-cdn.com 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0='
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
