@@ -12,7 +12,7 @@
 // O `isPending` continua valendo pro visual (botão cinza / "Salvando…"); a
 // trava só garante que a ação roda UMA vez por vez.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 export interface SingleFlight {
   /** Roda `fn` se nada estiver em voo; senão ignora e devolve `undefined`.
@@ -54,20 +54,9 @@ export function createSingleFlight(onChange?: (busy: boolean) => void): SingleFl
  */
 export function useSingleFlight(): SingleFlight & { busy: boolean } {
   const [busy, setBusy] = useState(false);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-  const flightRef = useRef<SingleFlight | null>(null);
-  if (!flightRef.current) {
-    flightRef.current = createSingleFlight((b) => {
-      if (mountedRef.current) setBusy(b);
-    });
-  }
-  const run = useCallback<SingleFlight['run']>((fn) => flightRef.current!.run(fn), []);
-  const isLocked = useCallback(() => flightRef.current!.isLocked(), []);
-  return { run, isLocked, busy };
+  // Criado UMA vez via inicializador do useState (ler/escrever ref durante o
+  // render é proibido pelo react-hooks/refs). setState depois de desmontar é
+  // no-op silencioso no React 18+, então não precisa de guarda de "montado".
+  const [flight] = useState(() => createSingleFlight(setBusy));
+  return { run: flight.run, isLocked: flight.isLocked, busy };
 }
