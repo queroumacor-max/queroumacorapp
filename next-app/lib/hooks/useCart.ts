@@ -27,6 +27,7 @@ import {
   fetchCart,
   saveCart,
   submitOrder,
+  generateClientOrderKey,
   addItemToCart,
   removeItemFromCart,
   changeItemQty,
@@ -200,10 +201,7 @@ export function useCart(): UseCartResult {
     mutationFn: async (address) => {
       const items = qc.getQueryData<CartItem[]>(queryKey) ?? [];
       if (!checkoutKeyRef.current) {
-        checkoutKeyRef.current =
-          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        checkoutKeyRef.current = generateClientOrderKey();
       }
       return submitOrder(user!.id, items, address, checkoutKeyRef.current);
     },

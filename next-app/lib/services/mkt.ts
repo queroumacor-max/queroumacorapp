@@ -1105,6 +1105,25 @@ function cartSignature(items: CartItem[]): string {
     .join('|');
 }
 
+/**
+ * Gera uma `clientOrderKey` (chave de idempotência de UMA tentativa de
+ * checkout — não é segredo, só precisa ser única o bastante pra não colidir
+ * entre pedidos DIFERENTES). `crypto.randomUUID()` é o caminho normal;
+ * `crypto.getRandomValues()` é o fallback pra ambiente sem `randomUUID`
+ * (browsers mais antigos) mas com Web Crypto — que é toda a superfície real
+ * do app (navegador, PWA, WebView do Capacitor). De propósito SEM fallback
+ * pra `Math.random()`: CodeQL (js/insecure-randomness) marca qualquer valor
+ * nascido de `Math.random()` que alimente um campo chamado "key" como
+ * achado de segurança, mesmo sendo só um identificador de dedupe — e não
+ * há motivo real pra aceitar esse risco quando `getRandomValues` cobre 100%
+ * dos ambientes onde este código roda.
+ */
+export function generateClientOrderKey(): string {
+  if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function submitOrder(
   userId: string,
   items: CartItem[],

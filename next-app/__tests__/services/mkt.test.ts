@@ -20,6 +20,7 @@ import {
   fetchCart,
   saveCart,
   submitOrder,
+  generateClientOrderKey,
   buyShirt,
   fetchShirts,
   addItemToCart,
@@ -503,6 +504,22 @@ describe('saveCart', () => {
     ]);
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
     await expect(saveCart('u1', [])).rejects.toBeInstanceOf(NetworkError);
+  });
+});
+
+describe('generateClientOrderKey', () => {
+  it('gera chaves diferentes a cada chamada (não é constante)', () => {
+    const a = generateClientOrderKey();
+    const b = generateClientOrderKey();
+    expect(a).not.toBe(b);
+    expect(a.length).toBeGreaterThan(0);
+  });
+
+  it('nunca usa Math.random (js/insecure-randomness) — só Web Crypto', () => {
+    const spy = vi.spyOn(Math, 'random');
+    generateClientOrderKey();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
