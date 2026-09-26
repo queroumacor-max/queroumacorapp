@@ -9,7 +9,8 @@
   nenhuma, mostrava a frase (com obra antiga, devolveria a ERRADA). Conferido
   no banco em 26/09: `obras` tem as 14 colunas (inclui `client_id`) e só os
   3 triggers esperados — então hoje criar obra já funciona. Fix no código
-  (branch `claude/fabio-creation-message-mie1kn`): 42703 refaz a escrita
+  (PR #430, squash `ef1e83a`; **NO AR: deploy run #756 do `deploy.yml`
+  terminou `success` em 26/09**): 42703 refaz a escrita
   pedindo só as colunas base; erro seguinte aparece de verdade. Teste
   `__tests__/services/obrasSalvarColunaAusente.test.ts`. **Lição: fallback
   de "coluna ausente" num INSERT…select nunca pode supor que a escrita
