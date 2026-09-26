@@ -52,11 +52,14 @@
     considerar também atualizar o arquivo da migration `c` pra refletir a
     versão corrigida (evita quem reconstruir o banco do zero herdar o bug
     de novo).
-  - **Bug 2 (`protect_obra_equipe`) CONFIRMADO CORRIGIDO em produção
-    (2026-09-26)**: conferência voltou `protect_obra_equipe força
-    convidado mesmo com bypass de admin = true`. **Não pedir pra rodar de
-    novo.** Bug 1 (`ref_id` em `notify_obra_convite`) — confirmar na
-    próxima sessão se também já rodou antes de presumir.
+  - **OS DOIS BUGS CONFIRMADOS CORRIGIDOS em produção (2026-09-26).**
+    `protect_obra_equipe força convidado mesmo com bypass de admin = true`
+    e `função notify_obra_convite corrigida = true` — as duas conferências
+    rodaram e voltaram `true`. **Não pedir pra rodar nenhum dos dois de
+    novo.** Convite de equipe feito por conta com `portal_access` agora
+    entra em `'convidado'` de verdade e a notificação é gravada sem
+    estourar o erro de tipo. PR #425 (atualiza o arquivo da migration `c`
+    no repo com as duas correções) mergeado.
   - **Lição, reforçando a de sempre**: um guard de "admin bypassa tudo"
     escrito como PRIMEIRA linha de uma trigger de múltiplos propósitos
     (validação + atribuição de estado) pula os dois juntos sem intenção —
