@@ -28,11 +28,13 @@
     obras; `signOut` limpa sessão local mesmo offline; cookie de sessão 30
     dias; set-session-cookie exige JSON + Origin + SameSite=Strict; chat
     maxLength 4000; mídia de terceiro no chat vira link; `safeHttpUrl`.
-    **3 SQLs PENDENTES (colados no chat):**
+    **3 SQLs RODADOS pelo usuário (2026-09-26, "rodei tudo")** —
     `2026-09-26-brand-logos-https-check.sql`,
-    `2026-09-26-financeiro-increment-cost.sql` (sem ele cai no caminho
-    antigo), `2026-09-26-content-length-and-link-checks.sql` (rodar a
-    pré-conferência antes; zera links antigos fora do formato).
+    `2026-09-26-financeiro-increment-cost.sql`,
+    `2026-09-26-content-length-and-link-checks.sql`. Relato, ainda sem a
+    conferência combinada (7 constraints + RPC) devolvida; se alguma
+    constraint faltar, foi PULADA por dado legado (NOTICE), não erro.
+    Não pedir pra rodar de novo sem antes conferir.
     **Não feito:** chave de idempotência do pedido da loja no servidor;
     CSP com script-src no portal. Conferir pós-deploy: `curl -I
     /portal/` e o console na tela de AR (mediapipe/wasm).
