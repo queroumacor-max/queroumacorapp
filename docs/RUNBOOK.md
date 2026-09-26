@@ -59,6 +59,10 @@ GitHub MCP não expõe status de deploy CF Pages).
 
 ## 3. Deploy `next-app/` (cutover futuro)
 
+> **Histórico — o cutover JÁ FOI FEITO (2026-09-20, Worker
+> `queroumacor-next-production`) e o `app2.queroumacor.com.br` citado abaixo
+> foi REMOVIDO em 2026-09-26.** O texto abaixo é o plano da época.
+
 Bloqueado até o usuário criar o CF Pages project `queroumacor-next`.
 Procedimento completo em
 [`../USER_ACTIONS.md` seção Cutover](../USER_ACTIONS.md).

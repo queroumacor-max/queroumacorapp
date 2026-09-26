@@ -863,10 +863,14 @@
     preso nesse Pages pausado** — serve pra sempre uma build antiga,
     anterior às correções de segurança (Next vulnerável, CSP/headers), sob
     o domínio de confiança e contra o Supabase de produção.
-    **PENDENTE (painel, decisão do usuário): remover o custom domain `app2`
-    do Pages + o CNAME no DNS.** Depois, limpar as referências no repo
-    (`load-test.yml`/`scripts/load-test.js` usam app2 como padrão;
-    `openapi.yaml`, `DEPLOY.md`, `DEPLOYMENT.md`, `README.md`).
+    **Decidido remover (2026-09-26):** o usuário está removendo o custom
+    domain `app2` do Pages + o CNAME no DNS pelo painel (**confirmação de
+    que terminou ainda não registrada**). Referências no repo JÁ LIMPAS: o
+    load test ficou SEM alvo padrão (exige `base_url`/`LOAD_TEST_URL`;
+    produção não vira padrão de propósito), `openapi.yaml` só lista
+    produção, e DEPLOY/DEPLOYMENT/README/RUNBOOK/DR_RUNBOOK/
+    INCIDENT_RESPONSE/USER_ACTIONS marcam o `app2` como removido.
+    `docs/history/` ficou intocado (é histórico). **Não recriar o `app2`.**
   - **AINDA NÃO CONFIRMADO — único item real que sobra, só o painel do
     Cloudflare resolve (nem sessão de navegador real distingue isso: é
     coisa que só aparece no dashboard, não em request/response HTTP)**:

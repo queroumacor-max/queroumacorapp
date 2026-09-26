@@ -29,10 +29,8 @@ info:
     `next-app/lib/api/_services/*` for the business logic and the vanilla
     `openapi.yaml` at repo root for the legacy contract.
 servers:
-  - url: https://app2.queroumacor.com.br/api
-    description: Staging (Next.js preview on Cloudflare Pages)
   - url: https://queroumacor.com.br/api
-    description: Production (cutover target — currently still served by vanilla)
+    description: Production (Cloudflare Workers)
 
 tags:
   - name: auth

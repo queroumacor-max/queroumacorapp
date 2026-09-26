@@ -7,7 +7,9 @@ da migração incremental do app vanilla original (raiz do repo).
 
 **Em scaffold.** O app vanilla original em `/` continua sendo a versão de
 produção em `queroumacor.com.br`. Este subapp é desenvolvido em paralelo;
-deploy separado (subdomain `app2.queroumacor.com.br` ou novo Pages project).
+deploy separado (novo Pages project; o subdomain `app2` usado na época foi
+removido em 2026-09-26). Hoje o Next É a produção, no Worker
+`queroumacor-next-production`.
 
 ## Stack
 

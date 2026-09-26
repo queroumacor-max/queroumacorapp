@@ -187,9 +187,9 @@ Procedimento completo em
 | Sentry Support          | sentry.io → Support / Help                        |
 | Mercado Pago Support    | mercadopago.com.br/suporte                        |
 | ANPD (data breach)      | https://www.gov.br/anpd                           |
-| Hostname produção       | `queroumacor.com.br`                              |
+| Hostname produção       | `queroumacor.com.br` + `www` (Worker `queroumacor-next-production`) |
 | Hostname staging        | `<branch>.queroumacorapp.pages.dev`               |
-| Hostname Next.js (TBD)  | `app2.queroumacor.com.br`                         |
+| `app2.queroumacor.com.br` | REMOVIDO em 2026-09-26 — não deve responder; se responder, é resto a apagar |
 
 ---
 
