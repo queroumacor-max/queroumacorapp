@@ -47,8 +47,11 @@
     `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
     `mascararTelefones` pega telefone formatado no log do Dualhook.
     **Não feito:** chave de idempotência do pedido da loja no servidor;
-    CSP com script-src no portal. Conferir pós-deploy: `curl -I
-    /portal/` e o console na tela de AR (mediapipe/wasm).
+    CSP com script-src no portal. **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
+    relatada.** Os detalhes do que foi testado no aparelho não foram
+    passados; se algo quebrar depois, a suspeita começa por AR (CSP do
+    jsdelivr restrito) e portal (`_headers`/`urlSegura`).
   Achados originais, por gravidade:
   - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
     NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
