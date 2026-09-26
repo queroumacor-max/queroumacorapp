@@ -1,7 +1,16 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
 - **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
-  do usuário). SÓ LEITURA, NADA CORRIGIDO AINDA (aguardando OK).** Cruzada a
+  do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); SQLs ainda NÃO rodados.**
+  - **Os 3 SQLs TESTADOS em Postgres 16 local (2026-09-26), cada um rodado
+    2x:** RPC do Financeiro (dono soma, negativo trava em 0, job alheio não
+    muda, anon sem EXECUTE); CHECKs recusam `javascript:`/`data:`/texto
+    longo. **Achado no teste e corrigido:** CHECK NOT VALID + linha ANTIGA
+    fora da regra = todo UPDATE nela falha (uma mensagem legada >4000
+    travaria `mark_conversation_read` e o soft delete da conversa inteira).
+    Agora cada CHECK é PULADO (NOTICE "PULADO …") quando há linha antiga
+    violando — a conferência final lista menos constraints nesse caso.
+    Cruzada a
   lista de 19 pontos com este arquivo: 14 já cobertos por auditorias
   anteriores; auditados agora 2 (validação front), 9 (clique duplo), 10
   (CSRF), 12 (vazamento de info), 18 (cookies).
