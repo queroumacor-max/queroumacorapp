@@ -27,9 +27,8 @@
     existe mas NÃO está no menu** — a aba "🛡️ Moderação" é só de denúncias.
     Hoje pendente só se vê/aprova pelo SQL Editor. Ligar a tela não foi
     feito (fora do pedido).
-  - O post das 19:49 deve ser publicado pela 1ª varredura depois do deploy
-    #762 (tem menos de 7 dias). Conferir: `select status from posts where
-    user_id=<id do @jacksongraffiti> and created_at::date='2026-09-26'`.
+  - **CONFIRMADO PELO USUÁRIO (2026-09-26, "foi tudo"): o post das 19:49
+    apareceu no feed depois do deploy #762.** Caso fechado.
 
 - **DOCUMENTOS LEGAIS REVISADOS (2026-09-26, pedido do usuário: "esses
   termos podem estar desatualizados"). SEM SQL.** Os 10 textos de `/info/*`
@@ -59,8 +58,8 @@
   `created_at` em todas → o "visto" por timestamp segue igual. Vale também
   pros stories já publicados (as fotos estavam no banco). Teste em
   `__tests__/services/stories.test.ts`. PR #440 (squash `f7cbfd2`), **NO AR:
-  deploy run #760 do `deploy.yml` terminou `success`.** Falta o usuário
-  conferir no aparelho um story com várias fotos.
+  deploy run #760 do `deploy.yml` terminou `success`.** **CONFIRMADO NO
+  APARELHO PELO USUÁRIO (2026-09-26, "foi tudo").** Caso fechado.
 
 - **5 PENDÊNCIAS DE AUDITORIA FECHADAS NO CÓDIGO (2026-09-26, pedido do
   usuário: "fazer esses"). PR #435 (squash `5f532d3`), NO AR: deploy run
