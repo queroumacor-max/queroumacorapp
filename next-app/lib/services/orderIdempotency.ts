@@ -90,6 +90,25 @@ export function esquecerChaveDoPedido(userId: string, sig: string): void {
   if (atual && atual.user === userId && atual.sig === sig) gravar(null);
 }
 
+/** Roda `fn` sob uma trava EXCLUSIVA compartilhada por todas as abas da
+ *  mesma origem (Web Locks API). Duas abas enviando o mesmo carrinho ao mesmo
+ *  tempo liam o storage antes de qualquer uma gravar, geravam chaves
+ *  DIFERENTES e as duas passavam pelo índice único. Com a trava, a segunda só
+ *  começa depois que a primeira terminou — e aí a checagem de pedido recente
+ *  e a chave guardada já enxergam o que a primeira gravou.
+ *  Sem Web Locks (navegador antigo, SSR, testes) roda direto: o índice único
+ *  continua cobrindo a repetição na mesma aba. */
+export async function comTravaEntreAbas<T>(nome: string, fn: () => Promise<T>): Promise<T> {
+  const locks =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & {
+          locks?: { request: (n: string, cb: () => Promise<T>) => Promise<T> };
+        }).locks
+      : undefined;
+  if (!locks || typeof locks.request !== 'function') return fn();
+  return locks.request(nome, fn);
+}
+
 /** Só pra testes. */
 export function __resetChaveDoPedidoForTests(): void {
   gravar(null);

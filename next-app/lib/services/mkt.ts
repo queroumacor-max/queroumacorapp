@@ -24,7 +24,11 @@ import {
   ValidationError,
   AuthorizationError,
 } from '@/lib/errors';
-import { chaveDoPedido, esquecerChaveDoPedido } from '@/lib/services/orderIdempotency';
+import {
+  chaveDoPedido,
+  comTravaEntreAbas,
+  esquecerChaveDoPedido,
+} from '@/lib/services/orderIdempotency';
 
 // ─── tipos inline ──────────────────────────────────────────────────────────
 
@@ -1110,7 +1114,18 @@ export async function submitOrder(
 ): Promise<OrderSubmitResult> {
   if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
+  // Serializa o envio entre abas: sem isso, duas abas com o mesmo carrinho
+  // passam juntas pela checagem de pedido recente e geram chaves diferentes.
+  return comTravaEntreAbas(`order-submit:${userId}`, () =>
+    submitOrderSemTrava(userId, items, address)
+  );
+}
 
+async function submitOrderSemTrava(
+  userId: string,
+  items: CartItem[],
+  address?: string | null
+): Promise<OrderSubmitResult> {
   const total = items.reduce(
     (sum, item) => sum + Number(item.price || 0) * (item.qty || 1),
     0

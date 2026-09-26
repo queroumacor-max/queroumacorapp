@@ -106,6 +106,13 @@
     por assinatura continua como primeira camada.
   - Testes novos em `__tests__/services/mkt.test.ts` (5). Suíte 221/221
     arquivos, 2599 testes, `tsc` e eslint verdes.
+  - **Achado do Codex no PR #417 (P2), corrigido antes do merge:** duas
+    ABAS com o mesmo carrinho liam o storage antes de qualquer uma gravar,
+    geravam chaves diferentes e as duas passavam. `submitOrder` agora roda
+    sob `comTravaEntreAbas('order-submit:<uid>')` (Web Locks API, exclusiva
+    por origem): a 2ª aba só começa depois da 1ª e cai na checagem de pedido
+    recente. Sem Web Locks roda direto. Teste
+    `__tests__/services/orderIdempotencyLock.test.ts`. Suíte 222/222, 2601.
 
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
