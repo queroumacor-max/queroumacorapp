@@ -142,9 +142,15 @@
   pedido do usuário + sugestões do pintor Léo). SQL em 3 arquivos, NESTA
   ORDEM: `/migrations/2026-09-24-a-quotes-update-so-pintor.sql`,
   `…-b-gestao-obras-tabelas.sql`, `…-c-gestao-obras-funcoes.sql` —
-  PENDENTE de execução no Supabase (colados no chat).** Testados ponta a
+  **JÁ EXECUTADAS no Supabase (2026-09-26, confirmado pelo usuário: as
+  conferências no fim de cada arquivo voltaram `ok=true` — policy
+  `quotes_update_painter`, tabelas `obras`/`obra_equipe`/`obra_escala` com
+  RLS, `jobs.categoria`/`jobs.obra_id`, e o trigger `trg_protect_obra_equipe`
+  + as RPCs do funcionário `meus_convites_equipe`/`responder_convite_equipe`/
+  `sair_da_equipe`/`minha_agenda_obras`/`confirmar_presenca_obra`/
+  `enviar_escala_obras`). Não pedir pra rodar de novo.** Testados ponta a
   ponta num Postgres 16 LOCAL com stubs do Supabase (34 testes de ataque e
-  fluxo, idempotência conferida rodando 2x) — não é o banco de produção.
+  fluxo, idempotência conferida rodando 2x) antes de ir pra produção.
   - **A:** derruba toda policy de UPDATE de `quotes` e recria
     `quotes_update_painter` (pintor ou admin). Fecha o furo do cliente
     alterando preço/`quote_data`/status via REST. Nenhum fluxo do app
