@@ -41,10 +41,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # Ações oficiais do próprio GitHub (github/codeql-action) — mesmo
-      # nível de confiança de actions/*, mantidas pela plataforma.
+      # github/codeql-action fixada por SHA (v3.38.2): é o único job com
+      # `security-events: write`, então tag mutável aqui é o ponto mais caro
+      # pra um ataque de supply chain. Pra atualizar: `git ls-remote
+      # https://github.com/github/codeql-action 'refs/tags/v3^{}'`.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
         with:
           languages: javascript-typescript
           # Só o código que vai pra produção (next-app) + workflows/scripts
@@ -59,6 +61,6 @@ jobs:
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3.38.2
         with:
           category: '/language:javascript-typescript'

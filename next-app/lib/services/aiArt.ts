@@ -25,6 +25,7 @@ import { getSupabase } from '@/lib/supabase';
 import { ehImagem } from '@/lib/utils/mediaType';
 
 import { fetchGated } from './fetchGated';
+import { aprovarPostNoServidor } from './posts';
 // ── Public types ────────────────────────────────────────────────────────────
 
 export type ArtStyle =
@@ -484,22 +485,40 @@ export async function postArtToFeed(
   }
 
   const caption = (input.caption || '').trim();
-  const { error: insErr } = await sb.from('posts').insert({
-    user_id: input.userId,
-    caption: caption || null,
-    media_url: mediaUrl,
-    media_type: 'image',
-    status: 'approved',
-    created_at: new Date().toISOString(),
-  });
-  if (insErr) {
+  // Nasce pendente e quem publica é o servidor (mesmo fluxo do Composer —
+  // ver `aprovarPostNoServidor`).
+  const { data: novo, error: insErr } = await sb
+    .from('posts')
+    .insert({
+      user_id: input.userId,
+      caption: caption || null,
+      media_url: mediaUrl,
+      media_type: 'image',
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insErr || !novo) {
     // Insert falhou após upload — tenta remover blob órfão (best-effort).
     try {
       await sb.storage.from('posts').remove([path]);
     } catch {
       /* ignore */
     }
-    throw new NetworkError(insErr.message, insErr);
+    throw new NetworkError(insErr?.message || 'Insert sem retorno.', insErr);
+  }
+
+  const postId = (novo as { id: string }).id;
+  try {
+    await aprovarPostNoServidor(postId);
+  } catch (e) {
+    await sb
+      .from('posts')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', postId)
+      .eq('user_id', input.userId);
+    throw e;
   }
 
   return { ok: true, mediaUrl, status: 'approved' };

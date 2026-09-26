@@ -541,8 +541,8 @@ export interface CreatePostResult {
 }
 
 /**
- * Insere uma linha em `posts`. Status default 'approved' (paridade com
- * vanilla quando moderação OK ou sem mídia). Validação:
+ * Insere uma linha em `posts` com status 'pending' — só vai ao feed depois
+ * de `aprovarPostNoServidor`. Validação:
  *   - userId obrigatório
  *   - story exige pelo menos 1 mídia
  *   - post sem mídia exige caption (paridade com publishPost vanilla)
@@ -590,7 +590,11 @@ export async function createPost(
       // Wave 20 / S5: link externo. Schema impõe sanidade (http/https
       // validado no client antes daqui).
       link_url: input.linkUrl ?? null,
-      status: 'approved',
+      // Nasce PENDENTE: quem publica é o servidor, depois de moderar
+      // (`aprovarPostNoServidor`, 2026-09-26). O banco também força isso —
+      // mandar 'approved' daqui não adiantaria, e mandar 'pending' faz o
+      // fluxo valer igual antes e depois da migration.
+      status: 'pending',
       for_sale: !!input.forSale,
       price: input.forSale && input.price ? input.price : null,
       art_type: input.forSale && input.artType ? input.artType : null,
@@ -626,4 +630,65 @@ export async function createPost(
     throw new NetworkError('Insert sem retorno.');
   }
   return data as CreatePostResult;
+}
+
+export interface AprovacaoDoPost {
+  status: 'approved' | 'rejected';
+  reasons?: string[];
+  revisao?: boolean;
+}
+
+/**
+ * Pede ao servidor pra moderar e publicar um post recém-criado
+ * (`/api/posts/approve`). O post nasce `pending` e fica invisível até aqui.
+ *
+ * - aprovado → devolve o resultado;
+ * - reprovado → `ValidationError` (o servidor já retirou o post);
+ * - 429 → `ValidationError` com o motivo;
+ * - qualquer outra falha → tenta de novo UMA vez (soluço de rede da
+ *   WebView) e, se falhar de novo, `NetworkError`. Quem chama decide o que
+ *   fazer com o post pendente (o publish apaga, pra pessoa tentar de novo).
+ */
+export async function aprovarPostNoServidor(postId: string): Promise<AprovacaoDoPost> {
+  let ultimo: unknown = null;
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    try {
+      const res = await fetchGated('/api/posts/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        status?: string;
+        reasons?: string[];
+        revisao?: boolean;
+        error?: string;
+      };
+      if (res.ok && json.status === 'approved') {
+        return { status: 'approved', revisao: json.revisao };
+      }
+      if (res.ok && json.status === 'rejected') {
+        throw new ValidationError(
+          'Este conteúdo não pode ser publicado por violar as diretrizes da comunidade.',
+        );
+      }
+      if (res.status === 429) {
+        throw new ValidationError(
+          json.error || 'Muitas publicações em pouco tempo — aguarde um instante e tente de novo.',
+        );
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new AuthenticationError(json.error || 'Faça login de novo para publicar.');
+      }
+      ultimo = new Error(`aprovar post: HTTP ${res.status} ${json.error || ''}`.trim());
+    } catch (e) {
+      if (e instanceof ValidationError || e instanceof AuthenticationError) throw e;
+      ultimo = e;
+    }
+    if (tentativa === 0) await new Promise((r) => setTimeout(r, 800));
+  }
+  throw new NetworkError(
+    'Não foi possível concluir a publicação agora. Tente de novo em instantes.',
+    ultimo,
+  );
 }

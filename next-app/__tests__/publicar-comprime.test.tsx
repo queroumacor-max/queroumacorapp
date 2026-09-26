@@ -30,8 +30,10 @@ vi.mock('@/lib/services/posts', () => ({
   createPost: (...a: unknown[]) => createPost(...a),
   compressImage: (...a: unknown[]) => compressImage(...a),
   readImageDimensions: (...a: unknown[]) => readImageDimensions(...a),
+  aprovarPostNoServidor: async () => ({ status: 'approved' }),
   COMPRESS_THRESHOLD: 2 * 1024 * 1024,
 }));
+vi.mock('@/lib/services/postInteractions', () => ({ deletePost: vi.fn(async () => ({})) }));
 vi.mock('@/components/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'u1' }, emailVerified: true }),
 }));

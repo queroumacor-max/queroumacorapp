@@ -8771,6 +8771,117 @@ const UsoDoApp = () => {
   );
 };
 
+// ============================================================
+// Histórico de alterações (2026-09-26) — lê `audit_log`, que ganhou um
+// trigger no banco (migrations/2026-09-26-portal-audit-trail.sql) gravando
+// QUEM mudou O QUÊ nas tabelas que o portal edita direto (prompt da IA,
+// catálogo, lojas, avisos, Click Rua, leads) e a moderação de conteúdo
+// alheio. RLS: só admin do portal lê.
+// ============================================================
+// [teste:auditoria-inicio]
+const AUDIT_TABELAS = {
+  whatsapp_ai_config: 'IA do WhatsApp', products: 'Produtos', product_variants: 'Variantes',
+  stores: 'Lojas', click_rua_editions: 'Click Rua', announcements: 'Avisos',
+  price_table_items: 'Tabela de preços', leads: 'Leads', posts: 'Posts (moderação)',
+  comments: 'Comentários (moderação)', profiles: 'Perfis',
+};
+const AUDIT_OPS = { insert: 'criou', update: 'alterou', delete: 'excluiu' };
+function valorCurto(v, max) {
+  if (v === null || v === undefined) return '∅';
+  const t = typeof v === 'string' ? v : JSON.stringify(v);
+  return t.length > max ? t.slice(0, max) + '…' : t;
+}
+function resumoDaMudanca(action, changes, max) {
+  const lim = max || 120;
+  if (!changes || typeof changes !== 'object') return [];
+  const op = String(action || '').split('.').pop();
+  if (op === 'update') {
+    return Object.keys(changes).sort().map((k) => {
+      const c = changes[k] || {};
+      return k + ': ' + valorCurto(c.old, lim) + ' → ' + valorCurto(c.new, lim);
+    });
+  }
+  const nome = changes.name || changes.title || changes.caption || changes.id;
+  return nome ? [valorCurto(nome, lim)] : [];
+}
+// [teste:auditoria-fim]
+
+const HistoricoAlteracoes = () => {
+  const [linhas, setLinhas] = React.useState([]);
+  const [nomes, setNomes] = React.useState({});
+  const [tabela, setTabela] = React.useState('');
+  const [carregando, setCarregando] = React.useState(true);
+  const [erro, setErro] = React.useState('');
+
+  const carregar = React.useCallback(async () => {
+    setCarregando(true); setErro('');
+    try {
+      let q = supa.from('audit_log')
+        .select('id, actor_id, action, target_table, target_id, changes, created_at')
+        .order('created_at', { ascending: false }).limit(300);
+      if (tabela) q = q.eq('target_table', tabela);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = data || [];
+      setLinhas(rows);
+      const ids = Array.from(new Set(rows.map((r) => r.actor_id).filter(Boolean)));
+      if (ids.length) {
+        const { data: ps } = await supa.from('profiles').select('id, name, tag').in('id', ids);
+        const m = {};
+        (ps || []).forEach((p) => { m[p.id] = p.name || (p.tag ? '@' + p.tag : p.id.slice(0, 8)); });
+        setNomes(m);
+      }
+    } catch (e) {
+      setErro((e && (e.code ? e.code + ': ' : '') + (e.message || '')) || 'falha ao carregar');
+    } finally { setCarregando(false); }
+  }, [tabela]);
+
+  React.useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, color: C.ink, fontSize: 16 }}>📜 Histórico de alterações</div>
+        <select value={tabela} onChange={(e) => setTabela(e.target.value)}
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid ' + C.border, fontSize: 13 }}>
+          <option value="">Tudo</option>
+          {Object.keys(AUDIT_TABELAS).map((t) => <option key={t} value={t}>{AUDIT_TABELAS[t]}</option>)}
+        </select>
+        <button onClick={carregar} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid ' + C.border, background: C.cream, cursor: 'pointer', fontSize: 13 }}>↻ Atualizar</button>
+      </div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+        Quem mudou o quê no portal (últimos 300 registros). Só aparece o que foi feito depois de rodar <code>migrations/2026-09-26-portal-audit-trail.sql</code>.
+      </div>
+      {erro ? <div style={{ color: C.p4, fontSize: 13, marginBottom: 12 }}>Não consegui ler o histórico ({erro}).</div> : null}
+      {carregando ? <div style={{ fontSize: 13, color: C.muted }}>Carregando…</div> : null}
+      {!carregando && !erro && linhas.length === 0 ? <div style={{ fontSize: 13, color: C.muted }}>Nenhuma alteração registrada ainda.</div> : null}
+      {linhas.map((r) => {
+        const op = String(r.action || '').split('.').pop();
+        const resumo = resumoDaMudanca(r.action, r.changes);
+        return (
+          <div key={r.id} style={{ borderTop: '1px solid ' + C.border, padding: '10px 0', fontSize: 13 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <span style={{ color: C.muted, minWidth: 130 }}>{new Date(r.created_at).toLocaleString('pt-BR')}</span>
+              <b style={{ color: C.ink }}>{r.actor_id ? (nomes[r.actor_id] || r.actor_id.slice(0, 8)) : 'sistema'}</b>
+              <span>{AUDIT_OPS[op] || r.action}</span>
+              <span style={{ color: C.p5 }}>{AUDIT_TABELAS[r.target_table] || r.target_table || '—'}</span>
+              {r.target_id ? <code style={{ fontSize: 11, color: C.muted }}>{String(r.target_id).slice(0, 12)}</code> : null}
+            </div>
+            {resumo.length ? (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: 'pointer', color: C.muted, fontSize: 12 }}>{resumo[0]}{resumo.length > 1 ? '  (+' + (resumo.length - 1) + ')' : ''}</summary>
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, background: C.cream, padding: 8, borderRadius: 8, margin: '6px 0 0' }}>
+                  {resumoDaMudanca(r.action, r.changes, 4000).join('\n')}
+                </pre>
+              </details>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -8796,6 +8907,7 @@ const PAGES_DEF = [
   { id:'analytics', icon:'📈', label:'Analytics', section:'DADOS', component:<Analytics /> },
   { id:'indicacoes', icon:'🔗', label:'Indicações', section:'DADOS', component:<Indicacoes /> },
   { id:'avaliacoes', icon:'⭐', label:'Avaliações', section:'DADOS', component:<AvaliacoesTab /> },
+  { id:'historico', icon:'📜', label:'Histórico de alterações', section:'DADOS', component:<HistoricoAlteracoes /> },
 ];
 
 class ErrorBoundary extends React.Component {
