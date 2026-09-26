@@ -4,7 +4,7 @@
 // de quem abre a conversa. Mídia só renderiza quando vem do Storage do
 // Supabase (anexos do chat) ou da própria origem; o resto vira link.
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { MessageBubble } from '@/components/MessageBubble';
 import type { Message } from '@/lib/services/chat';
@@ -22,13 +22,25 @@ function msg(content: string, type: Message['type'] = 'text'): Message {
   };
 }
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://uwq.supabase.co');
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 describe('MessageBubble — mídia de terceiro', () => {
   it('anexo do Supabase vira <img>', () => {
     const url = 'https://uwq.supabase.co/storage/v1/object/public/posts/u/chat/1.jpg';
     const { container } = render(<MessageBubble message={msg(url, 'image')} kind="other" />);
     expect(container.querySelector(`img[src="${url}"]`)).toBeTruthy();
+  });
+
+  it('imagem de OUTRO projeto Supabase NÃO carrega (Codex #412)', () => {
+    const url = 'https://attacker.supabase.co/functions/v1/pixel.jpg';
+    const { container } = render(<MessageBubble message={msg(url, 'image')} kind="other" />);
+    expect(container.querySelector('img[src*="attacker"]')).toBeNull();
   });
 
   it('imagem de host terceiro NÃO carrega — vira link', () => {

@@ -37,17 +37,30 @@ describe('safeHttpUrl', () => {
 
 describe('isTrustedMediaUrl', () => {
   const app = 'https://queroumacor.com.br';
-  it('confia no Storage do Supabase e na própria origem', () => {
+  const sb = 'https://uwq.supabase.co';
+  it('confia no Storage do PRÓPRIO projeto e na própria origem', () => {
     expect(
-      isTrustedMediaUrl('https://uwq.supabase.co/storage/v1/object/public/posts/u/chat/1.jpg', app),
+      isTrustedMediaUrl('https://uwq.supabase.co/storage/v1/object/public/posts/u/chat/1.jpg', app, sb),
     ).toBe(true);
-    expect(isTrustedMediaUrl('https://queroumacor.com.br/cdn-cgi/image/w=64/x.jpg', app)).toBe(true);
+    expect(isTrustedMediaUrl('https://queroumacor.com.br/cdn-cgi/image/w=64/x.jpg', app, sb)).toBe(true);
+  });
+  it('recusa outro projeto Supabase e caminho fora do Storage (Codex #412)', () => {
+    expect(
+      isTrustedMediaUrl('https://attacker.supabase.co/storage/v1/object/public/x/1.jpg', app, sb),
+    ).toBe(false);
+    expect(isTrustedMediaUrl('https://uwq.supabase.co/functions/v1/pixel.jpg', app, sb)).toBe(false);
+    expect(isTrustedMediaUrl('https://attacker.supabase.co/functions/v1/pixel.jpg', app, sb)).toBe(false);
   });
   it('recusa terceiro, http e sufixo falso', () => {
-    expect(isTrustedMediaUrl('https://evil.com/x.jpg', app)).toBe(false);
-    expect(isTrustedMediaUrl('http://uwq.supabase.co/x.jpg', app)).toBe(false);
-    expect(isTrustedMediaUrl('https://supabase.co.evil.com/x.jpg', app)).toBe(false);
-    expect(isTrustedMediaUrl('https://evilsupabase.co/x.jpg', app)).toBe(false);
-    expect(isTrustedMediaUrl('javascript:alert(1)', app)).toBe(false);
+    expect(isTrustedMediaUrl('https://evil.com/x.jpg', app, sb)).toBe(false);
+    expect(isTrustedMediaUrl('http://uwq.supabase.co/storage/v1/object/x.jpg', app, sb)).toBe(false);
+    expect(isTrustedMediaUrl('https://supabase.co.evil.com/x.jpg', app, sb)).toBe(false);
+    expect(isTrustedMediaUrl('https://evilsupabase.co/x.jpg', app, sb)).toBe(false);
+    expect(isTrustedMediaUrl('javascript:alert(1)', app, sb)).toBe(false);
+  });
+  it('sem URL do projeto configurada, só a própria origem vale', () => {
+    expect(
+      isTrustedMediaUrl('https://uwq.supabase.co/storage/v1/object/public/x.jpg', app, ''),
+    ).toBe(false);
   });
 });

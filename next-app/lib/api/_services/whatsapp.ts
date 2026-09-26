@@ -236,11 +236,11 @@ export async function sendWhatsAppMessage(
     // Dualhook vira 400 (a culpa é da nossa requisição), o resto vira 500.
     // O `upstreamStatus` viaja no corpo (ServiceError.extra) pra tela poder
     // mostrar o número real.
-    // Corpo truncado e com sequências longas de dígitos mascaradas: o erro
-    // do Dualhook/Meta pode ecoar o telefone do destinatário (M4, 2026-09-26).
+    // Corpo truncado e com telefones mascarados: o erro do Dualhook/Meta pode
+    // ecoar o telefone do destinatário (M4, 2026-09-26) — cru ou formatado.
     console.error('dualhook_send_failed', {
       status: res.status,
-      body: rawText.slice(0, 300).replace(/\d{8,}/g, (d) => '*'.repeat(d.length - 4) + d.slice(-4)),
+      body: mascararTelefones(rawText.slice(0, 300)),
     });
 
     const upstreamStatus = res.status;
@@ -1363,4 +1363,18 @@ export function resumirEnvelope(payload: unknown): string {
   const value = change?.value as { metadata?: { phone_number_id?: unknown } } | undefined;
   partes.push(`phone_number_id=${String(value?.metadata?.phone_number_id ?? '(ausente)')}`);
   return partes.join(' ');
+}
+
+/**
+ * Mascara sequências com cara de telefone pra log: 8+ dígitos, contíguos OU
+ * separados por espaço, parênteses, hífen, ponto ou "+" ("+55 11 95976-5031",
+ * "(11) 95976-5031", "5511959765031"). Mantém só os 4 últimos dígitos
+ * (achado do Codex no #412: a versão só-contígua deixava o formatado passar).
+ */
+export function mascararTelefones(texto: string): string {
+  return texto.replace(/\+?\(?\d[\d\s().-]{6,}\d/g, (trecho) => {
+    const digitos = trecho.replace(/\D/g, '');
+    if (digitos.length < 8) return trecho;
+    return '*'.repeat(digitos.length - 4) + digitos.slice(-4);
+  });
 }

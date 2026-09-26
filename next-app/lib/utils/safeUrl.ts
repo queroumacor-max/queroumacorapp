@@ -27,18 +27,37 @@ export function safeHttpUrl(u: unknown): string | undefined {
  * Mídia que o app pode CARREGAR sozinho (sem clique) — `<img>/<video>/
  * <audio>` baixam a URL assim que renderizam, entregando o IP de quem abriu
  * a conversa pra qualquer host que o remetente escolher. Só confiamos no
- * Storage do Supabase (onde os anexos do chat são gravados — ver
- * lib/services/chat-attachments.ts) e na própria origem do app (proxy
- * /cdn-cgi/image, arquivos estáticos). Sempre https.
+ * Storage do PRÓPRIO projeto Supabase (onde os anexos do chat são gravados —
+ * ver lib/services/chat-attachments.ts), caminho `/storage/v1/object/`, e na
+ * própria origem do app (proxy /cdn-cgi/image, arquivos estáticos). Sempre
+ * https. NÃO basta o sufixo `.supabase.co`: qualquer um cria um projeto
+ * Supabase e serve um "pixel" por Edge Function (achado do Codex no #412).
  */
-export function isTrustedMediaUrl(u: unknown, appOrigin?: string): boolean {
+export function isTrustedMediaUrl(
+  u: unknown,
+  appOrigin?: string,
+  supabaseUrl: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_URL,
+): boolean {
   const s = safeHttpUrl(u);
   if (!s) return false;
   try {
     const url = new URL(s);
     if (url.protocol !== 'https:') return false;
-    const host = url.hostname.toLowerCase();
-    if (host.endsWith('.supabase.co')) return true;
+    if (supabaseUrl) {
+      let projectHost = '';
+      try {
+        projectHost = new URL(supabaseUrl).hostname.toLowerCase();
+      } catch {
+        projectHost = '';
+      }
+      if (
+        projectHost &&
+        url.hostname.toLowerCase() === projectHost &&
+        url.pathname.startsWith('/storage/v1/object/')
+      ) {
+        return true;
+      }
+    }
     const origin =
       appOrigin ?? (typeof window !== 'undefined' ? window.location.origin : undefined);
     return !!origin && url.origin === origin;
