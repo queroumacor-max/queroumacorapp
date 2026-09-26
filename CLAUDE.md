@@ -1,5 +1,33 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS: convite de equipe pode não gerar sininho/push —
+  BURACO NA CONFERÊNCIA DA MIGRATION `c` DE 24/09 (2026-09-26, relato do
+  usuário: adicionou a Bia na equipe e "não veio sininho nem push
+  notification").** A conferência de
+  `/migrations/2026-09-24-c-gestao-obras-funcoes.sql` (rodada e confirmada
+  `ok=true` em 2026-09-26, ver entrada "GESTÃO DE OBRAS + GASTOS POR
+  CATEGORIA…" mais abaixo) **nunca checava se `trg_notify_obra_convite`
+  existe** — só checava `trg_protect_obra_equipe`. Ou seja, era possível o
+  aviso do convite (sininho + push, que dependem de uma linha em
+  `notifications` que só esse trigger cria) nunca ter sido criado de
+  verdade, sem ninguém notar, porque a conferência aprovou o arquivo
+  inteiro sem olhar pra essa peça específica.
+  - **Corrigido no repo**: a conferência da migration ganhou a linha
+    `'trigger de aviso do convite'` checando `trg_notify_obra_convite` —
+    pra esse buraco não se repetir em nenhuma auditoria futura desse
+    arquivo.
+  - **Diagnóstico + correção passados ao usuário no chat** (SQL de
+    conferência read-only + o bloco idempotente que recria a função/
+    trigger + backfill dos convites já `'convidado'` sem notificação).
+    **Resultado ainda não confirmado** — depende do usuário rodar o
+    diagnóstico. Se vier `false`, o bloco de correção resolve sem precisar
+    de nova sessão.
+  - **Lição, a mesma de sempre**: conferência de migration que aprova o
+    arquivo sem checar CADA objeto que ele cria (tabela, coluna, índice,
+    trigger, função, policy) pode dar `ok=true` com uma peça inteira
+    faltando. `pg_trigger`/`pg_proc` são baratos de checar — checar todos,
+    não só os "principais".
+
 - **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
   do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); os 3 SQLs JÁ RODADOS e conferidos.**
   - **Os 3 SQLs TESTADOS em Postgres 16 local (2026-09-26), cada um rodado
