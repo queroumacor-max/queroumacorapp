@@ -159,3 +159,32 @@ describe('publicar: o servidor modera e publica', () => {
     expect(deletePost).toHaveBeenCalledWith('u1', 'p1');
   });
 });
+
+describe('aprovação pendurada (caso real de 26/09)', () => {
+  it('passa do teto sem resposta → erro na tela, sem 2ª tentativa, e o pendente é apagado', async () => {
+    vi.useFakeTimers();
+    try {
+      // fetch que nunca responde, mas respeita o AbortSignal (como o navegador)
+      gatedFetch.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_res, rej) => {
+            init.signal?.addEventListener('abort', () =>
+              rej(new DOMException('aborted', 'AbortError')),
+            );
+          }),
+      );
+      const { result } = montar();
+      const p = result.current
+        .publishAsync({ files: [FOTO()], caption: 'oi', mediaType: 'image' })
+        .catch((e) => e);
+      await vi.advanceTimersByTimeAsync(46_000);
+      const erro = await p;
+      expect(erro).toBeInstanceOf(Error);
+      expect(String((erro as Error).message)).toMatch(/demorou demais/);
+      expect(gatedFetch).toHaveBeenCalledTimes(1);
+      expect(deletePost).toHaveBeenCalledWith('u1', 'p1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

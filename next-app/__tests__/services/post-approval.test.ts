@@ -35,6 +35,8 @@ import {
   approvePost,
   chaveNoBucketPosts,
   midiasExibidas,
+  sweepPendingPosts,
+  SWEEP_LOTE,
 } from '../../lib/api/_services/post-approval';
 
 const PUB = 'https://proj.supabase.co/storage/v1/object/public/posts/';
@@ -302,5 +304,53 @@ describe('achados do Codex no #437', () => {
     // a releitura do fake devolve a linha original (pending) → não conta como aprovado
     expect(out).toMatchObject({ status: 409 });
     expect(decodeURIComponent(patches[0].url)).toContain(`media_urls=eq.{"${FOTO1}","${FOTO2}"}`);
+  });
+});
+
+describe('posts presos em pending (2026-09-26)', () => {
+  it('compare-and-set perdeu pra OUTRA aprovação do mesmo post → approved, não 409', async () => {
+    rpcResposta = { status: 200, body: false };
+    // releitura depois do CAS: alguém (varredura ou 2º pedido do app) já aprovou
+    const fetchOriginal = globalThis.fetch;
+    let leituras = 0;
+    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes('/rest/v1/posts') && (init?.method || 'GET') === 'GET') {
+        leituras++;
+        const l = leituras === 1 ? linha : { ...linha, status: 'approved' };
+        return { ok: true, status: 200, json: async () => [l] } as Response;
+      }
+      return fetchOriginal(url, init);
+    }) as typeof fetch;
+    await expect(approvePost({ userId: 'u1', postId: 'p1' })).resolves.toMatchObject({ status: 'approved' });
+  });
+
+  it('varredura: lista só pendentes não apagados entre 5 min e 7 dias, mais novos primeiro, com teto', async () => {
+    const urls: string[] = [];
+    const fetchOriginal = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      urls.push(String(url));
+      return fetchOriginal(url, init);
+    }) as typeof fetch;
+    const agora = Date.parse('2026-09-26T20:00:00Z');
+    const r = await sweepPendingPosts(agora);
+    const lista = decodeURIComponent(urls[0]);
+    expect(lista).toContain('status=eq.pending');
+    expect(lista).toContain('deleted_at=is.null');
+    expect(lista).toContain('created_at=lt.2026-09-26T19:55:00.000Z');
+    expect(lista).toContain('created_at=gt.2026-09-19T20:00:00.000Z');
+    expect(lista).toContain('order=created_at.desc');
+    expect(lista).toContain(`limit=${SWEEP_LOTE}`);
+    expect(r).toEqual({ encontrados: 1, aprovados: 1, reprovados: 0, falhas: 0 });
+    expect(rpc).toHaveLength(1);
+  });
+
+  it('varredura: usa o DONO do post e conta reprovação e falha sem parar o lote', async () => {
+    checkHashBlocklist.mockResolvedValueOnce({ blocked: true, category: 'csam' });
+    const r1 = await sweepPendingPosts();
+    expect(r1).toMatchObject({ reprovados: 1, falhas: 0 });
+    rpcResposta = { status: 500, body: { message: 'x' } };
+    const r2 = await sweepPendingPosts();
+    expect(r2).toMatchObject({ encontrados: 1, falhas: 1 });
   });
 });
