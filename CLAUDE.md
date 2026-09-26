@@ -16,6 +16,12 @@
     editar legenda. `…-portal-audit-trail.sql` também JÁ RODADO (2026-09-26, print:
     função + triggers nas 10 tabelas, todas `true`). **Os 4 SQLs de 26/09
     estão no banco — não pedir pra rodar de novo.**
+  - **Fatura em aberto do Supabase ("Outstanding invoices") PAGA pelo
+    usuário (2026-09-26).** Não é pendência.
+  - **1 post ficou preso em `pending`** (`e155fe65…`, criado 19:27 UTC,
+    DEPOIS do deploy #757) — provável app com bundle antigo aberto (o JS
+    antigo grava e nunca pede aprovação). Aprovação manual sugerida ao
+    usuário; varredura automática de pendentes proposta, não feita.
   - **Correções do Codex (#435 e #437) NO AR: PR #437 (squash `8f87b3d`),
     deploy run #759 do `deploy.yml` terminou `success`.** Falta testar no
     aparelho: foto, carrossel, vídeo, story e editar legenda.
