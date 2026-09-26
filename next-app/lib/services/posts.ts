@@ -649,14 +649,17 @@ export interface AprovacaoDoPost {
  *   WebView) e, se falhar de novo, `NetworkError`. Quem chama decide o que
  *   fazer com o post pendente (o publish apaga, pra pessoa tentar de novo).
  */
-export async function aprovarPostNoServidor(postId: string): Promise<AprovacaoDoPost> {
+export async function aprovarPostNoServidor(
+  postId: string,
+  opts: { revalidarTexto?: boolean } = {},
+): Promise<AprovacaoDoPost> {
   let ultimo: unknown = null;
   for (let tentativa = 0; tentativa < 2; tentativa++) {
     try {
       const res = await fetchGated('/api/posts/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId }),
+        body: JSON.stringify(opts.revalidarTexto ? { postId, revalidarTexto: true } : { postId }),
       });
       const json = (await res.json().catch(() => ({}))) as {
         status?: string;

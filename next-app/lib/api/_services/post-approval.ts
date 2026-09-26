@@ -229,6 +229,11 @@ async function avaliar(args: { url?: string; texto?: string }): Promise<Veredito
   }
 }
 
+/** Literal de array do Postgres (`{"a","b"}`) pro filtro `eq` do PostgREST. */
+export function literalDeArray(itens: string[]): string {
+  return '{' + itens.map((x) => '"' + x.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"').join(',') + '}';
+}
+
 /** Legenda + link: o texto que o post mostra. */
 function textoDoPost(post: PostRow): string {
   return [post.caption || '', post.link_url || ''].filter(Boolean).join('\n');
@@ -265,9 +270,11 @@ async function aprovarSeInalterado(
   // compare-and-set (janela de milissegundos entre os dois passos), por isso
   // é só a ponte até o SQL rodar.
   if (r.status === 404 || /PGRST202|42883/.test(corpo)) {
-    const filtroMidia = post.media_url
-      ? `&media_url=eq.${encodeURIComponent(post.media_url)}`
-      : '&media_url=is.null';
+    const filtroMidia =
+      (post.media_url ? `&media_url=eq.${encodeURIComponent(post.media_url)}` : '&media_url=is.null') +
+      (post.media_urls
+        ? `&media_urls=eq.${encodeURIComponent(literalDeArray(post.media_urls))}`
+        : '&media_urls=is.null');
     await patchPost(post.id, `&status=eq.pending${filtroMidia}`, {
       status: 'approved',
       media_url: novas.mediaUrl,
@@ -279,6 +286,7 @@ async function aprovarSeInalterado(
       !!agora &&
       agora.status === 'approved' &&
       agora.media_url === novas.mediaUrl &&
+      JSON.stringify(agora.media_urls ?? null) === JSON.stringify(novas.mediaUrls ?? null) &&
       (agora.caption ?? null) === (post.caption ?? null) &&
       (agora.link_url ?? null) === (post.link_url ?? null);
     if (!intacto && agora?.status === 'approved') {
@@ -299,6 +307,10 @@ async function aprovarSeInalterado(
 export async function approvePost(args: {
   userId: string;
   postId: string;
+  /** Legenda/link acabaram de ser editados: revalida o TEXTO mesmo se o
+   *  post ainda constar 'approved' (antes do SQL de 2026-09-26 (b) o banco
+   *  não volta o post pra pending na edição — achado do Codex no #437). */
+  revalidarTexto?: boolean;
 }): Promise<ApprovalResult> {
   const { userId, postId } = args;
   const post = await lerPost(postId);
@@ -311,7 +323,35 @@ export async function approvePost(args: {
     );
     throw new ServiceError('não autorizado', 403);
   }
-  if (post.status === 'approved' || post.status === null) return { status: 'approved' };
+  if (post.status === 'approved' || post.status === null) {
+    if (!args.revalidarTexto) return { status: 'approved' };
+    // A mídia desse post já foi aprovada (e é cópia imutável); só o texto é
+    // novo. Moderamos só ele.
+    const v = await avaliar({ texto: textoDoPost(post) });
+    if (v.tipo === 'bloquear') {
+      await rejeitar(postId);
+      await enqueueMediaReview({
+        postId,
+        userId,
+        mediaUrl: post.media_url || '',
+        mediaHash: '',
+        reason: v.motivo,
+        severity: v.severity,
+      });
+      return { status: 'rejected', reasons: v.motivo.split(',') };
+    }
+    if (v.tipo === 'revisar') {
+      await enqueueMediaReview({
+        postId,
+        userId,
+        mediaUrl: post.media_url || '',
+        mediaHash: '',
+        reason: v.motivo,
+        severity: 'med',
+      });
+    }
+    return { status: 'approved', revisao: v.tipo === 'revisar' };
+  }
   if (post.status !== 'pending') throw new ServiceError(`post em estado ${post.status}`, 409);
 
   // ── Mídias: conjunto completo que as telas exibem, copiado pra pasta

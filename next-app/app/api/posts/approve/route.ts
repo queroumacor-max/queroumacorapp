@@ -30,7 +30,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(request: NextRequest) {
   const grande = rejectOversizedBody(request, 16 * 1024);
   if (grande) return grande;
-  let body: { accessToken?: unknown; postId?: unknown };
+  let body: { accessToken?: unknown; postId?: unknown; revalidarTexto?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   if (gate instanceof NextResponse) return gate;
 
   try {
-    const out = await approvePost({ userId, postId });
+    const out = await approvePost({ userId, postId, revalidarTexto: body?.revalidarTexto === true });
     await recordAiUsage({ userId, feature: out.video ? 'moderate_video' : 'moderate' });
     return NextResponse.json(out);
   } catch (e) {

@@ -276,3 +276,31 @@ describe('approvePost', () => {
     expect(rpc[0]).toMatchObject({ p_new_media_url: COPIA(0, 'v.mp4') });
   });
 });
+
+describe('achados do Codex no #437', () => {
+  it('legenda editada em post ainda "approved" (SQL (b) pendente) é revalidada', async () => {
+    linha.status = 'approved';
+    linha.media_url = COPIA(0, 'a.jpg');
+    linha.caption = 'pague antes pra liberar';
+    moderateContent.mockResolvedValue({ flagged: true, severity: 'hard', reasons: ['golpe'] });
+    const out = await approvePost({ userId: 'u1', postId: 'p1', revalidarTexto: true });
+    expect(out).toEqual({ status: 'rejected', reasons: ['golpe'] });
+    expect(moderateContent).toHaveBeenCalledWith({ text: 'pague antes pra liberar', imageUrl: undefined });
+    expect(patches[0].body).toMatchObject({ status: 'rejected' });
+  });
+
+  it('sem revalidarTexto, post aprovado segue idempotente', async () => {
+    linha.status = 'approved';
+    await approvePost({ userId: 'u1', postId: 'p1' });
+    expect(moderateContent).not.toHaveBeenCalled();
+  });
+
+  it('fallback sem RPC filtra também media_urls (edição concorrente do carrossel não se perde)', async () => {
+    rpcResposta = { status: 404, body: { code: 'PGRST202' } };
+    linha.media_urls = [FOTO1, FOTO2];
+    const out = await approvePost({ userId: 'u1', postId: 'p1' }).catch((e) => e);
+    // a releitura do fake devolve a linha original (pending) → não conta como aprovado
+    expect(out).toMatchObject({ status: 409 });
+    expect(decodeURIComponent(patches[0].url)).toContain(`media_urls=eq.{"${FOTO1}","${FOTO2}"}`);
+  });
+});

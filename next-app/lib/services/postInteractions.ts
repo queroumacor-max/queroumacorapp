@@ -272,7 +272,9 @@ export async function updatePostCaption(
   // o erro sobe; salvar de novo tenta outra vez. Não apaga — é edição, não
   // publicação nova.
   const { aprovarPostNoServidor } = await import('./posts');
-  await aprovarPostNoServidor(postId);
+  // `revalidarTexto`: antes do SQL de 2026-09-26 (b) o banco não volta o
+  // post pra pending na edição; o servidor revalida o texto mesmo assim.
+  await aprovarPostNoServidor(postId, { revalidarTexto: true });
 }
 
 /**
