@@ -1,5 +1,15 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **STORY (24h) COM VÁRIAS FOTOS SÓ MOSTRAVA A 1ª (2026-09-26, relato do
+  usuário). SEM SQL.** O composer deixava escolher várias fotos na aba 24h e
+  gravava todas em `media_urls`; o `StoryViewer` só lia `media_url`. Agora
+  `fetchStoriesGroupedByUser` busca `media_urls` e `expandirFotosDoStory`
+  transforma cada foto numa tela própria do viewer, na ordem (ids `s1`,
+  `s1:1`, `s1:2`… só pra chave de render; `post_id` guarda o id real). Mesmo
+  `created_at` em todas → o "visto" por timestamp segue igual. Vale também
+  pros stories já publicados (as fotos estavam no banco). Teste em
+  `__tests__/services/stories.test.ts`.
+
 - **5 PENDÊNCIAS DE AUDITORIA FECHADAS NO CÓDIGO (2026-09-26, pedido do
   usuário: "fazer esses"). PR #435 (squash `5f532d3`), NO AR: deploy run
   #757 do `deploy.yml` terminou `success`.**
