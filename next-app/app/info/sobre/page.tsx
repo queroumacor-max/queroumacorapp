@@ -31,7 +31,7 @@ export default function SobrePage() {
             marginTop: 4,
           }}
         >
-          Versão 1.0
+          Versão 1.2
         </div>
         <p
           style={{

@@ -19,7 +19,7 @@ const listStyle = {
 export default function CopyrightPage() {
   return (
     <InfoSubPage title="Política de Direitos Autorais">
-      <LegalUpd>Última atualização: 17 de junho de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Esta política trata da titularidade do conteúdo publicado no
         QueroUmaCor e do procedimento para notificações de violação de direitos
@@ -37,7 +37,8 @@ export default function CopyrightPage() {
       <LegalP>
         O conteúdo criado com recursos de IA está sujeito às políticas dos
         provedores <b>OpenAI</b> e <b>Google</b>. Verifique essas políticas
-        antes de usar o conteúdo gerado para fins comerciais.
+        antes de usar o conteúdo gerado para fins comerciais. Não use os
+        recursos de IA para reproduzir marcas, logotipos ou obras de terceiros.
       </LegalP>
 
       <LegalH>3. Canal DMCA / Lei 9.610/98</LegalH>
