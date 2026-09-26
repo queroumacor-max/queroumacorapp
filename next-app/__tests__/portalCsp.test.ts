@@ -25,7 +25,9 @@ function diretiva(csp: string, nome: string): string[] {
   return d ? d.split(/\s+/).slice(1) : [];
 }
 
-const inlines = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+// Todo <script> SEM src (qualquer caixa, com ou sem atributos) é inline e
+// precisa de hash — inclusive um `<SCRIPT type=...>` que alguém cole depois.
+const inlines = [...html.matchAll(/<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script\s*>/gi)].map((m) => m[1]);
 const hashes = inlines.map((c) => `'sha256-${createHash('sha256').update(c, 'utf8').digest('base64')}'`);
 
 describe('CSP do /portal', () => {
@@ -54,7 +56,7 @@ describe('CSP do /portal', () => {
     });
 
     it(`${rota}: todo <script src> externo do index.html está liberado`, () => {
-      const externos = [...html.matchAll(/<script[^>]*\ssrc="(https:\/\/[^"/]+)/g)].map((m) => m[1]);
+      const externos = [...html.matchAll(/<script\b[^>]*\ssrc\s*=\s*"(https:\/\/[^"/]+)/gi)].map((m) => m[1]);
       for (const origem of externos) expect(script).toContain(origem);
     });
 
