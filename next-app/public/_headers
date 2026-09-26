@@ -5,20 +5,27 @@
 # painel admin). Este arquivo é copiado de next-app/public pra
 # .open-next/assets no build, onde o Cloudflare o aplica.
 #
-# ESCOPO SÓ DO /portal, de propósito. NÃO copiar aqui a CSP completa do app:
-# a fonte única dela é middleware.ts (rotas do worker), e duplicar criaria
-# uma segunda CSP divergente. Aqui NÃO há script-src: restringir script no
-# portal não foi validado (React/Sentry/Supabase vendorados + scripts
-# inline) e quebrá-lo deixaria a loja sem painel. Só proteção de quadro,
-# plugin, <base> e sniffing.
+# ESCOPO SÓ DO /portal, de propósito. Esta CSP é PRÓPRIA do portal e não é
+# cópia da do app (fonte única do app = middleware.ts): o portal é uma página
+# estática com outro conjunto de scripts.
+#
+# script-src (2026-09-26): 'self' (React, app.js, xlsx e /supabase.js, todos
+# vendorados e com SRI) + sha256 dos 3 <script> INLINE do
+# public/portal/index.html (Sentry.onLoad, patch de fuso, SUPA_URL/KEY) + o
+# Loader do Sentry (js.sentry-cdn.com), que baixa o SDK de
+# browser.sentry-cdn.com. SEM 'unsafe-inline' e SEM 'unsafe-eval'.
+# MEXEU EM UM <script> INLINE DO index.html? Recalcule o sha256 dele aqui —
+# senão o navegador bloqueia o script e o portal quebra.
+# __tests__/portalCsp.test.ts confere os hashes contra o arquivo real.
+# style-src fica com 'unsafe-inline': o portal é inteiro em style inline.
 /portal
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://js.sentry-cdn.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://browser.sentry-cdn.com; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
 /portal/*
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://js.sentry-cdn.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://browser.sentry-cdn.com; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

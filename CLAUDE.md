@@ -19,7 +19,7 @@
     220/220 arquivos, 2589 testes, `tsc` e `next build` verdes. Portal
     v=20260926a (`urlSegura` nos hrefs, trava no Criar Produto, app.js
     recompilado + SRI); `next-app/public/_headers` com frame-ancestors/XFO
-    pra `/portal` (sem script-src — CSP completa do portal segue pendente);
+    pra `/portal` (a CSP completa, com script-src, veio depois — ver entrada "CSP DO PORTAL");
     `script-src` do jsdelivr restrito a pdfjs/mediapipe/eruda, `onrender`
     fora do connect-src; `lib/errors.ts` troca mensagem técnica crua por
     texto amigável (crua em `.raw`/`cause`); IA/ig-art/401/403/envs sem
@@ -46,8 +46,8 @@
     (`NEXT_PUBLIC_SUPABASE_URL`) + `/storage/v1/object/` (qualquer
     `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
     `mascararTelefones` pega telefone formatado no log do Dualhook.
-    **Não feito:** CSP com script-src no portal. (A chave de idempotência
-    do pedido da loja foi feita depois — ver entrada logo abaixo.) **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    (Os dois itens que sobraram — CSP com script-src no portal e a chave de
+    idempotência do pedido — foram feitos depois; ver entradas logo abaixo.) **TESTADO EM PRODUÇÃO PELO USUÁRIO
     (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
     relatada.** **Confirmado pelo usuário: portal e tela de AR OK**
     (os dois pontos de maior risco — CSP do jsdelivr restrito e
@@ -82,6 +82,29 @@
     nomes de env e mecanismo de admin; imagem de terceiro no chat vaza IP.
   - **CSRF limpo no resto:** nenhuma rota de API autentica por cookie,
     sem Server Actions, CORS restrito — imune por arquitetura.
+
+- **CSP DO PORTAL COM script-src (2026-09-26, pedido do usuário: "faça a CSP
+  do portal", último item da auditoria dos 19 pontos). SEM SQL.**
+  `next-app/public/_headers` (`/portal` e `/portal/*`, binding ASSETS — o
+  portal NÃO passa pelo middleware) ganhou CSP completa e PRÓPRIA:
+  `script-src 'self'` + sha256 dos 3 `<script>` inline do
+  `public/portal/index.html` (Sentry.onLoad, patch de fuso, SUPA_URL/KEY) +
+  `js.sentry-cdn.com`/`browser.sentry-cdn.com`; sem `'unsafe-inline'` nem
+  `'unsafe-eval'` em script. style-src segue `'unsafe-inline'` (portal é todo
+  em style inline); img `https:`; media/connect só Supabase (+wss) e ingest do
+  Sentry; `frame-src 'none'`, `form-action 'self'`, `upgrade-insecure-requests`.
+  - **REGRA: mexeu num `<script>` inline do `portal/index.html` → refaça o
+    sha256 no `_headers`.** Hash errado = script bloqueado e portal quebrado.
+    `__tests__/portalCsp.test.ts` recalcula os hashes do arquivo real e falha
+    se faltar, sobrar, ou entrar `'unsafe-inline'`/curinga em script-src.
+  - **Validado em Chromium real** (servidor local aplicando o header lido do
+    `_headers`): portal sobe até a tela de login sem NENHUMA violação; o xlsx
+    dinâmico carrega; WebSocket/fetch pro Supabase liberados; fetch pra host
+    estranho e `<script>` inline injetado BLOQUEADOS (controle negativo).
+    **Não validado:** o Loader do Sentry de verdade e as telas logadas (sem
+    rede externa nem login daqui) — se algo do portal logado quebrar, o
+    console do navegador (F12) diz a diretiva recusada.
+  - Suíte 223/223 arquivos, 2612 testes.
 
 - **LOJA: CHAVE DE IDEMPOTÊNCIA NO PEDIDO (2026-09-26, pedido do usuário,
   pendência que sobrou da auditoria dos 19 pontos).** SQL

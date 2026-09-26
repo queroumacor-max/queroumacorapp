@@ -72,8 +72,8 @@ describe('public/_headers: /portal protegido no binding ASSETS', () => {
       expect(b).toContain("object-src 'none'");
       expect(b).toContain('X-Content-Type-Options: nosniff');
       expect(b).toContain('Referrer-Policy: strict-origin-when-cross-origin');
-      // Escopo só de quadro: script-src não validado contra o portal.
-      expect(b).not.toContain('script-src');
+      // script-src próprio do portal: conferido em portalCsp.test.ts.
+      expect(b).toContain('script-src');
     });
   }
 });
