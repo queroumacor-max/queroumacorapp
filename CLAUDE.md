@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **GESTÃO DE OBRAS: "Obra não encontrada ou sem permissão" ao CRIAR obra
+  (relato do Fabio, print de 25/09 16:40). SEM SQL.** Causa: o deploy #752
+  (25/09) passou a pedir `client_id` no retorno do INSERT, mas o SQL
+  `2026-09-25-obra-cliente.sql` só rodou em 26/09. O PostgREST faz INSERT +
+  SELECT num comando só, então o 42703 DESFAZIA o INSERT; o fallback de
+  `salvarObra` supunha "já gravou", buscava a última obra do dono e, sem
+  nenhuma, mostrava a frase (com obra antiga, devolveria a ERRADA). Conferido
+  no banco em 26/09: `obras` tem as 14 colunas (inclui `client_id`) e só os
+  3 triggers esperados — então hoje criar obra já funciona. Fix no código
+  (branch `claude/fabio-creation-message-mie1kn`): 42703 refaz a escrita
+  pedindo só as colunas base; erro seguinte aparece de verdade. Teste
+  `__tests__/services/obrasSalvarColunaAusente.test.ts`. **Lição: fallback
+  de "coluna ausente" num INSERT…select nunca pode supor que a escrita
+  aconteceu.**
+
 - **GESTÃO DE OBRAS: convite de equipe NUNCA notificava quem convida é
   admin do portal — 2 BUGS REAIS achados por diagnóstico ponta a ponta
   (2026-09-26, relato do usuário: adicionou a Bia na equipe e "não veio
