@@ -266,6 +266,15 @@ export async function updatePostCaption(
     .eq('id', postId)
     .eq('user_id', userId);
   if (error) throw new NetworkError(error.message, error);
+  // Legenda nova volta o post pra 'pending' no banco (trigger
+  // enforce_post_moderation, 2026-09-26): o texto passa pela moderação antes
+  // de reaparecer. Falhou a reaprovação → o post fica pendente (invisível) e
+  // o erro sobe; salvar de novo tenta outra vez. Não apaga — é edição, não
+  // publicação nova.
+  const { aprovarPostNoServidor } = await import('./posts');
+  // `revalidarTexto`: antes do SQL de 2026-09-26 (b) o banco não volta o
+  // post pra pending na edição; o servidor revalida o texto mesmo assim.
+  await aprovarPostNoServidor(postId, { revalidarTexto: true });
 }
 
 /**

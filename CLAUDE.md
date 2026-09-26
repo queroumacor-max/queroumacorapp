@@ -1,12 +1,35 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
 - **5 PENDÊNCIAS DE AUDITORIA FECHADAS NO CÓDIGO (2026-09-26, pedido do
-  usuário: "fazer esses"). 3 SQLs NOVOS — AINDA NÃO RODADOS no Supabase.**
-  Rodar DEPOIS do deploy, nesta ordem (os três são idempotentes e foram
-  testados 2x num Postgres 16 local):
-  `migrations/2026-09-26-posts-moderation-server-side.sql`,
-  `…-whatsapp-away-claim.sql`, `…-portal-audit-trail.sql`. Linhas novas na
-  `2026-09-05-conferencia-pendencias.sql`.
+  usuário: "fazer esses"). PR #435 (squash `5f532d3`), NO AR: deploy run
+  #757 do `deploy.yml` terminou `success`.**
+  - **SQLs: `…-posts-moderation-server-side.sql` e `…-whatsapp-away-claim.sql`
+    JÁ RODADOS (2026-09-26, prints do usuário: conferências `true`).
+    ATENÇÃO: foram rodados ANTES do deploy #757 — nesse intervalo o app
+    antigo gravava foto que ficava `pending` (invisível) pra sempre. Posts
+    publicados nessa janela podem ter ficado presos: conferir com
+    `select id, user_id, created_at from posts where status='pending' and
+    deleted_at is null order by created_at desc;` e aprovar à mão os
+    legítimos. `…-posts-moderation-codex-fixes.sql` (SQL 4, abaixo) também JÁ
+    RODADO (2026-09-26, print: 3 conferências `true`) — antes do deploy do
+    PR seguinte, sem problema: o código do #435 já pedia reaprovação ao
+    editar legenda. `…-portal-audit-trail.sql`: AINDA NÃO confirmado.**
+  - **Achados do Codex no #435 (4× P1), corrigidos no PR seguinte, com SQL
+    `migrations/2026-09-26-posts-moderation-codex-fixes.sql` (roda DEPOIS
+    do primeiro; o código tem ponte se ele faltar):** (a) editar
+    legenda/link de post aprovado não voltava pra moderação → trigger agora
+    cobre `caption`/`link_url` e `updatePostCaption` pede reaprovação;
+    (b) `media_urls` com >5 itens ou `media_url` fora do array eram
+    exibidos sem moderar → modera o conjunto inteiro (`midiasExibidas`),
+    >5 rejeita; (c) aprovação não amarrava o conteúdo moderado → RPC
+    `approve_post_moderated` (compare-and-set de mídia/legenda/link); sem
+    ela, PATCH condicional + releitura; (d) URL de outro projeto Supabase
+    ou arquivo sobrescrito depois → a aprovação COPIA cada mídia pra
+    `posts/approved/<uid>/<postId>-<i>-<nome>` (fora da pasta do usuário;
+    só service_role escreve) e grava a cópia no post. Origem fora do
+    projeto ou de outra pasta = rejeitado. A exclusão de conta
+    (`cleanupUserStorage`) apaga também `approved/<uid>/`. Os originais
+    viram órfãos e o `cleanup_orphan_media` os lista.
   - **(1) Post só vai ao ar depois que o SERVIDOR modera — fecha o "GAP
     ARQUITETURAL CRÍTICO" dos pentests de 16/09 e 18/09.** Antes, a
     moderação era orquestrada pelo cliente e `posts.status` nascia

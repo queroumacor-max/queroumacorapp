@@ -96,8 +96,15 @@ export async function moderateVideoPost(args: {
   userId: string;
   postId: string;
   caption: string;
+  /** URL a analisar no lugar do `media_url` do banco — a cópia imutável
+   *  que `approvePost` acabou de fazer (2026-09-26). */
+  mediaUrlOverride?: string;
+  /** false = só decide, não grava 'approved' (quem chama grava de forma
+   *  atômica). A rota legada /api/moderate-video segue com true. */
+  aprovar?: boolean;
 }): Promise<ModerateVideoResult> {
   const { userId, postId, caption } = args;
+  const aprovar = args.aprovar !== false;
   const serviceKey = getServiceKey();
   if (!serviceKey) {
     console.warn('[config] SUPABASE_SERVICE_ROLE_KEY ausente');
@@ -132,7 +139,7 @@ export async function moderateVideoPost(args: {
       );
       throw new ServiceError('não autorizado', 403);
     }
-    mediaUrl = arr[0].media_url || '';
+    mediaUrl = args.mediaUrlOverride || arr[0].media_url || '';
   } catch (e) {
     if (e instanceof ServiceError) throw e;
     throw new ServiceError('post não encontrado', 404);
@@ -246,15 +253,17 @@ export async function moderateVideoPost(args: {
     if (verdict.severity === 'soft' || verdict.flagged) {
       return pending('gemini_flagged_video', verdict.reasons);
     }
-    await fetch(
-      `${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`,
-      {
-        method: 'PATCH',
-        headers: { ...sHeaders, Prefer: 'return=minimal' },
-        body: JSON.stringify({ status: 'approved' }),
-        signal: AbortSignal.timeout(10000),
-      }
-    );
+    if (aprovar) {
+      await fetch(
+        `${supaUrl}/rest/v1/posts?id=eq.${encodeURIComponent(postId)}`,
+        {
+          method: 'PATCH',
+          headers: { ...sHeaders, Prefer: 'return=minimal' },
+          body: JSON.stringify({ status: 'approved' }),
+          signal: AbortSignal.timeout(10000),
+        }
+      );
+    }
     return { status: 'approved' };
   } catch (e) {
     console.warn('moderate-video analyze err:', e instanceof Error ? e.message : e);
