@@ -863,9 +863,10 @@
     preso nesse Pages pausado** — serve pra sempre uma build antiga,
     anterior às correções de segurança (Next vulnerável, CSP/headers), sob
     o domínio de confiança e contra o Supabase de produção.
-    **Decidido remover (2026-09-26):** o usuário está removendo o custom
-    domain `app2` do Pages + o CNAME no DNS pelo painel (**confirmação de
-    que terminou ainda não registrada**). Referências no repo JÁ LIMPAS: o
+    **REMOVIDO (2026-09-26, confirmado pelo usuário no painel):** custom
+    domain `app2` tirado do Pages `queroumacor-next` e o CNAME sumiu junto
+    (busca por "app2" no DNS da zona não acha nenhum registro). Caso
+    fechado. Referências no repo JÁ LIMPAS: o
     load test ficou SEM alvo padrão (exige `base_url`/`LOAD_TEST_URL`;
     produção não vira padrão de propósito), `openapi.yaml` só lista
     produção, e DEPLOY/DEPLOYMENT/README/RUNBOOK/DR_RUNBOOK/
