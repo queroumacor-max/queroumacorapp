@@ -20,8 +20,9 @@
     usuário (2026-09-26).** Não é pendência.
   - **1 post ficou preso em `pending`** (`e155fe65…`, criado 19:27 UTC,
     DEPOIS do deploy #757) — provável app com bundle antigo aberto (o JS
-    antigo grava e nunca pede aprovação). Aprovação manual sugerida ao
-    usuário; varredura automática de pendentes proposta, não feita.
+    antigo grava e nunca pede aprovação). **APROVADO À MÃO pelo usuário no
+    SQL Editor (2026-09-26).** Varredura automática de pendentes proposta,
+    não feita (aguardando resposta).
   - **Correções do Codex (#435 e #437) NO AR: PR #437 (squash `8f87b3d`),
     deploy run #759 do `deploy.yml` terminou `success`.** Falta testar no
     aparelho: foto, carrossel, vídeo, story e editar legenda.
