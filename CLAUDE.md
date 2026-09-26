@@ -1,5 +1,40 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
+  do usuário). SÓ LEITURA, NADA CORRIGIDO AINDA (aguardando OK).** Cruzada a
+  lista de 19 pontos com este arquivo: 14 já cobertos por auditorias
+  anteriores; auditados agora 2 (validação front), 9 (clique duplo), 10
+  (CSRF), 12 (vazamento de info), 18 (cookies). Achados, por gravidade:
+  - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
+    NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
+    `_headers` nem meta CSP em `public/`), e `public/portal/app.jsx:1866`
+    faz `href={item.image_url}` cru — `brand_logos.image_url` é gravável
+    pelo pintor via REST (sem CHECK) e o portal é React 18. Pintor grava
+    `javascript:` → admin clica "Abrir" em Camisetas → XSS com sessão de
+    admin. Fix: filtrar `^https://` no href + CHECK no banco + `_headers`
+    com CSP/`frame-ancestors 'none'` pra `/portal/*`.
+  - **ALTO:** `toFriendlyError` (`lib/errors-friendly.ts`) só é usado no
+    `UndoSnackbar` — ~60 telas mostram `error.message` cru do Postgres
+    (nome de tabela/policy). Bloqueado vê "violates row-level security"
+    ao mandar mensagem/comentar: exatamente o que o pentest de 18/09
+    queria esconder (o registro de lá afirmava o contrário).
+  - **MÉDIO:** corpo de erro da OpenAI/Gemini chega ao usuário (`_ai.ts`
+    → Alice/Fê/Senna, `ig-art` `detail`); cadastro mostra "User already
+    registered" (enumeração de e-mail); webhook do WhatsApp loga 60 chars
+    do texto do cliente; clique duplo sem trava em pedido da loja (checagem
+    de duplicata não-atômica em `mkt.ts`), publicar post (`publish.reset()`
+    antes de mutate), Financeiro (`incrementCost` ler-e-regravar),
+    gasto de obra, "Criar Produto" do portal (zero trava); `signOut` sem
+    rede não apaga a sessão local (aparelho compartilhado); cookie
+    `sb-*-auth-token` guarda refresh token + `user` por 400 dias;
+    `script-src` libera `cdn.jsdelivr.net` inteiro sem `strict-dynamic`;
+    `messages/posts/comments` sem CHECK de tamanho (chat sem maxLength).
+  - **BAIXO:** login CSRF em `/api/auth/set-session-cookie` (sem checagem
+    de Origin/Content-Type; impacto só nas páginas /admin); 401/403 citam
+    nomes de env e mecanismo de admin; imagem de terceiro no chat vaza IP.
+  - **CSRF limpo no resto:** nenhuma rota de API autentica por cookie,
+    sem Server Actions, CORS restrito — imune por arquitetura.
+
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
   sendo feito, agenda"). PR #410 (squash `49fea6d`), deploy run #752 do
