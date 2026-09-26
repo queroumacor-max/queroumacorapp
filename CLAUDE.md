@@ -8,7 +8,9 @@
   `s1:1`, `s1:2`… só pra chave de render; `post_id` guarda o id real). Mesmo
   `created_at` em todas → o "visto" por timestamp segue igual. Vale também
   pros stories já publicados (as fotos estavam no banco). Teste em
-  `__tests__/services/stories.test.ts`.
+  `__tests__/services/stories.test.ts`. PR #440 (squash `f7cbfd2`), **NO AR:
+  deploy run #760 do `deploy.yml` terminou `success`.** Falta o usuário
+  conferir no aparelho um story com várias fotos.
 
 - **5 PENDÊNCIAS DE AUDITORIA FECHADAS NO CÓDIGO (2026-09-26, pedido do
   usuário: "fazer esses"). PR #435 (squash `5f532d3`), NO AR: deploy run
