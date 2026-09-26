@@ -819,8 +819,8 @@
     quebra o app: o `cfImg.ts` só reescreve URL da própria zona ou do
     Supabase, e o app não usa URL assinada (`createSignedUrl`) com o
     cfImg — só `/storage/v1/object/public/…`, que é o path liberado.
-    **PENDENTE (só conferência, não ação): o Jackson abrir feed e perfil
-    logado e ver que as fotos do Supabase seguem carregando.** Se
+    **CONFIRMADO PELO USUÁRIO NO APP (2026-09-26): "abri o app e parece
+    normal" — fotos seguem carregando. Caso fechado.** Se um dia
     quebrarem: voltar Sources pra "Any origin" (reverte na hora) e
     investigar qual URL ficou de fora. **Não reabrir as opções (a)/(b).**
     Histórico da decisão antes disso:
