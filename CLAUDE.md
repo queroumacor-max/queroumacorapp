@@ -1,5 +1,24 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **DOCUMENTOS LEGAIS REVISADOS (2026-09-26, pedido do usuário: "esses
+  termos podem estar desatualizados"). SEM SQL.** Os 10 textos de `/info/*`
+  conferidos contra o código e atualizados (data 26/09/2026). Correções:
+  idade = SÓ 18+ (Privacidade dizia "preferencialmente" com autorização dos
+  pais); FAQ dizia que o PRO "pode ter custo" (é só por pontos); Anti-Fraude
+  proibia "pagamento fora da plataforma" (todo pagamento é fora); Privacidade
+  ganhou moderação automática (Gemini + hash + revisão humana + direito de
+  revisão Art. 20), Google/Apple (login + push), todas as personas de IA,
+  dados das ferramentas (obras/equipe/financeiro/anotações/orçamento),
+  dados de terceiros que o usuário cadastra, cookies essenciais (sessão 30
+  dias), histórico das IAs só no aparelho, base do Art. 33 corrigida e
+  tabela de retenção real (backup 7 dias, erros 90, auditoria 1 ano, soft
+  delete 30). Termos gerais: arquitetos/engenheiros, moderação prévia,
+  loja sem pagamento, conteúdo de IA. Profissional: dados de clientes/
+  equipe e PDF. "Versão 1.0" → 1.2. **Não validado por advogado** —
+  recomendado antes de considerar definitivo. "Mensagens e orçamentos 2
+  anos" e "registros de acesso 6 meses" seguem como compromisso, não há
+  job que apague/guarde nesses prazos.
+
 - **STORY (24h) COM VÁRIAS FOTOS SÓ MOSTRAVA A 1ª (2026-09-26, relato do
   usuário). SEM SQL.** O composer deixava escolher várias fotos na aba 24h e
   gravava todas em `media_urls`; o `StoryViewer` só lia `media_url`. Agora

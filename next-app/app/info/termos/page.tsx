@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 18 de junho de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -23,8 +23,12 @@ export default function TermosPage() {
       <LegalH>2. O que é o QueroUmaCor</LegalH>
       <LegalP>
         O QueroUmaCor é uma plataforma de intermediação que conecta clientes a
-        profissionais de pintura. O QueroUmaCor não presta serviços de pintura
-        e não é parte nos contratos firmados entre os usuários.
+        profissionais de pintura e acabamento — pintores, grafiteiros,
+        muralistas, pintores automotivos, funileiros, arquitetos e engenheiros —
+        e oferece ferramentas de trabalho (orçamentos, agenda, financeiro,
+        gestão de obras, assistentes de IA, entre outras). O QueroUmaCor não
+        presta esses serviços e não é parte nos contratos firmados entre os
+        usuários.
       </LegalP>
       <LegalP>
         Operadora: <b>CALICOLORS TINTAS LTDA</b>, CNPJ <b>47.677.346/0001-92</b>,
@@ -38,8 +42,8 @@ export default function TermosPage() {
       <LegalP>
         Você deve fornecer informações verdadeiras e mantê-las atualizadas. A
         conta é pessoal e intransferível. Você é responsável por manter a sua
-        senha em sigilo. O uso é destinado
-        a maiores de 18 anos.
+        senha em sigilo. O uso é permitido somente a maiores de 18 anos, e o
+        cadastro exige a data de nascimento.
       </LegalP>
 
       <LegalH>4. Regras de uso</LegalH>
@@ -55,6 +59,15 @@ export default function TermosPage() {
         descrições. Você declara ter os direitos sobre esse conteúdo e concede
         ao QueroUmaCor uma licença para exibi-lo dentro do aplicativo.
       </LegalP>
+      <LegalP>
+        Todo conteúdo publicado passa por moderação automática por
+        inteligência artificial e, quando necessário, por revisão humana. Um
+        post só aparece no feed depois de aprovado. Conteúdo que viole estes
+        termos ou a lei pode ser recusado ou removido, e conteúdo ilegal pode
+        ser comunicado às autoridades. Você pode pedir a revisão de uma decisão
+        de moderação pelos canais de suporte. Detalhes na Política de
+        Privacidade.
+      </LegalP>
 
       <LegalH>6. Orçamentos e contratações</LegalH>
       <LegalP>
@@ -62,6 +75,26 @@ export default function TermosPage() {
         responsabilidade exclusiva entre o cliente e o profissional. O
         QueroUmaCor não garante a contratação, a qualidade do serviço nem o
         pagamento.
+      </LegalP>
+
+      <LegalH>6.1. Loja Cali Colors</LegalH>
+      <LegalP>
+        Na loja do aplicativo você monta uma lista de pedido e a envia à Cali
+        Colors. <b>Não há pagamento dentro do aplicativo</b>: a equipe da loja
+        entra em contato (por exemplo, pelo WhatsApp) para confirmar
+        disponibilidade, valores e forma de pagamento, e a venda é fechada
+        diretamente com a loja, fora do app. Preços e disponibilidade exibidos
+        no app são informativos até essa confirmação.
+      </LegalP>
+
+      <LegalH>6.2. Ferramentas e conteúdo gerado por IA</LegalH>
+      <LegalP>
+        Cálculos, tabelas de preço de referência, orçamentos, sugestões e
+        textos ou imagens gerados por inteligência artificial são apoio ao seu
+        trabalho: confira antes de usar ou enviar a terceiros. Você é
+        responsável pelo que envia aos seus clientes e pelos dados de outras
+        pessoas que registra nas ferramentas (como clientes e funcionários),
+        devendo ter autorização delas para isso.
       </LegalP>
 
       <LegalH>7. Avaliações</LegalH>

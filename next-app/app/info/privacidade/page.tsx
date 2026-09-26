@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacidadePage() {
   return (
     <InfoSubPage title="Política de Privacidade">
-      <LegalUpd>Última atualização: 6 de setembro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Esta Política de Privacidade explica como o QueroUmaCor coleta, usa,
         compartilha e protege os seus dados pessoais, em conformidade com a Lei
@@ -35,19 +35,35 @@ export default function PrivacidadePage() {
 
       <LegalH>2. Dados que coletamos</LegalH>
       <LegalP>
-        <b>Dados de cadastro:</b> nome, e-mail, telefone, tipo de usuário (cliente
-        ou profissional) e foto de perfil.
+        <b>Dados de cadastro:</b> nome, e-mail, telefone, data de nascimento,
+        cidade e estado, @usuário, tipo de usuário (cliente ou profissional) e
+        foto de perfil (opcional). Se você entrar com Google ou Apple, recebemos
+        desses serviços o seu nome e e-mail.
         <br />
         <b>Dados do perfil profissional:</b> especialidades, raio de atendimento,
-        formação, cursos e fotos do portfólio.
+        formação, cursos, logotipo, links de Instagram/site e fotos e vídeos do
+        portfólio.
         <br />
-        <b>Dados de uso:</b> orçamentos solicitados, mensagens trocadas no chat e
-        avaliações.
+        <b>Conteúdo que você publica:</b> posts, stories, legendas, comentários,
+        curtidas, avaliações e mensagens do chat, incluindo fotos, áudios e
+        arquivos enviados.
+        <br />
+        <b>Orçamentos:</b> dados do serviço, valores e os dados que o
+        profissional informa no documento (nome do cliente, telefone, endereço,
+        CEP e, do próprio profissional, CNPJ/CPF, endereço e contato).
+        <br />
+        <b>Ferramentas de trabalho:</b> agenda, financeiro (serviços, gastos e
+        fotos de notas fiscais), anotações (inclusive áudio), obras, equipe e
+        escala da Gestão de Obras, e a lista de pedidos da loja.
+        <br />
+        <b>Pontos e indicações:</b> saldo de pontos, indicações feitas e trocas
+        pelo Plano PRO.
         <br />
         <b>Localização aproximada:</b> usada para mostrar profissionais e serviços
-        perto de você.
+        perto de você, somente com a sua permissão.
         <br />
-        <b>Dados técnicos:</b> informações do dispositivo e de acesso, para
+        <b>Dados técnicos:</b> informações do dispositivo e de acesso, registros
+        de erro e o identificador de notificações (push) do aparelho, para
         segurança e funcionamento do app.
       </LegalP>
 
@@ -55,8 +71,21 @@ export default function PrivacidadePage() {
       <LegalP>
         Utilizamos os dados para criar e manter a sua conta; conectar clientes e
         profissionais; exibir perfis, portfólios e resultados de busca;
-        viabilizar orçamentos e o chat; melhorar o aplicativo; garantir a
-        segurança e prevenir fraudes; e cumprir obrigações legais.
+        viabilizar orçamentos, o chat e as ferramentas de trabalho; enviar
+        notificações; moderar conteúdo; melhorar o aplicativo; garantir a
+        segurança e prevenir fraudes; e cumprir obrigações legais. A data de
+        nascimento é usada para confirmar que o uso é de maior de idade.
+      </LegalP>
+
+      <LegalH>3.1. Dados de outras pessoas que você cadastra</LegalH>
+      <LegalP>
+        Algumas ferramentas permitem que você registre dados de terceiros — por
+        exemplo, o nome e o telefone de um cliente num orçamento, ou o nome, o
+        telefone e a diária de um funcionário na Gestão de Obras. Ao fazer isso,
+        você declara ter autorização da pessoa para informar esses dados e
+        usá-los para a finalidade da ferramenta. Esses dados ficam visíveis só
+        para você, salvo o que o próprio recurso mostra a quem participa (por
+        exemplo, a agenda de uma obra para quem está escalado nela).
       </LegalP>
 
       <LegalH>4. Base legal do tratamento</LegalH>
@@ -68,9 +97,10 @@ export default function PrivacidadePage() {
 
       <LegalH>5. Compartilhamento de dados</LegalH>
       <LegalP>
-        Seu perfil público (nome, foto, especialidades e portfólio) é visível
-        para outros usuários do app. Compartilhamos dados com os seguintes
-        operadores que viabilizam o serviço:
+        Seu perfil público (nome, @usuário, foto, cidade, especialidades e
+        portfólio) é visível para outros usuários do app. Seu e-mail, telefone
+        e data de nascimento não aparecem no perfil público. Compartilhamos
+        dados com os seguintes operadores que viabilizam o serviço:
       </LegalP>
       <ul
         style={{
@@ -90,12 +120,18 @@ export default function PrivacidadePage() {
           proteção contra abuso
         </li>
         <li>
-          <b>OpenAI, Inc.</b> (EUA) — geração de texto e sugestões via IA
-          (recurso &apos;Seu Zé&apos;)
+          <b>OpenAI, Inc.</b> (EUA) — assistentes de IA (Seu Zé, Alice, Fê e
+          Senna), transcrição de áudio, voz sintetizada, geração de logotipos e
+          artes e leitura de notas fiscais
         </li>
         <li>
-          <b>Google LLC</b> (EUA) — geração de texto e sugestões via IA (Gemini,
-          fallback do &apos;Seu Zé&apos;)
+          <b>Google LLC</b> (EUA) — IA Gemini (assistentes e moderação automática
+          de fotos, vídeos e mensagens), login com Google e envio de
+          notificações push (Firebase Cloud Messaging)
+        </li>
+        <li>
+          <b>Apple Inc.</b> (EUA) — login com Apple e envio de notificações push
+          em aparelhos iOS
         </li>
         <li>
           <b>Functional Software Inc. (Sentry)</b> (EUA) — coleta de erros e
@@ -109,16 +145,19 @@ export default function PrivacidadePage() {
         nenhum dado seu é enviado a processadores de pagamento.
       </LegalP>
       <LegalP>
-        A transferência internacional desses dados ocorre com base no Art. 33 da
-        LGPD (cumprimento de obrigação legal e proteção do crédito) e nas
-        garantias contratuais com cada operador. Também compartilhamos dados com
+        Como esses operadores ficam fora do Brasil, há transferência
+        internacional de dados, realizada com base no Art. 33 da LGPD, mediante
+        as garantias contratuais de proteção de dados oferecidas por cada
+        operador e, quando necessário, para a execução do contrato com você. Também compartilhamos dados com
         autoridades quando exigido por lei. <b>Não vendemos os seus dados pessoais.</b>
       </LegalP>
 
       <LegalH>6. Inteligência artificial</LegalH>
       <LegalP>
-        Alguns recursos usam o Seu Zé (nossa IA), como a sugestão de cores e o
-        assistente do chat. Sobre o tratamento dos dados nesses recursos:
+        Alguns recursos usam inteligência artificial, como os assistentes (Seu
+        Zé, Alice, Fê e Senna), a sugestão de legenda, cores e preços, a
+        transcrição de áudio, a geração de logotipos e a leitura de notas
+        fiscais. Sobre o tratamento dos dados nesses recursos:
       </LegalP>
       <ul
         style={{
@@ -130,9 +169,9 @@ export default function PrivacidadePage() {
         }}
       >
         <li>
-          Os comandos e textos que você envia (prompts) são transmitidos à{' '}
-          <b>OpenAI</b> e à <b>Google</b> apenas para gerar a resposta
-          solicitada em tempo real.
+          Os textos, fotos e áudios que você envia a esses recursos são
+          transmitidos à <b>OpenAI</b> e à <b>Google</b> apenas para gerar a
+          resposta solicitada em tempo real.
         </li>
         <li>
           Esses dados <b>não são usados para treinar modelos proprietários do
@@ -143,8 +182,11 @@ export default function PrivacidadePage() {
           dados bancários.
         </li>
         <li>
-          Os prompts podem ser armazenados por até <b>30 dias</b> para fins de
-          segurança e moderação, sendo deletados após esse prazo.
+          Não guardamos o conteúdo das conversas com os assistentes nos nossos
+          servidores — o histórico, quando existe, fica só no seu aparelho.
+          Registramos apenas que o recurso foi usado, para controle de limite
+          de uso. Os provedores podem reter o conteúdo por até <b>30 dias</b>
+          para fins de segurança e prevenção de abuso.
         </li>
         <li>
           O conteúdo gerado por IA é de <b>responsabilidade do usuário</b> que o
@@ -156,14 +198,48 @@ export default function PrivacidadePage() {
         </li>
       </ul>
 
-      <LegalH>7. Armazenamento e segurança</LegalH>
+      <LegalH>7. Moderação de conteúdo</LegalH>
+      <LegalP>
+        Para proteger a comunidade, o conteúdo publicado passa por moderação:
+      </LegalP>
+      <ul
+        style={{
+          fontSize: 13.5,
+          lineHeight: 1.7,
+          color: 'var(--color-ink)',
+          margin: '6px 0 10px',
+          paddingLeft: 20,
+        }}
+      >
+        <li>
+          Posts, stories, fotos de perfil, imagens da biblioteca de artes e
+          mensagens do chat são analisados automaticamente por inteligência
+          artificial (Google Gemini). Um post só aparece no feed depois dessa
+          análise.
+        </li>
+        <li>
+          As imagens são comparadas, por uma assinatura digital (hash), com uma
+          lista de conteúdo proibido. Conteúdo de abuso sexual infantil é
+          removido e comunicado às autoridades competentes, como exige a lei.
+        </li>
+        <li>
+          Conteúdo reprovado não é publicado ou é removido; casos duvidosos vão
+          para revisão por uma pessoa da nossa equipe.
+        </li>
+        <li>
+          Você pode pedir a revisão de uma decisão tomada de forma automatizada
+          (Art. 20 da LGPD) pelos canais em &quot;Fale Conosco&quot;.
+        </li>
+      </ul>
+
+      <LegalH>8. Armazenamento e segurança</LegalH>
       <LegalP>
         Seus dados são armazenados em servidores seguros e adotamos medidas
         técnicas e organizacionais para protegê-los. Nenhum sistema, porém, é
         totalmente imune a riscos.
       </LegalP>
 
-      <LegalH>8. Retenção dos dados</LegalH>
+      <LegalH>9. Retenção dos dados</LegalH>
       <LegalP>
         Mantemos os seus dados pelo tempo necessário para as finalidades
         descritas nesta política e para o cumprimento de obrigações legais. Os
@@ -204,16 +280,17 @@ export default function PrivacidadePage() {
           </thead>
           <tbody>
             {[
-              ['Conta ativa', 'Indefinido (enquanto a conta existir)'],
+              ['Conta ativa', 'Enquanto a conta existir'],
               [
                 'Após exclusão de conta',
-                'Anonimização imediata; arquivos deletados em até 30 dias',
+                'Conta e dados pessoais apagados; arquivos removidos em até 30 dias. Guardamos só o registro mínimo da exclusão e dos consentimentos dados, como prova legal',
               ],
-              ['Logs de acesso e segurança', '180 dias'],
-              ['Dados financeiros', '5 anos (CDC, art. 12)'],
-              ['Dados fiscais', 'Mínimo de 5 anos'],
+              ['Conteúdo apagado por você (posts, mensagens, anotações)', 'Recuperável por 30 dias; depois, apagado definitivamente'],
+              ['Registros de acesso', '6 meses (Marco Civil da Internet, art. 15)'],
+              ['Registros de auditoria e segurança', 'Até 1 ano'],
+              ['Registros de erro', '90 dias'],
               ['Mensagens e orçamentos', '2 anos após o encerramento'],
-              ['Backups', '90 dias após a exclusão'],
+              ['Cópias de segurança (backups)', 'Até 7 dias'],
             ].map(([tipo, prazo]) => (
               <tr key={tipo}>
                 <td
@@ -245,40 +322,43 @@ export default function PrivacidadePage() {
         anonimizados, salvo quando a guarda for exigida por lei.
       </LegalP>
 
-      <LegalH>9. Seus direitos</LegalH>
+      <LegalH>10. Seus direitos</LegalH>
       <LegalP>
         Você pode, a qualquer momento, solicitar a confirmação e o acesso aos
         seus dados, a correção de informações, a anonimização ou eliminação, a
-        portabilidade, informações sobre compartilhamento e a revogação do
-        consentimento. Para exercer esses direitos, fale conosco.
+        portabilidade, informações sobre compartilhamento, a revisão de
+        decisões automatizadas e a revogação do consentimento. Para exercer
+        esses direitos, fale conosco. Você também pode excluir a sua conta a
+        qualquer momento pela tela &quot;Mais informações e suporte&quot;.
       </LegalP>
 
-      <LegalH>10. Localização</LegalH>
+      <LegalH>11. Localização</LegalH>
       <LegalP>
         A localização aproximada é usada somente para mostrar profissionais e
         serviços por perto. Você pode desativá-la nas configurações do seu
         dispositivo.
       </LegalP>
 
-      <LegalH>11. Menores de idade</LegalH>
+      <LegalH>12. Menores de idade</LegalH>
       <LegalP>
-        O QueroUmaCor é destinado preferencialmente a maiores de 18 anos.
-        Coletamos a data de nascimento no cadastro para personalização do
-        perfil. O uso por menores deve contar com a autorização e o
-        acompanhamento dos responsáveis, nos termos do Art. 14 da LGPD.
+        O QueroUmaCor é destinado exclusivamente a maiores de 18 anos. A data de
+        nascimento informada no cadastro é usada para confirmar essa idade, e o
+        cadastro não é aceito para menores. Se soubermos que uma conta pertence
+        a menor de idade, ela será encerrada e os dados apagados.
       </LegalP>
 
-      <LegalH>12. Cookies e armazenamento local</LegalH>
+      <LegalH>13. Cookies e armazenamento local</LegalH>
       <LegalP>
-        O aplicativo usa <b>localStorage</b> e <b>IndexedDB</b> do seu navegador
-        apenas para fins técnicos: manter você logado, salvar rascunhos de
-        formulários, cachear dados pra navegação mais rápida e lembrar
-        preferências (ex.: modo claro/escuro). Não usamos cookies de
-        rastreamento publicitário nem compartilhamos seu comportamento com
-        anunciantes.
+        O aplicativo usa <b>cookies essenciais</b>, <b>localStorage</b> e{' '}
+        <b>IndexedDB</b> apenas para fins técnicos: manter você logado (a
+        sessão fica guardada por até 30 dias), salvar rascunhos de formulários,
+        guardar o histórico das conversas com os assistentes no seu aparelho,
+        cachear dados para navegação mais rápida e lembrar preferências (ex.:
+        modo claro/escuro). Não usamos cookies de rastreamento publicitário nem
+        compartilhamos seu comportamento com anunciantes.
       </LegalP>
 
-      <LegalH>13. Alterações desta política</LegalH>
+      <LegalH>14. Alterações desta política</LegalH>
       <LegalP>
         Podemos atualizar esta política periodicamente. Mudanças relevantes
         serão informadas no aplicativo.
