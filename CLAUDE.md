@@ -5,8 +5,8 @@
   `migrations/2026-09-26-posts-sweep-pending.sql` — JÁ RODADO no Supabase
   (2026-09-26, print do usuário: as 3 conferências `true` — função, cron
   `posts-sweep-pending` e `push_notify_url`). Não pedir pra rodar de novo.
-  Até o deploy do PR #443 o cron bate numa rota que ainda não existe (404,
-  inofensivo).**
+  **CÓDIGO NO AR: PR #443 (squash `49fa40f`), deploy run #762 do
+  `deploy.yml` terminou `success`** — a partir daqui o cron acha a rota.**
   Pelo código, o único caminho que deixa o post pendente E visível pro dono
   é a chamada `/api/posts/approve` nunca terminar (reprovado some; erro faz
   o app apagar o pendente). `aprovarPostNoServidor` não tinha teto de tempo:
@@ -27,8 +27,9 @@
     existe mas NÃO está no menu** — a aba "🛡️ Moderação" é só de denúncias.
     Hoje pendente só se vê/aprova pelo SQL Editor. Ligar a tela não foi
     feito (fora do pedido).
-  - O post das 19:49 ainda precisa de aprovação manual (ou a varredura
-    pega assim que o SQL rodar e o deploy sair — ele tem menos de 7 dias).
+  - O post das 19:49 deve ser publicado pela 1ª varredura depois do deploy
+    #762 (tem menos de 7 dias). Conferir: `select status from posts where
+    user_id=<id do @jacksongraffiti> and created_at::date='2026-09-26'`.
 
 - **DOCUMENTOS LEGAIS REVISADOS (2026-09-26, pedido do usuário: "esses
   termos podem estar desatualizados"). SEM SQL.** Os 10 textos de `/info/*`
