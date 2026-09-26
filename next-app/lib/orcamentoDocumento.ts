@@ -146,7 +146,6 @@ export interface PerfilParaDocumento {
   role?: string | null;
   business_logo_url?: string | null;
   business_name?: string | null;
-  avatar_url?: string | null;
 }
 
 const ROTULO_POR_PAPEL: Record<string, string> = {
@@ -190,7 +189,10 @@ export function montarDocumento(
       juntar([perfil?.address, juntar([perfil?.city, perfil?.state], ' - ')], ', '),
     telefone: texto(snapshot.phone) || perfil?.phone || '',
     email: texto(snapshot.email) || perfil?.email || '',
-    logo: texto(snapshot.logo) || perfil?.business_logo_url || perfil?.avatar_url || '',
+    // Nunca cai pro avatar_url (foto de perfil): sem logo de negócio
+    // configurado, o cabeçalho fica sem imagem — foto pessoal no lugar de
+    // logo confundia o cliente (pedido do usuário, 2026-09-26).
+    logo: texto(snapshot.logo) || perfil?.business_logo_url || '',
     sobre: texto(snapshot.sobre) || perfil?.bio || '',
   };
 

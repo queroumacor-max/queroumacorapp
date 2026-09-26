@@ -205,4 +205,10 @@ describe('helpers', () => {
     expect(rotuloDoProfissional({ role: 'automotivo' })).toBe('Pintor automotivo');
     expect(rotuloDoProfissional(null)).toBe('Pintor');
   });
+
+  it('logo nunca cai pro avatar_url — sem business_logo_url, fica sem imagem (2026-09-26)', () => {
+    const semLogo = { ...perfil, business_logo_url: undefined, avatar_url: 'https://x/foto-de-perfil.jpg' };
+    const d = montarDocumento(quoteBase, semLogo);
+    expect(d.profissional.logo).toBe('');
+  });
 });

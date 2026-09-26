@@ -322,7 +322,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
   type ProfileLite = {
     name?: string | null; tag?: string | null;
     phone?: string | null; city?: string | null; state?: string | null;
-    business_logo_url?: string | null; avatar_url?: string | null;
+    business_logo_url?: string | null;
   };
   const p = (profile ?? {}) as ProfileLite & {
     business_name?: string | null; bio?: string | null; profession?: string | null; role?: string | null;
@@ -336,7 +336,9 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
     phone: p.phone || '',
     city: p.city || '',
     state: p.state || '',
-    logo: p.business_logo_url || p.avatar_url || '',
+    // Nunca cai pro avatar_url (foto de perfil) — sem logo de negócio
+    // configurado, o snapshot fica sem imagem (pedido do usuário, 2026-09-26).
+    logo: p.business_logo_url || '',
     email: form.profEmail,
     cnpj: form.profCnpj,
     cpf: form.profCpf,
