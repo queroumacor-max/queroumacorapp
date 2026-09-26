@@ -116,3 +116,8 @@ SELECT 'gestão de obras: funções — 2026-09-24-c' AS item, (SELECT count(*) 
 
 -- 2026-09-25 (Gestão de Obras: acesso do cliente).
 SELECT 'obra-cliente: obras.client_id + trigger + RPCs — 2026-09-25' AS item, EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='obras' AND column_name='client_id') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_protect_obra_cliente') AND (SELECT count(*) FROM pg_proc WHERE proname IN ('minhas_obras_cliente','obra_equipe_cliente','obra_agenda_cliente')) = 3 AS ok;
+
+-- 2026-09-26 (moderação no servidor, ausência atômica, auditoria do portal).
+SELECT 'posts: moderação no servidor (trigger pending) — 2026-09-26' AS item, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_enforce_post_moderation') AS ok;
+SELECT 'whatsapp: claim_wa_away (ausência atômica) — 2026-09-26' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='claim_wa_away') AS ok;
+SELECT 'portal: trilha de auditoria (trg_audit_portal) — 2026-09-26' AS item, (SELECT count(*) FROM pg_trigger WHERE tgname='trg_audit_portal') >= 8 AS ok;

@@ -1,27 +1,25 @@
 // @vitest-environment jsdom
 //
-// Teste adversarial: publicar tem que passar por moderação (Gemini) no
-// SERVIDOR antes de criar o post — pendência fechada da auditoria de
-// negócio 2026-09-16 (achado: publish nunca chamava /api/moderate; só
-// reenvio de mídia JÁ na blocklist de hash era barrado, e isso pelo
-// trigger do banco, não por aqui — conteúdo NOVO/desconhecido passava
-// direto pro feed com status='approved', sem triagem nenhuma).
+// Publicar: quem modera e publica é o SERVIDOR (2026-09-26).
 //
-// 2026-09-17: 4 achados do Codex na revisão desta correção (PR #325),
-// todos cobertos aqui:
-//   1. 429 (rate limit/cota de moderação estourados) tinha que BLOQUEAR
-//      publicar, não fail-open — senão o próprio limite anti-abuso virava
-//      bypass (estourar de propósito = publicar sem moderação nenhuma).
-//   2. Carrossel (2-5 fotos) só moderava a PRIMEIRA — fotos 2-5 furavam.
-//   3. Vídeo nunca chamava /api/moderate-video (endpoint existia sem
-//      caller nenhum) — todo vídeo publicado ficava sem moderação.
+// Histórico: até 2026-09-26 o hook chamava /api/moderate (foto) ANTES de
+// criar o post, e /api/moderate-video (vídeo) depois, e gravava o post já
+// `approved`. Isso protegia só quem publicava pela tela — gravar direto no
+// PostgREST com o próprio token publicava sem moderação nenhuma. Agora o
+// post nasce `pending` (o banco força) e o hook só pede a aprovação a
+// /api/posts/approve, que modera a partir do que está NO BANCO.
 //
-// Roda o HOOK DE VERDADE (usePublishPost), não uma cópia da lógica —
-// mesmo padrão de __tests__/publicar-comprime.test.tsx: teste que não
-// falha sem o fix não é teste de regressão.
+// Contrato travado aqui, rodando o HOOK DE VERDADE com a função real
+// `aprovarPostNoServidor` (só a rede é falsa):
+//   - aprovado → publica;
+//   - reprovado / 429 / falha persistente → erro na tela E o post pendente
+//     é apagado (nunca fica fantasma no perfil);
+//   - soluço de rede → tenta de novo uma vez;
+//   - o cliente NUNCA mais chama /api/moderate nem /api/moderate-video
+//     pra publicar (a decisão não é dele).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createElement } from 'react';
@@ -30,14 +28,24 @@ const uploadMedia = vi.fn();
 const createPost = vi.fn();
 const compressImage = vi.fn();
 const readImageDimensions = vi.fn();
-const moderateFetch = vi.fn();
+const gatedFetch = vi.fn();
+const deletePost = vi.fn();
 
-vi.mock('@/lib/services/posts', () => ({
-  uploadMedia: (...a: unknown[]) => uploadMedia(...a),
-  createPost: (...a: unknown[]) => createPost(...a),
-  compressImage: (...a: unknown[]) => compressImage(...a),
-  readImageDimensions: (...a: unknown[]) => readImageDimensions(...a),
-  COMPRESS_THRESHOLD: 2 * 1024 * 1024,
+vi.mock('@/lib/services/posts', async () => {
+  const real = await vi.importActual<typeof import('@/lib/services/posts')>(
+    '@/lib/services/posts',
+  );
+  return {
+    uploadMedia: (...a: unknown[]) => uploadMedia(...a),
+    createPost: (...a: unknown[]) => createPost(...a),
+    compressImage: (...a: unknown[]) => compressImage(...a),
+    readImageDimensions: (...a: unknown[]) => readImageDimensions(...a),
+    aprovarPostNoServidor: real.aprovarPostNoServidor,
+    COMPRESS_THRESHOLD: 2 * 1024 * 1024,
+  };
+});
+vi.mock('@/lib/services/postInteractions', () => ({
+  deletePost: (...a: unknown[]) => deletePost(...a),
 }));
 vi.mock('@/components/AuthProvider', () => ({
   useAuth: () => ({ user: { id: 'u1' }, emailVerified: true }),
@@ -45,7 +53,7 @@ vi.mock('@/components/AuthProvider', () => ({
 vi.mock('@/lib/native', () => ({ hapticNotify: vi.fn() }));
 vi.mock('@/lib/utils/reportFailure', () => ({ reportFailure: vi.fn() }));
 vi.mock('@/lib/services/fetchGated', () => ({
-  fetchGated: (...a: unknown[]) => moderateFetch(...a),
+  fetchGated: (...a: unknown[]) => gatedFetch(...a),
 }));
 
 import { usePublishPost } from '@/lib/hooks/usePublishPost';
@@ -55,19 +63,11 @@ function arquivoDe(nome: string, bytes: number, tipo: string): File {
   Object.defineProperty(f, 'size', { value: bytes });
   return f;
 }
-
 const FOTO = (nome = 'p.jpg') => arquivoDe(nome, 500 * 1024, 'image/jpeg');
 const VIDEO = () => arquivoDe('v.mp4', 30 * 1024 * 1024, 'video/mp4');
 
-function jsonRes(body: unknown, ok = true, status = ok ? 200 : 500): Response {
-  return { ok, status, json: async () => body } as Response;
-}
-
-/** Só as chamadas endereçadas a `/api/moderate` (imagem, não vídeo). */
-function chamadasDeImagem(): Array<[string, RequestInit]> {
-  return moderateFetch.mock.calls.filter(
-    (c) => c[0] === '/api/moderate',
-  ) as Array<[string, RequestInit]>;
+function jsonRes(body: unknown, status = 200): Response {
+  return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
 
 function montar() {
@@ -85,224 +85,77 @@ beforeEach(() => {
     url: `https://x/${file.name}`,
     mediaHash: 'h',
   }));
-  createPost.mockResolvedValue({ id: 'p1' });
+  createPost.mockResolvedValue({ id: 'p1', media_url: 'https://x/p.jpg' });
   readImageDimensions.mockResolvedValue({ width: 800, height: 600 });
-  // Default: aprova qualquer coisa (imagem OU vídeo) — cada teste
-  // sobrescreve o que precisa reprovar/negar.
-  moderateFetch.mockResolvedValue(jsonRes({ flagged: false, approved: true, status: 'approved' }));
+  deletePost.mockResolvedValue({ undoToken: 'p1' });
+  gatedFetch.mockResolvedValue(jsonRes({ status: 'approved' }));
 });
 
-describe('publicar: moderação (Gemini) roda no servidor ANTES de criar o post', () => {
-  it('conteúdo reprovado (flagged:true) bloqueia — createPost NUNCA é chamado', async () => {
-    moderateFetch.mockResolvedValue(jsonRes({ flagged: true, approved: false, severity: 'hard' }));
-
-    const { result } = montar();
-    await expect(
-      result.current.publishAsync({ files: [FOTO()], caption: 'oi', mediaType: 'image' }),
-    ).rejects.toThrow(/diretrizes da comunidade/);
-
-    expect(createPost).not.toHaveBeenCalled();
-  });
-
-  it('approved:false (sem flagged explícito) também bloqueia', async () => {
-    moderateFetch.mockResolvedValue(jsonRes({ flagged: false, approved: false }));
-
-    const { result } = montar();
-    await expect(
-      result.current.publishAsync({ files: [FOTO()], caption: '', mediaType: 'image' }),
-    ).rejects.toThrow(/diretrizes da comunidade/);
-
-    expect(createPost).not.toHaveBeenCalled();
-  });
-
-  it('conteúdo aprovado (flagged:false, approved:true) publica normalmente', async () => {
+describe('publicar: o servidor modera e publica', () => {
+  it('cria o post e pede aprovação a /api/posts/approve com o id do post', async () => {
     const { result } = montar();
     const post = await result.current.publishAsync({
       files: [FOTO()],
-      caption: 'obra linda',
+      caption: 'oi',
       mediaType: 'image',
     });
-
-    expect(post).toEqual({ id: 'p1' });
-    expect(createPost).toHaveBeenCalledTimes(1);
-  });
-
-  it('manda o mediaUrl que o upload devolveu e o caption pro /api/moderate', async () => {
-    const { result } = montar();
-    await result.current.publishAsync({
-      files: [FOTO()],
-      caption: 'minha legenda',
-      mediaType: 'image',
-    });
-
-    const chamadas = chamadasDeImagem();
-    expect(chamadas).toHaveLength(1);
-    const body = JSON.parse(chamadas[0][1].body as string);
-    expect(body.mediaUrl).toBe('https://x/p.jpg');
-    expect(body.text).toBe('minha legenda');
-  });
-
-  it('FAIL-OPEN: Gemini indisponível (503 → res.ok=false) não bloqueia publicar', async () => {
-    moderateFetch.mockResolvedValue(jsonRes({ error: 'GEMINI_API_KEY não configurada' }, false, 503));
-
-    const { result } = montar();
-    const post = await result.current.publishAsync({
-      files: [FOTO()],
-      caption: '',
-      mediaType: 'image',
-    });
-
-    expect(post).toEqual({ id: 'p1' });
-    expect(createPost).toHaveBeenCalledTimes(1);
-  });
-
-  it('FAIL-OPEN: falha de rede (fetchGated rejeita) não bloqueia publicar', async () => {
-    moderateFetch.mockRejectedValue(new TypeError('Failed to fetch'));
-
-    const { result } = montar();
-    const post = await result.current.publishAsync({
-      files: [FOTO()],
-      caption: '',
-      mediaType: 'image',
-    });
-
-    expect(post).toEqual({ id: 'p1' });
-    expect(createPost).toHaveBeenCalledTimes(1);
-  });
-
-  // Achado do Codex (#325): 429 (rate limit OU cota de moderação
-  // estourados) era tratado como `!res.ok` → fail-open — ou seja, dava
-  // pra publicar sem moderação nenhuma só de estourar o próprio limite
-  // anti-abuso de propósito. 429 tem que BLOQUEAR, não liberar.
-  it('FAIL-CLOSED: 429 (rate limit/cota de moderação) BLOQUEIA — não é fail-open', async () => {
-    moderateFetch.mockResolvedValue(
-      jsonRes({ error: 'Limite de moderação atingido' }, false, 429),
+    expect(post).toEqual({ id: 'p1', media_url: 'https://x/p.jpg' });
+    expect(gatedFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = gatedFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/posts/approve');
+    expect(JSON.parse(String(init.body))).toEqual({ postId: 'p1' });
+    expect(createPost.mock.invocationCallOrder[0]).toBeLessThan(
+      gatedFetch.mock.invocationCallOrder[0],
     );
+    expect(deletePost).not.toHaveBeenCalled();
+  });
 
+  it('o cliente não chama mais /api/moderate nem /api/moderate-video pra publicar', async () => {
+    const { result } = montar();
+    await result.current.publishAsync({ files: [FOTO('a.jpg'), FOTO('b.jpg')], caption: '', mediaType: 'image' });
+    await result.current.publishAsync({ files: [VIDEO()], caption: '', mediaType: 'video' });
+    const urls = gatedFetch.mock.calls.map((c) => c[0]);
+    expect(urls).not.toContain('/api/moderate');
+    expect(urls).not.toContain('/api/moderate-video');
+    expect(urls.every((u) => u === '/api/posts/approve')).toBe(true);
+  });
+
+  it('reprovado pelo servidor → erro de diretrizes e o post pendente é apagado', async () => {
+    gatedFetch.mockResolvedValue(jsonRes({ status: 'rejected', reasons: ['nudez'] }));
     const { result } = montar();
     await expect(
       result.current.publishAsync({ files: [FOTO()], caption: '', mediaType: 'image' }),
-    ).rejects.toThrow(/moderação/i);
-
-    expect(createPost).not.toHaveBeenCalled();
+    ).rejects.toThrow(/diretrizes da comunidade/);
+    expect(deletePost).toHaveBeenCalledWith('u1', 'p1');
   });
 
-  // Achado do Codex (#325): só a 1ª foto do carrossel era moderada;
-  // fotos 2-5 nunca passavam por /api/moderate nem tinham hash gravado.
-  describe('carrossel: TODAS as fotos passam por moderação, não só a primeira', () => {
-    it('modera cada foto com sua própria URL — a 1ª carrega o caption, as demais não', async () => {
-      const { result } = montar();
-      await result.current.publishAsync({
-        files: [FOTO('a.jpg'), FOTO('b.jpg'), FOTO('c.jpg')],
-        caption: 'legenda única',
-        mediaType: 'image',
-      });
-
-      const chamadas = chamadasDeImagem();
-      expect(chamadas).toHaveLength(3);
-      const urls = chamadas.map((c) => JSON.parse(c[1].body as string).mediaUrl);
-      expect(urls).toEqual(['https://x/a.jpg', 'https://x/b.jpg', 'https://x/c.jpg']);
-      const textos = chamadas.map((c) => JSON.parse(c[1].body as string).text);
-      expect(textos[0]).toBe('legenda única');
-      expect(textos[1]).toBeUndefined();
-      expect(textos[2]).toBeUndefined();
-    });
-
-    it('reprovação em QUALQUER foto do meio/fim do carrossel bloqueia o post inteiro', async () => {
-      let chamada = 0;
-      moderateFetch.mockImplementation(async (url: string) => {
-        if (url !== '/api/moderate') return jsonRes({ status: 'approved' });
-        chamada += 1;
-        // A 3ª foto (índice 2) é a reprovada — não a primeira.
-        if (chamada === 3) return jsonRes({ flagged: true, approved: false, severity: 'hard' });
-        return jsonRes({ flagged: false, approved: true });
-      });
-
-      const { result } = montar();
-      await expect(
-        result.current.publishAsync({
-          files: [FOTO('a.jpg'), FOTO('b.jpg'), FOTO('c.jpg')],
-          caption: '',
-          mediaType: 'image',
-        }),
-      ).rejects.toThrow(/diretrizes da comunidade/);
-
-      expect(createPost).not.toHaveBeenCalled();
-      // Parou na 3ª — não continuou verificando fotos depois dela.
-      expect(chamadasDeImagem()).toHaveLength(3);
-    });
+  it('429 (limite de moderação) BLOQUEIA — não publica sem moderar', async () => {
+    gatedFetch.mockResolvedValue(jsonRes({ error: 'Limite atingido' }, 429));
+    const { result } = montar();
+    await expect(
+      result.current.publishAsync({ files: [FOTO()], caption: '', mediaType: 'image' }),
+    ).rejects.toThrow(/Limite atingido/);
+    expect(gatedFetch).toHaveBeenCalledTimes(1);
+    expect(deletePost).toHaveBeenCalledWith('u1', 'p1');
   });
 
-  // Achado do Codex (#325): /api/moderate-video existia sem NENHUM
-  // caller — todo vídeo publicado ficava permanentemente sem moderação.
-  describe('vídeo: /api/moderate-video roda DEPOIS do insert (precisa do postId)', () => {
-    it('vídeo NUNCA chama /api/moderate (endpoint de imagem) — só /api/moderate-video', async () => {
-      const { result } = montar();
-      await result.current.publishAsync({ files: [VIDEO()], caption: '', mediaType: 'video' });
+  it('soluço de rede: tenta de novo uma vez e publica', async () => {
+    gatedFetch
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jsonRes({ status: 'approved' }));
+    const { result } = montar();
+    await result.current.publishAsync({ files: [FOTO()], caption: '', mediaType: 'image' });
+    expect(gatedFetch).toHaveBeenCalledTimes(2);
+    expect(deletePost).not.toHaveBeenCalled();
+  });
 
-      expect(chamadasDeImagem()).toHaveLength(0);
-      const chamadasVideo = moderateFetch.mock.calls.filter((c) => c[0] === '/api/moderate-video');
-      expect(chamadasVideo).toHaveLength(1);
-    });
-
-    it('manda o postId (do post recém-criado) e o caption pro moderate-video', async () => {
-      createPost.mockResolvedValue({ id: 'post-video-1' });
-      const { result } = montar();
-      await result.current.publishAsync({
-        files: [VIDEO()],
-        caption: 'meu vídeo',
-        mediaType: 'video',
-      });
-
-      const chamadasVideo = moderateFetch.mock.calls.filter((c) => c[0] === '/api/moderate-video');
-      const body = JSON.parse(chamadasVideo[0][1].body as string);
-      expect(body.postId).toBe('post-video-1');
-      expect(body.caption).toBe('meu vídeo');
-    });
-
-    it("status:'rejected' bloqueia — publishAsync rejeita (post já foi apagado no servidor)", async () => {
-      moderateFetch.mockImplementation(async (url: string) => {
-        if (url === '/api/moderate-video') return jsonRes({ status: 'rejected', reasons: ['nudez'] });
-        return jsonRes({ status: 'approved' });
-      });
-
-      const { result } = montar();
-      await expect(
-        result.current.publishAsync({ files: [VIDEO()], caption: '', mediaType: 'video' }),
-      ).rejects.toThrow(/diretrizes da comunidade/);
-    });
-
-    it("status:'pending' (revisão humana) NÃO bloqueia — o post já existe, fica no ar", async () => {
-      moderateFetch.mockImplementation(async (url: string) => {
-        if (url === '/api/moderate-video') return jsonRes({ status: 'pending', reason: 'vídeo grande' });
-        return jsonRes({ status: 'approved' });
-      });
-
-      const { result } = montar();
-      const post = await result.current.publishAsync({
-        files: [VIDEO()],
-        caption: '',
-        mediaType: 'video',
-      });
-
-      expect(post).toEqual({ id: 'p1' });
-    });
-
-    it('FAIL-OPEN: moderate-video indisponível (503/rede) não derruba o publish — post já existe', async () => {
-      moderateFetch.mockImplementation(async (url: string) => {
-        if (url === '/api/moderate-video') throw new TypeError('Failed to fetch');
-        return jsonRes({ status: 'approved' });
-      });
-
-      const { result } = montar();
-      const post = await result.current.publishAsync({
-        files: [VIDEO()],
-        caption: '',
-        mediaType: 'video',
-      });
-
-      expect(post).toEqual({ id: 'p1' });
-      await waitFor(() => expect(createPost).toHaveBeenCalledTimes(1));
-    });
+  it('falha persistente (500 duas vezes) → erro visível e o pendente é apagado', async () => {
+    gatedFetch.mockResolvedValue(jsonRes({ error: 'erro interno' }, 500));
+    const { result } = montar();
+    await expect(
+      result.current.publishAsync({ files: [FOTO()], caption: '', mediaType: 'image' }),
+    ).rejects.toThrow(/Não foi possível concluir a publicação/);
+    expect(gatedFetch).toHaveBeenCalledTimes(2);
+    expect(deletePost).toHaveBeenCalledWith('u1', 'p1');
   });
 });

@@ -1,5 +1,60 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **5 PENDÊNCIAS DE AUDITORIA FECHADAS NO CÓDIGO (2026-09-26, pedido do
+  usuário: "fazer esses"). 3 SQLs NOVOS — AINDA NÃO RODADOS no Supabase.**
+  Rodar DEPOIS do deploy, nesta ordem (os três são idempotentes e foram
+  testados 2x num Postgres 16 local):
+  `migrations/2026-09-26-posts-moderation-server-side.sql`,
+  `…-whatsapp-away-claim.sql`, `…-portal-audit-trail.sql`. Linhas novas na
+  `2026-09-05-conferencia-pendencias.sql`.
+  - **(1) Post só vai ao ar depois que o SERVIDOR modera — fecha o "GAP
+    ARQUITETURAL CRÍTICO" dos pentests de 16/09 e 18/09.** Antes, a
+    moderação era orquestrada pelo cliente e `posts.status` nascia
+    'approved': quem gravasse direto na API publicava sem Gemini e sem a
+    blocklist de hash. Agora o post nasce `pending` (o `createPost` manda
+    isso e o trigger `enforce_post_moderation` FORÇA pra todo INSERT de
+    `authenticated`/`anon`; usuário não muda `status`; trocar
+    `media_url`/`media_urls` volta pra pending; admin do portal segue
+    livre). Quem publica é `POST /api/posts/approve`
+    (`lib/api/_services/post-approval.ts`): relê o post do BANCO, baixa
+    CADA foto, confere hash, roda Gemini (legenda junto da 1ª) e grava
+    `approved` + o `media_hash` calculado no servidor. Vídeo usa
+    `moderateVideoPost`. Política mantida: soft → publica + fila humana;
+    Gemini fora → publica + fila (`moderacao_indisponivel`); hard ou hash
+    bloqueado → `rejected` + soft-delete + fila. O cliente
+    (`usePublishPost`, `aiArt.postArtToFeed`) só chama a rota; falhou
+    (reprovado/429/2 falhas) → apaga o próprio pendente e mostra o erro.
+    **ORDEM IMPORTA: SQL depois do deploy** — app com bundle antigo aberto
+    publicaria foto que ficaria pendente pra sempre. **Precisa de teste no
+    aparelho: publicar foto, carrossel, vídeo e story.**
+    Não coberto (já era assim): editar LEGENDA depois de aprovado não
+    passa por moderação.
+  - **(2) Mensagem de ausência do WhatsApp não sai mais em dobro.** RPC
+    `claim_wa_away` (INSERT … ON CONFLICT … WHERE fora do cooldown
+    RETURNING) reserva ANTES de enviar; envio falhou → devolve a vaga. Sem
+    a RPC, cai no caminho antigo (diferente do reengajamento, que pausa: o
+    pior caso aqui é cortesia repetida).
+  - **(3) CodeQL fixado por SHA** (`github/codeql-action` v3.38.2,
+    `1190a975…`). `actions/checkout@v7` segue por tag no repo inteiro —
+    é o padrão pra actions/* oficiais.
+  - **(4) Trilha de auditoria do portal.** Trigger `trg_audit_portal`
+    (AFTER, SECURITY DEFINER) grava em `audit_log` quem (`auth.uid()`)
+    mudou o quê em `whatsapp_ai_config`, `products`, `product_variants`,
+    `stores`, `click_rua_editions`, `announcements`, `price_table_items`,
+    `leads` (só UPDATE/DELETE — importação ficaria enorme) e a MODERAÇÃO de
+    `posts`/`comments` alheios (fecha a lacuna de 07/09 "admin apaga post
+    sem rastro"). Só escrita de usuário logado — cron/webhook/service_role
+    não entram. UPDATE guarda só as colunas que mudaram (texto cortado em
+    4000). Falha em auditar nunca derruba a escrita. **Tela nova no portal:
+    "📜 Histórico de alterações"** (seção DADOS; v=20260926c, app.js
+    recompilado pela receita — build do HEAD conferido idêntico antes).
+  - **(5) Carência do PRO nas rotas de IA.** `requirePro` (usado por
+    `gateProAI`) ignorava `pro_grace_until` → 403 pra quem estava nos dias
+    de margem. `proAtivoNaLinha` usa a mesma regra de `canSeeProFeature`
+    (teste compara os dois).
+  - Suíte 227/227 arquivos (2622 testes) verde, `tsc`, eslint e `next build` limpos.
+    Mercado Pago (conciliação) fora, por decisão do usuário.
+
 - **GESTÃO DE OBRAS: "Obra não encontrada ou sem permissão" ao CRIAR obra
   (relato do Fabio, print de 25/09 16:40). SEM SQL.** Causa: o deploy #752
   (25/09) passou a pedir `client_id` no retorno do INSERT, mas o SQL
@@ -1527,7 +1582,9 @@
     bucket declara `allowed_mime_types` com esse MIME hoje (não
     verificável a fundo do repo — é config de painel), mas o app agora
     recusa mesmo que um bucket seja reconfigurado no futuro.
-  - **GAP ARQUITETURAL CRÍTICO, CONFIRMADO AINDA ABERTO (não corrigido
+  - **[FECHADO NO CÓDIGO em 2026-09-26 — ver entrada "5 PENDÊNCIAS DE
+    AUDITORIA FECHADAS" no topo; o texto abaixo é histórico]**
+    ~~GAP ARQUITETURAL CRÍTICO, CONFIRMADO AINDA ABERTO~~ (não corrigido
     às cegas nesta sessão, por decisão explícita — ver análise
     completa abaixo): insert direto em `posts` via PostgREST pula
     `/api/moderate`/`/api/moderate-video` inteiramente.** Dois agentes

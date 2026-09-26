@@ -27,6 +27,7 @@ import {
   parseHoursSetting,
   shouldSendAway,
   textoAusencia,
+  AWAY_COOLDOWN_HOURS,
   type ConversationTurn,
   type LeadContext,
 } from './whatsapp-ai';
@@ -268,6 +269,44 @@ async function ultimaRespostaHumana(waId: string): Promise<string | null> {
  * cobrar depois ("sem resposta há Xh"). O alerta já nasce marcado como
  * "cliente avisado", senão a varredura mandaria a mesma promessa de novo.
  */
+/** Grava (ou devolve) a marca da última cortesia. */
+async function gravarAwayAt(waId: string, awayAt: string | null): Promise<void> {
+  await fetch(rest('whatsapp_ai_state?on_conflict=wa_id'), {
+    method: 'POST',
+    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+    body: JSON.stringify({ wa_id: waId, away_at: awayAt }),
+    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+  }).catch(() => {});
+}
+
+/**
+ * Reserva a cortesia no banco (`claim_wa_away`, migration
+ * `2026-09-26-whatsapp-away-claim.sql`): `INSERT … ON CONFLICT DO UPDATE …
+ * WHERE <fora do cooldown> RETURNING` — só um chamador leva `true`.
+ *
+ * Diferente do reengajamento (que PAUSA sem a RPC), aqui a RPC ausente
+ * devolve 'sem_rpc' e a cortesia segue pelo caminho antigo: o pior caso sem
+ * ela é uma mensagem educada repetida, e parar de avisar quem escreveu de
+ * madrugada seria pior que isso. Erro de rede também cai no caminho antigo.
+ */
+export async function reservarAusencia(
+  waId: string,
+): Promise<'reservada' | 'negada' | 'sem_rpc'> {
+  try {
+    const res = await fetch(rest('rpc/claim_wa_away'), {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ p_wa_id: waId, p_cooldown_hours: AWAY_COOLDOWN_HOURS }),
+      signal: AbortSignal.timeout(DB_TIMEOUT_MS),
+    });
+    if (!res.ok) return 'sem_rpc';
+    const data = (await res.json().catch(() => null)) as boolean | null;
+    return data === true ? 'reservada' : 'negada';
+  } catch {
+    return 'sem_rpc';
+  }
+}
+
 async function enviarAusencia(opts: {
   waId: string;
   motivo: 'horario' | 'desligada';
@@ -283,12 +322,27 @@ async function enviarAusencia(opts: {
   });
   if (!pode) return false;
 
+  // RESERVA ATÔMICA antes de enviar (2026-09-26). O `shouldSendAway` acima lê
+  // `away_at` de uma cópia tirada no começo do webhook; duas mensagens do
+  // cliente em isolates diferentes liam `away_at=null` juntas e as DUAS
+  // mandavam a cortesia. A reserva decide no banco quem ganha.
+  const reserva = await reservarAusencia(opts.waId);
+  if (reserva === 'negada') return false;
+
   const body = textoAusencia({
     motivo: opts.motivo,
     janela: parseHoursSetting(opts.cfg.hours),
     custom: opts.cfg.away_text,
   });
-  const sent = await sendWhatsAppText({ to: opts.waId, body });
+  let sent: Awaited<ReturnType<typeof sendWhatsAppText>>;
+  try {
+    sent = await sendWhatsAppText({ to: opts.waId, body });
+  } catch (e) {
+    // Não saiu: devolve a vaga, senão a conversa passaria 12h sem cortesia
+    // por uma mensagem que nunca chegou.
+    if (reserva === 'reservada') await gravarAwayAt(opts.waId, opts.state?.away_at || null);
+    throw e;
+  }
   await persistWhatsAppMessage({
     origin: 'ia',
     direction: 'out',
@@ -297,12 +351,8 @@ async function enviarAusencia(opts: {
     type: 'text',
     body,
   });
-  await fetch(rest('whatsapp_ai_state?on_conflict=wa_id'), {
-    method: 'POST',
-    headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
-    body: JSON.stringify({ wa_id: opts.waId, away_at: new Date().toISOString() }),
-    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
-  }).catch(() => {});
+  // Sem a RPC (SQL pendente) a marca é gravada aqui, como antes.
+  if (reserva === 'sem_rpc') await gravarAwayAt(opts.waId, new Date().toISOString());
   await createAlert({
     kind: 'humano',
     waId: opts.waId,

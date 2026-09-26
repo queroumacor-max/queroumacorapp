@@ -420,7 +420,8 @@ describe('createPost', () => {
     expect(row.caption).toBe('Olha que trabalho');
     expect(row.media_url).toBe('https://test/posts/u/x.jpg');
     expect(row.media_type).toBe('image');
-    expect(row.status).toBe('approved');
+    // Nasce pendente — só /api/posts/approve publica (2026-09-26).
+    expect(row.status).toBe('pending');
     expect(row.for_sale).toBe(false);
     expect(row.price).toBeNull();
     expect(row.art_type).toBeNull();

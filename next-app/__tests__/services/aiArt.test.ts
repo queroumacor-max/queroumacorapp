@@ -16,6 +16,11 @@
 //   - uploadTemplate: admin vazio → ValidationError; não-imagem → ValidationError.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+const aprovar = vi.fn(async (_id: string) => ({ status: 'approved' as const }));
+vi.mock('../../lib/services/posts', () => ({
+  aprovarPostNoServidor: (id: string) => aprovar(id),
+}));
 import {
   __resetSupabaseForTests,
   __setSupabaseForTests,
@@ -55,16 +60,28 @@ function makeFakeClient(opts: FakeOpts = {}) {
   const spies = {
     from: vi.fn(),
     insert: vi.fn(),
+    update: vi.fn(),
     storageFrom: vi.fn(),
     upload: vi.fn(),
     getPublicUrl: vi.fn(),
     remove: vi.fn(),
   };
 
+  const resultadoInsert = () => ({
+    data: opts.insertError ? null : { id: 'post-1' },
+    error: opts.insertError ?? null,
+  });
   const tableChain = {
     insert: (row: Record<string, unknown>) => {
       spies.insert(row);
-      return Promise.resolve({ data: null, error: opts.insertError ?? null });
+      return {
+        select: () => ({ single: () => Promise.resolve(resultadoInsert()) }),
+      };
+    },
+    update: (row: Record<string, unknown>) => {
+      spies.update(row);
+      const chain = { eq: () => chain, then: (r: (v: unknown) => void) => r({ error: null }) };
+      return chain;
     },
   };
 
@@ -500,7 +517,25 @@ describe('postArtToFeed', () => {
     expect(insertRow.caption).toBe('Minha arte!');
     expect(insertRow.user_id).toBe('u1');
     expect(insertRow.media_type).toBe('image');
-    expect(insertRow.status).toBe('approved');
+    // Nasce pendente; quem publica é o servidor.
+    expect(insertRow.status).toBe('pending');
+    expect(aprovar).toHaveBeenCalledWith('post-1');
+  });
+
+  it('servidor reprova → erro e o post pendente é apagado (soft delete)', async () => {
+    aprovar.mockRejectedValueOnce(new ValidationError('viola as diretrizes da comunidade'));
+    const { client, spies } = makeFakeClient({
+      storage: { posts: { publicUrl: 'https://cdn/posts/ai-art-abc.png' } },
+    });
+    __setSupabaseForTests(
+      client as unknown as Parameters<typeof __setSupabaseForTests>[0],
+    );
+    await expect(
+      postArtToFeed({ userId: 'u1', imageDataUrl: TINY_DATA_URL, caption: 'x' }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(spies.update).toHaveBeenCalledWith(
+      expect.objectContaining({ deleted_at: expect.any(String) }),
+    );
   });
 
   it('storage upload falha → NetworkError', async () => {

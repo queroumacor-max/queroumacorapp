@@ -547,6 +547,30 @@ export async function enforceRateLimit(
  * FAIL-CLOSED quando service key existe mas Supabase está indisponível —
  * atacante não bypassa PRO via DoS.
  */
+/**
+ * PRO ativo pela linha de `profiles` — MESMA regra de `canSeeProFeature`
+ * (lib/policies.ts) e da RPC `is_pro_active`: vale `is_pro` com
+ * `pro_expires_at` no futuro OU dentro da carência (`pro_grace_until`).
+ * Sem nenhuma das duas datas, confia no `is_pro`. Antes esta checagem
+ * ignorava a carência: quem estava nos 3 dias de margem via PRO na tela e
+ * levava 403 nas rotas de IA que passam por `gateProAI`.
+ */
+export function proAtivoNaLinha(
+  prof: { is_pro?: unknown; pro_expires_at?: unknown; pro_grace_until?: unknown },
+  now: number = Date.now(),
+): boolean {
+  if (prof.is_pro !== true) return false;
+  const ms = (v: unknown): number | null => {
+    if (typeof v !== 'string' || !v) return null;
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : null;
+  };
+  const expira = ms(prof.pro_expires_at);
+  const carencia = ms(prof.pro_grace_until);
+  if (expira === null && carencia === null) return true;
+  return (expira !== null && expira > now) || (carencia !== null && carencia > now);
+}
+
 export async function requirePro(
   userId: string | null | undefined
 ): Promise<{ pro: boolean; checked: boolean; error?: string }> {
@@ -570,7 +594,7 @@ export async function requirePro(
   }
   const url = `${supaUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(
     userId
-  )}&select=is_pro,pro_expires_at`;
+  )}&select=is_pro,pro_expires_at,pro_grace_until`;
   try {
     const r = await fetch(url, {
       headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -580,15 +604,15 @@ export async function requirePro(
       console.warn('requirePro: falha ao consultar profiles', r.status);
       return { pro: false, checked: false, error: 'verificação indisponível' };
     }
-    const rows = (await r.json()) as Array<{ is_pro?: unknown; pro_expires_at?: unknown }>;
+    const rows = (await r.json()) as Array<{
+      is_pro?: unknown;
+      pro_expires_at?: unknown;
+      pro_grace_until?: unknown;
+    }>;
     if (!Array.isArray(rows) || rows.length === 0) {
       return { pro: false, checked: true };
     }
-    const prof = rows[0];
-    const notExpired =
-      !prof.pro_expires_at ||
-      new Date(prof.pro_expires_at as string).getTime() > Date.now();
-    return { pro: !!(prof.is_pro && notExpired), checked: true };
+    return { pro: proAtivoNaLinha(rows[0]), checked: true };
   } catch (e) {
     console.warn('requirePro: exceção', e instanceof Error ? e.message : e);
     return { pro: false, checked: false, error: 'erro de rede' };
