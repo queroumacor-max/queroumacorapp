@@ -8,13 +8,21 @@
 --    "ativo" — só o próprio usuário, aceitando o convite. Também não dá
 --    pra trocar de dono/membro depois de criado. Convite exige e-mail
 --    confirmado, respeita bloqueio e tem teto (equipe e ritmo).
+-- CORRIGIDO em 2026-09-26 (achado real, não só de conferência): o bypass
+-- de admin/service_role era a PRIMEIRA linha da função e pulava TUDO,
+-- inclusive `NEW.status := 'convidado'` — convite feito por uma conta com
+-- `portal_access=true` nascia direto 'ativo', nunca passava pelo aceite e
+-- por isso NUNCA disparava `notify_obra_convite` (que só age em
+-- status='convidado'). Ver CLAUDE.md, entrada "GESTÃO DE OBRAS: convite de
+-- equipe NUNCA notificava...". Agora o bypass só pula as VALIDAÇÕES
+-- (e-mail confirmado, bloqueio, teto, rate limit) — a atribuição de status
+-- no INSERT roda sempre que há membro_id, admin ou não.
 CREATE OR REPLACE FUNCTION public.protect_obra_equipe()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_rl jsonb;
+DECLARE
+  v_rl jsonb;
+  v_bypass boolean := public.is_portal_admin() OR auth.role() = 'service_role';
 BEGIN
-  IF public.is_portal_admin() OR auth.role() = 'service_role' THEN
-    RETURN NEW;
-  END IF;
   IF TG_OP = 'UPDATE' THEN
     NEW.gestor_id := OLD.gestor_id;
     NEW.membro_id := OLD.membro_id;
@@ -28,25 +36,32 @@ BEGIN
     RETURN NEW; -- o próprio membro (via RPC de resposta)
   END IF;
   IF TG_OP = 'INSERT' THEN
-    IF NOT public.is_email_verified() THEN
-      RAISE EXCEPTION 'Confirme seu e-mail antes de convidar alguém.' USING ERRCODE = '42501';
+    IF NOT v_bypass THEN
+      IF NOT public.is_email_verified() THEN
+        RAISE EXCEPTION 'Confirme seu e-mail antes de convidar alguém.' USING ERRCODE = '42501';
+      END IF;
+      IF public.blocked_between(NEW.gestor_id, NEW.membro_id) THEN
+        RAISE EXCEPTION 'Não foi possível convidar este usuário.' USING ERRCODE = '42501';
+      END IF;
+      IF (SELECT count(*) FROM public.obra_equipe e WHERE e.gestor_id = NEW.gestor_id) >= 100 THEN
+        RAISE EXCEPTION 'Limite de 100 pessoas na equipe.' USING ERRCODE = '54000';
+      END IF;
+      BEGIN
+        v_rl := public.check_rate_limit(NEW.gestor_id::text, 'obra-convite', 20, 60);
+      EXCEPTION WHEN OTHERS THEN
+        v_rl := jsonb_build_object('allowed', true);
+      END;
+      IF NOT COALESCE((v_rl ->> 'allowed')::boolean, true) THEN
+        RAISE EXCEPTION 'rate limit: muitos convites seguidos, espere um pouco.' USING ERRCODE = '54000';
+      END IF;
     END IF;
-    IF public.blocked_between(NEW.gestor_id, NEW.membro_id) THEN
-      RAISE EXCEPTION 'Não foi possível convidar este usuário.' USING ERRCODE = '42501';
-    END IF;
-    IF (SELECT count(*) FROM public.obra_equipe e WHERE e.gestor_id = NEW.gestor_id) >= 100 THEN
-      RAISE EXCEPTION 'Limite de 100 pessoas na equipe.' USING ERRCODE = '54000';
-    END IF;
-    BEGIN
-      v_rl := public.check_rate_limit(NEW.gestor_id::text, 'obra-convite', 20, 60);
-    EXCEPTION WHEN OTHERS THEN
-      v_rl := jsonb_build_object('allowed', true);
-    END;
-    IF NOT COALESCE((v_rl ->> 'allowed')::boolean, true) THEN
-      RAISE EXCEPTION 'rate limit: muitos convites seguidos, espere um pouco.' USING ERRCODE = '54000';
-    END IF;
+    -- Sempre vira convidado (mesmo com bypass de admin) — só o próprio
+    -- membro (ramo acima) leva pra 'ativo', aceitando.
     NEW.status := 'convidado';
   ELSIF NEW.status IS DISTINCT FROM OLD.status THEN
+    IF v_bypass THEN
+      RETURN NEW; -- admin/service_role pode corrigir status livremente
+    END IF;
     -- Gestor pode tirar da equipe ('saiu') ou reconvidar quem recusou/saiu.
     IF NOT (NEW.status = 'saiu'
             OR (NEW.status = 'convidado' AND OLD.status IN ('recusado', 'saiu'))) THEN
@@ -85,10 +100,16 @@ BEGIN
   SELECT COALESCE(NULLIF(p.name, ''), 'Um profissional') INTO v_nome
     FROM public.profiles p WHERE p.id = NEW.gestor_id;
   BEGIN
+    -- ref_id é uuid em produção (supabase_init.sql:1015 diz `text`, mas
+    -- está desatualizado — mesmo bug já corrigido uma vez, pra outro
+    -- trigger, na Wave 14: migrations/2026-06-09-fix-notif-trigger-refid
+    -- .sql). NEW.id::text estourava 42883, engolido pelo EXCEPTION abaixo
+    -- — convite era criado normal, notificação nunca ia pro ar, sem
+    -- ninguém notar. Corrigido em 2026-09-26.
     INSERT INTO public.notifications (user_id, actor_id, type, title, body, ref_id)
     VALUES (NEW.membro_id, NEW.gestor_id, 'obra_convite', 'Convite pra equipe',
             COALESCE(v_nome, 'Um profissional') || ' te convidou pra equipe de obras dele.',
-            NEW.id::text);
+            NEW.id);
   EXCEPTION WHEN OTHERS THEN
     RAISE WARNING 'notify_obra_convite: %', SQLERRM; -- aviso nunca derruba o convite
   END;
