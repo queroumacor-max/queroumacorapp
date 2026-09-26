@@ -1,7 +1,7 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
 - **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
-  do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); SQLs ainda NÃO rodados.**
+  do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); os 3 SQLs JÁ RODADOS e conferidos.**
   - **Os 3 SQLs TESTADOS em Postgres 16 local (2026-09-26), cada um rodado
     2x:** RPC do Financeiro (dono soma, negativo trava em 0, job alheio não
     muda, anon sem EXECUTE); CHECKs recusam `javascript:`/`data:`/texto
@@ -36,9 +36,10 @@
     `brand_logos_image_url_https` = true (SQL 1 e 2 APLICADOS). As 6
     constraints do SQL 3 = false — só a pré-conferência tinha sido colada
     no chat; o resto do arquivo (3 UPDATEs + 6 DO) foi passado depois.
-    Conferir de novo antes de afirmar que o SQL 3 rodou. Depois disso o
-    usuário informou "rodei tudo" (3 UPDATEs + 6 DO, linha a linha) —
-    conferência pós-execução ainda não devolvida.
+    **SQL 3 CONFERIDO APLICADO (2026-09-26): as 9 linhas da conferência
+    combinada voltaram `true`** (RPC, anon sem EXECUTE e as 7 constraints —
+    nenhuma pulada por legado). **Os 3 SQLs de 26/09 estão TODOS no banco.
+    Não pedir pra rodar de novo.** Falta só publicar o código (PR/deploy).
     **Não feito:** chave de idempotência do pedido da loja no servidor;
     CSP com script-src no portal. Conferir pós-deploy: `curl -I
     /portal/` e o console na tela de AR (mediapipe/wasm).
