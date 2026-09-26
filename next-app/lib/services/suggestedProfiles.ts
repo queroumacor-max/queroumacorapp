@@ -8,6 +8,7 @@
 //   5. limita a `limit` (default 50).
 
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 import type { Profile } from '@/lib/types';
 
 export async function fetchSuggestedProfiles(
@@ -45,6 +46,6 @@ export async function fetchSuggestedProfiles(
     query = query.not('id', 'in', `(${excludeIds.join(',')})`);
   }
   const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
   return (data ?? []) as Profile[];
 }

@@ -84,8 +84,10 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   const verifyToken = getRuntimeEnv('WHATSAPP_WEBHOOK_VERIFY_TOKEN');
   if (!verifyToken) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[whatsapp-webhook] WHATSAPP_WEBHOOK_VERIFY_TOKEN ausente');
     return NextResponse.json(
-      { error: 'webhook não configurado (WHATSAPP_WEBHOOK_VERIFY_TOKEN ausente)' },
+      { error: 'Serviço indisponível no momento.' },
       { status: 503 }
     );
   }
@@ -93,8 +95,9 @@ export async function GET(request: NextRequest) {
   if (getWebhookAuthMode() === 'payload') {
     const check = checkWebhookUrlSecret(url, getRuntimeEnv('WHATSAPP_WEBHOOK_URL_SECRET'));
     if (check === 'missing-config') {
+      console.warn('[whatsapp-webhook] WHATSAPP_WEBHOOK_URL_SECRET ausente');
       return NextResponse.json(
-        { error: 'webhook não configurado (WHATSAPP_WEBHOOK_URL_SECRET ausente)' },
+        { error: 'Serviço indisponível no momento.' },
         { status: 503 }
       );
     }
@@ -173,15 +176,16 @@ async function materializarMidia(
  */
 async function processarEntrada(messages: InboundWhatsAppMessage[]): Promise<void> {
   for (const msg of messages) {
-    // Log estruturado → Cloudflare logs. Não logar o corpo inteiro
-    // (conversa de cliente); preview basta pra depurar entrega. Telefone
+    // Log estruturado → Cloudflare logs. NUNCA o texto do cliente (nem
+    // prévia — auditoria 2026-09-26, M4): só o tamanho basta pra depurar
+    // entrega; o conteúdo mora em `whatsapp_messages` (admin-only). Telefone
     // mascarado (2026-09-17, auditoria de observabilidade de segurança) —
     // o número completo já mora em `whatsapp_messages` (admin-only); o log
     // de plataforma tem acesso mais largo, então guarda só o suficiente
     // pra reconhecer "é o mesmo contato de novo".
     console.log(
       `[whatsapp-webhook] msg de ${maskPhoneTail(msg.from)} (${msg.profileName ? '[nome]' : 'sem nome'}) ` +
-        `type=${msg.type} id=${msg.messageId} preview="${msg.text.slice(0, 60)}"`
+        `type=${msg.type} id=${msg.messageId} len=${msg.text.length}`
     );
   }
   // Mídia recebida (áudio, foto, vídeo, figurinha, documento). Na Cloud API

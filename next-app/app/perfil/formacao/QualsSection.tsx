@@ -19,6 +19,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useQualifications } from '@/lib/hooks/useQualifications';
 import type { Qualification, UpdateQualInput } from '@/lib/services/formacao';
 import { mimeConfiavel } from '@/lib/utils/mediaType';
+import { safeHttpUrl } from '@/lib/utils/safeUrl';
 
 function SkeletonRow() {
   return (
@@ -116,18 +117,20 @@ function QualRow({
     );
   }
 
+  // safeHttpUrl: certificate_url é gravável via REST — javascript: seria XSS.
+  const certHref = safeHttpUrl(q.certificate_url);
   return (
     <li className="flex items-center gap-3 p-3 rounded-xl bg-white border border-[color:var(--color-border)]">
-      {q.certificate_url ? (
+      {certHref ? (
         <a
-          href={q.certificate_url}
+          href={certHref}
           target="_blank"
           rel="noopener noreferrer"
           className="flex-shrink-0"
           title="Ver certificado"
         >
           <img
-            src={q.certificate_url}
+            src={certHref}
             alt="Certificado"
             className="w-10 h-10 rounded-lg object-cover border border-[color:var(--color-border)]"
           />
@@ -148,9 +151,9 @@ function QualRow({
           {q.org || ''}
           {q.year ? ` · ${q.year}` : ''}
         </span>
-        {q.certificate_url && (
+        {certHref && (
           <a
-            href={q.certificate_url}
+            href={certHref}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs font-semibold"

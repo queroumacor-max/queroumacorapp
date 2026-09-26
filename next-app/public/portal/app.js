@@ -23,6 +23,14 @@ const C = {
   sidebar: '#1a1a2e'
 };
 
+// urlSegura — 2026-09-26, auditoria "19 pontos" (XSS no portal).
+// Todo href/src vindo do BANCO (logo do pintor, comprovante, documento) passa
+// por aqui: so https:// vira link. `javascript:`/`data:` gravado via REST
+// (brand_logos.image_url e gravavel pelo dono) nunca chega a um <a href>, onde
+// o clique do ADMIN executaria script com a sessao dele. Devolve null quando
+// nao e https — quem chama esconde o link.
+const urlSegura = u => typeof u === 'string' && /^https:\/\//i.test(u.trim()) ? u.trim() : null;
+
 // ============================================================
 // StatusBadge — chip de status reutilizavel (cor + label).
 // Recebe `status`, mapa de cores e mapa de labels.
@@ -2879,7 +2887,16 @@ const ProdutosList = () => {
     const t = setTimeout(() => setBuscaDeb(busca), 250);
     return () => clearTimeout(t);
   }, [busca]);
+
+  // Trava de clique duplo (2026-09-26, auditoria): dois cliques rapidos em
+  // "Criar Produto" gravavam DOIS produtos. Ref pra barrar no mesmo tick
+  // (state so atualiza no proximo render) + state pro botao desabilitar.
+  const [salvando, setSalvando] = useState(false);
+  const salvandoRef = React.useRef(false);
   const saveProduct = async () => {
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
+    setSalvando(true);
     try {
       const productData = {
         ...form,
@@ -2922,6 +2939,9 @@ const ProdutosList = () => {
       });
     } catch (e) {
       alert('Erro: ' + (e.message || e));
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
     }
   };
 
@@ -3558,6 +3578,7 @@ const ProdutosList = () => {
       }
     }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
       onClick: saveProduct,
+      disabled: salvando,
       style: {
         background: C.p1,
         color: '#fff',
@@ -3566,9 +3587,10 @@ const ProdutosList = () => {
         padding: '8px 24px',
         fontSize: 13,
         fontWeight: 700,
-        cursor: 'pointer'
+        cursor: salvando ? 'wait' : 'pointer',
+        opacity: salvando ? .7 : 1
       }
-    }, editing ? 'Salvar' : 'Criar Produto'))), !loading && products.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, salvando ? 'Salvando…' : editing ? 'Salvar' : 'Criar Produto'))), !loading && products.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         marginBottom: 18
       }
@@ -3864,8 +3886,8 @@ const LogoCard = React.memo(function LogoCard({
       fontWeight: 600,
       cursor: 'pointer'
     }
-  }, "Usar na camiseta"), /*#__PURE__*/React.createElement("a", {
-    href: item.image_url,
+  }, "Usar na camiseta"), urlSegura(item.image_url) && /*#__PURE__*/React.createElement("a", {
+    href: urlSegura(item.image_url),
     target: "_blank",
     rel: "noopener noreferrer",
     style: {
@@ -11737,10 +11759,10 @@ const PedidosLoja = () => {
       value: "canceled"
     }, "Cancelado"))), /*#__PURE__*/React.createElement("div", {
       style: sec
-    }, "Pagamento"), hasPay ? /*#__PURE__*/React.createElement(React.Fragment, null, row('Gateway', o.gateway || '—'), row('Transação', o.tx_id || '—'), row('Valor pago', o.paid_amount != null ? brl(o.paid_amount) : '—'), row('Método', o.payment_method || '—'), row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—'), o.receipt_url ? /*#__PURE__*/React.createElement("a", {
-      href: o.receipt_url,
+    }, "Pagamento"), hasPay ? /*#__PURE__*/React.createElement(React.Fragment, null, row('Gateway', o.gateway || '—'), row('Transação', o.tx_id || '—'), row('Valor pago', o.paid_amount != null ? brl(o.paid_amount) : '—'), row('Método', o.payment_method || '—'), row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—'), urlSegura(o.receipt_url) ? /*#__PURE__*/React.createElement("a", {
+      href: urlSegura(o.receipt_url),
       target: "_blank",
-      rel: "noreferrer",
+      rel: "noopener noreferrer",
       style: {
         color: C.p1,
         fontSize: 13
@@ -13680,8 +13702,9 @@ const BolhaConteudo = ({
       }
     }, legenda) : null);
   }
+  if (!urlSegura(url)) return /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCE ", legenda && !marcador ? legenda : 'Documento');
   return /*#__PURE__*/React.createElement("a", {
-    href: url,
+    href: urlSegura(url),
     target: "_blank",
     rel: "noopener noreferrer",
     style: {

@@ -18,7 +18,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { MediaUploader } from './MediaUploader';
@@ -252,7 +252,14 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
     }
   }, [user, files, caption]);
 
+  // Trava de clique duplo. O `publish.reset()` logo abaixo ZERA o isPending
+  // da mutation — então um 2º toque com a 1ª publicação ainda em voo passava
+  // direto e publicava o post duas vezes. A ref é checada ANTES do reset, de
+  // forma síncrona, e só solta quando a publicação termina (sucesso ou erro).
+  const publicandoRef = useRef(false);
+
   const handleSubmit = useCallback(() => {
+    if (publicandoRef.current) return;
     setValidationError(null);
     publish.reset();
 
@@ -278,6 +285,7 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
     const forSaleFinal = forSale && canSell;
     const price = forSaleFinal ? parseBRL(priceText) : 0;
 
+    publicandoRef.current = true;
     publish.publishAsync({
       files,
       // Story vai sem legenda: o campo não existe mais nessa aba, e sem
@@ -317,6 +325,9 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
       })
       .catch(() => {
         // Erro já fica em publish.error — pintamos no banner abaixo.
+      })
+      .finally(() => {
+        publicandoRef.current = false;
       });
   }, [
     publish,

@@ -225,6 +225,21 @@ describe('sendWhatsAppText', () => {
     expect(JSON.parse(init.body as string).to).toBe('5511959765031');
   });
 
+  it('log de falha do Dualhook: corpo truncado e telefone mascarado (M4)', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    stubFetchOnce(400, {
+      error: { message: 'Recipient 5511959765031 is invalid ' + 'x'.repeat(600), code: 100 },
+    });
+    await sendWhatsAppText({ to: '11959765031', body: 'oi' }).catch(() => {});
+    const call = err.mock.calls.find((c) => c[0] === 'dualhook_send_failed');
+    expect(call).toBeDefined();
+    const logged = (call![1] as { body: string }).body;
+    expect(logged.length).toBeLessThanOrEqual(300);
+    expect(logged).not.toContain('5511959765031');
+    expect(logged).toContain('5031');
+    err.mockRestore();
+  });
+
   it('telefone inválido → 400 sem tocar na rede', async () => {
     const spy = stubFetchOnce(200, {});
     await expect(sendWhatsAppText({ to: '123', body: 'oi' })).rejects.toMatchObject({

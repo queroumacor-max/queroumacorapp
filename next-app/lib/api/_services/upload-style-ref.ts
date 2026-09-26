@@ -35,7 +35,10 @@ export async function uploadStyleRef(args: {
 }): Promise<UploadStyleRefResult> {
   const { styleKey } = args;
   const serviceKey = getServiceKey();
-  if (!serviceKey) throw new ServiceError('SUPABASE service role não configurado', 503);
+  if (!serviceKey) {
+    console.warn('[config] SUPABASE service role ausente');
+    throw new ServiceError('Serviço indisponível no momento.', 503);
+  }
   if (!ALLOWED_STYLES.includes(styleKey)) {
     throw new ServiceError('styleKey inválido', 400, { allowed: ALLOWED_STYLES });
   }

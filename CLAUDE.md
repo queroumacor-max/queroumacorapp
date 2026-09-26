@@ -4,7 +4,30 @@
   do usuário). SÓ LEITURA, NADA CORRIGIDO AINDA (aguardando OK).** Cruzada a
   lista de 19 pontos com este arquivo: 14 já cobertos por auditorias
   anteriores; auditados agora 2 (validação front), 9 (clique duplo), 10
-  (CSRF), 12 (vazamento de info), 18 (cookies). Achados, por gravidade:
+  (CSRF), 12 (vazamento de info), 18 (cookies).
+  - **CORRIGIDO NO CÓDIGO (2026-09-26, pedido "corrija"; branch
+    `claude/verificar-edicoes-memoria-sm9dzg`, SEM deploy ainda).** Suíte
+    220/220 arquivos, 2589 testes, `tsc` e `next build` verdes. Portal
+    v=20260926a (`urlSegura` nos hrefs, trava no Criar Produto, app.js
+    recompilado + SRI); `next-app/public/_headers` com frame-ancestors/XFO
+    pra `/portal` (sem script-src — CSP completa do portal segue pendente);
+    `script-src` do jsdelivr restrito a pdfjs/mediapipe/eruda, `onrender`
+    fora do connect-src; `lib/errors.ts` troca mensagem técnica crua por
+    texto amigável (crua em `.raw`/`cause`); IA/ig-art/401/403/envs sem
+    detalhe na resposta; cadastro sem enumeração; logs do WhatsApp sem
+    texto/telefone; `useSingleFlight` + travas em loja/publicar/financeiro/
+    obras; `signOut` limpa sessão local mesmo offline; cookie de sessão 30
+    dias; set-session-cookie exige JSON + Origin + SameSite=Strict; chat
+    maxLength 4000; mídia de terceiro no chat vira link; `safeHttpUrl`.
+    **3 SQLs PENDENTES (colados no chat):**
+    `2026-09-26-brand-logos-https-check.sql`,
+    `2026-09-26-financeiro-increment-cost.sql` (sem ele cai no caminho
+    antigo), `2026-09-26-content-length-and-link-checks.sql` (rodar a
+    pré-conferência antes; zera links antigos fora do formato).
+    **Não feito:** chave de idempotência do pedido da loja no servidor;
+    CSP com script-src no portal. Conferir pós-deploy: `curl -I
+    /portal/` e o console na tela de AR (mediapipe/wasm).
+  Achados originais, por gravidade:
   - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
     NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
     `_headers` nem meta CSP em `public/`), e `public/portal/app.jsx:1866`

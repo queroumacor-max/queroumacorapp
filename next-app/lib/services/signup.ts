@@ -122,6 +122,16 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
   });
 
   if (error) {
+    // "User already registered" (e afins) NÃO pode ir pra tela: confirmaria
+    // a qualquer um que aquele e-mail tem conta (enumeração). Resposta
+    // genérica; o texto cru vai no `raw`/`cause` pro log.
+    if (/already (been )?registered|already exists/i.test(error.message || '')) {
+      const e = new ValidationError(
+        'Não foi possível criar a conta. Se você já tem cadastro, faça login ou recupere a senha.',
+      );
+      e.cause = error;
+      throw e;
+    }
     throw new ValidationError(error.message);
   }
   if (!data.user) {

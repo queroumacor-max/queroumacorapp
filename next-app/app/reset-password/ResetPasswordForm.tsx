@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { emailSchema } from '@/lib/schemas';
 import { getSupabase } from '@/lib/supabase';
+import { safeErrorMessage } from '@/lib/errors-friendly';
 
 const schema = z.object({ email: emailSchema });
 type FormData = z.infer<typeof schema>;
@@ -38,7 +39,7 @@ export function ResetPasswordForm() {
         redirectTo: `${window.location.origin}/update-password`,
       });
       if (error) {
-        setServerError(error.message);
+        setServerError(safeErrorMessage(error));
         return;
       }
       setSent(data.email);

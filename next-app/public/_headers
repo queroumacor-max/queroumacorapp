@@ -1,0 +1,24 @@
+# Headers do binding ASSETS (Cloudflare Workers static assets).
+# 2026-09-26, auditoria "19 pontos": o /portal é arquivo estático servido
+# pelo ASSETS do @opennextjs/cloudflare e NÃO passa pelo middleware.ts —
+# então chegava em produção SEM X-Frame-Options e SEM CSP (clickjacking do
+# painel admin). Este arquivo é copiado de next-app/public pra
+# .open-next/assets no build, onde o Cloudflare o aplica.
+#
+# ESCOPO SÓ DO /portal, de propósito. NÃO copiar aqui a CSP completa do app:
+# a fonte única dela é middleware.ts (rotas do worker), e duplicar criaria
+# uma segunda CSP divergente. Aqui NÃO há script-src: restringir script no
+# portal não foi validado (React/Sentry/Supabase vendorados + scripts
+# inline) e quebrá-lo deixaria a loja sem painel. Só proteção de quadro,
+# plugin, <base> e sniffing.
+/portal
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/portal/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

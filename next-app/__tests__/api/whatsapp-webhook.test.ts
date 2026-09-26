@@ -103,6 +103,15 @@ describe('POST /api/whatsapp/webhook', () => {
     expect(res.status).toBe(200);
   });
 
+  it('log da mensagem recebida NÃO carrega o texto do cliente (só o tamanho)', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await chamarPost(pedido(envelopeDeMensagem('meu cpf é 123 segredo')));
+    const linhas = log.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(linhas).toContain('[whatsapp-webhook] msg de');
+    expect(linhas).not.toContain('segredo');
+    expect(linhas).toContain('len=21');
+  });
+
   // O incidente exato. Com o ctx nativo, um `waitUntil` chamado solto lança
   // Illegal invocation DENTRO do handler.
   it('200 mesmo com ctx.waitUntil nativo que exige o `this` certo', async () => {

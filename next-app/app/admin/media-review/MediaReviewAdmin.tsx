@@ -29,6 +29,7 @@ import {
   type MediaReviewStatus,
   type MediaReviewSeverity,
 } from '@/lib/services/mediaReviewAdmin';
+import { safeHttpUrl } from '@/lib/utils/safeUrl';
 
 type Filter = MediaReviewStatus | 'all';
 const FILTERS: { label: string; value: Filter }[] = [
@@ -253,7 +254,7 @@ function ReviewRow({
               // Imagem da mídia em quarentena — abre nova aba ao clicar.
               // Evita Next/Image porque a URL é externa do Supabase e
               // mídias suspeitas podem ser pesadas; preferimos lazy + tag bruta.
-              <a href={row.media_url} target="_blank" rel="noopener noreferrer">
+              <a href={safeHttpUrl(row.media_url)} target="_blank" rel="noopener noreferrer">
                 <img
                   src={row.media_url}
                   alt="mídia em revisão"
@@ -266,7 +267,7 @@ function ReviewRow({
               </a>
             ) : (
               <a
-                href={row.media_url}
+                href={safeHttpUrl(row.media_url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-blue-600 underline flex-shrink-0"

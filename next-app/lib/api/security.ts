@@ -619,20 +619,19 @@ export interface GateProAIOk {
 function loginRequiredResponse(auth: AuthResult): NextResponse {
   const reason = auth.warn || 'no_token';
   const d = auth.detail;
-  // O sufixo visivel carrega o essencial pra quem le da tela e manda de volta.
-  // Renderizado como `chave=valor` generico: cada `warn` traz um detail de
-  // formato proprio (o GoTrue traz code/host; o env_project_mismatch traz os
-  // dois refs de projeto), e um formato fixo imprimiria "undefined" no outro.
-  const extra = d
-    ? ' ' +
-      Object.entries(d)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(' ')
-    : '';
-  return jsonResponse(
-    { error: `${ERR_LOGIN_REQUIRED} (${reason}${extra})`, reason, ...(d ? { detail: d } : {}) },
-    401,
-  );
+  // Auditoria 2026-09-26 (L1): o detalhe (status/error_code do GoTrue, host
+  // do Supabase, refs de projeto) ia no corpo do 401 — qualquer visitante lia
+  // a infra. Agora só o `reason` coarse sai; o detalhe fica no log do
+  // servidor, que é onde quem depura procura.
+  if (d) {
+    console.warn(
+      `[auth] 401 ${reason} ` +
+        Object.entries(d)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(' '),
+    );
+  }
+  return jsonResponse({ error: `${ERR_LOGIN_REQUIRED} (${reason})`, reason }, 401);
 }
 
 /**

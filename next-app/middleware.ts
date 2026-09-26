@@ -77,7 +77,10 @@ import type { NextRequest } from 'next/server';
 //     worker como qualquer outra rota, ver `_routes.json`). Se/quando a
 //     migração pros Workers for além de teste, fechar esse gap exige um
 //     `_headers` dentro de `.open-next/assets/` (mecanismo nativo do
-//     binding ASSETS) — não feito aqui, fora do escopo desta correção.
+//     binding ASSETS). FEITO em 2026-09-26: `public/_headers` (copiado pra
+//     `.open-next/assets/` no build) dá ao /portal X-Frame-Options,
+//     frame-ancestors/object-src/base-uri, nosniff e Referrer-Policy — sem
+//     script-src (não validado contra o portal; ver o próprio arquivo).
 //   - **DIVERGÊNCIA REAL entre os dois adapters, achada na reconciliação**:
 //     `/api/health` seta seu próprio `Access-Control-Allow-Origin: '*'` no
 //     código da rota (de propósito, pra aceitar poll de uptime monitor
@@ -164,8 +167,20 @@ import type { NextRequest } from 'next/server';
 // está aqui — editar QUALQUER um desses scripts sem rodar esse teste
 // quebra o script em produção (CSP bloqueia silenciosamente, sem erro
 // visível pra quem não olhar o console).
+//
+// jsdelivr ESTREITADO POR CAMINHO (2026-09-26, auditoria "19 pontos"):
+// `https://cdn.jsdelivr.net` inteiro em script-src liberava QUALQUER pacote
+// do npm como script (sem 'strict-dynamic', um XSS carregaria o que
+// quisesse de lá). Agora só os 3 prefixos que o app carrega de verdade:
+// pdfjs-dist@3.11.174 (app/pdf/[id]/route.ts), @mediapipe/tasks-vision@
+// 0.10.35 (app/loja/WallARView.tsx — o loader do wasm entra por <script>) e
+// eruda (loader de debug do app/layout.tsx; sem barra final = só essa URL
+// exata). Script novo do jsdelivr = prefixo novo aqui (e no `_headers` da
+// raiz + no teste golden). connect-src segue com o host inteiro: fetch de
+// wasm/modelo não executa código. `*.onrender.com` saiu do connect-src — a
+// Evolution API foi aposentada e nada no next-app aponta mais pra lá.
 const SECURITY_CSP =
-  "default-src 'self'; script-src 'self' 'nonce-__CSP_NONCE__' 'wasm-unsafe-eval' 'sha256-1g/4/q5hhnu9i8wkSe7iaa6xAsgBLnRt2ax5yKttwrs=' 'sha256-JDH5f4Zr1/oCxPN2ffwQpeNHP+q6sofe4JbkmgTK6oc=' 'sha256-aTvPZGOmLmPxnWSX8uEtE5pFy1yfeYOI6lTfU3psjdA=' 'sha256-caEV9gkPUz2B2VLH1MN8r5EizN6XNLSsLBdR7Y9fMRI=' 'sha256-G8Md6VEAAcAjKEG9ogYeZK8mUsQ7rrspan0dYs0hn/Y=' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
+  "default-src 'self'; script-src 'self' 'nonce-__CSP_NONCE__' 'wasm-unsafe-eval' 'sha256-1g/4/q5hhnu9i8wkSe7iaa6xAsgBLnRt2ax5yKttwrs=' 'sha256-JDH5f4Zr1/oCxPN2ffwQpeNHP+q6sofe4JbkmgTK6oc=' 'sha256-aTvPZGOmLmPxnWSX8uEtE5pFy1yfeYOI6lTfU3psjdA=' 'sha256-caEV9gkPUz2B2VLH1MN8r5EizN6XNLSsLBdR7Y9fMRI=' 'sha256-G8Md6VEAAcAjKEG9ogYeZK8mUsQ7rrspan0dYs0hn/Y=' 'sha256-PquLsr6mOLBhSht5Miv4NtZLYudIBM9OUsQTGpg7HWk=' 'sha256-a4J5SJlV3SCB71i33BogdJGZX6n6xmq3L8YJouWP2W8=' 'sha256-VRBxUNHFhE1rpWdbNycJro9J4GW/Ag8zF5dGCi7ujT0=' https://challenges.cloudflare.com https://*.sentry-cdn.com https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/ https://cdn.jsdelivr.net/npm/eruda; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://sentry.io https://*.sentry.io https://cdn.jsdelivr.net https://storage.googleapis.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
 
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ['Content-Security-Policy', SECURITY_CSP],

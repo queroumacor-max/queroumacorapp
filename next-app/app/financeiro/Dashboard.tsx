@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
@@ -295,6 +295,21 @@ export function Dashboard() {
   const dialog = useDialog();
   const [formOpen, setFormOpen] = useState(false);
   const [costEntryId, setCostEntryId] = useState<string | null>(null);
+  // Travas de clique duplo, uma por "abertura" do formulário/sheet. O
+  // `isCreating`/`isAddingCost` só chega no botão num render posterior, e o
+  // `costEntry` do onConfirm é o da closure — um 2º toque rápido lançava o
+  // mesmo valor duas vezes. A ref é conferida de forma síncrona e rearmada
+  // quando o formulário/sheet é aberto de novo (ação nova, não repetição).
+  const createLockRef = useRef(false);
+  const costLockRef = useRef(false);
+  function abrirForm() {
+    createLockRef.current = false;
+    setFormOpen(true);
+  }
+  function abrirCusto(id: string) {
+    costLockRef.current = false;
+    setCostEntryId(id);
+  }
   const costEntry = costEntryId
     ? entries.find((e) => e.id === costEntryId)
     : null;
@@ -377,7 +392,7 @@ export function Dashboard() {
         </h2>
         <button
           type="button"
-          onClick={() => setFormOpen(true)}
+          onClick={abrirForm}
           className="px-4 py-2 bg-[color:var(--color-p1)] text-white rounded-xl text-sm font-semibold"
         >
           + Adicionar
@@ -412,7 +427,7 @@ export function Dashboard() {
               entry={e}
               onDelete={handleDelete}
               isRemoving={isRemoving}
-              onLaunchCost={() => setCostEntryId(e.id)}
+              onLaunchCost={() => abrirCusto(e.id)}
             />
           ))}
         </ul>
@@ -431,6 +446,8 @@ export function Dashboard() {
         <EntryForm
           onClose={() => setFormOpen(false)}
           onSubmit={(input) => {
+            if (createLockRef.current) return;
+            createLockRef.current = true;
             create(input);
           }}
           isSubmitting={isCreating}
@@ -444,6 +461,8 @@ export function Dashboard() {
         onClose={() => setCostEntryId(null)}
         onConfirm={(delta) => {
           if (!costEntry) return;
+          if (costLockRef.current) return;
+          costLockRef.current = true;
           addCost({ entryId: costEntry.id, delta });
           setCostEntryId(null);
         }}

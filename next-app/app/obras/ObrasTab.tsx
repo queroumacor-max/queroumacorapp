@@ -27,6 +27,7 @@ import {
   type ObraInput,
 } from '@/lib/services/obras';
 import { getSupabase } from '@/lib/supabase';
+import { useSingleFlight } from '@/lib/hooks/useSingleFlight';
 import { Botao, Campo, Chip, ErroObras, brl, cls } from './ui';
 
 type Filtro = 'ativas' | 'concluidas' | 'todas';
@@ -139,6 +140,9 @@ function ObraForm({ uid, obra, onFim }: { uid: string; obra?: Obra; onFim: () =>
     },
     onError: (e) => showToast((e as Error).message, 'error'),
   });
+  // Trava de clique duplo: o isPending só desabilita o botão no render
+  // seguinte; um 2º toque rápido criava a obra duas vezes.
+  const salvarFlight = useSingleFlight();
 
   function usarOrcamento(id: string) {
     set('quote_id', id);
@@ -158,7 +162,8 @@ function ObraForm({ uid, obra, onFim }: { uid: string; obra?: Obra; onFim: () =>
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        salvar.mutate();
+        // onError já mostra o toast; o catch só evita rejeição solta.
+        salvarFlight.run(() => salvar.mutateAsync()).catch(() => {});
       }}
     >
       <h3 className="font-bold text-lg" style={{ fontFamily: 'var(--font-display)' }}>{obra ? 'Editar obra' : 'Nova obra'}</h3>
@@ -240,6 +245,10 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
     },
     onError: (e) => showToast((e as Error).message, 'error'),
   });
+  // Travas de clique duplo (ver useSingleFlight): gasto lançado em dobro no
+  // Financeiro e vínculo repetido eram possíveis com dois toques rápidos.
+  const vincularFlight = useSingleFlight();
+  const lancarFlight = useSingleFlight();
   const desvincular = useMutation({
     mutationFn: () => vincularCliente(uid, obra.id, ''),
     onSuccess: () => {
@@ -355,7 +364,7 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
             className="grid grid-cols-2 gap-2 mt-2"
             onSubmit={(e) => {
               e.preventDefault();
-              lancar.mutate();
+              lancarFlight.run(() => lancar.mutateAsync()).catch(() => {});
             }}
           >
             <Campo id="g-cat" label="Categoria">
@@ -403,7 +412,7 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
                 className="flex gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  vincular.mutate();
+                  vincularFlight.run(() => vincular.mutateAsync()).catch(() => {});
                 }}
               >
                 <label htmlFor="ob-cli-tag" className="sr-only">@tag do cliente</label>

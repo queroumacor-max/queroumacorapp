@@ -127,8 +127,11 @@ describe('gateProAI — env_project_mismatch', () => {
     // mundo investigar sessão — o token nunca foi o problema.
     expect(body.reason).toBe('env_project_mismatch');
     expect(body.error).toContain('env_project_mismatch');
-    expect(body.detail.url_ref).toBe(BOM);
-    expect(body.detail.key_ref).toBe(OUTRO);
+    // Os refs de projeto NÃO saem no corpo (auditoria 2026-09-26, L1) —
+    // ficam só no log do servidor.
+    expect(body.detail).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain(BOM);
+    expect(JSON.stringify(body)).not.toContain(OUTRO);
 
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   });

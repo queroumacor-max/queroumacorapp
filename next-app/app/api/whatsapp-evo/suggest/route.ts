@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl);
 
     if (!isAiConfigured()) {
-      return jsonResponse({ error: 'IA não configurada (OPENAI_API_KEY ausente)' }, 503);
+      // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+      console.warn('[whatsapp-evo/suggest] config ausente: IA não configurada (OPENAI_API_KEY ausente)');
+      return jsonResponse({ error: 'Serviço indisponível no momento.' }, 503);
     }
     const waId = typeof body?.waId === 'string' ? body.waId.replace(/\D/g, '') : '';
     if (!waId) return jsonResponse({ error: 'waId obrigatório' }, 400);

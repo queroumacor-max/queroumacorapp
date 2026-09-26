@@ -21,6 +21,7 @@ import {
   type EnvioEscala,
 } from '@/lib/services/obras';
 import { Botao, ErroObras, cls } from './ui';
+import { useSingleFlight } from '@/lib/hooks/useSingleFlight';
 
 export function EscalaTab({ uid }: { uid: string }) {
   const qc = useQueryClient();
@@ -64,6 +65,9 @@ export function EscalaTab({ uid }: { uid: string }) {
     },
     onError: (e) => showToast((e as Error).message, 'error'),
   });
+  // Trava de clique duplo: dois toques rápidos mandavam o aviso da escala
+  // duas vezes pra cada pessoa (o isPending só desabilita no render seguinte).
+  const enviarFlight = useSingleFlight();
 
   function whatsapp(nome: string, telefone: string | null) {
     const alvo = (equipe.data ?? []).find((m) => m.nome === nome && m.telefone === telefone && !m.membro_id);
@@ -167,7 +171,7 @@ export function EscalaTab({ uid }: { uid: string }) {
         </section>
       ) : null}
 
-      <Botao primario full onClick={() => enviar.mutate()} disabled={enviar.isPending || ativas.length === 0}>
+      <Botao primario full onClick={() => { enviarFlight.run(() => enviar.mutateAsync()).catch(() => {}); }} disabled={enviar.isPending || ativas.length === 0}>
         {enviar.isPending ? 'Enviando…' : 'Enviar escala da semana'}
       </Botao>
     </div>

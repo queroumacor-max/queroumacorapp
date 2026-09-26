@@ -19,8 +19,10 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (!getRuntimeEnv('OPENAI_API_KEY')) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[generate-logo] config ausente: OPENAI_API_KEY não configurada');
     return NextResponse.json(
-      { error: 'OPENAI_API_KEY não configurada' },
+      { error: 'Serviço indisponível no momento.' },
       { status: 503 }
     );
   }

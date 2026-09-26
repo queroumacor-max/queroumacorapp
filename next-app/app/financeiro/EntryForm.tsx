@@ -136,8 +136,14 @@ export function EntryForm({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Trava de clique duplo (o form fecha só no render seguinte ao submit; um
+  // 2º toque/Enter nesse intervalo criava o lançamento em dobro). O
+  // componente desmonta ao fechar, então a ref nasce limpa a cada abertura.
+  const enviadoRef = useRef(false);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (enviadoRef.current) return;
     setLocalErr(null);
 
     const nomeT = nome.trim();
@@ -173,6 +179,7 @@ export function EntryForm({
     const catT = cat ? PREFIXO_CATEGORIA[cat] : '';
     const serviceType = catT && nomeT ? `${catT}: ${nomeT}` : catT || nomeT;
 
+    enviadoRef.current = true;
     onSubmit({
       service_type: serviceType,
       client_name: clienteT,

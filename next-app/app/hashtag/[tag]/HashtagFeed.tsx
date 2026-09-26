@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 import { ListSkeleton } from '@/components/Skeletons';
 import { cfImg } from '@/lib/cfImg';
 import { isVideoPost } from '@/lib/utils';
@@ -32,7 +33,7 @@ async function fetchByHashtag(tag: string): Promise<HashtagPost[]> {
     .neq('media_type', 'story')
     .order('created_at', { ascending: false })
     .limit(60);
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
   return (data ?? []) as unknown as HashtagPost[];
 }
 

@@ -12,6 +12,7 @@
 
 import { memo } from 'react';
 import type { Message } from '@/lib/services/chat';
+import { isTrustedMediaUrl, safeHttpUrl } from '@/lib/utils/safeUrl';
 
 export type BubbleKind = 'me' | 'other' | 'store';
 
@@ -108,8 +109,34 @@ function MessageBubbleInner({
   const sending = message.status === 'sending';
 
   // Conteúdo: text plain, ou attachment renderizado conforme tipo.
+  // Auditoria 2026-09-26: <img>/<video>/<audio> carregam a URL sozinhos —
+  // com URL de terceiro, o remetente descobre o IP de quem abriu a conversa.
+  // Só renderiza como mídia quando a URL é do Storage do Supabase (onde o
+  // app grava anexos) ou da própria origem; senão vira link em texto.
+  const isMediaKind =
+    message.type === 'image' ||
+    message.type === 'video' ||
+    message.type === 'audio' ||
+    (message.type === 'text' &&
+      (isImageUrl(message.content) || isVideoUrl(message.content) || isAudioUrl(message.content)));
+  const untrustedMedia = isMediaKind && !isTrustedMediaUrl(message.content);
+  const linkHref = untrustedMedia ? safeHttpUrl(message.content) : undefined;
+
   let content: React.ReactNode;
-  if (message.type === 'image' || (message.type === 'text' && isImageUrl(message.content))) {
+  if (untrustedMedia) {
+    content = linkHref ? (
+      <a
+        href={linkHref}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="underline break-all"
+      >
+        {message.content}
+      </a>
+    ) : (
+      <span className="whitespace-pre-wrap break-words">{message.content}</span>
+    );
+  } else if (message.type === 'image' || (message.type === 'text' && isImageUrl(message.content))) {
     content = (
       <img
         src={message.content}

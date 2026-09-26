@@ -99,7 +99,10 @@ export async function moderateVideoPost(args: {
 }): Promise<ModerateVideoResult> {
   const { userId, postId, caption } = args;
   const serviceKey = getServiceKey();
-  if (!serviceKey) throw new ServiceError('service key não configurada', 503);
+  if (!serviceKey) {
+    console.warn('[config] SUPABASE_SERVICE_ROLE_KEY ausente');
+    throw new ServiceError('Serviço indisponível no momento.', 503);
+  }
   const supaUrl = getSupabaseUrl();
   const sHeaders: Record<string, string> = {
     apikey: serviceKey,

@@ -240,10 +240,13 @@ export async function deleteEntry(
  * via syncToJobs) e quer adicionar despesa de tinta/material a ele em vez
  * de criar um lançamento separado.
  *
- * delta pode ser positivo (custo novo) ou negativo (correção). Faz select
- * + update — Supabase JS não tem atomic increment client-side. Em ambiente
- * com escrita concorrente isso seria race-condition, mas pintor não está
- * lançando custo em 2 abas ao mesmo tempo na prática.
+ * delta pode ser positivo (custo novo) ou negativo (correção). Caminho
+ * principal: RPC `increment_material_cost` (UPDATE atômico no banco,
+ * SECURITY INVOKER — a RLS de `jobs` continua valendo; migration
+ * `2026-09-26-financeiro-increment-cost.sql`). O ler-e-regravar antigo perdia
+ * um lançamento quando dois chegavam juntos (clique duplo, duas abas). Se a
+ * função ainda não existe no banco (42883/PGRST202), cai no select + update
+ * de antes — recurso novo não derruba o Financeiro por SQL pendente.
  *
  * Threw ValidationError se ids ausentes. NetworkError em falha de I/O.
  */
@@ -258,6 +261,30 @@ export async function incrementCost(
     throw new ValidationError('Valor inválido', { field: 'delta' });
   }
   const sb = getSupabase();
+
+  // Função fora do schema TS gerado → cast manual (mesmo padrão de pushTokens).
+  const rpc = (await sb.rpc('increment_material_cost' as never, {
+    p_id: entryId,
+    p_delta: delta,
+  } as never)) as unknown as {
+    data: unknown;
+    error: { code?: string; message: string } | null;
+  };
+  if (!rpc.error) {
+    // Zero linhas (lançamento inexistente ou de outro pintor) volta NULL —
+    // o caminho antigo estourava no `.single()`; aqui também estoura, senão
+    // o custo "lançado" sumiria em silêncio.
+    if (rpc.data === null || rpc.data === undefined) {
+      throw new NetworkError('Lançamento não encontrado');
+    }
+    return;
+  }
+  const rpcCode = rpc.error.code;
+  if (rpcCode !== 'PGRST202' && rpcCode !== '42883') {
+    throw new NetworkError(rpc.error.message, rpc.error);
+  }
+
+  // Fallback (SQL pendente): ler-e-regravar, não atômico.
   const { data, error: selErr } = await sb
     .from('jobs')
     .select('material_cost')

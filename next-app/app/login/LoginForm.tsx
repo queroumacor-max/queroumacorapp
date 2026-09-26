@@ -17,6 +17,7 @@ import { emailSchema, passwordSchema } from '@/lib/schemas';
 import { useAuth } from '@/components/AuthProvider';
 import { SocialAuthButtons } from '@/components/SocialAuthButtons';
 import { getSupabase } from '@/lib/supabase';
+import { safeErrorMessage } from '@/lib/errors-friendly';
 
 const schema = z.object({
   email: emailSchema,
@@ -107,10 +108,12 @@ export function LoginForm() {
     const { error } = await signIn(data.email, data.password);
     if (error) {
       // Supabase retorna "Invalid login credentials" — tradução amigável.
+      // Qualquer outro erro do GoTrue passa pelo mapa de erros (nunca o
+      // texto cru em inglês na tela).
       const friendly =
         error === 'Invalid login credentials'
           ? 'Email ou senha incorretos'
-          : error;
+          : safeErrorMessage(error);
       setServerError(friendly);
       return;
     }

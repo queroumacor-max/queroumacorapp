@@ -116,19 +116,16 @@ export async function ensurePortalAdminFresh(args: { callerId: string; email: st
       { reason: 'not_portal_admin', fresh: true, callerId: args.callerId || null },
       { severity: 'warning' },
     );
-    throw new ServiceError(
-      `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
-        'Promova a pessoa na aba Pessoas do portal (botão Promover) ou adicione o e-mail na env ADMIN_EMAILS ' +
-        '(Cloudflare Pages → Settings → Environment variables → Production) e refaça o deploy.',
-      403,
-    );
+    // Como virar admin (ADMIN_EMAILS / Promover) NÃO vai pro corpo: quem
+    // recebe este 403 é justamente quem não é admin (auditoria 2026-09-26, L2).
+    throw new ServiceError('não autorizado', 403);
   }
 }
 
 /**
  * Substitui `ensureAdminEmail(email)` nas rotas admin. Sem `callerId` (token
- * sem sub) só a allowlist vale. Mensagem do 403 diz os DOIS caminhos, porque
- * o operador que lê a faixa vermelha precisa saber o que fazer.
+ * sem sub) só a allowlist vale. O 403 é genérico de propósito: explicar como
+ * virar admin pra quem não é admin é informação de graça pro atacante.
  */
 export async function ensurePortalAdmin(args: { callerId: string; email: string }): Promise<void> {
   if (await isPortalAdminUser(args)) return;
@@ -137,12 +134,7 @@ export async function ensurePortalAdmin(args: { callerId: string; email: string 
     { reason: 'not_portal_admin', fresh: false, callerId: args.callerId || null },
     { severity: 'warning' },
   );
-  throw new ServiceError(
-    `não autorizado: a conta "${args.email || '(sem email no login)'}" não é admin do portal. ` +
-      'Promova a pessoa na aba Pessoas do portal (botão Promover) ou adicione o e-mail na env ADMIN_EMAILS ' +
-      '(Cloudflare Pages → Settings → Environment variables → Production) e refaça o deploy.',
-    403,
-  );
+  throw new ServiceError('não autorizado', 403);
 }
 
 /**
@@ -175,7 +167,10 @@ export async function verifyAdminToken(
       { reason: 'token_invalid', gotrue_status: res.status, admin_route: true },
       { severity: 'warning' },
     );
-    throw new ServiceError('token inválido (auth ' + res.status + ': ' + (await res.text()).slice(0, 120) + ')', 401);
+    // Corpo do GoTrue só no log (L2) — no 401 vai só o status.
+    const corpo = (await res.text().catch(() => '')).slice(0, 200);
+    console.warn('[admin-auth] GoTrue recusou o token', res.status, corpo);
+    throw new ServiceError('token inválido', 401);
   }
   const data = (await res.json()) as { id?: string; email?: string };
   return {

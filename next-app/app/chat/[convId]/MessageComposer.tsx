@@ -95,6 +95,7 @@ export function MessageComposer({
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          maxLength={4000}
           placeholder="Mensagem..."
           disabled={busy || disabled}
           className="flex-1 px-3 py-2 rounded-full border border-[color:var(--color-border,#e5e5e5)] text-sm focus:outline-none focus:border-[color:var(--color-p1,#ff6a00)] disabled:opacity-50"

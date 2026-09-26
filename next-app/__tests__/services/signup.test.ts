@@ -325,6 +325,29 @@ describe('signUp', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  it('"User already registered" → mensagem genérica (não confirma que o e-mail tem conta)', async () => {
+    __setSupabaseForTests(
+      makeFakeClient({
+        tables: { profiles_public: { selectResult: { data: [], error: null } } },
+        signUp: { data: { user: null }, error: { message: 'User already registered' } },
+      }),
+    );
+    const err = await signUp({
+      email: 'existe@x.com',
+      password: 'senha1234',
+      name: 'João',
+      tag: 'joao',
+      phone: '5511959765031',
+      userType: 'pintor',
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(ValidationError);
+    expect(err.message).toBe(
+      'Não foi possível criar a conta. Se você já tem cadastro, faça login ou recupere a senha.',
+    );
+    expect(err.message).not.toMatch(/already|registered/i);
+    expect((err.cause as { message: string }).message).toBe('User already registered');
+  });
+
   it('signUp devolve user=null sem error → ValidationError (defensivo)', async () => {
     __setSupabaseForTests(
       makeFakeClient({

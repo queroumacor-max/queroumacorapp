@@ -186,8 +186,10 @@ describe('suggestScope', () => {
     await expect(suggestScope('pintura interna')).rejects.toBeInstanceOf(
       NetworkError
     );
+    // Mensagem crua do backend vira texto amigável; a original fica em `raw`.
     await expect(suggestScope('pintura interna')).rejects.toMatchObject({
-      message: 'rate limit',
+      message: expect.stringContaining('Muitas tentativas'),
+      raw: 'rate limit',
     });
   });
 });

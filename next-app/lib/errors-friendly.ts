@@ -121,6 +121,47 @@ const PATTERNS: ReadonlyArray<Pattern> = [
   },
 ];
 
+// Mensagens de autenticação do GoTrue. Ficam FORA do PATTERNS principal
+// porque "already registered" confirma pra quem não é dono que o e-mail tem
+// conta (enumeração) — a resposta tem que ser a mesma do "deu certo".
+const AUTH_PATTERNS: ReadonlyArray<Pattern> = [
+  {
+    match: /user already registered|already been registered|email.*already.*(registered|exists|in use)/i,
+    friendly: {
+      title: 'Não foi possível criar a conta',
+      message: 'Se você já tem cadastro, faça login ou recupere a senha.',
+    },
+  },
+  {
+    match: /invalid login credentials|invalid grant/i,
+    friendly: {
+      title: 'E-mail ou senha incorretos',
+      message: 'Confira os dados e tente de novo.',
+    },
+  },
+  {
+    match: /email not confirmed/i,
+    friendly: {
+      title: 'E-mail não confirmado',
+      message: 'Abra o link que enviamos pro seu e-mail e tente de novo.',
+    },
+  },
+  {
+    match: /password should be|weak password|password.*(at least|characters)/i,
+    friendly: {
+      title: 'Senha fraca',
+      message: 'Use uma senha mais forte (no mínimo 8 caracteres, com letras e números).',
+    },
+  },
+  {
+    match: /same password|different from the old password/i,
+    friendly: {
+      title: 'Senha repetida',
+      message: 'A nova senha precisa ser diferente da atual.',
+    },
+  },
+];
+
 const GENERIC: FriendlyError = {
   title: 'Algo deu errado',
   message:
@@ -135,8 +176,8 @@ interface SentryGlobal {
 }
 
 export function toFriendlyError(err: unknown): FriendlyError {
-  const msg = err instanceof Error ? err.message : String(err);
-  for (const { match, friendly } of PATTERNS) {
+  const msg = mensagemDe(err);
+  for (const { match, friendly } of [...AUTH_PATTERNS, ...PATTERNS]) {
     const hit = typeof match === 'function' ? match(msg) : match.test(msg);
     if (hit) return friendly;
   }
@@ -156,3 +197,57 @@ export function toFriendlyError(err: unknown): FriendlyError {
 
 // Exporta pra testes / casos onde o caller quer ramificar no genérico.
 export const GENERIC_FRIENDLY_ERROR: FriendlyError = GENERIC;
+
+// ─── Mensagem crua do backend → texto seguro ────────────────────────────
+//
+// Auditoria 2026-09-26 (H1): ~60 telas mostravam `error.message` cru do
+// Postgres/PostgREST/GoTrue ("new row violates row-level security policy
+// for table messages", nome de coluna, de policy, "User already
+// registered"). Em vez de embrulhar cada tela, as classes de lib/errors.ts
+// passam a trocar a mensagem VISÍVEL por esta — a crua segue em `raw`/
+// `cause` pro log (reportFailure anexa "| causa: …").
+//
+// Só troca o que tem cara de erro técnico de backend. Mensagem que o nosso
+// código escreveu em português ("Obra não encontrada ou sem permissão.") ou
+// RAISE EXCEPTION em português de trigger é texto de produto e passa
+// intacta — virar genérico ali pioraria a tela sem ganho de segurança.
+const RAW_BACKEND =
+  /row-level security|permission denied|violates|duplicate key|unique constraint|foreign key|null value in column|value too long|invalid input (syntax|value)|syntax error|relation "|column "|does not exist|schema cache|could not find the|JWT|PGRST\d|SQLSTATE|statement timeout|canceling statement|failed to fetch|fetch failed|load failed|networkerror|connection refused|rate limit|too many requests|user already registered|already been registered|invalid login credentials|email not confirmed|invalid api key|invalid grant|payload too large|new row for relation/i;
+
+function mensagemDe(err: unknown): string {
+  if (err instanceof Error) {
+    // AppError guarda a crua em `raw` — casar pelo texto original, não pelo
+    // já traduzido.
+    const raw = (err as { raw?: unknown }).raw;
+    return typeof raw === 'string' && raw ? raw : err.message;
+  }
+  if (err && typeof err === 'object' && 'message' in err) {
+    return String((err as { message?: unknown }).message ?? '');
+  }
+  return String(err);
+}
+
+/** A mensagem tem cara de erro técnico do backend (não deve ir pra tela)? */
+export function looksLikeRawBackendError(msg: string | null | undefined): boolean {
+  return !!msg && RAW_BACKEND.test(msg);
+}
+
+/** Texto único (título + mensagem) pronto pra toast/faixa. Não manda pro Sentry. */
+export function friendlyText(raw: string): string {
+  for (const { match, friendly } of [...AUTH_PATTERNS, ...PATTERNS]) {
+    const hit = typeof match === 'function' ? match(raw) : match.test(raw);
+    if (hit) return `${friendly.title}. ${friendly.message}`;
+  }
+  return `${GENERIC.title}. ${GENERIC.message}`;
+}
+
+/**
+ * Texto seguro pra exibir a partir de QUALQUER erro: se a mensagem é crua
+ * de backend, traduz; se é texto nosso, devolve como está. Use em tela que
+ * mostra erro de chamada direta ao Supabase (sem passar pelas classes).
+ */
+export function safeErrorMessage(err: unknown, fallback = 'Algo deu errado. Tente de novo.'): string {
+  const msg = mensagemDe(err);
+  if (!msg) return fallback;
+  return looksLikeRawBackendError(msg) ? friendlyText(msg) : msg;
+}

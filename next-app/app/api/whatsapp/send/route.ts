@@ -91,8 +91,10 @@ async function handle(request: NextRequest): Promise<Response> {
   // aposentada e suas secrets saíram do CF Pages — enquanto o despacho ainda
   // caía nela, todo envio de texto ia pra um servidor morto e voltava 502.
   if (!isWhatsAppConfigured()) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[whatsapp/send] config ausente: Envio de WhatsApp não configurado (DUALHOOK_API_KEY ausente)');
     return jsonResponse(
-      { error: 'Envio de WhatsApp não configurado (DUALHOOK_API_KEY ausente)' },
+      { error: 'Serviço indisponível no momento.' },
       503
     );
   }

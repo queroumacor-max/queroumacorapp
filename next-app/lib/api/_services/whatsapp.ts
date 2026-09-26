@@ -236,7 +236,12 @@ export async function sendWhatsAppMessage(
     // Dualhook vira 400 (a culpa é da nossa requisição), o resto vira 500.
     // O `upstreamStatus` viaja no corpo (ServiceError.extra) pra tela poder
     // mostrar o número real.
-    console.error('dualhook_send_failed', { status: res.status, body: rawText });
+    // Corpo truncado e com sequências longas de dígitos mascaradas: o erro
+    // do Dualhook/Meta pode ecoar o telefone do destinatário (M4, 2026-09-26).
+    console.error('dualhook_send_failed', {
+      status: res.status,
+      body: rawText.slice(0, 300).replace(/\d{8,}/g, (d) => '*'.repeat(d.length - 4) + d.slice(-4)),
+    });
 
     const upstreamStatus = res.status;
     const extra = { upstreamStatus };

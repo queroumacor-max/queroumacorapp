@@ -9,6 +9,7 @@
 // usado em Pedidos da Loja e na galeria de logos do portal.
 
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 
 export type ConnectionTab = 'seguidores' | 'seguindo';
 
@@ -49,7 +50,7 @@ export async function fetchConnections(args: {
     .eq(matchColumn, profileId)
     .order('created_at', { ascending: false })
     .limit(PAGE_SIZE);
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
 
   const ids = ((rows ?? []) as Array<Record<string, unknown>>)
     .map((r) => r[idColumn])

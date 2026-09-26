@@ -59,14 +59,14 @@ describe('ensurePortalAdmin', () => {
     perfil({ portal_access: false, role: 'admin' });
     await expect(ensurePortalAdmin({ callerId: 'u3', email: 'x@y.com' })).resolves.toBeUndefined();
   });
-  it('sem allowlist e sem promoção → 403 dizendo os DOIS jeitos de liberar', async () => {
+  it('sem allowlist e sem promoção → 403 genérico (não ensina a virar admin)', async () => {
     perfil({ portal_access: false, role: 'pintor' });
     const err = await ensurePortalAdmin({ callerId: 'u4', email: 'joao@gmail.com' }).catch((e) => e);
     expect(err).toBeInstanceOf(ServiceError);
     expect(err.status).toBe(403);
-    expect(err.message).toContain('joao@gmail.com');
-    expect(err.message).toContain('Promover');
-    expect(err.message).toContain('ADMIN_EMAILS');
+    expect(err.message).toBe('não autorizado');
+    expect(err.message).not.toContain('ADMIN_EMAILS');
+    expect(err.message).not.toContain('joao@gmail.com');
   });
   // Auditoria de observabilidade de segurança (2026-09-17): antes, uma
   // conta comum martelando rotas admin não deixava sinal nenhum além da
