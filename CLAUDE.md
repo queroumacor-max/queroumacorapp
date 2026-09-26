@@ -405,8 +405,10 @@
   pipeline" ficava só no topo; virou barra `sticky` sempre visível.
   (3) BottomSheet: a trava de `touchmove` cancelava o gesto quando o corpo
   não transbordava, prendendo roláveis INTERNOS — `temRolavelInterno`
-  libera. Teste `__tests__/components/BottomSheetRolagem.test.ts`. Pedir
-  pro Léo confirmar se resolveu (e se usa PC ou celular).
+  libera. Teste `__tests__/components/BottomSheetRolagem.test.ts`.
+  **CONFIRMADO (2026-09-26, informado pelo usuário: "rolagem funcionou") —
+  o relato do Léo está resolvido. Caso fechado; não pedir pra confirmar de
+  novo.**
   **Frete (#403) MERGEADO (squash `23dff6c`); rolagem (#404) MERGEADO
   (squash `34725d2`).**
 
