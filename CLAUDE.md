@@ -753,8 +753,8 @@
 - **AUDITORIA EXTERNA HOSTEDSCAN (2026-09-20) — comparada contra todo o
   histórico de auditorias já feitas. Quase tudo já estava corrigido; 1
   achado NOVO e REAL, confirmado no painel Cloudflare pelo usuário —
-  "Resize images from any origin" está LIGADO em Image Resizing, sem
-  correção aplicada, pendente de decisão.**
+  "Resize images from any origin" — RESOLVIDO em 2026-09-26 (origens
+  restritas; ver o último sub-item desta entrada).**
   - **Contexto**: usuário colou relatório de scan (OWASP ZAP + OpenVAS +
     Nmap + Sslyze + Nuclei) contra `www.queroumacor.com.br`. Pedido
     explícito: só analisar/comparar/opinar, sem agir.
@@ -806,8 +806,26 @@
     volta pra arquivo original sem WebP/AVIF/srcset, LCP pior, mais dado
     consumido no celular. Não é teórico: é o que sustenta o item B2 já
     documentado como "LIGADO E FUNCIONANDO" neste arquivo.
-  - **NÃO CORRIGIDO — decisão do usuário, duas opções levantadas, nenhuma
-    implementada**: (a) desligar "Resize images from any origin" agora
+  - **RESOLVIDO (2026-09-26, mudança feita no painel pelo usuário, com
+    confirmação do Jackson) — nem (a) nem (b) abaixo: terceira opção,
+    "Specified origins".** Speed → Settings → Image Optimization → Image
+    Transformations → Manage → **Sources = "Specified origins"**, com só
+    duas entradas: `queroumacor.com.br` (This zone, todos os paths) e
+    `uwqebaqweehiljsqkifm.supabase.co` restrito ao path
+    **`/storage/v1/object/public/`**. Painel confirmou "Zone settings
+    changed successfully". **Bloqueio conferido:** `/cdn-cgi/image/w=64/
+    https://upload.wikimedia.org/...` agora devolve `ERROR 9401:
+    Transformation origin is not in allowed origins list`. Por que não
+    quebra o app: o `cfImg.ts` só reescreve URL da própria zona ou do
+    Supabase, e o app não usa URL assinada (`createSignedUrl`) com o
+    cfImg — só `/storage/v1/object/public/…`, que é o path liberado.
+    **PENDENTE (só conferência, não ação): o Jackson abrir feed e perfil
+    logado e ver que as fotos do Supabase seguem carregando.** Se
+    quebrarem: voltar Sources pra "Any origin" (reverte na hora) e
+    investigar qual URL ficou de fora. **Não reabrir as opções (a)/(b).**
+    Histórico da decisão antes disso:
+  - ~~NÃO CORRIGIDO — decisão do usuário, duas opções levantadas, nenhuma
+    implementada~~: (a) desligar "Resize images from any origin" agora
     (fecha o vetor, perde otimização das imagens do Supabase até resolver
     a opção b); (b) proxiar o Supabase Storage por trás do próprio
     domínio (`_redirects`/rewrite — o comentário do `cfImg.ts` sugere que
