@@ -298,6 +298,8 @@ UNION ALL SELECT 'policies das 3 tabelas',
          WHERE schemaname = 'public' AND tablename IN ('obras', 'obra_equipe', 'obra_escala')) = 3
 UNION ALL SELECT 'trigger de proteção da equipe',
        EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_protect_obra_equipe')
+UNION ALL SELECT 'trigger de aviso do convite',
+       EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_notify_obra_convite')
 UNION ALL SELECT 'jobs.categoria e jobs.obra_id',
        (SELECT count(*) FROM information_schema.columns
          WHERE table_schema = 'public' AND table_name = 'jobs' AND column_name IN ('categoria', 'obra_id')) = 2
