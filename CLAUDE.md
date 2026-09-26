@@ -4,10 +4,12 @@
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
   sendo feito, agenda"). PR #410 (squash `49fea6d`), deploy run #752 do
   `deploy.yml` terminou `success`, código NO AR. SQL
-  `/migrations/2026-09-25-obra-cliente.sql` — PENDENTE de execução
-  (colado no chat) — sem ele a seção "Cliente acompanha pelo app" e a
-  aba "Meu progresso" tratam a coluna/RPCs ausentes como
-  `ObrasSqlPendenteError`, não erro cru.**
+  `/migrations/2026-09-25-obra-cliente.sql` — **JÁ EXECUTADO no Supabase
+  (2026-09-26, confirmado pelo usuário: as 3 linhas de conferência
+  voltaram `ok=true` — `obras.client_id` existe, trigger de proteção do
+  vínculo existe, anon sem EXECUTE nas RPCs do cliente). Não pedir pra
+  rodar de novo.** Feature 100% ativa em produção: coluna/RPCs/triggers
+  no banco + código já no ar desde o deploy #752.
   - **Decisão (perguntado ao usuário):** o cliente acessa **logado no
     app** — precisa ter conta e o gestor vincula pela @tag. Não é link
     público sem login (mesmo padrão de segurança do resto do app, RLS/
