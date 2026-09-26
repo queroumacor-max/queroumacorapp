@@ -648,18 +648,33 @@ export interface AprovacaoDoPost {
  * - qualquer outra falha → tenta de novo UMA vez (soluço de rede da
  *   WebView) e, se falhar de novo, `NetworkError`. Quem chama decide o que
  *   fazer com o post pendente (o publish apaga, pra pessoa tentar de novo).
+ * - passou de `APROVACAO_TIMEOUT_MS` sem resposta → `NetworkError` na hora,
+ *   sem 2ª tentativa (seria esperar o dobro). Sem esse teto, uma chamada
+ *   pendurada na WebView deixava o publish esperando pra sempre e o post
+ *   ficava `pending` pra sempre (caso real de 26/09). O que ainda escapar
+ *   (app fechado no meio) a varredura `/api/posts/sweep-pending` publica.
  */
+export const APROVACAO_TIMEOUT_MS = 45_000;
+
+function sinalComTeto(ms: number): { signal: AbortSignal; limpar: () => void } {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  return { signal: c.signal, limpar: () => clearTimeout(t) };
+}
+
 export async function aprovarPostNoServidor(
   postId: string,
-  opts: { revalidarTexto?: boolean } = {},
+  opts: { revalidarTexto?: boolean; timeoutMs?: number } = {},
 ): Promise<AprovacaoDoPost> {
   let ultimo: unknown = null;
   for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const teto = sinalComTeto(opts.timeoutMs ?? APROVACAO_TIMEOUT_MS);
     try {
       const res = await fetchGated('/api/posts/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(opts.revalidarTexto ? { postId, revalidarTexto: true } : { postId }),
+        signal: teto.signal,
       });
       const json = (await res.json().catch(() => ({}))) as {
         status?: string;
@@ -686,7 +701,15 @@ export async function aprovarPostNoServidor(
       ultimo = new Error(`aprovar post: HTTP ${res.status} ${json.error || ''}`.trim());
     } catch (e) {
       if (e instanceof ValidationError || e instanceof AuthenticationError) throw e;
+      if (teto.signal.aborted) {
+        throw new NetworkError(
+          'A publicação demorou demais para ser confirmada. Tente de novo em instantes.',
+          e,
+        );
+      }
       ultimo = e;
+    } finally {
+      teto.limpar();
     }
     if (tentativa === 0) await new Promise((r) => setTimeout(r, 800));
   }

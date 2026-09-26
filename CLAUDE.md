@@ -1,5 +1,35 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
+  das 19:49 UTC, aparecia no portfólio e não no feed). SQL
+  `migrations/2026-09-26-posts-sweep-pending.sql` — JÁ RODADO no Supabase
+  (2026-09-26, print do usuário: as 3 conferências `true` — função, cron
+  `posts-sweep-pending` e `push_notify_url`). Não pedir pra rodar de novo.
+  Até o deploy do PR #443 o cron bate numa rota que ainda não existe (404,
+  inofensivo).**
+  Pelo código, o único caminho que deixa o post pendente E visível pro dono
+  é a chamada `/api/posts/approve` nunca terminar (reprovado some; erro faz
+  o app apagar o pendente). `aprovarPostNoServidor` não tinha teto de tempo:
+  fetch pendurado na WebView ou app fechado no meio = pendente pra sempre.
+  Nada na tabela `errors` confirma (esse caminho não registra erro).
+  - **Correção (branch `claude/verificar-edicoes-memoria-sm9dzg`):**
+    (1) teto de 45s por tentativa (`APROVACAO_TIMEOUT_MS`); estourou → erro na
+    tela, sem 2ª tentativa, pendente apagado. (2) `sweepPendingPosts` +
+    `POST /api/posts/sweep-pending` (header `x-internal-secret` =
+    `PUSH_INTERNAL_SECRET`, o mesmo segredo que o banco já usa pro push;
+    rate limit 6/min por IP): pendentes não apagados entre 5 min e 7 dias,
+    mais novos primeiro, 10 por vez, mesma `approvePost` do app. O SQL cria
+    `run_posts_sweep()` (URL derivada de `app_settings.push_notify_url`,
+    nada pra colar) + cron `posts-sweep-pending` a cada 10 min. (3) Corrida
+    app × varredura: CAS perdido agora relê — se outra aprovação já
+    publicou, responde approved (antes 409 faria o app apagar post no ar).
+  - **Portal: a tela "Posts pendentes" (`PostsModeracao` no `app.jsx`)
+    existe mas NÃO está no menu** — a aba "🛡️ Moderação" é só de denúncias.
+    Hoje pendente só se vê/aprova pelo SQL Editor. Ligar a tela não foi
+    feito (fora do pedido).
+  - O post das 19:49 ainda precisa de aprovação manual (ou a varredura
+    pega assim que o SQL rodar e o deploy sair — ele tem menos de 7 dias).
+
 - **DOCUMENTOS LEGAIS REVISADOS (2026-09-26, pedido do usuário: "esses
   termos podem estar desatualizados"). SEM SQL.** Os 10 textos de `/info/*`
   conferidos contra o código e atualizados (data 26/09/2026). Correções:

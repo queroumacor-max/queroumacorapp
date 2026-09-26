@@ -122,3 +122,4 @@ SELECT 'posts: moderação no servidor (trigger pending) — 2026-09-26' AS item
 SELECT 'whatsapp: claim_wa_away (ausência atômica) — 2026-09-26' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='claim_wa_away') AS ok;
 SELECT 'portal: trilha de auditoria (trg_audit_portal) — 2026-09-26' AS item, (SELECT count(*) FROM pg_trigger WHERE tgname='trg_audit_portal') >= 8 AS ok;
 SELECT 'posts: approve_post_moderated + trigger cobre legenda/link — 2026-09-26 (b)' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='approve_post_moderated') AND EXISTS (SELECT 1 FROM pg_proc WHERE proname='enforce_post_moderation' AND prosrc LIKE '%NEW.caption%') AS ok;
+SELECT 'posts: varredura de pendentes agendada — 2026-09-26 (c)' AS item, EXISTS (SELECT 1 FROM cron.job WHERE jobname='posts-sweep-pending') AS ok;

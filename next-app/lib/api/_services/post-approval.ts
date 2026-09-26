@@ -299,6 +299,18 @@ async function aprovarSeInalterado(
 }
 
 /**
+ * O compare-and-set não pegou. Pode ser troca de conteúdo no meio (→ 409) ou
+ * OUTRA aprovação do mesmo post que chegou primeiro — a varredura
+ * `sweepPendingPosts` e o 2º pedido do app (depois de um timeout) rodam em
+ * paralelo com o 1º. Nesse caso o post já está no ar e responder 409 faria o
+ * app apagar um post publicado.
+ */
+async function jaAprovadoPorOutro(postId: string): Promise<boolean> {
+  const agora = await lerPost(postId).catch(() => null);
+  return !!agora && !agora.deleted_at && agora.status === 'approved';
+}
+
+/**
  * Modera e aprova um post `pending`. Idempotente: post já aprovado volta
  * 'approved' sem refazer nada. Lança ServiceError 403 (não é o dono),
  * 404 (não existe/apagado), 409 (estado que não se aprova ou mudou durante a
@@ -394,7 +406,9 @@ export async function approvePost(args: {
       mediaUrls: novasMediaUrls,
       mediaHash: null,
     });
-    if (!ok) throw new ServiceError('o post mudou durante a análise', 409);
+    if (!ok && !(await jaAprovadoPorOutro(postId))) {
+      throw new ServiceError('o post mudou durante a análise', 409);
+    }
     return { status: 'approved', revisao: out.status === 'pending', video: true };
   }
 
@@ -440,6 +454,60 @@ export async function approvePost(args: {
     mediaUrls: novasMediaUrls,
     mediaHash: vereditos[0]?.hash || null,
   });
-  if (!ok) throw new ServiceError('o post mudou durante a análise', 409);
+  if (!ok && !(await jaAprovadoPorOutro(postId))) {
+    throw new ServiceError('o post mudou durante a análise', 409);
+  }
   return { status: 'approved', revisao: revisar.length > 0 };
+}
+
+// ─── Varredura de posts presos em `pending` (2026-09-26) ──────────────────
+// O post nasce pending e quem o publica é o APP chamando /api/posts/approve.
+// Se o app é fechado (ou a rede cai) entre gravar e aprovar, o post fica
+// invisível pra sempre — aconteceu duas vezes no 1º dia. O cron chama isto a
+// cada 10 min e roda a MESMA moderação (`approvePost`) nos pendentes.
+
+/** Pendente mais novo que isso ainda pode estar sendo aprovado pelo app. */
+export const SWEEP_MIN_IDADE_MS = 5 * 60 * 1000;
+/** Mais velho que isso não é mais "preso": fica pra revisão manual. */
+export const SWEEP_MAX_IDADE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Teto de posts por varredura (cada um pode custar uma chamada ao Gemini). */
+export const SWEEP_LOTE = 10;
+
+export interface SweepResult {
+  encontrados: number;
+  aprovados: number;
+  reprovados: number;
+  falhas: number;
+}
+
+export async function sweepPendingPosts(now: number = Date.now()): Promise<SweepResult> {
+  const ate = new Date(now - SWEEP_MIN_IDADE_MS).toISOString();
+  const desde = new Date(now - SWEEP_MAX_IDADE_MS).toISOString();
+  const r = await fetch(
+    postsUrl(
+      `status=eq.pending&deleted_at=is.null` +
+        `&created_at=lt.${encodeURIComponent(ate)}&created_at=gt.${encodeURIComponent(desde)}` +
+        // Mais novos primeiro: um post velho que falha sempre não pode
+        // ocupar o lote pra sempre e travar os que acabaram de ficar presos.
+        `&select=id,user_id&order=created_at.desc&limit=${SWEEP_LOTE}`,
+    ),
+    { headers: serviceHeaders(), signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+  );
+  if (!r.ok) throw new ServiceError('falha ao listar pendentes', 502);
+  const pendentes = (await r.json()) as Array<{ id: string; user_id: string }>;
+
+  const out: SweepResult = { encontrados: pendentes.length, aprovados: 0, reprovados: 0, falhas: 0 };
+  // Um de cada vez: o lote é pequeno e paralelo multiplicaria as chamadas ao
+  // Gemini/Storage num único isolate.
+  for (const p of pendentes) {
+    try {
+      const res = await approvePost({ userId: p.user_id, postId: p.id });
+      if (res.status === 'approved') out.aprovados++;
+      else out.reprovados++;
+    } catch (e) {
+      out.falhas++;
+      console.warn('[post-sweep] falhou', p.id, e instanceof Error ? e.message : e);
+    }
+  }
+  return out;
 }
