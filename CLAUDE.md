@@ -31,10 +31,12 @@
     **3 SQLs RODADOS pelo usuário (2026-09-26, "rodei tudo")** —
     `2026-09-26-brand-logos-https-check.sql`,
     `2026-09-26-financeiro-increment-cost.sql`,
-    `2026-09-26-content-length-and-link-checks.sql`. Relato, ainda sem a
-    conferência combinada (7 constraints + RPC) devolvida; se alguma
-    constraint faltar, foi PULADA por dado legado (NOTICE), não erro.
-    Não pedir pra rodar de novo sem antes conferir.
+    `2026-09-26-content-length-and-link-checks.sql`. **CONFERIDO no banco
+    (2026-09-26):** RPC do Financeiro existe + anon sem EXECUTE +
+    `brand_logos_image_url_https` = true (SQL 1 e 2 APLICADOS). As 6
+    constraints do SQL 3 = false — só a pré-conferência tinha sido colada
+    no chat; o resto do arquivo (3 UPDATEs + 6 DO) foi passado depois.
+    Conferir de novo antes de afirmar que o SQL 3 rodou.
     **Não feito:** chave de idempotência do pedido da loja no servidor;
     CSP com script-src no portal. Conferir pós-deploy: `curl -I
     /portal/` e o console na tela de AR (mediapipe/wasm).
