@@ -87,8 +87,8 @@
   pendência que sobrou da auditoria dos 19 pontos).** SQL
   `/migrations/2026-09-26-orders-idempotency-key.sql` — **JÁ EXECUTADO no
   Supabase (2026-09-26, informado pelo usuário: "rodei o sql"). Não pedir
-  pra rodar de novo.** (O resultado da conferência de 3 `ok` não foi colado
-  no chat — reconferir por ela antes de afirmar algo sobre o índice.)
+  pra rodar de novo.** Conferência confirmada pelo usuário ("tudo feito"):
+  as 3 linhas voltaram `ok=true` (coluna, índice único, check de tamanho).
   Testado em Postgres 16 local rodando 2x: mesma chave do mesmo usuário →
   23505; outro usuário com a mesma chave passa; pedido sem chave (NULL)
   nunca conflita; chave >100 chars recusada.
