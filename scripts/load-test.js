@@ -2,7 +2,8 @@
 // ramp-down em 30s. Threshold p95<500ms / p99<1500ms / falha<1%. Sai !=0
 // se threshold quebrar, falhando o workflow.
 //
-// Rodar local: BASE_URL=https://app2.queroumacor.com.br k6 run scripts/load-test.js
+// Rodar local: BASE_URL=https://<alvo> k6 run scripts/load-test.js
+// (BASE_URL é obrigatório; o antigo padrão app2.queroumacor.com.br foi removido.)
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
@@ -18,7 +19,8 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'https://app2.queroumacor.com.br';
+const BASE_URL = __ENV.BASE_URL;
+if (!BASE_URL) throw new Error('Defina BASE_URL (ex.: BASE_URL=https://<alvo> k6 run scripts/load-test.js)');
 
 export default function () {
   const r1 = http.get(`${BASE_URL}/api/health`);

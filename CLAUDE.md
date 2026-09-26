@@ -855,7 +855,25 @@
     de código). **Não pedir pra confirmar de novo nem tratar como
     pendência** — WhatsApp/IA/pagamento/push em produção devem estar
     operando normalmente pós-corte, não fail-closed.
-  - **AINDA NÃO CONFIRMADO — único item real que sobra, só o painel do
+  - **RESOLVIDO (2026-09-26, conferido pelo usuário no painel):**
+    `queroumacor.com.br` e `www` estão como Custom Domains SÓ no Worker
+    `queroumacor-next-production`; no Pages `queroumacor-next` (deployments
+    pausados) já não aparecem. **Achado junto: `app2.queroumacor.com.br`
+    (staging da migração pro Next, ver `next-app/DEPLOY.md`) AINDA está
+    preso nesse Pages pausado** — serve pra sempre uma build antiga,
+    anterior às correções de segurança (Next vulnerável, CSP/headers), sob
+    o domínio de confiança e contra o Supabase de produção.
+    **REMOVIDO (2026-09-26, confirmado pelo usuário no painel):** custom
+    domain `app2` tirado do Pages `queroumacor-next` e o CNAME sumiu junto
+    (busca por "app2" no DNS da zona não acha nenhum registro). Caso
+    fechado. Referências no repo JÁ LIMPAS: o
+    load test ficou SEM alvo padrão (exige `base_url`/`LOAD_TEST_URL`;
+    produção não vira padrão de propósito), `openapi.yaml` só lista
+    produção, e DEPLOY/DEPLOYMENT/README/RUNBOOK/DR_RUNBOOK/
+    INCIDENT_RESPONSE/USER_ACTIONS marcam o `app2` como removido.
+    `docs/history/` ficou intocado (é histórico). **Não recriar o `app2`.**
+  - **[HISTÓRICO — RESOLVIDO em 2026-09-26, ver item "RESOLVIDO" logo
+    acima; não pedir pra conferir de novo]** ~~AINDA NÃO CONFIRMADO~~ — o item que sobrava, só o painel do
     Cloudflare resolve (nem sessão de navegador real distingue isso: é
     coisa que só aparece no dashboard, não em request/response HTTP)**:
     **se o Custom Domain foi de fato REMOVIDO do lado do Pages** (projeto
@@ -866,11 +884,10 @@
     fora distingue com certeza qual dos dois está de fato vinculado ao
     hostname hoje.
   - **O bug do "Build output directory" do Cloudflare Pages (entrada logo
-    abaixo) pode ter ficado IRRELEVANTE** — se o Pages não é mais quem serve
-    o domínio, não importa que os builds dele continuem falhando. Mas isso
-    também não está confirmado (ver item acima, sobre o Custom Domain do
-    Pages) — não apagar a entrada abaixo até alguém confirmar que o Pages
-    saiu de cena de vez.
+    abaixo) é IRRELEVANTE — confirmado em 2026-09-26:** o Pages
+    `queroumacor-next` está com deployments pausados e sem nenhum domínio
+    (os principais estão só no Worker; o `app2` foi removido). Não é
+    pendência.
   - **Achado extra desta sessão, útil pra qualquer smoke test futuro contra
     produção**: o `smoke-test-workers.yml` disparado contra
     `https://queroumacor.com.br` a partir de um runner do GitHub Actions
@@ -886,8 +903,9 @@
     que ser manual, num navegador de verdade, não automatizada via CI.
 
 - **DEPLOY DO WORKER `queroumacor-next-production`: erro de permissão em
-  `/zones/.../workers/routes` (2026-09-20) — EM ABERTO, só o painel
-  resolve.** No 2º deploy manual consecutivo (mesmo token, mesmo
+  `/zones/.../workers/routes` (2026-09-20) — RESOLVIDO (2026-09-26): token
+  conferido no painel com a permissão certa e o deploy #755 passou a etapa
+  de rotas. Tudo abaixo desta linha é HISTÓRICO.** No 2º deploy manual consecutivo (mesmo token, mesmo
   `wrangler.jsonc`, rotas idênticas ao 1º deploy que tinha funcionado
   minutos antes), o step `wrangler deploy --env production` subiu o código
   com sucesso (`Uploaded queroumacor-next-production`) mas falhou no passo
@@ -924,7 +942,13 @@
     inconsistência. **Não confirmado — só hipótese informada**, verificada
     via pesquisa na documentação oficial, não via inspeção do token real
     (sem acesso a isso).
-  - **AÇÃO PENDENTE, só o painel resolve**: conferir o token usado no
+  - **RESOLVIDO (2026-09-26, conferido pelo usuário no painel):** o token
+    do deploy (`claude-code-pages-deploy`) JÁ tem `Zone > Workers Routes >
+    Edit` escopado pra `queroumacor.com.br` (+ Pages: Edit + Workers
+    Scripts: Edit). E o deploy #755 passou a etapa de rotas SEM o erro
+    (`queroumacor.com.br`/`www` listados como custom domain) — o problema
+    abaixo não se repete mais. Não listar como pendência.
+  - **[HISTÓRICO — feito em 2026-09-26]** ~~AÇÃO PENDENTE~~: conferir o token usado no
     secret `CLOUDFLARE_API_TOKEN` (dashboard Cloudflare → My Profile → API
     Tokens) e garantir que ele tem `Zone > Workers Routes > Edit`
     explicitamente escopado pra zona de `queroumacor.com.br` — não só
@@ -963,7 +987,8 @@
     portfólio, preview do composer — PR #378), e o botão "Seguindo" da tela
     de conexões que antes mostrava só "✓" e confundia (mesma PR #378).
 
-- **"Build output directory" do Cloudflare Pages ficou desatualizado após o
+- **[HISTÓRICO — irrelevante desde 2026-09-26: o Pages não serve mais domínio
+  nenhum]** "Build output directory" do Cloudflare Pages ficou desatualizado após o
   merge da migração OpenNext (PR #344, 2026-09-19) — TODO deploy novo de
   `main` falha, Production está SEGURA mas presa até corrigir.** Achado logo
   depois do merge, checando os builds mais recentes: `Error: Output

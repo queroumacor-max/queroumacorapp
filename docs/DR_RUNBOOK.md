@@ -347,11 +347,11 @@ público, por serem registros operacionais sensíveis a phishing/DNS
 hijacking se vazados combinados com outros dados). Registros
 conhecidos por menção em código/docs (não uma lista exaustiva — a
 lista completa só existe no Dashboard):
-- `queroumacor.com.br` (apex) → Cloudflare Pages.
+- `queroumacor.com.br` (apex) → Worker `queroumacor-next-production` (Custom Domain, desde 2026-09-20).
 - `www.queroumacor.com.br` (usado no host de deep link Android/App
   Links, per CLAUDE.md).
-- `app2.queroumacor.com.br` (reservado para eventual cutover do
-  `next-app`, ainda não em uso segundo `RUNBOOK.md §3`).
+- `app2.queroumacor.com.br` — REMOVIDO em 2026-09-26 (era o staging da
+  migração, preso num Pages pausado). Não recriar num restore.
 - `_dmarc.calicolors.com.br` — **conhecido AUSENTE** (achado de
   auditoria anterior, não repetir).
 - DNSSEC (`queroumacor.com.br`, `.com.br`/Registro.br) — ligado no

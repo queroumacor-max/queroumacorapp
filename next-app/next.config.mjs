@@ -1,6 +1,6 @@
 // Next.js config — migração Path C do QueroUmaCor vanilla → Next.js+TS+React.
 // Coexiste com o app vanilla em / durante a migração (deploy paralelo via
-// Cloudflare Pages: pages.dev novo project OU subdomain app2.queroumacor.com.br).
+// Cloudflare Pages). Histórico: o subdomain app2 dessa fase foi removido em 2026-09-26.
 
 import { withSentryConfig } from '@sentry/nextjs';
 

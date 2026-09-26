@@ -333,7 +333,7 @@ o vanilla ao final da migracao Path C. Durante a transicao, ele roda em
 | Aspecto       | Vanilla (`/`)                          | Next (`next-app/`)                       |
 | ------------- | -------------------------------------- | ---------------------------------------- |
 | CF Pages proj | `queroumacorapp` (existente)           | `queroumacor-next` (novo, manual)        |
-| Dominio       | `queroumacor.com.br`                   | `app2.queroumacor.com.br` (ate cutover)  |
+| Dominio       | `queroumacor.com.br`                   | `app2` (ate cutover; removido 2026-09-26) |
 | Build         | static + Pages Functions               | `next build` + `@cloudflare/next-on-pages` |
 | KV            | binding `KV` → `queroumacorapp-cidades` | binding `KV` → mesmo namespace          |
 | Supabase      | mesmo projeto                          | mesmo projeto                            |

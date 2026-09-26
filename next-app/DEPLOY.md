@@ -28,8 +28,7 @@ Cloudflare Pages project e ciclo de deploy.
 3. **Custom domain**:
    - Preview branches: `<branch-slug>.queroumacor-next.pages.dev`
      (automático).
-   - Staging fixo: `app2.queroumacor.com.br` → CNAME pra
-     `queroumacor-next.pages.dev` (criar registro no Cloudflare DNS).
+   - ~~Staging fixo: `app2.queroumacor.com.br`~~ — `app2.queroumacor.com.br` foi REMOVIDO em 2026-09-26 (staging da migração, ficou preso num Pages pausado servindo build antiga). Não recriar.
    - Produção: **SÓ DEPOIS DO CUTOVER** (Phase 9 do plano de migração).
      Até lá, `queroumacor.com.br` continua apontado pro Pages project
      vanilla.
@@ -85,7 +84,7 @@ rollback é totalmente isolado:
 
 1. Cloudflare Dashboard → Pages → `queroumacor-next` → Deployments
 2. Achar o deploy anterior estável → "Rollback to this deployment"
-3. Trafego do `app2.queroumacor.com.br` cai na versão antiga em ~30s
+3. (Histórico: valia pro `app2`, removido em 2026-09-26.)
 
 **Não precisa mexer no Pages project vanilla** — `queroumacor.com.br`
 nem nota. Se houver problema só no Next, o vanilla segue intacto.
@@ -105,7 +104,7 @@ git push origin main
 | Aspecto       | Vanilla (`/`)                          | Next (`next-app/`)                       |
 | ------------- | -------------------------------------- | ---------------------------------------- |
 | CF Pages proj | `queroumacorapp` (existente)           | `queroumacor-next` (novo)                |
-| Domínio       | `queroumacor.com.br`                   | `app2.queroumacor.com.br` (até cutover)  |
+| Domínio       | `queroumacor.com.br`                   | `app2` (até cutover; removido 2026-09-26) |
 | Build         | static + Pages Functions               | `next build` + `@cloudflare/next-on-pages` |
 | KV            | binding `KV` → `queroumacorapp-cidades` | binding `KV` → mesmo namespace          |
 | Supabase      | mesmo projeto (`uwqebaqweehiljsqkifm`) | mesmo projeto                            |

@@ -24,7 +24,7 @@ Sem isso o app Next.js só existe no repo, sem deploy.
 - [x] **Environment variables** (Production + Preview) ✅ FEITO
   - Supabase URL/keys, Sentry DSN/AUTH_TOKEN, MP, OpenAI, Gemini, ADMIN_EMAILS
 
-- [x] **CNAME preview**: `app2.queroumacor.com.br` → `queroumacor-next.pages.dev` ✅ FEITO (em propagação DNS)
+- [x] **CNAME preview**: `app2.queroumacor.com.br` → `queroumacor-next.pages.dev` ✅ FEITO — **depois REMOVIDO em 2026-09-26** (cutover concluído; este checklist é histórico)
 
 - [x] **Compatibility flag `nodejs_compat`** ✅ FEITO
 

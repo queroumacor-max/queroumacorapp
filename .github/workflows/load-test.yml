@@ -1,13 +1,15 @@
 name: Load Test (manual)
 
 # Manual-only — load test custa egress e pode disparar rate-limit de
-# Supabase/Cloudflare. Não roda automaticamente. Aponta pra preview por
-# default (LOAD_TEST_URL secret se quiser sobrescrever).
+# Supabase/Cloudflare. Não roda automaticamente. SEM alvo padrão: informe
+# `base_url` (ou o secret LOAD_TEST_URL). O padrão antigo era
+# app2.queroumacor.com.br, removido em 2026-09-26; produção NÃO vira padrão
+# de propósito (carga no app real por engano + o WAF bloqueia IP do Actions).
 on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: 'Base URL alvo (override do secret LOAD_TEST_URL)'
+        description: 'Base URL alvo (obrigatório, se o secret LOAD_TEST_URL não existir)'
         required: false
         type: string
 
@@ -28,6 +30,11 @@ jobs:
         uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
 
       - name: Run k6 load test
-        run: k6 run scripts/load-test.js
+        run: |
+          if [ -z "$BASE_URL" ]; then
+            echo "::error::Informe base_url (ou configure o secret LOAD_TEST_URL)."
+            exit 1
+          fi
+          k6 run scripts/load-test.js
         env:
-          BASE_URL: ${{ inputs.base_url || secrets.LOAD_TEST_URL || 'https://app2.queroumacor.com.br' }}
+          BASE_URL: ${{ inputs.base_url || secrets.LOAD_TEST_URL }}
