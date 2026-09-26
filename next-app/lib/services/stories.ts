@@ -31,6 +31,33 @@ export interface StoryRow {
   // S5: link externo do story (CTA "ver mais"). Definido na publicação.
   link_url?: string | null;
   created_at: string;
+  /** Fotos do mesmo post de 24h (Wave 57). O viewer não lê: cada uma vira
+   *  uma tela própria em `expandirFotosDoStory`. */
+  media_urls?: string[] | null;
+  /** Id do post de origem. Igual a `id`, menos nas telas 2..N de um story
+   *  com várias fotos, cujo `id` ganha o sufixo `:<n>` (chave de render). */
+  post_id?: string;
+}
+
+/**
+ * Um post de 24h com várias fotos vira VÁRIAS telas no viewer, uma por foto,
+ * na ordem (2026-09-26, relato do usuário: "deixa adicionar múltiplos e
+ * publicar, mas aparece apenas 1"). O composer sempre gravou todas em
+ * `media_urls`; o viewer só lia `media_url` (a 1ª). Mesmo `created_at` em
+ * todas, então o "visto" (por timestamp) continua valendo igual.
+ */
+export function expandirFotosDoStory(r: StoryRow): StoryRow[] {
+  const extras = (r.media_urls || []).filter(
+    (u): u is string => typeof u === 'string' && u.length > 0,
+  );
+  const urls = Array.from(new Set([r.media_url, ...extras].filter((u): u is string => !!u)));
+  if (urls.length <= 1) return [{ ...r, post_id: r.id }];
+  return urls.map((url, i) => ({
+    ...r,
+    id: i === 0 ? r.id : `${r.id}:${i}`,
+    post_id: r.id,
+    media_url: url,
+  }));
 }
 
 // Profile mínimo pra renderizar avatar+nome no carrossel + viewer.
@@ -88,20 +115,27 @@ export async function fetchStoriesGroupedByUser(
   // Janela de 24h, mesmo padrão do vanilla loadStories (modules/stories.js:38).
   const sinceISO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: storiesData, error: storiesErr } = await sb
-    .from('posts')
-    .select(STORY_COLS)
-    .eq('media_type', 'story')
-    .in('user_id', feedIds)
-    .gte('created_at', sinceISO)
-    .not('media_url', 'is', null)
-    .order('created_at', { ascending: true })
-    .limit(100);
+  const buscar = (cols: string) =>
+    sb
+      .from('posts')
+      .select(cols)
+      .eq('media_type', 'story')
+      .in('user_id', feedIds)
+      .gte('created_at', sinceISO)
+      .not('media_url', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(100);
+
+  let { data: storiesData, error: storiesErr } = await buscar(`${STORY_COLS}, media_urls`);
+  // `media_urls` (Wave 57) ausente → só a 1ª foto, como antes.
+  if (storiesErr && (storiesErr as { code?: string }).code === '42703') {
+    ({ data: storiesData, error: storiesErr } = await buscar(STORY_COLS));
+  }
 
   if (storiesErr) {
     throw new NetworkError(storiesErr.message, storiesErr);
   }
-  const rows = (storiesData ?? []) as unknown as StoryRow[];
+  const rows = ((storiesData ?? []) as unknown as StoryRow[]).flatMap(expandirFotosDoStory);
   // IMPORTANTE: não fazer early-return quando rows=[]. Mesmo sem story na
   // janela de 24h, queremos renderizar bolinhas dos seguidos (com anel cinza)
   // pro user ter quick-link pros perfis. Vanilla faz a mesma coisa

@@ -448,3 +448,34 @@ describe('uploadStory', () => {
     ).rejects.toBeInstanceOf(NetworkError);
   });
 });
+
+import { expandirFotosDoStory } from '../../lib/services/stories';
+
+describe('expandirFotosDoStory (story de 24h com várias fotos)', () => {
+  const base = {
+    id: 's1',
+    user_id: 'u1',
+    media_url: 'https://x/1.jpg',
+    media_type: 'story',
+    created_at: '2026-09-26T20:00:00Z',
+  };
+
+  it('uma foto só → uma tela, post_id = id', () => {
+    expect(expandirFotosDoStory({ ...base })).toEqual([{ ...base, post_id: 's1' }]);
+  });
+
+  it('várias fotos → uma tela por foto, na ordem, com ids únicos', () => {
+    const out = expandirFotosDoStory({
+      ...base,
+      media_urls: ['https://x/1.jpg', 'https://x/2.jpg', 'https://x/3.jpg'],
+    });
+    expect(out.map((s) => s.media_url)).toEqual(['https://x/1.jpg', 'https://x/2.jpg', 'https://x/3.jpg']);
+    expect(out.map((s) => s.id)).toEqual(['s1', 's1:1', 's1:2']);
+    expect(out.every((s) => s.post_id === 's1' && s.created_at === base.created_at)).toBe(true);
+  });
+
+  it('media_urls vazio ou null não duplica a tela', () => {
+    expect(expandirFotosDoStory({ ...base, media_urls: [] })).toHaveLength(1);
+    expect(expandirFotosDoStory({ ...base, media_urls: null })).toHaveLength(1);
+  });
+});
