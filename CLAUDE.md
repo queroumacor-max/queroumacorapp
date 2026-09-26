@@ -1,32 +1,74 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
-- **GESTÃO DE OBRAS: convite de equipe pode não gerar sininho/push —
-  BURACO NA CONFERÊNCIA DA MIGRATION `c` DE 24/09 (2026-09-26, relato do
-  usuário: adicionou a Bia na equipe e "não veio sininho nem push
-  notification").** A conferência de
-  `/migrations/2026-09-24-c-gestao-obras-funcoes.sql` (rodada e confirmada
-  `ok=true` em 2026-09-26, ver entrada "GESTÃO DE OBRAS + GASTOS POR
-  CATEGORIA…" mais abaixo) **nunca checava se `trg_notify_obra_convite`
-  existe** — só checava `trg_protect_obra_equipe`. Ou seja, era possível o
-  aviso do convite (sininho + push, que dependem de uma linha em
-  `notifications` que só esse trigger cria) nunca ter sido criado de
-  verdade, sem ninguém notar, porque a conferência aprovou o arquivo
-  inteiro sem olhar pra essa peça específica.
-  - **Corrigido no repo**: a conferência da migration ganhou a linha
-    `'trigger de aviso do convite'` checando `trg_notify_obra_convite` —
-    pra esse buraco não se repetir em nenhuma auditoria futura desse
-    arquivo.
-  - **Diagnóstico + correção passados ao usuário no chat** (SQL de
-    conferência read-only + o bloco idempotente que recria a função/
-    trigger + backfill dos convites já `'convidado'` sem notificação).
-    **Resultado ainda não confirmado** — depende do usuário rodar o
-    diagnóstico. Se vier `false`, o bloco de correção resolve sem precisar
-    de nova sessão.
-  - **Lição, a mesma de sempre**: conferência de migration que aprova o
-    arquivo sem checar CADA objeto que ele cria (tabela, coluna, índice,
-    trigger, função, policy) pode dar `ok=true` com uma peça inteira
-    faltando. `pg_trigger`/`pg_proc` são baratos de checar — checar todos,
-    não só os "principais".
+- **GESTÃO DE OBRAS: convite de equipe NUNCA notificava quem convida é
+  admin do portal — 2 BUGS REAIS achados por diagnóstico ponta a ponta
+  (2026-09-26, relato do usuário: adicionou a Bia na equipe e "não veio
+  sininho nem push notification"). SQL PASSADO NO CHAT, AINDA NÃO
+  CONFIRMADO RODADO — reconferir antes de assumir corrigido.**
+  - **Bug 1 — `ref_id` texto num campo uuid.** `notify_obra_convite()`
+    (criada em 24/09) fazia `INSERT INTO notifications (..., ref_id)
+    VALUES (..., NEW.id::text)` — `notifications.ref_id` é **uuid** em
+    produção (confirmado por grep: `supabase_init.sql:1015` diz `text`,
+    mas está desatualizado; é o MESMO bug já corrigido uma vez, pra outro
+    trigger, na Wave 14 —
+    `migrations/2026-06-09-fix-notif-trigger-refid.sql`). O `INSERT`
+    estourava `42883` e era engolido pelo próprio
+    `EXCEPTION WHEN OTHERS THEN RAISE WARNING` — convite era criado
+    normal, erro nunca aparecia em lugar nenhum. Corrigido usando `NEW.id`
+    (uuid) sem `::text`.
+  - **Bug 2, o que realmente explica o caso da Bia — `protect_obra_equipe`
+    pula a atribuição de status quando quem convida é admin.** A trigger
+    tinha `IF public.is_portal_admin() OR auth.role()='service_role' THEN
+    RETURN NEW; END IF;` como PRIMEIRA linha, antes de qualquer lógica —
+    inclusive antes de `NEW.status := 'convidado';`. **O convite da Bia
+    nasceu direto `status='ativo'`** (default da tabela) porque quem
+    convidou (Jackson) tem `portal_access=true`. Como
+    `notify_obra_convite` só age quando `NEW.status = 'convidado'`, a
+    notificação nunca foi sequer tentada — não é falha silenciosa do
+    Bug 1, é o convite nunca entrar no fluxo de aceite. **Qualquer conta
+    com `portal_access` que convida alguém pra equipe cai nesse buraco.**
+    Corrigido: o bypass de admin agora só pula as VALIDAÇÕES (e-mail
+    confirmado, bloqueio, teto de 100, rate limit) — `NEW.status :=
+    'convidado'` no INSERT acontece sempre que há `membro_id`, admin ou
+    não. Em UPDATE de status, admin/service_role continua livre (não
+    força transição — pode corrigir dado direto).
+  - **Achado via diagnóstico incremental no SQL Editor** (não presumido):
+    1ª query (JOIN de `obra_equipe` com `profiles` por `membro_id`) voltou
+    zero linhas porque eu tinha buscado por nome ILIKE junto com um JOIN
+    que também restringia — a query mais aberta (toda `obra_equipe` dos
+    últimos 7 dias, sem filtro de nome) revelou 3 linhas de teste
+    (Jackson↔Beatris↔Fabio se convidando), TODAS com `status='ativo'`
+    desde a criação — nunca passaram por `'convidado'`. Só aí ficou claro
+    que o problema não era a notificação em si, era o status nunca virar
+    pendente. Consultar `profiles.portal_access` das contas envolvidas
+    confirmou: Jackson (quem convidou a Bia) é `portal_access=true`.
+  - **Bia = Beatris Porsebon (`@biaporsebon`), `portal_access=false`,
+    `role='pintor'`** — ela é só a convidada; o bug está na conta de quem
+    convida, não na dela.
+  - **Migration `c` de 24/09 NÃO foi alterada pra este bug 2** (só a
+    conferência ganhou a linha do bug de conferência da entrada anterior,
+    que continua válida). O fix do `protect_obra_equipe` foi passado como
+    bloco `CREATE OR REPLACE FUNCTION` avulso no chat — se for rodado,
+    considerar também atualizar o arquivo da migration `c` pra refletir a
+    versão corrigida (evita quem reconstruir o banco do zero herdar o bug
+    de novo).
+  - **NADA CONFIRMADO RODADO ainda** — os 2 blocos de correção (função
+    `notify_obra_convite` + função/trigger `protect_obra_equipe`, cada um
+    com sua própria linha de conferência) foram só colados no chat.
+    Próxima sessão: pedir a conferência de cada um antes de supor que
+    algum dos dois já está valendo.
+  - **Lição, reforçando a de sempre**: um guard de "admin bypassa tudo"
+    escrito como PRIMEIRA linha de uma trigger de múltiplos propósitos
+    (validação + atribuição de estado) pula os dois juntos sem intenção —
+    quem escreveu só queria pular a VALIDAÇÃO. Bypass de admin numa
+    trigger que também seta valor de campo tem que ser aplicado seletivo,
+    nunca como early-return genérico no topo.
+  - **Lição de método**: a 1ª hipótese (bug no `ref_id`) era real mas não
+    era a causa do sintoma relatado — só apareceu como causa completa
+    depois de abrir a query pra "toda a equipe recente sem filtro de
+    nome" em vez de insistir numa busca já filtrada que devolvia zero
+    linhas. Zero linhas numa query direcionada não prova ausência do
+    fenômeno — pode provar que a busca está errada.
 
 - **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
   do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); os 3 SQLs JÁ RODADOS e conferidos.**
