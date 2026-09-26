@@ -19,7 +19,7 @@ const listStyle = {
 export default function AntifraudePage() {
   return (
     <InfoSubPage title="Política Anti-Fraude e Uso Aceitável">
-      <LegalUpd>Última atualização: 17 de junho de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Esta política define condutas proibidas e o uso aceitável do
         QueroUmaCor. O descumprimento pode resultar em medidas que vão do aviso
@@ -50,9 +50,10 @@ export default function AntifraudePage() {
       <LegalP>É proibido:</LegalP>
       <ul style={listStyle}>
         <li>Apresentar orçamentos fraudulentos;</li>
-        <li>Combinar pagamentos fora da plataforma para burlar regras;</li>
+        <li>Cobrar sinal ou pagamento sem a intenção de executar o serviço;</li>
         <li>Formar cartel ou combinar preços com outros profissionais;</li>
-        <li>Abandonar o serviço após o recebimento do pagamento.</li>
+        <li>Abandonar o serviço após receber pagamento combinado com o cliente;</li>
+        <li>Usar o nome da Cali Colors ou do QueroUmaCor para cobrar valores.</li>
       </ul>
 
       <LegalH>4. Segurança</LegalH>
@@ -61,7 +62,12 @@ export default function AntifraudePage() {
         <li>Acessar contas ou sistemas sem autorização;</li>
         <li>Realizar scraping ou coleta automatizada de dados;</li>
         <li>Distribuir malware ou praticar phishing;</li>
-        <li>Praticar roubo de identidade.</li>
+        <li>Praticar roubo de identidade;</li>
+        <li>
+          Tentar burlar a moderação de conteúdo ou os limites de uso dos
+          recursos de IA;
+        </li>
+        <li>Acumular pontos por indicações falsas ou contas criadas para isso.</li>
       </ul>
 
       <LegalH>5. Denúncias</LegalH>
@@ -81,6 +87,7 @@ export default function AntifraudePage() {
         <li>Suspensão temporária da conta;</li>
         <li>Remoção de conteúdo;</li>
         <li>Banimento permanente;</li>
+        <li>Cancelamento dos pontos obtidos de forma irregular;</li>
         <li>Comunicação às autoridades competentes.</li>
       </ul>
     </InfoSubPage>

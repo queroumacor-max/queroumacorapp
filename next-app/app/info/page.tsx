@@ -145,7 +145,7 @@ export default function InfoPage() {
         <DeleteAccountSection />
 
         <p className="text-center text-xs text-[color:var(--color-muted)] pt-4">
-          QueroUmaCor • Versão 1.0
+          QueroUmaCor • Versão 1.2
         </p>
       </div>
     </AppShell>

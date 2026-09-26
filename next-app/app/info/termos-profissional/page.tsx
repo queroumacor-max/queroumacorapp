@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermosProfissionalPage() {
   return (
     <InfoSubPage title="Termos de Uso - Profissional">
-      <LegalUpd>Última atualização: 17 de junho de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Estes Termos complementam os{' '}
         <a
@@ -41,8 +41,9 @@ export default function TermosProfissionalPage() {
 
       <LegalH>3. Garantia</LegalH>
       <LegalP>
-        O profissional oferece garantia mínima de <b>90 dias</b> para defeitos
-        de execução, conforme o Código de Defesa do Consumidor.
+        O profissional responde por defeitos de execução nos termos do Código de
+        Defesa do Consumidor, que dá ao cliente no mínimo <b>90 dias</b> para
+        reclamar de vícios aparentes em serviços duráveis (Art. 26).
       </LegalP>
 
       <LegalH>4. Danos a terceiros</LegalH>
@@ -67,6 +68,24 @@ export default function TermosProfissionalPage() {
       <LegalP>
         É proibido usar dados de contato obtidos por meio da plataforma para
         oferecer serviços fora dela.
+      </LegalP>
+      <LegalH>8. Dados de clientes e da equipe</LegalH>
+      <LegalP>
+        O profissional é responsável pelos dados pessoais que registra nas
+        ferramentas do app — clientes nos orçamentos e na agenda, funcionários
+        (inclusive nome, telefone e diária) e clientes vinculados na Gestão de
+        Obras. Ele declara ter autorização dessas pessoas e deve usar os dados
+        só para organizar o serviço. O cliente vinculado a uma obra vê o
+        status, a agenda e o nome e a função de quem foi escalado; o
+        funcionário vê apenas a própria agenda.
+      </LegalP>
+      <LegalH>9. Orçamentos em PDF</LegalH>
+      <LegalP>
+        Os dados que o profissional coloca no orçamento (nome, CNPJ/CPF,
+        endereço, telefone, e-mail e chave PIX) aparecem no documento enviado
+        ao cliente. Valores de referência e sugestões de preço do app são
+        apenas apoio: o preço final é decisão e responsabilidade do
+        profissional.
       </LegalP>
     </InfoSubPage>
   );

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function TermosClientePage() {
   return (
     <InfoSubPage title="Termos de Uso - Cliente">
-      <LegalUpd>Última atualização: 6 de setembro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Estes Termos complementam os{' '}
         <a
@@ -66,7 +66,11 @@ export default function TermosClientePage() {
 
       <LegalH>6. Uso aceitável</LegalH>
       <LegalP>
-        Não use a plataforma para fins que não sejam a contratação de serviços.
+        Use a plataforma para encontrar, contratar e acompanhar serviços e para
+        interagir com a comunidade, respeitando os Termos de Uso gerais. Se um
+        profissional vincular você a uma obra, você passa a ver o status, a
+        agenda e quem foi escalado nela; peça a ele para remover o vínculo se
+        não quiser mais acompanhar.
       </LegalP>
     </InfoSubPage>
   );

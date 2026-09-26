@@ -19,7 +19,7 @@ const listStyle = {
 export default function DisputasPage() {
   return (
     <InfoSubPage title="Como Resolver Disputas">
-      <LegalUpd>Última atualização: 17 de junho de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
       <LegalP>
         Quando surgir um problema entre cliente e profissional, siga as etapas
         abaixo para buscar a melhor solução.
@@ -49,7 +49,8 @@ export default function DisputasPage() {
       <LegalH>4. O que a mediação NÃO pode fazer</LegalH>
       <ul style={listStyle}>
         <li>
-          Garantir reembolsos de pagamentos feitos diretamente entre as partes;
+          Garantir reembolsos — não há pagamento dentro do app; os pagamentos
+          são feitos diretamente entre as partes;
         </li>
         <li>Obrigar o profissional a refazer o serviço;</li>
         <li>Substituir um processo judicial.</li>
