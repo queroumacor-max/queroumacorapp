@@ -85,8 +85,10 @@
 
 - **LOJA: CHAVE DE IDEMPOTÊNCIA NO PEDIDO (2026-09-26, pedido do usuário,
   pendência que sobrou da auditoria dos 19 pontos).** SQL
-  `/migrations/2026-09-26-orders-idempotency-key.sql` — **PENDENTE de
-  execução no Supabase** (3 linhas, uma por vez + conferência de 3 `ok`).
+  `/migrations/2026-09-26-orders-idempotency-key.sql` — **JÁ EXECUTADO no
+  Supabase (2026-09-26, informado pelo usuário: "rodei o sql"). Não pedir
+  pra rodar de novo.** Conferência confirmada pelo usuário ("tudo feito"):
+  as 3 linhas voltaram `ok=true` (coluna, índice único, check de tamanho).
   Testado em Postgres 16 local rodando 2x: mesma chave do mesmo usuário →
   23505; outro usuário com a mesma chave passa; pedido sem chave (NULL)
   nunca conflita; chave >100 chars recusada.
@@ -113,6 +115,9 @@
     por origem): a 2ª aba só começa depois da 1ª e cai na checagem de pedido
     recente. Sem Web Locks roda direto. Teste
     `__tests__/services/orderIdempotencyLock.test.ts`. Suíte 222/222, 2601.
+  - **CÓDIGO NO AR: PR #417 (squash `973cf69`) + deploy run #754 do
+    `deploy.yml` terminou `success` (2026-09-26).** O SQL foi rodado depois do
+    deploy (ver acima) — a chave passa a valer a partir daí.
 
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
