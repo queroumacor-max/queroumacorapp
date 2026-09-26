@@ -13,7 +13,9 @@
     legítimos. `…-posts-moderation-codex-fixes.sql` (SQL 4, abaixo) também JÁ
     RODADO (2026-09-26, print: 3 conferências `true`) — antes do deploy do
     PR seguinte, sem problema: o código do #435 já pedia reaprovação ao
-    editar legenda. `…-portal-audit-trail.sql`: AINDA NÃO confirmado.**
+    editar legenda. `…-portal-audit-trail.sql` também JÁ RODADO (2026-09-26, print:
+    função + triggers nas 10 tabelas, todas `true`). **Os 4 SQLs de 26/09
+    estão no banco — não pedir pra rodar de novo.**
   - **Correções do Codex (#435 e #437) NO AR: PR #437 (squash `8f87b3d`),
     deploy run #759 do `deploy.yml` terminou `success`.** Falta testar no
     aparelho: foto, carrossel, vídeo, story e editar legenda.
