@@ -52,11 +52,11 @@
     considerar também atualizar o arquivo da migration `c` pra refletir a
     versão corrigida (evita quem reconstruir o banco do zero herdar o bug
     de novo).
-  - **NADA CONFIRMADO RODADO ainda** — os 2 blocos de correção (função
-    `notify_obra_convite` + função/trigger `protect_obra_equipe`, cada um
-    com sua própria linha de conferência) foram só colados no chat.
-    Próxima sessão: pedir a conferência de cada um antes de supor que
-    algum dos dois já está valendo.
+  - **Bug 2 (`protect_obra_equipe`) CONFIRMADO CORRIGIDO em produção
+    (2026-09-26)**: conferência voltou `protect_obra_equipe força
+    convidado mesmo com bypass de admin = true`. **Não pedir pra rodar de
+    novo.** Bug 1 (`ref_id` em `notify_obra_convite`) — confirmar na
+    próxima sessão se também já rodou antes de presumir.
   - **Lição, reforçando a de sempre**: um guard de "admin bypassa tudo"
     escrito como PRIMEIRA linha de uma trigger de múltiplos propósitos
     (validação + atribuição de estado) pula os dois juntos sem intenção —
