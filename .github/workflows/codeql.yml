@@ -51,6 +51,12 @@ jobs:
           # da raiz. Os diretórios nativos (android/, ios/) e node_modules
           # não são JS/TS analisável relevante aqui.
           source-root: .
+          # __tests__/** fora do escopo (ver .github/codeql/codeql-config.yml):
+          # não roda em produção, e o padrão `new Function` deliberado em
+          # 11 arquivos de teste (extrai e roda a função REAL do portal
+          # vanilla, sem bundler) gera falso positivo recorrente de
+          # code-injection que bloqueia PR sem achado real.
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
