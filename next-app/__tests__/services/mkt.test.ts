@@ -35,6 +35,7 @@ import {
   ValidationError,
   AuthorizationError,
 } from '../../lib/errors';
+import { __resetChaveDoPedidoForTests } from '../../lib/services/orderIdempotency';
 
 // ─── fake supabase chainable ───────────────────────────────────────────────
 
@@ -569,6 +570,84 @@ describe('submitOrder', () => {
     const out = await submitOrder('u1', items);
     expect(out).toEqual({ orderId: 'order-ja-existente', total: 20 });
     expect(spies.insert).not.toHaveBeenCalled();
+  });
+
+  it('manda idempotency_key no insert; repetir o mesmo carrinho repete a chave', async () => {
+    __resetChaveDoPedidoForTests();
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    // 1ª tentativa: resposta perdida (erro de rede) — a chave NÃO é esquecida.
+    const f1 = makeFakeClient([{ data: [] }, { data: null, error: { message: 'Failed to fetch' } }]);
+    __setSupabaseForTests(f1.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(submitOrder('u1', items)).rejects.toBeInstanceOf(NetworkError);
+    const k1 = (f1.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    expect(k1).toMatch(/.{8,}/);
+    // 2ª tentativa: o banco já tem a chave (23505) → devolve o pedido existente.
+    const f2 = makeFakeClient([
+      { data: [] },
+      { data: null, error: { code: '23505', message: 'duplicate key value' } },
+      { data: { id: 'order-da-1a' } },
+    ]);
+    __setSupabaseForTests(f2.client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await submitOrder('u1', items);
+    expect(out).toEqual({ orderId: 'order-da-1a', total: 10 });
+    const k2 = (f2.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    expect(k2).toBe(k1);
+    expect(f2.spies.eq).toHaveBeenCalledWith('idempotency_key', k1);
+    expect(f2.spies.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('pedido confirmado → a chave é esquecida (pedir de novo depois é outro pedido)', async () => {
+    __resetChaveDoPedidoForTests();
+    const items: CartItem[] = [{ id: 'a', name: 'A', price: 10, qty: 1 }];
+    const f1 = makeFakeClient([{ data: [] }, { data: { id: 'o1' } }]);
+    __setSupabaseForTests(f1.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await submitOrder('u1', items);
+    const f2 = makeFakeClient([{ data: [] }, { data: { id: 'o2' } }]);
+    __setSupabaseForTests(f2.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await submitOrder('u1', items);
+    const k1 = (f1.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    const k2 = (f2.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    expect(k2).not.toBe(k1);
+  });
+
+  it('carrinho diferente → chave diferente', async () => {
+    __resetChaveDoPedidoForTests();
+    const f1 = makeFakeClient([{ data: [] }, { data: null, error: { message: 'Failed to fetch' } }]);
+    __setSupabaseForTests(f1.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(submitOrder('u1', [{ id: 'a', name: 'A', price: 10, qty: 1 }])).rejects.toThrow();
+    const f2 = makeFakeClient([{ data: [] }, { data: { id: 'o2' } }]);
+    __setSupabaseForTests(f2.client as Parameters<typeof __setSupabaseForTests>[0]);
+    await submitOrder('u1', [{ id: 'a', name: 'A', price: 10, qty: 2 }]);
+    const k1 = (f1.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    const k2 = (f2.spies.insert.mock.calls[0][0] as { idempotency_key: string }).idempotency_key;
+    expect(k2).not.toBe(k1);
+  });
+
+  it('coluna idempotency_key ainda não existe (SQL pendente) → grava sem ela', async () => {
+    __resetChaveDoPedidoForTests();
+    const { client, spies } = makeFakeClient([
+      { data: [] },
+      { data: null, error: { code: 'PGRST204', message: "Could not find the 'idempotency_key' column of 'orders'" } },
+      { data: { id: 'o-sem-chave' } },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    const out = await submitOrder('u1', [{ id: 'a', name: 'A', price: 10, qty: 1 }]);
+    expect(out.orderId).toBe('o-sem-chave');
+    expect(spies.insert).toHaveBeenCalledTimes(2);
+    expect(spies.insert.mock.calls[1][0]).not.toHaveProperty('idempotency_key');
+  });
+
+  it('23505 sem achar o pedido existente → NetworkError (não inventa sucesso)', async () => {
+    __resetChaveDoPedidoForTests();
+    const { client } = makeFakeClient([
+      { data: [] },
+      { data: null, error: { code: '23505', message: 'duplicate key value' } },
+      { data: null },
+    ]);
+    __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
+    await expect(
+      submitOrder('u1', [{ id: 'a', name: 'A', price: 10, qty: 1 }])
+    ).rejects.toBeInstanceOf(NetworkError);
   });
 
   it('error supabase → NetworkError', async () => {

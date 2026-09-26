@@ -24,6 +24,11 @@ import {
   ValidationError,
   AuthorizationError,
 } from '@/lib/errors';
+import {
+  chaveDoPedido,
+  comTravaEntreAbas,
+  esquecerChaveDoPedido,
+} from '@/lib/services/orderIdempotency';
 
 // ─── tipos inline ──────────────────────────────────────────────────────────
 
@@ -1084,6 +1089,17 @@ export async function saveCart(userId: string, items: CartItem[]): Promise<void>
 // Assinatura estável de um carrinho pra comparar pedidos (dedupe). Ordena
 // por id pra ser invariante à ordem dos itens; inclui qty pra distinguir
 // quantidades. Usada por submitOrder pra detectar pedido pending idêntico.
+// 42703 = coluna inexistente. PostgREST pode também responder PGRST204
+// ("column not found in schema cache") quando o cache ainda não viu a coluna.
+function isColunaIdemAusente(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === '42703' || e.code === 'PGRST204') {
+    return !e.message || e.message.includes('idempotency_key');
+  }
+  return false;
+}
+
 function cartSignature(items: CartItem[]): string {
   return items
     .map((it) => `${it.id}x${Number(it.qty) || 1}`)
@@ -1098,7 +1114,18 @@ export async function submitOrder(
 ): Promise<OrderSubmitResult> {
   if (!userId) throw new AuthorizationError('Faça login para finalizar a compra.');
   if (!items.length) throw new ValidationError('Carrinho vazio.');
+  // Serializa o envio entre abas: sem isso, duas abas com o mesmo carrinho
+  // passam juntas pela checagem de pedido recente e geram chaves diferentes.
+  return comTravaEntreAbas(`order-submit:${userId}`, () =>
+    submitOrderSemTrava(userId, items, address)
+  );
+}
 
+async function submitOrderSemTrava(
+  userId: string,
+  items: CartItem[],
+  address?: string | null
+): Promise<OrderSubmitResult> {
   const total = items.reduce(
     (sum, item) => sum + Number(item.price || 0) * (item.qty || 1),
     0
@@ -1131,20 +1158,47 @@ export async function submitOrder(
     }
   }
 
+  // Chave de idempotência (ver lib/services/orderIdempotency.ts): repetir o
+  // envio do MESMO carrinho manda a mesma chave, e o índice único
+  // (user_id, idempotency_key) recusa o segundo INSERT com 23505 — aí
+  // devolvemos o pedido que já existe em vez de criar outro.
+  const idemKey = chaveDoPedido(userId, sig);
+
   // Insere sem delivery_address pra não quebrar se a coluna ainda não existe
   // no banco (migration pendente). Tenta UPDATE logo depois com o endereço.
-  const row = {
+  const baseRow = {
     user_id: userId,
     items: items as unknown as Json,
     total,
     status: 'pending',
     created_at: new Date().toISOString(),
   };
-  const { data, error } = await sb
-    .from('orders')
-    .insert(row as never)
-    .select('id')
-    .single();
+  const inserir = (row: Record<string, unknown>) =>
+    sb.from('orders').insert(row as never).select('id').single();
+
+  let { data, error } = await inserir({ ...baseRow, idempotency_key: idemKey });
+
+  // Coluna ainda não criada (SQL pendente): grava sem a chave. O pedido não
+  // pode deixar de sair por causa de migration atrasada.
+  if (error && isColunaIdemAusente(error)) {
+    ({ data, error } = await inserir(baseRow));
+  }
+
+  // Mesma chave já gravada = esta é uma repetição de um envio que DEU CERTO.
+  if (error && (error as { code?: string }).code === '23505') {
+    const { data: existente } = await sb
+      .from('orders')
+      .select('id')
+      .eq('user_id', userId)
+      // Coluna nova, ainda fora do database.types gerado.
+      .eq('idempotency_key' as never, idemKey as never)
+      .maybeSingle();
+    const existenteId = (existente as { id?: string } | null)?.id;
+    if (existenteId) {
+      esquecerChaveDoPedido(userId, sig);
+      return { orderId: existenteId, total };
+    }
+  }
 
   if (error) {
     throw new NetworkError(error.message, error);
@@ -1153,6 +1207,7 @@ export async function submitOrder(
   if (!orderId) {
     throw new NetworkError('Pedido criado sem ID (Supabase retornou vazio).');
   }
+  esquecerChaveDoPedido(userId, sig);
 
   // Tenta gravar o endereço — ignora silenciosamente se a coluna ainda não
   // existe no banco (migration 2026-06-20-orders-delivery-address.sql pendente).

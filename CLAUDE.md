@@ -46,8 +46,8 @@
     (`NEXT_PUBLIC_SUPABASE_URL`) + `/storage/v1/object/` (qualquer
     `*.supabase.co` deixava Edge Function de outro projeto rastrear IP), e
     `mascararTelefones` pega telefone formatado no log do Dualhook.
-    **Não feito:** chave de idempotência do pedido da loja no servidor;
-    CSP com script-src no portal. **TESTADO EM PRODUÇÃO PELO USUÁRIO
+    **Não feito:** CSP com script-src no portal. (A chave de idempotência
+    do pedido da loja foi feita depois — ver entrada logo abaixo.) **TESTADO EM PRODUÇÃO PELO USUÁRIO
     (2026-09-26, depois do deploy #753: "testado") — nenhuma falha
     relatada.** **Confirmado pelo usuário: portal e tela de AR OK**
     (os dois pontos de maior risco — CSP do jsdelivr restrito e
@@ -82,6 +82,37 @@
     nomes de env e mecanismo de admin; imagem de terceiro no chat vaza IP.
   - **CSRF limpo no resto:** nenhuma rota de API autentica por cookie,
     sem Server Actions, CORS restrito — imune por arquitetura.
+
+- **LOJA: CHAVE DE IDEMPOTÊNCIA NO PEDIDO (2026-09-26, pedido do usuário,
+  pendência que sobrou da auditoria dos 19 pontos).** SQL
+  `/migrations/2026-09-26-orders-idempotency-key.sql` — **PENDENTE de
+  execução no Supabase** (3 linhas, uma por vez + conferência de 3 `ok`).
+  Testado em Postgres 16 local rodando 2x: mesma chave do mesmo usuário →
+  23505; outro usuário com a mesma chave passa; pedido sem chave (NULL)
+  nunca conflita; chave >100 chars recusada.
+  - **O buraco que fecha:** a trava da tela (`useSingleFlight`) só cobre o
+    toque repetido, e a checagem por assinatura do carrinho em
+    `submitOrder` é ler-e-gravar (duas tentativas quase juntas passam as
+    duas). O caso real: o pedido É gravado, a resposta se perde na rede, a
+    tela mostra erro e a pessoa toca de novo → segundo pedido.
+  - `lib/services/orderIdempotency.ts`: chave por (usuário, assinatura do
+    carrinho), guardada no localStorage (sobrevive a recarregar a página;
+    cai pra memória se o storage falhar), vale 1h e é ESQUECIDA quando o
+    pedido é confirmado — pedir de novo depois é intencional.
+  - `submitOrder` manda `idempotency_key` no INSERT; 23505 → busca o
+    pedido pela chave e devolve ele (sem achar → erro, nunca sucesso
+    inventado). Coluna ausente (42703/PGRST204) → refaz o INSERT sem a
+    chave: o pedido não deixa de sair por SQL pendente. A checagem antiga
+    por assinatura continua como primeira camada.
+  - Testes novos em `__tests__/services/mkt.test.ts` (5). Suíte 221/221
+    arquivos, 2599 testes, `tsc` e eslint verdes.
+  - **Achado do Codex no PR #417 (P2), corrigido antes do merge:** duas
+    ABAS com o mesmo carrinho liam o storage antes de qualquer uma gravar,
+    geravam chaves diferentes e as duas passavam. `submitOrder` agora roda
+    sob `comTravaEntreAbas('order-submit:<uid>')` (Web Locks API, exclusiva
+    por origem): a 2ª aba só começa depois da 1ª e cai na checagem de pedido
+    recente. Sem Web Locks roda direto. Teste
+    `__tests__/services/orderIdempotencyLock.test.ts`. Suíte 222/222, 2601.
 
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
