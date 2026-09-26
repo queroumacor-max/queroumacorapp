@@ -10,8 +10,10 @@
     publicados nessa janela podem ter ficado presos: conferir com
     `select id, user_id, created_at from posts where status='pending' and
     deleted_at is null order by created_at desc;` e aprovar à mão os
-    legítimos. `…-portal-audit-trail.sql` e o SQL 4 abaixo: AINDA NÃO
-    confirmados.**
+    legítimos. `…-posts-moderation-codex-fixes.sql` (SQL 4, abaixo) também JÁ
+    RODADO (2026-09-26, print: 3 conferências `true`) — antes do deploy do
+    PR seguinte, sem problema: o código do #435 já pedia reaprovação ao
+    editar legenda. `…-portal-audit-trail.sql`: AINDA NÃO confirmado.**
   - **Achados do Codex no #435 (4× P1), corrigidos no PR seguinte, com SQL
     `migrations/2026-09-26-posts-moderation-codex-fixes.sql` (roda DEPOIS
     do primeiro; o código tem ponte se ele faltar):** (a) editar
