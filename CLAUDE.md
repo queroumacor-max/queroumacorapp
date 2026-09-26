@@ -99,7 +99,10 @@
       e `<script>` inline injetado é BLOQUEADO (controle negativo). Não
       testado: telas logadas e o Loader do Sentry de verdade. **NO AR:
       deploy run #755 do `deploy.yml` (commit `acab3a8`, a pedido do
-      usuário) terminou `success`.** Um PR paralelo com a mesma CSP + mais
+      usuário) terminou `success`.** **CONFIRMADO PELO USUÁRIO EM PRODUÇÃO
+      (2026-09-26): portal logado OK e "Importar planilha" com .xlsx
+      funcionou** (o único script carregado depois do boot). Caso fechado.
+      Um PR paralelo com a mesma CSP + mais
       diretivas (connect/img/media, #421) foi FECHADO como duplicado — as
       diretivas extras ficaram de fora por não terem sido validadas nas
       telas logadas. Suíte completa (222/222 arquivos), `tsc --noEmit` e
