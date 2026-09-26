@@ -173,10 +173,14 @@ export async function salvarObra(uid: string, input: ObraInput, id?: string): Pr
     ? await db().from('obras').update(linha).eq('id', id).eq('owner_id', uid).select(OBRA_COLS)
     : await db().from('obras').insert({ ...linha, owner_id: uid }).select(OBRA_COLS);
   if (r1.error && colunaAusente(r1.error.code)) {
-    // já gravou (o erro é só no SELECT de retorno) — refaz sem client_id.
+    // O PostgREST faz o INSERT/UPDATE e o SELECT de retorno num comando só:
+    // 42703 aqui quer dizer que NADA foi gravado (a transação voltou). Refaz a
+    // escrita inteira pedindo de volta só as colunas base (sem client_id).
+    // Antes o código supunha "já gravou" e buscava a última obra — sem obra
+    // nenhuma, mostrava "não encontrada"; com obra antiga, devolvia a errada.
     const r2 = id
-      ? await db().from('obras').select(OBRA_COLS_BASE).eq('id', id).eq('owner_id', uid)
-      : await db().from('obras').select(OBRA_COLS_BASE).eq('owner_id', uid).order('created_at', { ascending: false }).limit(1);
+      ? await db().from('obras').update(linha).eq('id', id).eq('owner_id', uid).select(OBRA_COLS_BASE)
+      : await db().from('obras').insert({ ...linha, owner_id: uid }).select(OBRA_COLS_BASE);
     if (r2.error) falha(r2.error);
     const row2 = (r2.data ?? []).map((o) => ({ ...o, client_id: null }))[0];
     if (!row2) throw new NetworkError('Obra não encontrada ou sem permissão.');
