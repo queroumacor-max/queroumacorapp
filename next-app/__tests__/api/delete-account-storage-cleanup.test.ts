@@ -74,7 +74,11 @@ describe('POST /api/delete-account — limpeza de Storage', () => {
 
     const listCalls = calls.filter((c) => c.url.includes('/storage/v1/object/list/'));
     const listedBuckets = listCalls.map((c) => c.url.split('/storage/v1/object/list/')[1]);
-    expect(listedBuckets.sort()).toEqual(['art-refs', 'avatars', 'posts'].sort());
+    // 4 listagens: os 3 buckets na pasta `<uid>/` + as cópias aprovadas dos
+    // posts em `posts/approved/<uid>/` (2026-09-26, post-approval.ts).
+    expect(listedBuckets.sort()).toEqual(['art-refs', 'avatars', 'posts', 'posts'].sort());
+    const prefixos = listCalls.map((c) => JSON.parse(c.body!).prefix);
+    expect(prefixos).toContain('approved/user-1/');
 
     const removeCall = calls.find((c) => c.url.includes('/storage/v1/object/remove/avatars'));
     expect(removeCall).toBeDefined();

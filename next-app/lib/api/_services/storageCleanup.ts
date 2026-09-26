@@ -19,17 +19,18 @@ async function deleteUserStorageFolder(
   userId: string,
   supaUrl: string,
   headers: HeadersInit,
+  pasta: string = `${userId}/`,
 ): Promise<void> {
   try {
     const listRes = await fetch(`${supaUrl}/storage/v1/object/list/${bucket}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ prefix: `${userId}/`, limit: 1000 }),
+      body: JSON.stringify({ prefix: pasta, limit: 1000 }),
     });
     if (!listRes.ok) return;
     const items = (await listRes.json().catch(() => [])) as Array<{ name?: string }>;
     const paths = (Array.isArray(items) ? items : [])
-      .map((it) => (typeof it.name === 'string' ? `${userId}/${it.name}` : null))
+      .map((it) => (typeof it.name === 'string' ? `${pasta}${it.name}` : null))
       .filter((p): p is string => !!p);
     if (paths.length === 0) return;
     await fetch(`${supaUrl}/storage/v1/object/remove/${bucket}`, {
@@ -54,7 +55,11 @@ export async function cleanupUserStorage(
     'Content-Type': 'application/json',
     Prefer: 'return=minimal',
   };
-  await Promise.all(
-    BUCKETS.map((bucket) => deleteUserStorageFolder(bucket, userId, supaUrl, headers)),
-  );
+  await Promise.all([
+    ...BUCKETS.map((bucket) => deleteUserStorageFolder(bucket, userId, supaUrl, headers)),
+    // Cópias APROVADAS dos posts (2026-09-26, lib/api/_services/post-approval.ts):
+    // ficam fora da pasta do usuário de propósito (só o servidor escreve lá),
+    // então a exclusão de conta precisa apagá-las explicitamente.
+    deleteUserStorageFolder('posts', userId, supaUrl, headers, `approved/${userId}/`),
+  ]);
 }
