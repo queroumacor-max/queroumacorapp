@@ -125,11 +125,11 @@ function paginaVisualizadora(): Response {
   }
   try {
     if (!window.pdfjsLib) return falhou();
-    // Worker via blob: o CSP desta página só libera worker blob:.
-    try {
-      var wsrc = await fetch(${JSON.stringify(PDFJS_WORKER)}).then(function(r){ return r.text(); });
-      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([wsrc], { type: 'text/javascript' }));
-    } catch (e) { /* pdf.js cai pro modo sem worker sozinho */ }
+    // Worker direto do CDN (CSP libera cdn.jsdelivr.net em worker-src) —
+    // antes baixava o worker como TEXTO só pra reembrulhar em blob: um
+    // round-trip a mais, sequencial, antes de sequer começar a buscar o
+    // PDF. Era a maior fatia do "Carregando orçamento…" demorado.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = ${JSON.stringify(PDFJS_WORKER)};
     var url = location.pathname + '?raw=1';
     var pdf = await pdfjsLib.getDocument(url).promise;
     var cont = document.getElementById('paginas');
@@ -157,7 +157,7 @@ function paginaVisualizadora(): Response {
       'Content-Security-Policy':
         `default-src 'none'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; ` +
         "style-src 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; " +
-        "img-src 'self' data: blob:; worker-src blob:; base-uri 'none'; form-action 'none'",
+        "img-src 'self' data: blob:; worker-src https://cdn.jsdelivr.net blob:; base-uri 'none'; form-action 'none'",
       'X-Content-Type-Options': 'nosniff',
     },
   });

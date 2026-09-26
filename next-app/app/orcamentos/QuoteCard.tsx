@@ -80,6 +80,11 @@ export function QuoteCard({
     quote.client_name || quote.client?.name || 'Cliente';
   const priceLabel = formatPrice(quote.price);
   const dateLabel = formatDate(quote.created_at);
+  // Número do orçamento ("12/2026") vive dentro de quote_data — não é
+  // coluna própria (ver orcamentoDocumento.ts). Sem ele (orçamento antigo,
+  // criado antes do numerador), o card não mostra nada — inventar um
+  // número aqui divergiria do que o PDF mostra.
+  const numeroLabel = (quote.quote_data as { numero?: string } | null)?.numero || null;
   // Frozen = escopo congelado pós-aprovação. Mostra cadeado + método.
   const frozen =
     status === 'aprovado' ||
@@ -99,8 +104,13 @@ export function QuoteCard({
             href={`/orcamentos/${quote.id}`}
             className="block hover:opacity-80 transition-opacity"
           >
-            <div className="text-sm font-bold text-[color:var(--color-ink)] truncate">
-              {cli}
+            <div className="text-sm font-bold text-[color:var(--color-ink)] truncate flex items-center gap-1.5">
+              <span className="truncate">{cli}</span>
+              {numeroLabel ? (
+                <span className="shrink-0 text-[10px] font-bold text-[color:var(--color-muted)]">
+                  nº {numeroLabel}
+                </span>
+              ) : null}
             </div>
             <div className="text-xs text-[color:var(--color-muted)] truncate">
               {quote.service_type || quote.title || 'Orçamento'}
