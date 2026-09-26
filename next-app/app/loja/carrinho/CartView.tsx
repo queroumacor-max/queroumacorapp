@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -57,13 +57,23 @@ export function CartView() {
     return parts.length ? parts.join(', ') : null;
   }
 
+  // Trava de clique duplo: o `isCheckingOut` só desabilita o botão num render
+  // POSTERIOR ao toque, e um 2º toque rápido criava DOIS pedidos (a checagem
+  // de duplicata em `submitOrder` é ler-e-inserir, não atômica). A ref é
+  // conferida de forma síncrona. No sucesso ela NÃO solta: a tela vai sair
+  // pro pedido confirmado, e reenviar a lista nesse intervalo duplicaria.
+  const enviandoRef = useRef(false);
+
   async function handleSendList() {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setCheckoutMsg(null);
     try {
       const result = await checkout(buildAddress() ?? undefined);
       await clearCart().catch(() => {});
       router.push(`/loja/pedido-confirmado/${result.orderId}`);
     } catch (err) {
+      enviandoRef.current = false;
       setCheckoutMsg(
         (err as Error).message || 'Não foi possível enviar a lista. Tente de novo.'
       );

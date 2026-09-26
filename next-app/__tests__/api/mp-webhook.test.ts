@@ -395,7 +395,7 @@ describe('POST /api/mp-webhook — timingSafeEqualHex', () => {
 });
 
 describe('POST /api/mp-webhook — config / env', () => {
-  it('returns 200 with "config ausente" when MP_ACCESS_TOKEN missing', async () => {
+  it('returns 200 genérico (sem citar config) when MP_ACCESS_TOKEN missing', async () => {
     delete process.env.MP_ACCESS_TOKEN;
     const { POST } = await import('@/app/api/mp-webhook/route');
     const req = await mkSignedReq({
@@ -404,10 +404,11 @@ describe('POST /api/mp-webhook — config / env', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.msg).toMatch(/config/);
+    expect(body.msg).toBe('ignored');
+    expect(JSON.stringify(body)).not.toMatch(/config|MP_ACCESS|SERVICE/i);
   });
 
-  it('returns 200 with "config ausente" when service role key missing', async () => {
+  it('returns 200 genérico (sem citar config) when service role key missing', async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE;
     delete process.env.SUPABASE_SERVICE_KEY;
@@ -418,7 +419,8 @@ describe('POST /api/mp-webhook — config / env', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.msg).toMatch(/config/);
+    expect(body.msg).toBe('ignored');
+    expect(JSON.stringify(body)).not.toMatch(/config|MP_ACCESS|SERVICE/i);
   });
 });
 

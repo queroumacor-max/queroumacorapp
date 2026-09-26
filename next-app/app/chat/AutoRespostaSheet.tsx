@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 import { BottomSheet } from '@/components/BottomSheet';
 import { showToast } from '@/lib/toast';
 
@@ -130,7 +131,7 @@ export function AutoRespostaSheet({ open, onClose }: AutoRespostaSheetProps) {
       const { error } = await sb
         .from('auto_responses')
         .upsert(rows, { onConflict: 'user_id,trigger_type' });
-      if (error) throw new Error(error.message);
+      if (error) throw new NetworkError(error.message, error);
       showToast('Respostas automáticas salvas!', 'success');
       onClose();
     } catch (e) {

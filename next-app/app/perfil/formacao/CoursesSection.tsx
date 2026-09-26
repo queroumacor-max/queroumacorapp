@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCourses } from '@/lib/hooks/useCourses';
 import type { Course } from '@/lib/services/formacao';
+import { safeHttpUrl } from '@/lib/utils/safeUrl';
 
 function SkeletonRow() {
   return (
@@ -37,9 +38,11 @@ function CourseRow({
   // o título vira um link externo abrindo em nova aba — UX consistente com
   // o que o vanilla faz no perfil público (modules/perfil.js renderiza com
   // <a href=link>).
-  const titleNode = c.link ? (
+  // safeHttpUrl: `link` é gravável via REST — javascript: viraria XSS no clique.
+  const courseHref = safeHttpUrl(c.link);
+  const titleNode = courseHref ? (
     <a
-      href={c.link}
+      href={courseHref}
       target="_blank"
       rel="noopener noreferrer"
       className="block font-semibold text-sm truncate hover:underline"

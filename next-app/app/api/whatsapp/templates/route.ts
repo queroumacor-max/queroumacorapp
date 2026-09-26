@@ -68,8 +68,10 @@ export async function GET(request: NextRequest) {
 
   const apiKey = getRuntimeEnv('DUALHOOK_API_KEY');
   if (!apiKey) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[whatsapp/templates] config ausente: envio de WhatsApp não configurado (DUALHOOK_API_KEY ausente)');
     return jsonResponse(
-      { error: 'envio de WhatsApp não configurado (DUALHOOK_API_KEY ausente)' },
+      { error: 'Serviço indisponível no momento.' },
       503
     );
   }

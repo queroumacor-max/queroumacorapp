@@ -89,13 +89,17 @@ describe('searchAll', () => {
     expect(calls[0]?.args).toEqual({ p_query: 'pintura', p_limit: 20 });
   });
 
-  it('error do rpc → joga Error com a message do supabase', async () => {
+  it('error do rpc → joga erro amigável; a message crua fica em raw/cause', async () => {
     const { client } = makeFakeClient({
       data: null,
       error: { message: 'function search_all does not exist' },
     });
     __setSupabaseForTests(client as Parameters<typeof __setSupabaseForTests>[0]);
-    await expect(searchAll('xyz')).rejects.toThrow('function search_all does not exist');
+    const err = await searchAll('xyz').catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).not.toContain('search_all');
+    expect(err.raw).toBe('function search_all does not exist');
+    expect((err.cause as { message: string }).message).toBe('function search_all does not exist');
   });
 
   it('data null com error null → resolve [] (degradação graciosa)', async () => {

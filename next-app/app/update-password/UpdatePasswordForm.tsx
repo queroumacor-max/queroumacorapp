@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { strongPasswordSchema } from '@/lib/schemas';
 import { getSupabase } from '@/lib/supabase';
+import { safeErrorMessage } from '@/lib/errors-friendly';
 
 const schema = z
   .object({
@@ -72,7 +73,7 @@ export function UpdatePasswordForm() {
       const sb = getSupabase();
       const { error } = await sb.auth.updateUser({ password: data.password });
       if (error) {
-        setServerError(error.message);
+        setServerError(safeErrorMessage(error));
         return;
       }
       setDone(true);

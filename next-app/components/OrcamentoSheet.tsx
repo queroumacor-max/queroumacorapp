@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BottomSheet } from '@/components/BottomSheet';
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { buildDirectConvId } from '@/lib/services/chat-types';
@@ -111,7 +112,7 @@ export function OrcamentoSheet({ open, onClose, painterId, painterName, postId }
         p_images: [],
         p_lead_type: 'exclusive',
       });
-      if (rpcErr) throw new Error(rpcErr.message);
+      if (rpcErr) throw new NetworkError(rpcErr.message, rpcErr);
 
       // 2) Notificação pro pintor (cast minimal — schema tem RLS via auth.uid)
       const meuNome =

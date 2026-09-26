@@ -37,10 +37,9 @@ export async function createProCheckout(args: {
   const { accessToken } = args;
 
   if (!getRuntimeEnv('MP_ACCESS_TOKEN')) {
-    throw new ServiceError(
-      'MP_ACCESS_TOKEN não configurada no projeto Cloudflare Pages',
-      503
-    );
+    // Nome da env só no log (auditoria 2026-09-26, L3).
+    console.warn('[checkout] MP_ACCESS_TOKEN ausente');
+    throw new ServiceError('Serviço indisponível no momento.', 503);
   }
   if (!accessToken) throw new ServiceError('accessToken obrigatório — faça login', 401);
 

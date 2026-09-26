@@ -5,7 +5,7 @@
 // O backend incrementa material_cost via incrementCost() em financeiro.ts;
 // não cria job novo, só soma ao projeto que veio do orçamento (ou criado à mão).
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BottomSheet } from '@/components/BottomSheet';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
@@ -50,6 +50,14 @@ export function LaunchCostSheet({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrResult, setOcrResult] = useState<ReceiptResult | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // Trava de clique duplo: um 2º toque em "Lançar" antes do sheet fechar
+  // chamava onConfirm de novo (custo lançado em dobro). Rearma a cada
+  // abertura do sheet / troca de lançamento.
+  const confirmadoRef = useRef(false);
+  const entryId = entry?.id;
+  useEffect(() => {
+    if (open) confirmadoRef.current = false;
+  }, [open, entryId]);
 
   if (!open || !entry) return null;
 
@@ -83,11 +91,13 @@ export function LaunchCostSheet({
   }
 
   function handleConfirm() {
+    if (confirmadoRef.current) return;
     const delta = parseBRL(value);
     if (!Number.isFinite(delta) || delta <= 0) {
       showToast('Informe um valor válido', 'error');
       return;
     }
+    confirmadoRef.current = true;
     onConfirm(delta);
     // Reset local
     setValue('');

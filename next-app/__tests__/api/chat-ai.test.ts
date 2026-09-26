@@ -41,7 +41,8 @@ describe('POST /api/chat-ai', () => {
     const res = await POST(mkJsonReq('/api/chat-ai', { message: 'oi' }) as never);
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toMatch(/IA não configurada/);
+    expect(body.error).toBe('Serviço indisponível no momento.');
+    expect(JSON.stringify(body)).not.toMatch(/_API_KEY/);
   });
 
   it('returns 403 when user is not PRO', async () => {

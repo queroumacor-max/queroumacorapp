@@ -10,6 +10,7 @@
 // claro no chamador (signup form passa o id retornado do signUp).
 
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 
 export type ConsentType = 'terms' | 'privacy' | 'marketing' | 'cookies' | 'data_processing';
 
@@ -34,7 +35,7 @@ export async function recordConsent(opts: RecordConsentOptions): Promise<void> {
     consent_version: opts.version || 'v1',
     consent_given: opts.consentGiven,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
 }
 
 /**
@@ -49,7 +50,7 @@ export async function revokeConsent(userId: string, consentType: ConsentType): P
     .eq('user_id', userId)
     .eq('consent_type', consentType)
     .is('revoked_at', null);
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
 }
 
 /**
@@ -64,6 +65,6 @@ export async function getActiveConsents(userId: string) {
     .select('consent_type, consent_version, granted_at')
     .eq('user_id', userId)
     .is('revoked_at', null);
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
   return data ?? [];
 }

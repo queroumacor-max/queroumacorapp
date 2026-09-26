@@ -8,7 +8,13 @@
 //
 // Segurança:
 //   - Valida JWT via Supabase Auth REST antes de gravar (não confia no body).
-//   - Cookie httpOnly + Secure + SameSite=Lax + Path=/.
+//   - Cookie httpOnly + Secure + SameSite=Strict + Path=/ (as páginas
+//     /admin/* que leem o cookie são same-site; Strict não custa nada).
+//   - Anti login-CSRF (auditoria 2026-09-26): só aceita Content-Type
+//     application/json (form cross-site só manda text/plain/urlencoded/
+//     multipart sem preflight → 415) e, com header Origin presente, só a
+//     origem do próprio app (→ 403). Sem isso, um site terceiro postava um
+//     token DO ATACANTE e o navegador da vítima gravava a sessão dele.
 //   - max-age 1h (session token Supabase costuma viver isso; client renova).
 //   - DELETE limpa o cookie (chamado pelo AuthProvider em signOut).
 
@@ -60,7 +66,31 @@ async function validateToken(token: string): Promise<boolean> {
   }
 }
 
+const ALLOWED_ORIGINS = new Set([
+  'https://queroumacor.com.br',
+  'https://www.queroumacor.com.br',
+]);
+
+/** Origem permitida: produção OU a própria origem da request (preview/dev).
+ * NÃO exportar: route.ts do Next só aceita exports fechados (quebra o build). */
+function isAllowedOrigin(origin: string, requestUrl: string): boolean {
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    return new URL(requestUrl).origin === origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const contentType = (request.headers.get('content-type') ?? '').toLowerCase();
+  if (!contentType.startsWith('application/json')) {
+    return NextResponse.json({ error: 'Unsupported Media Type' }, { status: 415 });
+  }
+  const origin = request.headers.get('origin');
+  if (origin && !isAllowedOrigin(origin, request.url)) {
+    return NextResponse.json({ error: 'Origin not allowed' }, { status: 403 });
+  }
   // Valida JWT contra o Supabase — limita brute-force de token por IP.
   const limited = await enforceRateLimit(request, { endpoint: 'set-session-cookie', limit: 20 });
   if (limited) return limited;
@@ -89,7 +119,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     value: accessToken,
     httpOnly: true,
     secure: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: COOKIE_MAX_AGE,
   });
@@ -104,7 +134,7 @@ export async function DELETE(): Promise<NextResponse> {
     value: '',
     httpOnly: true,
     secure: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge: 0,
   });

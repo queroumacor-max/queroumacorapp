@@ -16,6 +16,7 @@
 //    declara em RETURNS TABLE.
 
 import { getSupabase } from '@/lib/supabase';
+import { NetworkError } from '@/lib/errors';
 
 export type SearchResultType = 'profile' | 'post' | 'product';
 
@@ -58,6 +59,6 @@ export async function searchAll(
     'search_all',
     { p_query: q, p_limit: limit },
   );
-  if (error) throw new Error(error.message);
+  if (error) throw new NetworkError(error.message, error);
   return (data ?? []) as SearchResult[];
 }

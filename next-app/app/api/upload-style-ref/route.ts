@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(request, { endpoint: 'upload-style-ref', limit: 20 });
   if (limited) return limited;
   if (!getRuntimeEnv('ADMIN_EMAILS')) {
-    return jsonResponse({ error: 'ADMIN_EMAILS não configurado' }, 503);
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[upload-style-ref] config ausente: ADMIN_EMAILS não configurado');
+    return jsonResponse({ error: 'Serviço indisponível no momento.' }, 503);
   }
   const contentType = request.headers.get('content-type') || '';
   try {

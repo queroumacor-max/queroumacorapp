@@ -36,7 +36,8 @@ describe('POST /api/checkout', () => {
     const res = await POST(mkReq({ accessToken: 'jwt-stub' }));
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toMatch(/MP_ACCESS_TOKEN/);
+    expect(body.error).toBe('Serviço indisponível no momento.');
+    expect(JSON.stringify(body)).not.toMatch(/MP_ACCESS_TOKEN/);
   });
 
   it('returns 401 when accessToken missing', async () => {

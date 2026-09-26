@@ -11,6 +11,14 @@ const C = {
   bg: '#f7f3ee', sidebar: '#1a1a2e'
 };
 
+// urlSegura — 2026-09-26, auditoria "19 pontos" (XSS no portal).
+// Todo href/src vindo do BANCO (logo do pintor, comprovante, documento) passa
+// por aqui: so https:// vira link. `javascript:`/`data:` gravado via REST
+// (brand_logos.image_url e gravavel pelo dono) nunca chega a um <a href>, onde
+// o clique do ADMIN executaria script com a sessao dele. Devolve null quando
+// nao e https — quem chama esconde o link.
+const urlSegura = (u) => (typeof u === 'string' && /^https:\/\//i.test(u.trim())) ? u.trim() : null;
+
 // ============================================================
 // StatusBadge — chip de status reutilizavel (cor + label).
 // Recebe `status`, mapa de cores e mapa de labels.
@@ -1523,7 +1531,14 @@ const ProdutosList = () => {
     return () => clearTimeout(t);
   }, [busca]);
 
+  // Trava de clique duplo (2026-09-26, auditoria): dois cliques rapidos em
+  // "Criar Produto" gravavam DOIS produtos. Ref pra barrar no mesmo tick
+  // (state so atualiza no proximo render) + state pro botao desabilitar.
+  const [salvando, setSalvando] = useState(false);
+  const salvandoRef = React.useRef(false);
   const saveProduct = async () => {
+    if(salvandoRef.current) return;
+    salvandoRef.current = true; setSalvando(true);
     try {
       const productData = { ...form, price: parseFloat(String(form.price).replace(',','.')) || 0, stock: parseInt(form.stock) || 0 };
       if(!productData.image_url) delete productData.image_url; // só envia se houver foto (coluna pode não existir ainda)
@@ -1537,6 +1552,7 @@ const ProdutosList = () => {
       setShowForm(false); setEditing(null); editandoRef.current = null;
       setForm({ name:'', code:'', category:'tintas', volume:'18L', price:'', color_hex:'#c0622d', color_gradient:'', image_url:'', stock:0, badge:'', description:'', line:'Linha Premium', rendimento:'~10m²/L', demaos:'2', secagem:'2h', active:true });
     } catch(e) { alert('Erro: ' + (e.message || e)); }
+    finally { salvandoRef.current = false; setSalvando(false); }
   };
 
   // Emenda (ou insere) uma linha na lista ja carregada, mantendo a ordem
@@ -1742,7 +1758,7 @@ const ProdutosList = () => {
             <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13 }}><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})} /> Ativo</label>
             <div style={{ flex:1 }}></div>
             <button onClick={closeForm} style={{ background:'none', border:'1px solid '+C.border, borderRadius:8, padding:'8px 18px', fontSize:13, cursor:'pointer', color:C.muted }}>Cancelar</button>
-            <button onClick={saveProduct} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor:'pointer' }}>{editing ? 'Salvar' : 'Criar Produto'}</button>
+            <button onClick={saveProduct} disabled={salvando} style={{ background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'8px 24px', fontSize:13, fontWeight:700, cursor: salvando ? 'wait' : 'pointer', opacity: salvando ? .7 : 1 }}>{salvando ? 'Salvando…' : (editing ? 'Salvar' : 'Criar Produto')}</button>
           </div>
         </div>
       )}
@@ -1863,9 +1879,11 @@ const LogoCard = React.memo(function LogoCard({ item, onUse }) {
           <button onClick={() => onUse(item)} style={{ flex:1, background:C.p1, color:'#fff', border:'none', borderRadius:8, padding:'6px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
             Usar na camiseta
           </button>
-          <a href={item.image_url} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
-            Abrir
-          </a>
+          {urlSegura(item.image_url) && (
+            <a href={urlSegura(item.image_url)} target="_blank" rel="noopener noreferrer" style={{ background:C.cream, color:C.ink, borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
+              Abrir
+            </a>
+          )}
           {wa && (
             <a href={'https://wa.me/' + wa} target="_blank" rel="noopener noreferrer" title="Falar com o pintor" style={{ background:'#25d366', color:'#fff', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>
               💬
@@ -5884,7 +5902,7 @@ const PedidosLoja = () => {
                   {row('Valor pago', o.paid_amount!=null ? brl(o.paid_amount) : '—')}
                   {row('Método', o.payment_method||'—')}
                   {row('Pago em', o.paid_at ? new Date(o.paid_at).toLocaleString('pt-BR') : '—')}
-                  {o.receipt_url ? <a href={o.receipt_url} target="_blank" rel="noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
+                  {urlSegura(o.receipt_url) ? <a href={urlSegura(o.receipt_url)} target="_blank" rel="noopener noreferrer" style={{ color:C.p1, fontSize:13 }}>Ver comprovante</a> : null}
                 </>
               ) : (
                 <div style={{ color:C.muted, fontSize:13, fontStyle:'italic' }}>Aguardando pagamento / contato (pagamento online ainda não ativado).</div>
@@ -6965,8 +6983,9 @@ const BolhaConteudo = ({ m, url }) => {
       </span>
     );
   }
+  if(!urlSegura(url)) return <span>📎 {legenda && !marcador ? legenda : 'Documento'}</span>;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
+    <a href={urlSegura(url)} target="_blank" rel="noopener noreferrer"
       style={{ color:'inherit', textDecoration:'underline' }}>
       📎 {legenda && !marcador ? legenda : 'Abrir documento'}
     </a>

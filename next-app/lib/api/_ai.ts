@@ -148,15 +148,31 @@ export async function callAIText(opts: AITextOpts): Promise<AITextResult> {
   };
 
   let res: AITextResult;
+  let primeiro: AITextResult;
   if (prefer === 'openai') {
-    res = await tryOpenAI();
+    res = primeiro = await tryOpenAI();
     if (!res.text) res = await tryGemini();
   } else {
-    res = await tryGemini();
+    res = primeiro = await tryGemini();
     if (!res.text) res = await tryOpenAI();
+  }
+  if (!res.text) {
+    // Auditoria 2026-09-26 (M1): o `error` antes carregava "OpenAI 401:
+    // <corpo do provedor>" / "OPENAI_API_KEY ausente" — e subia até o
+    // usuário por chat-ai/resolve-color/agenda-order/crm-draft. O detalhe
+    // fica SÓ no log do servidor; quem chama recebe texto genérico.
+    console.warn('[ai] provedores falharam', {
+      primeiro: primeiro.error || '(vazio)',
+      fallback: res === primeiro ? '(sem fallback)' : res.error || '(vazio)',
+    });
+    return { text: '', error: AI_UNAVAILABLE_MESSAGE };
   }
   return res;
 }
+
+/** Texto seguro pro usuário quando nenhum provedor de IA respondeu. */
+export const AI_UNAVAILABLE_MESSAGE =
+  'A IA está indisponível no momento. Tente de novo em instantes.';
 
 // ─── Helpers compartilhados ─────────────────────────────────────────────────
 

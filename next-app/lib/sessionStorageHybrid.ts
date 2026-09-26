@@ -20,9 +20,12 @@ const CHUNK_SIZE = 3000;
 // Teto de fatias na leitura/limpeza — sessão Supabase codificada tem
 // ~3-6KB (2-3 fatias); 20 é um guarda contra loop, não um alvo.
 const MAX_CHUNKS = 20;
-// ~400 dias — teto do Chrome pra max-age; o refresh token do Supabase
-// rola muito antes disso.
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
+// 30 dias (auditoria 2026-09-26: era 400, o teto do Chrome — refresh token
+// + `user` ficavam no aparelho por mais de um ano). Não derruba quem usa:
+// o supabase-js regrava a sessão a cada refresh do token (setItem →
+// writeSessionCookie), o que renova o max-age. Só expira de verdade quem
+// passou 30 dias sem abrir o app.
+export const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 
 export function splitIntoCookieChunks(encoded: string): string[] {
   const out: string[] = [];
@@ -159,4 +162,39 @@ export function hasStoredSession(): boolean {
     // ignora
   }
   return false;
+}
+
+/**
+ * Apaga TODA sessão do Supabase gravada neste aparelho, nos dois armazéns
+ * (localStorage + cookies fatiados `sb-*-auth-token.N`). Inclui chaves
+ * irmãs como `sb-*-auth-token-code-verifier` (PKCE).
+ *
+ * Motivo (auditoria 2026-09-26): no supabase-js v2, `auth.signOut()` sem
+ * rede devolve `{ error }` e NÃO apaga a sessão local — em aparelho
+ * compartilhado, "Sair" sem internet deixava a próxima pessoa logada na
+ * conta de quem saiu. O logout chama isto depois do signOut, sempre.
+ */
+export function clearAllStoredSessions(): void {
+  if (typeof window === 'undefined') return;
+  const keys = new Set<string>();
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && /^sb-.*-auth-token/.test(k)) keys.add(k);
+    }
+  } catch {
+    // localStorage bloqueado — segue pros cookies.
+  }
+  try {
+    if (typeof document !== 'undefined') {
+      for (const part of document.cookie.split('; ')) {
+        const name = part.split('=')[0] ?? '';
+        const m = /^(sb-.*-auth-token[^.]*)\.\d+$/.exec(name);
+        if (m) keys.add(m[1]);
+      }
+    }
+  } catch {
+    // ignora
+  }
+  for (const k of keys) hybridAuthStorage.removeItem(k);
 }

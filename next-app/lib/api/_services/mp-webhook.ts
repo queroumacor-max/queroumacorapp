@@ -132,15 +132,19 @@ export async function processMpWebhook(args: {
 
   const serviceKey = getServiceKey();
   // Responde 200 mesmo em erro de config pra MP não ficar reenviando.
+  // O motivo (config ausente) fica no log, não no corpo — quem chama o
+  // webhook não precisa saber o que falta aqui (auditoria 2026-09-26, L4).
   if (!getRuntimeEnv('MP_ACCESS_TOKEN') || !serviceKey) {
-    return ok('config ausente');
+    console.warn('[mp-webhook] config ausente (MP_ACCESS_TOKEN ou service role)');
+    return ok('ignored');
   }
 
   let supaUrl: string;
   try {
     supaUrl = getSupabaseUrl();
   } catch {
-    return ok('supabase config ausente');
+    console.warn('[mp-webhook] SUPABASE_URL ausente');
+    return ok('ignored');
   }
 
   const urlObj = safeParseUrl(url);
@@ -294,7 +298,8 @@ async function processPaymentEvent(opts: {
   );
   if (!upR.ok) {
     const t = await upR.text().catch(() => '');
-    return ok(`supabase update ${upR.status}: ${t.slice(0, 150)}`);
+    console.warn('[mp-webhook] supabase update falhou', upR.status, t.slice(0, 300));
+    return ok(`supabase update ${upR.status}`);
   }
 
   // Audit-log: pagamento concluído (paid/amount_mismatch/refunded/cancelled).
@@ -520,7 +525,8 @@ async function processPreapprovalEvent(opts: {
     );
     if (!r.ok) {
       const t = await r.text().catch(() => '');
-      return ok(`supabase ${r.status}: ${t.slice(0, 150)}`);
+      console.warn('[mp-webhook] supabase falhou', r.status, t.slice(0, 300));
+      return ok(`supabase ${r.status}`);
     }
   } catch {
     return ok('erro ao atualizar supabase');

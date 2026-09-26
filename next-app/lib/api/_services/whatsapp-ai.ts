@@ -508,7 +508,10 @@ export async function generateAiReply(opts: {
   }
 
   const key = getRuntimeEnv('OPENAI_API_KEY');
-  if (!key) throw new ServiceError('OPENAI_API_KEY não configurada', 503);
+  if (!key) {
+    console.warn('[config] OPENAI_API_KEY ausente');
+    throw new ServiceError('Serviço indisponível no momento.', 503);
+  }
 
   // Só as últimas 8 trocas — contexto curto é mais barato e mais preciso.
   const historico = opts.turns.slice(-8).map((t) => ({

@@ -1,5 +1,79 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AUDITORIA DOS "19 PONTOS" — itens nunca auditados (2026-09-26, pedido
+  do usuário). CORRIGIDO NO CÓDIGO (ver sub-item); os 3 SQLs JÁ RODADOS e conferidos.**
+  - **Os 3 SQLs TESTADOS em Postgres 16 local (2026-09-26), cada um rodado
+    2x:** RPC do Financeiro (dono soma, negativo trava em 0, job alheio não
+    muda, anon sem EXECUTE); CHECKs recusam `javascript:`/`data:`/texto
+    longo. **Achado no teste e corrigido:** CHECK NOT VALID + linha ANTIGA
+    fora da regra = todo UPDATE nela falha (uma mensagem legada >4000
+    travaria `mark_conversation_read` e o soft delete da conversa inteira).
+    Agora cada CHECK é PULADO (NOTICE "PULADO …") quando há linha antiga
+    violando — a conferência final lista menos constraints nesse caso.
+    Cruzada a
+  lista de 19 pontos com este arquivo: 14 já cobertos por auditorias
+  anteriores; auditados agora 2 (validação front), 9 (clique duplo), 10
+  (CSRF), 12 (vazamento de info), 18 (cookies).
+  - **CORRIGIDO NO CÓDIGO (2026-09-26, pedido "corrija"; branch
+    `claude/verificar-edicoes-memoria-sm9dzg`, SEM deploy ainda).** Suíte
+    220/220 arquivos, 2589 testes, `tsc` e `next build` verdes. Portal
+    v=20260926a (`urlSegura` nos hrefs, trava no Criar Produto, app.js
+    recompilado + SRI); `next-app/public/_headers` com frame-ancestors/XFO
+    pra `/portal` (sem script-src — CSP completa do portal segue pendente);
+    `script-src` do jsdelivr restrito a pdfjs/mediapipe/eruda, `onrender`
+    fora do connect-src; `lib/errors.ts` troca mensagem técnica crua por
+    texto amigável (crua em `.raw`/`cause`); IA/ig-art/401/403/envs sem
+    detalhe na resposta; cadastro sem enumeração; logs do WhatsApp sem
+    texto/telefone; `useSingleFlight` + travas em loja/publicar/financeiro/
+    obras; `signOut` limpa sessão local mesmo offline; cookie de sessão 30
+    dias; set-session-cookie exige JSON + Origin + SameSite=Strict; chat
+    maxLength 4000; mídia de terceiro no chat vira link; `safeHttpUrl`.
+    **3 SQLs RODADOS pelo usuário (2026-09-26, "rodei tudo")** —
+    `2026-09-26-brand-logos-https-check.sql`,
+    `2026-09-26-financeiro-increment-cost.sql`,
+    `2026-09-26-content-length-and-link-checks.sql`. **CONFERIDO no banco
+    (2026-09-26):** RPC do Financeiro existe + anon sem EXECUTE +
+    `brand_logos_image_url_https` = true (SQL 1 e 2 APLICADOS). As 6
+    constraints do SQL 3 = false — só a pré-conferência tinha sido colada
+    no chat; o resto do arquivo (3 UPDATEs + 6 DO) foi passado depois.
+    **SQL 3 CONFERIDO APLICADO (2026-09-26): as 9 linhas da conferência
+    combinada voltaram `true`** (RPC, anon sem EXECUTE e as 7 constraints —
+    nenhuma pulada por legado). **Os 3 SQLs de 26/09 estão TODOS no banco.
+    Não pedir pra rodar de novo.** Falta só publicar o código (PR/deploy).
+    **Não feito:** chave de idempotência do pedido da loja no servidor;
+    CSP com script-src no portal. Conferir pós-deploy: `curl -I
+    /portal/` e o console na tela de AR (mediapipe/wasm).
+  Achados originais, por gravidade:
+  - **ALTO (cadeia):** `/portal` servido pelo binding ASSETS do OpenNext
+    NÃO passa pelo middleware → **sem CSP e sem X-Frame-Options** (nenhum
+    `_headers` nem meta CSP em `public/`), e `public/portal/app.jsx:1866`
+    faz `href={item.image_url}` cru — `brand_logos.image_url` é gravável
+    pelo pintor via REST (sem CHECK) e o portal é React 18. Pintor grava
+    `javascript:` → admin clica "Abrir" em Camisetas → XSS com sessão de
+    admin. Fix: filtrar `^https://` no href + CHECK no banco + `_headers`
+    com CSP/`frame-ancestors 'none'` pra `/portal/*`.
+  - **ALTO:** `toFriendlyError` (`lib/errors-friendly.ts`) só é usado no
+    `UndoSnackbar` — ~60 telas mostram `error.message` cru do Postgres
+    (nome de tabela/policy). Bloqueado vê "violates row-level security"
+    ao mandar mensagem/comentar: exatamente o que o pentest de 18/09
+    queria esconder (o registro de lá afirmava o contrário).
+  - **MÉDIO:** corpo de erro da OpenAI/Gemini chega ao usuário (`_ai.ts`
+    → Alice/Fê/Senna, `ig-art` `detail`); cadastro mostra "User already
+    registered" (enumeração de e-mail); webhook do WhatsApp loga 60 chars
+    do texto do cliente; clique duplo sem trava em pedido da loja (checagem
+    de duplicata não-atômica em `mkt.ts`), publicar post (`publish.reset()`
+    antes de mutate), Financeiro (`incrementCost` ler-e-regravar),
+    gasto de obra, "Criar Produto" do portal (zero trava); `signOut` sem
+    rede não apaga a sessão local (aparelho compartilhado); cookie
+    `sb-*-auth-token` guarda refresh token + `user` por 400 dias;
+    `script-src` libera `cdn.jsdelivr.net` inteiro sem `strict-dynamic`;
+    `messages/posts/comments` sem CHECK de tamanho (chat sem maxLength).
+  - **BAIXO:** login CSRF em `/api/auth/set-session-cookie` (sem checagem
+    de Origin/Content-Type; impacto só nas páginas /admin); 401/403 citam
+    nomes de env e mecanismo de admin; imagem de terceiro no chat vaza IP.
+  - **CSRF limpo no resto:** nenhuma rota de API autentica por cookie,
+    sem Server Actions, CORS restrito — imune por arquitetura.
+
 - **GESTÃO DE OBRAS: acesso do CLIENTE (2026-09-25, pedido do usuário:
   "tem com colocar para o cliente tbm... progresso, quem vai, o que ata
   sendo feito, agenda"). PR #410 (squash `49fea6d`), deploy run #752 do

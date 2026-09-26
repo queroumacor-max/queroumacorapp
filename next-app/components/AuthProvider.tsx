@@ -29,6 +29,7 @@ import { getSupabase } from '@/lib/supabase';
 import { reportFailure } from '@/lib/utils/reportFailure';
 import { clearDeviceTokenOnLogout } from '@/lib/services/pushTokens';
 import { clearAllAutosaveDrafts } from '@/lib/hooks/useAutosave';
+import { clearAllStoredSessions } from '@/lib/sessionStorageHybrid';
 
 // Evento central de logout — quem precisa reagir (ex.: QueryProvider, que
 // fica DENTRO deste provider e por isso não pode ser chamado direto daqui)
@@ -360,7 +361,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Silencioso — CustomEvent indisponível não pode travar o logout.
       }
     }
-    await getSupabase().auth.signOut();
+    // Auditoria 2026-09-26: no supabase-js v2, signOut() SEM REDE devolve
+    // `{ error }` e NÃO apaga a sessão local (só apaga quando o servidor
+    // responde). Em aparelho compartilhado, "Sair" offline deixava a próxima
+    // pessoa dentro da conta de quem saiu. Então: tenta o global; se falhar
+    // (erro devolvido OU lançado), força o `scope: 'local'` (não fala com o
+    // servidor, só limpa e emite SIGNED_OUT); e, sempre, varre os dois
+    // armazéns (localStorage + cookies fatiados) e zera o estado da tela.
+    const auth = getSupabase().auth;
+    let falhou = false;
+    try {
+      const r = await auth.signOut();
+      falhou = Boolean(r?.error);
+    } catch {
+      falhou = true;
+    }
+    if (falhou) {
+      try {
+        await auth.signOut({ scope: 'local' });
+      } catch {
+        // Silencioso — a varredura abaixo cobre.
+      }
+    }
+    clearAllStoredSessions();
+    setSession(null);
+    setUser(null);
   }, []);
 
   const resendVerification = useCallback(async (): Promise<{ error?: string }> => {

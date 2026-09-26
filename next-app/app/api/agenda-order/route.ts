@@ -17,8 +17,10 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (!getRuntimeEnv('OPENAI_API_KEY') && !getRuntimeEnv('GEMINI_API_KEY')) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[agenda-order] config ausente: IA não configurada: defina OPENAI_API_KEY ou GEMINI_API_KEY');
     return NextResponse.json(
-      { error: 'IA não configurada: defina OPENAI_API_KEY ou GEMINI_API_KEY' },
+      { error: 'Serviço indisponível no momento.' },
       { status: 503 }
     );
   }

@@ -160,7 +160,8 @@ export async function generateIgArt(args: {
   businessName?: unknown;
 }): Promise<IgArtResult> {
   if (!getRuntimeEnv('OPENAI_API_KEY')) {
-    throw new ServiceError('OPENAI_API_KEY não configurada', 503);
+    console.warn('[config] OPENAI_API_KEY ausente');
+    throw new ServiceError('Serviço indisponível no momento.', 503);
   }
 
   const styleKey: StyleKey =
@@ -240,16 +241,13 @@ export async function generateIgArt(args: {
 
   if (imgRes.error) {
     console.error('[ig-art-fail] img-err:', imgRes.error, 'model:', imgRes.modelTried);
-    throw new ServiceError('Falha ao gerar arte', 502, {
-      detail: String(imgRes.error).slice(0, 240),
-      model_tried: imgRes.modelTried,
-    });
+    // Detalhe do provedor e modelo tentado ficam SÓ no log (auditoria
+    // 2026-09-26, M2) — antes iam no JSON da resposta pro cliente.
+    throw new ServiceError('Falha ao gerar arte. Tente de novo em instantes.', 502);
   }
   if (!imgRes.b64) {
     console.error('[ig-art-fail] sem-imagem, model:', imgRes.modelTried);
-    throw new ServiceError('Provider não devolveu imagem', 502, {
-      model_tried: imgRes.modelTried,
-    });
+    throw new ServiceError('Falha ao gerar arte. Tente de novo em instantes.', 502);
   }
 
   return {

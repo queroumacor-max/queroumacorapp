@@ -19,8 +19,10 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (!getRuntimeEnv('OPENAI_API_KEY')) {
+    // Nome da env só no log do servidor (auditoria 2026-09-26, L3).
+    console.warn('[receipt-ocr] config ausente: IA de visão não configurada: defina OPENAI_API_KEY');
     return NextResponse.json(
-      { error: 'IA de visão não configurada: defina OPENAI_API_KEY' },
+      { error: 'Serviço indisponível no momento.' },
       { status: 503 },
     );
   }
