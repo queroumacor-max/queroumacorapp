@@ -9,7 +9,13 @@
   toast e confirma no banco por trás — se falhar, desfaz e mostra o erro.
   Card reorganizado (ação numa linha própria; nome longo/e-mail quebra em vez
   de passar por cima do chip). Teste
-  `__tests__/obrasEquipeCancelarConvite.test.ts`. Precisa de deploy.
+  `__tests__/obrasEquipeCancelarConvite.test.ts`. **NO AR: PR #447 (squash
+  `82a52d3`), deploy run #763 do `deploy.yml` terminou `success`.**
+  - **Confirmação aparecia ATRÁS do modal (2026-09-26, print do usuário).**
+    O `Dialog` (`useDialog().confirm`) era `z-[60]` e o `BottomSheet` é
+    `z-[1000]` — todo confirm aberto de dentro de um sheet (não só este)
+    nascia por baixo. `Dialog` → `z-[1100]` (toast segue em `z-[2000]`).
+    Teste `__tests__/dialogAcimaDoSheet.test.ts` compara os três. Precisa de deploy.
 
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL

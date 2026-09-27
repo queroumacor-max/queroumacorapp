@@ -185,7 +185,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="quc-dialog-title"
-          className="fixed inset-0 z-[60] flex items-center justify-center"
+          className="fixed inset-0 z-[1100] flex items-center justify-center"
           style={{ background: 'rgba(0,0,0,.55)', padding: 12 }}
           onClick={(e) => {
             if (e.target !== e.currentTarget) return;
