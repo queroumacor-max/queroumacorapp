@@ -22,7 +22,8 @@
     seção "▸ Fora da equipe · N" (fechada), com "Convidar de novo"/"Reativar".
     **SEM botão de apagar, por decisão do usuário ("não apagar")** — apagar
     levaria junto a escala (FK ON DELETE CASCADE) e mexeria no custo de mão
-    de obra das obras antigas. Precisa de deploy.
+    de obra das obras antigas. **NO AR: PR #450 (squash `bdc6f5d`), deploy
+    run #765 do `deploy.yml` terminou `success`.**
 
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL
