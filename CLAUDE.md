@@ -15,7 +15,7 @@
     O `Dialog` (`useDialog().confirm`) era `z-[60]` e o `BottomSheet` é
     `z-[1000]` — todo confirm aberto de dentro de um sheet (não só este)
     nascia por baixo. `Dialog` → `z-[1100]` (toast segue em `z-[2000]`).
-    Teste `__tests__/dialogAcimaDoSheet.test.ts` compara os três. Precisa de deploy.
+    Teste `__tests__/dialogAcimaDoSheet.test.ts` compara os três. **NO AR: PR #448 (squash `8038191`), deploy run #764 do `deploy.yml` terminou `success`.**
 
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL
