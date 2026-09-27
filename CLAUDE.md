@@ -16,6 +16,13 @@
     `z-[1000]` — todo confirm aberto de dentro de um sheet (não só este)
     nascia por baixo. `Dialog` → `z-[1100]` (toast segue em `z-[2000]`).
     Teste `__tests__/dialogAcimaDoSheet.test.ts` compara os três. **NO AR: PR #448 (squash `8038191`), deploy run #764 do `deploy.yml` terminou `success`.**
+  - **Quem saiu ficava na lista pra sempre (2026-09-27, print do usuário:
+    "tirei da equipe e fica assim, mas não some?"). SEM SQL.** A lista
+    principal agora mostra só `ativo`/`convidado`; `saiu`/`recusado` vão pra
+    seção "▸ Fora da equipe · N" (fechada), com "Convidar de novo"/"Reativar".
+    **SEM botão de apagar, por decisão do usuário ("não apagar")** — apagar
+    levaria junto a escala (FK ON DELETE CASCADE) e mexeria no custo de mão
+    de obra das obras antigas. Precisa de deploy.
 
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL
