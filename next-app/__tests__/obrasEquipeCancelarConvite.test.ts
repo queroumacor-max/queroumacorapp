@@ -23,15 +23,15 @@ describe('EquipeTab — cancelar convite', () => {
   });
 });
 
-describe('Equipe: quem saiu fica separado e pode ser apagado', () => {
+describe('Equipe: quem saiu fica separado (sem apagar)', () => {
   const src = readFileSync(join(__dirname, '..', 'app', 'obras', 'EquipeTab.tsx'), 'utf8');
   it('lista principal só mostra ativo e convidado', () => {
     expect(src).toMatch(/naEquipe = lista\.filter\(\(m\) => m\.status === 'ativo' \|\| m\.status === 'convidado'\)/);
     expect(src).toContain('{naEquipe.map(cartao)}');
   });
-  it('saiu/recusado vão pra seção fechada com botão Apagar', () => {
+  it('saiu/recusado vão pra seção fechada, sem botão de apagar', () => {
     expect(src).toContain('Fora da equipe · {fora.length}');
-    expect(src).toContain('apagarMembro(uid, m.id)');
+    expect(src).not.toMatch(/apagarMembro|>\s*Apagar\s*</);
     expect(src).toMatch(/useState\(false\)[\s\S]*foraAberta/);
   });
 });

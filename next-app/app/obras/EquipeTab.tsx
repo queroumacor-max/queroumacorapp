@@ -10,7 +10,6 @@ import { showToast } from '@/lib/toast';
 import { parseBRL } from '@/lib/utils';
 import {
   adicionarSemConta,
-  apagarMembro,
   atualizarMembro,
   convidarPorTag,
   listEquipe,
@@ -103,26 +102,6 @@ export function EquipeTab({ uid }: { uid: string }) {
     }
   }
 
-  async function apagar(m: MembroEquipe) {
-    const ok = await dialog.confirm(
-      `Apagar ${m.nome} da lista? Os dias em que essa pessoa foi escalada também somem do histórico das obras.`,
-      { title: 'Apagar da lista', okLabel: 'Apagar', danger: true },
-    );
-    if (!ok) return;
-    const chave = ['obra-equipe', uid];
-    const antes = qc.getQueryData<MembroEquipe[]>(chave);
-    qc.setQueryData<MembroEquipe[]>(chave, (l) => (l ?? []).filter((x) => x.id !== m.id));
-    showToast(`${m.nome} apagado da lista`, 'success');
-    try {
-      await apagarMembro(uid, m.id);
-    } catch (e) {
-      qc.setQueryData(chave, antes);
-      showToast(`Não deu certo: ${(e as Error).message}`, 'error');
-    } finally {
-      qc.invalidateQueries({ queryKey: chave });
-    }
-  }
-
   const lista = q.data ?? [];
   // Quem saiu ou recusou não é mais equipe: fica numa seção fechada embaixo,
   // senão a lista de verdade some no meio de gente que já foi embora.
@@ -143,12 +122,7 @@ export function EquipeTab({ uid }: { uid: string }) {
           </div>
           <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
         </div>
-        <div className="flex justify-end gap-2">
-          {m.status === 'saiu' || m.status === 'recusado' ? (
-            <button type="button" disabled={ocupado} onClick={() => apagar(m)} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
-              Apagar
-            </button>
-          ) : null}
+        <div className="flex justify-end">
           {m.status === 'convidado' ? (
             <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
               Cancelar convite
