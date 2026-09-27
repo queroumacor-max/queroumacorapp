@@ -318,6 +318,14 @@ export async function atualizarMembro(
   if (!data?.length) throw new NetworkError('Pessoa não encontrada na sua equipe.');
 }
 
+/** Apaga de vez quem está fora da equipe. A escala dessa pessoa vai junto
+ *  (FK ON DELETE CASCADE) — quem chama avisa isso antes. */
+export async function apagarMembro(uid: string, id: string): Promise<void> {
+  const { data, error } = await db().from('obra_equipe').delete().eq('id', id).eq('gestor_id', uid).select('id');
+  if (error) falha(error);
+  if (!data?.length) throw new NetworkError('Pessoa não encontrada na sua equipe.');
+}
+
 // ─── GESTOR: escala ────────────────────────────────────────────────────
 
 export async function listEscala(uid: string, de: string, ate: string): Promise<DiaEscala[]> {

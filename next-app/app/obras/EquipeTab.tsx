@@ -10,6 +10,7 @@ import { showToast } from '@/lib/toast';
 import { parseBRL } from '@/lib/utils';
 import {
   adicionarSemConta,
+  apagarMembro,
   atualizarMembro,
   convidarPorTag,
   listEquipe,
@@ -102,7 +103,74 @@ export function EquipeTab({ uid }: { uid: string }) {
     }
   }
 
+  async function apagar(m: MembroEquipe) {
+    const ok = await dialog.confirm(
+      `Apagar ${m.nome} da lista? Os dias em que essa pessoa foi escalada também somem do histórico das obras.`,
+      { title: 'Apagar da lista', okLabel: 'Apagar', danger: true },
+    );
+    if (!ok) return;
+    const chave = ['obra-equipe', uid];
+    const antes = qc.getQueryData<MembroEquipe[]>(chave);
+    qc.setQueryData<MembroEquipe[]>(chave, (l) => (l ?? []).filter((x) => x.id !== m.id));
+    showToast(`${m.nome} apagado da lista`, 'success');
+    try {
+      await apagarMembro(uid, m.id);
+    } catch (e) {
+      qc.setQueryData(chave, antes);
+      showToast(`Não deu certo: ${(e as Error).message}`, 'error');
+    } finally {
+      qc.invalidateQueries({ queryKey: chave });
+    }
+  }
+
   const lista = q.data ?? [];
+  // Quem saiu ou recusou não é mais equipe: fica numa seção fechada embaixo,
+  // senão a lista de verdade some no meio de gente que já foi embora.
+  const naEquipe = lista.filter((m) => m.status === 'ativo' || m.status === 'convidado');
+  const fora = lista.filter((m) => m.status === 'saiu' || m.status === 'recusado');
+  const [foraAberta, setForaAberta] = useState(false);
+  const cartao = (m: MembroEquipe) => {
+    const ocupado = emAndamento.has(m.id);
+    const botao = 'text-xs font-bold px-3 rounded-xl border border-[color:var(--color-border)] bg-white text-[color:var(--color-ink)] disabled:opacity-60';
+    return (
+      <div key={m.id} className={`${cls.card} flex flex-col gap-2`}>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm" style={{ overflowWrap: 'anywhere' }}>{m.nome}</div>
+            <div className="text-xs text-[color:var(--color-muted)]">
+              {[m.funcao, m.membro_id ? 'no app' : 'por WhatsApp', m.diaria ? `diária ${brl(m.diaria)}` : null].filter(Boolean).join(' · ')}
+            </div>
+          </div>
+          <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
+        </div>
+        <div className="flex justify-end gap-2">
+          {m.status === 'saiu' || m.status === 'recusado' ? (
+            <button type="button" disabled={ocupado} onClick={() => apagar(m)} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
+              Apagar
+            </button>
+          ) : null}
+          {m.status === 'convidado' ? (
+            <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
+              Cancelar convite
+            </button>
+          ) : m.status === 'ativo' ? (
+            <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
+              Remover da equipe
+            </button>
+          ) : m.membro_id ? (
+            <button type="button" disabled={ocupado} onClick={() => mudar(m, 'convidado')} className={botao} style={{ minHeight: 40 }}>
+              Convidar de novo
+            </button>
+          ) : (
+            <button type="button" disabled={ocupado} onClick={() => mudar(m, 'ativo')} className={botao} style={{ minHeight: 40 }}>
+              Reativar
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const seg = (on: boolean) =>
     `flex-1 rounded-xl text-sm font-bold ${on ? 'bg-[color:var(--color-ink)] text-[color:var(--color-white)]' : 'text-[color:var(--color-ink)]'}`;
 
@@ -198,47 +266,27 @@ export function EquipeTab({ uid }: { uid: string }) {
         <h3 className={cls.sec}>Minha equipe · {lista.filter((m) => m.status === 'ativo').length} ativos</h3>
         {q.error ? <ErroObras erro={q.error} /> : null}
         <div className="flex flex-col gap-2">
-          {lista.map((m) => {
-            const ocupado = emAndamento.has(m.id);
-            const botao = 'text-xs font-bold px-3 rounded-xl border border-[color:var(--color-border)] bg-white text-[color:var(--color-ink)] disabled:opacity-60';
-            return (
-              <div key={m.id} className={`${cls.card} flex flex-col gap-2`}>
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm" style={{ overflowWrap: 'anywhere' }}>{m.nome}</div>
-                    <div className="text-xs text-[color:var(--color-muted)]">
-                      {[m.funcao, m.membro_id ? 'no app' : 'por WhatsApp', m.diaria ? `diária ${brl(m.diaria)}` : null].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                  <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
-                </div>
-                <div className="flex justify-end">
-                  {m.status === 'convidado' ? (
-                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
-                      Cancelar convite
-                    </button>
-                  ) : m.status === 'ativo' ? (
-                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
-                      Remover da equipe
-                    </button>
-                  ) : m.membro_id ? (
-                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'convidado')} className={botao} style={{ minHeight: 40 }}>
-                      Convidar de novo
-                    </button>
-                  ) : (
-                    <button type="button" disabled={ocupado} onClick={() => mudar(m, 'ativo')} className={botao} style={{ minHeight: 40 }}>
-                      Reativar
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {!q.isLoading && lista.length === 0 && !q.error ? (
-            <p className="text-sm text-[color:var(--color-muted)] text-center py-4">Sua equipe ainda está vazia.</p>
+          {naEquipe.map(cartao)}
+          {!q.isLoading && naEquipe.length === 0 && !q.error ? (
+            <p className="text-sm text-[color:var(--color-muted)] text-center py-4">Ninguém na equipe agora.</p>
           ) : null}
         </div>
       </section>
+
+      {fora.length > 0 ? (
+        <section>
+          <button
+            type="button"
+            onClick={() => setForaAberta((v) => !v)}
+            aria-expanded={foraAberta}
+            className={`${cls.sec} w-full text-left`}
+            style={{ minHeight: 40 }}
+          >
+            {foraAberta ? '▾' : '▸'} Fora da equipe · {fora.length}
+          </button>
+          {foraAberta ? <div className="flex flex-col gap-2">{fora.map(cartao)}</div> : null}
+        </section>
+      ) : null}
     </div>
   );
 }
