@@ -29,6 +29,11 @@ const OUTRA_LOJA: Store = {
 
 const mockStores: { stores: Store[] } = { stores: [CALICOLORS, OUTRA_LOJA] };
 
+const mockParams: { loja: string | null } = { loja: null };
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({ get: (k: string) => (k === 'loja' ? mockParams.loja : null) }),
+}));
+
 vi.mock('@/lib/hooks/useStores', () => ({
   useStores: () => ({ stores: mockStores.stores, loading: false, error: null }),
 }));
@@ -43,7 +48,11 @@ vi.mock('@/app/loja/CorDoAnoModal', () => ({ CorDoAnoModal: () => null }));
 
 import { LojaShell } from '@/app/loja/LojaShell';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mockParams.loja = null;
+  window.history.replaceState(null, '', '/');
+});
 
 describe('LojaShell — roteamento por loja', () => {
   it('escolher a Cali Colors abre o catálogo de produtos', () => {
@@ -66,5 +75,25 @@ describe('LojaShell — roteamento por loja', () => {
     fireEvent.click(screen.getByText('← Voltar pras lojas'));
     expect(screen.getByText('Cali Colors')).toBeTruthy();
     expect(screen.getByText('Tintas ABC')).toBeTruthy();
+  });
+
+  it('?loja=calicolors abre direto no catálogo (links de carrinho/produto/pedido)', () => {
+    mockParams.loja = 'calicolors';
+    render(<LojaShell />);
+    expect(screen.getByTestId('catalogo-calicolors')).toBeTruthy();
+  });
+
+  it('?loja= com outra loja NÃO abre catálogo nenhum — cai na seleção', () => {
+    mockParams.loja = 'tintas-abc';
+    render(<LojaShell />);
+    expect(screen.queryByTestId('catalogo-calicolors')).toBeNull();
+    expect(screen.getByText('Tintas ABC')).toBeTruthy();
+  });
+
+  it('escolher a Cali Colors espelha ?loja= na URL (VOLTAR do produto cai no catálogo)', () => {
+    window.history.replaceState(null, '', '/loja');
+    render(<LojaShell />);
+    fireEvent.click(screen.getByText('Cali Colors'));
+    expect(window.location.pathname + window.location.search).toBe('/loja?loja=calicolors');
   });
 });

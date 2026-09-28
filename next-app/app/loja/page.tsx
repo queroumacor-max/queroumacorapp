@@ -4,6 +4,7 @@
 // fica no LojaShell/ProductsList porque precisa de state interativo.
 
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { LojaShell } from './LojaShell';
 import { AppShell } from '@/components/AppShell';
 
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 export default function LojaPage() {
   return (
     <AppShell>
-      <LojaShell />
+      {/* LojaShell lê ?loja= com useSearchParams — exige Suspense no build. */}
+      <Suspense fallback={null}>
+        <LojaShell />
+      </Suspense>
     </AppShell>
   );
 }

@@ -346,11 +346,14 @@ const storesService = {
   }
 };
 const postsService = {
+  // `.select('id')` + zero linhas = erro: update que não acha linha é
+  // SUCESSO silencioso no Supabase (a policy recusou ou o post sumiu).
   setStatus: async (id, status) => {
     const r = await supa.from('posts').update({
       status
-    }).eq('id', id);
+    }).eq('id', id).select('id');
     if (r.error) throw r.error;
+    if (!r.data || r.data.length === 0) throw new Error('nenhum post foi alterado (sem permissão ou já apagado)');
   },
   deleteWithChildren: async id => {
     await supa.from('likes').delete().eq('post_id', id);
@@ -10175,24 +10178,60 @@ const ClientesList = () => {
     })));
   })))));
 };
+
+// ══ POSTS PENDENTES ══
+// O post nasce `pending` e só vai ao ar quando /api/posts/approve modera no
+// servidor (2026-09-26). Se o app fechar no meio, a varredura de 10 em 10 min
+// tenta de novo — esta tela é o caminho HUMANO pra ver e decidir o que
+// sobrou. Aprovar aqui publica sem passar pela IA: é decisão do admin.
+// Busca em 2 passos (sem embed `profiles!user_id`): a FK de posts.user_id
+// aponta pra auth.users, não pra profiles — o embed quebraria a query.
 const PostsModeracao = () => {
   const [filter, setFilter] = useState('pending');
   const {
     data,
     loading,
+    error,
     refetch: fetchPosts
-  } = useSupabaseQuery(sb => {
-    let query = sb.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', {
+  } = useSupabaseQuery(async sb => {
+    let query = sb.from('posts').select('*').order('created_at', {
       ascending: false
     }).limit(50);
-    if (filter === 'pending') query = query.eq('status', 'pending');else if (filter === 'rejected') query = query.eq('status', 'rejected');
-    return query;
+    // Pendente apagado = o próprio app desistiu (reprovado ou erro) — não
+    // é decisão pendente de ninguém. Rejeitado fica soft-deletado, então
+    // esse filtro NÃO pode esconder os apagados.
+    if (filter === 'pending') query = query.eq('status', 'pending').is('deleted_at', null);else if (filter === 'rejected') query = query.eq('status', 'rejected');
+    const {
+      data: rows,
+      error
+    } = await query;
+    if (error) return {
+      error
+    };
+    const list = rows || [];
+    const ids = [...new Set(list.map(p => p.user_id).filter(Boolean))];
+    const pmap = {};
+    if (ids.length) {
+      const {
+        data: profs
+      } = await sb.from('profiles').select('id, name, tag, avatar_url, role').in('id', ids);
+      (profs || []).forEach(pr => {
+        pmap[pr.id] = pr;
+      });
+    }
+    return {
+      data: list.map(p => ({
+        ...p,
+        profiles: pmap[p.user_id] || null
+      }))
+    };
   }, [filter]);
   const posts = data || [];
   const updateStatus = async (id, status) => {
     try {
       await postsService.setStatus(id, status);
       fetchPosts();
+      window.dispatchEvent(new Event('posts-pendentes-mudou'));
     } catch (e) {
       alert('Erro ao atualizar post: ' + (e.message || e));
     }
@@ -10202,11 +10241,22 @@ const PostsModeracao = () => {
     try {
       await postsService.deleteWithChildren(id);
       fetchPosts();
+      window.dispatchEvent(new Event('posts-pendentes-mudou'));
     } catch (e) {
       alert('Erro ao deletar post: ' + (e.message || e));
     }
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#fff8e6',
+      border: '1px solid #f0d58a',
+      borderRadius: 12,
+      padding: '10px 14px',
+      fontSize: 12,
+      color: '#6b5310',
+      marginBottom: 14
+    }
+  }, "Posts que o app gravou mas n\xE3o chegou a publicar (app fechado ou rede ca\xEDda no meio). A varredura autom\xE1tica tenta de novo a cada 10 min; o que ficar aqui depois disso precisa de decis\xE3o. ", /*#__PURE__*/React.createElement("b", null, "Aprovar publica sem passar pela modera\xE7\xE3o da IA.")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: 8,
@@ -10225,12 +10275,29 @@ const PostsModeracao = () => {
       fontSize: 12,
       cursor: 'pointer'
     }
-  }, f === 'pending' ? '⏳ Pendentes' : f === 'rejected' ? '❌ Rejeitados' : '📋 Todos'))), loading && /*#__PURE__*/React.createElement("div", {
+  }, f === 'pending' ? '⏳ Pendentes' : f === 'rejected' ? '❌ Rejeitados' : '📋 Todos')), /*#__PURE__*/React.createElement("button", {
+    onClick: fetchPosts,
+    style: {
+      marginLeft: 'auto',
+      padding: '8px 14px',
+      borderRadius: 8,
+      border: '1.5px solid ' + C.border,
+      background: '#fff',
+      fontWeight: 700,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\u21BB Atualizar")), loading && /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
       padding: 20
     }
-  }, "Carregando..."), !loading && posts.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Carregando..."), !loading && error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#c0392b',
+      padding: 20
+    }
+  }, "N\xE3o consegui carregar os posts: ", error.message || String(error)), !loading && !error && posts.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
       padding: 20,
@@ -10244,7 +10311,8 @@ const PostsModeracao = () => {
     }
   }, posts.map(p => {
     const prof = p.profiles || {};
-    const isVideo = p.media_url && (p.media_url.includes('.mp4') || p.media_type === 'video');
+    const isVideo = p.media_url && (/\.(mp4|mov|webm)(\?|$)/i.test(p.media_url) || p.media_type === 'video');
+    const extras = Array.isArray(p.media_urls) ? p.media_urls.length - 1 : 0;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
       style: {
@@ -10254,7 +10322,11 @@ const PostsModeracao = () => {
         boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
         border: p.status === 'pending' ? '2px solid #f0ad4e' : p.status === 'rejected' ? '2px solid #e74c3c' : '1px solid ' + C.border
       }
-    }, p.media_url && (isVideo ? /*#__PURE__*/React.createElement("video", {
+    }, p.media_url && /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'relative'
+      }
+    }, isVideo ? /*#__PURE__*/React.createElement("video", {
       src: p.media_url,
       controls: true,
       style: {
@@ -10269,7 +10341,19 @@ const PostsModeracao = () => {
         maxHeight: 200,
         objectFit: 'cover'
       }
-    })), /*#__PURE__*/React.createElement("div", {
+    }), extras > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        background: 'rgba(0,0,0,.65)',
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: 700,
+        borderRadius: 10,
+        padding: '2px 8px'
+      }
+    }, "+", extras, " foto", extras > 1 ? 's' : '')), /*#__PURE__*/React.createElement("div", {
       style: {
         padding: 12
       }
@@ -10310,7 +10394,8 @@ const PostsModeracao = () => {
       style: {
         fontSize: 12,
         color: C.ink,
-        marginBottom: 8
+        marginBottom: 8,
+        whiteSpace: 'pre-wrap'
       }
     }, p.caption), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -10318,7 +10403,7 @@ const PostsModeracao = () => {
         color: C.muted,
         marginBottom: 10
       }
-    }, new Date(p.created_at).toLocaleString('pt-BR')), /*#__PURE__*/React.createElement("div", {
+    }, new Date(p.created_at).toLocaleString('pt-BR'), p.media_type === 'story' ? ' · story 24h' : ''), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         gap: 6
@@ -17311,6 +17396,13 @@ const PAGES_DEF = [{
   section: 'PRINCIPAL',
   component: /*#__PURE__*/React.createElement(Moderacao, null)
 }, {
+  id: 'posts-pendentes',
+  icon: '⏳',
+  label: 'Posts pendentes',
+  section: 'PRINCIPAL',
+  badgeKey: 'postsPendentes',
+  component: /*#__PURE__*/React.createElement(PostsModeracao, null)
+}, {
   id: 'uso',
   icon: '📊',
   label: 'Uso do app',
@@ -17905,6 +17997,34 @@ function App() {
       });
     } catch (e) {/* badge e enfeite: nunca derruba o portal */}
   };
+
+  // Posts presos em `pending` (não apagados). Leve e separado do loadBadges
+  // pelo mesmo motivo do WhatsApp: roda de novo quando a tela de pendentes
+  // aprova/rejeita (evento `posts-pendentes-mudou`) e a cada 2 min.
+  const loadPendBadge = async () => {
+    try {
+      const r = await supa.from('posts').select('id', {
+        count: 'exact',
+        head: true
+      }).eq('status', 'pending').is('deleted_at', null);
+      if (r.error) return;
+      const n = r.count || 0;
+      setBadges(b => b.postsPendentes === n ? b : {
+        ...b,
+        postsPendentes: n
+      });
+    } catch (e) {/* badge e enfeite */}
+  };
+  useEffect(() => {
+    if (!loggedIn) return;
+    loadPendBadge();
+    const t = setInterval(loadPendBadge, 120000);
+    window.addEventListener('posts-pendentes-mudou', loadPendBadge);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('posts-pendentes-mudou', loadPendBadge);
+    };
+  }, [loggedIn]);
   useEffect(() => {
     if (!loggedIn) return;
     loadBadges();

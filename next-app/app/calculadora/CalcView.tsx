@@ -17,6 +17,7 @@ import {
   getPaintLine,
   paintLineBrands,
 } from '@/lib/paintLines';
+import { LOJA_CATALOGO_HREF } from '@/lib/services/stores';
 
 const SURFACE_OPTIONS: Record<'parede' | 'teto', ReadonlyArray<{ value: number; label: string }>> = {
   parede: [
@@ -488,7 +489,7 @@ export function CalcView() {
       </div>
 
       <Link
-        href="/loja"
+        href={LOJA_CATALOGO_HREF}
         className="block w-full text-center text-white font-bold"
         style={{
           padding: 14,

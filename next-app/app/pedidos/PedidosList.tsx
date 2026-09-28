@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { usePedidos, type PedidoFilter } from '@/lib/hooks/usePedidos';
 import { OrderCard } from '@/components/OrderCard';
+import { LOJA_CATALOGO_HREF } from '@/lib/services/stores';
 
 // Tabs visíveis no header. Mantemos só os 4 estados que o usuário acessa
 // com mais frequência. "Todos" inclui rascunho/pendente/cancelado/refunded
@@ -166,7 +167,7 @@ export function PedidosList() {
           Quando comprar tintas, EPI ou ferramentas, seus pedidos aparecem aqui.
         </p>
         <Link
-          href="/loja"
+          href={LOJA_CATALOGO_HREF}
           className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
         >
           Ver loja

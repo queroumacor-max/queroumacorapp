@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { showToast } from '@/lib/toast';
 import type { CartItem } from '@/lib/services/mkt';
+import { LOJA_CATALOGO_HREF } from '@/lib/services/stores';
 
 interface OrderData {
   id: string;
@@ -162,7 +163,7 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
       <div className="text-center py-12">
         <div className="text-4xl mb-3">⚠️</div>
         <p className="text-sm text-[color:var(--color-muted)] mb-4">{error}</p>
-        <Link href="/loja" className="text-sm font-semibold text-[color:var(--color-p1)]">
+        <Link href={LOJA_CATALOGO_HREF} className="text-sm font-semibold text-[color:var(--color-p1)]">
           Voltar à loja
         </Link>
       </div>
@@ -317,7 +318,7 @@ export function OrderConfirmView({ orderId }: { orderId: string }) {
           </button>
 
           <Link
-            href="/loja"
+            href={LOJA_CATALOGO_HREF}
             className="block w-full py-3 rounded-xl text-center text-sm font-semibold text-[color:var(--color-p1)]"
           >
             Continuar comprando

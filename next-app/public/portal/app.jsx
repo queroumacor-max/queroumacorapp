@@ -200,7 +200,13 @@ const storesService = {
 };
 
 const postsService = {
-  setStatus: async (id, status) => { const r = await supa.from('posts').update({status}).eq('id', id); if (r.error) throw r.error; },
+  // `.select('id')` + zero linhas = erro: update que não acha linha é
+  // SUCESSO silencioso no Supabase (a policy recusou ou o post sumiu).
+  setStatus: async (id, status) => {
+    const r = await supa.from('posts').update({status}).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data || r.data.length === 0) throw new Error('nenhum post foi alterado (sem permissão ou já apagado)');
+  },
   deleteWithChildren: async (id) => {
     await supa.from('likes').delete().eq('post_id', id);
     await supa.from('comments').delete().eq('post_id', id);
@@ -5285,13 +5291,32 @@ const ClientesList = () => {
   );
 };
 
+// ══ POSTS PENDENTES ══
+// O post nasce `pending` e só vai ao ar quando /api/posts/approve modera no
+// servidor (2026-09-26). Se o app fechar no meio, a varredura de 10 em 10 min
+// tenta de novo — esta tela é o caminho HUMANO pra ver e decidir o que
+// sobrou. Aprovar aqui publica sem passar pela IA: é decisão do admin.
+// Busca em 2 passos (sem embed `profiles!user_id`): a FK de posts.user_id
+// aponta pra auth.users, não pra profiles — o embed quebraria a query.
 const PostsModeracao = () => {
   const [filter, setFilter] = useState('pending');
-  const { data, loading, refetch: fetchPosts } = useSupabaseQuery((sb) => {
-    let query = sb.from('posts').select('*, profiles!user_id(name, tag, avatar_url, role)').order('created_at', { ascending: false }).limit(50);
-    if(filter === 'pending') query = query.eq('status','pending');
+  const { data, loading, error, refetch: fetchPosts } = useSupabaseQuery(async (sb) => {
+    let query = sb.from('posts').select('*').order('created_at', { ascending: false }).limit(50);
+    // Pendente apagado = o próprio app desistiu (reprovado ou erro) — não
+    // é decisão pendente de ninguém. Rejeitado fica soft-deletado, então
+    // esse filtro NÃO pode esconder os apagados.
+    if(filter === 'pending') query = query.eq('status','pending').is('deleted_at', null);
     else if(filter === 'rejected') query = query.eq('status','rejected');
-    return query;
+    const { data: rows, error } = await query;
+    if (error) return { error };
+    const list = rows || [];
+    const ids = [...new Set(list.map((p) => p.user_id).filter(Boolean))];
+    const pmap = {};
+    if (ids.length) {
+      const { data: profs } = await sb.from('profiles').select('id, name, tag, avatar_url, role').in('id', ids);
+      (profs || []).forEach((pr) => { pmap[pr.id] = pr; });
+    }
+    return { data: list.map((p) => ({ ...p, profiles: pmap[p.user_id] || null })) };
   }, [filter]);
   const posts = data || [];
 
@@ -5299,6 +5324,7 @@ const PostsModeracao = () => {
     try {
       await postsService.setStatus(id, status);
       fetchPosts();
+      window.dispatchEvent(new Event('posts-pendentes-mudou'));
     } catch (e) { alert('Erro ao atualizar post: ' + (e.message || e)); }
   };
 
@@ -5307,29 +5333,40 @@ const PostsModeracao = () => {
     try {
       await postsService.deleteWithChildren(id);
       fetchPosts();
+      window.dispatchEvent(new Event('posts-pendentes-mudou'));
     } catch (e) { alert('Erro ao deletar post: ' + (e.message || e)); }
   };
 
   return (
     <div>
+      <div style={{ background:'#fff8e6', border:'1px solid #f0d58a', borderRadius:12, padding:'10px 14px', fontSize:12, color:'#6b5310', marginBottom:14 }}>
+        Posts que o app gravou mas não chegou a publicar (app fechado ou rede caída no meio). A varredura automática tenta de novo a cada 10 min; o que ficar aqui depois disso precisa de decisão. <b>Aprovar publica sem passar pela moderação da IA.</b>
+      </div>
       <div style={{ display:'flex', gap:8, marginBottom:16 }}>
         {['pending','rejected','all'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding:'8px 16px', borderRadius:8, border: filter===f?'2px solid '+C.p1:'1.5px solid '+C.border, background: filter===f?'rgba(255,107,53,0.08)':'#fff', color: filter===f?C.p1:C.ink, fontWeight:700, fontSize:12, cursor:'pointer' }}>
             {f==='pending'?'⏳ Pendentes':f==='rejected'?'❌ Rejeitados':'📋 Todos'}
           </button>
         ))}
+        <button onClick={fetchPosts} style={{ marginLeft:'auto', padding:'8px 14px', borderRadius:8, border:'1.5px solid '+C.border, background:'#fff', fontWeight:700, fontSize:12, cursor:'pointer' }}>↻ Atualizar</button>
       </div>
       {loading && <div style={{ color:C.muted, padding:20 }}>Carregando...</div>}
-      {!loading && posts.length===0 && <div style={{ color:C.muted, padding:20, textAlign:'center' }}>Nenhum post {filter==='pending'?'pendente':'encontrado'} 🎉</div>}
+      {!loading && error && <div style={{ color:'#c0392b', padding:20 }}>Não consegui carregar os posts: {error.message || String(error)}</div>}
+      {!loading && !error && posts.length===0 && <div style={{ color:C.muted, padding:20, textAlign:'center' }}>Nenhum post {filter==='pending'?'pendente':'encontrado'} 🎉</div>}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
         {posts.map(p => {
           const prof = p.profiles || {};
-          const isVideo = p.media_url && (p.media_url.includes('.mp4') || p.media_type === 'video');
+          const isVideo = p.media_url && (/\.(mp4|mov|webm)(\?|$)/i.test(p.media_url) || p.media_type === 'video');
+          const extras = Array.isArray(p.media_urls) ? p.media_urls.length - 1 : 0;
           return (
             <div key={p.id} style={{ background:C.white, borderRadius:14, overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', border: p.status==='pending'?'2px solid #f0ad4e':p.status==='rejected'?'2px solid #e74c3c':'1px solid '+C.border }}>
-              {p.media_url && (isVideo ?
-                <video src={p.media_url} controls style={{ width:'100%', maxHeight:200, objectFit:'cover' }} /> :
-                <img src={p.media_url} style={{ width:'100%', maxHeight:200, objectFit:'cover' }} />
+              {p.media_url && (
+                <div style={{ position:'relative' }}>
+                  {isVideo ?
+                    <video src={p.media_url} controls style={{ width:'100%', maxHeight:200, objectFit:'cover' }} /> :
+                    <img src={p.media_url} style={{ width:'100%', maxHeight:200, objectFit:'cover' }} />}
+                  {extras > 0 && <span style={{ position:'absolute', top:8, right:8, background:'rgba(0,0,0,.65)', color:'#fff', fontSize:11, fontWeight:700, borderRadius:10, padding:'2px 8px' }}>+{extras} foto{extras>1?'s':''}</span>}
+                </div>
               )}
               <div style={{ padding:12 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
@@ -5342,8 +5379,8 @@ const PostsModeracao = () => {
                     <StatusBadge status={p.status || 'pending'} colorMap={POSTS_STATUS_COLORS} labelMap={POSTS_STATUS_LABELS} />
                   </span>
                 </div>
-                {p.caption && <div style={{ fontSize:12, color:C.ink, marginBottom:8 }}>{p.caption}</div>}
-                <div style={{ fontSize:10, color:C.muted, marginBottom:10 }}>{new Date(p.created_at).toLocaleString('pt-BR')}</div>
+                {p.caption && <div style={{ fontSize:12, color:C.ink, marginBottom:8, whiteSpace:'pre-wrap' }}>{p.caption}</div>}
+                <div style={{ fontSize:10, color:C.muted, marginBottom:10 }}>{new Date(p.created_at).toLocaleString('pt-BR')}{p.media_type === 'story' ? ' · story 24h' : ''}</div>
                 <div style={{ display:'flex', gap:6 }}>
                   {p.status !== 'approved' && <button onClick={() => updateStatus(p.id, 'approved')} style={{ flex:1, padding:'6px 10px', background:'#28a745', color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>✓ Aprovar</button>}
                   {p.status !== 'rejected' && <button onClick={() => updateStatus(p.id, 'rejected')} style={{ flex:1, padding:'6px 10px', background:'#ffc107', color:'#333', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>✗ Rejeitar</button>}
@@ -8903,6 +8940,7 @@ const PAGES_DEF = [
   { id:'click-rua', icon:'📖', label:'Revista Click Rua', section:'LOJA', component:<ClickRua /> },
   { id:'marketing', icon:'📣', label:'Marketing / Ads', section:'LOJA', component:<MarketingPage /> },
   { id:'moderacao', icon:'🛡️', label:'Moderação', section:'PRINCIPAL', component:<Moderacao /> },
+  { id:'posts-pendentes', icon:'⏳', label:'Posts pendentes', section:'PRINCIPAL', badgeKey:'postsPendentes', component:<PostsModeracao /> },
   { id:'uso', icon:'📊', label:'Uso do app', section:'DADOS', component:<UsoDoApp /> },
   { id:'analytics', icon:'📈', label:'Analytics', section:'DADOS', component:<Analytics /> },
   { id:'indicacoes', icon:'🔗', label:'Indicações', section:'DADOS', component:<Indicacoes /> },
@@ -9122,6 +9160,30 @@ function App() {
       setBadges(b => (b.whatsapp === n && b.chats === nChat ? b : { ...b, whatsapp: n, chats: nChat }));
     } catch(e) { /* badge e enfeite: nunca derruba o portal */ }
   };
+
+  // Posts presos em `pending` (não apagados). Leve e separado do loadBadges
+  // pelo mesmo motivo do WhatsApp: roda de novo quando a tela de pendentes
+  // aprova/rejeita (evento `posts-pendentes-mudou`) e a cada 2 min.
+  const loadPendBadge = async () => {
+    try {
+      const r = await supa.from('posts').select('id', { count: 'exact', head: true })
+        .eq('status', 'pending').is('deleted_at', null);
+      if (r.error) return;
+      const n = r.count || 0;
+      setBadges(b => (b.postsPendentes === n ? b : { ...b, postsPendentes: n }));
+    } catch(e) { /* badge e enfeite */ }
+  };
+
+  useEffect(() => {
+    if(!loggedIn) return;
+    loadPendBadge();
+    const t = setInterval(loadPendBadge, 120000);
+    window.addEventListener('posts-pendentes-mudou', loadPendBadge);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('posts-pendentes-mudou', loadPendBadge);
+    };
+  }, [loggedIn]);
 
   useEffect(() => {
     if(!loggedIn) return;
