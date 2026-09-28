@@ -72,7 +72,9 @@ describe('POST /api/delete-account — limpeza de Storage', () => {
     const res = await POST(mkReq({ accessToken: 'good' }));
     expect(res.status).toBe(200);
 
-    const listCalls = calls.filter((c) => c.url.includes('/storage/v1/object/list/'));
+    // A limpeza roda DUAS vezes (antes e depois do DELETE do auth.users);
+    // olha a 1ª passada (4 listagens).
+    const listCalls = calls.filter((c) => c.url.includes('/storage/v1/object/list/')).slice(0, 4);
     const listedBuckets = listCalls.map((c) => c.url.split('/storage/v1/object/list/')[1]);
     // 4 listagens: os 3 buckets na pasta `<uid>/` + as cópias aprovadas dos
     // posts em `posts/approved/<uid>/` (2026-09-26, post-approval.ts).
@@ -191,5 +193,84 @@ describe('POST /api/delete-account — retry + registro visível quando GoTrue D
     const { POST } = await import('@/app/api/delete-account/route');
     await POST(mkReq({ accessToken: 'good' }));
     expect(calls.some((u) => u.endsWith('/rest/v1/errors'))).toBe(false);
+  });
+});
+
+describe('POST /api/delete-account — janela de corrida', () => {
+  function mockBase(calls: { url: string; method?: string; headers?: HeadersInit }[], deleteOk = true) {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method, headers: init?.headers });
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'user-1', email: 'x@y.com' }), { status: 200 }),
+        );
+      }
+      if (url.includes('/rpc/check_rate_limit')) {
+        return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+      }
+      if (url.includes('/auth/v1/admin/users/') && init?.method === 'DELETE') {
+        return Promise.resolve(new Response(null, { status: deleteOk ? 204 : 500 }));
+      }
+      return Promise.resolve(new Response('[]', { status: 200 }));
+    });
+  }
+
+  it('faz logout global com o token do usuário ANTES de começar a apagar', async () => {
+    const calls: { url: string; method?: string; headers?: HeadersInit }[] = [];
+    mockBase(calls);
+    const { POST } = await import('@/app/api/delete-account/route');
+    await POST(mkReq({ accessToken: 'good' }));
+
+    const iLogout = calls.findIndex((c) => c.url.includes('/auth/v1/logout?scope=global'));
+    const iStorage = calls.findIndex((c) => c.url.includes('/storage/v1/object/list/'));
+    expect(iLogout).toBeGreaterThan(-1);
+    expect(iLogout).toBeLessThan(iStorage);
+    const h = calls[iLogout].headers as Record<string, string>;
+    expect(h.Authorization).toBe('Bearer good');
+  });
+
+  it('logout que falha não impede a exclusão', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/auth/v1/logout')) return Promise.reject(new Error('down'));
+      if (url.includes('/auth/v1/user')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ id: 'user-1', email: 'x@y.com' }), { status: 200 }),
+        );
+      }
+      if (url.includes('/rpc/check_rate_limit')) {
+        return Promise.resolve(new Response(JSON.stringify({ allowed: true }), { status: 200 }));
+      }
+      if (url.includes('/auth/v1/admin/users/') && init?.method === 'DELETE') {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(new Response('[]', { status: 200 }));
+    });
+    const { POST } = await import('@/app/api/delete-account/route');
+    const res = await POST(mkReq({ accessToken: 'good' }));
+    expect(res.status).toBe(200);
+  });
+
+  it('refaz a limpeza de Storage DEPOIS do DELETE do auth.users', async () => {
+    const calls: { url: string; method?: string }[] = [];
+    mockBase(calls);
+    const { POST } = await import('@/app/api/delete-account/route');
+    await POST(mkReq({ accessToken: 'good' }));
+
+    const iDelete = calls.findIndex(
+      (c) => c.url.includes('/auth/v1/admin/users/') && c.method === 'DELETE',
+    );
+    const listasDepois = calls
+      .slice(iDelete + 1)
+      .filter((c) => c.url.includes('/storage/v1/object/list/'));
+    expect(listasDepois).toHaveLength(4);
+  });
+
+  it('sem o auth.users apagado, NÃO faz a 2ª limpeza', async () => {
+    const calls: { url: string; method?: string }[] = [];
+    mockBase(calls, false);
+    const { POST } = await import('@/app/api/delete-account/route');
+    await POST(mkReq({ accessToken: 'good' }));
+    const listas = calls.filter((c) => c.url.includes('/storage/v1/object/list/'));
+    expect(listas).toHaveLength(4);
   });
 });

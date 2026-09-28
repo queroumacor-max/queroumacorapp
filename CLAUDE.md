@@ -25,6 +25,18 @@
     de obra das obras antigas. **NO AR: PR #450 (squash `bdc6f5d`), deploy
     run #765 do `deploy.yml` terminou `success`.**
 
+- **EXCLUSÃO DE CONTA: janela de corrida fechada (2026-09-28, pedido do
+  usuário, item 3 das pendências). SEM SQL.** `/api/delete-account` é uma
+  sequência de chamadas (storage → soft-delete → anonimizar → auth.users) e a
+  conta seguia logada em outra aba/aparelho no meio. Agora: (1) logout
+  `POST /auth/v1/logout?scope=global` com o token do PRÓPRIO usuário antes de
+  tudo (revoga todos os refresh tokens; best-effort, 5s de teto); (2)
+  `cleanupUserStorage` roda de novo DEPOIS do DELETE do auth.users (só se ele
+  deu certo) — pega arquivo subido durante a janela. O CASCADE do DELETE já
+  levava quase toda linha nova. **Limite: access token já emitido vale até
+  expirar (≤1h)** — PostgREST/Storage validam só a assinatura. Testes em
+  `__tests__/api/delete-account-storage-cleanup.test.ts`.
+
 - **PENDÊNCIAS DE 28/09 (pedido do usuário). SEM SQL.**
   - **Testado no aparelho pelo usuário (2026-09-28, "tudo certo"):**
     carrossel, vídeo, editar legenda (moderação no servidor, #435/#437) e
