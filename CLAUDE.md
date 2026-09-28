@@ -25,6 +25,35 @@
     de obra das obras antigas. **NO AR: PR #450 (squash `bdc6f5d`), deploy
     run #765 do `deploy.yml` terminou `success`.**
 
+- **PENDÊNCIAS DE 28/09 (pedido do usuário). SEM SQL.**
+  - **Testado no aparelho pelo usuário (2026-09-28, "tudo certo"):**
+    carrossel, vídeo, editar legenda (moderação no servidor, #435/#437) e
+    login social com PKCE. Não são mais pendência.
+  - **Portal: tela "⏳ Posts pendentes" — feita pela OUTRA sessão (#452),
+    ver a entrada dela.** Esta sessão fez a mesma tela em paralelo; ao
+    reconciliar ficou a versão do #452 (mostra todas as fotos do carrossel)
+    e a daqui foi descartada.
+  - **Loja: links de "voltar pra loja" caem no catálogo**, não mais na
+    tela de escolher loja. `LOJA_CATALOGO_HREF` (`/loja?loja=calicolors`,
+    em `lib/services/stores.ts`) em carrinho vazio, produto, pedido
+    confirmado, calculadora e meus pedidos. `LojaShell` lê `?loja=` por
+    `useSearchParams` (page embrulhada em `<Suspense>`) e só aceita a loja
+    que tem catálogo; escolher a Cali Colors espelha o `?loja=` na URL por
+    `replaceState`, então o VOLTAR do Android saindo de um produto também
+    volta ao catálogo. BottomNav segue em `/loja` (seleção). Testes em
+    `__tests__/components/LojaShell.test.tsx`.
+  - **`docs/IOS_BUILD.md` atualizado** (o `ios-build.yml` já tinha sido
+    apagado antes): WebIntoApp descontinuado (não é plano B), deploy do site
+    = `deploy.yml` → Worker, e a seção de pendências obsoletas virou "regras
+    que já custaram review" (navegação de documento, OAuth nativo, sem
+    compra no app).
+  - **Segmentos errados dos leads da Click Rua: o usuário decidiu deixar
+    como está.** Não é pendência.
+  - **`next build` com Turbopack falha NESTE SANDBOX** (`Can't resolve
+    '@vercel/turbopack-next/internal/font/google/font'` — o fetch da fonte
+    do Google não passa pelo proxy); a `main` sem mudança nenhuma falha
+    igual. Validar com `next build --webpack` aqui; o CI builda normal.
+
 - **POST PRESO EM `pending` — 2º caso (2026-09-26, foto do @jacksongraffiti
   das 19:49 UTC, aparecia no portfólio e não no feed). SQL
   `migrations/2026-09-26-posts-sweep-pending.sql` — JÁ RODADO no Supabase

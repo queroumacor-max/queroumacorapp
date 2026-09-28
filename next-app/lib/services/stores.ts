@@ -31,6 +31,13 @@ export const FALLBACK_STORES: Store[] = [
   },
 ];
 
+// Única loja com catálogo de verdade hoje (ver LojaShell). Telas que
+// "voltam pra loja" depois de uma compra (carrinho, produto, pedido
+// confirmado, calculadora) apontam pra cá: cai direto no catálogo em vez de
+// parar de novo na tela de escolher loja.
+export const CATALOG_STORE_ID = 'calicolors';
+export const LOJA_CATALOGO_HREF = `/loja?loja=${CATALOG_STORE_ID}`;
+
 interface RawStoreRow {
   id: string;
   name: string;

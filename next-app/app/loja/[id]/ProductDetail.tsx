@@ -13,6 +13,7 @@ import { useProduct } from '@/lib/hooks/useProducts';
 import { useCart } from '@/lib/hooks/useCart';
 import { productBg, resolveColorHex } from '@/lib/services/mkt';
 import { showToast } from '@/lib/toast';
+import { LOJA_CATALOGO_HREF } from '@/lib/services/stores';
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -59,7 +60,7 @@ export function ProductDetail({ id }: { id: string }) {
           Esse produto pode ter sido removido ou está fora de estoque.
         </p>
         <Link
-          href="/loja"
+          href={LOJA_CATALOGO_HREF}
           className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
         >
           Voltar pra loja
@@ -77,7 +78,7 @@ export function ProductDetail({ id }: { id: string }) {
   return (
     <div className="space-y-4">
       <Link
-        href="/loja"
+        href={LOJA_CATALOGO_HREF}
         className="inline-block text-xs font-semibold text-[color:var(--color-muted)] hover:text-[color:var(--color-ink)]"
       >
         ← Voltar

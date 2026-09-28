@@ -5,8 +5,8 @@ pelo Codemagic. Nao precisa de Mac.
 
 > **Historico:** ate 09/2026 o app da App Store vinha do repo privado
 > `queroumacor-ios` — um wrapper WebIntoApp, WebView pura, sem camera, push ou
-> OAuth nativo. A versao 1.2.0 substituiu aquele binario. O repo antigo esta
-> congelado como plano B; nao buildar de la.
+> OAuth nativo. A versao 1.2.0 substituiu aquele binario. O repo antigo e o
+> WebIntoApp estao DESCONTINUADOS: nao sao plano B, nao buildar de la.
 
 ---
 
@@ -23,7 +23,8 @@ pelo Codemagic. Nao precisa de Mac.
 
 O app **nao embarca o site**. O `capacitor.config.ts` aponta `server.url` pra
 `https://www.queroumacor.com.br`, entao mudanca no Next.js chega ao app pelo
-deploy do Cloudflare Pages, **sem rebuild**. So rebuilde ao mexer em plugin
+deploy do site (workflow `deploy.yml`, disparo manual -> Worker
+`queroumacor-next-production` no Cloudflare), **sem rebuild**. So rebuilde ao mexer em plugin
 nativo, permissao, icone, splash ou no proprio `capacitor.config.ts`.
 
 ---
@@ -179,12 +180,20 @@ o site esta fora da conversa.
 
 ---
 
-## 8. Pendencias antes de submeter pra review
+## 8. Regras que ja custaram review/producao
 
-- **Guideline 3.1.1**: a assinatura PRO nao pode ser vendida via Mercado Pago no
-  iOS. Ou StoreKit implementado, ou esconder a compra quando a plataforma for
-  iOS (`billing-platform.ts`). Ver `BILLING_STRATEGY.md`.
-- **Sessao do Supabase no `localStorage`**: o ITP do WKWebView apaga em ~7 dias
-  sem uso e desloga o usuario. Persistir via `@capacitor/preferences`.
-- **Fallback offline**: sem rede na abertura o app nao tem uma tela pra mostrar.
-  E o classico 4.2 Minimum Functionality.
+- **Navegacao de documento e proibida dentro da casca.** Toda navegacao de topo
+  que falha ou e cancelada (link externo, `window.location.href = ...`, reload
+  de pagina) faz o Capacitor pintar o `offline.html` em tela cheia, com a
+  internet boa. Foi a rejeicao 2.1 da build 17 (07/09/2026). Tela troca de rota
+  com `router.push/replace`; link externo passa por `abrirLinkExterno`
+  (`lib/native/browser.ts`). O teste `__tests__/lib/navegacao-documento.test.ts`
+  trava isso.
+- **Login social so pelo fluxo nativo** (browser do sistema + deep link
+  `br.com.queroumacor.app://auth/callback`, PKCE). Sem fallback pro fluxo web
+  dentro da casca.
+- **Nao ha compra dentro do app** (PRO por pontos, loja fecha a venda fora do
+  app) — Guideline 3.1.1/3.1.3(e) atendidas. Se um dia voltar a vender algo
+  digital no iOS, e StoreKit; ver `BILLING_STRATEGY.md`.
+- Sessao do Supabase: `hybridAuthStorage` (localStorage + cookies) cobre o
+  apagamento do ITP. Fallback offline: `offline.html` gerado pela build (passo 3).

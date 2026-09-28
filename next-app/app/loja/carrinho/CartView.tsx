@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useCart } from '@/lib/hooks/useCart';
 import { CartItem } from '@/components/CartItem';
+import { LOJA_CATALOGO_HREF } from '@/lib/services/stores';
 
 function SkeletonItem() {
   return (
@@ -145,7 +146,7 @@ export function CartView() {
           <div className="text-5xl mb-3" aria-hidden="true">🛒</div>
           <h2 className="font-semibold mb-2">Lista vazia</h2>
           <p className="text-sm text-[color:var(--color-muted)] mb-4">Selecione produtos pra começar.</p>
-          <Link href="/loja" className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold">
+          <Link href={LOJA_CATALOGO_HREF} className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold">
             Ver loja
           </Link>
         </div>
