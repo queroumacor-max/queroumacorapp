@@ -48,10 +48,20 @@
     nada pra colar) + cron `posts-sweep-pending` a cada 10 min. (3) Corrida
     app × varredura: CAS perdido agora relê — se outra aprovação já
     publicou, responde approved (antes 409 faria o app apagar post no ar).
-  - **Portal: a tela "Posts pendentes" (`PostsModeracao` no `app.jsx`)
-    existe mas NÃO está no menu** — a aba "🛡️ Moderação" é só de denúncias.
-    Hoje pendente só se vê/aprova pelo SQL Editor. Ligar a tela não foi
-    feito (fora do pedido).
+  - **Portal: tela "⏳ Posts pendentes" LIGADA no menu (2026-09-28, pedido
+    do usuário; v=20260928a, SEM SQL).** Seção PRINCIPAL, com badge da
+    contagem de pendentes (`postsPendentes`, `status='pending'` e não
+    apagados). A tela (`PostsModeracao`) existia órfã e foi revisada antes
+    de entrar: busca em 2 passos (posts, depois `profiles` por id — sem
+    embed PostgREST), esconde `deleted_at` (o app apaga o próprio pendente
+    quando a aprovação falha), mostra TODAS as fotos do carrossel
+    (`midiasDoPost`: `media_urls` + `media_url`) — aprovar olhando só a 1ª
+    publicaria as outras sem ninguém ver —, legenda com quebra de linha e
+    o link do post. `postsService.setStatus` agora pede `.select('id')` e
+    estoura em zero linhas. Aprovar aqui é decisão HUMANA: grava
+    `approved` direto (o trigger deixa admin livre) e NÃO copia a mídia pra
+    `posts/approved/` como a rota do servidor faz. Teste
+    `__tests__/portalPostsPendentes.test.ts`.
   - **CONFIRMADO PELO USUÁRIO (2026-09-26, "foi tudo"): o post das 19:49
     apareceu no feed depois do deploy #762.** Caso fechado.
 
@@ -108,8 +118,9 @@
   - **1 post ficou preso em `pending`** (`e155fe65…`, criado 19:27 UTC,
     DEPOIS do deploy #757) — provável app com bundle antigo aberto (o JS
     antigo grava e nunca pede aprovação). **APROVADO À MÃO pelo usuário no
-    SQL Editor (2026-09-26).** Varredura automática de pendentes proposta,
-    não feita (aguardando resposta).
+    SQL Editor (2026-09-26).** A varredura automática de pendentes foi
+    feita depois (PR #443, cron `posts-sweep-pending` — ver entrada "POST
+    PRESO EM `pending` — 2º caso" acima).
   - **Correções do Codex (#435 e #437) NO AR: PR #437 (squash `8f87b3d`),
     deploy run #759 do `deploy.yml` terminou `success`.** Falta testar no
     aparelho: foto, carrossel, vídeo, story e editar legenda.
@@ -597,7 +608,10 @@
   pedágio/estacionamento por viagem; mostra km, litros, custo por km e por
   viagem, e copia o texto pro orçamento. Dado faltando → "preencha", nunca
   R$ 0,00. Nada é gravado (só cálculo); passo novo no tour (`p-frete`).
-  - **EM ABERTO, planejado e NÃO feito (aguardando OK do usuário):**
+  - **[HISTÓRICO — TUDO ENTREGUE depois: Gestão de Obras (PR #406 e
+    seguintes), Editar/Duplicar/Modelo (#405), rolagem do pipeline (#404) e
+    gastos por categoria no Financeiro. Ver as entradas próprias. Não é
+    pendência.]** ~~EM ABERTO, planejado e NÃO feito~~:
     (1) **Gestão de Obras** (tile pintor): protótipo em
     https://claude.ai/artifact/XoADjescHo2T7Ww8ULs6fU — obras, equipe
     (convite por @tag ou funcionário sem conta via WhatsApp), escala
