@@ -15,7 +15,14 @@
 // Não throws em erros não-fatais — preserva resposta 200 pra cliente.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireAuthStrict, getServiceKey, getSupabaseUrl, ServiceError, enforceRateLimit } from '@/lib/api/security';
+import {
+  requireAuthStrict,
+  getServiceKey,
+  getSupabaseUrl,
+  resolveSupabaseEnv,
+  ServiceError,
+  enforceRateLimit,
+} from '@/lib/api/security';
 import { logAuditEvent } from '@/lib/api/audit';
 import { captureDrAuditEvent } from '@/lib/drAuditTrail';
 import { cleanupUserStorage } from '@/lib/api/_services/storageCleanup';
@@ -37,10 +44,12 @@ export async function POST(request: NextRequest) {
 
   let userId: string;
   let email: string | null = null;
+  let userToken: string;
   try {
     const auth = await requireAuthStrict(request, body);
     userId = auth.user.id;
     email = auth.user.email ?? null;
+    userToken = auth.token;
   } catch (e) {
     if (e instanceof ServiceError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -67,6 +76,19 @@ export async function POST(request: NextRequest) {
   };
 
   const now = new Date().toISOString();
+
+  // -1. Derruba TODAS as sessões da conta (2026-09-28, janela de corrida).
+  // A exclusão é uma sequência de chamadas HTTP (storage → soft-delete →
+  // anonimização → auth.users). Enquanto ela anda, a mesma conta segue
+  // logada em outra aba/aparelho e pode gravar linha ou subir arquivo que a
+  // varredura já passou. O CASCADE do DELETE final leva quase toda linha
+  // nova; o que sobra é arquivo órfão no Storage (tratado no fim, com a 2ª
+  // limpeza) e linha com FK SET NULL. O logout `scope=global` revoga todos
+  // os refresh tokens: nenhuma sessão consegue renovar. LIMITE: um access
+  // token já emitido continua válido até expirar (≤1h) — o JWT é validado
+  // só pela assinatura no PostgREST/Storage. Best-effort: falhar aqui não
+  // impede a exclusão.
+  await revogarSessoes(userToken);
 
   // 0. Storage: apaga os ARQUIVOS do usuário nos buckets públicos onde o
   // path segue a convenção `<uid>/...` (avatars, art-refs; `posts` também
@@ -257,5 +279,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 5. 2ª limpeza de Storage, DEPOIS do auth.users sumir: pega arquivo que
+  // outra sessão ainda viva subiu enquanto a exclusão andava (a 1ª passada
+  // já tinha listado o bucket). Com o usuário apagado, nada mais escreve em
+  // `<uid>/`. Best-effort, igual a primeira.
+  if (authDeleted) await cleanupUserStorage(userId, supaUrl, serviceKey);
+
   return NextResponse.json({ ok: true, deleted_at: now });
+}
+
+/** Logout global com o token do PRÓPRIO usuário. Nunca lança. */
+async function revogarSessoes(userToken: string): Promise<void> {
+  try {
+    // URL e anon key do MESMO par (regra de 2026-09-04) — é o GoTrue que
+    // valida o token do usuário aqui.
+    let par: { url: string; anonKey: string };
+    try {
+      par = resolveSupabaseEnv();
+    } catch {
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(`${par.url}/auth/v1/logout?scope=global`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userToken}`, apikey: par.anonKey },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) console.warn(`delete-account: logout global respondeu ${res.status}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (e) {
+    console.warn('delete-account: logout global falhou', e instanceof Error ? e.message : e);
+  }
 }
