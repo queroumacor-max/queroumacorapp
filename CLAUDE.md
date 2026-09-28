@@ -49,6 +49,14 @@
     compra no app).
   - **Segmentos errados dos leads da Click Rua: o usuário decidiu deixar
     como está.** Não é pendência.
+  - **Cloudflare CSAM Scanning Tool: LIGADO (2026-09-28, print do usuário
+    no painel da zona — toggle azul ativo, botão "Configure" ao lado).**
+    Não é pendência. As anotações antigas que dizem "não é toggle de
+    painel / exige e-mail ao NCMEC" estão SUPERADAS — hoje é um toggle na
+    zona. Limite: só olha imagem que passa pelo CACHE da Cloudflare; as
+    fotos vivem no Supabase Storage e só passam pela zona via
+    `/cdn-cgi/image`. A defesa principal segue sendo a moderação no
+    servidor + `media_hash_blocklist`.
   - **Revisão dos documentos legais por advogado e DMARC do
     `calicolors.com.br`: o usuário decidiu IGNORAR (2026-09-28).** Não
     listar como pendência nem lembrar de novo.
@@ -2581,9 +2589,9 @@
   - **NÃO alterados por decisão/risco aceito, sem mudança**: `===` no
     handshake GET do webhook WhatsApp; janela fixa de 1 min no
     `check_rate_limit`; migrar adapter pro OpenNext-Cloudflare.
-  - Cloudflare CSAM Scanning Tool: confirmado que não é toggle self-service
-    nas configurações da zona — segue exigindo contato manual por e-mail,
-    sem mudança de fato.
+  - Cloudflare CSAM Scanning Tool: [SUPERADO — LIGADO em 2026-09-28, ver
+    "PENDÊNCIAS DE 28/09" no topo] na época foi registrado como não sendo
+    toggle self-service.
 
 - **VERIFICAÇÃO MANUAL DOS 4 ITENS DE CONSOLE DA AUDITORIA FCM/PUSH — FEITA
   (2026-09-16).** Os 4 itens "MANUAL VERIFICATION" que a auditoria de
@@ -6596,7 +6604,8 @@
     `media_review_queue` + coluna `posts.media_hash`. `/api/moderate` agora
     aceita `mediaUrl`, calcula hash SHA-256, checa blocklist (curto-circuita
     Gemini em hit), enfileira review em severity hard+. Admin queue em
-    `/admin/media-review`. **SQL JÁ EXECUTADO (2026-06-12).** Falta o
+    `/admin/media-review`. **SQL JÁ EXECUTADO (2026-06-12).** [SUPERADO:
+    o CSAM Scanning Tool está LIGADO desde 2026-09-28, ver topo.] Falta o
     Cloudflare CSAM Scanning Tool: **NÃO é toggle de painel** (a página
     `/stream/csam` carrega em branco) — exige opt-in legal manual, o
     titular da conta tem que contatar o suporte CF ou mandar email pra
@@ -7105,7 +7114,8 @@
   - **Wave 29 (CSAM, C4)**: `posts.media_hash` + tabelas
     `media_hash_blocklist` + `media_review_queue` (RLS admin-only via
     `is_portal_admin()`). `/migrations/2026-06-11-csam-media-hash.sql`.
-    Falta o Cloudflare CSAM Scanning Tool — **opt-in legal manual**
+    [SUPERADO: LIGADO em 2026-09-28, ver topo.] Falta o Cloudflare CSAM
+    Scanning Tool — **opt-in legal manual**
     (email `cloudflare-csam@cloudflare.com` + NCMEC Agreement), NÃO é
     toggle de painel.
   - **Wave 32 (R-H7)**: `profiles_public` recriada SEM `portal_access`
