@@ -90,7 +90,9 @@
     estoura em zero linhas. Aprovar aqui é decisão HUMANA: grava
     `approved` direto (o trigger deixa admin livre) e NÃO copia a mídia pra
     `posts/approved/` como a rota do servidor faz. Teste
-    `__tests__/portalPostsPendentes.test.ts`.
+    `__tests__/portalPostsPendentes.test.ts`. **NO AR: PR #452 (squash
+    `0c4739a`), deploy run #766 do `deploy.yml` terminou `success`.** Falta o
+    usuário conferir no portal.
   - **CONFIRMADO PELO USUÁRIO (2026-09-26, "foi tudo"): o post das 19:49
     apareceu no feed depois do deploy #762.** Caso fechado.
 
