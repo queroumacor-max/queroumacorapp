@@ -49,6 +49,9 @@
     compra no app).
   - **Segmentos errados dos leads da Click Rua: o usuário decidiu deixar
     como está.** Não é pendência.
+  - **Revisão dos documentos legais por advogado e DMARC do
+    `calicolors.com.br`: o usuário decidiu IGNORAR (2026-09-28).** Não
+    listar como pendência nem lembrar de novo.
   - **`next build` com Turbopack falha NESTE SANDBOX** (`Can't resolve
     '@vercel/turbopack-next/internal/font/google/font'` — o fetch da fonte
     do Google não passa pelo proxy); a `main` sem mudança nenhuma falha
@@ -112,7 +115,7 @@
   delete 30). Termos gerais: arquitetos/engenheiros, moderação prévia,
   loja sem pagamento, conteúdo de IA. Profissional: dados de clientes/
   equipe e PDF. "Versão 1.0" → 1.2. **Não validado por advogado** —
-  recomendado antes de considerar definitivo. "Mensagens e orçamentos 2
+  o usuário decidiu não levar a advogado (2026-09-28); não é pendência. "Mensagens e orçamentos 2
   anos" e "registros de acesso 6 meses" seguem como compromisso, não há
   job que apague/guarde nesses prazos. **NO AR: PR #442 (squash `55b213f`),
   deploy run #761 do `deploy.yml` terminou `success`.**
@@ -6772,7 +6775,8 @@
   (~semanas-meses pra propagar via update de Chrome → Firefox/Safari).
   **Não submeter outros subdomínios sem garantir HTTPS perpétuo** —
   remoção da preload list leva 6+ meses.
-- **DMARC pendente em `calicolors.com.br`** (não-bloqueante). O domínio
+- **DMARC em `calicolors.com.br` — IGNORADO por decisão do usuário
+  (2026-09-28); não é pendência.** Registro antigo: O domínio
   `queroumacor.com.br` já tem DMARC `p=reject`. Falta o usuário adicionar
   no GoDaddy o TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:dpo@calicolors.com.br`.
   Não é code-actionable — só ele pode mexer no DNS.
