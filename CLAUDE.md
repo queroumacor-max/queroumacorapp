@@ -38,8 +38,21 @@
   por requisição) e há teto de 25s que mostra Abrir/Baixar.
   **REGRA: rota que manda CSP/headers próprios perde pros do middleware no
   OpenNext. Nonce de script inline sai SEMPRE da CSP do request.** Teste em
-  `__tests__/pdf/paginaVisualizadora-csp.test.ts`. Não confirmado no
+  `__tests__/pdf/paginaVisualizadora-csp.test.ts`. **NO AR: PR #472 (squash
+  `88df035`), deploy run #768 do `deploy.yml` terminou `success`.** Não confirmado no
   aparelho ainda.
+  - **O BUMP PRO `next` 16.4.0 DERRUBOU O APP (2026-10-06, relato do
+    usuário logo após o deploy #768: "não sai da tela de loading").** Com o
+    16.4.0 sob o OpenNext as páginas paravam de hidratar (o mesmo sintoma do
+    incidente de CSP sem nonce de 20/09). A leitura do nonce no fonte do Next
+    é idêntica no 16.3.5 e no 16.4.0 (só mudou de arquivo), então a causa
+    exata no 16.4 NÃO foi isolada: `next start` local sai sem nonce em TODAS
+    as versões (as páginas são estáticas) e o build OpenNext com webpack não
+    fecha neste sandbox. **Hotfix: `next` → 16.3.8** (patch da linha 16.3 que
+    estava no ar; 154 arquivos de diferença pro 16.3.5, contra 1656 do 16.4;
+    `npm audit --omit=dev` = 0). **REGRA: não subir o `next` de MINOR sem
+    abrir o app num aparelho/navegador real logo depois do deploy** — CI,
+    tsc, vitest e `next build` passam todos com o app quebrado.
   - **Junto, no mesmo PR (#472): CVEs novas barravam o CI.** `npm audit`
     de produção acusava `next` 16.3.5 CRITICAL (RCE em `next/og`
     ImageResponse, GHSA-vcvr-r3jv-pc5j), `sharp` <0.35.5 e
