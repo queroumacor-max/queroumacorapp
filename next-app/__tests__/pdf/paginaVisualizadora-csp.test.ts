@@ -41,3 +41,35 @@ describe('GET /pdf/[id] (página visualizadora) — CSP sem unsafe-inline', () =
     expect(n1).not.toBe(n2);
   });
 });
+
+// 2026-10-06: a página ficava eternamente em "Carregando orçamento…". No
+// @opennextjs os headers do MIDDLEWARE sobrescrevem os da rota, então a CSP
+// que chega no navegador é a do middleware — com OUTRO nonce. O <script>
+// inline era bloqueado. A rota agora usa o nonce que o middleware gravou no
+// header do request.
+describe('GET /pdf/[id] — nonce casa com a CSP do middleware', () => {
+  it('usa o nonce da CSP do request (a que o middleware gravou)', async () => {
+    const { GET } = await import('@/app/pdf/[id]/route');
+    const req = new NextRequest('https://app.test/pdf/abcdefgh', {
+      headers: { 'content-security-policy': "default-src 'self'; script-src 'self' 'nonce-mw-1234-abcd' 'wasm-unsafe-eval'" },
+    });
+    const res = await GET(req, { params: Promise.resolve({ id: 'abcdefgh' }) });
+    const html = await res.text();
+    expect(html).toContain('<script nonce="mw-1234-abcd">');
+    expect(res.headers.get('Content-Security-Policy')).toContain("'nonce-mw-1234-abcd'");
+  });
+
+  it('o HTML não é cacheável (o nonce é da requisição)', async () => {
+    const { GET } = await import('@/app/pdf/[id]/route');
+    const res = await GET(mkReq(), { params: Promise.resolve({ id: 'abcdefgh' }) });
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('o middleware libera o pdf.js pinado em script-src (senão a CSP dele barra o CDN)', async () => {
+    const fs = await import('node:fs');
+    const mw = fs.readFileSync('middleware.ts', 'utf8');
+    expect(mw).toContain('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/');
+    const route = fs.readFileSync('app/pdf/[id]/route.ts', 'utf8');
+    expect(route).toContain('pdfjs-dist@3.11.174/');
+  });
+});

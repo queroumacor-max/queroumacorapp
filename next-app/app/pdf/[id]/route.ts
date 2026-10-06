@@ -44,7 +44,7 @@ export async function GET(
   const q = request.nextUrl.searchParams;
   const querBytes = q.get('raw') !== null || q.get('download') !== null;
 
-  if (!querBytes) return paginaVisualizadora();
+  if (!querBytes) return paginaVisualizadora(nonceDoMiddleware(request));
 
   let base: string;
   try {
@@ -71,7 +71,20 @@ export async function GET(
   return new Response(upstream.body, { status: 200, headers });
 }
 
-function paginaVisualizadora(): Response {
+// O nonce que o MIDDLEWARE pôs na CSP desta requisição (ele grava a CSP
+// também no header do REQUEST). Tem que ser ESTE: no @opennextjs os headers
+// do middleware SOBRESCREVEM os da rota (mergeHeadersPriority padrão =
+// 'middleware', ver openNextResponse.js) — a CSP que chega no navegador é a
+// dele. Com um nonce próprio aqui, o <script> inline era bloqueado e a
+// página ficava eternamente em "Carregando orçamento…" (2026-10-06).
+// Sem middleware (teste), cai num nonce novo.
+function nonceDoMiddleware(request: Request): string {
+  const csp = request.headers.get('content-security-policy') || '';
+  const m = csp.match(/'nonce-([A-Za-z0-9+/=_-]+)'/);
+  return m ? m[1] : crypto.randomUUID();
+}
+
+function paginaVisualizadora(nonce: string): Response {
   // Nada dinâmico entra no HTML (o id vem de location.pathname no client),
   // então não há o que escapar. CSP próprio e mínimo — o _headers do Pages
   // não se aplica a resposta de function.
@@ -84,7 +97,6 @@ function paginaVisualizadora(): Response {
   // Component — a rota já É dinâmica. `<script src="${PDFJS}">` segue
   // coberto pelo host allowlist (`cdn.jsdelivr.net`); só o `<script>`
   // inline (que chama `pdfjsLib`) precisa do nonce.
-  const nonce = crypto.randomUUID();
   const html = `<!doctype html><html lang="pt-BR"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Orçamento — QueroUmaCor</title>
@@ -123,6 +135,10 @@ function paginaVisualizadora(): Response {
     // funcionando — a página nunca é um beco sem saída.
     st.innerHTML = 'Não consegui mostrar aqui. <a href="?raw=1">Abrir o PDF</a> ou <a href="?download=orcamento.pdf">baixar</a>.';
   }
+  // Teto: se em 25s nada apareceu (worker travado, rede ruim), oferece as
+  // saídas em vez de deixar "Carregando…" pra sempre.
+  var pronto = false;
+  setTimeout(function(){ if (!pronto) falhou(); }, 25000);
   try {
     if (!window.pdfjsLib) return falhou();
     // Worker direto do CDN (CSP libera cdn.jsdelivr.net em worker-src) —
@@ -144,6 +160,7 @@ function paginaVisualizadora(): Response {
       cont.appendChild(c);
       await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
     }
+    pronto = true;
     st.remove();
   } catch (e) { falhou(); }
 })();
@@ -153,7 +170,9 @@ function paginaVisualizadora(): Response {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      // no-store: o HTML carrega o nonce DESTA requisição. Uma cópia em
+      // cache chegaria com a CSP (e o nonce) de outra e o script travaria.
+      'Cache-Control': 'no-store',
       'Content-Security-Policy':
         `default-src 'none'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; ` +
         "style-src 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net; " +
