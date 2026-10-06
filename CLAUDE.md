@@ -52,7 +52,9 @@
     estava no ar; 154 arquivos de diferença pro 16.3.5, contra 1656 do 16.4;
     `npm audit --omit=dev` = 0). **REGRA: não subir o `next` de MINOR sem
     abrir o app num aparelho/navegador real logo depois do deploy** — CI,
-    tsc, vitest e `next build` passam todos com o app quebrado.
+    tsc, vitest e `next build` passam todos com o app quebrado. **NO AR: PR
+    #473 (squash `2c222dd`), deploy run #769 do `deploy.yml` terminou
+    `success`.** Falta o usuário confirmar que o app voltou a abrir.
   - **Junto, no mesmo PR (#472): CVEs novas barravam o CI.** `npm audit`
     de produção acusava `next` 16.3.5 CRITICAL (RCE em `next/og`
     ImageResponse, GHSA-vcvr-r3jv-pc5j), `sharp` <0.35.5 e
