@@ -38,7 +38,8 @@
   por requisição) e há teto de 25s que mostra Abrir/Baixar.
   **REGRA: rota que manda CSP/headers próprios perde pros do middleware no
   OpenNext. Nonce de script inline sai SEMPRE da CSP do request.** Teste em
-  `__tests__/pdf/paginaVisualizadora-csp.test.ts`. Não confirmado no
+  `__tests__/pdf/paginaVisualizadora-csp.test.ts`. **NO AR: PR #472 (squash
+  `88df035`), deploy run #768 do `deploy.yml` terminou `success`.** Não confirmado no
   aparelho ainda.
   - **O BUMP PRO `next` 16.4.0 DERRUBOU O APP (2026-10-06, relato do
     usuário logo após o deploy #768: "não sai da tela de loading").** Com o
