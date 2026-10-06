@@ -40,6 +40,15 @@
   OpenNext. Nonce de script inline sai SEMPRE da CSP do request.** Teste em
   `__tests__/pdf/paginaVisualizadora-csp.test.ts`. Não confirmado no
   aparelho ainda.
+  - **Junto, no mesmo PR (#472): CVEs novas barravam o CI.** `npm audit`
+    de produção acusava `next` 16.3.5 CRITICAL (RCE em `next/og`
+    ImageResponse, GHSA-vcvr-r3jv-pc5j), `sharp` <0.35.5 e
+    `source-map-js` HIGH, `dompurify` LOW. `next` → **16.4.0** (exato;
+    OpenNext aceita `>=16.3.3`), `source-map-js`/`dompurify` atualizados no
+    lock, e `overrides: {next: {sharp: "0.35.5"}}` — sem ele o `sharp` do
+    next deduplicava com o 0.35.4 que o `miniflare` (wrangler, dev) pina
+    EXATO. **Não usar `npm audit fix` sem `--omit=dev` aqui:** ele sobe o
+    `wrangler` junto (lock +1500 linhas). Prod: 0 vulnerabilidades.
 
 - **EXCLUSÃO DE CONTA: janela de corrida fechada (2026-09-28, pedido do
   usuário, item 3 das pendências). SEM SQL.** `/api/delete-account` é uma
