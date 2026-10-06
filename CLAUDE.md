@@ -25,6 +25,22 @@
     de obra das obras antigas. **NO AR: PR #450 (squash `bdc6f5d`), deploy
     run #765 do `deploy.yml` terminou `success`.**
 
+- **LINK DO PDF DO ORÇAMENTO PRESO EM "Carregando orçamento…" (2026-10-06,
+  print do usuário). SEM SQL.** Causa, lida no fonte do adapter
+  (`@opennextjs/aws/dist/http/openNextResponse.js`, `flushHeaders`): os
+  headers do MIDDLEWARE **sobrescrevem** os da rota
+  (`mergeHeadersPriority` padrão = 'middleware'). A `/pdf/[id]` mandava CSP
+  própria com nonce próprio, mas chegava no navegador a CSP do middleware,
+  com OUTRO nonce. O `<script>` inline do visualizador era bloqueado, nada
+  rodava (nem o fallback) e a página ficava em "Carregando…" pra sempre.
+  Correção: a rota usa o nonce que o middleware gravou no header
+  `Content-Security-Policy` do REQUEST, o HTML virou `no-store` (o nonce é
+  por requisição) e há teto de 25s que mostra Abrir/Baixar.
+  **REGRA: rota que manda CSP/headers próprios perde pros do middleware no
+  OpenNext. Nonce de script inline sai SEMPRE da CSP do request.** Teste em
+  `__tests__/pdf/paginaVisualizadora-csp.test.ts`. Não confirmado no
+  aparelho ainda.
+
 - **EXCLUSÃO DE CONTA: janela de corrida fechada (2026-09-28, pedido do
   usuário, item 3 das pendências). SEM SQL.** `/api/delete-account` é uma
   sequência de chamadas (storage → soft-delete → anonimizar → auth.users) e a
