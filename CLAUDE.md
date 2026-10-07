@@ -73,7 +73,8 @@
   deu certo) — pega arquivo subido durante a janela. O CASCADE do DELETE já
   levava quase toda linha nova. **Limite: access token já emitido vale até
   expirar (≤1h)** — PostgREST/Storage validam só a assinatura. Testes em
-  `__tests__/api/delete-account-storage-cleanup.test.ts`.
+  `__tests__/api/delete-account-storage-cleanup.test.ts`. **NO AR: PR #458
+  (squash `7cc5244`), deploy run #767 do `deploy.yml` terminou `success`.**
 
 - **PENDÊNCIAS DE 28/09 (pedido do usuário). SEM SQL.**
   - **Testado no aparelho pelo usuário (2026-09-28, "tudo certo"):**
@@ -91,7 +92,9 @@
     que tem catálogo; escolher a Cali Colors espelha o `?loja=` na URL por
     `replaceState`, então o VOLTAR do Android saindo de um produto também
     volta ao catálogo. BottomNav segue em `/loja` (seleção). Testes em
-    `__tests__/components/LojaShell.test.tsx`.
+    `__tests__/components/LojaShell.test.tsx`. **PR #453 (squash `0669e5f`)
+    foi mergeado DEPOIS do commit do deploy #766 — chegou ao ar no deploy
+    run #767 (`success`).**
   - **`docs/IOS_BUILD.md` atualizado** (o `ios-build.yml` já tinha sido
     apagado antes): WebIntoApp descontinuado (não é plano B), deploy do site
     = `deploy.yml` → Worker, e a seção de pendências obsoletas virou "regras
