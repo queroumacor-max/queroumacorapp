@@ -25,6 +25,7 @@ import { NativePushBridge } from './NativePushBridge';
 import { NativeBadge } from './NativeBadge';
 import { OfflineBanner } from './OfflineBanner';
 import { AppTour } from './AppTour';
+import { ProExpirandoModal } from './ProExpirandoModal';
 import { PickerRecovery } from './PickerRecovery';
 import { BackGuard } from './BackGuard';
 import { SplashMascotes } from './SplashMascotes';
@@ -254,6 +255,8 @@ export function AppShell({
           BottomNav já montados na hora de medir os alvos; ele mesmo decide
           quando abrir (só em /feed, só uma vez — ver AppTour.tsx). */}
       <AppTour />
+      {/* PRO acabando nas próximas 24h: avisa uma vez por prazo. */}
+      <ProExpirandoModal />
     </div>
   );
 }

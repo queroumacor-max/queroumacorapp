@@ -1,5 +1,18 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
+  SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
+  toda tela logada) + regra pura `lib/proAviso.ts`. Fim do acesso = MAIOR
+  data entre `pro_expires_at` e `pro_grace_until` (mesma conta do
+  `canSeeProFeature`); avisa quando falta ≤24h e ainda não acabou; admin e
+  PRO sem data nunca veem. UMA vez por prazo: a marca no localStorage leva a
+  data de fim, então renovar avisa de novo no próximo vencimento. Reconfere
+  a cada 10 min (app aberto por horas entra na janela). Texto: "caso queira
+  renovar, entre em contato com a Cali Colors pelo chat do app ou pelo
+  WhatsApp" — botão de chat (`useNewChat` com a loja, `router.push`) e de
+  WhatsApp (`abrirLinkExterno`). Os hooks do chat só montam com o aviso
+  aberto. Teste `__tests__/proAviso.test.ts`. **NÃO deployado ainda.**
+
 - **GESTÃO DE OBRAS › EQUIPE: "×" virou "Cancelar convite" e a mudança é
   instantânea (2026-09-26, pedido do usuário com print). SEM SQL.** Convite
   pendente mostra "Cancelar convite"; ativo mostra "Remover da equipe"; saiu
