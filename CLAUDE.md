@@ -11,7 +11,9 @@
   renovar, entre em contato com a Cali Colors pelo chat do app ou pelo
   WhatsApp" — botão de chat (`useNewChat` com a loja, `router.push`) e de
   WhatsApp (`abrirLinkExterno`). Os hooks do chat só montam com o aviso
-  aberto. Teste `__tests__/proAviso.test.ts`. **NÃO deployado ainda.**
+  aberto. Teste `__tests__/proAviso.test.ts`. **NO AR: PR #475 (squash
+  `ba59d79`), deploy run #770 do `deploy.yml` terminou `success`.** Não
+  confirmado no aparelho ainda.
 
 - **GESTÃO DE OBRAS › EQUIPE: "×" virou "Cancelar convite" e a mudança é
   instantânea (2026-09-26, pedido do usuário com print). SEM SQL.** Convite
