@@ -1,5 +1,13 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
+  SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
+  só trazia quem a pessoa segue. Agora `followingOnly: false`; bloqueados
+  seguem fora pelo `blocks` do `get_feed_v2`. Os filtros de categoria
+  (Pintura/Grafite/…) também ficaram globais, de propósito (Codex apontou;
+  mantido — categoria é recorte do "Todos"). **NO AR: PR #476 (squash
+  `49f68e8`), deploy run #771 do `deploy.yml` terminou `success`.**
+
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
   toda tela logada) + regra pura `lib/proAviso.ts`. Fim do acesso = MAIOR
