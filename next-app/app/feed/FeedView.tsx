@@ -62,7 +62,7 @@ function PostSkeleton() {
 }
 
 export function FeedView() {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('');
   // Default muted=true porque autoplay sem mute é bloqueado em quase todos
   // os browsers desktop/mobile. Mesma decisão do vanilla.
@@ -106,9 +106,10 @@ export function FeedView() {
       ? { authorIds: nearbyIds ?? [], shuffle: true, followingOnly: false }
       : {
           roleFilter,
-          // Se não-logado, mostra feed global (followingOnly=false). Logado,
-          // followingOnly=true (default do hook, mas explícito aqui pra clareza).
-          followingOnly: !!user,
+          // "Todos" é o feed GLOBAL: posts de todo mundo, não só de quem a
+          // pessoa segue (decisão do usuário, 2026-10-21). Bloqueados seguem
+          // fora pelo filtro de `blocks` do get_feed_v2.
+          followingOnly: false,
         },
   );
 
