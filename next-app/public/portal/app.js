@@ -4327,17 +4327,30 @@ const Analytics = () => {
   useEffect(() => {
     (async () => {
       const sb = supa;
-      const [pRes, lRes, qRes, mRes] = await Promise.all([sb.from('profiles').select('id, created_at'), sb.from('leads').select('id, status'), sb.from('quotes').select('id, status, service_type, price, created_at'), sb.from('messages').select('id')]);
-      const profiles = pRes.data || [];
-      const leads = lRes.data || [];
-      const quotes = qRes.data || [];
-      const messages = mRes.data || [];
-      const accepted = quotes.filter(q => q.status === 'accepted' || q.status === 'completed').length;
+      // Contagens com count:'exact' + head:true. Antes cada tabela vinha
+      // INTEIRA com select('id') e o total era o .length — o PostgREST corta
+      // em 1000 linhas, entao Leads travava em "1000" com dezenas de milhares
+      // na base (e Perfis/Mensagens travariam igual ao passar de mil).
+      const contar = t => sb.from(t).select('id', {
+        count: 'exact',
+        head: true
+      });
+      const [pRes, lRes, qCount, mRes, qRes] = await Promise.all([contar('profiles'), contar('leads'), contar('quotes'), contar('messages'),
+      // Linhas so pro "Top Servicos" e "aceitos"; paginado, sem teto de 1000.
+      buscarTudo(() => sb.from('quotes').select('id, status, service_type, title').order('created_at', {
+        ascending: false
+      }).order('id', {
+        ascending: false
+      })).catch(() => [])]);
+      const quotes = Array.isArray(qRes) ? qRes : [];
+      // Status do pipeline sao em portugues (QuoteStatus em lib/types.ts):
+      // 'accepted'/'completed' nunca existiram, por isso o funil mostrava 0.
+      const accepted = quotes.filter(q => ['aprovado', 'em_execucao', 'concluido'].includes(q.status)).length;
       setData({
-        profiles: profiles.length,
-        leads: leads.length,
-        quotes: quotes.length,
-        messages: messages.length,
+        profiles: pRes.count || 0,
+        leads: lRes.count || 0,
+        quotes: qCount.count ?? quotes.length,
+        messages: mRes.count || 0,
         quotesAccepted: accepted,
         quotesData: quotes
       });
@@ -4345,23 +4358,27 @@ const Analytics = () => {
     })();
   }, []);
   const funnel = React.useMemo(() => {
-    const funnelTotal = data.profiles || 1;
+    // Barra proporcional ao MAIOR valor (e travada em 100%). Antes era
+    // relativa a "Perfis": 1000 leads / 29 perfis = 3448% e a barra
+    // atravessava o card. Leads nao sao subconjunto de perfis.
+    const base = Math.max(data.profiles, data.leads, data.quotes, data.quotesAccepted, 1);
+    const pct = n => Math.min(100, Math.round(n / base * 100));
     return [{
       label: 'Perfis cadastrados',
       n: data.profiles,
-      pct: 100
+      pct: pct(data.profiles)
     }, {
       label: 'Leads captados',
       n: data.leads,
-      pct: Math.round(data.leads / funnelTotal * 100)
+      pct: pct(data.leads)
     }, {
       label: 'Orçamentos solicitados',
       n: data.quotes,
-      pct: Math.round(data.quotes / funnelTotal * 100)
+      pct: pct(data.quotes)
     }, {
-      label: 'Orçamentos aceitos/concluídos',
+      label: 'Orçamentos aprovados/concluídos',
       n: data.quotesAccepted,
-      pct: Math.round(data.quotesAccepted / funnelTotal * 100)
+      pct: pct(data.quotesAccepted)
     }];
   }, [data]);
   const topServices = React.useMemo(() => {
@@ -4453,14 +4470,15 @@ const Analytics = () => {
     style: {
       background: C.border,
       borderRadius: 4,
-      height: 8
+      height: 8,
+      overflow: 'hidden'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.p1,
       height: 8,
       borderRadius: 4,
-      width: Math.max(s.pct, 2) + '%'
+      width: (s.n > 0 ? Math.max(s.pct, 2) : 0) + '%'
     }
   }))))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4492,12 +4510,18 @@ const Analytics = () => {
       width: 12,
       height: 12,
       borderRadius: 3,
+      flexShrink: 0,
       background: serviceColors[i % serviceColors.length]
     }
   }), /*#__PURE__*/React.createElement("div", {
+    title: name,
     style: {
       flex: 1,
-      fontSize: 12
+      minWidth: 0,
+      fontSize: 12,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
     }
   }, name), /*#__PURE__*/React.createElement("div", {
     style: {
