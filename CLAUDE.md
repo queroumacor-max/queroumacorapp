@@ -11,8 +11,9 @@
   com reticências. **PR #478 aberto, merge BLOQUEADO (2026-10-23):** o
   `validate` falha no npm audit por 3 CVEs CRITICAL novas, fora do diff:
   `next` 16.3.8 (fix só no 16.4.2 — mesmo salto de minor que derrubou o app
-  em 06/10), `@sentry/nextjs` ≤10.75.1 e `dompurify` ≤3.4.16. Decisão do
-  usuário pendente.
+  em 06/10), `@sentry/nextjs` ≤10.75.1 e `dompurify` ≤3.4.16. **Usuário
+  decidiu ESPERAR (2026-10-23, "deixa como tá"):** PR #478 fica aberto,
+  nenhuma dependência foi atualizada. Não subir o `next` sem ele pedir.
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
