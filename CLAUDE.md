@@ -29,6 +29,26 @@
     (volta `next` pra 16.3.8, mantém apelido/Sentry/dompurify). O `validate`
     do #480 FALHA no npm audit (CVE do 16.3.x), então o merge precisa de admin
     (`queroumacor-max`) ou de exceção no audit, que o usuário não autorizou.
+  - **CAUSA RAIZ ACHADA (2026-10-23, investigação a pedido do usuário; NADA
+    mudado ainda):** o Next 16.4 passou a ler `server/preview-props.json` em
+    TODA renderização (`route-module.js` → `loadManifestFromRelativePath`). No
+    Worker não há sistema de arquivos, então o OpenNext embute os manifests
+    no bundle — mas o nosso `@opennextjs/cloudflare` 1.20.6 (aws 4.1.4) só
+    embute `*-manifest`/`required-server-files`/`prefetch-hints.json`; pra
+    qualquer outro arquivo o `loadManifest` patcheado faz
+    `throw new Error("Unexpected loadManifest(...) call!")`. Logo, toda
+    requisição que renderiza estoura → error rate 100% no painel; a casca
+    estática sai dos assets e o app fica no loading. Explica 16.4.0 (06/10) e
+    16.4.2 (23/10). Conferido no código instalado; `.next/server/
+    preview-props.json` existe no build 16.4.2 e NÃO no 16.3.8. Não deu pra
+    rodar o Worker local (o build OpenNext aqui falha em resolver
+    `@sentry/nextjs`). Prova final = log do Worker com a mensagem acima.
+  - **A correção existe no adapter:** `@opennextjs/cloudflare` 1.20.12
+    (15/10, aws 4.1.11) passou a embutir `server/preview-props.json` e a
+    tratar a mudança de roteamento do 16.4 (`routeMatchMetadata`); o peer
+    virou `next >=16.4.1`. Caminho provável: next 16.4.2 +
+    `@opennextjs/cloudflare` 1.20.13 + wrangler ≥4.148 (peer; hoje 4.134),
+    testado num preview/aparelho ANTES de produção. Decisão do usuário.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
