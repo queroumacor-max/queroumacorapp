@@ -315,7 +315,7 @@ export function CompleteProfileForm() {
       {/* @tag */}
       <div>
         <label htmlFor="cp-tag" className="block text-sm font-semibold mb-1 text-[color:var(--color-ink)]">
-          Seu @ (nome de usuário)
+          Seu apelido
         </label>
         <div className="relative">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)]">

@@ -223,15 +223,15 @@ export const TAG_MIN = 3;
 export const TAG_MAX = 24;
 
 export const tagSchema = z
-  .string({ invalid_type_error: 'Tag inválida' })
+  .string({ invalid_type_error: 'Apelido inválido' })
   .trim()
-  .min(1, 'Informe o @')
+  .min(1, 'Informe o apelido')
   .transform((v) => v.toLowerCase())
   .superRefine((v, ctx) => {
     if (v.length < TAG_MIN || v.length > TAG_MAX) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `O @ deve ter entre ${TAG_MIN} e ${TAG_MAX} letras`,
+        message: `O apelido deve ter entre ${TAG_MIN} e ${TAG_MAX} letras`,
       });
       return;
     }

@@ -98,7 +98,7 @@ export async function signUp(input: SignupData): Promise<SignupResult> {
   // TOCTOU, mas reduz a janela de corrida significativamente.
   const available = await checkTagAvailability(input.tag);
   if (!available) {
-    throw new ConflictError('Essa @tag já está em uso.');
+    throw new ConflictError('Esse apelido já está em uso.');
   }
 
   const { data, error } = await sb.auth.signUp({
