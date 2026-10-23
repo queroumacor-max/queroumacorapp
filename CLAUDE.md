@@ -1,5 +1,15 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **PORTAL ANALYTICS: 3 números errados (2026-10-23, print do usuário).
+  SEM SQL. Portal v=20261023a.** (1) Leads travava em "1000": cada total era
+  o `.length` de um `select` inteiro, e o PostgREST corta em 1000 linhas —
+  agora `count:'exact', head:true`. (2) A barra de Leads atravessava o card:
+  o % era relativo a Perfis (1000/29 = 3448%); agora é relativo ao maior
+  valor e travado em 100%. (3) "Aceitos/concluídos" era sempre 0: contava
+  `accepted`/`completed`, mas os status do pipeline são `aprovado`/
+  `em_execucao`/`concluido`. Nome de serviço longo agora fica em uma linha
+  com reticências. Branch `claude/new-session-smmgsa`, **sem PR/deploy ainda.**
+
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
   só trazia quem a pessoa segue. Agora `followingOnly: false`; bloqueados
