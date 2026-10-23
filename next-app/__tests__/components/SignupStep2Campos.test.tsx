@@ -59,7 +59,7 @@ describe('@tag', () => {
     fireEvent.change(screen.getByLabelText('Nome completo'), {
       target: { value: 'Maria Souza' },
     });
-    const tag = screen.getByLabelText('Sua tag única') as HTMLInputElement;
+    const tag = screen.getByLabelText('Seu apelido') as HTMLInputElement;
     await waitFor(() => expect(tag.value).toBe('mariasouza'));
     // O botão "Usar @..." não existe mais — a sugestão já está preenchida.
     expect(screen.queryByText(/Usar @/)).toBeNull();
@@ -67,7 +67,7 @@ describe('@tag', () => {
 
   it('não sobrescreve o que a pessoa digitou', async () => {
     montar();
-    const tag = screen.getByLabelText('Sua tag única') as HTMLInputElement;
+    const tag = screen.getByLabelText('Seu apelido') as HTMLInputElement;
     fireEvent.change(tag, { target: { value: 'minhatag' } });
     fireEvent.change(screen.getByLabelText('Nome completo'), {
       target: { value: 'Outro Nome' },

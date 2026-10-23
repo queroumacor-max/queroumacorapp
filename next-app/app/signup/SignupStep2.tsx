@@ -373,7 +373,7 @@ export function SignupStep2({ userType, initial, onNext, onBack, onPersist }: Pr
         </p>
       </div>
 
-      <Field id="tag" label="Sua tag única" error={errors.tag?.message}>
+      <Field id="tag" label="Seu apelido" error={errors.tag?.message}>
         <div className="relative">
           <span
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-muted)] font-semibold pointer-events-none"

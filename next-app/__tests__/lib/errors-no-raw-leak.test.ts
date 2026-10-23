@@ -90,7 +90,7 @@ describe('safeErrorMessage (telas que leem erro do Supabase direto)', () => {
   it('detector reconhece os formatos do Postgres/GoTrue', () => {
     expect(looksLikeRawBackendError('new row violates row-level security policy')).toBe(true);
     expect(looksLikeRawBackendError('Email not confirmed')).toBe(true);
-    expect(looksLikeRawBackendError('Essa @tag já está em uso.')).toBe(false);
+    expect(looksLikeRawBackendError('Esse apelido já está em uso.')).toBe(false);
     expect(looksLikeRawBackendError('')).toBe(false);
   });
 });
