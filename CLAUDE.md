@@ -8,6 +8,30 @@
   mantido — categoria é recorte do "Todos"). **NO AR: PR #476 (squash
   `49f68e8`), deploy run #771 do `deploy.yml` terminou `success`.**
 
+- **CADASTRO: "tag" virou "apelido" + NEXT 16.4.2 QUEBROU O APP DE NOVO
+  (2026-10-23). SEM SQL.** PR #479 (squash `812d9e9`): rótulo "Sua tag
+  única"/"Seu @" → "Seu apelido" no cadastro e no completar-perfil + mensagens
+  de validação. O CI barrava por 3 CVEs CRITICAL novas de produção: `next`
+  16.3.x (GHSA-2464-fhr4-w9xw RCE na otimização de imagem SVG, GHSA-673q-mjm6-r5xr
+  RCE em `use cache`, GHSA-p3m5-59mp-jv5r DoS) — corrigidas só na 16.4.1+ —,
+  `@sentry/nextjs` ≤10.75.1 e `dompurify` ≤3.4.16. Com aval do usuário,
+  `next` → 16.4.2 + Sentry 10.76.2 + dompurify 3.4.17; deploy do `deploy.yml`
+  e **o app quebrou de novo no aparelho** (Worker versão `d5e4ec23`, taxa de
+  erro 100% no painel) — 2ª vez que a linha 16.4 derruba o app sob o OpenNext.
+  - **ROLLBACK FEITO PELO USUÁRIO NO PAINEL DA CLOUDFLARE (2026-10-23):**
+    Worker `queroumacor-next-production` → Deployments → versão `3fadcc8b`
+    (deploy anterior, feed "Todos" global) → Rollback. O apelido NÃO está no
+    ar (veio no mesmo deploy). Confirmação no aparelho: pendente.
+  - **`rollback.yml` NÃO FUNCIONA:** o passo "Force push main" falha (proteção
+    da `main`). Não contar com ele; rollback de verdade é pelo painel.
+  - **`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480**
+    (volta `next` pra 16.3.8, mantém apelido/Sentry/dompurify). O `validate`
+    do #480 FALHA no npm audit (CVE do 16.3.x), então o merge precisa de admin
+    (`queroumacor-max`) ou de exceção no audit, que o usuário não autorizou.
+  - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
+    (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
+    Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
+
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
   toda tela logada) + regra pura `lib/proAviso.ts`. Fim do acesso = MAIOR
