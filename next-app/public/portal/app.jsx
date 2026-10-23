@@ -2068,30 +2068,40 @@ const Analytics = () => {
   useEffect(() => {
     (async () => {
       const sb = supa;
-      const [pRes, lRes, qRes, mRes] = await Promise.all([
-        sb.from('profiles').select('id, created_at'),
-        sb.from('leads').select('id, status'),
-        sb.from('quotes').select('id, status, service_type, price, created_at'),
-        sb.from('messages').select('id'),
+      // Contagens com count:'exact' + head:true. Antes cada tabela vinha
+      // INTEIRA com select('id') e o total era o .length — o PostgREST corta
+      // em 1000 linhas, entao Leads travava em "1000" com dezenas de milhares
+      // na base (e Perfis/Mensagens travariam igual ao passar de mil).
+      const contar = (t) => sb.from(t).select('id', { count:'exact', head:true });
+      const [pRes, lRes, qCount, mRes, qRes] = await Promise.all([
+        contar('profiles'),
+        contar('leads'),
+        contar('quotes'),
+        contar('messages'),
+        // Linhas so pro "Top Servicos" e "aceitos"; paginado, sem teto de 1000.
+        buscarTudo(() => sb.from('quotes').select('id, status, service_type, title').order('created_at', { ascending:false }).order('id', { ascending:false })).catch(() => []),
       ]);
-      const profiles = pRes.data || [];
-      const leads = lRes.data || [];
-      const quotes = qRes.data || [];
-      const messages = mRes.data || [];
-      const accepted = quotes.filter(q => q.status === 'accepted' || q.status === 'completed').length;
+      const quotes = Array.isArray(qRes) ? qRes : [];
+      // Status do pipeline sao em portugues (QuoteStatus em lib/types.ts):
+      // 'accepted'/'completed' nunca existiram, por isso o funil mostrava 0.
+      const accepted = quotes.filter(q => ['aprovado','em_execucao','concluido'].includes(q.status)).length;
 
-      setData({ profiles: profiles.length, leads: leads.length, quotes: quotes.length, messages: messages.length, quotesAccepted: accepted, quotesData: quotes });
+      setData({ profiles: pRes.count || 0, leads: lRes.count || 0, quotes: qCount.count ?? quotes.length, messages: mRes.count || 0, quotesAccepted: accepted, quotesData: quotes });
       setLoading(false);
     })();
   }, []);
 
   const funnel = React.useMemo(() => {
-    const funnelTotal = data.profiles || 1;
+    // Barra proporcional ao MAIOR valor (e travada em 100%). Antes era
+    // relativa a "Perfis": 1000 leads / 29 perfis = 3448% e a barra
+    // atravessava o card. Leads nao sao subconjunto de perfis.
+    const base = Math.max(data.profiles, data.leads, data.quotes, data.quotesAccepted, 1);
+    const pct = (n) => Math.min(100, Math.round(n / base * 100));
     return [
-      { label: 'Perfis cadastrados', n: data.profiles, pct: 100 },
-      { label: 'Leads captados', n: data.leads, pct: Math.round(data.leads / funnelTotal * 100) },
-      { label: 'Orçamentos solicitados', n: data.quotes, pct: Math.round(data.quotes / funnelTotal * 100) },
-      { label: 'Orçamentos aceitos/concluídos', n: data.quotesAccepted, pct: Math.round(data.quotesAccepted / funnelTotal * 100) },
+      { label: 'Perfis cadastrados', n: data.profiles, pct: pct(data.profiles) },
+      { label: 'Leads captados', n: data.leads, pct: pct(data.leads) },
+      { label: 'Orçamentos solicitados', n: data.quotes, pct: pct(data.quotes) },
+      { label: 'Orçamentos aprovados/concluídos', n: data.quotesAccepted, pct: pct(data.quotesAccepted) },
     ];
   }, [data]);
 
@@ -2125,8 +2135,8 @@ const Analytics = () => {
                 <span style={{ fontSize:13 }}>{s.label}</span>
                 <span style={{ fontSize:13, fontWeight:700 }}>{s.n.toLocaleString('pt-BR')}</span>
               </div>
-              <div style={{ background:C.border, borderRadius:4, height:8 }}>
-                <div style={{ background:C.p1, height:8, borderRadius:4, width: Math.max(s.pct, 2)+'%' }}></div>
+              <div style={{ background:C.border, borderRadius:4, height:8, overflow:'hidden' }}>
+                <div style={{ background:C.p1, height:8, borderRadius:4, width: (s.n > 0 ? Math.max(s.pct, 2) : 0)+'%' }}></div>
               </div>
             </div>
           ))}
@@ -2136,8 +2146,8 @@ const Analytics = () => {
           {topServices.length === 0 && <div style={{ color:C.muted, fontSize:13 }}>Nenhum orçamento ainda.</div>}
           {topServices.map(([name, count], i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-              <div style={{ width:12, height:12, borderRadius:3, background:serviceColors[i % serviceColors.length] }}></div>
-              <div style={{ flex:1, fontSize:12 }}>{name}</div>
+              <div style={{ width:12, height:12, borderRadius:3, flexShrink:0, background:serviceColors[i % serviceColors.length] }}></div>
+              <div title={name} style={{ flex:1, minWidth:0, fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{name}</div>
               <div style={{ fontSize:13, fontWeight:700 }}>{count}</div>
             </div>
           ))}
