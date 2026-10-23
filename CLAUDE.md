@@ -8,7 +8,11 @@
   valor e travado em 100%. (3) "Aceitos/concluídos" era sempre 0: contava
   `accepted`/`completed`, mas os status do pipeline são `aprovado`/
   `em_execucao`/`concluido`. Nome de serviço longo agora fica em uma linha
-  com reticências. Branch `claude/new-session-smmgsa`, **sem PR/deploy ainda.**
+  com reticências. **PR #478 aberto, merge BLOQUEADO (2026-10-23):** o
+  `validate` falha no npm audit por 3 CVEs CRITICAL novas, fora do diff:
+  `next` 16.3.8 (fix só no 16.4.2 — mesmo salto de minor que derrubou o app
+  em 06/10), `@sentry/nextjs` ≤10.75.1 e `dompurify` ≤3.4.16. Decisão do
+  usuário pendente.
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
