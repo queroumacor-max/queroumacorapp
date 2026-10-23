@@ -21,7 +21,8 @@
   - **ROLLBACK FEITO PELO USUÁRIO NO PAINEL DA CLOUDFLARE (2026-10-23):**
     Worker `queroumacor-next-production` → Deployments → versão `3fadcc8b`
     (deploy anterior, feed "Todos" global) → Rollback. O apelido NÃO está no
-    ar (veio no mesmo deploy). Confirmação no aparelho: pendente.
+    ar (veio no mesmo deploy). **CONFIRMADO PELO USUÁRIO
+    (2026-10-23): "voltou" — app abrindo de novo.**
   - **`rollback.yml` NÃO FUNCIONA:** o passo "Force push main" falha (proteção
     da `main`). Não contar com ele; rollback de verdade é pelo painel.
   - **`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480**
