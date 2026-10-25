@@ -48,6 +48,9 @@
     o COMPORTAMENTO. **REGRA: trava que decide por `current_user` tem que
     ser SECURITY INVOKER; testar com SET ROLE authenticated, não lendo.**
     Não dá pra saber daqui se alguém já se deu PRO — consulta no chat.
+    **CONFIRMADO NO BANCO (2026-10-25, print do usuário): `prosecdef = true`
+    nas duas — produção está com a trava quebrada.** Fix passado no chat em
+    3 blocos curtos; ainda não confirmado rodado.
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
