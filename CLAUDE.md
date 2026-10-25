@@ -58,8 +58,7 @@
     3 blocos curtos. **CORREÇÃO RODADA E CONFERIDA (2026-10-25, print do
     usuário: as 5 linhas `ok = true` — as duas travas INVOKER, triggers
     ligados, `_audit_privilege_blocked` existe). Não pedir pra rodar de
-    novo.** Falta o usuário conferir a lista de PRO e de pedidos pagos
-    (se alguém se aproveitou antes).
+    novo.** Conferência de abuso FEITA (ver abaixo).
     **LISTA DE PRO RECEBIDA (2026-10-25, 29 contas):** nenhuma data
     absurda (nada além de 2027-10); quase todas no padrão do portal
     (23:59:59 de Brasília = `02:59:59+00`; 4 com `06:59:59+00` = portal
@@ -70,9 +69,11 @@
     **Pedidos pagos CONFERIDOS (2026-10-25, print): `orders` com
     status='paid' = 0 linhas.** Ninguém marcou pedido como pago.
     **`audit_events` `pro_change` com actor = target = 0 linhas (print,
-    2026-10-25).** Ninguém mexeu no próprio PRO desde 17/09. Contraprova
-    pedida no chat: contar TODOS os `pro_change` (se também der 0, o
-    gatilho de auditoria não está gravando e o 0 acima não prova nada).
+    2026-10-25).** Ninguém mexeu no próprio PRO desde 17/09.
+    **Contraprova OK: 40 `pro_change` no total, último em 2026-10-24** —
+    o gatilho grava. **CASO FECHADO: nenhum sinal de que alguém se
+    aproveitou da trava quebrada.** Limite: antes de 17/09 não há
+    histórico pra provar. Não pedir essas conferências de novo.
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
