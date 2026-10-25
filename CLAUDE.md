@@ -107,6 +107,10 @@
       que ainda não estava no ar. Falta o usuário abrir o app no aparelho;
       se quebrar, rollback no painel da Cloudflare (Worker
       `queroumacor-next-production` → Deployments).
+      **CONFIRMADO PELO USUÁRIO NO APARELHO (2026-10-25): "abriu
+      praticamente instantâneo agora".** Caso da linha 16.4 fechado. Não
+      houve trabalho de performance; a sensação de velocidade não foi
+      medida (pode ser do Next 16.4/adapter novo ou de cache).
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
