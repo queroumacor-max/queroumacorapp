@@ -61,6 +61,15 @@ Nenhuma delas está no código. **Segredo nunca vai pro repositório.**
 Depois de cadastrar as duas públicas, rode o `deploy.yml` de novo (elas
 entram no build do site).
 
+**`REVENUECAT_WEBHOOK_AUTH` — regra:** é UM valor só, cadastrado IGUAL
+nos dois lugares: no secret do Worker (Cloudflare) e no campo
+*Authorization header* do webhook na RevenueCat. Formato: `Bearer ` +
+40 caracteres hex (ex. gerar com `echo "Bearer $(openssl rand -hex 20)"`).
+O servidor compara o header INTEIRO (com o `Bearer `) em tempo constante:
+qualquer diferença (espaço, prefixo faltando) = 401 e a RevenueCat fica
+reenviando. O valor NUNCA vai pra arquivo do repositório; pra trocar,
+gere outro e atualize os DOIS lados juntos.
+
 ## 4. Cloudflare — liberar o webhook no WAF
 
 A regra de bots da zona bloqueia IP de datacenter (foi o que barrou o smoke
