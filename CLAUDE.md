@@ -67,9 +67,9 @@
     (Jackson/Fabio). Nada com cara de auto-concessão, mas o que PROVA é
     `audit_events` `pro_change` com `actor_id = target_id` (passado no
     chat). Falta essa consulta e a de pedidos pagos.
-    **Usuário rodou uma das duas (2026-10-25): "No rows returned"** — não
-    disse qual. Qualquer uma vazia é resultado limpo; falta saber qual
-    rodou e o resultado da outra.
+    **Pedidos pagos CONFERIDOS (2026-10-25, print): `orders` com
+    status='paid' = 0 linhas.** Ninguém marcou pedido como pago. Falta só
+    a consulta do `audit_events` (`pro_change` com actor = target).
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
