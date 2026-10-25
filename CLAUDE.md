@@ -145,6 +145,9 @@
   `orcamentoServicos.test.ts` e `orcamentoPerguntaLoja.test.ts`. O botão
   "Enviar pelo chat" de `/orcamentos/[id]` tem o MESMO defeito do prefill e
   não foi mexido.
+  **NO AR (2026-10-25): PR #482 (squash `db981df`), deploy run #774 do
+  `deploy.yml` terminou `success` — o 1º deploy que passou pelo portão de
+  preview + smoke.** Testado no preview pelo usuário antes do merge.
 
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
