@@ -78,6 +78,22 @@
       (o AuthProvider rodou). Workflow TEMPORÁRIO
       `.github/workflows/preview-smoke.yml` + `scripts/preview-smoke.mjs` —
       apagar antes do merge. NÃO testado: telas logadas (sem credencial).
+    - **ZOD 3 → 4 (2026-10-25, pedido do usuário: "faz a 1, migra pro zod
+      4").** Fecha o HIGH do audit (GHSA-mrhx-c7xc-m3w5); `npm audit
+      --omit=dev` = 0. `zod` ^4.6.7 + `@hookform/resolvers` ^5.2.2 (o 3.x
+      não fala zod 4). Mudanças: `invalid_type_error`/`required_error`/
+      `errorMap` → `error` (string ou função), `z.record(k, v)` com chave,
+      `z.string().uuid()` → **`z.guid()`** (o `.uuid()` do 4 exige UUID RFC;
+      o `guid` é o padrão frouxo do 3 — mantém o comportamento), e o
+      `phoneOptionalSchema` (união) passou a escolher a mensagem do ramo do
+      telefone — no zod 4 união que falha inteira vira "Invalid input" em
+      inglês. **Provado por comparação lado a lado zod3×zod4** (1748 casos,
+      todos os schemas de `lib/schemas.ts` + `lib/api/schemas/*`): mesmo
+      aceita/recusa, mesmo dado de saída, mesmas mensagens em português;
+      só muda o texto PADRÃO em inglês das rotas de API (não aparece pra
+      usuário). Teste novo em `schemas.test.ts` (falha sem a correção da
+      união). tsc, vitest 232/232 (2675), eslint 0 erros, `next build
+      --webpack` verdes.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.

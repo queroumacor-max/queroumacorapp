@@ -19,7 +19,7 @@ import { lerMensagem, moderarMensagemDeChat } from '@/lib/api/_services/chat-mod
 export const runtime = 'nodejs';
 
 const schema = z.object({
-  messageId: z.string().uuid(),
+  messageId: z.guid(),
   accessToken: z.string().min(1).max(2000).optional(),
 });
 

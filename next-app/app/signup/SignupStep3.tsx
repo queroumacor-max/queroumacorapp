@@ -14,7 +14,7 @@ import { strongPasswordSchema } from '@/lib/schemas';
 const schema = z.object({
   password: strongPasswordSchema,
   consent: z.literal(true, {
-    errorMap: () => ({ message: 'Você precisa aceitar os Termos e a Política de Privacidade' }),
+    error: 'Você precisa aceitar os Termos e a Política de Privacidade',
   }),
 });
 

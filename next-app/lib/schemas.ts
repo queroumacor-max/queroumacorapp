@@ -11,25 +11,25 @@ import { z } from 'zod';
 // ─── primitives ──────────────────────────────────────────────────────────────
 
 export const emailSchema = z
-  .string({ invalid_type_error: 'Email inválido' })
+  .string({ error: 'Email inválido' })
   .trim()
   .min(1, 'Informe o email')
   .email('Email inválido');
 
 // Para login: só checa "preenchida" (regra de força só no signup).
 export const passwordSchema = z
-  .string({ invalid_type_error: 'Senha inválida' })
+  .string({ error: 'Senha inválida' })
   .min(1, 'Senha obrigatória');
 
 // Para signup / mudança: mínimo 8 chars (mesmo default do vanilla).
 export const strongPasswordSchema = z
-  .string({ invalid_type_error: 'Senha inválida' })
+  .string({ error: 'Senha inválida' })
   .min(8, 'A senha deve ter ao menos 8 caracteres');
 
 // Helper pra montar schema com min customizável (paridade com `password.parse(v, { min })`).
 export function passwordWithMin(min: number) {
   return z
-    .string({ invalid_type_error: 'Senha inválida' })
+    .string({ error: 'Senha inválida' })
     .min(min, `A senha deve ter ao menos ${min} caracteres`);
 }
 
@@ -60,7 +60,9 @@ export const brlSchema = z.preprocess(
     return parseBRL(raw);
   },
   z
-    .number({ required_error: 'Informe o valor', invalid_type_error: 'Valor inválido' })
+    .number({
+      error: (iss) => (iss.input === undefined ? 'Informe o valor' : 'Valor inválido'),
+    })
     .finite('Valor inválido')
     .nonnegative('O valor não pode ser negativo')
 );
@@ -74,7 +76,9 @@ export const areaSchema = z.preprocess(
     return Number.isFinite(n) ? n : raw;
   },
   z
-    .number({ required_error: 'Informe a área em m²', invalid_type_error: 'Área inválida' })
+    .number({
+      error: (iss) => (iss.input === undefined ? 'Informe a área em m²' : 'Área inválida'),
+    })
     .positive('A área deve ser maior que zero')
 );
 
@@ -82,7 +86,7 @@ export const areaSchema = z.preprocess(
 // Aceita máscaras "(11) 95976-5031", "+55 11 95976-5031", "11959765031".
 // Saída sempre é a string normalizada "5511959765031".
 export const phoneSchema = z
-  .string({ invalid_type_error: 'Telefone inválido' })
+  .string({ error: 'Telefone inválido' })
   .trim()
   .min(1, 'Informe o telefone')
   .transform((v, ctx) => {
@@ -114,11 +118,16 @@ export const phoneSchema = z
 // quando não é estritamente necessário pra conta).
 export const phoneOptionalSchema = z.preprocess(
   (v) => (typeof v === 'string' ? v.trim() : v),
-  z.literal('').or(phoneSchema),
+  // zod 4: união que falha inteira vira um "Invalid input" genérico; a
+  // mensagem útil é a do ramo do telefone (o ramo '' só diz "não é vazio").
+  z.union([z.literal(''), phoneSchema], {
+    error: (iss) =>
+      (iss.code === 'invalid_union' && iss.errors?.[1]?.[0]?.message) || 'Telefone inválido',
+  }),
 );
 
 export const cepSchema = z
-  .string({ invalid_type_error: 'CEP inválido' })
+  .string({ error: 'CEP inválido' })
   .trim()
   .min(1, 'Informe o CEP')
   .transform((v, ctx) => {
@@ -171,7 +180,7 @@ export function isValidCNPJ(value: string): boolean {
 
 // `cpf`/`cnpj` retornam string de dígitos limpos (sem máscara).
 export const cpfSchema = z
-  .string({ invalid_type_error: 'CPF inválido' })
+  .string({ error: 'CPF inválido' })
   .trim()
   .min(1, 'Informe o CPF')
   .transform((v, ctx) => {
@@ -188,7 +197,7 @@ export const cpfSchema = z
   });
 
 export const cnpjSchema = z
-  .string({ invalid_type_error: 'CNPJ inválido' })
+  .string({ error: 'CNPJ inválido' })
   .trim()
   .min(1, 'Informe o CNPJ')
   .transform((v, ctx) => {
@@ -223,7 +232,7 @@ export const TAG_MIN = 3;
 export const TAG_MAX = 24;
 
 export const tagSchema = z
-  .string({ invalid_type_error: 'Apelido inválido' })
+  .string({ error: 'Apelido inválido' })
   .trim()
   .min(1, 'Informe o apelido')
   .transform((v) => v.toLowerCase())
@@ -270,7 +279,7 @@ export function sugerirTagDeNome(nome: string): string {
 }
 
 export const urlSchema = z
-  .string({ invalid_type_error: 'URL inválida' })
+  .string({ error: 'URL inválida' })
   .trim()
   .min(1, 'Informe a URL')
   .transform((v, ctx) => {
@@ -298,7 +307,7 @@ export const urlSchema = z
 // dateBR: aceita "dd/mm/aaaa" OU ISO ("YYYY-MM-DD" ou "YYYY-MM-DDTHH:MM…").
 // Saída sempre é Date. Valida calendário (rejeita 31/02).
 export const dateBRSchema = z
-  .string({ invalid_type_error: 'Data inválida' })
+  .string({ error: 'Data inválida' })
   .trim()
   .min(1, 'Informe a data')
   .transform((v, ctx) => {
@@ -440,7 +449,7 @@ export function isoParaDataBR(iso: string): string {
 // Usado em signup; perfil antigo (legacy) atualiza via update onde
 // também revalidamos.
 export const birthDateSchema = z
-  .string({ invalid_type_error: 'Data inválida' })
+  .string({ error: 'Data inválida' })
   .trim()
   .min(1, 'Informe sua data de nascimento')
   .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v), { message: 'Data inválida' })

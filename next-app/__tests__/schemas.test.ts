@@ -239,3 +239,28 @@ describe('Schemas — optional via zod', () => {
     expect(emailSchema.optional().safeParse('foo').success).toBe(false);
   });
 });
+
+// zod 4: união que falha inteira devolve "Invalid input" genérico. O telefone
+// opcional precisa seguir mostrando a mensagem do ramo do telefone.
+describe('phoneOptionalSchema (zod 4)', () => {
+  it('vazio passa', async () => {
+    const { phoneOptionalSchema } = await import('@/lib/schemas');
+    expect(phoneOptionalSchema.safeParse('').success).toBe(true);
+    expect(phoneOptionalSchema.safeParse('   ').success).toBe(true);
+  });
+  it('preenchido inválido mostra a mensagem em português, não "Invalid input"', async () => {
+    const { phoneOptionalSchema } = await import('@/lib/schemas');
+    for (const v of ['123', 'abc', '07272345']) {
+      const r = phoneOptionalSchema.safeParse(v);
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues[0].message).not.toMatch(/invalid input/i);
+        expect(r.error.issues[0].message).toMatch(/Telefone|DDD/);
+      }
+    }
+  });
+  it('celular válido passa', async () => {
+    const { phoneOptionalSchema } = await import('@/lib/schemas');
+    expect(phoneOptionalSchema.safeParse('(11) 98765-4321').success).toBe(true);
+  });
+});

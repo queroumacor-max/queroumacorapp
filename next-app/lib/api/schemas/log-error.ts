@@ -11,7 +11,7 @@
 import { z } from 'zod';
 
 export const logErrorSchema = z.object({
-  user_id: z.string().uuid().optional().nullable(),
+  user_id: z.guid().optional().nullable(),
   // mensagem principal. Aceita tanto `msg` (vanilla) quanto `message`.
   msg: z.string().max(1000).optional(),
   message: z.string().max(1000).optional(),
@@ -23,7 +23,7 @@ export const logErrorSchema = z.object({
   metric: z.string().max(32).optional(),
   value: z.number().optional(),
   ctx: z.string().max(500).optional(),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type LogErrorInput = z.infer<typeof logErrorSchema>;
