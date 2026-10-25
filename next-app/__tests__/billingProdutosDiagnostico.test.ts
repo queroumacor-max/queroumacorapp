@@ -19,3 +19,10 @@ describe('descreverErroDaLoja', () => {
     expect(descreverErroDaLoja(new Error('carregar produtos: tempo esgotado'))).toContain('tempo esgotado');
   });
 });
+
+describe('withTimeout com retorno que não é promessa', () => {
+  it('aceita undefined (configure do iOS é CAPPluginReturnNone)', async () => {
+    const { withTimeout } = await import('@/lib/native/purchases');
+    await expect(withTimeout(undefined as unknown as Promise<void>, 1000, 'configurar')).resolves.toBeUndefined();
+  });
+});

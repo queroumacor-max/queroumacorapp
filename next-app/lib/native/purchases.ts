@@ -21,7 +21,8 @@ export interface StoreProduct {
 }
 
 interface PurchasesPlugin {
-  configure: (o: { apiKey: string; appUserID?: string | null }) => Promise<void>;
+  // iOS: CAPPluginReturnNone — devolve undefined, não promessa.
+  configure: (o: { apiKey: string; appUserID?: string | null }) => Promise<void> | void;
   logIn: (o: { appUserID: string }) => Promise<unknown>;
   logOut: () => Promise<unknown>;
   getAppUserID?: () => Promise<{ appUserID: string }>;
@@ -34,10 +35,14 @@ const TIMEOUT_MS = 20_000;
 // Comprar abre a folha da loja e espera a pessoa: teto bem largo.
 const PURCHASE_TIMEOUT_MS = 5 * 60_000;
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+// Aceita valor que NÃO é promessa: no iOS o `configure` do plugin é
+// `CAPPluginReturnNone` (fire-and-forget) e devolve undefined — chamar
+// `.then` direto nele estourava "e.then is not a function" e nenhuma compra
+// carregava (TestFlight 1.3.0, 2026-10-25).
+export function withTimeout<T>(p: Promise<T> | T, ms: number, what: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${what}: tempo esgotado`)), ms);
-    p.then(
+    Promise.resolve(p).then(
       (v) => { clearTimeout(t); resolve(v); },
       (e) => { clearTimeout(t); reject(e); },
     );

@@ -152,8 +152,15 @@
     `{lista, problema}`: a folha mostra "Detalhe da loja: …" (código +
     readableErrorCode + underlyingErrorMessage da RevenueCat, ou os ids que
     faltaram) e grava `billing-products-fail` no /admin/errors. Consumíveis e
-    assinatura em `allSettled` (uma falha não esconde a outra). Causa ainda NÃO
-    conhecida — ler a mensagem no aparelho.
+    assinatura em `allSettled` (uma falha não esconde a outra). PR #488, deploy
+    run #777.
+    - **CAUSA ACHADA pela mensagem nova (print do usuário): "configurar
+      compras: e.then is not a function".** No iOS o `configure` do plugin
+      RevenueCat é `CAPPluginReturnNone` (fire-and-forget): devolve undefined,
+      não promessa, e o `withTimeout` chamava `.then` direto. Corrigido com
+      `Promise.resolve(p)`. **REGRA: retorno de plugin Capacitor passa por
+      `Promise.resolve` — conferir `returnType` no `.swift`/`.kt` do plugin,
+      não confiar no `.d.ts` (que diz Promise<void>).**
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
