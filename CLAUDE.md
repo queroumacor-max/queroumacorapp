@@ -21,7 +21,7 @@
     do usuário — se ele quiser por mês, é a rota `/api/alice`.
   - **SQL — 3 arquivos, NENHUM RODADO ainda, nesta ordem:**
     (1) `migrations/2026-10-25-fix-protect-triggers-invoker.sql` — CORREÇÃO
-    DE SEGURANÇA (ver abaixo), independe das compras;
+    DE SEGURANÇA (ver abaixo) — **JÁ RODADA (2026-10-25)**;
     (2) `…-billing-balance.sql` — `billing_config` (`enforce` nasce FALSE),
     `billing_balance`, `billing_events` (transação UNIQUE; outra conta =
     'conflict'), `usage_debits`, débito atômico (`FOR UPDATE`) no
@@ -50,7 +50,11 @@
     Não dá pra saber daqui se alguém já se deu PRO — consulta no chat.
     **CONFIRMADO NO BANCO (2026-10-25, print do usuário): `prosecdef = true`
     nas duas — produção está com a trava quebrada.** Fix passado no chat em
-    3 blocos curtos; ainda não confirmado rodado.
+    3 blocos curtos. **CORREÇÃO RODADA E CONFERIDA (2026-10-25, print do
+    usuário: as 5 linhas `ok = true` — as duas travas INVOKER, triggers
+    ligados, `_audit_privilege_blocked` existe). Não pedir pra rodar de
+    novo.** Falta o usuário conferir a lista de PRO e de pedidos pagos
+    (se alguém se aproveitou antes).
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
