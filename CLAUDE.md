@@ -161,6 +161,12 @@
       `Promise.resolve(p)`. **REGRA: retorno de plugin Capacitor passa por
       `Promise.resolve` — conferir `returnType` no `.swift`/`.kt` do plugin,
       não confiar no `.d.ts` (que diz Promise<void>).**
+      PR #489, deploy run #778 `success`.
+    - **Depois do #489 (print do usuário, 2026-10-25): os 3 consumíveis
+      CARREGAM; só `quotes_unlimited` (assinatura) não volta** ("a loja não
+      devolveu: quotes_unlimited"). Preços em US$ = loja da conta sandbox
+      (região EUA), não erro de código. Usuário vai revisar itens/valores no
+      App Store Connect.
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
