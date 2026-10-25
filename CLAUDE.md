@@ -1,23 +1,30 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
-- **COMPRAS IN-APP DE ORÇAMENTOS — EM ANDAMENTO (2026-10-25, pedido do
-  usuário). Branch `ccr-9f21767f-vff8ua`, NADA no ar.** Decisões do
-  usuário: 5 grátis pra TODOS (inclusive quem já usa); conta ao GRAVAR;
-  `quote_1` (R$ 1,00), `quote_pack_40` (R$ 29,90), `quotes_unlimited`
-  (R$ 59,90/mês) — preço é das lojas, não do código; a assinatura
-  SUBSTITUI o PRO (PRO antigo ativo vale como ilimitado até vencer);
-  compra SÓ no app (Android/iOS), sem compra web.
-  - **Etapa 1 (feita, não rodada):** `/migrations/2026-10-25-quote-balance.sql`
-    — `billing_config` (`enforce_quotes` nasce FALSE: nada é cobrado nem
-    barrado até ligar, depois que o AAB/IPA com o paywall estiver nas
-    lojas), `quote_balance`, `billing_events` (transação UNIQUE: credita
-    uma vez; outra conta = 'conflict'), `quote_debits`, débito atômico
-    (`FOR UPDATE`) dentro do `create_painter_draft`, crédito/reembolso/
-    assinatura só por service_role, e a policy de INSERT direto do pintor
-    em `quotes` fechada (pularia o débito). Testado em Postgres 16 local,
-    2x, com ataques e concorrência. **SQL AINDA NÃO RODADO no Supabase.**
-    Regra espelhada em `lib/quoteBalance.ts` (teste compara com o SQL);
-    `saveQuote` lança `QuoteBalanceEmptyError` sem saldo.
+- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — EM ANDAMENTO (2026-10-25,
+  pedido do usuário). Branch `ccr-9f21767f-vff8ua`, NADA no ar.**
+  Decisões do usuário: orçamentos 5 grátis pra TODOS (inclusive quem já
+  usa), conta ao GRAVAR; Gestão de Obras 1 obra grátis, conta ao CRIAR
+  (obras antigas não contam); `quote_1` (R$ 1,00), `quote_pack_40`
+  (R$ 29,90), `obra_1` (R$ 2,90 por obra extra), `quotes_unlimited`
+  (R$ 59,90/mês) = "PRO completo": orçamentos e obras ilimitados + as
+  ferramentas do PRO. Preço é das lojas, não do código. PRO antigo ativo
+  vale como ilimitado até vencer. Compra SÓ no app (Android/iOS).
+  - **Etapa 1 (feita, não rodada):** `/migrations/2026-10-25-billing-balance.sql`
+    — `billing_config` (`enforce` nasce FALSE: nada é cobrado nem barrado
+    até ligar, depois que o AAB/IPA com o paywall estiver nas lojas),
+    `billing_balance` (grátis/créditos de orçamento e de obra + fim da
+    assinatura), `billing_events` (transação UNIQUE: credita uma vez;
+    outra conta = 'conflict'), `usage_debits`, débito atômico
+    (`FOR UPDATE`) dentro do `create_painter_draft` e num BEFORE INSERT
+    em `obras`, crédito/reembolso/assinatura só por service_role, e a
+    policy de INSERT direto do pintor em `quotes` fechada (pularia o
+    débito). Testado em Postgres 16 local, 2x, com ataques e concorrência.
+    **SQL AINDA NÃO RODADO no Supabase.** Regra espelhada em
+    `lib/billingBalance.ts` (teste compara com o SQL); `saveQuote` e
+    `salvarObra` lançam `BalanceEmptyError` sem saldo.
+  - **Falta ligar a assinatura às ferramentas do PRO** (Agenda, CRM,
+    Anotações, cota de IA) — hoje elas leem `profiles.is_pro`; a etapa 2
+    faz o servidor/`canSeeProFeature` considerarem a assinatura.
   - **Próximo:** etapa 2 (RevenueCat no app + paywall + rotas de
     sync/webhook), etapa 3 (`BILLING_SETUP.md`, docs legais — hoje dizem
     "não há pagamento no app").

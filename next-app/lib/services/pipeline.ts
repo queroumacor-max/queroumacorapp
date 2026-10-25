@@ -31,7 +31,7 @@ import { ymdBrt } from '@/lib/utils';
 
 import { fetchGated } from './fetchGated';
 import { ehModelo } from '@/lib/orcamentoModelo';
-import { ehErroSemSaldo, QuoteBalanceEmptyError } from '@/lib/quoteBalance';
+import { ehErroSemSaldo, BalanceEmptyError } from '@/lib/billingBalance';
 // QUOTE_STATUS — const tipada que define vocabulário + label/cor por status.
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
 // vida do orçamento). UI lê daqui pra montar lanes do kanban e badges dos
@@ -198,7 +198,7 @@ export async function saveQuote(
     p_quote_data: (input.quote_data ?? undefined) as Json | undefined,
   });
   if (error) {
-    if (ehErroSemSaldo(error)) throw new QuoteBalanceEmptyError();
+    if (ehErroSemSaldo(error, 'quote')) throw new BalanceEmptyError('quote');
     throw new NetworkError(error.message, error);
   }
   if (!data) {
