@@ -60,6 +60,13 @@
     ligados, `_audit_privilege_blocked` existe). Não pedir pra rodar de
     novo.** Falta o usuário conferir a lista de PRO e de pedidos pagos
     (se alguém se aproveitou antes).
+    **LISTA DE PRO RECEBIDA (2026-10-25, 29 contas):** nenhuma data
+    absurda (nada além de 2027-10); quase todas no padrão do portal
+    (23:59:59 de Brasília = `02:59:59+00`; 4 com `06:59:59+00` = portal
+    aberto num fuso UTC-7). As com milissegundos são contas da equipe
+    (Jackson/Fabio). Nada com cara de auto-concessão, mas o que PROVA é
+    `audit_events` `pro_change` com `actor_id = target_id` (passado no
+    chat). Falta essa consulta e a de pedidos pagos.
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
