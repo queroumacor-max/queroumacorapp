@@ -99,6 +99,9 @@
       Playwright no runner passou de novo (run #2 do `preview-smoke.yml`).**
       Falta: usuário testar telas logadas no preview; apagar o smoke
       temporário; merge; `deploy.yml`; abrir o app no aparelho na hora.
+      **TESTADO NO PREVIEW PELO USUÁRIO (2026-10-25, "testei no preview,
+      pode fazer o merge e deploy").** Smoke temporário apagado; merge e
+      deploy a seguir.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
