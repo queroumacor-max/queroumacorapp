@@ -388,3 +388,58 @@ export async function getPlanLimitViaRest(args: {
     return FALLBACK_LIMITS[plan] ?? 30;
   }
 }
+
+/**
+ * Reserva 1 uso do TESTE GRÁTIS de uma ferramenta de IA (RPC
+ * `claim_ai_trial`, só service_role). Diferente do resto deste arquivo,
+ * aqui a falha é FECHADA: a rota já era PRO-only antes do teste existir,
+ * então banco fora ou SQL pendente só devolve o comportamento de antes
+ * (403), nunca IA de graça sem conta.
+ */
+export async function claimAiTrialViaRest(args: {
+  supaUrl: string;
+  serviceKey: string;
+  userId: string;
+  feature: string;
+  limit: number;
+  monthly?: boolean;
+}): Promise<{ allowed: boolean; used: number; limit: number }> {
+  const { supaUrl, serviceKey, userId, feature, limit, monthly = false } = args;
+  const negado = { allowed: false, used: limit, limit };
+  if (!supaUrl || !serviceKey || !userId || !feature || limit < 1) return negado;
+  try {
+    const res = await fetch(`${supaUrl}/rest/v1/rpc/claim_ai_trial`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_user: userId, p_feature: feature, p_limit: limit, p_monthly: monthly }),
+      signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.warn(`claimAiTrialViaRest: rpc ${res.status} - ${t.slice(0, 200)}`);
+      return negado;
+    }
+    const data = (await res.json().catch(() => null)) as
+      | { allowed?: boolean; used?: number; limit?: number }
+      | null;
+    if (!data || data.allowed !== true) {
+      return {
+        allowed: false,
+        used: typeof data?.used === 'number' ? data.used : limit,
+        limit: typeof data?.limit === 'number' ? data.limit : limit,
+      };
+    }
+    return {
+      allowed: true,
+      used: typeof data.used === 'number' ? data.used : 1,
+      limit: typeof data.limit === 'number' ? data.limit : limit,
+    };
+  } catch (e) {
+    console.warn('claimAiTrialViaRest: exceção', e instanceof Error ? e.message : e);
+    return negado;
+  }
+}

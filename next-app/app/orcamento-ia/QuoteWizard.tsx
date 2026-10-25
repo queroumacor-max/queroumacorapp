@@ -32,6 +32,9 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
+import { BalanceEmptyError } from '@/lib/billingBalance';
+import { abrirPaywall } from '@/lib/paywallEvents';
 import { saveQuote, fetchQuotes, fetchQuote, updateQuoteContent } from '@/lib/services/pipeline';
 import {
   acharModelo,
@@ -84,6 +87,9 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
   const { user, loading: authLoading, emailVerified } = useAuth();
   const { profile } = useProfile();
   const policyUser = usePolicyUser();
+  // Saldo de orçamentos: com a cobrança ligada, todo mundo entra (5 grátis,
+  // depois créditos/PRO). Desligada, segue a regra antiga (só PRO).
+  const saldo = useBillingBalance();
   const [form, setForm] = useState<FormState>({
     numero: '',
     clientName: '',
@@ -293,7 +299,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
     );
   }
 
-  if (!canSeeProFeature(policyUser)) {
+  if (!canSeeProFeature(policyUser) && !saldo.data?.enforced) {
     return (
       <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
         <div className="text-5xl mb-3" aria-hidden="true">📝</div>
@@ -414,9 +420,14 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       }
       const { quoteId } = await saveQuote(dados);
       setSavedQuoteId(quoteId);
+      void saldo.refetch();
       showToast('Orçamento salvo no pipeline ✅', 'success');
       return quoteId;
     } catch (e) {
+      if (e instanceof BalanceEmptyError) {
+        abrirPaywall('quote');
+        return null;
+      }
       showToast((e as Error).message || 'Erro ao gravar', 'error');
       return null;
     } finally {

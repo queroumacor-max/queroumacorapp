@@ -1,44 +1,82 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
-- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — EM ANDAMENTO (2026-10-25,
-  pedido do usuário). Branch `ccr-9f21767f-vff8ua`, NADA no ar.**
+- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — CÓDIGO PRONTO, NADA NO AR
+  (2026-10-25, pedido do usuário; "finalize e podemos mudar depois").
+  Branch `ccr-9f21767f-vff8ua`. Guia do que falta fazer fora do código:
+  `BILLING_SETUP.md` (raiz).**
   Decisões do usuário: orçamentos 5 grátis pra TODOS (inclusive quem já
   usa), conta ao GRAVAR; Gestão de Obras 1 obra grátis, conta ao CRIAR
   (obras antigas não contam); `quote_1` (R$ 1,00), `quote_pack_40`
   (R$ 29,90), `obra_1` (R$ 2,90 por obra extra), `quotes_unlimited`
   (R$ 59,90/mês) = "PRO completo": orçamentos e obras ilimitados + as
   ferramentas do PRO. Preço é das lojas, não do código. PRO antigo ativo
-  vale como ilimitado até vencer. Compra SÓ no app (Android/iOS).
-  - **Etapa 1 (feita, não rodada):** `/migrations/2026-10-25-billing-balance.sql`
-    — `billing_config` (`enforce` nasce FALSE: nada é cobrado nem barrado
-    até ligar, depois que o AAB/IPA com o paywall estiver nas lojas),
-    `billing_balance` (grátis/créditos de orçamento e de obra + fim da
-    assinatura), `billing_events` (transação UNIQUE: credita uma vez;
-    outra conta = 'conflict'), `usage_debits`, débito atômico
-    (`FOR UPDATE`) dentro do `create_painter_draft` e num BEFORE INSERT
-    em `obras`, crédito/reembolso/assinatura só por service_role, e a
-    policy de INSERT direto do pintor em `quotes` fechada (pularia o
-    débito). Testado em Postgres 16 local, 2x, com ataques e concorrência.
-    **SQL AINDA NÃO RODADO no Supabase.** Regra espelhada em
-    `lib/billingBalance.ts` (teste compara com o SQL); `saveQuote` e
-    `salvarObra` lançam `BalanceEmptyError` sem saldo.
-  - **REGRA DO QUE É PAGO (decisão do usuário, 2026-10-25):** o que chama
-    API de IA é PRO (trava o BOTÃO de IA, não a tela); orçamento e obras
-    seguem o freemium acima; o resto é 100% grátis. Consequência: o
-    QuoteWizard e o CRM hoje são PRO INTEIROS (`canSeeProFeature` no topo)
-    e vão abrir pra todos, ficando PRO só os botões de IA. Moderação
-    (`moderate`/`moderate_video`) roda pra todos — é proteção. Alice
-    (cliente) tem 3 mensagens grátis "for now" pra conter custo. PRO
-    antigo segue com tudo até vencer. Teste grátis das outras IAs
-    (decisão do usuário, "1"): 1 uso por ferramenta de IA por conta, pra
-    sempre, contado no servidor; Seu Zé/Fê/Senna com 3 mensagens no total
-    (proposta minha, a confirmar). SEM trial de 7 dias na loja.
-  - **Falta ligar a assinatura às ferramentas do PRO** (Agenda, CRM,
-    Anotações, cota de IA) — hoje elas leem `profiles.is_pro`; a etapa 2
-    faz o servidor/`canSeeProFeature` considerarem a assinatura.
-  - **Próximo:** etapa 2 (RevenueCat no app + paywall + rotas de
-    sync/webhook), etapa 3 (`BILLING_SETUP.md`, docs legais — hoje dizem
-    "não há pagamento no app").
+  vale como ilimitado até vencer. Compra SÓ no app (Android/iOS), via
+  **RevenueCat** (aprovada no "finalize").
+  - **REGRA DO QUE É PAGO:** o que chama IA é PRO; orçamento e obras seguem
+    o freemium acima; o resto é 100% grátis. Teste grátis das IAs (decisão
+    do usuário, "1"): **1 uso por ferramenta por conta, pra sempre; Seu Zé/
+    Fê/Senna 3 mensagens no total** (`lib/aiTrial.ts`, contado no servidor
+    por `claim_ai_trial`). **A Alice NÃO mudou**: ela já tinha 3 perguntas
+    POR DIA no código (`ALICE_DAILY_LIMIT`), que bate com o "3 frases free"
+    do usuário — se ele quiser por mês, é a rota `/api/alice`.
+  - **SQL — 3 arquivos, NENHUM RODADO ainda, nesta ordem:**
+    (1) `migrations/2026-10-25-fix-protect-triggers-invoker.sql` — CORREÇÃO
+    DE SEGURANÇA (ver abaixo), independe das compras;
+    (2) `…-billing-balance.sql` — `billing_config` (`enforce` nasce FALSE),
+    `billing_balance`, `billing_events` (transação UNIQUE; outra conta =
+    'conflict'), `usage_debits`, débito atômico (`FOR UPDATE`) no
+    `create_painter_draft` e num BEFORE INSERT em `obras`, crédito/reembolso/
+    assinatura só por service_role, INSERT direto do pintor em `quotes`
+    fechado, e `set_pro_subscription` ESPELHA a assinatura em
+    `profiles.is_pro/pro_expires_at` (assim toda trava de PRO existente
+    enxerga a assinatura; PRO manual sem data nunca é tocado, com data só
+    estende). A versão final da `set_pro_subscription` mora SÓ aqui pra a
+    ordem de rodar não importar;
+    (3) `…-billing-pro-and-ai-trial.sql` — `ai_trial_usage` + `claim_ai_trial`.
+    Os 3 testados em Postgres 16 local (2x cada, ordem 1-2-1, ataques,
+    12 reservas de teste simultâneas → só 1 passa).
+  - **ACHADO DE SEGURANÇA (2026-10-25, testando as compras):**
+    `protect_profile_columns` e `protect_order_columns` eram SECURITY
+    DEFINER e confiavam em `current_user` — que DENTRO de função SECURITY
+    DEFINER é sempre o dono (postgres). A trava não travava: provado em
+    Postgres local com o corpo EXATO da migration de 09-17, um usuário logado
+    fez `UPDATE profiles SET is_pro=true, pro_expires_at='2099-01-01'` no
+    próprio perfil. Correção = SECURITY INVOKER (mesmo padrão do
+    `enforce_post_moderation`, que já estava certo) + registro do bloqueio
+    por `_audit_privilege_blocked` (SD, ator = auth.uid()). As conferências
+    de 09-24 ("brecha FECHADA") só checavam texto/existência da função, não
+    o COMPORTAMENTO. **REGRA: trava que decide por `current_user` tem que
+    ser SECURITY INVOKER; testar com SET ROLE authenticated, não lendo.**
+    Não dá pra saber daqui se alguém já se deu PRO — consulta no chat.
+  - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
+    RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
+    aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
+    restaurar; o corpo não traz produto nem transação) e
+    `POST /api/billing/webhook` (header `REVENUECAT_WEBHOOK_AUTH`; corpo só
+    diz quem reler; reembolso de consumível = CANCELLATION → revoke; falha
+    → 500 pra RevenueCat reenviar). `gateProAI`/`gateProAIForm`: não-PRO
+    passa pelo rate limit e reserva o teste; esgotado → 403
+    `code:'pro_required'`. Rotas antigas `/api/play-billing-verify`,
+    `/api/apple-iap-verify` e `billing-platform.ts` APAGADAS (eram stub).
+  - **App:** `lib/native/purchases.ts` (plugin `Purchases`, versão exata
+    13.7.3 na raiz), `lib/services/billingPurchases.ts`, `PaywallHost`
+    (montado no AppShell, z-1150, abre por `abrirPaywall(motivo)`; preço da
+    loja, saldo, Restaurar compras, links Termos/Privacidade). Abre sozinho:
+    orçamento sem saldo (`BalanceEmptyError` no QuoteWizard), obra sem saldo
+    (ObrasTab), IA 403 `pro_required` (`fetchGated` lê um clone). QuoteWizard
+    abre pra todos SÓ quando `enforce` ligar (desligado = regra antiga, só
+    PRO). CRM aberto pra todos agora (sem IA na tela; o botão do Seu Zé
+    passa pelo servidor). `/pro` ganhou "Assinar o PRO" (só no app com o
+    plugin) e mantém a troca de pontos. Logout chama `Purchases.logOut`.
+    Docs legais (termos, termos-cliente, privacidade + RevenueCat como
+    operador, ajuda, disputas) atualizados com data 25/10/2026.
+  - **Envs novas:** `NEXT_PUBLIC_REVENUECAT_ANDROID_KEY`/`_IOS_KEY` (secrets
+    do GitHub, já no `deploy.yml`/`deploy-workers-migration.yml`),
+    `REVENUECAT_SECRET_KEY` e `REVENUECAT_WEBHOOK_AUTH` (secrets do Worker).
+    WAF: skip pra `/api/billing/webhook`.
+  - **Falta (usuário):** criar os 4 produtos nas lojas, configurar a
+    RevenueCat, as 4 envs, o skip do WAF, rodar os 3 SQLs, AAB+IPA novos,
+    e SÓ DEPOIS de publicados `UPDATE billing_config SET enforce = true`.
   - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
     — assinatura que não existe; já estava quebrado antes, não é desta obra.
 

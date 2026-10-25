@@ -1,3 +1,10 @@
+> **SUPERADO em 2026-10-25.** A cobrança agora é por compras no app
+> (Google Play / App Store) via RevenueCat. Configuração e regras atuais:
+> [`BILLING_SETUP.md`](../BILLING_SETUP.md). As rotas
+> `/api/play-billing-verify` e `/api/apple-iap-verify` e o
+> `billing-platform.ts` citados abaixo foram REMOVIDOS. O texto a seguir é
+> histórico.
+
 # BILLING_STRATEGY.md
 
 **Última atualização:** 2026-06-12

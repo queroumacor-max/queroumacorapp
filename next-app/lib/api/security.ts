@@ -23,6 +23,7 @@ import { getRuntimeEnv, getSupabaseServiceKey } from './env';
 // (chamadores já importam de `lib/api/security`).
 import { isAdminEmail } from './admin-config';
 import { logSecurityEvent } from './securityEvents';
+import { regraDeTeste, PRO_REQUIRED_CODE } from '../aiTrial';
 export { isAdminEmail };
 
 // NÃO chamar `assertProductionEnvs()` aqui. Era o que este arquivo fazia
@@ -623,6 +624,48 @@ export interface GateProAIOk {
   userId: string | undefined;
   user: { id: string; email?: string } | null;
   token?: string;
+  /** Presente quando o acesso veio do TESTE GRÁTIS (não é PRO). */
+  trial?: { used: number; limit: number };
+}
+
+/**
+ * PRO ou teste grátis (lib/aiTrial.ts). Não-PRO passa pelo rate limit
+ * ANTES de reservar o teste — senão rajada barrada pelo limite por minuto
+ * gastaria os usos grátis sem a pessoa receber nada.
+ */
+async function proOuTeste(
+  userId: string,
+  endpoint: string,
+  limit: number,
+): Promise<NextResponse | { trial?: { used: number; limit: number } }> {
+  const proCheck = await requirePro(userId);
+  if (proCheck.pro) {
+    const rl = await checkRateLimit({ userId, endpoint, limit });
+    if (!rl.allowed) return rateLimitResponse(rl);
+    return {};
+  }
+  const regra = regraDeTeste(endpoint);
+  const serviceKey = getServiceKey();
+  let supaUrl = '';
+  try { supaUrl = getSupabaseUrl(); } catch { supaUrl = ''; }
+  if (regra && serviceKey && supaUrl && proCheck.checked) {
+    const rl = await checkRateLimit({ userId, endpoint, limit });
+    if (!rl.allowed) return rateLimitResponse(rl);
+    const t = await claimAiTrialViaRest({
+      supaUrl,
+      serviceKey,
+      userId,
+      feature: regra.key,
+      limit: regra.limit,
+      monthly: regra.monthly,
+    });
+    if (t.allowed) return { trial: { used: t.used, limit: t.limit } };
+    return jsonResponse(
+      { error: ERR_PRO_ONLY, code: PRO_REQUIRED_CODE, trial: { used: t.used, limit: t.limit } },
+      403,
+    );
+  }
+  return jsonResponse({ error: ERR_PRO_ONLY, code: PRO_REQUIRED_CODE }, 403);
 }
 
 /**
@@ -687,8 +730,9 @@ export async function gateProAI(
   if (!auth.user?.id) return loginRequiredResponse(auth);
   const userId = auth.user.id;
   if (needPro) {
-    const proCheck = await requirePro(userId);
-    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
+    const acesso = await proOuTeste(userId, endpoint, limit);
+    if (acesso instanceof NextResponse) return acesso;
+    return { userId, user: auth.user, token: auth.token, ...(acesso.trial ? { trial: acesso.trial } : {}) };
   }
   const rl = await checkRateLimit({ userId, endpoint, limit });
   if (!rl.allowed) return rateLimitResponse(rl);
@@ -700,6 +744,7 @@ export async function gateProAI(
 // ─────────────────────────────────────────────────────────────────────────
 
 import {
+  claimAiTrialViaRest,
   getPlanLimitViaRest,
   isProActiveViaRest,
   reserveAiUsageViaRest,
@@ -1025,8 +1070,9 @@ export async function gateProAIForm(
   if (!auth.user?.id) return loginRequiredResponse(auth);
   const userId = auth.user.id;
   if (needPro) {
-    const proCheck = await requirePro(userId);
-    if (!proCheck.pro) return jsonResponse({ error: ERR_PRO_ONLY }, 403);
+    const acesso = await proOuTeste(userId, endpoint, limit);
+    if (acesso instanceof NextResponse) return acesso;
+    return { userId, user: auth.user, token: auth.token, ...(acesso.trial ? { trial: acesso.trial } : {}) };
   }
   const rl = await checkRateLimit({ userId, endpoint, limit });
   if (!rl.allowed) return rateLimitResponse(rl);

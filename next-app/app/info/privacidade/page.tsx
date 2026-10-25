@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacidadePage() {
   return (
     <InfoSubPage title="Política de Privacidade">
-      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
       <LegalP>
         Esta Política de Privacidade explica como o QueroUmaCor coleta, usa,
         compartilha e protege os seus dados pessoais, em conformidade com a Lei
@@ -134,15 +134,27 @@ export default function PrivacidadePage() {
           em aparelhos iOS
         </li>
         <li>
+          <b>RevenueCat, Inc.</b> (EUA) — confirmação das compras feitas no
+          app pela Google Play ou App Store (recebe o recibo da compra e o
+          identificador interno da sua conta)
+        </li>
+        <li>
           <b>Functional Software Inc. (Sentry)</b> (EUA) — coleta de erros e
           relatórios de falhas do aplicativo, sem dados pessoais identificáveis
         </li>
       </ul>
       <LegalP>
-        <b>Não há pagamento dentro do aplicativo.</b> O Plano PRO é ativado
-        pela troca de pontos acumulados no app e os pedidos da loja são
-        fechados diretamente com a Cali Colors, fora do aplicativo — por isso
-        nenhum dado seu é enviado a processadores de pagamento.
+        <b>Compras no aplicativo.</b> Créditos e a assinatura PRO são pagos
+        pela <b>Google Play</b> ou pela <b>App Store</b>: os dados do seu
+        pagamento (cartão, endereço de cobrança) ficam com a loja e{' '}
+        <b>nunca chegam até nós</b>. Para confirmar a compra usamos a{' '}
+        <b>RevenueCat, Inc.</b> (EUA), que recebe da loja o recibo da compra
+        e o identificador interno da sua conta no QueroUmaCor (não seu nome,
+        e-mail nem telefone), e nos informa o que foi comprado, a data e se
+        houve renovação, cancelamento ou reembolso. Guardamos esse histórico
+        para manter seu saldo e prevenir fraude. Os pedidos da loja Cali
+        Colors continuam sendo fechados diretamente com a loja, fora do
+        aplicativo.
       </LegalP>
       <LegalP>
         Como esses operadores ficam fora do Brasil, há transferência

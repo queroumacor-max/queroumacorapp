@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function TermosClientePage() {
   return (
     <InfoSubPage title="Termos de Uso - Cliente">
-      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
       <LegalP>
         Estes Termos complementam os{' '}
         <a
@@ -32,12 +32,13 @@ export default function TermosClientePage() {
 
       <LegalH>2. Pagamentos</LegalH>
       <LegalP>
-        <b>Não há cobrança nem pagamento dentro do aplicativo.</b> O Plano PRO
-        é ativado pela troca de pontos acumulados no app (ver o item 13 dos
-        Termos de Uso gerais) e os pedidos feitos na loja são fechados
-        diretamente com a Cali Colors, fora do aplicativo. As negociações e os
-        pagamentos dos serviços são de responsabilidade exclusiva das partes
-        (cliente e profissional).
+        O pagamento de um serviço contratado é combinado diretamente entre
+        cliente e profissional, fora do aplicativo, e é de responsabilidade
+        exclusiva das partes. Os pedidos feitos na loja são fechados
+        diretamente com a Cali Colors, também fora do aplicativo. As únicas
+        compras dentro do app são os créditos e a assinatura PRO das
+        ferramentas (item 13 dos Termos de Uso gerais), cobrados pela Google
+        Play ou pela App Store.
       </LegalP>
 
       <LegalH>3. Avaliações</LegalH>
@@ -48,12 +49,14 @@ export default function TermosClientePage() {
 
       <LegalH>4. Direito de arrependimento</LegalH>
       <LegalP>
-        Como o Plano PRO é obtido por troca de pontos e não envolve pagamento
-        em dinheiro, não há cobrança, fatura nem reembolso associados a ele. As
-        compras feitas diretamente com a loja Cali Colors, fora do aplicativo,
-        seguem os seus direitos de consumidor, inclusive o prazo de{' '}
-        <b>7 dias corridos</b> para arrependimento em compras a distância
-        (Art. 49 do Código de Defesa do Consumidor).
+        Compras feitas dentro do aplicativo (créditos e assinatura PRO) são
+        processadas pela Google Play ou pela App Store, e o reembolso segue a
+        política da loja em que a compra foi feita. O PRO obtido por troca de
+        pontos não envolve dinheiro, portanto não tem cobrança nem reembolso.
+        As compras feitas diretamente com a loja Cali Colors, fora do
+        aplicativo, seguem os seus direitos de consumidor, inclusive o prazo
+        de{' '}<b>7 dias corridos</b> para arrependimento em compras a
+        distância (Art. 49 do Código de Defesa do Consumidor).
       </LegalP>
 
       <LegalH>5. Resolução de problemas</LegalH>

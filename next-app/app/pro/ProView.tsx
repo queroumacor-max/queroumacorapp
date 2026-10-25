@@ -4,9 +4,12 @@
 // assinatura" em vez).
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { personaForRole } from '@/lib/aiPersona';
+import { isPurchasesAvailable } from '@/lib/native';
+import { abrirPaywall } from '@/lib/paywallEvents';
 
 interface Feature {
   /** Emoji OU caminho de imagem (/img/...) — a lista renderiza os dois. */
@@ -40,15 +43,21 @@ function buildFeatures(personaImage: string): readonly Feature[] {
   ];
 }
 
+// A casca não muda depois de carregada: não há o que assinar.
+const semAssinatura = () => () => {};
+
 export function ProView() {
   const { profile } = useProfile();
   const isPro = !!profile?.is_pro;
   const persona = personaForRole(profile?.role || profile?.user_type);
   const FEATURES = buildFeatures(persona.image);
 
-  // NÃO há pagamento do PRO dentro do app. A ÚNICA forma de ativar o PRO é
-  // trocando pontos pelo plano (RPC redeem_pro_with_points, instantâneo). Os
-  // pontos são ganhos convidando amigos e usando o app.
+  // Duas formas de ter PRO: assinatura pela loja (Google Play / App Store,
+  // só no app instalado com o plugin de compras) ou troca de pontos (RPC
+  // redeem_pro_with_points, instantâneo). Fora do app, só a troca de pontos.
+  // Lido depois de montar: no servidor não existe casca nativa, e ler no
+  // render daria HTML diferente do cliente (erro de hidratação).
+  const assinaturaNaLoja = useSyncExternalStore(semAssinatura, isPurchasesAvailable, () => false);
 
   return (
     <div className="px-3.5 pt-4 pb-10">
@@ -175,11 +184,28 @@ export function ProView() {
             marginBottom: 12,
           }}
         >
+          {assinaturaNaLoja && (
+            <button
+              type="button"
+              onClick={() => abrirPaywall('planos')}
+              className="block w-full text-center text-white font-bold"
+              style={{
+                padding: 16,
+                background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+                borderRadius: 14,
+                fontSize: 16,
+                marginBottom: 14,
+                boxShadow: '0 6px 20px rgba(255,107,53,.35)',
+              }}
+            >
+              ⚡ Assinar o PRO
+            </button>
+          )}
           <div
             className="font-bold"
             style={{ fontSize: 14, color: 'var(--color-ink)', marginBottom: 6 }}
           >
-            Como ativar o PRO
+            {assinaturaNaLoja ? 'Ou troque seus pontos' : 'Como ativar o PRO'}
           </div>
           <p
             style={{
@@ -189,10 +215,11 @@ export function ProView() {
               margin: '0 0 14px',
             }}
           >
-            O plano PRO é ativado <b>apenas trocando seus pontos</b> pelo plano —
-            não há pagamento dentro do app. Junte pontos convidando amigos e
-            usando o app, e troque <b>{PRO_POINTS_COST} pontos por 1 mês de PRO</b>.
-            A ativação é instantânea.
+            {assinaturaNaLoja
+              ? 'Também dá pra ganhar o PRO sem pagar: '
+              : 'Aqui o PRO é ativado trocando seus pontos pelo plano (a assinatura é pelo app instalado). '}
+            Junte pontos convidando amigos e usando o app, e troque{' '}
+            <b>{PRO_POINTS_COST} pontos por 1 mês de PRO</b>. A ativação é instantânea.
           </p>
           <Link
             href="/pontos"
@@ -234,7 +261,10 @@ export function ProView() {
         >
           Privacidade
         </Link>
-        . A ativação do PRO é feita exclusivamente pela troca de pontos.
+        .{' '}
+        {assinaturaNaLoja
+          ? 'A assinatura é cobrada pela loja e renova todo mês até você cancelar nas configurações da loja.'
+          : 'Fora do app, o PRO é ativado pela troca de pontos.'}
       </p>
 
       {/* Dúvidas sobre o PRO — canal de atendimento da loja. */}

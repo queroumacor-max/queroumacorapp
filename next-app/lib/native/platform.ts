@@ -3,7 +3,7 @@
 // REGRA DA CASA: o app web NÃO importa pacotes @capacitor/* (fora o type do
 // config). A casca Capacitor carrega o site de `server.url` e injeta o global
 // `window.Capacitor` com os plugins registrados — acessamos por esse global,
-// igual o `billing-platform.ts` já faz. Isso mantém o bundle web livre de
+// (mesmo padrão de todos os wrappers daqui). Isso mantém o bundle web livre de
 // deps nativas e faz a MESMA página servir browser puro, PWA e qualquer
 // versão da casca (plugin ausente = feature-detection falha = fallback web).
 //

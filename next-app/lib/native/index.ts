@@ -55,6 +55,8 @@ export { openExternal, abrirLinkExterno } from './browser';
 export { getDeviceInfo } from './device';
 export type { NativeDeviceInfo } from './device';
 export { setAppBadge } from './badge';
+export { isPurchasesAvailable } from './purchases';
+export type { StoreProduct } from './purchases';
 
 import { getNativePlatform, isNativePlatform, listNativePlugins } from './platform';
 import { isNativeOAuthAvailable, nativeSignInWithOAuth } from './auth';
@@ -84,6 +86,14 @@ import { copyToClipboard } from './clipboard';
 import { openExternal, abrirLinkExterno } from './browser';
 import { getDeviceInfo } from './device';
 import { setAppBadge } from './badge';
+import {
+  isPurchasesAvailable,
+  configurePurchases,
+  logOutPurchases,
+  getStoreProducts,
+  purchaseProduct,
+  restoreStorePurchases,
+} from './purchases';
 
 /** Fachada única — preferir `native.x()` nos call sites. */
 export const native = {
@@ -122,4 +132,12 @@ export const native = {
   abrirLinkExterno,
   device: { getInfo: getDeviceInfo },
   badge: { set: setAppBadge },
+  purchases: {
+    isAvailable: isPurchasesAvailable,
+    configure: configurePurchases,
+    logOut: logOutPurchases,
+    products: getStoreProducts,
+    buy: purchaseProduct,
+    restore: restoreStorePurchases,
+  },
 };

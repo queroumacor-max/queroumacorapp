@@ -319,6 +319,11 @@ GRANT EXECUTE ON FUNCTION public.revoke_billing_purchase(text, jsonb) TO service
 -- expiração, carência, reembolso). Grava a DATA DE FIM que a loja
 -- informa: cancelado continua valendo até lá; reembolso/expirado manda
 -- uma data passada (ou NULL). Idempotente pelo id do evento.
+-- A assinatura é o PRO de verdade: espelha a data em profiles.is_pro /
+-- pro_expires_at, então toda trava de PRO que já existe (rotas de IA,
+-- Agenda, Anotações, selo do topo) enxerga a assinatura sem mudar nada.
+-- PRO dado à mão SEM data nunca é tocado; PRO com data mais longa que a
+-- assinatura não encolhe.
 CREATE OR REPLACE FUNCTION public.set_pro_subscription(
   p_user uuid, p_event_id text, p_until timestamptz, p_status text, p_platform text, p_raw jsonb DEFAULT NULL
 ) RETURNS text
@@ -326,6 +331,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_dono uuid;
   v_cfg public.billing_config;
+  v_antes timestamptz;
 BEGIN
   IF p_user IS NULL OR COALESCE(p_event_id, '') = '' THEN RAISE EXCEPTION 'parâmetros inválidos'; END IF;
   SELECT user_id INTO v_dono FROM public.billing_events WHERE store_transaction_id = p_event_id;
@@ -338,10 +344,31 @@ BEGIN
   ON CONFLICT (store_transaction_id) DO NOTHING;
   IF NOT FOUND THEN RETURN 'duplicate'; END IF;
 
+  SELECT unlimited_until INTO v_antes FROM public.billing_balance WHERE user_id = p_user;
+
   SELECT * INTO v_cfg FROM public.billing_config WHERE id = 1;
   INSERT INTO public.billing_balance (user_id, free_quotes, free_obras, unlimited_until, unlimited_status)
   VALUES (p_user, COALESCE(v_cfg.free_quotes, 5), COALESCE(v_cfg.free_obras, 1), p_until, p_status)
   ON CONFLICT (user_id) DO UPDATE SET unlimited_until = p_until, unlimited_status = p_status, updated_at = now();
+
+  IF p_until IS NOT NULL AND p_until > now() THEN
+    -- Ativa/renova: liga o PRO até o fim informado pela loja.
+    UPDATE public.profiles SET
+      is_pro = true,
+      pro_expires_at = CASE
+        WHEN is_pro = true AND pro_expires_at IS NULL THEN NULL      -- PRO manual sem data: intocado
+        ELSE GREATEST(COALESCE(pro_expires_at, p_until), p_until)
+      END
+    WHERE id = p_user;
+  ELSE
+    -- Expirou/reembolso: só recua a data que a PRÓPRIA assinatura deu.
+    -- PRO manual sem data, ou com data além da assinatura, fica.
+    UPDATE public.profiles SET pro_expires_at = COALESCE(p_until, now())
+    WHERE id = p_user
+      AND pro_expires_at IS NOT NULL
+      AND v_antes IS NOT NULL
+      AND pro_expires_at <= v_antes;
+  END IF;
   RETURN 'applied';
 END $$;
 REVOKE ALL ON FUNCTION public.set_pro_subscription(uuid, text, timestamptz, text, text, jsonb) FROM PUBLIC, anon, authenticated;
@@ -356,4 +383,5 @@ UNION ALL SELECT 'create_painter_draft debita', (SELECT prosrc LIKE '%_usage_deb
 UNION ALL SELECT 'obra nova debita', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_debit_obra_on_insert' AND NOT tgisinternal)
 UNION ALL SELECT 'authenticated NÃO credita', NOT has_function_privilege('authenticated', 'public.grant_billing_purchase(uuid,text,text,text,jsonb)', 'EXECUTE')
 UNION ALL SELECT 'authenticated NÃO debita direto', NOT has_function_privilege('authenticated', 'public._usage_debit(text,uuid,uuid)', 'EXECUTE')
+UNION ALL SELECT 'assinatura liga o PRO', (SELECT prosrc LIKE '%is_pro = true%' FROM pg_proc WHERE oid = 'public.set_pro_subscription(uuid,text,timestamptz,text,text,jsonb)'::regprocedure)
 UNION ALL SELECT 'pintor não insere quote direto', EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'quotes' AND policyname = 'quotes_insert_participants' AND with_check NOT LIKE '%painter_id%');
