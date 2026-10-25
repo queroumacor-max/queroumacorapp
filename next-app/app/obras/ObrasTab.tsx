@@ -29,6 +29,9 @@ import {
 import { getSupabase } from '@/lib/supabase';
 import { useSingleFlight } from '@/lib/hooks/useSingleFlight';
 import { Botao, Campo, Chip, ErroObras, brl, cls } from './ui';
+import { BalanceEmptyError } from '@/lib/billingBalance';
+import { abrirPaywall } from '@/lib/paywallEvents';
+import { BILLING_BALANCE_KEY } from '@/lib/hooks/useBillingBalance';
 
 type Filtro = 'ativas' | 'concluidas' | 'todas';
 
@@ -135,10 +138,17 @@ function ObraForm({ uid, obra, onFim }: { uid: string; obra?: Obra; onFim: () =>
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['obras', uid] });
+      qc.invalidateQueries({ queryKey: BILLING_BALANCE_KEY });
       showToast(obra ? 'Obra atualizada' : 'Obra criada', 'success');
       onFim();
     },
-    onError: (e) => showToast((e as Error).message, 'error'),
+    onError: (e) => {
+      if (e instanceof BalanceEmptyError) {
+        abrirPaywall('obra');
+        return;
+      }
+      showToast((e as Error).message, 'error');
+    },
   });
   // Trava de clique duplo: o isPending só desabilita o botão no render
   // seguinte; um 2º toque rápido criava a obra duas vezes.

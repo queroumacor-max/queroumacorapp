@@ -1,12 +1,11 @@
 // CrmList — client component que orquestra a tela /crm. Espelha o output
 // de `loadCrm() + renderCrm()` em modules/crm.js: header de config
-// (intervalo em meses + Salvar), gating PRO, estado vazio, lista de
+// (intervalo em meses + Salvar), estado vazio, lista de
 // CrmCard.
 //
 // Estados:
 //   - authLoading → skeleton
 //   - !user → CTA login
-//   - !isPro (via canSeeProFeature) → paywall PRO
 //   - loading → skeleton de cards (3)
 //   - error → mensagem inline
 //   - allClients.length===0 → empty state ("ainda não tem clientes")
@@ -22,8 +21,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useCrm } from '@/lib/hooks/useCrm';
-import { canSeeProFeature } from '@/lib/policies';
-import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { CrmCard } from './CrmCard';
 
 function SkeletonCard() {
@@ -126,7 +123,6 @@ function IntervalConfig({
 
 export function CrmList() {
   const { user, loading: authLoading } = useAuth();
-  const policyUser = usePolicyUser();
   const {
     clients,
     allClients,
@@ -167,30 +163,9 @@ export function CrmList() {
     );
   }
 
-  // Gate PRO via usePolicyUser (combina profile do banco com JWT metadata).
-  if (!canSeeProFeature(policyUser)) {
-    return (
-      <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
-        <div className="text-5xl mb-3" aria-hidden="true">
-          🔁
-        </div>
-        <h2 className="font-bold mb-2 text-[color:var(--color-ink)]">
-          Reativar clientes é PRO
-        </h2>
-        <p className="text-sm text-[color:var(--color-muted)] mb-4 max-w-md mx-auto">
-          Recupere clientes antigos com lembretes de repintura. O Seu Zé
-          escreve a mensagem, você revisa e envia pelo WhatsApp.
-        </p>
-        <Link
-          href="/pro"
-          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Ativar PRO
-        </Link>
-      </div>
-    );
-  }
-
+  // Sem trava de PRO desde 2026-10-25 (regra: só o que chama IA é PRO).
+  // O botão do Seu Zé escrever a mensagem passa pelo servidor, que libera
+  // o teste grátis ou abre a tela de assinatura.
   if (loading) {
     return (
       <>

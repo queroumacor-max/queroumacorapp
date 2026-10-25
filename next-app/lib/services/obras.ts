@@ -13,6 +13,7 @@ import { DB } from '@/lib/db';
 import { NetworkError, ValidationError } from '@/lib/errors';
 import { ehCategoriaGasto, type CategoriaGasto } from '@/lib/categoriasGasto';
 import { ymdBrt } from '@/lib/utils';
+import { ehErroSemSaldo, BalanceEmptyError } from '@/lib/billingBalance';
 
 // Tabelas novas, fora do schema TS gerado.
 const db = () => getSupabase() as unknown as SupabaseClient;
@@ -31,6 +32,7 @@ function falha(error: ErroPg): never {
   const code = error?.code ?? '';
   // 42P01/PGRST205 = tabela ausente; 42883/PGRST202 = função ausente.
   if (['42P01', 'PGRST205', '42883', 'PGRST202'].includes(code)) throw new ObrasSqlPendenteError();
+  if (ehErroSemSaldo(error, 'obra')) throw new BalanceEmptyError('obra');
   throw new NetworkError(error?.message || 'Erro no banco', error ?? undefined);
 }
 

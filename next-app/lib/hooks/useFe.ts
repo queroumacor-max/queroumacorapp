@@ -179,7 +179,10 @@ function nextId(): string {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function useFe(): UseFeResult {
+export function useFe(opts: { semFalaAutomatica?: boolean } = {}): UseFeResult {
+  // Teste grátis (sem PRO): cada fala gasta o teste do TTS no servidor;
+  // falar sozinho faria a tela de assinatura abrir sem a pessoa pedir.
+  const semFalaAutomatica = opts.semFalaAutomatica === true;
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -530,13 +533,13 @@ export function useFe(): UseFeResult {
   );
 
   useEffect(() => {
-    if (!autoSpeak) return;
+    if (!autoSpeak || semFalaAutomatica) return;
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'assistant') return;
     if (autoSpokenRef.current.has(last.id)) return;
     autoSpokenRef.current.add(last.id);
     void speak(last.id);
-  }, [messages, autoSpeak, speak]);
+  }, [messages, autoSpeak, semFalaAutomatica, speak]);
 
   return {
     messages,

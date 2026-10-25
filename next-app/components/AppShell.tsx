@@ -26,6 +26,7 @@ import { NativeBadge } from './NativeBadge';
 import { OfflineBanner } from './OfflineBanner';
 import { AppTour } from './AppTour';
 import { ProExpirandoModal } from './ProExpirandoModal';
+import { PaywallHost } from './billing/PaywallHost';
 import { PickerRecovery } from './PickerRecovery';
 import { BackGuard } from './BackGuard';
 import { SplashMascotes } from './SplashMascotes';
@@ -257,6 +258,7 @@ export function AppShell({
       <AppTour />
       {/* PRO acabando nas próximas 24h: avisa uma vez por prazo. */}
       <ProExpirandoModal />
+      <PaywallHost />
     </div>
   );
 }

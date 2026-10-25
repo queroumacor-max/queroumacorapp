@@ -192,8 +192,13 @@ o site esta fora da conversa.
 - **Login social so pelo fluxo nativo** (browser do sistema + deep link
   `br.com.queroumacor.app://auth/callback`, PKCE). Sem fallback pro fluxo web
   dentro da casca.
-- **Nao ha compra dentro do app** (PRO por pontos, loja fecha a venda fora do
-  app) — Guideline 3.1.1/3.1.3(e) atendidas. Se um dia voltar a vender algo
-  digital no iOS, e StoreKit; ver `BILLING_STRATEGY.md`.
+- **Compras digitais so por StoreKit** (2026-10-25): creditos de
+  orcamento/obra e a assinatura PRO saem pela App Store via RevenueCat
+  (`@revenuecat/purchases-capacitor`). Nada digital pode ter link de compra
+  fora da loja (Guideline 3.1.1). A loja fisica (tinta etc.) segue fechando
+  a venda fora do app (3.1.3(e)). A tela de planos mostra preco e periodo
+  vindos da loja, renovacao automatica, "Restaurar compras" e links pra
+  Termos/Privacidade (exigencia de assinatura auto-renovavel). Detalhes:
+  `BILLING_SETUP.md`.
 - Sessao do Supabase: `hybridAuthStorage` (localStorage + cookies) cobre o
   apagamento do ITP. Fallback offline: `offline.html` gerado pela build (passo 3).

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 26 de setembro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -80,7 +80,7 @@ export default function TermosPage() {
       <LegalH>6.1. Loja Cali Colors</LegalH>
       <LegalP>
         Na loja do aplicativo você monta uma lista de pedido e a envia à Cali
-        Colors. <b>Não há pagamento dentro do aplicativo</b>: a equipe da loja
+        Colors. <b>Os produtos da loja não são pagos dentro do aplicativo</b>: a equipe da loja
         entra em contato (por exemplo, pelo WhatsApp) para confirmar
         disponibilidade, valores e forma de pagamento, e a venda é fechada
         diretamente com a loja, fora do app. Preços e disponibilidade exibidos
@@ -134,20 +134,38 @@ export default function TermosPage() {
         domicílio do consumidor para dirimir eventuais conflitos.
       </LegalP>
 
-      <LegalH>13. Plano PRO</LegalH>
+      <LegalH>13. Orçamentos, Gestão de Obras e Plano PRO</LegalH>
       <LegalP>
-        O Plano PRO é ativado <b>exclusivamente pela troca de pontos</b>
-        acumulados no aplicativo (por exemplo, por indicações e pelo uso do
-        app). <b>Não há cobrança nem pagamento dentro do aplicativo</b> para
-        ativar o PRO: você troca a quantidade de pontos indicada por um período
-        de acesso PRO, e a ativação é imediata.
+        Toda conta começa com <b>5 orçamentos grátis</b> e <b>1 obra grátis</b>
+        na Gestão de Obras. Um orçamento é contado quando você o grava; uma
+        obra, quando você a cria (editar não conta). Depois disso, no
+        aplicativo instalado pela Google Play ou pela App Store, é possível
+        comprar créditos avulsos (1 orçamento, pacote de 40 orçamentos ou 1
+        obra extra) ou assinar o <b>Plano PRO</b>, que libera orçamentos e
+        obras ilimitados e as ferramentas com inteligência artificial
+        enquanto a assinatura estiver ativa. Créditos avulsos não vencem.
       </LegalP>
       <LegalP>
-        O acesso PRO obtido por troca de pontos vale pelo período concedido e
-        não é renovado automaticamente — para manter o PRO, basta realizar uma
-        nova troca de pontos quando o período terminar. Por não envolver
-        pagamento em dinheiro, não há cobrança recorrente, fatura nem reembolso
-        associados ao Plano PRO.
+        As ferramentas com inteligência artificial fazem parte do PRO. Quem
+        não é PRO pode experimentar cada uma delas gratuitamente, em
+        quantidade limitada, uma vez por conta.
+      </LegalP>
+      <LegalP>
+        <b>Os preços são os exibidos pela loja de aplicativos</b> no momento
+        da compra, e o pagamento é processado pela Google Play ou pela App
+        Store, conforme as regras de cada uma. A assinatura do PRO é mensal e
+        <b> renova automaticamente</b> até você cancelar nas configurações de
+        assinaturas da loja; o cancelamento vale ao fim do período já pago.
+        Reembolsos seguem a política da loja em que a compra foi feita; um
+        crédito ou período reembolsado deixa de valer no aplicativo. Use
+        &quot;Restaurar compras&quot; na tela de planos para recuperar compras
+        feitas na mesma conta da loja.
+      </LegalP>
+      <LegalP>
+        Também é possível obter o PRO <b>trocando pontos</b> acumulados no
+        aplicativo (por exemplo, por indicações e pelo uso do app): você troca
+        a quantidade de pontos indicada por um período de acesso PRO, sem
+        pagamento e sem renovação automática.
       </LegalP>
       <LegalP>
         Em caso de dúvida sobre pontos ou sobre o Plano PRO, entre em contato

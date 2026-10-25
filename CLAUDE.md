@@ -1,5 +1,123 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — CÓDIGO PRONTO, NADA NO AR
+  (2026-10-25, pedido do usuário; "finalize e podemos mudar depois").
+  Branch `ccr-9f21767f-vff8ua`. Guia do que falta fazer fora do código:
+  `BILLING_SETUP.md` (raiz).**
+  Decisões do usuário: orçamentos 5 grátis pra TODOS (inclusive quem já
+  usa), conta ao GRAVAR; Gestão de Obras 1 obra grátis, conta ao CRIAR
+  (obras antigas não contam); `quote_1` (R$ 1,00), `quote_pack_40`
+  (R$ 29,90), `obra_1` (R$ 2,90 por obra extra), `quotes_unlimited`
+  (R$ 59,90/mês) = "PRO completo": orçamentos e obras ilimitados + as
+  ferramentas do PRO. Preço é das lojas, não do código. PRO antigo ativo
+  vale como ilimitado até vencer. Compra SÓ no app (Android/iOS), via
+  **RevenueCat** (aprovada no "finalize").
+  - **REGRA DO QUE É PAGO:** o que chama IA é PRO; orçamento e obras seguem
+    o freemium acima; o resto é 100% grátis. Teste grátis das IAs (decisão
+    do usuário, "1"): **1 uso por ferramenta por conta, pra sempre; Seu Zé/
+    Fê/Senna 3 mensagens no total** (`lib/aiTrial.ts`, contado no servidor
+    por `claim_ai_trial`). **A Alice NÃO mudou**: ela já tinha 3 perguntas
+    POR DIA no código (`ALICE_DAILY_LIMIT`), que bate com o "3 frases free"
+    do usuário — se ele quiser por mês, é a rota `/api/alice`.
+  - **SQL — 3 arquivos, OS 3 JÁ RODADOS no Supabase (2026-10-25), nesta ordem:**
+    (1) `migrations/2026-10-25-fix-protect-triggers-invoker.sql` — CORREÇÃO
+    DE SEGURANÇA (ver abaixo) — **JÁ RODADA (2026-10-25)**;
+    (2) `…-billing-balance.sql` — `billing_config` (`enforce` nasce FALSE),
+    `billing_balance`, `billing_events` (transação UNIQUE; outra conta =
+    'conflict'), `usage_debits`, débito atômico (`FOR UPDATE`) no
+    `create_painter_draft` e num BEFORE INSERT em `obras`, crédito/reembolso/
+    assinatura só por service_role, INSERT direto do pintor em `quotes`
+    fechado, e `set_pro_subscription` ESPELHA a assinatura em
+    `profiles.is_pro/pro_expires_at` (assim toda trava de PRO existente
+    enxerga a assinatura; PRO manual sem data nunca é tocado, com data só
+    estende). A versão final da `set_pro_subscription` mora SÓ aqui pra a
+    ordem de rodar não importar;
+    **(2) JÁ RODADO (2026-10-25, pelo celular em blocos de uma linha;
+    print do usuário: as 10 linhas da conferência `true`). Não pedir pra
+    rodar de novo.**
+    (3) `…-billing-pro-and-ai-trial.sql` — `ai_trial_usage` + `claim_ai_trial`.
+    **(3) JÁ RODADO (2026-10-25, celular em 4 blocos; usuário: conferência
+    "deu tudo true"). Não pedir pra rodar nenhum dos 3 de novo.**
+    Os 3 testados em Postgres 16 local (2x cada, ordem 1-2-1, ataques,
+    12 reservas de teste simultâneas → só 1 passa).
+  - **ACHADO DE SEGURANÇA (2026-10-25, testando as compras):**
+    `protect_profile_columns` e `protect_order_columns` eram SECURITY
+    DEFINER e confiavam em `current_user` — que DENTRO de função SECURITY
+    DEFINER é sempre o dono (postgres). A trava não travava: provado em
+    Postgres local com o corpo EXATO da migration de 09-17, um usuário logado
+    fez `UPDATE profiles SET is_pro=true, pro_expires_at='2099-01-01'` no
+    próprio perfil. Correção = SECURITY INVOKER (mesmo padrão do
+    `enforce_post_moderation`, que já estava certo) + registro do bloqueio
+    por `_audit_privilege_blocked` (SD, ator = auth.uid()). As conferências
+    de 09-24 ("brecha FECHADA") só checavam texto/existência da função, não
+    o COMPORTAMENTO. **REGRA: trava que decide por `current_user` tem que
+    ser SECURITY INVOKER; testar com SET ROLE authenticated, não lendo.**
+    Não dá pra saber daqui se alguém já se deu PRO — consulta no chat.
+    **CONFIRMADO NO BANCO (2026-10-25, print do usuário): `prosecdef = true`
+    nas duas — produção está com a trava quebrada.** Fix passado no chat em
+    3 blocos curtos. **CORREÇÃO RODADA E CONFERIDA (2026-10-25, print do
+    usuário: as 5 linhas `ok = true` — as duas travas INVOKER, triggers
+    ligados, `_audit_privilege_blocked` existe). Não pedir pra rodar de
+    novo.** Conferência de abuso FEITA (ver abaixo).
+    **LISTA DE PRO RECEBIDA (2026-10-25, 29 contas):** nenhuma data
+    absurda (nada além de 2027-10); quase todas no padrão do portal
+    (23:59:59 de Brasília = `02:59:59+00`; 4 com `06:59:59+00` = portal
+    aberto num fuso UTC-7). As com milissegundos são contas da equipe
+    (Jackson/Fabio). Nada com cara de auto-concessão, mas o que PROVA é
+    `audit_events` `pro_change` com `actor_id = target_id` (passado no
+    chat). Falta essa consulta e a de pedidos pagos.
+    **Pedidos pagos CONFERIDOS (2026-10-25, print): `orders` com
+    status='paid' = 0 linhas.** Ninguém marcou pedido como pago.
+    **`audit_events` `pro_change` com actor = target = 0 linhas (print,
+    2026-10-25).** Ninguém mexeu no próprio PRO desde 17/09.
+    **Contraprova OK: 40 `pro_change` no total, último em 2026-10-24** —
+    o gatilho grava. **CASO FECHADO: nenhum sinal de que alguém se
+    aproveitou da trava quebrada.** Limite: antes de 17/09 não há
+    histórico pra provar. Não pedir essas conferências de novo.
+  - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
+    RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
+    aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
+    restaurar; o corpo não traz produto nem transação) e
+    `POST /api/billing/webhook` (header `REVENUECAT_WEBHOOK_AUTH`; corpo só
+    diz quem reler; reembolso de consumível = CANCELLATION → revoke; falha
+    → 500 pra RevenueCat reenviar). `gateProAI`/`gateProAIForm`: não-PRO
+    passa pelo rate limit e reserva o teste; esgotado → 403
+    `code:'pro_required'`. Rotas antigas `/api/play-billing-verify`,
+    `/api/apple-iap-verify` e `billing-platform.ts` APAGADAS (eram stub).
+  - **App:** `lib/native/purchases.ts` (plugin `Purchases`, versão exata
+    13.7.3 na raiz), `lib/services/billingPurchases.ts`, `PaywallHost`
+    (montado no AppShell, z-1150, abre por `abrirPaywall(motivo)`; preço da
+    loja, saldo, Restaurar compras, links Termos/Privacidade). Abre sozinho:
+    orçamento sem saldo (`BalanceEmptyError` no QuoteWizard), obra sem saldo
+    (ObrasTab), IA 403 `pro_required` (`fetchGated` lê um clone). QuoteWizard
+    abre pra todos SÓ quando `enforce` ligar (desligado = regra antiga, só
+    PRO). CRM aberto pra todos agora (sem IA na tela; o botão do Seu Zé
+    passa pelo servidor). `/pro` ganhou "Assinar o PRO" (só no app com o
+    plugin) e mantém a troca de pontos. Logout chama `Purchases.logOut`.
+    Docs legais (termos, termos-cliente, privacidade + RevenueCat como
+    operador, ajuda, disputas) atualizados com data 25/10/2026.
+  - **Envs novas:** `NEXT_PUBLIC_REVENUECAT_ANDROID_KEY`/`_IOS_KEY` (secrets
+    do GitHub, já no `deploy.yml`/`deploy-workers-migration.yml`),
+    `REVENUECAT_SECRET_KEY` e `REVENUECAT_WEBHOOK_AUTH` (secrets do Worker).
+    WAF: skip pra `/api/billing/webhook`.
+  - **Falta (usuário):** criar os 4 produtos nas lojas, configurar a
+    RevenueCat, as 4 envs, o skip do WAF, AAB+IPA novos (SQLs já rodados),
+    e SÓ DEPOIS de publicados `UPDATE billing_config SET enforce = true`.
+  - **PR #484 aberto (2026-10-25). O Codex achou 3 pontos, corrigidos no
+    mesmo PR:** (P1) o billing-balance recriou `quotes_insert_participants`
+    e PERDEU a trava de 09-16 (cliente = pintor) — pintor gravava orçamento
+    pra si pelo REST, pulava o débito e farmava pontos. **Isso já estava em
+    PRODUÇÃO**: hotfix `migrations/2026-10-25-quotes-insert-self-guard.sql`
+    (uma policy + conferência), testado em Postgres local — **JÁ RODADO
+    (2026-10-25, usuário: "ok true"). Não pedir pra rodar de novo.** (P2) as telas do Seu Zé/Fê/Senna barravam quem
+    não é PRO antes do teste grátis; agora abrem com faixa "Teste grátis:
+    3 mensagens" e SEM fala automática (cada fala gasta o teste do TTS e
+    abriria o paywall sozinha). (P2) consumível sem `store_transaction_id`
+    cai no id da RC e o estorno não casa — mantido como último recurso, com
+    aviso no log (a v1 traz o campo).
+  - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
+    — assinatura que não existe; já estava quebrado antes, não é desta obra.
+
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
   só trazia quem a pessoa segue. Agora `followingOnly: false`; bloqueados

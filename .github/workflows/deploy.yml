@@ -95,6 +95,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          # Chaves PÚBLICAS da RevenueCat (compras no app). Ausentes = a tela
+          # de compra diz que ainda não está disponível; nada quebra.
+          NEXT_PUBLIC_REVENUECAT_ANDROID_KEY: ${{ secrets.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY }}
+          NEXT_PUBLIC_REVENUECAT_IOS_KEY: ${{ secrets.NEXT_PUBLIC_REVENUECAT_IOS_KEY }}
 
       # `opennextjs-cloudflare build` gera `.open-next/` (worker.js + assets),
       # não mais `.vercel/output/static` (isso era next-on-pages). Mesmo

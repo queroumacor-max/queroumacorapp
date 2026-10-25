@@ -18,6 +18,8 @@
 
 import { getSupabase } from '../supabase';
 import { authHeaders } from './authHeaders';
+import { PRO_REQUIRED_CODE } from '../aiTrial';
+import { abrirPaywall } from '../paywallEvents';
 
 // Mesmo racional do authHeaders: no WebView promessa de rede pendurada nao
 // rejeita, entao renovar tambem precisa de teto.
@@ -54,9 +56,31 @@ export async function fetchGated(url: string, init: RequestInit = {}): Promise<R
     });
 
   const res = await attempt();
+  if (res.status === 403) avisarSeProObrigatorio(res);
   if (res.status !== 401) return res;
 
   const renovou = await refreshSessionOnce();
   if (!renovou) return res; // sem sessao nova: devolve o 401 original
-  return attempt();
+  const res2 = await attempt();
+  if (res2.status === 403) avisarSeProObrigatorio(res2);
+  return res2;
+}
+
+/**
+ * 403 com `code: 'pro_required'` (teste gratis da IA acabou) abre a tela de
+ * assinatura. Le um CLONE: a tela que chamou continua lendo a resposta e
+ * mostrando o erro como sempre. Best-effort: nunca lanca.
+ */
+function avisarSeProObrigatorio(res: Response): void {
+  try {
+    res
+      .clone()
+      .json()
+      .then((j: { code?: unknown } | null) => {
+        if (j?.code === PRO_REQUIRED_CODE) abrirPaywall('ia');
+      })
+      .catch(() => {});
+  } catch {
+    /* corpo ja lido ou indisponivel */
+  }
 }

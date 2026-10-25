@@ -28,6 +28,7 @@ import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { reportFailure } from '@/lib/utils/reportFailure';
 import { clearDeviceTokenOnLogout } from '@/lib/services/pushTokens';
+import { native } from '@/lib/native';
 import { clearAllAutosaveDrafts } from '@/lib/hooks/useAutosave';
 import { clearAllStoredSessions } from '@/lib/sessionStorageHybrid';
 
@@ -337,6 +338,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await clearDeviceTokenOnLogout();
     } catch {
       // Silencioso — ver função (best-effort por design).
+    }
+    // Compras in-app: desamarra a conta da RevenueCat, senão a próxima
+    // pessoa a logar neste aparelho compraria "em nome" de quem saiu.
+    try {
+      await native.purchases.logOut();
+    } catch {
+      // Silencioso — best-effort.
     }
     // CRIT-4: limpa o cookie httpOnly `sb-session-token` (gravado no login
     // por /api/auth/set-session-cookie) pra que o guard server-side de
