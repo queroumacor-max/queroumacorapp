@@ -17255,6 +17255,649 @@ const HistoricoAlteracoes = () => {
     }, resumoDaMudanca(r.action, r.changes, 4000).join('\n'))) : null);
   }));
 };
+
+// ============================================================
+// COMPRAS NO APP (2026-10-25, pedido do usuario: "menu e tela falando das
+// compras, valores e quem comprou"). Quem agrega e o servidor
+// (`POST /api/admin/billing`, service role): billing_balance/usage_debits
+// tem RLS "cada um ve o seu". Valor: o COBRADO quando a RevenueCat informa;
+// senao o preco de TABELA, sempre marcado como estimativa.
+// ============================================================
+// [teste:compras-inicio]
+const COMPRA_STATUS = {
+  applied: {
+    rot: 'Paga',
+    cor: '#1b7f3b',
+    fundo: '#e6f4ea'
+  },
+  refunded: {
+    rot: 'Reembolsada',
+    cor: '#b00020',
+    fundo: '#fdecea'
+  },
+  active: {
+    rot: 'Assinatura ativa',
+    cor: '#1b7f3b',
+    fundo: '#e6f4ea'
+  },
+  cancelled: {
+    rot: 'Cancelada (vale até o fim)',
+    cor: '#7a4b00',
+    fundo: '#fff4e0'
+  },
+  grace: {
+    rot: 'Em carência',
+    cor: '#7a4b00',
+    fundo: '#fff4e0'
+  },
+  billing_issue: {
+    rot: 'Problema no pagamento',
+    cor: '#b00020',
+    fundo: '#fdecea'
+  },
+  expired: {
+    rot: 'Expirada',
+    cor: '#666',
+    fundo: '#eee'
+  }
+};
+const statusDaCompra = s => COMPRA_STATUS[s] || {
+  rot: s || '—',
+  cor: '#666',
+  fundo: '#eee'
+};
+const LOJA_ROTULO = {
+  app_store: '🍎 App Store',
+  play_store: '▶ Google Play',
+  stripe: 'Stripe',
+  promotional: 'Promoção'
+};
+const lojaDaCompra = p => LOJA_ROTULO[p] || p || '—';
+const dinheiro = (v, moeda) => {
+  try {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: moeda || 'BRL'
+    }).format(v);
+  } catch (_) {
+    return (moeda || '') + ' ' + Number(v).toFixed(2);
+  }
+};
+const filtrarCompras = (lista, f) => {
+  const q = (f.busca || '').trim().toLowerCase();
+  return lista.filter(c => {
+    if (!f.teste && c.sandbox) return false;
+    if (f.produto && c.produto !== f.produto) return false;
+    if (f.status && c.status !== f.status) return false;
+    if (f.loja && c.plataforma !== f.loja) return false;
+    if (!q) return true;
+    const p = c.pessoa || {};
+    return [p.nome, p.tag, p.email, p.telefone, c.transacao, c.produtoRotulo].some(v => String(v || '').toLowerCase().includes(q));
+  });
+};
+const csvDasCompras = lista => {
+  const cab = ['Data', 'Nome', '@tag', 'E-mail', 'Telefone', 'Produto', 'Loja', 'Status', 'Créditos', 'Valor', 'Moeda', 'Valor estimado?', 'Teste', 'Transação'];
+  const linhas = lista.map(c => {
+    const p = c.pessoa || {};
+    return [c.quando, p.nome, p.tag, p.email, p.telefone, c.produtoRotulo, c.plataforma, statusDaCompra(c.status).rot, c.creditos, c.valor ? String(c.valor.amount).replace('.', ',') : '', c.valor ? c.valor.currency : '', c.valor && c.valor.estimado ? 'sim' : 'não', c.sandbox ? 'sim' : 'não', c.transacao];
+  });
+  // Mesma protecao de formula injection (CWE-1236) dos outros CSVs do portal.
+  return '﻿' + [cab].concat(linhas).map((r, i) => r.map(v => {
+    let s = v == null ? '' : String(v);
+    if (i > 0 && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  }).join(';')).join('\n');
+};
+// [teste:compras-fim]
+
+const ComprasApp = () => {
+  const [rel, setRel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
+  const [busca, setBusca] = useState('');
+  const [produto, setProduto] = useState('');
+  const [status, setStatus] = useState('');
+  const [loja, setLoja] = useState('');
+  const [teste, setTeste] = useState(true);
+  const carregar = async () => {
+    setLoading(true);
+    setErro('');
+    try {
+      const {
+        data: {
+          session
+        }
+      } = await supa.auth.getSession();
+      if (!session) throw new Error('Sessão expirada. Entre novamente.');
+      const r = await fetch('/api/admin/billing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          accessToken: session.access_token
+        })
+      });
+      let j = {};
+      try {
+        j = await r.json();
+      } catch (_) {}
+      if (!r.ok || !j.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      setRel(j);
+    } catch (e) {
+      setErro(e && e.message ? e.message : String(e));
+    }
+    setLoading(false);
+  };
+  useEffect(() => {
+    carregar();
+  }, []);
+  const lista = React.useMemo(() => rel ? filtrarCompras(rel.compras, {
+    busca,
+    produto,
+    status,
+    loja,
+    teste
+  }) : [], [rel, busca, produto, status, loja, teste]);
+  const opcoes = campo => rel ? [...new Set(rel.compras.map(c => c[campo]).filter(Boolean))] : [];
+  const exportar = () => {
+    const blob = new Blob([csvDasCompras(lista)], {
+      type: 'text/csv;charset=utf-8;'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'compras_no_app.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const sel = {
+    padding: '7px 10px',
+    borderRadius: 8,
+    border: '1px solid ' + C.border,
+    background: C.white,
+    color: C.ink,
+    fontSize: 12
+  };
+  const card = {
+    background: C.white,
+    borderRadius: 14,
+    padding: '12px 14px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    marginBottom: 20
+  };
+  const th = {
+    padding: '8px',
+    fontSize: 10,
+    color: C.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'left',
+    whiteSpace: 'nowrap'
+  };
+  const td = {
+    padding: '8px',
+    fontSize: 12,
+    color: C.ink,
+    borderTop: '1px solid ' + C.border,
+    verticalAlign: 'top'
+  };
+  const Pessoa = ({
+    p
+  }) => !p ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted
+    }
+  }, "\u2014") : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600
+    }
+  }, p.nome), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted
+    }
+  }, p.tag ? '@' + p.tag : '', p.email ? (p.tag ? ' · ' : '') + p.email : '', p.telefone ? /*#__PURE__*/React.createElement("span", null, " \xB7 ", /*#__PURE__*/React.createElement("a", {
+    href: 'https://wa.me/' + String(p.telefone).replace(/\D/g, ''),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      color: C.p3
+    }
+  }, p.telefone)) : null));
+  const moedas = rel ? Object.entries(rel.totais.receitaPorMoeda) : [];
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 16,
+      color: C.ink
+    }
+  }, "\uD83D\uDCB3 Compras no app"), /*#__PURE__*/React.createElement("button", {
+    onClick: carregar,
+    disabled: loading,
+    style: {
+      ...sel,
+      cursor: 'pointer'
+    }
+  }, "\u21BB Atualizar"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportar,
+    disabled: !rel,
+    style: {
+      ...sel,
+      cursor: 'pointer'
+    }
+  }, "\u2B07 CSV"), rel ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, "gerado ", new Date(rel.geradoEm).toLocaleString()) : null), erro ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 12,
+      background: '#fdecea',
+      border: '1px solid #f5c2c0',
+      borderRadius: 10,
+      color: '#b00020',
+      fontSize: 12,
+      marginBottom: 12
+    }
+  }, "N\xE3o consegui carregar as compras: ", erro) : null, loading && !rel ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 20,
+      color: C.muted
+    }
+  }, "Carregando compras\u2026") : null, rel ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      opacity: loading ? 0.6 : 1
+    }
+  }, rel.avisos.map((a, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      padding: '8px 12px',
+      background: '#fff4e0',
+      border: '1px solid #f0b35a',
+      borderRadius: 10,
+      fontSize: 12,
+      color: '#7a4b00',
+      marginBottom: 10
+    }
+  }, "\u26A0 ", a)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+      gap: 12,
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement(KPICard, {
+    title: "Vendas",
+    value: rel.totais.compras.toLocaleString('pt-BR'),
+    sub: "pagas (sem teste)",
+    trend: "",
+    color: C.p3
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Valor cobrado",
+    value: moedas.length ? moedas.map(([m, v]) => dinheiro(v, m)).join(' + ') : '—',
+    sub: "informado pela loja",
+    trend: "",
+    color: C.p1
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Valor de tabela",
+    value: dinheiro(rel.totais.receitaEstimadaBrl, 'BRL'),
+    sub: "estimativa, antes da comiss\xE3o da loja",
+    trend: "",
+    color: C.muted
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Assinantes PRO",
+    value: rel.totais.assinantesAtivos.toLocaleString('pt-BR'),
+    sub: "com assinatura ativa",
+    trend: "",
+    color: C.p6
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Reembolsos",
+    value: rel.totais.reembolsos.toLocaleString('pt-BR'),
+    sub: "cr\xE9ditos estornados",
+    trend: "",
+    color: C.p4
+  }), /*#__PURE__*/React.createElement(KPICard, {
+    title: "Compras de teste",
+    value: rel.totais.comprasTeste.toLocaleString('pt-BR'),
+    sub: "sandbox / TestFlight",
+    trend: "",
+    color: C.muted
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      marginBottom: 20
+    }
+  }, Object.entries(rel.totais.porProduto).map(([p, n]) => /*#__PURE__*/React.createElement("span", {
+    key: p,
+    style: {
+      padding: '6px 10px',
+      borderRadius: 999,
+      background: C.white,
+      border: '1px solid ' + C.border,
+      fontSize: 12,
+      color: C.ink
+    }
+  }, (rel.compras.find(c => c.produto === p) || {}).produtoRotulo || p, ": ", /*#__PURE__*/React.createElement("b", null, n)))), /*#__PURE__*/React.createElement("div", {
+    style: card
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink
+    }
+  }, "\uD83E\uDDFE Compras (", lista.length.toLocaleString('pt-BR'), ")"), /*#__PURE__*/React.createElement("input", {
+    value: busca,
+    onChange: e => setBusca(e.target.value),
+    placeholder: "Nome, @tag, e-mail, telefone ou transa\xE7\xE3o\u2026",
+    style: {
+      ...sel,
+      minWidth: 240
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: produto,
+    onChange: e => setProduto(e.target.value),
+    style: sel
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todos os produtos"), opcoes('produto').map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, (rel.compras.find(c => c.produto === p) || {}).produtoRotulo || p))), /*#__PURE__*/React.createElement("select", {
+    value: status,
+    onChange: e => setStatus(e.target.value),
+    style: sel
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todos os status"), opcoes('status').map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, statusDaCompra(s).rot))), /*#__PURE__*/React.createElement("select", {
+    value: loja,
+    onChange: e => setLoja(e.target.value),
+    style: sel
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Todas as lojas"), opcoes('plataforma').map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, lojaDaCompra(p)))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: teste,
+    onChange: e => setTeste(e.target.checked)
+  }), " mostrar compras de teste")), lista.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      padding: '8px 0'
+    }
+  }, "Nenhuma compra com esses filtros.") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ['Data', 'Quem comprou', 'Produto', 'Loja', 'Status', 'Créditos', 'Valor'].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, lista.slice(0, 500).map(c => {
+    const st = statusDaCompra(c.status);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: c.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...td,
+        whiteSpace: 'nowrap'
+      }
+    }, c.quando ? new Date(c.quando).toLocaleString() : '—'), /*#__PURE__*/React.createElement("td", {
+      style: td
+    }, /*#__PURE__*/React.createElement(Pessoa, {
+      p: c.pessoa
+    })), /*#__PURE__*/React.createElement("td", {
+      style: td
+    }, c.produtoRotulo, c.sandbox ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: 6,
+        padding: '1px 6px',
+        borderRadius: 6,
+        background: '#eef',
+        color: '#334',
+        fontSize: 10,
+        fontWeight: 700
+      }
+    }, "TESTE") : null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: C.muted
+      },
+      title: c.transacao
+    }, c.transacao.length > 34 ? c.transacao.slice(0, 34) + '…' : c.transacao)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...td,
+        whiteSpace: 'nowrap'
+      }
+    }, lojaDaCompra(c.plataforma)), /*#__PURE__*/React.createElement("td", {
+      style: td
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        padding: '2px 8px',
+        borderRadius: 8,
+        background: st.fundo,
+        color: st.cor,
+        fontSize: 11,
+        fontWeight: 600,
+        whiteSpace: 'nowrap'
+      }
+    }, st.rot)), /*#__PURE__*/React.createElement("td", {
+      style: td
+    }, c.tipo === 'assinatura' ? 'ilimitado' : c.creditos + (c.creditoTipo === 'obra' ? ' obra' + (c.creditos === 1 ? '' : 's') : ' orç.')), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...td,
+        whiteSpace: 'nowrap'
+      }
+    }, !c.valor ? '—' : c.valor.estimado ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      },
+      title: "Pre\xE7o de tabela: a loja n\xE3o informou o valor cobrado nesta compra"
+    }, "\u2248 ", dinheiro(c.valor.amount, c.valor.currency)) : /*#__PURE__*/React.createElement("b", null, dinheiro(c.valor.amount, c.valor.currency))));
+  }))), lista.length > 500 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      padding: '8px 0'
+    }
+  }, "Mostrando as 500 mais recentes de ", lista.length.toLocaleString('pt-BR'), " \u2014 use os filtros ou o CSV pra ver todas.") : null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 8
+    }
+  }, "Valor em ", /*#__PURE__*/React.createElement("b", null, "negrito"), " = o que a loja informou na compra. ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted
+    }
+  }, "\u2248 cinza"), " = pre\xE7o de tabela (estimativa; compras feitas antes desta tela, ou a loja n\xE3o mandou o valor). Apple e Google descontam a comiss\xE3o antes de repassar.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+      gap: 14,
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...card,
+      marginBottom: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink,
+      marginBottom: 8
+    }
+  }, "\u26A1 Assinantes PRO (", rel.assinantes.length, ")"), rel.assinantes.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "Ningu\xE9m assinou pelo app ainda.") : rel.assinantes.map((a, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: 8,
+      padding: '6px 0',
+      borderTop: i ? '1px solid ' + C.border : 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement(Pessoa, {
+    p: a.pessoa
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'right',
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      padding: '2px 8px',
+      borderRadius: 8,
+      background: a.ativo ? '#e6f4ea' : '#eee',
+      color: a.ativo ? '#1b7f3b' : '#666',
+      fontWeight: 600
+    }
+  }, a.ativo ? 'ativa' : 'encerrada'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      marginTop: 2
+    }
+  }, a.ate ? 'até ' + new Date(a.ate).toLocaleDateString() : '', a.status ? ' · ' + statusDaCompra(a.status).rot : ''))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...card,
+      marginBottom: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink,
+      marginBottom: 8
+    }
+  }, "\uD83D\uDCB0 Cr\xE9ditos comprados ainda n\xE3o usados (", rel.saldos.length, ")"), rel.saldos.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "Ningu\xE9m com cr\xE9dito comprado sobrando.") : rel.saldos.map((s, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: 8,
+      padding: '6px 0',
+      borderTop: i ? '1px solid ' + C.border : 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement(Pessoa, {
+    p: s.pessoa
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'right',
+      fontSize: 12,
+      whiteSpace: 'nowrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, s.orcamentosCreditos), " or\xE7."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, s.obrasCreditos), " obras"))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...card,
+      marginBottom: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: C.ink,
+      marginBottom: 8
+    }
+  }, "\uD83D\uDCC9 De onde saiu cada uso"), [['🧾 Orçamentos gravados', rel.uso.orcamentos], ['🏗️ Obras criadas', rel.uso.obras]].map(([rot, u]) => /*#__PURE__*/React.createElement("div", {
+    key: rot,
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: C.ink
+    }
+  }, rot), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "gr\xE1tis: ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.ink
+    }
+  }, u.free || 0), " \xB7 cr\xE9dito comprado: ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.ink
+    }
+  }, u.credit || 0), " \xB7 PRO ilimitado: ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: C.ink
+    }
+  }, u.unlimited || 0)))), rel.config ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted
+    }
+  }, "Gr\xE1tis por conta: ", rel.config.freeQuotes, " or\xE7amentos e ", rel.config.freeObras, " obra \xB7 cobran\xE7a ", rel.config.enforce ? /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: '#1b7f3b'
+    }
+  }, "LIGADA") : /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: '#b00020'
+    }
+  }, "DESLIGADA")) : null))) : null);
+};
 const PAGES_DEF = [{
   id: 'dashboard',
   icon: '📊',
@@ -17422,6 +18065,12 @@ const PAGES_DEF = [{
   label: 'Uso do app',
   section: 'DADOS',
   component: /*#__PURE__*/React.createElement(UsoDoApp, null)
+}, {
+  id: 'compras',
+  icon: '💳',
+  label: 'Compras no app',
+  section: 'DADOS',
+  component: /*#__PURE__*/React.createElement(ComprasApp, null)
 }, {
   id: 'analytics',
   icon: '📈',

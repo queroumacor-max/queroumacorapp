@@ -59,6 +59,8 @@ interface RcNonSubscription {
   store?: string;
   is_sandbox?: boolean;
   purchase_date?: string;
+  /** Preço cobrado (a v1 traz em compras recentes; pode faltar). */
+  price?: { amount?: number; currency?: string } | null;
 }
 interface RcSubscription {
   expires_date?: string | null;
@@ -70,6 +72,7 @@ interface RcSubscription {
   store_transaction_id?: string | null;
   store?: string;
   is_sandbox?: boolean;
+  price?: { amount?: number; currency?: string } | null;
 }
 export interface RcSubscriber {
   non_subscriptions?: Record<string, RcNonSubscription[]>;
@@ -81,13 +84,28 @@ export interface PlanoConsumivel {
   productId: string;
   store: string;
   sandbox: boolean;
+  /** Valor cobrado, quando a RevenueCat informa — vai pro `raw` (tela de Compras do portal). */
+  preco?: PrecoCobrado | null;
+  compradoEm?: string | null;
 }
+export interface PrecoCobrado { amount: number; currency: string }
 export interface PlanoAssinatura {
   eventId: string;
   until: string | null;
   status: 'active' | 'cancelled' | 'billing_issue' | 'grace' | 'expired' | 'refunded';
   store: string;
   sandbox: boolean;
+  preco?: PrecoCobrado | null;
+}
+
+/** `price` da RevenueCat → {amount, currency}, ou null se não veio/for inválido. */
+export function precoDaRc(p: unknown): PrecoCobrado | null {
+  if (!p || typeof p !== 'object') return null;
+  const o = p as { amount?: unknown; currency?: unknown };
+  const amount = typeof o.amount === 'number' ? o.amount : Number(o.amount);
+  const currency = typeof o.currency === 'string' ? o.currency.trim().toUpperCase() : '';
+  if (!Number.isFinite(amount) || amount < 0 || !/^[A-Z]{3}$/.test(currency)) return null;
+  return { amount, currency };
 }
 
 function ms(v: unknown): number | null {
@@ -115,7 +133,14 @@ export function planejarSync(
       }
       const txKey = chaveDaTransacao(c?.store, c?.store_transaction_id || c?.id);
       if (!txKey) continue;
-      consumiveis.push({ txKey, productId, store: String(c.store || '').toLowerCase(), sandbox: c.is_sandbox === true });
+      consumiveis.push({
+        txKey,
+        productId,
+        store: String(c.store || '').toLowerCase(),
+        sandbox: c.is_sandbox === true,
+        preco: precoDaRc(c.price),
+        compradoEm: typeof c.purchase_date === 'string' ? c.purchase_date : null,
+      });
     }
   }
 
@@ -155,6 +180,7 @@ export function planejarSync(
       status,
       store,
       sandbox: s.is_sandbox === true,
+      preco: precoDaRc(s.price),
     };
   }
   return { consumiveis, assinatura };
@@ -223,7 +249,7 @@ export async function sincronizarCompras(userId: string): Promise<ResultadoSync>
       p_transaction_id: c.txKey,
       p_product_id: c.productId,
       p_platform: c.store,
-      p_raw: { source: 'revenuecat', sandbox: c.sandbox },
+      p_raw: { source: 'revenuecat', sandbox: c.sandbox, price: c.preco ?? null, purchased_at: c.compradoEm ?? null },
     });
     if (r === 'granted') out.creditados++;
     else if (r === 'conflict') {
@@ -238,7 +264,7 @@ export async function sincronizarCompras(userId: string): Promise<ResultadoSync>
       p_until: plano.assinatura.until,
       p_status: plano.assinatura.status,
       p_platform: plano.assinatura.store,
-      p_raw: { source: 'revenuecat', sandbox: plano.assinatura.sandbox },
+      p_raw: { source: 'revenuecat', sandbox: plano.assinatura.sandbox, price: plano.assinatura.preco ?? null },
     });
   }
   return out;
