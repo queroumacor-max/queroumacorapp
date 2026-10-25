@@ -25,7 +25,7 @@
     (2026-10-23): "voltou" — app abrindo de novo.**
   - **`rollback.yml` NÃO FUNCIONA:** o passo "Force push main" falha (proteção
     da `main`). Não contar com ele; rollback de verdade é pelo painel.
-  - **`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480**
+  - **[SUPERADO em 2026-10-25 — #480 no ar]** ~~`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480~~
     (volta `next` pra 16.3.8, mantém apelido/Sentry/dompurify). O `validate`
     do #480 FALHA no npm audit (CVE do 16.3.x), então o merge precisa de admin
     (`queroumacor-max`) ou de exceção no audit, que o usuário não autorizou.
@@ -102,6 +102,11 @@
       **TESTADO NO PREVIEW PELO USUÁRIO (2026-10-25, "testei no preview,
       pode fazer o merge e deploy").** Smoke temporário apagado; merge e
       deploy a seguir.
+      **NO AR (2026-10-25): PR #480 (squash `a555bde`), deploy run #773 do
+      `deploy.yml` terminou `success`.** Inclui o apelido do cadastro (#479),
+      que ainda não estava no ar. Falta o usuário abrir o app no aparelho;
+      se quebrar, rollback no painel da Cloudflare (Worker
+      `queroumacor-next-production` → Deployments).
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
