@@ -19,7 +19,7 @@
     por `claim_ai_trial`). **A Alice NÃO mudou**: ela já tinha 3 perguntas
     POR DIA no código (`ALICE_DAILY_LIMIT`), que bate com o "3 frases free"
     do usuário — se ele quiser por mês, é a rota `/api/alice`.
-  - **SQL — 3 arquivos, NENHUM RODADO ainda, nesta ordem:**
+  - **SQL — 3 arquivos, OS 3 JÁ RODADOS no Supabase (2026-10-25), nesta ordem:**
     (1) `migrations/2026-10-25-fix-protect-triggers-invoker.sql` — CORREÇÃO
     DE SEGURANÇA (ver abaixo) — **JÁ RODADA (2026-10-25)**;
     (2) `…-billing-balance.sql` — `billing_config` (`enforce` nasce FALSE),
@@ -36,6 +36,8 @@
     print do usuário: as 10 linhas da conferência `true`). Não pedir pra
     rodar de novo.**
     (3) `…-billing-pro-and-ai-trial.sql` — `ai_trial_usage` + `claim_ai_trial`.
+    **(3) JÁ RODADO (2026-10-25, celular em 4 blocos; usuário: conferência
+    "deu tudo true"). Não pedir pra rodar nenhum dos 3 de novo.**
     Os 3 testados em Postgres 16 local (2x cada, ordem 1-2-1, ataques,
     12 reservas de teste simultâneas → só 1 passa).
   - **ACHADO DE SEGURANÇA (2026-10-25, testando as compras):**
@@ -85,7 +87,7 @@
     `REVENUECAT_SECRET_KEY` e `REVENUECAT_WEBHOOK_AUTH` (secrets do Worker).
     WAF: skip pra `/api/billing/webhook`.
   - **Falta (usuário):** criar os 4 produtos nas lojas, configurar a
-    RevenueCat, as 4 envs, o skip do WAF, rodar os 3 SQLs, AAB+IPA novos,
+    RevenueCat, as 4 envs, o skip do WAF, AAB+IPA novos (SQLs já rodados),
     e SÓ DEPOIS de publicados `UPDATE billing_config SET enforce = true`.
   - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
     — assinatura que não existe; já estava quebrado antes, não é desta obra.
