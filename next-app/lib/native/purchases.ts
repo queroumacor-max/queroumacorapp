@@ -94,19 +94,56 @@ export async function logOutPurchases(): Promise<void> {
   configuradoPara = null;
 }
 
-/** Produtos com o preço da loja. Consumíveis e assinatura vêm em chamadas separadas no Android. */
-export async function getStoreProducts(ids: { consumiveis: string[]; assinaturas: string[] }): Promise<StoreProduct[]> {
+export interface ResultadoProdutos {
+  products: StoreProduct[];
+  /** Erro de cada chamada que falhou, já em texto legível (vazio = nenhuma falhou). */
+  falhas: string[];
+}
+
+/**
+ * Produtos com o preço da loja. Consumíveis e assinatura vêm em chamadas
+ * separadas no Android. `allSettled` de propósito: se a assinatura falhar,
+ * os consumíveis ainda aparecem — e a falha volta descrita, não engolida.
+ */
+export async function getStoreProducts(ids: { consumiveis: string[]; assinaturas: string[] }): Promise<ResultadoProdutos> {
   const p = plugin();
-  if (!p) return [];
-  const [a, b] = await Promise.all([
+  if (!p) return { products: [], falhas: ['plugin Purchases ausente'] };
+  const vazio = Promise.resolve({ products: [] as StoreProduct[] });
+  const [a, b] = await Promise.allSettled([
     ids.consumiveis.length
       ? withTimeout(p.getProducts({ productIdentifiers: ids.consumiveis, type: 'NON_SUBSCRIPTION' }), TIMEOUT_MS, 'carregar produtos')
-      : Promise.resolve({ products: [] as StoreProduct[] }),
+      : vazio,
     ids.assinaturas.length
       ? withTimeout(p.getProducts({ productIdentifiers: ids.assinaturas, type: 'SUBSCRIPTION' }), TIMEOUT_MS, 'carregar assinatura')
-      : Promise.resolve({ products: [] as StoreProduct[] }),
+      : vazio,
   ]);
-  return [...(a?.products || []), ...(b?.products || [])];
+  const products: StoreProduct[] = [];
+  const falhas: string[] = [];
+  for (const [rotulo, r] of [['consumíveis', a], ['assinatura', b]] as const) {
+    if (r.status === 'fulfilled') products.push(...(r.value?.products || []));
+    else falhas.push(`${rotulo}: ${descreverErroDaLoja(r.reason)}`);
+  }
+  return { products, falhas };
+}
+
+/**
+ * Texto do erro da RevenueCat/StoreKit pra diagnóstico. O plugin rejeita
+ * com `{ code, message, data: { readableErrorCode, underlyingErrorMessage } }`
+ * (o formato varia por versão/SO — lemos o que existir).
+ */
+export function descreverErroDaLoja(e: unknown): string {
+  if (!e) return 'erro sem detalhe';
+  if (typeof e !== 'object') return String(e);
+  const o = e as Record<string, unknown> & { data?: Record<string, unknown> };
+  const d = (o.data && typeof o.data === 'object' ? o.data : {}) as Record<string, unknown>;
+  const partes = [
+    o.code != null ? `código ${String(o.code)}` : '',
+    String(d.readableErrorCode ?? o.readableErrorCode ?? ''),
+    String(o.message ?? d.message ?? ''),
+    String(d.underlyingErrorMessage ?? o.underlyingErrorMessage ?? ''),
+  ].map((x) => x.trim()).filter(Boolean);
+  const unicas = partes.filter((x, i) => partes.indexOf(x) === i);
+  return (unicas.join(' · ') || 'erro sem detalhe').slice(0, 400);
 }
 
 export type PurchaseOutcome = 'purchased' | 'cancelled';

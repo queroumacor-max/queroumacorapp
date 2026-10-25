@@ -143,6 +143,17 @@
     "Assinar o PRO" não aparecia. **REGRA: versão publicada na loja = subir
     `MARKETING_VERSION` antes da próxima build.** Também precisa criar a
     versão 1.3.0 no App Store Connect.
+  - **Paywall do iOS: "Não consegui carregar os produtos" (2026-10-25, build
+    1.3.0 no TestFlight).** O plugin carrega e "Assinar o PRO" aparece, mas a
+    loja não devolve os produtos. O usuário conferiu: Paid Apps/banco/W-9
+    ATIVOS, os 4 produtos com preço + pt-BR em Prepare for Submission,
+    credencial iOS válida na RevenueCat. Antes, erro, timeout e "loja devolveu
+    zero" davam a MESMA frase. Agora `carregarProdutos` nunca lança e devolve
+    `{lista, problema}`: a folha mostra "Detalhe da loja: …" (código +
+    readableErrorCode + underlyingErrorMessage da RevenueCat, ou os ids que
+    faltaram) e grava `billing-products-fail` no /admin/errors. Consumíveis e
+    assinatura em `allSettled` (uma falha não esconde a outra). Causa ainda NÃO
+    conhecida — ler a mensagem no aparelho.
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
