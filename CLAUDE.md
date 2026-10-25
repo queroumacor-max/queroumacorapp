@@ -29,8 +29,10 @@
     e vão abrir pra todos, ficando PRO só os botões de IA. Moderação
     (`moderate`/`moderate_video`) roda pra todos — é proteção. Alice
     (cliente) tem 3 mensagens grátis "for now" pra conter custo. PRO
-    antigo segue com tudo até vencer. Teste grátis das outras IAs: em
-    proposta (1 uso por ferramenta e/ou trial de 7 dias na loja).
+    antigo segue com tudo até vencer. Teste grátis das outras IAs
+    (decisão do usuário, "1"): 1 uso por ferramenta de IA por conta, pra
+    sempre, contado no servidor; Seu Zé/Fê/Senna com 3 mensagens no total
+    (proposta minha, a confirmar). SEM trial de 7 dias na loja.
   - **Falta ligar a assinatura às ferramentas do PRO** (Agenda, CRM,
     Anotações, cota de IA) — hoje elas leem `profiles.is_pro`; a etapa 2
     faz o servidor/`canSeeProFeature` considerarem a assinatura.
