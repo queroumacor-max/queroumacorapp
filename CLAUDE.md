@@ -94,6 +94,11 @@
       usuário). Teste novo em `schemas.test.ts` (falha sem a correção da
       união). tsc, vitest 232/232 (2675), eslint 0 erros, `next build
       --webpack` verdes.
+      **CI do #480 TODO VERDE com zod 4 (validate ×2, npm-audit, CodeQL,
+      gitleaks, sbom), preview redeployado (run #9 `success`) e o smoke do
+      Playwright no runner passou de novo (run #2 do `preview-smoke.yml`).**
+      Falta: usuário testar telas logadas no preview; apagar o smoke
+      temporário; merge; `deploy.yml`; abrir o app no aparelho na hora.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
