@@ -123,6 +123,8 @@
 
 - **PORTAL: TELA "💳 COMPRAS NO APP" (2026-10-25, pedido do usuário:
   "menu e tela falando das compras, valores e quem comprou"). SEM SQL.**
+  **NO AR: PR #490 (squash `3e2ee29`), deploy run #779 do `deploy.yml`
+  terminou `success`.** Não conferido no portal pelo usuário ainda.
   Seção DADOS, portal v=20261025a. Quem agrega é o servidor:
   `POST /api/admin/billing` (service role, `ensurePortalAdmin`, rate limit
   30/min) → `lib/api/_services/admin-billing.ts` (`montarRelatorioDeCompras`,
