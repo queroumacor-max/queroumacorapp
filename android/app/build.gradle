@@ -7,7 +7,7 @@ apply plugin: 'com.android.application'
 // automática na Play vai precisar quando for ligada
 // (google-play get-latest-build-number + 1).
 def resolvedVersionCode = (System.getenv("ANDROID_VERSION_CODE") ?: "10201") as Integer
-def resolvedVersionName = System.getenv("ANDROID_VERSION_NAME") ?: "1.2.1"
+def resolvedVersionName = System.getenv("ANDROID_VERSION_NAME") ?: "1.3.0"
 
 // Config de assinatura de release. O Codemagic (ou qualquer CI) escreve
 // `android/key.properties` a partir das suas variáveis de assinatura

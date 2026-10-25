@@ -134,6 +134,15 @@
   SDK) — validação é a próxima build no Codemagic. Objetivo: AAB com a
   permissão BILLING (vem do plugin RevenueCat) no Internal testing pra liberar
   a criação dos produtos na Play. Compras já confirmadas no aparelho (web).
+  - **Versão 1.2.0 → 1.3.0 (iOS `MARKETING_VERSION`/`CFBundleShortVersionString`
+    e Android `versionName`; 2026-10-25).** A build iOS #14 do Codemagic
+    passou, mas a publicação foi recusada ("train version '1.2.0' is closed"):
+    a 1.2.0 já está Ready for Distribution, e a Apple não aceita build nova
+    num trem fechado. O TestFlight ficou só com a build 17, que é de ANTES do
+    plugin da RevenueCat. Por isso o /diag não listava `Purchases` e o botão
+    "Assinar o PRO" não aparecia. **REGRA: versão publicada na loja = subir
+    `MARKETING_VERSION` antes da próxima build.** Também precisa criar a
+    versão 1.3.0 no App Store Connect.
 
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
