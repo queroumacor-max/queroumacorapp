@@ -71,7 +71,13 @@
       passou, foi soluço do Google) → `https://queroumacor-next-preview
       .queroumacor.workers.dev`, versão `6255b1e2`. Preview só tem as vars
       públicas (rotas de IA/admin/WhatsApp falham lá por falta de secret —
-      esperado). Aguardando o usuário testar no aparelho.
+      esperado). **PLAYWRIGHT NO RUNNER PASSOU (2026-10-25, pedido do
+      usuário; o sandbox não alcança workers.dev):** `/`, `/login`,
+      `/signup`, `/feed`, `/info/sobre` em Chromium mobile → 200, hidratou,
+      0 violação de CSP, 0 erro de console, `/feed` deslogado → `/login`
+      (o AuthProvider rodou). Workflow TEMPORÁRIO
+      `.github/workflows/preview-smoke.yml` + `scripts/preview-smoke.mjs` —
+      apagar antes do merge. NÃO testado: telas logadas (sem credencial).
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
