@@ -1,5 +1,29 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **COMPRAS IN-APP DE ORÇAMENTOS — EM ANDAMENTO (2026-10-25, pedido do
+  usuário). Branch `ccr-9f21767f-vff8ua`, NADA no ar.** Decisões do
+  usuário: 5 grátis pra TODOS (inclusive quem já usa); conta ao GRAVAR;
+  `quote_1` (R$ 1,00), `quote_pack_40` (R$ 29,90), `quotes_unlimited`
+  (R$ 59,00/mês) — preço é das lojas, não do código; a assinatura
+  SUBSTITUI o PRO (PRO antigo ativo vale como ilimitado até vencer);
+  compra SÓ no app (Android/iOS), sem compra web.
+  - **Etapa 1 (feita, não rodada):** `/migrations/2026-10-25-quote-balance.sql`
+    — `billing_config` (`enforce_quotes` nasce FALSE: nada é cobrado nem
+    barrado até ligar, depois que o AAB/IPA com o paywall estiver nas
+    lojas), `quote_balance`, `billing_events` (transação UNIQUE: credita
+    uma vez; outra conta = 'conflict'), `quote_debits`, débito atômico
+    (`FOR UPDATE`) dentro do `create_painter_draft`, crédito/reembolso/
+    assinatura só por service_role, e a policy de INSERT direto do pintor
+    em `quotes` fechada (pularia o débito). Testado em Postgres 16 local,
+    2x, com ataques e concorrência. **SQL AINDA NÃO RODADO no Supabase.**
+    Regra espelhada em `lib/quoteBalance.ts` (teste compara com o SQL);
+    `saveQuote` lança `QuoteBalanceEmptyError` sem saldo.
+  - **Próximo:** etapa 2 (RevenueCat no app + paywall + rotas de
+    sync/webhook), etapa 3 (`BILLING_SETUP.md`, docs legais — hoje dizem
+    "não há pagamento no app").
+  - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
+    — assinatura que não existe; já estava quebrado antes, não é desta obra.
+
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
   só trazia quem a pessoa segue. Agora `followingOnly: false`; bloqueados
