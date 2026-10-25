@@ -118,6 +118,20 @@
   - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
     — assinatura que não existe; já estava quebrado antes, não é desta obra.
 
+- **CODEMAGIC: Node 22 + Gradle do Capacitor 8 (2026-10-25, pedido do
+  usuário: build #9 do `android-aab` falhou no `cap sync` com "Capacitor CLI
+  requires NodeJS >=22.0.0").** `node: 20` → `22` no `android-aab` E no
+  `ios-ipa`. Junto, o projeto `android/` ainda estava no Gradle/AGP **8.2.1**
+  (template do Capacitor 6) — Gradle 8.2.1 NÃO roda em Java 21 (o workflow já
+  usa `java: 21`), então seria o erro seguinte. Alinhado ao template oficial do
+  Capacitor 8.5.2 (`node_modules/@capacitor/cli/assets/android-template.tar.gz`):
+  AGP 8.13.0, Gradle 8.14.3 (wrapper + gradlew), google-services 4.4.4 e as
+  versões androidx do `variables.gradle`. `app/build.gradle` (assinatura,
+  versionCode por env, R8 off) NÃO mudou. Não dá pra buildar Android aqui (sem
+  SDK) — validação é a próxima build no Codemagic. Objetivo: AAB com a
+  permissão BILLING (vem do plugin RevenueCat) no Internal testing pra liberar
+  a criação dos produtos na Play. Compras já confirmadas no aparelho (web).
+
 - **FEED: aba "Todos" é GLOBAL (2026-10-21, pedido do usuário com print).
   SEM SQL.** Logado, o `FeedView` mandava `followingOnly: !!user` e "Todos"
   só trazia quem a pessoa segue. Agora `followingOnly: false`; bloqueados

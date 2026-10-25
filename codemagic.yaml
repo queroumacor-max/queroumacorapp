@@ -36,7 +36,7 @@ workflows:
       groups:
         - firebase            # fornece GOOGLE_SERVICES_JSON (opcional, push)
         - google_credentials  # fornece GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (deploy Play)
-      node: 20
+      node: 22
       # Capacitor 8.x (bump 6→8, coordenado — ver git log) gera
       # `android/app/capacitor.build.gradle` com
       # sourceCompatibility/targetCompatibility VERSION_21 (era 17 no
@@ -201,7 +201,7 @@ workflows:
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: 6784256495
-      node: 20
+      node: 22
       xcode: latest
       cocoapods: default
     cache:
