@@ -18,15 +18,16 @@ describe('planejarSync — consumíveis', () => {
       {
         non_subscriptions: {
           quote_pack_40: [{ id: 'rc1', store_transaction_id: 'GPA.1', store: 'play_store', is_sandbox: true }],
-          obra_1: [{ id: 'rc2', store_transaction_id: '2000001', store: 'app_store' }],
+          obra_1: [{ id: 'rc2', store_transaction_id: '2000001', store: 'app_store', price: { amount: 2.9, currency: 'brl' }, purchase_date: '2026-10-25T10:00:00Z' }],
           produto_estranho: [{ id: 'x', store_transaction_id: 'GPA.9', store: 'play_store' }],
         },
       },
       AGORA,
     );
     expect(p.consumiveis).toEqual([
-      { txKey: 'rc:play_store:GPA.1', productId: 'quote_pack_40', store: 'play_store', sandbox: true },
-      { txKey: 'rc:app_store:2000001', productId: 'obra_1', store: 'app_store', sandbox: false },
+      { txKey: 'rc:play_store:GPA.1', productId: 'quote_pack_40', store: 'play_store', sandbox: true, preco: null, compradoEm: null },
+      // Preço cobrado e data vão pro `raw` (tela de Compras do portal).
+      { txKey: 'rc:app_store:2000001', productId: 'obra_1', store: 'app_store', sandbox: false, preco: { amount: 2.9, currency: 'BRL' }, compradoEm: '2026-10-25T10:00:00Z' },
     ]);
   });
 

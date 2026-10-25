@@ -121,6 +121,24 @@
   - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
     — assinatura que não existe; já estava quebrado antes, não é desta obra.
 
+- **PORTAL: TELA "💳 COMPRAS NO APP" (2026-10-25, pedido do usuário:
+  "menu e tela falando das compras, valores e quem comprou"). SEM SQL.**
+  Seção DADOS, portal v=20261025a. Quem agrega é o servidor:
+  `POST /api/admin/billing` (service role, `ensurePortalAdmin`, rate limit
+  30/min) → `lib/api/_services/admin-billing.ts` (`montarRelatorioDeCompras`,
+  puro e testado). `billing_balance`/`usage_debits` têm RLS "cada um vê o
+  seu" — consulta direta do portal mostraria só o saldo do admin.
+  Mostra: vendas (sem teste), valor cobrado, valor de tabela, assinantes PRO,
+  reembolsos, compras de teste (sandbox); tabela de compras (quem, produto,
+  loja, status, créditos, valor) com filtros + CSV; assinantes; créditos
+  comprados sobrando; de onde saiu cada uso (grátis/crédito/ilimitado).
+  - **Valor:** o `sincronizarCompras` passou a gravar `raw.price`
+    ({amount,currency}) e `raw.purchased_at` quando a RevenueCat manda
+    (`precoDaRc`). Sem isso (compras anteriores, ou a RC não informou) a tela
+    mostra o preço de TABELA (`PRECO_TABELA_BRL`, decisão de 25/10) em cinza
+    com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
+    nas lojas, atualizar `PRECO_TABELA_BRL`.**
+
 - **CODEMAGIC: Node 22 + Gradle do Capacitor 8 (2026-10-25, pedido do
   usuário: build #9 do `android-aab` falhou no `cap sync` com "Capacitor CLI
   requires NodeJS >=22.0.0").** `node: 20` → `22` no `android-aab` E no
