@@ -68,8 +68,11 @@
     `audit_events` `pro_change` com `actor_id = target_id` (passado no
     chat). Falta essa consulta e a de pedidos pagos.
     **Pedidos pagos CONFERIDOS (2026-10-25, print): `orders` com
-    status='paid' = 0 linhas.** Ninguém marcou pedido como pago. Falta só
-    a consulta do `audit_events` (`pro_change` com actor = target).
+    status='paid' = 0 linhas.** Ninguém marcou pedido como pago.
+    **`audit_events` `pro_change` com actor = target = 0 linhas (print,
+    2026-10-25).** Ninguém mexeu no próprio PRO desde 17/09. Contraprova
+    pedida no chat: contar TODOS os `pro_change` (se também der 0, o
+    gatilho de auditoria não está gravando e o 0 acima não prova nada).
   - **Servidor:** `lib/api/_services/revenuecat.ts` lê o estado VIVO na
     RevenueCat (`GET /v1/subscribers/{uid}`, `REVENUECAT_SECRET_KEY`) e
     aplica pelas RPCs; `POST /api/billing/sync` (o app chama após comprar/
