@@ -42,6 +42,7 @@ export const FAILURE_TYPE_LABELS = {
   'sw-status': '⚙️ Service worker',
   'oauth-fail': '🔑 Login social',
   'profile-incomplete': '🪪 Perfil incompleto',
+  'billing-products-fail': '🛒 Produtos da loja',
   // Gravado direto por /api/delete-account (rota de servidor, sem acesso
   // a este helper client-side) — listado aqui só pra manter o invariante
   // "todo type em `errors` tem rótulo" e aparecer certo no filtro do

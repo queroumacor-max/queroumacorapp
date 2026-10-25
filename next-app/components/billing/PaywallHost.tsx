@@ -83,6 +83,18 @@ export function PaywallHost() {
   return createPortal(<PaywallSheet motivo={motivo} fechar={() => setMotivo(null)} />, document.body);
 }
 
+/** Erro real da loja (RevenueCat/StoreKit), pra diagnóstico. Selecionável pra copiar. */
+function DetalheDaLoja({ texto }: { texto: string }) {
+  return (
+    <p
+      className="mt-2 rounded-lg p-2 text-xs select-text"
+      style={{ background: 'var(--color-bg)', color: 'var(--color-ink2)', overflowWrap: 'anywhere', fontFamily: 'monospace' }}
+    >
+      Detalhe da loja: {texto}
+    </p>
+  );
+}
+
 function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () => void }) {
   const { user } = useAuth();
   const userId = user?.id ?? '';
@@ -135,7 +147,7 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
 
   const ocupado = vooCompra.busy || vooRestaurar.busy;
   const b = saldo.data;
-  const lista = (produtos.data || []).slice().sort(
+  const lista = (produtos.data?.lista || []).slice().sort(
     (x, y) => ordemPara(motivo).indexOf(x.id) - ordemPara(motivo).indexOf(y.id),
   ).filter((p) => ordemPara(motivo).includes(p.id));
 
@@ -185,9 +197,12 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
         ) : produtos.isLoading ? (
           <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>Carregando preços da loja…</p>
         ) : lista.length === 0 ? (
-          <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>
-            Não consegui carregar os produtos da loja agora. Confira sua conexão e tente de novo.
-          </p>
+          <>
+            <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>
+              Não consegui carregar os produtos da loja agora. Confira sua conexão e tente de novo.
+            </p>
+            {produtos.data?.problema && <DetalheDaLoja texto={produtos.data.problema} />}
+          </>
         ) : (
           <div className="mt-4 flex flex-col gap-3">
             {lista.map((p) => {
@@ -216,6 +231,7 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
                 </button>
               );
             })}
+            {produtos.data?.problema && <DetalheDaLoja texto={produtos.data.problema} />}
           </div>
         )}
 
