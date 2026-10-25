@@ -25,7 +25,7 @@
     (2026-10-23): "voltou" — app abrindo de novo.**
   - **`rollback.yml` NÃO FUNCIONA:** o passo "Force push main" falha (proteção
     da `main`). Não contar com ele; rollback de verdade é pelo painel.
-  - **`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480**
+  - **[SUPERADO em 2026-10-25 — #480 no ar]** ~~`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480~~
     (volta `next` pra 16.3.8, mantém apelido/Sentry/dompurify). O `validate`
     do #480 FALHA no npm audit (CVE do 16.3.x), então o merge precisa de admin
     (`queroumacor-max`) ou de exceção no audit, que o usuário não autorizou.
@@ -102,9 +102,49 @@
       **TESTADO NO PREVIEW PELO USUÁRIO (2026-10-25, "testei no preview,
       pode fazer o merge e deploy").** Smoke temporário apagado; merge e
       deploy a seguir.
+      **NO AR (2026-10-25): PR #480 (squash `a555bde`), deploy run #773 do
+      `deploy.yml` terminou `success`.** Inclui o apelido do cadastro (#479),
+      que ainda não estava no ar. Falta o usuário abrir o app no aparelho;
+      se quebrar, rollback no painel da Cloudflare (Worker
+      `queroumacor-next-production` → Deployments).
+      **CONFIRMADO PELO USUÁRIO NO APARELHO (2026-10-25): "abriu
+      praticamente instantâneo agora".** Caso da linha 16.4 fechado. Não
+      houve trabalho de performance; a sensação de velocidade não foi
+      medida (pode ser do Next 16.4/adapter novo ou de cache).
+  - **PORTÃO DE PREVIEW NO `deploy.yml` (2026-10-25, pedido do usuário:
+    "então não vai quebrar mais?" → "sim").** O `deploy.yml` agora builda,
+    publica o MESMO artefato no Worker de preview, roda
+    `scripts/preview-smoke.mjs` (Playwright num Chromium de celular: `/`,
+    `/login`, `/signup`, `/feed`→`/login`, `/info/sobre`; hidratou, 0 CSP,
+    não preso em "Carregando/Reconectando", 2ª chance por rota) e SÓ ENTÃO
+    `deploy --env production`. Smoke falhou → produção não é publicada.
+    Mesmo smoke no `deploy-workers-migration.yml` (alvo preview) pra testar
+    branch antes do merge. Playwright instalado em pasta temporária (não
+    mexe no lockfile). Teste `__tests__/deployPreviewGate.test.ts` trava a
+    ordem. Limites: só telas públicas (sem login) e o preview sem os
+    secrets — pega app que não abre, não bug de tela logada; e o deploy de
+    produção sobrescreve o que estiver no preview.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
+
+- **ORÇAMENTO: "Enviar para a loja" SAIU; pergunta antes das ações
+  (2026-10-25, pedido do usuário). SEM SQL.** O botão só gravava o
+  orçamento, guardava o texto em `sessionStorage['chat:prefill']` — que
+  NENHUMA tela lê — e abria a LISTA de conversas, não a da loja. Agora
+  Visualizar, PDF, Gravar e as 3 opções de "Compartilhar com o cliente"
+  passam por `comPerguntaDaLoja`: modal (portal, z 1200) "Gostaria de enviar
+  os itens do seu orçamento para a loja Cali Colors para que lhe enviem um
+  orçamento sem compromisso?" Sim/Não. **Pergunta UMA vez por orçamento**
+  (decisão minha: perguntar a cada toque cansa; falha no envio libera
+  perguntar de novo). A ação tocada segue nos dois casos, dentro do toque
+  (share/window.open precisam do gesto). Sim → mensagem direta pra conta da
+  loja (`findOrCreateConversation` + `sendMessage` + `pedirModeracao`) com
+  `textoDosItensParaLoja`: serviços, espaço, tinta e itens com quantidade,
+  **sem dados do cliente e sem os preços de mão de obra**. Testes em
+  `orcamentoServicos.test.ts` e `orcamentoPerguntaLoja.test.ts`. O botão
+  "Enviar pelo chat" de `/orcamentos/[id]` tem o MESMO defeito do prefill e
+  não foi mexido.
 
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em

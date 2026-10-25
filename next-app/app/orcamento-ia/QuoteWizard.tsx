@@ -23,7 +23,6 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -43,6 +42,9 @@ import {
 import type { Quote } from '@/lib/types';
 import { showToast } from '@/lib/toast';
 import { abrirLinkExterno } from '@/lib/native';
+import { useCalicolorsId, pedirModeracao } from '@/lib/hooks/useChat';
+import { findOrCreateConversation } from '@/lib/services/chat-conversations';
+import { sendMessage } from '@/lib/services/chat-messages';
 import {
   suggestScope,
   suggestPrice,
@@ -53,6 +55,7 @@ import {
   descreverServico,
   temAvulsoSemNome,
   tituloDosServicos,
+  textoDosItensParaLoja,
   totaisDoOrcamento,
 } from '@/lib/orcamentoServicos';
 import {
@@ -78,8 +81,7 @@ export interface QuoteWizardProps {
 }
 
 export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}) {
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, emailVerified } = useAuth();
   const { profile } = useProfile();
   const policyUser = usePolicyUser();
   const [form, setForm] = useState<FormState>({
@@ -159,6 +161,10 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
   }, [profile]);
   const [priceResult, setPriceResult] = useState<SuggestPriceResult | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Pergunta "mandar os itens pra Cali Colors?" — ver comPerguntaDaLoja.
+  const { id: lojaId } = useCalicolorsId();
+  const [respostaLoja, setRespostaLoja] = useState<'sim' | 'nao' | null>(null);
+  const [acaoPendente, setAcaoPendente] = useState<null | (() => void)>(null);
   const [saving, setSaving] = useState(false);
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
   // Editar / duplicar / modelo — ver lib/orcamentoModelo.ts.
@@ -461,28 +467,58 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
     abrirLinkExterno(`mailto:?subject=${subj}&body=${body}`);
   }
 
-  // Enviar pelo chat interno do QueroUmaCor. Se o orçamento já foi gravado
-  // (savedQuoteId), referenciamos o id na mensagem; se não, salva primeiro.
-  // Sem clientPhone resolvível em userId aqui — UI redireciona pra /chat
-  // com o texto pre-populado, user escolhe a conversa.
-  async function handleSendChat() {
-    // Garante que tem o quote salvo (pra que o cliente possa abrir o link).
-    let qid = savedQuoteId;
-    if (!qid) {
-      qid = await handleSave();
-      if (!qid) return; // erro já mostrou toast
+  // Pergunta da loja (2026-10-25, pedido do usuário): ao tocar em
+  // Visualizar, PDF, Gravar ou numa opção de Compartilhar, o app pergunta UMA
+  // vez por orçamento se o pintor quer mandar os itens pra Cali Colors cotar
+  // o material. A ação que ele tocou segue nos dois casos — a pergunta nunca
+  // trava o fluxo. Substituiu o botão "Enviar para a loja", que só abria a
+  // lista de conversas e perdia o texto no caminho.
+
+  function comPerguntaDaLoja(acao: () => void) {
+    // Sem item não há o que cotar; já respondeu → não pergunta de novo.
+    if (respostaLoja !== null || form.servicos.length === 0) {
+      acao();
+      return;
     }
-    const text = buildPlainText() + (qid ? `\n\nOrçamento #${qid.slice(0, 8)}` : '');
+    setAcaoPendente(() => acao);
+  }
+
+  function responderLoja(sim: boolean) {
+    const acao = acaoPendente;
+    setAcaoPendente(null);
+    setRespostaLoja(sim ? 'sim' : 'nao');
+    if (sim) void enviarItensParaLoja();
+    // A ação roda DENTRO do toque em Sim/Não: share nativo e window.open
+    // exigem gesto do usuário, e esperar o envio pra loja antes o perderia.
+    acao?.();
+  }
+
+  async function enviarItensParaLoja() {
+    if (!user) return;
+    if (emailVerified === false) {
+      showToast('Confirme seu e-mail para enviar os itens à loja', 'error');
+      setRespostaLoja(null);
+      return;
+    }
+    if (!lojaId) {
+      showToast('Não consegui achar a conta da Cali Colors agora. Tente de novo.', 'error');
+      setRespostaLoja(null); // deixa perguntar de novo no próximo toque
+      return;
+    }
     try {
-      sessionStorage.setItem('chat:prefill', text);
-    } catch {
-      /* ignore */
+      const convId = await findOrCreateConversation(user.id, lojaId);
+      const texto = textoDosItensParaLoja(form.servicos, {
+        nome: painter.name,
+        cidade: painter.city,
+        uf: painter.state,
+      });
+      const msg = await sendMessage(convId, user.id, lojaId, texto);
+      pedirModeracao(msg.id);
+      showToast('Itens enviados para a Cali Colors ✅ A resposta chega no chat.', 'success');
+    } catch (e) {
+      showToast((e as Error).message || 'Não deu para enviar os itens à loja', 'error');
+      setRespostaLoja(null);
     }
-    // Navegação de documento na casca = chance de "Sem conexão" (a errorPath
-    // do Capacitor aparece quando a navegação falha ou é cancelada). O router
-    // troca de tela sem recarregar o app; o prefill vive no sessionStorage,
-    // que sobrevive igual.
-    router.push('/chat');
   }
 
   // PDF de verdade (jsPDF, layout de referência), entregue pelo share nativo
@@ -949,7 +985,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       >
         <button
           type="button"
-          onClick={() => setPreviewOpen(true)}
+          onClick={() => comPerguntaDaLoja(() => setPreviewOpen(true))}
           className="font-bold"
           style={{
             padding: 12,
@@ -965,7 +1001,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
         </button>
         <button
           type="button"
-          onClick={() => void handlePdf()}
+          onClick={() => comPerguntaDaLoja(() => void handlePdf())}
           disabled={pdfBusy}
           className="font-bold"
           style={{
@@ -982,9 +1018,9 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
         </button>
         <button
           type="button"
-          onClick={() => void handleSave()}
+          onClick={() => comPerguntaDaLoja(() => void handleSave())}
           disabled={saving}
-          className="font-bold text-white"
+          className="font-bold text-white col-span-2"
           style={{
             padding: 12,
             background: 'var(--color-ink)',
@@ -996,21 +1032,6 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
           }}
         >
           {saving ? 'Gravando…' : '💾 Gravar'}
-        </button>
-        <button
-          type="button"
-          onClick={handleSendChat}
-          className="font-bold text-white text-center"
-          style={{
-            padding: 12,
-            background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
-            borderRadius: 12,
-            fontSize: 13,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          📤 Enviar para a loja
         </button>
         {/* Compartilhar com o cliente (WhatsApp / E-mail / nativo) — full width */}
         <div className="relative col-span-2">
@@ -1041,7 +1062,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
             >
               <button
                 type="button"
-                onClick={handleSendWhatsApp}
+                onClick={() => comPerguntaDaLoja(handleSendWhatsApp)}
                 className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
               >
@@ -1049,7 +1070,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
               </button>
               <button
                 type="button"
-                onClick={handleSendEmail}
+                onClick={() => comPerguntaDaLoja(handleSendEmail)}
                 className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
               >
@@ -1057,7 +1078,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
               </button>
               <button
                 type="button"
-                onClick={handleShareNative}
+                onClick={() => comPerguntaDaLoja(handleShareNative)}
                 className="w-full text-left text-sm py-2 px-3 rounded-lg hover:bg-[color:var(--color-bg)]"
                 style={{ cursor: 'pointer', background: 'none', border: 'none' }}
               >
@@ -1104,8 +1125,77 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
           pdfBusy={pdfBusy}
         />
       ) : null}
+
+      {acaoPendente ? <PerguntaDaLojaModal onResponder={responderLoja} /> : null}
     </section>
   );
+}
+
+// ─── Pergunta: mandar os itens pra Cali Colors? ─────────────────────────────
+// Portal no body com z-index acima do BottomSheet (1000) e da prévia (1100):
+// o wizard vive dentro do sheet, e overlay aberto de dentro dele precisa
+// passar dos dois pra não nascer atrás. Sem fechar pelo fundo: a ação que a
+// pessoa tocou só segue com Sim ou Não.
+
+function PerguntaDaLojaModal({ onResponder }: { onResponder: (sim: boolean) => void }) {
+  const content = (
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,.55)', padding: 16, zIndex: 1200 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pergunta-loja-titulo"
+    >
+      <div
+        className="bg-white"
+        style={{ width: '100%', maxWidth: 380, borderRadius: 18, padding: 20, boxShadow: '0 12px 40px rgba(0,0,0,.25)' }}
+      >
+        <div style={{ fontSize: 32, textAlign: 'center' }}>🎨</div>
+        <p
+          id="pergunta-loja-titulo"
+          className="font-bold text-center"
+          style={{ fontSize: 16, lineHeight: 1.4, color: 'var(--color-ink)', margin: '8px 0 18px' }}
+        >
+          Gostaria de enviar os itens do seu orçamento para a loja Cali Colors para que lhe enviem um orçamento
+          sem compromisso?
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onResponder(false)}
+            className="font-bold"
+            style={{
+              padding: 12,
+              background: '#fff',
+              color: 'var(--color-ink)',
+              borderRadius: 12,
+              fontSize: 14,
+              border: '1.5px solid var(--color-border)',
+              cursor: 'pointer',
+            }}
+          >
+            Não
+          </button>
+          <button
+            type="button"
+            onClick={() => onResponder(true)}
+            className="font-bold text-white"
+            style={{
+              padding: 12,
+              background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+              borderRadius: 12,
+              fontSize: 14,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Sim
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : null;
 }
 
 // ─── Preview modal (full screen) ────────────────────────────────────────────

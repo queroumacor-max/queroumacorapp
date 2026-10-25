@@ -24,6 +24,7 @@ import {
   subtotalDoItem,
   subtotalSugerido,
   temAvulsoSemNome,
+  textoDosItensParaLoja,
   tituloDosServicos,
   totaisDoOrcamento,
   totaisDosItens,
@@ -294,5 +295,32 @@ describe('servicosDoQuoteData', () => {
     ];
     const volta = servicosDoQuoteData(JSON.parse(JSON.stringify({ servicos: lista })));
     expect(totaisDoOrcamento(volta)).toEqual(totaisDoOrcamento(lista));
+  });
+});
+
+describe('textoDosItensParaLoja', () => {
+  const servico = () =>
+    novoServico({
+      tipo: 'Pintura interna',
+      areaM2: '80',
+      tinta: 'Acrílico Premium',
+      cor: 'Branco Neve',
+      itens: [{ ...itemDaTabela(item(), 'a'), quantidade: '80', valorUnitario: '22,00' }],
+    }, 's1');
+
+  it('leva serviço, tinta e item com quantidade — sem preço de mão de obra', () => {
+    const t = textoDosItensParaLoja([servico()], { nome: 'Léo Pinturas', cidade: 'Guarulhos', uf: 'SP' });
+    expect(t).toContain('Pedido de orçamento de material (sem compromisso)');
+    expect(t).toContain('Pintor: Léo Pinturas · Guarulhos/SP');
+    expect(t).toContain('Pintura interna · 80 m²');
+    expect(t).toContain('Tinta: Acrílico Premium · Branco Neve');
+    expect(t).toContain('• Premium Fosco 3 demãos (m²) — 80 m²');
+    expect(t).not.toMatch(/R\$/);
+  });
+
+  it('nunca leva dado do cliente (a função nem recebe)', () => {
+    const t = textoDosItensParaLoja([servico()], { nome: 'Léo' });
+    expect(t).not.toMatch(/Cliente|Telefone/);
+    expect(t).toContain('Pintor: Léo\n');
   });
 });

@@ -396,6 +396,40 @@ export function descreverServico(s: ServicoDoOrcamento, opts: { marcador?: strin
   return linhas.join('\n');
 }
 
+/**
+ * Texto que vai pra Cali Colors quando o pintor aceita pedir orçamento de
+ * material (pergunta do QuoteWizard). Só o que a loja precisa pra cotar:
+ * serviços, espaço, tinta e itens com quantidade. De propósito SEM dados
+ * do cliente (nome/telefone/endereço são do pintor, não da loja) e SEM os
+ * preços de mão de obra do pintor.
+ */
+export function textoDosItensParaLoja(
+  servicos: readonly ServicoDoOrcamento[],
+  pintor: { nome: string; cidade?: string | null; uf?: string | null },
+): string {
+  const local = [pintor.cidade?.trim(), pintor.uf?.trim()].filter(Boolean).join('/');
+  const blocos = servicos.map((s, i) => {
+    const linhas = [
+      `${servicos.length > 1 ? `${i + 1}) ` : ''}${resumoDoServico(s)}`,
+      ...detalhesDoServico(s)
+        .filter(([k]) => k !== 'Área' && k !== 'Cômodos')
+        .map(([k, v]) => `  ${k}: ${v}`),
+      ...s.itens.map((it) => `  • ${it.servico.trim() || 'Serviço'} — ${fmtNum(quantidadeDe(it))} ${unidadeCurta(it.unidade)}`),
+    ];
+    return linhas.join('\n');
+  });
+  const area = areaTotal(servicos);
+  return [
+    '🧾 Pedido de orçamento de material (sem compromisso)',
+    `Pintor: ${pintor.nome}${local ? ` · ${local}` : ''}`,
+    '',
+    ...blocos,
+    ...(area !== null && servicos.length > 1 ? ['', `Área total: ${fmtNum(area)} m²`] : []),
+    '',
+    'Podem me passar um orçamento dos materiais pra essa obra?',
+  ].join('\n');
+}
+
 /** Um item avulso sem nome gravaria uma linha muda no PDF. */
 export function temAvulsoSemNome(servicos: readonly ServicoDoOrcamento[]): boolean {
   return servicos.some((s) => s.itens.some((i) => i.priceItemId === null && !i.servico.trim()));

@@ -117,3 +117,24 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: next-app
           command: ${{ inputs.wrangler_command }}
+
+      # Mesmo smoke que trava o deploy.yml, aqui pra testar uma BRANCH no
+      # preview antes do merge. Só roda quando o alvo é o preview.
+      - name: Smoke test do preview (Playwright)
+        if: inputs.wrangler_command == 'deploy --env preview'
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p smoke && cd smoke
+          npm init -y >/dev/null
+          npm i --no-audit --no-fund playwright@1.49.1
+          npx playwright install --with-deps chromium
+          cp "$GITHUB_WORKSPACE/scripts/preview-smoke.mjs" .
+          node preview-smoke.mjs
+
+      - name: Prints do smoke
+        if: always() && inputs.wrangler_command == 'deploy --env preview'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-smoke
+          path: ${{ runner.temp }}/smoke/*.png
+          if-no-files-found: ignore
