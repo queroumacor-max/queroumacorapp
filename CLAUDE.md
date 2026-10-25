@@ -1,6 +1,8 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
-- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — CÓDIGO PRONTO, NADA NO AR
+- **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — CÓDIGO NO AR, COBRANÇA
+  DESLIGADA (PR #484 squash `76a96a3`, deploy run #775 do `deploy.yml`
+  terminou `success` — passou pelo portão de preview + smoke)
   (2026-10-25, pedido do usuário; "finalize e podemos mudar depois").
   Branch `ccr-9f21767f-vff8ua`. Guia do que falta fazer fora do código:
   `BILLING_SETUP.md` (raiz).**
