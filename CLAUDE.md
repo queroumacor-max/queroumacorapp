@@ -128,6 +128,24 @@
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
 
+- **ORÇAMENTO: "Enviar para a loja" SAIU; pergunta antes das ações
+  (2026-10-25, pedido do usuário). SEM SQL.** O botão só gravava o
+  orçamento, guardava o texto em `sessionStorage['chat:prefill']` — que
+  NENHUMA tela lê — e abria a LISTA de conversas, não a da loja. Agora
+  Visualizar, PDF, Gravar e as 3 opções de "Compartilhar com o cliente"
+  passam por `comPerguntaDaLoja`: modal (portal, z 1200) "Gostaria de enviar
+  os itens do seu orçamento para a loja Cali Colors para que lhe enviem um
+  orçamento sem compromisso?" Sim/Não. **Pergunta UMA vez por orçamento**
+  (decisão minha: perguntar a cada toque cansa; falha no envio libera
+  perguntar de novo). A ação tocada segue nos dois casos, dentro do toque
+  (share/window.open precisam do gesto). Sim → mensagem direta pra conta da
+  loja (`findOrCreateConversation` + `sendMessage` + `pedirModeracao`) com
+  `textoDosItensParaLoja`: serviços, espaço, tinta e itens com quantidade,
+  **sem dados do cliente e sem os preços de mão de obra**. Testes em
+  `orcamentoServicos.test.ts` e `orcamentoPerguntaLoja.test.ts`. O botão
+  "Enviar pelo chat" de `/orcamentos/[id]` tem o MESMO defeito do prefill e
+  não foi mexido.
+
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
   toda tela logada) + regra pura `lib/proAviso.ts`. Fim do acesso = MAIOR

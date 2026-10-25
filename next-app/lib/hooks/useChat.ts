@@ -121,7 +121,7 @@ export function useMessages(convId: string | null): UseMessagesResult {
 // deixa o pedido sair mesmo se a página for descarregada logo em seguida.
 // Reprovada → o servidor soft-deleta e avisa todos os participantes pelo
 // canal realtime (`useChatRealtime`, evento `msg-removed`).
-function pedirModeracao(messageId: string): void {
+export function pedirModeracao(messageId: string): void {
   void fetchGated('/api/chat/moderate-message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
