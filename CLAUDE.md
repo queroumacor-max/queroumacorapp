@@ -22,6 +22,15 @@
     **SQL AINDA NÃO RODADO no Supabase.** Regra espelhada em
     `lib/billingBalance.ts` (teste compara com o SQL); `saveQuote` e
     `salvarObra` lançam `BalanceEmptyError` sem saldo.
+  - **REGRA DO QUE É PAGO (decisão do usuário, 2026-10-25):** o que chama
+    API de IA é PRO (trava o BOTÃO de IA, não a tela); orçamento e obras
+    seguem o freemium acima; o resto é 100% grátis. Consequência: o
+    QuoteWizard e o CRM hoje são PRO INTEIROS (`canSeeProFeature` no topo)
+    e vão abrir pra todos, ficando PRO só os botões de IA. Moderação
+    (`moderate`/`moderate_video`) roda pra todos — é proteção. Alice
+    (cliente) tem 3 mensagens grátis "for now" pra conter custo. PRO
+    antigo segue com tudo até vencer. Teste grátis das outras IAs: em
+    proposta (1 uso por ferramenta e/ou trial de 7 dias na loja).
   - **Falta ligar a assinatura às ferramentas do PRO** (Agenda, CRM,
     Anotações, cota de IA) — hoje elas leem `profiles.is_pro`; a etapa 2
     faz o servidor/`canSeeProFeature` considerarem a assinatura.
