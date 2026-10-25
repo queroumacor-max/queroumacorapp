@@ -8,6 +8,104 @@
   mantido — categoria é recorte do "Todos"). **NO AR: PR #476 (squash
   `49f68e8`), deploy run #771 do `deploy.yml` terminou `success`.**
 
+- **CADASTRO: "tag" virou "apelido" + NEXT 16.4.2 QUEBROU O APP DE NOVO
+  (2026-10-23). SEM SQL.** PR #479 (squash `812d9e9`): rótulo "Sua tag
+  única"/"Seu @" → "Seu apelido" no cadastro e no completar-perfil + mensagens
+  de validação. O CI barrava por 3 CVEs CRITICAL novas de produção: `next`
+  16.3.x (GHSA-2464-fhr4-w9xw RCE na otimização de imagem SVG, GHSA-673q-mjm6-r5xr
+  RCE em `use cache`, GHSA-p3m5-59mp-jv5r DoS) — corrigidas só na 16.4.1+ —,
+  `@sentry/nextjs` ≤10.75.1 e `dompurify` ≤3.4.16. Com aval do usuário,
+  `next` → 16.4.2 + Sentry 10.76.2 + dompurify 3.4.17; deploy do `deploy.yml`
+  e **o app quebrou de novo no aparelho** (Worker versão `d5e4ec23`, taxa de
+  erro 100% no painel) — 2ª vez que a linha 16.4 derruba o app sob o OpenNext.
+  - **ROLLBACK FEITO PELO USUÁRIO NO PAINEL DA CLOUDFLARE (2026-10-23):**
+    Worker `queroumacor-next-production` → Deployments → versão `3fadcc8b`
+    (deploy anterior, feed "Todos" global) → Rollback. O apelido NÃO está no
+    ar (veio no mesmo deploy). **CONFIRMADO PELO USUÁRIO
+    (2026-10-23): "voltou" — app abrindo de novo.**
+  - **`rollback.yml` NÃO FUNCIONA:** o passo "Force push main" falha (proteção
+    da `main`). Não contar com ele; rollback de verdade é pelo painel.
+  - **`main` segue com next 16.4.2 → NÃO rodar `deploy.yml` antes do PR #480**
+    (volta `next` pra 16.3.8, mantém apelido/Sentry/dompurify). O `validate`
+    do #480 FALHA no npm audit (CVE do 16.3.x), então o merge precisa de admin
+    (`queroumacor-max`) ou de exceção no audit, que o usuário não autorizou.
+  - **CAUSA RAIZ ACHADA (2026-10-23, investigação a pedido do usuário; NADA
+    mudado ainda):** o Next 16.4 passou a ler `server/preview-props.json` em
+    TODA renderização (`route-module.js` → `loadManifestFromRelativePath`). No
+    Worker não há sistema de arquivos, então o OpenNext embute os manifests
+    no bundle — mas o nosso `@opennextjs/cloudflare` 1.20.6 (aws 4.1.4) só
+    embute `*-manifest`/`required-server-files`/`prefetch-hints.json`; pra
+    qualquer outro arquivo o `loadManifest` patcheado faz
+    `throw new Error("Unexpected loadManifest(...) call!")`. Logo, toda
+    requisição que renderiza estoura → error rate 100% no painel; a casca
+    estática sai dos assets e o app fica no loading. Explica 16.4.0 (06/10) e
+    16.4.2 (23/10). Conferido no código instalado; `.next/server/
+    preview-props.json` existe no build 16.4.2 e NÃO no 16.3.8. Não deu pra
+    rodar o Worker local (o build OpenNext aqui falha em resolver
+    `@sentry/nextjs`). Prova final = log do Worker com a mensagem acima.
+  - **A correção existe no adapter:** `@opennextjs/cloudflare` 1.20.12
+    (15/10, aws 4.1.11) passou a embutir `server/preview-props.json` e a
+    tratar a mudança de roteamento do 16.4 (`routeMatchMetadata`); o peer
+    virou `next >=16.4.1`. Caminho provável: next 16.4.2 +
+    `@opennextjs/cloudflare` 1.20.13 + wrangler ≥4.148 (peer; hoje 4.134),
+    testado num preview/aparelho ANTES de produção. Decisão do usuário.
+  - **OPÇÃO 1 EM TESTE NO PREVIEW (2026-10-25, decisão do usuário: "faz a
+    opção 1 testando no preview antes").** Branch `ccr-9f21767f-vff8ua`
+    (PR #480): `next` 16.4.2 (exato) + `@opennextjs/cloudflare` 1.20.13
+    (aws 4.1.12) + `wrangler` 4.152. Local: tsc, vitest 232/232 e
+    `next build --webpack` verdes; o build OpenNext AGORA FECHA aqui (o erro
+    do `@sentry/nextjs` sumiu com o adapter novo), o `handler.mjs` embute
+    `server/preview-props.json`, e `wrangler dev --env preview` serviu
+    `/`, `/login`, `/signup`, `/feed` com 200, nonce da CSP batendo com os
+    scripts e hidratação no Chromium (sem NEXT_PUBLIC_* local o app cai na
+    tela "Reconectando" — esperado). Próximo: `deploy-workers-migration.yml`
+    com `deploy --env preview` e o usuário testar no aparelho. Produção SÓ
+    depois disso.
+    - **Bloqueio novo pro merge, independente do next:** `npm audit
+      --omit=dev` acusa `zod` 3.25.76 HIGH (GHSA-mrhx-c7xc-m3w5, corrigido
+      só no 4.6.6 — major). A `main` tem o mesmo zod, então o `validate`
+      falha nela também. Decisão do usuário: migrar pra zod 4 ou exceção.
+    - **NO PREVIEW (2026-10-25):** run #8 do `deploy-workers-migration.yml`
+      (2ª tentativa — a 1ª falhou no Turbopack ao baixar a fonte DM Sans do
+      Google, "next/font/google queries have exactly one entry"; refazer
+      passou, foi soluço do Google) → `https://queroumacor-next-preview
+      .queroumacor.workers.dev`, versão `6255b1e2`. Preview só tem as vars
+      públicas (rotas de IA/admin/WhatsApp falham lá por falta de secret —
+      esperado). **PLAYWRIGHT NO RUNNER PASSOU (2026-10-25, pedido do
+      usuário; o sandbox não alcança workers.dev):** `/`, `/login`,
+      `/signup`, `/feed`, `/info/sobre` em Chromium mobile → 200, hidratou,
+      0 violação de CSP, 0 erro de console, `/feed` deslogado → `/login`
+      (o AuthProvider rodou). Workflow TEMPORÁRIO
+      `.github/workflows/preview-smoke.yml` + `scripts/preview-smoke.mjs` —
+      apagar antes do merge. NÃO testado: telas logadas (sem credencial).
+    - **ZOD 3 → 4 (2026-10-25, pedido do usuário: "faz a 1, migra pro zod
+      4").** Fecha o HIGH do audit (GHSA-mrhx-c7xc-m3w5); `npm audit
+      --omit=dev` = 0. `zod` ^4.6.7 + `@hookform/resolvers` ^5.2.2 (o 3.x
+      não fala zod 4). Mudanças: `invalid_type_error`/`required_error`/
+      `errorMap` → `error` (string ou função), `z.record(k, v)` com chave,
+      `z.string().uuid()` → **`z.guid()`** (o `.uuid()` do 4 exige UUID RFC;
+      o `guid` é o padrão frouxo do 3 — mantém o comportamento), e o
+      `phoneOptionalSchema` (união) passou a escolher a mensagem do ramo do
+      telefone — no zod 4 união que falha inteira vira "Invalid input" em
+      inglês. **Provado por comparação lado a lado zod3×zod4** (1748 casos,
+      todos os schemas de `lib/schemas.ts` + `lib/api/schemas/*`): mesmo
+      aceita/recusa, mesmo dado de saída, mesmas mensagens em português;
+      só muda o texto PADRÃO em inglês das rotas de API (não aparece pra
+      usuário). Teste novo em `schemas.test.ts` (falha sem a correção da
+      união). tsc, vitest 232/232 (2675), eslint 0 erros, `next build
+      --webpack` verdes.
+      **CI do #480 TODO VERDE com zod 4 (validate ×2, npm-audit, CodeQL,
+      gitleaks, sbom), preview redeployado (run #9 `success`) e o smoke do
+      Playwright no runner passou de novo (run #2 do `preview-smoke.yml`).**
+      Falta: usuário testar telas logadas no preview; apagar o smoke
+      temporário; merge; `deploy.yml`; abrir o app no aparelho na hora.
+      **TESTADO NO PREVIEW PELO USUÁRIO (2026-10-25, "testei no preview,
+      pode fazer o merge e deploy").** Smoke temporário apagado; merge e
+      deploy a seguir.
+  - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
+    (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
+    Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
+
 - **AVISO "SEU PRO ACABA" 24h ANTES (2026-10-20, pedido do usuário). SEM
   SQL.** `components/ProExpirandoModal.tsx` (montado no `AppShell`, vale em
   toda tela logada) + regra pura `lib/proAviso.ts`. Fim do acesso = MAIOR

@@ -13,7 +13,7 @@
 import { z } from 'zod';
 
 export const pushNotifySchema = z.object({
-  userIds: z.array(z.string().uuid()).min(1).max(100),
+  userIds: z.array(z.guid()).min(1).max(100),
   title: z.string().min(1).max(200),
   body: z.string().max(500).optional().default(''),
   url: z.string().startsWith('/').max(500).optional().default('/notificacoes'),

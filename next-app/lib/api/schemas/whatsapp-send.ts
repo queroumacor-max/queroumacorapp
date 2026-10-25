@@ -28,7 +28,7 @@ export const whatsappSendSchema = z
     // ao lead, e é por esse vínculo que o status de entrega do webhook
     // chega até a tela de Leads (2026-09-09). Opcional: a aba WhatsApp e o
     // follow-up mandam sem lead.
-    leadId: z.string().uuid().optional(),
+    leadId: z.guid().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'text' && !data.body) {
