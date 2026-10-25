@@ -49,6 +49,22 @@
     virou `next >=16.4.1`. Caminho provável: next 16.4.2 +
     `@opennextjs/cloudflare` 1.20.13 + wrangler ≥4.148 (peer; hoje 4.134),
     testado num preview/aparelho ANTES de produção. Decisão do usuário.
+  - **OPÇÃO 1 EM TESTE NO PREVIEW (2026-10-25, decisão do usuário: "faz a
+    opção 1 testando no preview antes").** Branch `ccr-9f21767f-vff8ua`
+    (PR #480): `next` 16.4.2 (exato) + `@opennextjs/cloudflare` 1.20.13
+    (aws 4.1.12) + `wrangler` 4.152. Local: tsc, vitest 232/232 e
+    `next build --webpack` verdes; o build OpenNext AGORA FECHA aqui (o erro
+    do `@sentry/nextjs` sumiu com o adapter novo), o `handler.mjs` embute
+    `server/preview-props.json`, e `wrangler dev --env preview` serviu
+    `/`, `/login`, `/signup`, `/feed` com 200, nonce da CSP batendo com os
+    scripts e hidratação no Chromium (sem NEXT_PUBLIC_* local o app cai na
+    tela "Reconectando" — esperado). Próximo: `deploy-workers-migration.yml`
+    com `deploy --env preview` e o usuário testar no aparelho. Produção SÓ
+    depois disso.
+    - **Bloqueio novo pro merge, independente do next:** `npm audit
+      --omit=dev` acusa `zod` 3.25.76 HIGH (GHSA-mrhx-c7xc-m3w5, corrigido
+      só no 4.6.6 — major). A `main` tem o mesmo zod, então o `validate`
+      falha nela também. Decisão do usuário: migrar pra zod 4 ou exceção.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
