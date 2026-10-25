@@ -4,7 +4,7 @@
   usuário). Branch `ccr-9f21767f-vff8ua`, NADA no ar.** Decisões do
   usuário: 5 grátis pra TODOS (inclusive quem já usa); conta ao GRAVAR;
   `quote_1` (R$ 1,00), `quote_pack_40` (R$ 29,90), `quotes_unlimited`
-  (R$ 59,00/mês) — preço é das lojas, não do código; a assinatura
+  (R$ 59,90/mês) — preço é das lojas, não do código; a assinatura
   SUBSTITUI o PRO (PRO antigo ativo vale como ilimitado até vencer);
   compra SÓ no app (Android/iOS), sem compra web.
   - **Etapa 1 (feita, não rodada):** `/migrations/2026-10-25-quote-balance.sql`
