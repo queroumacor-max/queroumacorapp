@@ -43,3 +43,17 @@ describe('travas de perfil/pedido (correção 2026-10-25)', () => {
     expect(FIX).toContain("VALUES ('security.privilege_escalation_blocked', auth.uid()");
   });
 });
+
+// Achado do Codex no PR #484: o billing-balance recriou a policy de INSERT
+// de quotes e perdeu a trava de 09-16 (cliente = pintor). Sem ela o pintor
+// grava orçamento pra si mesmo pelo REST, pula o débito e farma pontos.
+describe('INSERT em quotes: cliente e pintor nunca a mesma pessoa', () => {
+  const HOTFIX = ler('2026-10-25-quotes-insert-self-guard.sql');
+  for (const [nome, sql] of [['billing-balance', SALDO], ['hotfix', HOTFIX]] as const) {
+    it(nome, () => {
+      const linha = sql.split('\n').find((l) => l.startsWith('CREATE POLICY quotes_insert_participants')) || '';
+      expect(linha).toContain('(SELECT auth.uid()) = client_id');
+      expect(linha).toContain('painter_id <> client_id');
+    });
+  }
+});

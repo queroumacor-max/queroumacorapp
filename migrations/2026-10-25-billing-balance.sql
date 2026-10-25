@@ -197,7 +197,10 @@ GRANT EXECUTE ON FUNCTION public.create_painter_draft(text, text, text, numeric,
 -- direto pelo REST — o que pularia o débito. Nenhum código do app faz
 -- isso (tudo passa pela RPC); fica só o cliente criando a própria.
 DROP POLICY IF EXISTS quotes_insert_participants ON public.quotes;
-CREATE POLICY quotes_insert_participants ON public.quotes FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = client_id);
+-- Mantém a trava de 09-16: cliente e pintor nunca são a mesma pessoa
+-- (sem ela, o pintor grava orçamento pra si mesmo sem débito e farma
+-- pontos de pedido — achado do Codex no PR #484).
+CREATE POLICY quotes_insert_participants ON public.quotes FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = client_id AND (painter_id IS NULL OR painter_id <> client_id));
 
 -- ── 9. Obra nova debita (trigger: cobre o app E o REST direto) ──
 -- O app cria obra por INSERT direto (RLS de dono), então o débito mora

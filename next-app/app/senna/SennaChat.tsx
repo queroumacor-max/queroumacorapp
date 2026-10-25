@@ -15,6 +15,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { AiConsentGate } from '@/components/AiConsentGate';
 import { useSenna } from '@/lib/hooks/useSenna';
 import { canSeeProFeature } from '@/lib/policies';
+import { AI_TRIAL_USOS_CHAT } from '@/lib/aiTrial';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { ChatMessage, TypingIndicator, type AvatarConfig } from '../seu-ze/ChatMessage';
 import { VoiceRecorder } from '../seu-ze/VoiceRecorder';
@@ -28,6 +29,11 @@ const SENNA_AVATAR: AvatarConfig = {
 export function SennaChat() {
   const { user, loading: authLoading } = useAuth();
   const policyUser = usePolicyUser();
+  // Sem PRO, a conversa abre no TESTE GRÁTIS (mensagens contadas no
+  // servidor por `claim_ai_trial`). Esgotou → a rota responde 403
+  // `pro_required` e o `fetchGated` abre a tela de assinatura. Barrar
+  // aqui deixaria o teste inalcançável pela tela.
+  const emTeste = !canSeeProFeature(policyUser);
   const {
     messages,
     isSending,
@@ -51,7 +57,7 @@ export function SennaChat() {
     newSession,
     loadSession,
     deleteSession,
-  } = useSenna();
+  } = useSenna({ semFalaAutomatica: emTeste });
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -63,9 +69,9 @@ export function SennaChat() {
     if (greetedRef.current) return;
     if (!user) return;
     if (messages.length > 0) { greetingArmedRef.current = false; return; }
-    if (!autoSpeak) { greetingArmedRef.current = false; return; }
+    if (!autoSpeak || emTeste) { greetingArmedRef.current = false; return; }
     greetingArmedRef.current = true;
-  }, [user, messages.length, autoSpeak]);
+  }, [user, messages.length, autoSpeak, emTeste]);
 
   const fireGreeting = useCallback(() => {
     if (greetedRef.current || !greetingArmedRef.current) return;
@@ -122,28 +128,6 @@ export function SennaChat() {
     );
   }
 
-  // Gate PRO: Senna é assistente de funileiro/preparador profissional.
-  if (!canSeeProFeature(policyUser)) {
-    return (
-      <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
-        <div className="text-5xl mb-3" aria-hidden="true">🚗</div>
-        <h2 className="font-bold mb-2 text-[color:var(--color-ink)]">
-          Conversar com o Senna é PRO
-        </h2>
-        <p className="text-sm text-[color:var(--color-muted)] mb-4 max-w-md mx-auto">
-          Tira dúvida sobre PU 2K, primer, verniz, lanternagem, polimento
-          e preço médio do mercado.
-        </p>
-        <Link
-          href="/pro"
-          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Ativar PRO
-        </Link>
-      </div>
-    );
-  }
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const t = input.trim();
@@ -172,6 +156,11 @@ export function SennaChat() {
       onKeyDownCapture={fireGreeting}
     >
       <AiConsentGate assistantName="o Senna" />
+      {emTeste && (
+        <p className="px-4 py-2 text-xs text-[color:var(--color-muted)] bg-[color:var(--color-cream)] border-b border-[color:var(--color-border)]">
+          Teste grátis: {AI_TRIAL_USOS_CHAT} mensagens com o Senna. Depois, é do Plano PRO.
+        </p>
+      )}
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
           Chat com o Senna
@@ -192,16 +181,18 @@ export function SennaChat() {
               {conversationMode ? '🟢' : '⚪'}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setAutoSpeak(!autoSpeak)}
-            aria-pressed={autoSpeak}
-            aria-label={autoSpeak ? 'Desativar fala automática' : 'Ativar fala automática'}
-            title={autoSpeak ? 'Fala automática ligada' : 'Fala automática desligada'}
-            className="text-base hover:scale-110 transition-transform"
-          >
-            {autoSpeak ? '🔊' : '🔇'}
-          </button>
+          {!emTeste && (
+            <button
+              type="button"
+              onClick={() => setAutoSpeak(!autoSpeak)}
+              aria-pressed={autoSpeak}
+              aria-label={autoSpeak ? 'Desativar fala automática' : 'Ativar fala automática'}
+              title={autoSpeak ? 'Fala automática ligada' : 'Fala automática desligada'}
+              className="text-base hover:scale-110 transition-transform"
+            >
+              {autoSpeak ? '🔊' : '🔇'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setHistoryOpen(true)}

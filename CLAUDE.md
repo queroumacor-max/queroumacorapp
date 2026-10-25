@@ -103,6 +103,18 @@
   - **Falta (usuário):** criar os 4 produtos nas lojas, configurar a
     RevenueCat, as 4 envs, o skip do WAF, AAB+IPA novos (SQLs já rodados),
     e SÓ DEPOIS de publicados `UPDATE billing_config SET enforce = true`.
+  - **PR #484 aberto (2026-10-25). O Codex achou 3 pontos, corrigidos no
+    mesmo PR:** (P1) o billing-balance recriou `quotes_insert_participants`
+    e PERDEU a trava de 09-16 (cliente = pintor) — pintor gravava orçamento
+    pra si pelo REST, pulava o débito e farmava pontos. **Isso já estava em
+    PRODUÇÃO**: hotfix `migrations/2026-10-25-quotes-insert-self-guard.sql`
+    (uma policy + conferência), testado em Postgres local — PASSADO NO CHAT,
+    falta o usuário rodar. (P2) as telas do Seu Zé/Fê/Senna barravam quem
+    não é PRO antes do teste grátis; agora abrem com faixa "Teste grátis:
+    3 mensagens" e SEM fala automática (cada fala gasta o teste do TTS e
+    abriria o paywall sozinha). (P2) consumível sem `store_transaction_id`
+    cai no id da RC e o estorno não casa — mantido como último recurso, com
+    aviso no log (a v1 traz o campo).
   - `leads.ts comprarObra` chama `create_painter_draft` só com `p_post_id`
     — assinatura que não existe; já estava quebrado antes, não é desta obra.
 

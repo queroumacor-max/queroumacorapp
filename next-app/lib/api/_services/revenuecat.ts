@@ -105,6 +105,14 @@ export function planejarSync(
   for (const [productId, compras] of Object.entries(sub?.non_subscriptions || {})) {
     if (!ehConsumivel(productId) || !Array.isArray(compras)) continue;
     for (const c of compras) {
+      // A chave tem que ser a MESMA que o webhook de reembolso manda
+      // (`transaction_id` da LOJA), senão o estorno não acha o crédito. A
+      // v1 da RevenueCat traz `store_transaction_id` em non_subscriptions;
+      // o `id` (interno da RC) fica só de último recurso, com aviso no
+      // log — nesse caso um reembolso não é estornado sozinho.
+      if (!c?.store_transaction_id && c?.id) {
+        console.warn(`[billing] compra ${productId} sem store_transaction_id (id RC ${c.id}) — estorno automático não vai casar`);
+      }
       const txKey = chaveDaTransacao(c?.store, c?.store_transaction_id || c?.id);
       if (!txKey) continue;
       consumiveis.push({ txKey, productId, store: String(c.store || '').toLowerCase(), sandbox: c.is_sandbox === true });

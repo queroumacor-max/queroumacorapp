@@ -4,7 +4,7 @@
 // Estados:
 //   - authLoading → skeleton
 //   - !user → CTA login
-//   - !isPro → paywall PRO (gate via canSeeProFeature)
+//   - !isPro → abre no teste grátis (o servidor conta; esgotou → paywall)
 //   - default → thread vazia (com saudação) ou thread populada
 //
 // Layout: card branco com header simples ("Chat com o Seu Zé" + botão "limpar"),
@@ -22,6 +22,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { AiConsentGate } from '@/components/AiConsentGate';
 import { useSeuZe } from '@/lib/hooks/useSeuZe';
 import { canSeeProFeature } from '@/lib/policies';
+import { AI_TRIAL_USOS_CHAT } from '@/lib/aiTrial';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { ChatMessage, TypingIndicator } from './ChatMessage';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -29,6 +30,11 @@ import { VoiceRecorder } from './VoiceRecorder';
 export function SeuZeChat() {
   const { user, loading: authLoading } = useAuth();
   const policyUser = usePolicyUser();
+  // Sem PRO, a conversa abre no TESTE GRÁTIS (mensagens contadas no
+  // servidor por `claim_ai_trial`). Esgotou → a rota responde 403
+  // `pro_required` e o `fetchGated` abre a tela de assinatura. Barrar
+  // aqui deixaria o teste inalcançável pela tela.
+  const emTeste = !canSeeProFeature(policyUser);
   const {
     messages,
     isSending,
@@ -52,7 +58,7 @@ export function SeuZeChat() {
     newSession,
     loadSession,
     deleteSession,
-  } = useSeuZe();
+  } = useSeuZe({ semFalaAutomatica: emTeste });
 
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -69,9 +75,9 @@ export function SeuZeChat() {
     if (greetedRef.current) return;
     if (!user) return;
     if (messages.length > 0) { greetingArmedRef.current = false; return; }
-    if (!autoSpeak) { greetingArmedRef.current = false; return; }
+    if (!autoSpeak || emTeste) { greetingArmedRef.current = false; return; }
     greetingArmedRef.current = true;
-  }, [user, messages.length, autoSpeak]);
+  }, [user, messages.length, autoSpeak, emTeste]);
 
   // Dispara a saudação no 1º gesto. Idempotente — desarma após tocar.
   const fireGreeting = useCallback(() => {
@@ -135,32 +141,6 @@ export function SeuZeChat() {
     );
   }
 
-  // Gate PRO: usePolicyUser combina profile (banco — fonte verdade) +
-  // JWT metadata (fallback). Antes era só JWT, que raramente tem
-  // is_pro/portal_access populados.
-  if (!canSeeProFeature(policyUser)) {
-    return (
-      <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
-        <div className="text-5xl mb-3" aria-hidden="true">
-          🧑‍🎨
-        </div>
-        <h2 className="font-bold mb-2 text-[color:var(--color-ink)]">
-          Conversar com o Seu Zé é PRO
-        </h2>
-        <p className="text-sm text-[color:var(--color-muted)] mb-4 max-w-md mx-auto">
-          Tire dúvidas técnicas, peça sugestão de preço e tire fotos de
-          dúvida — tudo respondido pelo Seu Zé.
-        </p>
-        <Link
-          href="/pro"
-          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Ativar PRO
-        </Link>
-      </div>
-    );
-  }
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const t = input.trim();
@@ -189,6 +169,11 @@ export function SeuZeChat() {
       onKeyDownCapture={fireGreeting}
     >
       <AiConsentGate assistantName="o Seu Zé" />
+      {emTeste && (
+        <p className="px-4 py-2 text-xs text-[color:var(--color-muted)] bg-[color:var(--color-cream)] border-b border-[color:var(--color-border)]">
+          Teste grátis: {AI_TRIAL_USOS_CHAT} mensagens com o Seu Zé. Depois, é do Plano PRO.
+        </p>
+      )}
       <header className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--color-border)]">
         <h2 className="text-sm font-bold text-[color:var(--color-ink)]">
           Chat com o Seu Zé
@@ -211,16 +196,18 @@ export function SeuZeChat() {
               {conversationMode ? '🟢' : '⚪'}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setAutoSpeak(!autoSpeak)}
-            aria-pressed={autoSpeak}
-            aria-label={autoSpeak ? 'Desativar fala automática' : 'Ativar fala automática'}
-            title={autoSpeak ? 'Fala automática ligada' : 'Fala automática desligada'}
-            className="text-base hover:scale-110 transition-transform"
-          >
-            {autoSpeak ? '🔊' : '🔇'}
-          </button>
+          {!emTeste && (
+            <button
+              type="button"
+              onClick={() => setAutoSpeak(!autoSpeak)}
+              aria-pressed={autoSpeak}
+              aria-label={autoSpeak ? 'Desativar fala automática' : 'Ativar fala automática'}
+              title={autoSpeak ? 'Fala automática ligada' : 'Fala automática desligada'}
+              className="text-base hover:scale-110 transition-transform"
+            >
+              {autoSpeak ? '🔊' : '🔇'}
+            </button>
+          )}
           {/* Histórico de conversas — drawer com lista de sessões passadas */}
           <button
             type="button"
