@@ -111,6 +111,19 @@
       praticamente instantâneo agora".** Caso da linha 16.4 fechado. Não
       houve trabalho de performance; a sensação de velocidade não foi
       medida (pode ser do Next 16.4/adapter novo ou de cache).
+  - **PORTÃO DE PREVIEW NO `deploy.yml` (2026-10-25, pedido do usuário:
+    "então não vai quebrar mais?" → "sim").** O `deploy.yml` agora builda,
+    publica o MESMO artefato no Worker de preview, roda
+    `scripts/preview-smoke.mjs` (Playwright num Chromium de celular: `/`,
+    `/login`, `/signup`, `/feed`→`/login`, `/info/sobre`; hidratou, 0 CSP,
+    não preso em "Carregando/Reconectando", 2ª chance por rota) e SÓ ENTÃO
+    `deploy --env production`. Smoke falhou → produção não é publicada.
+    Mesmo smoke no `deploy-workers-migration.yml` (alvo preview) pra testar
+    branch antes do merge. Playwright instalado em pasta temporária (não
+    mexe no lockfile). Teste `__tests__/deployPreviewGate.test.ts` trava a
+    ordem. Limites: só telas públicas (sem login) e o preview sem os
+    secrets — pega app que não abre, não bug de tela logada; e o deploy de
+    produção sobrescreve o que estiver no preview.
   - **REGRA reforçada:** a linha 16.4 do next quebra o app sob o OpenNext
     (16.4.0 e 16.4.2) e CI/tsc/vitest/`next build` passam com ele quebrado.
     Antes de qualquer nova tentativa, isolar a causa num preview/aparelho.
