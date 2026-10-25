@@ -32,6 +32,9 @@
     enxerga a assinatura; PRO manual sem data nunca é tocado, com data só
     estende). A versão final da `set_pro_subscription` mora SÓ aqui pra a
     ordem de rodar não importar;
+    **(2) JÁ RODADO (2026-10-25, pelo celular em blocos de uma linha;
+    print do usuário: as 10 linhas da conferência `true`). Não pedir pra
+    rodar de novo.**
     (3) `…-billing-pro-and-ai-trial.sql` — `ai_trial_usage` + `claim_ai_trial`.
     Os 3 testados em Postgres 16 local (2x cada, ordem 1-2-1, ataques,
     12 reservas de teste simultâneas → só 1 passa).
