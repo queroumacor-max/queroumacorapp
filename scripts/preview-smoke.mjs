@@ -1,4 +1,5 @@
 // Smoke test do preview do Worker (temporário — PR #480). Abre telas
+// rodada 2: next 16.4.2 + adapter 1.20.13 + zod 4
 // públicas num Chromium real e confere: sai do loading, hidrata, sem
 // violação de CSP, e /feed deslogado manda pro /login (prova que o JS
 // do AuthProvider rodou).
