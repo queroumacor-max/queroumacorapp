@@ -108,8 +108,8 @@
     e PERDEU a trava de 09-16 (cliente = pintor) — pintor gravava orçamento
     pra si pelo REST, pulava o débito e farmava pontos. **Isso já estava em
     PRODUÇÃO**: hotfix `migrations/2026-10-25-quotes-insert-self-guard.sql`
-    (uma policy + conferência), testado em Postgres local — PASSADO NO CHAT,
-    falta o usuário rodar. (P2) as telas do Seu Zé/Fê/Senna barravam quem
+    (uma policy + conferência), testado em Postgres local — **JÁ RODADO
+    (2026-10-25, usuário: "ok true"). Não pedir pra rodar de novo.** (P2) as telas do Seu Zé/Fê/Senna barravam quem
     não é PRO antes do teste grátis; agora abrem com faixa "Teste grátis:
     3 mensagens" e SEM fala automática (cada fala gasta o teste do TTS e
     abriria o paywall sozinha). (P2) consumível sem `store_transaction_id`
