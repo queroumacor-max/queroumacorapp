@@ -141,11 +141,21 @@
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
 
+- **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
+  Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
+  "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:
+  "Cancele quando quiser", "configurações de assinaturas do seu celular",
+  "Detalhe técnico". O US$ 9,99 do print é o preço da conta SANDBOX (região
+  EUA), não código.
+
 - **PRO NUNCA MAIS POR PONTOS (2026-10-26, decisão do usuário: "não vai ser
   mais pontos, vai ser compra conforme o que colocamos").** Sai a opção "1 mês
   PRO extra" do `/pontos` (ficam camiseta e R$30 de cashback, por WhatsApp),
   `redeemProWithPoints` apagada, Termos (item 13) / Termos do Cliente / Ajuda
   sem a troca (data 26/10/2026), tile "Meus Pontos" e o tour sem "ganhar PRO".
+  **NO AR: PR #492 (squash `850dbbb`), deploy run #781 `success` (2ª
+  tentativa — a 1ª caiu no soluço da fonte do Google).** /pro sem pontos: PR
+  #491, deploy #780 `success`.
   Pontos por indicação/compra CONTINUAM (servem pros outros prêmios). **SQL
   `migrations/2026-10-26-revoke-redeem-pro-with-points.sql` — JÁ RODADO
   (2026-10-26, usuário: "feito"). Não pedir pra rodar de novo.**
