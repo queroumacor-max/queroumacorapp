@@ -119,9 +119,9 @@ export function NotesView() {
   function handleMicClick() {
     if (!isPro) {
       // Mesmo padrão dos outros gates PRO (ex.: Otimizar dia da Agenda):
-      // avisa e manda pro /pro pra trocar pontos pelo plano (BUG52). Antes
+      // avisa e manda pro /pro pra assinar o plano (BUG52). Antes
       // só mostrava um toast — parecia que o botão "não fazia nada".
-      showToast('Gravar e transcrever áudio é um recurso PRO. Troque seus pontos pelo plano PRO.', 'info');
+      showToast('Gravar e transcrever áudio é um recurso PRO. Assine o PRO pra usar.', 'info');
       router.push('/pro');
       return;
     }

@@ -123,6 +123,8 @@
 
 - **PORTAL: TELA "💳 COMPRAS NO APP" (2026-10-25, pedido do usuário:
   "menu e tela falando das compras, valores e quem comprou"). SEM SQL.**
+  **NO AR: PR #490 (squash `3e2ee29`), deploy run #779 do `deploy.yml`
+  terminou `success`.** Não conferido no portal pelo usuário ainda.
   Seção DADOS, portal v=20261025a. Quem agrega é o servidor:
   `POST /api/admin/billing` (service role, `ensurePortalAdmin`, rate limit
   30/min) → `lib/api/_services/admin-billing.ts` (`montarRelatorioDeCompras`,
@@ -138,6 +140,18 @@
     mostra o preço de TABELA (`PRECO_TABELA_BRL`, decisão de 25/10) em cinza
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
+
+- **/pro SEM PONTOS (2026-10-26, pedido do usuário com print: "tirar essa
+  questão dos pontos, pq agora é pelos valores"). SEM SQL.** O card "1000
+  pontos = 1 mês PRO" e o botão "Trocar pontos por PRO" SAÍRAM da /pro. O card
+  mostra o preço do `quotes_unlimited` VINDO DA LOJA (mesma query
+  `['billing-products', uid]` do PaywallHost) ou "Assinatura mensal" sem
+  preço; CTA = "Assinar o PRO" (paywall) no app, e no site o texto "assine
+  pelo app instalado". Toasts de Agenda/Anotações/Calculadora e o banner do
+  perfil trocaram "troque seus pontos" por "assine o PRO". **NÃO mexido (decidir
+  com o usuário):** a página `/pontos` com a troca `redeem_pro_with_points`
+  continua existindo, pontos por indicação continuam, e o item 13 dos Termos
+  ainda cita a troca de pontos.
 
 - **CODEMAGIC: Node 22 + Gradle do Capacitor 8 (2026-10-25, pedido do
   usuário: build #9 do `android-aab` falhou no `cap sync` com "Capacitor CLI
