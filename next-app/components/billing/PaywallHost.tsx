@@ -45,7 +45,7 @@ const SUBTITULO: Record<MotivoPaywall, string> = {
 };
 
 const ROTULO: Record<string, { nome: string; detalhe: string }> = {
-  [BILLING_PRODUCTS.pro]: { nome: 'PRO completo', detalhe: 'Orçamentos e obras ilimitados + todas as ferramentas com IA. Renova por mês; cancele quando quiser na loja.' },
+  [BILLING_PRODUCTS.pro]: { nome: 'PRO completo', detalhe: 'Orçamentos e obras ilimitados + todas as ferramentas com IA. Renova por mês; cancele quando quiser.' },
   [BILLING_PRODUCTS.quotePack40]: { nome: 'Pacote com 40 orçamentos', detalhe: 'Créditos que não vencem.' },
   [BILLING_PRODUCTS.quote1]: { nome: '1 orçamento', detalhe: 'Pra quando você precisa de só mais um.' },
   [BILLING_PRODUCTS.obra1]: { nome: '1 obra extra', detalhe: 'Cadastre mais uma obra na Gestão de Obras.' },
@@ -90,7 +90,7 @@ function DetalheDaLoja({ texto }: { texto: string }) {
       className="mt-2 rounded-lg p-2 text-xs select-text"
       style={{ background: 'var(--color-bg)', color: 'var(--color-ink2)', overflowWrap: 'anywhere', fontFamily: 'monospace' }}
     >
-      Detalhe da loja: {texto}
+      Detalhe técnico: {texto}
     </p>
   );
 }
@@ -195,11 +195,11 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
             Todo mundo começa com {FREE_QUOTES} orçamentos e {FREE_OBRAS} obra grátis.
           </p>
         ) : produtos.isLoading ? (
-          <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>Carregando preços da loja…</p>
+          <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>Carregando preços…</p>
         ) : lista.length === 0 ? (
           <>
             <p className="mt-4 text-sm" style={{ color: 'var(--color-ink2)' }}>
-              Não consegui carregar os produtos da loja agora. Confira sua conexão e tente de novo.
+              Não consegui carregar os planos agora. Confira sua conexão e tente de novo.
             </p>
             {produtos.data?.problema && <DetalheDaLoja texto={produtos.data.problema} />}
           </>
@@ -251,11 +251,11 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
           </button>
         )}
         {vooCompra.busy && (
-          <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-ink2)' }}>Confirmando com a loja…</p>
+          <p className="mt-2 text-center text-xs" style={{ color: 'var(--color-ink2)' }}>Confirmando a compra…</p>
         )}
         <p className="mt-3 text-[11px] text-center" style={{ color: 'var(--color-ink2)' }}>
           Pagamento pela {typeof navigator !== 'undefined' && /iphone|ipad/i.test(navigator.userAgent) ? 'App Store' : 'Google Play'}.
-          A assinatura renova sozinha até você cancelar nas configurações da loja.
+          A assinatura renova sozinha até você cancelar nas configurações de assinaturas do seu celular.
         </p>
         <p className="mt-2 text-[11px] text-center" style={{ color: 'var(--color-ink2)' }}>
           <Link href="/info/termos" onClick={fechar} style={{ color: 'var(--color-p1)', textDecoration: 'underline' }}>Termos de Uso</Link>

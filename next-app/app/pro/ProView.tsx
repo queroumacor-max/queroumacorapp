@@ -121,9 +121,7 @@ export function ProView() {
           {precoPro && <span style={{ fontSize: 16, fontWeight: 400 }}> / mês</span>}
         </div>
         <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
-          {precoPro
-            ? 'Cobrado pela loja. Cancele quando quiser.'
-            : 'O preço aparece na hora de assinar, direto da loja do seu celular.'}
+          {precoPro ? 'Cancele quando quiser.' : 'O preço aparece na hora de assinar.'}
         </div>
       </div>
 
@@ -236,8 +234,8 @@ export function ProView() {
           Privacidade
         </Link>
         .{' '}
-        A assinatura é cobrada pela loja e renova todo mês até você cancelar
-        nas configurações da loja.
+        A assinatura renova todo mês até você cancelar nas configurações de
+        assinaturas do seu celular.
       </p>
 
       {/* Dúvidas sobre o PRO — canal de atendimento da loja. */}
@@ -268,7 +266,7 @@ export function ProView() {
             margin: 0,
           }}
         >
-          Para dúvidas sobre o plano ou a cobrança, fale com a gente pelo
+          Para dúvidas sobre o plano, fale com a gente pelo
           WhatsApp{' '}
           <a
             href={STORE_WHATSAPP}

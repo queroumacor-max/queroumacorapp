@@ -141,6 +141,13 @@
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
 
+- **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
+  Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
+  "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:
+  "Cancele quando quiser", "configurações de assinaturas do seu celular",
+  "Detalhe técnico". O US$ 9,99 do print é o preço da conta SANDBOX (região
+  EUA), não código.
+
 - **PRO NUNCA MAIS POR PONTOS (2026-10-26, decisão do usuário: "não vai ser
   mais pontos, vai ser compra conforme o que colocamos").** Sai a opção "1 mês
   PRO extra" do `/pontos` (ficam camiseta e R$30 de cashback, por WhatsApp),
