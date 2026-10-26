@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function TermosClientePage() {
   return (
     <InfoSubPage title="Termos de Uso - Cliente">
-      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de outubro de 2026</LegalUpd>
       <LegalP>
         Estes Termos complementam os{' '}
         <a
@@ -51,8 +51,7 @@ export default function TermosClientePage() {
       <LegalP>
         Compras feitas dentro do aplicativo (créditos e assinatura PRO) são
         processadas pela Google Play ou pela App Store, e o reembolso segue a
-        política da loja em que a compra foi feita. O PRO obtido por troca de
-        pontos não envolve dinheiro, portanto não tem cobrança nem reembolso.
+        política da loja em que a compra foi feita.
         As compras feitas diretamente com a loja Cali Colors, fora do
         aplicativo, seguem os seus direitos de consumidor, inclusive o prazo
         de{' '}<b>7 dias corridos</b> para arrependimento em compras a

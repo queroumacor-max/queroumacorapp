@@ -1,10 +1,9 @@
 // points.ts — service layer pra feature "Pontos / Cashback". Espelha
 // `modules/points-refs.js` do vanilla:
 //   - listPoints: últimas 20 linhas da tabela `points` do user;
-//   - balance: soma earned − spent;
-//   - redeem: chama RPC `redeem_pro_with_points` (SECURITY DEFINER) que
-//     valida saldo, debita pontos e estende `pro_expires_at` em uma
-//     transação atômica (evita bypass via UPDATE direto em profiles).
+//   - balance: soma earned − spent.
+// A troca de pontos por PRO saiu em 2026-10-26 (PRO é só assinatura na loja);
+// a RPC `redeem_pro_with_points` teve o EXECUTE revogado no banco.
 
 import { getSupabase } from '@/lib/supabase';
 import { NetworkError } from '@/lib/errors';
@@ -36,11 +35,4 @@ export function computeBalance(entries: PointEntry[]): number {
     (acc, p) => acc + (p.type === 'earned' ? p.amount : -p.amount),
     0,
   );
-}
-
-export async function redeemProWithPoints(cost = 1000): Promise<string> {
-  const sb = getSupabase();
-  const { data, error } = await sb.rpc('redeem_pro_with_points', { p_cost: cost });
-  if (error) throw new NetworkError(error.message, error);
-  return String(data ?? '');
 }

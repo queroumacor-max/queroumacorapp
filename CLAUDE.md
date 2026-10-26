@@ -141,6 +141,17 @@
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
 
+- **PRO NUNCA MAIS POR PONTOS (2026-10-26, decisão do usuário: "não vai ser
+  mais pontos, vai ser compra conforme o que colocamos").** Sai a opção "1 mês
+  PRO extra" do `/pontos` (ficam camiseta e R$30 de cashback, por WhatsApp),
+  `redeemProWithPoints` apagada, Termos (item 13) / Termos do Cliente / Ajuda
+  sem a troca (data 26/10/2026), tile "Meus Pontos" e o tour sem "ganhar PRO".
+  Pontos por indicação/compra CONTINUAM (servem pros outros prêmios). **SQL
+  `migrations/2026-10-26-revoke-redeem-pro-with-points.sql` — JÁ RODADO
+  (2026-10-26, usuário: "feito"). Não pedir pra rodar de novo.**
+  revoga o EXECUTE da RPC (sem ele, quem chama o REST direto ainda troca pontos
+  por PRO). Linha na `2026-09-05-conferencia-pendencias.sql`.
+
 - **/pro SEM PONTOS (2026-10-26, pedido do usuário com print: "tirar essa
   questão dos pontos, pq agora é pelos valores"). SEM SQL.** O card "1000
   pontos = 1 mês PRO" e o botão "Trocar pontos por PRO" SAÍRAM da /pro. O card

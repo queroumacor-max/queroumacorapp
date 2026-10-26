@@ -174,7 +174,7 @@ export const PROFILE_TOUR_STEPS: ReadonlyArray<TourStep> = [
     selector: '[data-tour="tile-pontos"]',
     emoji: '🎁',
     title: 'Meus Pontos',
-    text: 'Você ganha pontos usando o app e indicando amigos. Juntando pontos, o plano PRO sai de graça.',
+    text: 'Você ganha pontos usando o app e indicando amigos, e troca por camiseta ou desconto na loja.',
   },
   {
     id: 'p-portfolio',

@@ -4,7 +4,6 @@
 //  - webhook MP confirma pagamento → trigger handle_invoice_paid →
 //    UPDATE profiles SET is_pro=true, pro_expires_at += 30d
 //  - admin grant via /portal → UPDATE profiles SET is_pro=true
-//  - RPC redeem_pro_with_points (100pts → PRO) → mesmo UPDATE
 //
 // Antes era polling via TanStack staleTime 60s — user pagava e ficava
 // até 1min vendo "GRÁTIS" + paywalls trancados. Agora ~1-2s end-to-end.

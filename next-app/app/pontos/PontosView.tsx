@@ -1,25 +1,19 @@
 // PontosView — client component pra /pontos. Lista pontos + saldo via
-// useQuery; troca tem 3 opções a 1000 pts cada:
-//   - 1 mês PRO extra (atômico via RPC redeem_pro_with_points)
+// useQuery; troca tem 2 opções a 1000 pts cada:
 //   - Camiseta personalizada (WhatsApp pra Cali Colors processar)
 //   - R$30 cashback na próxima compra (WhatsApp pra Cali Colors processar)
 //
-// Por que WhatsApp pras 2 últimas: fulfillment é manual (alguém envia camiseta
-// ou aplica o desconto na loja física). Mais honesto que mostrar "resgatado!"
-// sem o pintor saber quando vai chegar. PRO já é instantâneo via RPC.
+// O PRO NÃO sai mais por pontos (2026-10-26, decisão do usuário): é só
+// assinatura paga na loja. Fulfillment das duas é manual (camiseta enviada
+// ou desconto aplicado na loja física), por isso vai por WhatsApp.
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useDialog } from '@/components/Dialog';
 import { ListSkeleton } from '@/components/Skeletons';
-import {
-  computeBalance,
-  listPoints,
-  redeemProWithPoints,
-  type PointEntry,
-} from '@/lib/services/points';
+import { computeBalance, listPoints, type PointEntry } from '@/lib/services/points';
 
 const REDEEM_COST = 1000;
 const SUPPORT_WA = '5511959765031';
@@ -50,7 +44,7 @@ function sourceLabel(p: PointEntry): string {
   return p.type === 'earned' ? 'Crédito' : 'Débito';
 }
 
-type RedeemKind = 'pro' | 'tshirt' | 'cashback';
+type RedeemKind = 'tshirt' | 'cashback';
 
 interface RedeemOption {
   kind: RedeemKind;
@@ -60,12 +54,6 @@ interface RedeemOption {
 }
 
 const OPTIONS: readonly RedeemOption[] = [
-  {
-    kind: 'pro',
-    emoji: '⚡',
-    title: '1 mês PRO extra',
-    subtitle: 'Liberado na hora — Seu Zé, CRM, agenda…',
-  },
   {
     kind: 'tshirt',
     emoji: '👕',
@@ -82,9 +70,7 @@ const OPTIONS: readonly RedeemOption[] = [
 
 export function PontosView() {
   const { user } = useAuth();
-  const qc = useQueryClient();
   const dialog = useDialog();
-  const [redeeming, setRedeeming] = useState<RedeemKind | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const userId = user?.id ?? '';
@@ -101,22 +87,7 @@ export function PontosView() {
   const userName =
     (user?.user_metadata as { name?: string } | undefined)?.name || 'Pintor';
 
-  async function redeemPro() {
-    setRedeeming('pro');
-    setFeedback(null);
-    try {
-      await redeemProWithPoints(REDEEM_COST);
-      setFeedback('1 mês PRO liberado! 🎉');
-      qc.invalidateQueries({ queryKey: ['points', userId] });
-      qc.invalidateQueries({ queryKey: ['profile', userId] });
-    } catch (e) {
-      setFeedback((e as Error).message || 'Erro ao trocar pontos');
-    } finally {
-      setRedeeming(null);
-    }
-  }
-
-  function redeemReward(kind: 'tshirt' | 'cashback') {
+  function redeemReward(kind: RedeemKind) {
     const label =
       kind === 'tshirt' ? 'camiseta personalizada' : 'R$ 30 de cashback';
     const msg =
@@ -132,7 +103,6 @@ export function PontosView() {
   }
 
   async function handleRedeem(kind: RedeemKind) {
-    if (redeeming) return;
     // Saldo insuficiente: feedback claro em vez de não responder (BUG25).
     if (!canRedeem) {
       const faltam = Math.max(0, REDEEM_COST - balance);
@@ -152,11 +122,7 @@ export function PontosView() {
       { title: 'Confirmar resgate', okLabel: 'Resgatar' },
     );
     if (!ok) return;
-    if (kind === 'pro') {
-      void redeemPro();
-    } else {
-      redeemReward(kind);
-    }
+    redeemReward(kind);
   }
 
   return (
@@ -198,7 +164,7 @@ export function PontosView() {
         </div>
       </div>
 
-      {/* 3 opções de resgate */}
+      {/* Opções de resgate */}
       <div
         className="font-bold uppercase mb-2"
         style={{ fontSize: 13, color: 'var(--color-muted)' }}
@@ -207,26 +173,22 @@ export function PontosView() {
       </div>
       <div className="flex flex-col gap-2 mb-3">
         {OPTIONS.map((opt) => {
-          const isBusy = redeeming === opt.kind;
-          // Só desabilita de fato enquanto um resgate está em andamento. Sem
-          // saldo, o botão fica DIMMED mas clicável — o clique dá feedback
-          // ("faltam X pontos") em vez de não responder (BUG25).
+          // Sem saldo, o botão fica DIMMED mas clicável — o clique dá
+          // feedback ("faltam X pontos") em vez de não responder (BUG25).
           const insufficient = !canRedeem;
-          const disabled = !!redeeming;
           return (
             <button
               key={opt.kind}
               type="button"
               onClick={() => handleRedeem(opt.kind)}
-              disabled={disabled}
               aria-disabled={insufficient}
               className="flex items-center gap-3 text-left bg-white"
               style={{
                 padding: '12px 14px',
                 borderRadius: 14,
                 border: '1.5px solid var(--color-border)',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: disabled || insufficient ? 0.55 : 1,
+                cursor: 'pointer',
+                opacity: insufficient ? 0.55 : 1,
                 boxShadow: canRedeem
                   ? '0 2px 8px rgba(0,0,0,.05)'
                   : 'none',
@@ -274,7 +236,7 @@ export function PontosView() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {isBusy ? '…' : '1000 pts'}
+                1000 pts
               </span>
             </button>
           );
