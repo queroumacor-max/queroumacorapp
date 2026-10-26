@@ -1,4 +1,6 @@
 // ProView — cliente component da /pro. Mostra benefícios, preço e CTA.
+// O PRO é ASSINATURA paga na loja (Google Play / App Store, via RevenueCat).
+// O preço vem da loja — nunca escrito aqui (decisão de 25/10/2026).
 // Estado do user (já PRO? grace period?) vem do useProfile pra trocar a
 // UI quando aplicável (oculta "Assinar" se já é PRO, mostra "Estende
 // assinatura" em vez).
@@ -6,7 +8,11 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
+import { BILLING_PRODUCTS } from '@/lib/billingBalance';
+import { carregarProdutos } from '@/lib/services/billingPurchases';
 import { personaForRole } from '@/lib/aiPersona';
 import { isPurchasesAvailable } from '@/lib/native';
 import { abrirPaywall } from '@/lib/paywallEvents';
@@ -17,22 +23,16 @@ interface Feature {
   label: string;
 }
 
-// Contato da Cali Colors — só pra DÚVIDAS sobre o PRO (a ativação é via pontos).
+// Contato da Cali Colors — só pra DÚVIDAS sobre o PRO.
 const STORE_PHONE_DISPLAY = '(11) 95976-5031';
 const STORE_WHATSAPP = 'https://wa.me/5511959765031';
-
-// Custo da troca pontos → PRO (espelha REDEEM_COST em PontosView/points.ts).
-const PRO_POINTS_COST = 1000;
-// Pontos creditados por indicação que se cadastra (espelha bonus_points no
-// signup + trigger award_referral_points no banco).
-const REFERRAL_POINTS = 10;
 
 // A lista não crava o nome da persona: cada perfil tem o SEU parceiro
 // digital (pintor → Seu Zé, grafiteiro → Fê, automotivo → Senna, cliente
 // → Alice), então o texto é genérico e a FOTO vem de `personaForRole`.
 function buildFeatures(personaImage: string): readonly Feature[] {
   return [
-    { icon: '📥', label: 'Pedidos de orçamento ilimitados' },
+    { icon: '📥', label: 'Orçamentos e obras ilimitados' },
     { icon: '🏆', label: 'Apareça no topo das buscas e do mapa' },
     { icon: '✓', label: 'Badge verificado no perfil' },
     { icon: '📊', label: 'Estatísticas avançadas do perfil' },
@@ -47,17 +47,28 @@ function buildFeatures(personaImage: string): readonly Feature[] {
 const semAssinatura = () => () => {};
 
 export function ProView() {
+  const { user } = useAuth();
+  const userId = user?.id ?? '';
   const { profile } = useProfile();
   const isPro = !!profile?.is_pro;
   const persona = personaForRole(profile?.role || profile?.user_type);
   const FEATURES = buildFeatures(persona.image);
 
-  // Duas formas de ter PRO: assinatura pela loja (Google Play / App Store,
-  // só no app instalado com o plugin de compras) ou troca de pontos (RPC
-  // redeem_pro_with_points, instantâneo). Fora do app, só a troca de pontos.
-  // Lido depois de montar: no servidor não existe casca nativa, e ler no
-  // render daria HTML diferente do cliente (erro de hidratação).
+  // Assinatura só existe no app instalado (plugin de compras). No site, a
+  // tela explica isso. Lido depois de montar: no servidor não existe casca
+  // nativa, e ler no render daria HTML diferente do cliente (hidratação).
   const assinaturaNaLoja = useSyncExternalStore(semAssinatura, isPurchasesAvailable, () => false);
+
+  // Mesma query (mesma chave) do PaywallHost: o preço vem da loja, com a
+  // moeda e o imposto do país da pessoa.
+  const produtos = useQuery({
+    queryKey: ['billing-products', userId],
+    queryFn: () => carregarProdutos(userId),
+    enabled: !!userId && assinaturaNaLoja && !isPro,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const precoPro = produtos.data?.lista.find((p) => p.id === BILLING_PRODUCTS.pro)?.preco ?? null;
 
   return (
     <div className="px-3.5 pt-4 pb-10">
@@ -88,8 +99,7 @@ export function ProView() {
         </div>
       ) : null}
 
-      {/* Card de troca por pontos (substitui o preço — não há pagamento no app:
-          o PRO é ativado SÓ trocando pontos pelo plano). */}
+      {/* Card do plano: assinatura mensal, preço da loja. */}
       <div
         className="text-center text-white"
         style={{
@@ -101,28 +111,19 @@ export function ProView() {
       >
         <div
           style={{
-            fontSize: 34,
+            fontSize: precoPro ? 34 : 24,
             fontWeight: 800,
             fontFamily: 'var(--font-display)',
-            lineHeight: 1,
+            lineHeight: 1.1,
           }}
         >
-          {PRO_POINTS_COST} pontos
-          <span style={{ fontSize: 16, fontWeight: 400 }}> = 1 mês PRO</span>
+          {precoPro ?? 'Assinatura mensal'}
+          {precoPro && <span style={{ fontSize: 16, fontWeight: 400 }}> / mês</span>}
         </div>
         <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
-          Junte pontos e troque pelo plano PRO
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            marginTop: 10,
-            paddingTop: 10,
-            borderTop: '1px solid rgba(255,255,255,.25)',
-          }}
-        >
-          🎁 A cada indicação que entra no app, você ganha {REFERRAL_POINTS} pontos
+          {precoPro
+            ? 'Cobrado pela loja. Cancele quando quiser.'
+            : 'O preço aparece na hora de assinar, direto da loja do seu celular.'}
         </div>
       </div>
 
@@ -160,8 +161,7 @@ export function ProView() {
         ))}
       </div>
 
-      {/* Ativação do PRO — EXCLUSIVAMENTE pela troca de pontos (sem pagamento
-          no app). O botão leva pra /pontos, onde a troca é atômica via RPC. */}
+      {/* Ativação do PRO: assinatura pela loja, só no app instalado. */}
       {isPro ? (
         <div
           className="w-full text-center text-white font-bold"
@@ -174,6 +174,21 @@ export function ProView() {
         >
           Você já é PRO
         </div>
+      ) : assinaturaNaLoja ? (
+        <button
+          type="button"
+          onClick={() => abrirPaywall('planos')}
+          className="block w-full text-center text-white font-bold"
+          style={{
+            padding: 16,
+            background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+            borderRadius: 14,
+            fontSize: 16,
+            boxShadow: '0 6px 20px rgba(255,107,53,.35)',
+          }}
+        >
+          ⚡ Assinar o PRO
+        </button>
       ) : (
         <div
           style={{
@@ -181,60 +196,19 @@ export function ProView() {
             background: 'var(--color-bg)',
             border: '1px solid var(--color-border)',
             borderRadius: 14,
-            marginBottom: 12,
           }}
         >
-          {assinaturaNaLoja && (
-            <button
-              type="button"
-              onClick={() => abrirPaywall('planos')}
-              className="block w-full text-center text-white font-bold"
-              style={{
-                padding: 16,
-                background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
-                borderRadius: 14,
-                fontSize: 16,
-                marginBottom: 14,
-                boxShadow: '0 6px 20px rgba(255,107,53,.35)',
-              }}
-            >
-              ⚡ Assinar o PRO
-            </button>
-          )}
           <div
             className="font-bold"
             style={{ fontSize: 14, color: 'var(--color-ink)', marginBottom: 6 }}
           >
-            {assinaturaNaLoja ? 'Ou troque seus pontos' : 'Como ativar o PRO'}
+            Como assinar o PRO
           </div>
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--color-muted)',
-              lineHeight: 1.6,
-              margin: '0 0 14px',
-            }}
-          >
-            {assinaturaNaLoja
-              ? 'Também dá pra ganhar o PRO sem pagar: '
-              : 'Aqui o PRO é ativado trocando seus pontos pelo plano (a assinatura é pelo app instalado). '}
-            Junte pontos convidando amigos e usando o app, e troque{' '}
-            <b>{PRO_POINTS_COST} pontos por 1 mês de PRO</b>. A ativação é instantânea.
+          <p style={{ fontSize: 13, color: 'var(--color-muted)', lineHeight: 1.6, margin: 0 }}>
+            A assinatura é feita pelo app QueroUmaCor instalado no celular
+            (Google Play ou App Store). Abra o app, entre nesta tela e toque em{' '}
+            <b>Assinar o PRO</b>.
           </p>
-          <Link
-            href="/pontos"
-            className="block w-full text-center text-white font-bold"
-            style={{
-              padding: 16,
-              background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
-              borderRadius: 14,
-              fontSize: 16,
-              textDecoration: 'none',
-              boxShadow: '0 6px 20px rgba(255,107,53,.35)',
-            }}
-          >
-            🎁 Trocar pontos por PRO
-          </Link>
         </div>
       )}
 
@@ -247,7 +221,7 @@ export function ProView() {
           lineHeight: 1.5,
         }}
       >
-        Ao ativar o PRO, você concorda com os{' '}
+        Ao assinar o PRO, você concorda com os{' '}
         <Link
           href="/info/termos"
           style={{ color: 'var(--color-p1)', textDecoration: 'underline' }}
@@ -262,9 +236,8 @@ export function ProView() {
           Privacidade
         </Link>
         .{' '}
-        {assinaturaNaLoja
-          ? 'A assinatura é cobrada pela loja e renova todo mês até você cancelar nas configurações da loja.'
-          : 'Fora do app, o PRO é ativado pela troca de pontos.'}
+        A assinatura é cobrada pela loja e renova todo mês até você cancelar
+        nas configurações da loja.
       </p>
 
       {/* Dúvidas sobre o PRO — canal de atendimento da loja. */}
@@ -295,8 +268,8 @@ export function ProView() {
             margin: 0,
           }}
         >
-          O PRO é ativado pela troca de pontos, direto no app. Para dúvidas
-          sobre pontos ou sobre o plano, fale com a gente pelo WhatsApp{' '}
+          Para dúvidas sobre o plano ou a cobrança, fale com a gente pelo
+          WhatsApp{' '}
           <a
             href={STORE_WHATSAPP}
             target="_blank"

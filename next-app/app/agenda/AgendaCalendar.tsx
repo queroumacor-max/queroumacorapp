@@ -235,7 +235,7 @@ export function AgendaCalendar() {
   // O gate server-side (gateProAI em /api/agenda-order) continua como defesa.
   function handleOptimize() {
     if (!canSeeProFeature(policyUser)) {
-      showToast('Otimizar dia é um recurso PRO. Troque seus pontos pelo plano PRO.', 'info');
+      showToast('Otimizar dia é um recurso PRO. Assine o PRO pra usar.', 'info');
       router.push('/pro');
       return;
     }

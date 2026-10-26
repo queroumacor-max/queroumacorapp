@@ -248,10 +248,8 @@ export function AiArtStudio() {
           🚫
         </div>
         <h2 className="font-semibold mb-2">Limite diário atingido</h2>
-        {/* Sem copy de compra/preço aqui de propósito: o PRO é ativado SÓ por
-            pontos (não há pagamento no app), então "assine"/"compre pacote"
-            além de errado quebrava a compliance de loja (Apple 3.1.1 / Play).
-            Free vira PRO trocando pontos; quem já é PRO só espera o dia virar. */}
+        {/* Sem preço aqui: quem compra é o paywall, com o preço da loja.
+            Quem já é PRO só espera o dia virar. */}
         <p className="text-sm text-[color:var(--color-muted)] mb-4">
           {isPro
             ? 'Você usou as 2 artes incluídas de hoje. Volta amanhã pra continuar.'
@@ -282,8 +280,7 @@ export function AiArtStudio() {
           </span>
           {creditsBadge}
         </div>
-        {/* Só oferece o PRO pra quem NÃO é PRO — e sem "pacote"/preço (o PRO
-            é por pontos). Pra quem já é PRO, nada a comprar. */}
+        {/* Só oferece o PRO pra quem NÃO é PRO. Pra quem já é PRO, nada a comprar. */}
         {!isAdminUser && !isPro && ai.creditsLeft <= 1 ? (
           <Link
             href="/pro"

@@ -141,6 +141,18 @@
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
 
+- **/pro SEM PONTOS (2026-10-26, pedido do usuário com print: "tirar essa
+  questão dos pontos, pq agora é pelos valores"). SEM SQL.** O card "1000
+  pontos = 1 mês PRO" e o botão "Trocar pontos por PRO" SAÍRAM da /pro. O card
+  mostra o preço do `quotes_unlimited` VINDO DA LOJA (mesma query
+  `['billing-products', uid]` do PaywallHost) ou "Assinatura mensal" sem
+  preço; CTA = "Assinar o PRO" (paywall) no app, e no site o texto "assine
+  pelo app instalado". Toasts de Agenda/Anotações/Calculadora e o banner do
+  perfil trocaram "troque seus pontos" por "assine o PRO". **NÃO mexido (decidir
+  com o usuário):** a página `/pontos` com a troca `redeem_pro_with_points`
+  continua existindo, pontos por indicação continuam, e o item 13 dos Termos
+  ainda cita a troca de pontos.
+
 - **CODEMAGIC: Node 22 + Gradle do Capacitor 8 (2026-10-25, pedido do
   usuário: build #9 do `android-aab` falhou no `cap sync` com "Capacitor CLI
   requires NodeJS >=22.0.0").** `node: 20` → `22` no `android-aab` E no

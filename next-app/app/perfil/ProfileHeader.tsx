@@ -363,7 +363,7 @@ export function ProfileHeader() {
                   Ative o Plano PRO
                 </div>
                 <div className="text-xs text-[color:var(--color-white-fixed)]/75 mt-0.5">
-                  Destaque-se e receba mais clientes · troque pontos por PRO
+                  Destaque-se e receba mais clientes · assine o PRO
                 </div>
               </div>
               <div className="text-xl text-[color:var(--color-white-fixed)]/60">›</div>

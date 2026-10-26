@@ -89,7 +89,7 @@ export function InviteSection() {
               lineHeight: 1.5,
             }}
           >
-            Convide alguém e ganhe pontos para trocar por PRO.
+            Convide alguém e ganhe pontos.
           </div>
         </div>
       </div>
