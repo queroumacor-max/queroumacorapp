@@ -147,7 +147,8 @@
   `redeemProWithPoints` apagada, Termos (item 13) / Termos do Cliente / Ajuda
   sem a troca (data 26/10/2026), tile "Meus Pontos" e o tour sem "ganhar PRO".
   Pontos por indicação/compra CONTINUAM (servem pros outros prêmios). **SQL
-  `migrations/2026-10-26-revoke-redeem-pro-with-points.sql` — PENDENTE:**
+  `migrations/2026-10-26-revoke-redeem-pro-with-points.sql` — JÁ RODADO
+  (2026-10-26, usuário: "feito"). Não pedir pra rodar de novo.**
   revoga o EXECUTE da RPC (sem ele, quem chama o REST direto ainda troca pontos
   por PRO). Linha na `2026-09-05-conferencia-pendencias.sql`.
 
