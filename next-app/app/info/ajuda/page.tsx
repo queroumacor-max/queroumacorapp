@@ -30,7 +30,7 @@ export default function AjudaPage() {
       />
       <FaqItem
         q="O app é gratuito?"
-        a="Criar uma conta e usar as funções principais é gratuito. Toda conta começa com 5 orçamentos e 1 obra grátis, e você pode experimentar cada ferramenta com IA de graça. Depois, no app instalado pela Google Play ou App Store, dá pra comprar créditos avulsos ou assinar o Plano PRO (orçamentos e obras ilimitados + as ferramentas com IA), pelo preço mostrado na loja. O PRO também pode ser ativado trocando pontos, que você ganha convidando amigos e usando o app."
+        a="Criar uma conta e usar as funções principais é gratuito. Toda conta começa com 5 orçamentos e 1 obra grátis, e você pode experimentar cada ferramenta com IA de graça. Depois, no app instalado pela Google Play ou App Store, dá pra comprar créditos avulsos ou assinar o Plano PRO (orçamentos e obras ilimitados + as ferramentas com IA), pelo preço mostrado na loja."
       />
       <FaqItem
         q="Como adiciono fotos ao meu portfólio?"

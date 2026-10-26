@@ -241,9 +241,7 @@ export function EntryForm({
               type="button"
               onClick={() => {
                 if (!isPro) {
-                  // PRO é só por pontos (sem pagamento no app) — "assine"
-                  // saiu por compliance de loja (Apple 3.1.1 / Play).
-                  showToast('OCR de recibo é PRO — ative com seus pontos', 'info');
+                  showToast('OCR de recibo é PRO — assine o PRO pra usar', 'info');
                   return;
                 }
                 receiptInputRef.current?.click();

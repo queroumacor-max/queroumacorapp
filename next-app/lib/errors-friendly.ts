@@ -93,7 +93,7 @@ const PATTERNS: ReadonlyArray<Pattern> = [
     match: /insufficient.*points|saldo insuficiente/i,
     friendly: {
       title: 'Pontos insuficientes',
-      message: 'Você precisa de mais pontos pra trocar por PRO.',
+      message: 'Você precisa de mais pontos pra esse resgate.',
       actionable: 'Como ganhar pontos',
     },
   },

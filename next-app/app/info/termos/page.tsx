@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 26 de outubro de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -162,13 +162,7 @@ export default function TermosPage() {
         feitas na mesma conta da loja.
       </LegalP>
       <LegalP>
-        Também é possível obter o PRO <b>trocando pontos</b> acumulados no
-        aplicativo (por exemplo, por indicações e pelo uso do app): você troca
-        a quantidade de pontos indicada por um período de acesso PRO, sem
-        pagamento e sem renovação automática.
-      </LegalP>
-      <LegalP>
-        Em caso de dúvida sobre pontos ou sobre o Plano PRO, entre em contato
+        Em caso de dúvida sobre o Plano PRO ou sobre compras, entre em contato
         com o suporte da Cali Colors pelo WhatsApp <b>(11) 95976-5031</b> ou
         pelo e-mail <b>loja@calicolors.com.br</b>.
       </LegalP>
