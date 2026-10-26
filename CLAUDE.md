@@ -146,6 +146,9 @@
   PRO extra" do `/pontos` (ficam camiseta e R$30 de cashback, por WhatsApp),
   `redeemProWithPoints` apagada, Termos (item 13) / Termos do Cliente / Ajuda
   sem a troca (data 26/10/2026), tile "Meus Pontos" e o tour sem "ganhar PRO".
+  **NO AR: PR #492 (squash `850dbbb`), deploy run #781 `success` (2ª
+  tentativa — a 1ª caiu no soluço da fonte do Google).** /pro sem pontos: PR
+  #491, deploy #780 `success`.
   Pontos por indicação/compra CONTINUAM (servem pros outros prêmios). **SQL
   `migrations/2026-10-26-revoke-redeem-pro-with-points.sql` — JÁ RODADO
   (2026-10-26, usuário: "feito"). Não pedir pra rodar de novo.**
