@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 26 de outubro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 28 de outubro de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -140,15 +140,17 @@ export default function TermosPage() {
         na Gestão de Obras. Um orçamento é contado quando você o grava; uma
         obra, quando você a cria (editar não conta). Depois disso, no
         aplicativo instalado pela Google Play ou pela App Store, é possível
-        comprar créditos avulsos (1 orçamento, pacote de 40 orçamentos ou 1
-        obra extra) ou assinar o <b>Plano PRO</b>, que libera orçamentos e
-        obras ilimitados e as ferramentas com inteligência artificial
-        enquanto a assinatura estiver ativa. Créditos avulsos não vencem.
+        comprar <b>créditos</b> (avulso, com 1 crédito, ou o pacote
+        Iniciante, com 40) ou assinar o <b>Plano PRO</b>, que libera
+        orçamentos, obras e as ferramentas com inteligência artificial sem
+        limite enquanto a assinatura estiver ativa. Cada crédito vale 1
+        orçamento, 1 obra ou 1 uso de uma ferramenta com inteligência
+        artificial. Créditos não vencem.
       </LegalP>
       <LegalP>
-        As ferramentas com inteligência artificial fazem parte do PRO. Quem
-        não é PRO pode experimentar cada uma delas gratuitamente, em
-        quantidade limitada, uma vez por conta.
+        Quem não é PRO pode experimentar cada ferramenta com inteligência
+        artificial gratuitamente, em quantidade limitada, uma vez por conta.
+        Depois do teste, cada uso gasta 1 crédito.
       </LegalP>
       <LegalP>
         <b>Os preços são os exibidos pela loja de aplicativos</b> no momento

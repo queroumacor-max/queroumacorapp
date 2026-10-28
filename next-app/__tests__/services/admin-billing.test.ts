@@ -24,7 +24,7 @@ describe('montarRelatorioDeCompras', () => {
         { user_id: U1, free_quotes: 2, quote_credits: 39, free_obras: 1, obra_credits: 0 },
         { user_id: U2, free_quotes: 5, quote_credits: 0, free_obras: 0, obra_credits: 0, unlimited_until: '2026-11-24T00:00:00Z', unlimited_status: 'active' },
       ],
-      debitos: [{ kind: 'quote', fonte: 'free' }, { kind: 'quote', fonte: 'free' }, { kind: 'quote', fonte: 'credit' }, { kind: 'obra', fonte: 'unlimited' }],
+      debitos: [{ kind: 'quote', fonte: 'free' }, { kind: 'quote', fonte: 'free' }, { kind: 'quote', fonte: 'credit' }, { kind: 'obra', fonte: 'unlimited' }, { kind: 'ai', fonte: 'credit' }],
       config: { enforce: false, free_quotes: 5, free_obras: 1 },
       perfis,
     },
@@ -36,17 +36,17 @@ describe('montarRelatorioDeCompras', () => {
   });
   it('valor cobrado vem do raw; sem ele, preço de tabela marcado como estimado', () => {
     expect(rel.compras.find((c) => c.id === 1)!.valor).toEqual({ amount: 29.9, currency: 'BRL', estimado: false });
-    expect(rel.compras.find((c) => c.id === 2)!.valor).toEqual({ amount: 1, currency: 'BRL', estimado: true });
+    expect(rel.compras.find((c) => c.id === 2)!.valor).toEqual({ amount: 2.5, currency: 'BRL', estimado: true });
   });
   it('teste (sandbox) e reembolso ficam fora da contagem de vendas', () => {
     expect(rel.totais.compras).toBe(3); // 1 (pacote), 4 (PRO ativo), 5
     expect(rel.totais.comprasTeste).toBe(1);
     expect(rel.totais.reembolsos).toBe(1);
     expect(rel.totais.receitaPorMoeda).toEqual({ BRL: 29.9 });
-    expect(rel.totais.receitaEstimadaBrl).toBe(90.8);
+    expect(rel.totais.receitaEstimadaBrl).toBe(92.4); // 29,90 + 60 (PRO) + 2,50 (avulso)
   });
   it('assinatura: o status é o estado mandado pela loja', () => {
-    expect(rel.compras.find((c) => c.id === 4)).toMatchObject({ tipo: 'assinatura', status: 'active', produtoRotulo: 'PRO mensal' });
+    expect(rel.compras.find((c) => c.id === 4)).toMatchObject({ tipo: 'assinatura', status: 'active', produtoRotulo: 'PRO ilimitado (mensal)' });
   });
   it('pessoa: nome do negócio primeiro; conta sem perfil não some', () => {
     expect(rel.compras.find((c) => c.id === 3)!.pessoa).toMatchObject({ nome: 'Bia Pinturas', tag: 'bia' });
@@ -55,7 +55,7 @@ describe('montarRelatorioDeCompras', () => {
   it('assinantes, saldos comprados e uso por fonte', () => {
     expect(rel.totais.assinantesAtivos).toBe(1);
     expect(rel.saldos.map((s) => s.pessoa!.id)).toEqual([U1]);
-    expect(rel.uso).toEqual({ orcamentos: { free: 2, credit: 1 }, obras: { unlimited: 1 } });
+    expect(rel.uso).toEqual({ orcamentos: { free: 2, credit: 1 }, obras: { unlimited: 1 }, ia: { credit: 1 } });
     expect(rel.avisos.join(' ')).toMatch(/DESLIGADA/);
   });
 });

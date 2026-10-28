@@ -9130,15 +9130,14 @@ const ComprasApp = () => {
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0', borderTop: i ? '1px solid '+C.border : 'none' }}>
                   <div style={{ fontSize:12 }}><Pessoa p={s.pessoa} /></div>
                   <div style={{ textAlign:'right', fontSize:12, whiteSpace:'nowrap' }}>
-                    <div><b>{s.orcamentosCreditos}</b> orç.</div>
-                    <div><b>{s.obrasCreditos}</b> obras</div>
+                    <div><b>{s.orcamentosCreditos + s.obrasCreditos}</b> crédito{s.orcamentosCreditos + s.obrasCreditos === 1 ? '' : 's'}</div>
                   </div>
                 </div>
               ))}
             </div>
             <div style={{ ...card, marginBottom:0 }}>
               <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:8 }}>📉 De onde saiu cada uso</div>
-              {[['🧾 Orçamentos gravados', rel.uso.orcamentos], ['🏗️ Obras criadas', rel.uso.obras]].map(([rot, u]) => (
+              {[['🧾 Orçamentos gravados', rel.uso.orcamentos], ['🏗️ Obras criadas', rel.uso.obras], ['✨ Usos de IA pagos com crédito', rel.uso.ia || {}]].map(([rot, u]) => (
                 <div key={rot} style={{ marginBottom:10 }}>
                   <div style={{ fontSize:12, fontWeight:600, color:C.ink }}>{rot}</div>
                   <div style={{ fontSize:12, color:C.muted }}>grátis: <b style={{ color:C.ink }}>{u.free || 0}</b> · crédito comprado: <b style={{ color:C.ink }}>{u.credit || 0}</b> · PRO ilimitado: <b style={{ color:C.ink }}>{u.unlimited || 0}</b></div>

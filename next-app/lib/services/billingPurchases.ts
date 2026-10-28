@@ -47,7 +47,9 @@ export interface CargaDeProdutos {
   problema: string | null;
 }
 
-const IDS_CONSUMIVEIS = [BILLING_PRODUCTS.quote1, BILLING_PRODUCTS.quotePack40, BILLING_PRODUCTS.obra1];
+// `obra_1` saiu da tela com o crédito único (2026-10-28): não é pedido à
+// loja, senão a falta dele (produto desativado) apareceria como problema.
+const IDS_CONSUMIVEIS = [BILLING_PRODUCTS.quote1, BILLING_PRODUCTS.quotePack40];
 const IDS_ASSINATURAS = [BILLING_PRODUCTS.pro];
 
 /**

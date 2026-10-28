@@ -7,12 +7,14 @@ desligada).
 
 ## 1. O que está à venda
 
+**Crédito único (2026-10-28):** 1 crédito vale 1 orçamento, OU 1 obra, OU 1 uso de ferramenta com IA (depois do teste grátis). O grátis não muda (5 orçamentos + 1 obra + 1 teste por IA). Os IDs foram mantidos: na loja mude só o **nome e a descrição** do produto.
+
 | ID do produto (igual nas duas lojas) | Tipo na loja | O que dá | Preço que você definiu |
 |---|---|---|---|
-| `quote_1` | Consumível (Google: *produto no app* / Apple: *Consumable*) | +1 orçamento | R$ 1,00 |
-| `quote_pack_40` | Consumível | +40 orçamentos | R$ 29,90 |
-| `obra_1` | Consumível | +1 obra na Gestão de Obras | R$ 2,90 |
-| `quotes_unlimited` | Assinatura mensal (Google: *assinatura* com plano base mensal / Apple: *Auto-Renewable Subscription*, 1 mês) | PRO completo: orçamentos e obras ilimitados + ferramentas com IA | R$ 59,90/mês |
+| `quote_1` | Consumível (Google: *produto no app* / Apple: *Consumable*) | **Avulso**: +1 crédito | R$ 2,50 |
+| `quote_pack_40` | Consumível | **Iniciante**: +40 créditos | a definir |
+| `obra_1` | Consumível (**saiu da tela em 28/10** — pode desativar na loja) | +1 crédito (compras antigas) | — |
+| `quotes_unlimited` | Assinatura mensal (Google: *assinatura* com plano base mensal / Apple: *Auto-Renewable Subscription*, 1 mês) | **PRO ilimitado**: orçamentos, obras e ferramentas com IA sem limite | R$ 60,00/mês |
 
 - **O preço vale o que estiver na loja.** O app mostra o preço que a loja
   devolve; não há preço no código.
@@ -121,7 +123,7 @@ ninguém é barrado nem debitado; a tela do orçamento continua só para PRO
 ## 8. Como testar
 
 1. Conta nova: grave 5 orçamentos; o 6º abre a tela de compra.
-2. Compre `quote_1` (testador de licença): o saldo vira "1 comprado".
+2. Compre `quote_1` (testador de licença): o saldo vira "1 crédito".
 3. Compre a assinatura: aparece "Você é PRO", o selo PRO acende e as
    ferramentas PRO abrem.
 4. Desinstale, instale, entre na mesma conta → **Restaurar compras**.

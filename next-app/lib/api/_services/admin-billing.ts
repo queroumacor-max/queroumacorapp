@@ -12,19 +12,25 @@
 import { buscarTabela, type Linha } from './admin-stats';
 import { BILLING_PRODUCTS } from '../../billingBalance';
 
+// Crédito único (2026-10-28): quote_1 = Avulso (1 crédito), quote_pack_40 =
+// Iniciante (40 créditos). obra_1 saiu da tela; compra antiga dele vale 1.
 export const ROTULO_PRODUTO: Record<string, string> = {
-  [BILLING_PRODUCTS.quote1]: '1 orçamento',
-  [BILLING_PRODUCTS.quotePack40]: 'Pacote 40 orçamentos',
-  [BILLING_PRODUCTS.obra1]: '1 obra extra',
-  [BILLING_PRODUCTS.pro]: 'PRO mensal',
+  [BILLING_PRODUCTS.quote1]: 'Avulso (1 crédito)',
+  [BILLING_PRODUCTS.quotePack40]: 'Iniciante (40 créditos)',
+  [BILLING_PRODUCTS.obra1]: '1 obra extra (antigo)',
+  [BILLING_PRODUCTS.pro]: 'PRO ilimitado (mensal)',
 };
 
-/** Preço de tabela decidido em 25/10 (R$). Só estimativa: quem cobra é a loja. */
+/**
+ * Preço de tabela (R$). Só estimativa: quem cobra é a loja. Avulso R$2,50 e
+ * PRO R$60 decididos em 28/10; o Iniciante segue no valor de 25/10 até o
+ * usuário definir o novo.
+ */
 export const PRECO_TABELA_BRL: Record<string, number> = {
-  [BILLING_PRODUCTS.quote1]: 1.0,
+  [BILLING_PRODUCTS.quote1]: 2.5,
   [BILLING_PRODUCTS.quotePack40]: 29.9,
   [BILLING_PRODUCTS.obra1]: 2.9,
-  [BILLING_PRODUCTS.pro]: 59.9,
+  [BILLING_PRODUCTS.pro]: 60,
 };
 
 export interface PessoaResumo {
@@ -79,7 +85,7 @@ export interface RelatorioCompras {
     receitaEstimadaBrl: number;
     porProduto: Record<string, number>;
   };
-  uso: { orcamentos: Record<string, number>; obras: Record<string, number> };
+  uso: { orcamentos: Record<string, number>; obras: Record<string, number>; ia: Record<string, number> };
   compras: CompraLinha[];
   assinantes: AssinanteLinha[];
   saldos: SaldoLinha[];
@@ -193,9 +199,9 @@ export function montarRelatorioDeCompras(d: DadosCompras, agora: number = Date.n
   assinantes.sort((a, b) => Number(b.ativo) - Number(a.ativo) || (Date.parse(b.ate || '') || 0) - (Date.parse(a.ate || '') || 0));
   saldos.sort((a, b) => b.orcamentosCreditos + b.obrasCreditos - (a.orcamentosCreditos + a.obrasCreditos));
 
-  const uso = { orcamentos: {} as Record<string, number>, obras: {} as Record<string, number> };
+  const uso = { orcamentos: {} as Record<string, number>, obras: {} as Record<string, number>, ia: {} as Record<string, number> };
   for (const u of d.debitos) {
-    const alvo = u.kind === 'obra' ? uso.obras : uso.orcamentos;
+    const alvo = u.kind === 'obra' ? uso.obras : u.kind === 'ai' ? uso.ia : uso.orcamentos;
     const fonte = String(u.fonte || '?');
     alvo[fonte] = (alvo[fonte] || 0) + 1;
   }

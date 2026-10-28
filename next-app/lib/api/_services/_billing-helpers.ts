@@ -443,3 +443,42 @@ export async function claimAiTrialViaRest(args: {
     return negado;
   }
 }
+
+/**
+ * Gasta 1 CRÉDITO num uso de IA, depois que o teste grátis acabou (RPC
+ * `debit_ai_credit`, só service_role — migration 2026-10-28-billing-
+ * credito-unico.sql). Crédito único: o mesmo saldo paga orçamento, obra
+ * e IA. Falha FECHADA igual ao teste: banco fora ou SQL pendente = sem
+ * crédito (403), nunca IA de graça.
+ */
+export async function debitAiCreditViaRest(args: {
+  supaUrl: string;
+  serviceKey: string;
+  userId: string;
+  feature: string;
+}): Promise<'credit' | 'unlimited' | 'empty'> {
+  const { supaUrl, serviceKey, userId, feature } = args;
+  if (!supaUrl || !serviceKey || !userId) return 'empty';
+  try {
+    const res = await fetch(`${supaUrl}/rest/v1/rpc/debit_ai_credit`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_user: userId, p_feature: feature }),
+      signal: AbortSignal.timeout(SUPA_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.warn(`debitAiCreditViaRest: rpc ${res.status} - ${t.slice(0, 200)}`);
+      return 'empty';
+    }
+    const data = await res.json().catch(() => null);
+    return data === 'credit' || data === 'unlimited' ? data : 'empty';
+  } catch (e) {
+    console.warn('debitAiCreditViaRest: exceção', e instanceof Error ? e.message : e);
+    return 'empty';
+  }
+}

@@ -1,4 +1,6 @@
-// PaywallHost — tela de compra (orçamentos, obras e assinatura PRO).
+// PaywallHost — tela de compra (créditos e assinatura PRO).
+// Crédito único (2026-10-28): 1 crédito vale 1 orçamento, 1 obra ou 1 uso
+// de IA. Opções, nesta ordem: Avulso (1), Iniciante (40), PRO ilimitado.
 //
 // Montado no AppShell; abre pelo evento `abrirPaywall(motivo)` de qualquer
 // lugar: orçamento sem saldo, obra sem saldo, teste grátis de IA acabou,
@@ -17,7 +19,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { showToast } from '@/lib/toast';
-import { BILLING_PRODUCTS, FREE_QUOTES, FREE_OBRAS, resumoDoSaldo, ilimitadoAtivo } from '@/lib/billingBalance';
+import { BILLING_PRODUCTS, FREE_QUOTES, FREE_OBRAS, creditos, ilimitadoAtivo, textoCreditos } from '@/lib/billingBalance';
 import { PAYWALL_EVENT, type MotivoPaywall } from '@/lib/paywallEvents';
 import {
   carregarProdutos,
@@ -37,26 +39,22 @@ const TITULO: Record<MotivoPaywall, string> = {
   planos: 'Planos e créditos',
 };
 
+const SUBTITULO_COMUM = 'Cada crédito vale 1 orçamento, 1 obra ou 1 uso de ferramenta com IA.';
 const SUBTITULO: Record<MotivoPaywall, string> = {
-  quote: 'Compre mais orçamentos ou assine o PRO e grave quantos quiser.',
-  obra: 'Compre uma obra extra ou assine o PRO e cadastre quantas quiser.',
-  ia: 'As ferramentas com inteligência artificial fazem parte do PRO.',
-  planos: 'Escolha o que faz sentido pra você. Dá pra mudar depois.',
+  quote: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  obra: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  ia: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  planos: SUBTITULO_COMUM,
 };
 
 const ROTULO: Record<string, { nome: string; detalhe: string }> = {
-  [BILLING_PRODUCTS.pro]: { nome: 'PRO completo', detalhe: 'Orçamentos e obras ilimitados + todas as ferramentas com IA. Renova por mês; cancele quando quiser.' },
-  [BILLING_PRODUCTS.quotePack40]: { nome: 'Pacote com 40 orçamentos', detalhe: 'Créditos que não vencem.' },
-  [BILLING_PRODUCTS.quote1]: { nome: '1 orçamento', detalhe: 'Pra quando você precisa de só mais um.' },
-  [BILLING_PRODUCTS.obra1]: { nome: '1 obra extra', detalhe: 'Cadastre mais uma obra na Gestão de Obras.' },
+  [BILLING_PRODUCTS.quote1]: { nome: 'Avulso · 1 crédito', detalhe: 'Pra 1 orçamento, 1 obra ou 1 uso de IA.' },
+  [BILLING_PRODUCTS.quotePack40]: { nome: 'Iniciante · 40 créditos', detalhe: 'Use em orçamentos, obras e ferramentas com IA. Não vencem.' },
+  [BILLING_PRODUCTS.pro]: { nome: 'PRO ilimitado', detalhe: 'Orçamentos, obras e todas as ferramentas com IA sem limite. Renova por mês; cancele quando quiser.' },
 };
 
-function ordemPara(motivo: MotivoPaywall): string[] {
-  if (motivo === 'obra') return [BILLING_PRODUCTS.obra1, BILLING_PRODUCTS.pro];
-  if (motivo === 'ia') return [BILLING_PRODUCTS.pro];
-  if (motivo === 'quote') return [BILLING_PRODUCTS.pro, BILLING_PRODUCTS.quotePack40, BILLING_PRODUCTS.quote1];
-  return [BILLING_PRODUCTS.pro, BILLING_PRODUCTS.quotePack40, BILLING_PRODUCTS.quote1, BILLING_PRODUCTS.obra1];
-}
+/** Mesma ordem em qualquer motivo: Avulso, Iniciante, PRO ilimitado. */
+const ORDEM: string[] = [BILLING_PRODUCTS.quote1, BILLING_PRODUCTS.quotePack40, BILLING_PRODUCTS.pro];
 
 export function PaywallHost() {
   const [motivo, setMotivo] = useState<MotivoPaywall | null>(null);
@@ -147,9 +145,9 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
 
   const ocupado = vooCompra.busy || vooRestaurar.busy;
   const b = saldo.data;
-  const lista = (produtos.data?.lista || []).slice().sort(
-    (x, y) => ordemPara(motivo).indexOf(x.id) - ordemPara(motivo).indexOf(y.id),
-  ).filter((p) => ordemPara(motivo).includes(p.id));
+  const lista = (produtos.data?.lista || [])
+    .filter((p) => ORDEM.includes(p.id))
+    .sort((x, y) => ORDEM.indexOf(x.id) - ORDEM.indexOf(y.id));
 
   return (
     <div
@@ -179,11 +177,11 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
         {b && (
           <div className="mt-4 rounded-xl p-3 text-sm" style={{ background: 'var(--color-bg)', color: 'var(--color-ink)' }}>
             {ilimitadoAtivo(b) ? (
-              <p className="font-semibold">⚡ Você é PRO: orçamentos e obras ilimitados.</p>
+              <p className="font-semibold">⚡ Você é PRO: tudo ilimitado.</p>
             ) : (
               <>
-                <p>🧾 Orçamentos: <b>{resumoDoSaldo(b, 'quote')}</b></p>
-                <p className="mt-1">🏗️ Obras: <b>{resumoDoSaldo(b, 'obra')}</b></p>
+                <p>💳 Seus créditos: <b>{textoCreditos(creditos(b))}</b></p>
+                <p className="mt-1">🎁 Grátis: <b>{b.freeQuotes} orçamento{b.freeQuotes === 1 ? '' : 's'} · {b.freeObras} obra{b.freeObras === 1 ? '' : 's'}</b></p>
               </>
             )}
           </div>

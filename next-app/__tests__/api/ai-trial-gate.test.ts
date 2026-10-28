@@ -1,7 +1,7 @@
 // Teste grátis das IAs (2026-10-25): quem não é PRO ganha 1 uso por
 // ferramenta (3 nos chats), contado no servidor pela RPC claim_ai_trial.
 import { afterEach, describe, expect, it } from 'vitest';
-import { gateProAI, ERR_PRO_ONLY } from '../../lib/api/security';
+import { gateProAI, ERR_SEM_CREDITO } from '../../lib/api/security';
 import { regraDeTeste, PRO_REQUIRED_CODE } from '../../lib/aiTrial';
 import { installAuthMocks, type InstalledMocks } from './_helpers';
 
@@ -61,12 +61,28 @@ describe('gateProAI com teste grátis', () => {
     expect(JSON.parse(String(claim?.init?.body))).toMatchObject({ p_feature: 'senna', p_limit: 3 });
   });
 
-  it('teste esgotado → 403 com o código do paywall', async () => {
+  it('teste esgotado e sem crédito → 403 com o código do paywall', async () => {
     mocks = installAuthMocks({ pro: false, fetchRest: trialResposta(false, 1, 1) });
     const res = (await gateProAI(req(), { accessToken: 't' }, { endpoint: 'caption' })) as Response;
     expect(res.status).toBe(403);
     const json = await res.json();
-    expect(json).toMatchObject({ error: ERR_PRO_ONLY, code: PRO_REQUIRED_CODE });
+    expect(json).toMatchObject({ error: ERR_SEM_CREDITO, code: PRO_REQUIRED_CODE });
+    const debito = mocks.calls.find((c) => c.url.includes('debit_ai_credit'));
+    expect(JSON.parse(String(debito?.init?.body))).toMatchObject({ p_feature: 'caption' });
+  });
+
+  it('teste esgotado com crédito → passa e gasta 1 crédito (crédito único)', async () => {
+    const trial = trialResposta(false, 1, 1);
+    mocks = installAuthMocks({
+      pro: false,
+      fetchRest: async (url: string, init?: RequestInit) =>
+        url.includes('debit_ai_credit')
+          ? new Response(JSON.stringify('credit'), { status: 200, headers: { 'Content-Type': 'application/json' } })
+          : trial(url, init),
+    });
+    const res = await gateProAI(req(), { accessToken: 't' }, { endpoint: 'caption' });
+    expect(res).not.toBeInstanceOf(Response);
+    expect((res as { trial?: unknown }).trial).toBeUndefined();
   });
 
   it('RPC fora do ar → 403 (fechado: a rota já era só PRO)', async () => {
