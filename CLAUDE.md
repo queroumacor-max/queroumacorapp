@@ -160,6 +160,10 @@
   → só 5). Sem o SQL: IA sem teste segue 403 (fail-closed) e o saldo de
   obra antigo não soma. Linha na `2026-09-05-conferencia-pendencias.sql`.
   Portal v=20261028a (créditos + linha "usos de IA").
+  **CÓDIGO NO AR: PR #494 (squash `f594a98`), deploy run #783 `success` na
+  2ª tentativa** (a 1ª parou no smoke: `/info/sobre` deu Cloudflare 1102
+  "Worker exceeded resource limits" no preview — página não tocada, as
+  outras 4 rotas OK; refazer passou). SQL passado no chat.
 
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
