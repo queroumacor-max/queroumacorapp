@@ -32,7 +32,7 @@ const STORE_WHATSAPP = 'https://wa.me/5511959765031';
 // → Alice), então o texto é genérico e a FOTO vem de `personaForRole`.
 function buildFeatures(personaImage: string): readonly Feature[] {
   return [
-    { icon: '📥', label: 'Orçamentos e obras ilimitados' },
+    { icon: '📥', label: 'Orçamentos, obras e ferramentas com IA sem limite' },
     { icon: '🏆', label: 'Apareça no topo das buscas e do mapa' },
     { icon: '✓', label: 'Badge verificado no perfil' },
     { icon: '📊', label: 'Estatísticas avançadas do perfil' },
@@ -187,7 +187,18 @@ export function ProView() {
         >
           ⚡ Assinar o PRO
         </button>
-      ) : (
+      ) : null}
+      {!isPro && assinaturaNaLoja ? (
+        <button
+          type="button"
+          onClick={() => abrirPaywall('planos')}
+          className="block w-full text-center font-semibold"
+          style={{ marginTop: 10, padding: 12, borderRadius: 14, fontSize: 14, background: 'var(--color-bg)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}
+        >
+          Prefere pagar por uso? Ver créditos avulsos e o pacote Iniciante
+        </button>
+      ) : null}
+      {isPro || assinaturaNaLoja ? null : (
         <div
           style={{
             padding: '16px 16px',

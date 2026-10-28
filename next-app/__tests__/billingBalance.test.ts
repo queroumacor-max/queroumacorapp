@@ -30,6 +30,8 @@ const base: BillingBalance = {
 };
 
 const SQL = readFileSync(join(__dirname, '../../migrations/2026-10-25-billing-balance.sql'), 'utf8');
+// Crédito único (2026-10-28) recria débito/compra/reembolso por cima.
+const SQL_UNICO = readFileSync(join(__dirname, '../../migrations/2026-10-28-billing-credito-unico.sql'), 'utf8');
 
 describe('orçamentos — ordem do débito', () => {
   it('começa com 5 grátis', () => {
@@ -45,12 +47,14 @@ describe('orçamentos — ordem do débito', () => {
     expect(aplicarDebito(d1, 'quote', AGORA)).toMatchObject({ freeQuotes: 0, quoteCredits: 39 });
   });
 
-  it('crédito de orçamento não paga obra (e vice-versa)', () => {
+  it('crédito único: o mesmo crédito paga orçamento e obra', () => {
     const b = { ...base, freeQuotes: 0, freeObras: 0, quoteCredits: 40, obraCredits: 0 };
-    expect(fonteDoProximo(b, 'obra', AGORA)).toBeNull();
+    expect(fonteDoProximo(b, 'obra', AGORA)).toBe('credit');
+    expect(aplicarDebito(b, 'obra', AGORA)).toMatchObject({ quoteCredits: 39 });
+    // saldo antigo de obra (antes de juntar) também paga orçamento
     const c = { ...base, freeQuotes: 0, freeObras: 0, quoteCredits: 0, obraCredits: 2 };
-    expect(fonteDoProximo(c, 'quote', AGORA)).toBeNull();
-    expect(aplicarDebito(c, 'obra', AGORA)).toMatchObject({ obraCredits: 1, quoteCredits: 0 });
+    expect(fonteDoProximo(c, 'quote', AGORA)).toBe('credit');
+    expect(aplicarDebito(c, 'quote', AGORA)).toMatchObject({ obraCredits: 1, quoteCredits: 0 });
   });
 
   it('assinatura ativa não debita nada', () => {
@@ -87,12 +91,14 @@ describe('orçamentos — ordem do débito', () => {
 });
 
 describe('obras', () => {
-  it('1 obra grátis, depois obra_1 compra mais', () => {
+  it('1 obra grátis, depois usa crédito', () => {
     expect(FREE_OBRAS).toBe(1);
     const d = aplicarDebito(base, 'obra', AGORA);
     expect(d.freeObras).toBe(0);
     expect(fonteDoProximo(d, 'obra', AGORA)).toBeNull();
-    expect(creditosDoProduto('obra_1')).toEqual({ kind: 'obra', n: 1 });
+    expect(fonteDoProximo({ ...d, quoteCredits: 1 }, 'obra', AGORA)).toBe('credit');
+    // obra_1 (compra antiga) vira 1 crédito único
+    expect(creditosDoProduto('obra_1')).toEqual({ kind: 'quote', n: 1 });
   });
 });
 
@@ -107,20 +113,32 @@ describe('produtos', () => {
   });
 
   it('o SQL credita o MESMO que o app mostra', () => {
-    for (const [id, { kind, n }] of Object.entries(CREDITOS_POR_PRODUTO)) {
-      expect(SQL).toContain(`WHEN '${id}' THEN v_kind := '${kind}'; v_n := ${n};`);
+    for (const [id, { n }] of Object.entries(CREDITOS_POR_PRODUTO)) {
+      expect(SQL_UNICO).toContain(`WHEN '${id}' THEN v_n := ${n};`);
     }
+    expect(SQL_UNICO).toContain('UPDATE public.billing_balance SET quote_credits = quote_credits + v_n');
     expect(SQL).toContain(`'${BILLING_PRODUCTS.pro}'`);
+  });
+
+  it('crédito único no SQL: IA gasta o mesmo saldo e só o servidor debita', () => {
+    expect(SQL_UNICO).toContain("CHECK (kind IN ('quote', 'obra', 'ai'))");
+    expect(SQL_UNICO).toMatch(/CREATE OR REPLACE FUNCTION public\.debit_ai_credit[\s\S]*FOR UPDATE/);
+    expect(SQL_UNICO).toContain('REVOKE ALL ON FUNCTION public.debit_ai_credit(uuid, text) FROM PUBLIC, anon, authenticated;');
+    expect(SQL_UNICO).toContain('GRANT EXECUTE ON FUNCTION public.debit_ai_credit(uuid, text) TO service_role;');
+    expect(SQL_UNICO).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.(debit_ai_credit|_usage_debit|grant_billing_purchase)[^;]*authenticated/);
+    const defs = SQL_UNICO.match(/^LANGUAGE \w+( STABLE)? SECURITY DEFINER[^\n]*/gm) ?? [];
+    expect(defs.length).toBe(4);
+    for (const d of defs) expect(d).toContain('SET search_path = public');
   });
 });
 
 describe('texto e erro', () => {
   it('resumo do saldo', () => {
     expect(resumoDoSaldo(base, 'quote', AGORA)).toBe('5 grátis');
-    expect(resumoDoSaldo({ ...base, freeQuotes: 2, quoteCredits: 1 }, 'quote', AGORA)).toBe('2 grátis + 1 comprado');
-    expect(resumoDoSaldo({ ...base, freeQuotes: 0, quoteCredits: 40 }, 'quote', AGORA)).toBe('40 comprados');
+    expect(resumoDoSaldo({ ...base, freeQuotes: 2, quoteCredits: 1 }, 'quote', AGORA)).toBe('2 grátis + 1 crédito');
+    expect(resumoDoSaldo({ ...base, freeQuotes: 0, quoteCredits: 40 }, 'quote', AGORA)).toBe('40 créditos');
     expect(resumoDoSaldo({ ...base, freeObras: 0 }, 'obra', AGORA)).toBe('Sem obras disponíveis');
-    expect(resumoDoSaldo({ ...base, freeObras: 0, obraCredits: 3 }, 'obra', AGORA)).toBe('3 compradas');
+    expect(resumoDoSaldo({ ...base, freeObras: 0, quoteCredits: 3 }, 'obra', AGORA)).toBe('3 créditos');
     expect(resumoDoSaldo({ ...base, proActive: true }, 'quote', AGORA)).toBe('Orçamentos ilimitados');
     expect(resumoDoSaldo({ ...base, proActive: true }, 'obra', AGORA)).toBe('Obras ilimitadas');
   });

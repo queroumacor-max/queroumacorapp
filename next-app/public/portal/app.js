@@ -17843,7 +17843,7 @@ const ComprasApp = () => {
       fontSize: 12,
       whiteSpace: 'nowrap'
     }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, s.orcamentosCreditos), " or\xE7."), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, s.obrasCreditos), " obras"))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("b", null, s.orcamentosCreditos + s.obrasCreditos), " cr\xE9dito", s.orcamentosCreditos + s.obrasCreditos === 1 ? '' : 's'))))), /*#__PURE__*/React.createElement("div", {
     style: {
       ...card,
       marginBottom: 0
@@ -17855,7 +17855,7 @@ const ComprasApp = () => {
       color: C.ink,
       marginBottom: 8
     }
-  }, "\uD83D\uDCC9 De onde saiu cada uso"), [['🧾 Orçamentos gravados', rel.uso.orcamentos], ['🏗️ Obras criadas', rel.uso.obras]].map(([rot, u]) => /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDCC9 De onde saiu cada uso"), [['🧾 Orçamentos gravados', rel.uso.orcamentos], ['🏗️ Obras criadas', rel.uso.obras], ['✨ Usos de IA pagos com crédito', rel.uso.ia || {}]].map(([rot, u]) => /*#__PURE__*/React.createElement("div", {
     key: rot,
     style: {
       marginBottom: 10

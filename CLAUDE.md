@@ -141,6 +141,26 @@
     com "≈" — nunca como se fosse o cobrado. **Se o usuário mudar os preços
     nas lojas, atualizar `PRECO_TABELA_BRL`.**
 
+- **CRÉDITO ÚNICO (2026-10-28, decisão do usuário com print do paywall
+  Android — que já CARREGA os 4 produtos).** 1 crédito vale 1 orçamento, OU
+  1 obra, OU 1 uso de IA (depois do teste grátis). Opções na tela, nesta
+  ordem: **Avulso** (`quote_1`, 1 crédito, R$2,50), **Iniciante**
+  (`quote_pack_40`, 40 créditos, compra única, preço A DEFINIR — o portal
+  segue estimando R$29,90), **PRO ilimitado** (`quotes_unlimited`,
+  R$60/mês). IDs MANTIDOS (produto de loja não troca de ID); `obra_1` saiu
+  da tela e compra antiga dele vale 1 crédito. Grátis NÃO mudou (5
+  orçamentos + 1 obra + 1 teste por ferramenta de IA). Saldo único mora em
+  `billing_balance.quote_credits`. A IA gasta crédito SEMPRE que o teste
+  acaba (ignora `enforce`: ela já era paga); orçamento/obra seguem o
+  `enforce`. Chat (Seu Zé/Fê/Senna) = 1 crédito POR MENSAGEM. **Sem
+  estorno se a IA falhar depois do débito** (o teste grátis também não
+  devolve). SQL `migrations/2026-10-28-billing-credito-unico.sql` —
+  **PENDENTE** (testado em Postgres 16 local: 2x, fold de obra_credits,
+  débitos, PRO não gasta, reembolso, 12 débitos simultâneos com 5 créditos
+  → só 5). Sem o SQL: IA sem teste segue 403 (fail-closed) e o saldo de
+  obra antigo não soma. Linha na `2026-09-05-conferencia-pendencias.sql`.
+  Portal v=20261028a (créditos + linha "usos de IA").
+
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
   "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:

@@ -38,6 +38,8 @@ export { isAdminEmail };
 void assertProductionEnvs;
 
 export const ERR_PRO_ONLY = 'Esta função é exclusiva do Plano PRO ⚡';
+/** Teste grátis acabou e não há crédito (crédito único, 2026-10-28). */
+export const ERR_SEM_CREDITO = 'Seus créditos acabaram. Compre créditos ou assine o PRO ⚡';
 export const ERR_UNAVAILABLE = 'serviço temporariamente indisponível';
 export const ERR_LOGIN_REQUIRED = 'Faça login';
 
@@ -629,7 +631,7 @@ export interface GateProAIOk {
 }
 
 /**
- * PRO ou teste grátis (lib/aiTrial.ts). Não-PRO passa pelo rate limit
+ * PRO, teste grátis (lib/aiTrial.ts) ou 1 crédito. Não-PRO passa pelo rate limit
  * ANTES de reservar o teste — senão rajada barrada pelo limite por minuto
  * gastaria os usos grátis sem a pessoa receber nada.
  */
@@ -660,8 +662,12 @@ async function proOuTeste(
       monthly: regra.monthly,
     });
     if (t.allowed) return { trial: { used: t.used, limit: t.limit } };
+    // Teste acabou: gasta 1 crédito do saldo único (o mesmo de orçamento e
+    // obra — decisão de 2026-10-28). Sem crédito → 403 e o app abre o paywall.
+    const d = await debitAiCreditViaRest({ supaUrl, serviceKey, userId, feature: regra.key });
+    if (d !== 'empty') return {};
     return jsonResponse(
-      { error: ERR_PRO_ONLY, code: PRO_REQUIRED_CODE, trial: { used: t.used, limit: t.limit } },
+      { error: ERR_SEM_CREDITO, code: PRO_REQUIRED_CODE, trial: { used: t.used, limit: t.limit } },
       403,
     );
   }
@@ -745,6 +751,7 @@ export async function gateProAI(
 
 import {
   claimAiTrialViaRest,
+  debitAiCreditViaRest,
   getPlanLimitViaRest,
   isProActiveViaRest,
   reserveAiUsageViaRest,

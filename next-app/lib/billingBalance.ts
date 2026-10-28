@@ -7,12 +7,16 @@
 // aqui, mudar lá; o teste `billingBalance.test.ts` lê o SQL e falha se
 // os dois divergirem.
 //
-// Regras (decisão do usuário, 2026-10-25):
+// Regras (decisão do usuário, 2026-10-25; crédito único em 2026-10-28):
 //   - orçamentos: 5 grátis pra todo mundo; conta ao GRAVAR;
 //   - Gestão de Obras: 1 obra grátis; conta ao CRIAR (editar não conta);
-//   - ordem: ilimitado (não debita) → grátis → créditos comprados;
-//   - a assinatura `quotes_unlimited` é o "PRO completo": orçamentos e
-//     obras ilimitados. PRO antigo (manual/pontos) e admin também;
+//   - CRÉDITO ÚNICO: o que se compra é crédito, e 1 crédito vale 1
+//     orçamento, OU 1 obra, OU 1 uso de IA (depois do teste grátis).
+//     Avulso = 1 crédito, Iniciante = 40. O saldo mora em
+//     `billing_balance.quote_credits` (nome antigo mantido);
+//   - ordem: ilimitado (não debita) → grátis do tipo → créditos;
+//   - a assinatura `quotes_unlimited` é o "PRO ilimitado": tudo sem
+//     limite. PRO antigo (manual) e admin também;
 //   - preço vem da loja (Play/App Store) em runtime, nunca daqui.
 
 import { AppError } from '@/lib/errors';
@@ -20,7 +24,12 @@ import { AppError } from '@/lib/errors';
 export const FREE_QUOTES = 5;
 export const FREE_OBRAS = 1;
 
-/** IDs dos produtos — iguais no Play Console e no App Store Connect. */
+/**
+ * IDs dos produtos — iguais no Play Console e no App Store Connect. Os IDs
+ * antigos foram mantidos (produto de loja não muda de ID): `quote_1` é o
+ * Avulso (1 crédito) e `quote_pack_40` o Iniciante (40 créditos). `obra_1`
+ * saiu da tela; compra antiga dele vale 1 crédito.
+ */
 export const BILLING_PRODUCTS = {
   quote1: 'quote_1',
   quotePack40: 'quote_pack_40',
@@ -30,11 +39,11 @@ export const BILLING_PRODUCTS = {
 
 export type UsageKind = 'quote' | 'obra';
 
-/** O que cada consumível dá. A assinatura não dá crédito. */
+/** O que cada consumível dá (crédito único). A assinatura não dá crédito. */
 export const CREDITOS_POR_PRODUTO: Record<string, { kind: UsageKind; n: number }> = {
   [BILLING_PRODUCTS.quote1]: { kind: 'quote', n: 1 },
   [BILLING_PRODUCTS.quotePack40]: { kind: 'quote', n: 40 },
-  [BILLING_PRODUCTS.obra1]: { kind: 'obra', n: 1 },
+  [BILLING_PRODUCTS.obra1]: { kind: 'quote', n: 1 },
 };
 
 export function creditosDoProduto(productId: string): { kind: UsageKind; n: number } | null {
@@ -67,10 +76,13 @@ export function ilimitadoAtivo(b: BillingBalance, agora: Date = new Date()): boo
   return Number.isFinite(fim) && fim > agora.getTime();
 }
 
+/** Créditos comprados (saldo único — vale orçamento, obra e IA). */
+export function creditos(b: BillingBalance): number {
+  return b.quoteCredits + b.obraCredits;
+}
+
 function saldoDo(b: BillingBalance, kind: UsageKind): { free: number; cred: number } {
-  return kind === 'quote'
-    ? { free: b.freeQuotes, cred: b.quoteCredits }
-    : { free: b.freeObras, cred: b.obraCredits };
+  return { free: kind === 'quote' ? b.freeQuotes : b.freeObras, cred: creditos(b) };
 }
 
 /**
@@ -97,21 +109,26 @@ export function aplicarDebito(b: BillingBalance, kind: UsageKind, agora: Date = 
     return kind === 'quote' ? { ...b, freeQuotes: b.freeQuotes - 1 } : { ...b, freeObras: b.freeObras - 1 };
   }
   if (fonte === 'credit') {
-    return kind === 'quote' ? { ...b, quoteCredits: b.quoteCredits - 1 } : { ...b, obraCredits: b.obraCredits - 1 };
+    return b.quoteCredits > 0 ? { ...b, quoteCredits: b.quoteCredits - 1 } : { ...b, obraCredits: b.obraCredits - 1 };
   }
   return b;
 }
 
-/** Frase do contador ("3 grátis + 40 comprados"). */
+/** Frase do contador ("3 grátis + 40 créditos"). */
 export function resumoDoSaldo(b: BillingBalance, kind: UsageKind, agora: Date = new Date()): string {
   const nome = kind === 'quote' ? 'orçamentos' : 'obras';
   if (ilimitadoAtivo(b, agora)) return `${nome[0].toUpperCase()}${nome.slice(1)} ilimitad${kind === 'quote' ? 'os' : 'as'}`;
   const s = saldoDo(b, kind);
   const partes: string[] = [];
   if (s.free > 0) partes.push(`${s.free} grátis`);
-  if (s.cred > 0) partes.push(`${s.cred} comprad${kind === 'quote' ? 'o' : 'a'}${s.cred === 1 ? '' : 's'}`);
+  if (s.cred > 0) partes.push(textoCreditos(s.cred));
   if (partes.length === 0) return `Sem ${nome} disponíveis`;
   return partes.join(' + ');
+}
+
+/** "1 crédito" / "40 créditos". */
+export function textoCreditos(n: number): string {
+  return `${n} crédito${n === 1 ? '' : 's'}`;
 }
 
 /** Erros que o banco levanta sem saldo (SQLSTATE P0402). */
@@ -135,8 +152,8 @@ export class BalanceEmptyError extends AppError {
   constructor(kind: UsageKind) {
     super(
       kind === 'quote'
-        ? 'Seus orçamentos acabaram. Compre um pacote ou assine o PRO pra continuar.'
-        : 'Sua obra grátis já foi usada. Compre uma obra extra ou assine o PRO pra continuar.',
+        ? 'Seus orçamentos grátis e seus créditos acabaram. Compre créditos ou assine o PRO pra continuar.'
+        : 'Sua obra grátis já foi usada e seus créditos acabaram. Compre créditos ou assine o PRO pra continuar.',
       { code: SEM_SALDO_MSG[kind], status: 402 },
     );
     this.name = 'BalanceEmptyError';

@@ -126,3 +126,6 @@ SELECT 'posts: varredura de pendentes agendada — 2026-09-26 (c)' AS item, EXIS
 
 -- 2026-10-26 (PRO não sai mais por pontos).
 SELECT 'pontos: redeem_pro_with_points sem EXECUTE pra authenticated — 2026-10-26' AS item, NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname='redeem_pro_with_points' AND has_function_privilege('authenticated', oid, 'EXECUTE')) AS ok;
+
+-- 2026-10-28 (crédito único: orçamento, obra e IA no mesmo saldo).
+SELECT 'billing: crédito único (debit_ai_credit + usage_debits aceita ai) — 2026-10-28' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='debit_ai_credit') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='usage_debits_kind_check' AND pg_get_constraintdef(oid) LIKE '%ai%') AS ok;
