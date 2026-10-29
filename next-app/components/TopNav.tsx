@@ -16,12 +16,16 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessageCount';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
-import { canSeeProFeature, isAdmin } from '@/lib/policies';
+import { situacaoDoPlano, type Plano } from '@/lib/billingBalance';
+import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
+
 import { useSyncExternalStore } from 'react';
 import { isPurchasesAvailable } from '@/lib/native';
 import { abrirPaywall } from '@/lib/paywallEvents';
 
 const semAssinatura = () => () => {};
+
+const ROTULO_DO_PLANO: Record<Plano, 'GRÁTIS' | 'PRO' | 'ADMIN'> = { admin: 'ADMIN', pro: 'PRO', gratis: 'GRÁTIS' };
 
 // Telas-raiz (as 5 abas da BottomNav): nelas não há "de onde voltar".
 // Nas DEMAIS, o TopNav ganha um ← — importante no app Android, onde o
@@ -64,6 +68,9 @@ export function TopNav({ proStatus }: TopNavProps) {
   //
   // Agora o selo pergunta às MESMAS funções que trancam a porta.
   const policyUser = usePolicyUser();
+  // Assinatura da loja e conta da equipe moram no saldo (billing_balance);
+  // o selo e a tela de compra leem a MESMA situacaoDoPlano.
+  const saldo = useBillingBalance();
   // No app instalado (plugin de compras presente), quem é GRÁTIS toca no
   // selo e já vê as opções de compra — sem passar pela /pro e pelo botão
   // "Assinar o PRO" (pedido do usuário, 29/10/2026). No site não há compra,
@@ -77,11 +84,7 @@ export function TopNav({ proStatus }: TopNavProps) {
   const computed: 'GRÁTIS' | 'PRO' | 'ADMIN' | '···' =
     profileLoading && !profile
       ? '···'
-      : isAdmin(policyUser)
-        ? 'ADMIN'
-        : canSeeProFeature(policyUser)
-          ? 'PRO'
-          : 'GRÁTIS';
+      : ROTULO_DO_PLANO[situacaoDoPlano(policyUser, saldo.data ?? null).plano];
 
   const badge = proStatus ?? computed;
 

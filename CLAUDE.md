@@ -176,6 +176,16 @@
   `quotes_unlimited`). A IA continua gastando 1 pacote depois do teste grátis
   (a regra de 28/10 segue) — a tela diz isso como "também paga 1 uso de IA";
   se o usuário quiser IA fora dos pacotes, é mudança no `gateProAI`/SQL.
+  **NO AR: PR #500 (squash `3dc3608`), deploy run #789 `success`.**
+  - **SELO "GRÁTIS" × TELA "VOCÊ É PRO" (2026-10-29, print do usuário).** O
+    selo lia só o PERFIL; a tela de compra lia `pro_active` do banco, que
+    também é true pra assinatura da loja e pra `is_portal_admin()` — e
+    escondia a contagem de pacotes. Agora os dois perguntam a
+    `situacaoDoPlano(user, saldo)` (lib/billingBalance.ts): admin → "ADMIN"
+    / "Conta da equipe: não gasta pacotes"; PRO (perfil OU `unlimited_until`
+    da loja) → "PRO" / "Você é PRO até DD/MM"; o resto → "GRÁTIS". A tela
+    mostra SEMPRE "Seus pacotes: N" (grátis só quando o plano é grátis).
+    SEM SQL.
 
 - **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
   usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar

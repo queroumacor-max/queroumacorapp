@@ -16,6 +16,7 @@ import {
   saldoDaLinha,
   BalanceEmptyError,
   type BillingBalance,
+  situacaoDoPlano,
 } from '@/lib/billingBalance';
 
 const AGORA = new Date('2026-10-25T12:00:00Z');
@@ -192,5 +193,26 @@ describe('guardas do SQL', () => {
 
   it('cobrança nasce desligada (rollout)', () => {
     expect(SQL).toContain('enforce boolean NOT NULL DEFAULT false');
+  });
+});
+
+describe('situacaoDoPlano — selo do topo e tela de compra concordam (29/10)', () => {
+  const b = { freeQuotes: 5, quoteCredits: 1, freeObras: 1, obraCredits: 0, unlimitedUntil: null, proActive: false, enforced: false };
+  const agora = new Date('2026-10-29T12:00:00Z');
+  it('grátis com pacote não é PRO', () => {
+    expect(situacaoDoPlano({ id: 'u', is_pro: false }, b, agora)).toEqual({ plano: 'gratis', ate: null });
+  });
+  it('assinatura da loja ativa = PRO, com a data dela', () => {
+    const r = situacaoDoPlano({ id: 'u' }, { ...b, unlimitedUntil: '2026-11-29T12:00:00Z', proActive: true }, agora);
+    expect(r).toEqual({ plano: 'pro', ate: Date.parse('2026-11-29T12:00:00Z') });
+  });
+  it('assinatura vencida não é PRO', () => {
+    expect(situacaoDoPlano({ id: 'u' }, { ...b, unlimitedUntil: '2026-10-01T00:00:00Z' }, agora).plano).toBe('gratis');
+  });
+  it('banco diz ilimitado sem PRO nem assinatura = conta da equipe', () => {
+    expect(situacaoDoPlano({ id: 'u' }, { ...b, proActive: true }, agora).plano).toBe('admin');
+  });
+  it('admin pelo perfil', () => {
+    expect(situacaoDoPlano({ id: 'u', role: 'admin' }, b, agora).plano).toBe('admin');
   });
 });

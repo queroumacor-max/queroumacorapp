@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { showToast } from '@/lib/toast';
-import { BILLING_PRODUCTS, FREE_QUOTES, FREE_OBRAS, creditos, ilimitadoAtivo, textoCreditos } from '@/lib/billingBalance';
+import { BILLING_PRODUCTS, FREE_QUOTES, FREE_OBRAS, creditos, situacaoDoPlano, textoCreditos } from '@/lib/billingBalance';
 import { PAYWALL_EVENT, type MotivoPaywall } from '@/lib/paywallEvents';
 import {
   carregarProdutos,
@@ -28,6 +28,7 @@ import {
   restaurar,
   type ProdutoDaLoja,
 } from '@/lib/services/billingPurchases';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { useSingleFlight } from '@/lib/hooks/useSingleFlight';
 import { useBillingBalance, BILLING_BALANCE_KEY } from '@/lib/hooks/useBillingBalance';
 
@@ -101,6 +102,8 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
   const [erro, setErro] = useState<string | null>(null);
 
   const saldo = useBillingBalance();
+  // Mesma regra do selo do topo (situacaoDoPlano): os dois nunca discordam.
+  const policyUser = usePolicyUser();
 
   const produtos = useQuery({
     queryKey: ['billing-products', userId],
@@ -145,6 +148,7 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
 
   const ocupado = vooCompra.busy || vooRestaurar.busy;
   const b = saldo.data;
+  const situacao = situacaoDoPlano(policyUser, b ?? null);
   const lista = (produtos.data?.lista || [])
     .filter((p) => ORDEM.includes(p.id))
     .sort((x, y) => ORDEM.indexOf(x.id) - ORDEM.indexOf(y.id));
@@ -176,13 +180,17 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
 
         {b && (
           <div className="mt-4 rounded-xl p-3 text-sm" style={{ background: 'var(--color-bg)', color: 'var(--color-ink)' }}>
-            {ilimitadoAtivo(b) ? (
-              <p className="font-semibold">⚡ Você é PRO: tudo ilimitado.</p>
-            ) : (
-              <>
-                <p>💳 Seus pacotes: <b>{textoCreditos(creditos(b))}</b></p>
-                <p className="mt-1">🎁 Grátis: <b>{b.freeQuotes} orçamento{b.freeQuotes === 1 ? '' : 's'} · {b.freeObras} obra{b.freeObras === 1 ? '' : 's'}</b></p>
-              </>
+            {situacao.plano === 'pro' && (
+              <p className="font-semibold mb-1">
+                ⚡ Você é PRO: tudo ilimitado{situacao.ate !== null ? <> até <b>{new Date(situacao.ate).toLocaleDateString('pt-BR')}</b></> : null}.
+              </p>
+            )}
+            {situacao.plano === 'admin' && (
+              <p className="font-semibold mb-1">🛠️ Conta da equipe: não gasta pacotes.</p>
+            )}
+            <p>💳 Seus pacotes: <b>{textoCreditos(creditos(b))}</b></p>
+            {situacao.plano === 'gratis' && (
+              <p className="mt-1">🎁 Grátis: <b>{b.freeQuotes} orçamento{b.freeQuotes === 1 ? '' : 's'} · {b.freeObras} obra{b.freeObras === 1 ? '' : 's'}</b></p>
             )}
           </div>
         )}

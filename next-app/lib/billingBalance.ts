@@ -20,6 +20,8 @@
 //   - preço vem da loja (Play/App Store) em runtime, nunca daqui.
 
 import { AppError } from '@/lib/errors';
+import { canSeeProFeature, isAdmin, type PolicyUser } from '@/lib/policies';
+import { fimDoPro } from '@/lib/proAviso';
 
 export const FREE_QUOTES = 5;
 export const FREE_OBRAS = 1;
@@ -175,4 +177,37 @@ export function saldoDaLinha(row: unknown): BillingBalance | null {
     proActive: r.pro_active === true,
     enforced: r.enforced === true,
   };
+}
+
+/**
+ * O que o app MOSTRA sobre o plano — selo do topo e tela de compra
+ * perguntam aqui, pra nunca um dizer "GRÁTIS" e o outro "Você é PRO"
+ * (print do usuário, 29/10/2026).
+ *
+ * - 'admin': conta da equipe (perfil admin), ou o banco diz que a conta
+ *   não gasta (`pro_active`) sem que haja PRO/assinatura que explique —
+ *   o caso do `is_portal_admin()` dentro do `_billing_unlimited`.
+ * - 'pro': PRO válido no perfil OU assinatura `quotes_unlimited` ativa.
+ * - 'gratis': o resto — gasta grátis e depois pacotes.
+ *
+ * `ate` = fim do ilimitado (maior data conhecida), null = sem data.
+ */
+export type Plano = 'admin' | 'pro' | 'gratis';
+
+export function situacaoDoPlano(
+  user: PolicyUser | null,
+  b: BillingBalance | null,
+  agora: Date = new Date(),
+): { plano: Plano; ate: number | null } {
+  if (isAdmin(user)) return { plano: 'admin', ate: null };
+  const loja = b?.unlimitedUntil ? Date.parse(b.unlimitedUntil) : NaN;
+  const lojaAtiva = Number.isFinite(loja) && loja > agora.getTime();
+  const perfilPro = canSeeProFeature(user);
+  if (perfilPro || lojaAtiva) {
+    const doPerfil = perfilPro ? fimDoPro(user) : null;
+    const datas = [lojaAtiva ? loja : null, doPerfil].filter((x): x is number => x !== null);
+    return { plano: 'pro', ate: datas.length ? Math.max(...datas) : null };
+  }
+  if (b?.proActive) return { plano: 'admin', ate: null };
+  return { plano: 'gratis', ate: null };
 }

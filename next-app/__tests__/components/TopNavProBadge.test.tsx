@@ -27,6 +27,10 @@ vi.mock('@/components/AuthProvider', () => ({ useAuth: () => mockAuth }));
 vi.mock('@/lib/hooks/useProfile', () => ({
   useProfile: () => ({ profile: mockProfile.profile, loading: mockProfile.loading }),
 }));
+const mockSaldo: { data: Record<string, unknown> | null } = { data: null };
+vi.mock('@/lib/hooks/useBillingBalance', () => ({
+  useBillingBalance: () => ({ data: mockSaldo.data }),
+}));
 vi.mock('@/lib/hooks/useUnreadMessageCount', () => ({
   useUnreadMessageCount: () => ({ count: 0 }),
 }));
@@ -39,6 +43,7 @@ const AMANHA = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 beforeEach(() => {
   mockAuth.user = { id: 'u1', user_metadata: {} };
   mockProfile.loading = false;
+  mockSaldo.data = null;
 });
 afterEach(cleanup);
 
@@ -84,5 +89,30 @@ describe('TopNav — selo PRO usa a MESMA regra que tranca as ferramentas', () =
     mockProfile.loading = true;
     render(<TopNav />);
     expect(screen.queryByText('GRÁTIS')).toBeNull();
+  });
+});
+
+const SALDO = { freeQuotes: 5, quoteCredits: 1, freeObras: 1, obraCredits: 0, unlimitedUntil: null, proActive: false, enforced: false };
+
+describe('TopNav — o selo e a tela de compra leem a MESMA situação (29/10)', () => {
+  it('assinatura da loja ativa mostra PRO mesmo com o perfil ainda sem is_pro', () => {
+    mockProfile.profile = { id: 'u1', is_pro: false };
+    mockSaldo.data = { ...SALDO, unlimitedUntil: AMANHA, proActive: true };
+    render(<TopNav />);
+    expect(screen.getByText('PRO')).toBeTruthy();
+  });
+
+  it('banco diz que não gasta sem PRO nenhum = conta da equipe (ADMIN), não GRÁTIS', () => {
+    mockProfile.profile = { id: 'u1', is_pro: false };
+    mockSaldo.data = { ...SALDO, proActive: true };
+    render(<TopNav />);
+    expect(screen.getByText('ADMIN')).toBeTruthy();
+  });
+
+  it('grátis com 1 pacote segue GRÁTIS', () => {
+    mockProfile.profile = { id: 'u1', is_pro: false };
+    mockSaldo.data = SALDO;
+    render(<TopNav />);
+    expect(screen.getByText('GRÁTIS')).toBeTruthy();
   });
 });
