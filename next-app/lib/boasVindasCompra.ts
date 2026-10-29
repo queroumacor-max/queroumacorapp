@@ -16,9 +16,6 @@
 import { canSeeProFeature, isAdmin, type PolicyUser } from '@/lib/policies';
 import { fimDoPro } from '@/lib/proAviso';
 
-/** Créditos do pacote Iniciante (`quote_pack_40`). */
-export const CREDITOS_PACOTE_INICIANTE = 40;
-
 export type BoasVindas =
   | { tipo: 'pro'; fim: number | null }
   | { tipo: 'creditos'; total: number; ganhou: number };
@@ -61,12 +58,6 @@ export function boasVindasAgora(e: EntradaBoasVindas): BoasVindas | null {
     }
   }
   return null;
-}
-
-/** "1 pacote Iniciante", "2 pacotes Iniciante"… ou null se não fecha em 40. */
-export function pacotesIniciante(ganhou: number): number | null {
-  if (ganhou < CREDITOS_PACOTE_INICIANTE) return null;
-  return ganhou % CREDITOS_PACOTE_INICIANTE === 0 ? ganhou / CREDITOS_PACOTE_INICIANTE : null;
 }
 
 // ── Marcas no aparelho ────────────────────────────────────────────────

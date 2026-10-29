@@ -36,24 +36,24 @@ const TITULO: Record<MotivoPaywall, string> = {
   quote: 'Seus orçamentos grátis acabaram',
   obra: 'Sua obra grátis já foi usada',
   ia: 'Seu teste grátis desta ferramenta acabou',
-  planos: 'Planos e créditos',
+  planos: 'Planos e pacotes',
 };
 
-const SUBTITULO_COMUM = 'Cada crédito vale 1 orçamento, 1 obra ou 1 uso de ferramenta com IA.';
+const SUBTITULO_COMUM = 'Cada pacote vale 1 orçamento ou 1 obra (gestão de obra). Também paga 1 uso de ferramenta com IA.';
 const SUBTITULO: Record<MotivoPaywall, string> = {
-  quote: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
-  obra: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
-  ia: `Compre créditos ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  quote: `Compre pacotes ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  obra: `Compre pacotes ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
+  ia: `Compre pacotes ou assine o PRO e use sem limite. ${SUBTITULO_COMUM}`,
   planos: SUBTITULO_COMUM,
 };
 
 const ROTULO: Record<string, { nome: string; detalhe: string }> = {
-  [BILLING_PRODUCTS.quote1]: { nome: 'Avulso · 1 crédito', detalhe: 'Pra 1 orçamento, 1 obra ou 1 uso de IA.' },
-  [BILLING_PRODUCTS.quotePack40]: { nome: 'Iniciante · 40 créditos', detalhe: 'Use em orçamentos, obras e ferramentas com IA. Não vencem.' },
-  [BILLING_PRODUCTS.pro]: { nome: 'PRO ilimitado', detalhe: 'Orçamentos, obras e todas as ferramentas com IA sem limite. Renova por mês; cancele quando quiser.' },
+  [BILLING_PRODUCTS.quote1]: { nome: '1 pacote', detalhe: 'Vale 1 orçamento ou 1 obra.' },
+  [BILLING_PRODUCTS.quotePack40]: { nome: '40 pacotes', detalhe: '40 orçamentos ou obras, como preferir. Não vencem.' },
+  [BILLING_PRODUCTS.pro]: { nome: 'Ilimitado (PRO)', detalhe: 'Orçamentos, obras e todas as ferramentas com IA sem limite. Renova por mês; cancele quando quiser.' },
 };
 
-/** Mesma ordem em qualquer motivo: Avulso, Iniciante, PRO ilimitado. */
+/** Mesma ordem em qualquer motivo: 1 pacote, 40 pacotes, ilimitado. */
 const ORDEM: string[] = [BILLING_PRODUCTS.quote1, BILLING_PRODUCTS.quotePack40, BILLING_PRODUCTS.pro];
 
 export function PaywallHost() {
@@ -180,7 +180,7 @@ function PaywallSheet({ motivo, fechar }: { motivo: MotivoPaywall; fechar: () =>
               <p className="font-semibold">⚡ Você é PRO: tudo ilimitado.</p>
             ) : (
               <>
-                <p>💳 Seus créditos: <b>{textoCreditos(creditos(b))}</b></p>
+                <p>💳 Seus pacotes: <b>{textoCreditos(creditos(b))}</b></p>
                 <p className="mt-1">🎁 Grátis: <b>{b.freeQuotes} orçamento{b.freeQuotes === 1 ? '' : 's'} · {b.freeObras} obra{b.freeObras === 1 ? '' : 's'}</b></p>
               </>
             )}

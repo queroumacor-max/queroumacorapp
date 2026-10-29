@@ -195,7 +195,7 @@ export function ProView() {
           className="block w-full text-center font-semibold"
           style={{ marginTop: 10, padding: 12, borderRadius: 14, fontSize: 14, background: 'var(--color-bg)', color: 'var(--color-ink)', border: '1px solid var(--color-border)' }}
         >
-          Prefere pagar por uso? Ver créditos avulsos e o pacote Iniciante
+          Prefere pagar por uso? Ver 1 pacote ou 40 pacotes
         </button>
       ) : null}
       {isPro || assinaturaNaLoja ? null : (

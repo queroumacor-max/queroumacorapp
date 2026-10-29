@@ -114,7 +114,7 @@ export function aplicarDebito(b: BillingBalance, kind: UsageKind, agora: Date = 
   return b;
 }
 
-/** Frase do contador ("3 grátis + 40 créditos"). */
+/** Frase do contador ("3 grátis + 40 pacotes"). */
 export function resumoDoSaldo(b: BillingBalance, kind: UsageKind, agora: Date = new Date()): string {
   const nome = kind === 'quote' ? 'orçamentos' : 'obras';
   if (ilimitadoAtivo(b, agora)) return `${nome[0].toUpperCase()}${nome.slice(1)} ilimitad${kind === 'quote' ? 'os' : 'as'}`;
@@ -126,9 +126,9 @@ export function resumoDoSaldo(b: BillingBalance, kind: UsageKind, agora: Date = 
   return partes.join(' + ');
 }
 
-/** "1 crédito" / "40 créditos". */
+/** "1 pacote" / "40 pacotes" — na tela o crédito se chama PACOTE (decisão de 29/10). */
 export function textoCreditos(n: number): string {
-  return `${n} crédito${n === 1 ? '' : 's'}`;
+  return `${n} pacote${n === 1 ? '' : 's'}`;
 }
 
 /** Erros que o banco levanta sem saldo (SQLSTATE P0402). */

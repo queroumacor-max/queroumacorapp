@@ -51,7 +51,7 @@ export default function DisputasPage() {
         <li>
           Garantir reembolsos de serviços — o pagamento do serviço é feito
           diretamente entre as partes, fora do app (reembolso de compras de
-          créditos ou do PRO é pedido à Google Play ou à App Store);
+          pacotes ou do PRO é pedido à Google Play ou à App Store);
         </li>
         <li>Obrigar o profissional a refazer o serviço;</li>
         <li>Substituir um processo judicial.</li>

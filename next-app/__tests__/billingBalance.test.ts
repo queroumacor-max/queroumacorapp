@@ -135,10 +135,10 @@ describe('produtos', () => {
 describe('texto e erro', () => {
   it('resumo do saldo', () => {
     expect(resumoDoSaldo(base, 'quote', AGORA)).toBe('5 grátis');
-    expect(resumoDoSaldo({ ...base, freeQuotes: 2, quoteCredits: 1 }, 'quote', AGORA)).toBe('2 grátis + 1 crédito');
-    expect(resumoDoSaldo({ ...base, freeQuotes: 0, quoteCredits: 40 }, 'quote', AGORA)).toBe('40 créditos');
+    expect(resumoDoSaldo({ ...base, freeQuotes: 2, quoteCredits: 1 }, 'quote', AGORA)).toBe('2 grátis + 1 pacote');
+    expect(resumoDoSaldo({ ...base, freeQuotes: 0, quoteCredits: 40 }, 'quote', AGORA)).toBe('40 pacotes');
     expect(resumoDoSaldo({ ...base, freeObras: 0 }, 'obra', AGORA)).toBe('Sem obras disponíveis');
-    expect(resumoDoSaldo({ ...base, freeObras: 0, quoteCredits: 3 }, 'obra', AGORA)).toBe('3 créditos');
+    expect(resumoDoSaldo({ ...base, freeObras: 0, quoteCredits: 3 }, 'obra', AGORA)).toBe('3 pacotes');
     expect(resumoDoSaldo({ ...base, proActive: true }, 'quote', AGORA)).toBe('Orçamentos ilimitados');
     expect(resumoDoSaldo({ ...base, proActive: true }, 'obra', AGORA)).toBe('Obras ilimitadas');
   });
