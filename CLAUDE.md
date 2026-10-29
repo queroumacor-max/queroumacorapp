@@ -185,6 +185,9 @@
   em relação ao último visto no aparelho → "Seu pacote chegou! Você comprou N
   pacote(s) Iniciante (40 créditos)" ou "N créditos" + total disponível.
   Gastar só atualiza a marca. PRO tem prioridade se os dois coincidirem.
+  **NO AR: PR #497 (squash `a8a87b4`), deploy run #785 `success`.** Depois:
+  X de fechar no canto (pedido do usuário, conferido por print do
+  Playwright); a parte visual virou `BoasVindasDialog` (sem hooks de dados).
 
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais

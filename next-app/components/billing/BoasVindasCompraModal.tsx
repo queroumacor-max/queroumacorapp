@@ -4,7 +4,7 @@
 // logada, então aparece na primeira abertura depois da compra — inclusive
 // logo depois de comprar, quando o saldo é relido.
 //
-// Fechar de qualquer jeito (botão, Esc, fundo) conta como visto, igual ao
+// Fechar de qualquer jeito (X, botão, Esc, fundo) conta como visto, igual ao
 // ProExpirandoModal.
 
 'use client';
@@ -94,7 +94,11 @@ export function BoasVindasCompraModal() {
   }, [aviso, fechar]);
 
   if (!aviso) return null;
+  return <BoasVindasDialog aviso={aviso} fechar={fechar} />;
+}
 
+/** Parte visual, sem hooks de dados — usada também na prévia de tela. */
+export function BoasVindasDialog({ aviso, fechar }: { aviso: BoasVindas; fechar: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[1160] flex items-center justify-center p-4 modal-fade"
@@ -107,9 +111,18 @@ export function BoasVindasCompraModal() {
         aria-modal="true"
         aria-labelledby="boasvindas-titulo"
         onClick={(e) => e.stopPropagation()}
-        className="modal-pop w-full max-w-[380px] max-h-full overflow-y-auto rounded-2xl shadow-2xl p-5"
+        className="modal-pop relative w-full max-w-[380px] max-h-full overflow-y-auto rounded-2xl shadow-2xl p-5"
         style={{ background: 'var(--color-white)', border: '1px solid var(--color-border)' }}
       >
+        <button
+          type="button"
+          onClick={fechar}
+          aria-label="Fechar"
+          className="absolute top-3 right-3 w-9 h-9 rounded-full text-lg leading-none flex items-center justify-center"
+          style={{ background: 'var(--color-bg)', color: 'var(--color-ink)' }}
+        >
+          ×
+        </button>
         {aviso.tipo === 'pro' ? <ConteudoPro fim={aviso.fim} /> : <ConteudoCreditos total={aviso.total} ganhou={aviso.ganhou} />}
         <button
           type="button"
