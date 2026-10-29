@@ -30,8 +30,6 @@ import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { canSeeProFeature } from '@/lib/policies';
-import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
 import { BalanceEmptyError } from '@/lib/billingBalance';
 import { abrirPaywall } from '@/lib/paywallEvents';
@@ -86,7 +84,6 @@ export interface QuoteWizardProps {
 export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}) {
   const { user, loading: authLoading, emailVerified } = useAuth();
   const { profile } = useProfile();
-  const policyUser = usePolicyUser();
   // Saldo de orçamentos: com a cobrança ligada, todo mundo entra (5 grátis,
   // depois créditos/PRO). Desligada, segue a regra antiga (só PRO).
   const saldo = useBillingBalance();
@@ -299,25 +296,10 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
     );
   }
 
-  if (!canSeeProFeature(policyUser) && !saldo.data?.enforced) {
-    return (
-      <div className="text-center py-12 px-4 rounded-2xl bg-white border border-[color:var(--color-border)]">
-        <div className="text-5xl mb-3" aria-hidden="true">📝</div>
-        <h2 className="font-bold mb-2 text-[color:var(--color-ink)]">
-          Orçamento IA é PRO
-        </h2>
-        <p className="text-sm text-[color:var(--color-muted)] mb-4 max-w-md mx-auto">
-          Gere escopo e preço guiado pelo Seu Zé.
-        </p>
-        <Link
-          href="/pro"
-          className="inline-block px-5 py-2 bg-[color:var(--color-p1)] text-white rounded-xl font-semibold"
-        >
-          Ativar PRO
-        </Link>
-      </div>
-    );
-  }
+  // Sem trava de PRO aqui (2026-10-29): orçamento é freemium pra todos (5
+  // grátis, depois crédito — quem conta é o banco, no create_painter_draft) e
+  // as partes com IA (escopo/preço do Seu Zé) passam pelo servidor, que dá o
+  // teste grátis, gasta crédito e abre o paywall com 403 pro_required.
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
