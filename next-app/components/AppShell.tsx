@@ -27,6 +27,7 @@ import { OfflineBanner } from './OfflineBanner';
 import { AppTour } from './AppTour';
 import { ProExpirandoModal } from './ProExpirandoModal';
 import { PaywallHost } from './billing/PaywallHost';
+import { BoasVindasCompraModal } from './billing/BoasVindasCompraModal';
 import { PickerRecovery } from './PickerRecovery';
 import { BackGuard } from './BackGuard';
 import { SplashMascotes } from './SplashMascotes';
@@ -259,6 +260,8 @@ export function AppShell({
       {/* PRO acabando nas próximas 24h: avisa uma vez por prazo. */}
       <ProExpirandoModal />
       <PaywallHost />
+      {/* "Parabéns, você é PRO" / "Seu pacote chegou": uma vez por compra. */}
+      <BoasVindasCompraModal />
     </div>
   );
 }
