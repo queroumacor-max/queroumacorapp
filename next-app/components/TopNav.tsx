@@ -17,6 +17,11 @@ import { useProfile } from '@/lib/hooks/useProfile';
 import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessageCount';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { canSeeProFeature, isAdmin } from '@/lib/policies';
+import { useSyncExternalStore } from 'react';
+import { isPurchasesAvailable } from '@/lib/native';
+import { abrirPaywall } from '@/lib/paywallEvents';
+
+const semAssinatura = () => () => {};
 
 // Telas-raiz (as 5 abas da BottomNav): nelas não há "de onde voltar".
 // Nas DEMAIS, o TopNav ganha um ← — importante no app Android, onde o
@@ -59,6 +64,11 @@ export function TopNav({ proStatus }: TopNavProps) {
   //
   // Agora o selo pergunta às MESMAS funções que trancam a porta.
   const policyUser = usePolicyUser();
+  // No app instalado (plugin de compras presente), quem é GRÁTIS toca no
+  // selo e já vê as opções de compra — sem passar pela /pro e pelo botão
+  // "Assinar o PRO" (pedido do usuário, 29/10/2026). No site não há compra,
+  // então o selo segue levando pra /pro, que explica como assinar.
+  const comprasNoApp = useSyncExternalStore(semAssinatura, isPurchasesAvailable, () => false);
 
   // Durante o loading (profile ainda não chegou do banco/cache), mostra
   // '···' em vez de cair pra 'GRÁTIS' default — evita flash falso pra admin/PRO
@@ -140,7 +150,13 @@ export function TopNav({ proStatus }: TopNavProps) {
           data-tour="nav-plano"
           className="flex items-center text-xs font-extrabold px-3 py-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--color-white-fixed)_15%,transparent)] text-[color:var(--color-white-fixed)] tracking-widest cursor-pointer border-none"
           style={{ fontFamily: 'var(--font-display)' }}
-          aria-label="Ver plano PRO"
+          aria-label={badge === 'GRÁTIS' && comprasNoApp ? 'Ver planos e créditos' : 'Ver plano PRO'}
+          onClick={(e) => {
+            if (badge === 'GRÁTIS' && comprasNoApp) {
+              e.preventDefault();
+              abrirPaywall('planos');
+            }
+          }}
         >
           {badge}
         </Link>

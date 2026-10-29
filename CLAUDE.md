@@ -165,6 +165,13 @@
   "Worker exceeded resource limits" no preview — página não tocada, as
   outras 4 rotas OK; refazer passou). SQL passado no chat.
 
+- **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
+  usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar
+  no selo GRÁTIS do `TopNav` chama `abrirPaywall('planos')` (folha "Planos e
+  créditos") em vez de ir pra /pro e exigir "Assinar o PRO". No site (sem
+  plugin), PRO e ADMIN o selo segue levando pra /pro. `data-tour="nav-plano"`
+  mantido. Teste `__tests__/topNavSeloAbrePaywall.test.ts`.
+
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
   "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:
