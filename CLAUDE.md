@@ -185,7 +185,7 @@
     / "Conta da equipe: não gasta pacotes"; PRO (perfil OU `unlimited_until`
     da loja) → "PRO" / "Você é PRO até DD/MM"; o resto → "GRÁTIS". A tela
     mostra SEMPRE "Seus pacotes: N" (grátis só quando o plano é grátis).
-    SEM SQL.
+    SEM SQL. **NO AR: PR #501 (squash `9240e7c`), deploy run #790 `success`.**
 
 - **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
   usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar
