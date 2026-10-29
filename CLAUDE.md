@@ -172,6 +172,20 @@
   plugin), PRO e ADMIN o selo segue levando pra /pro. `data-tour="nav-plano"`
   mantido. Teste `__tests__/topNavSeloAbrePaywall.test.ts`.
 
+- **BOAS-VINDAS DEPOIS DA COMPRA (2026-10-29, pedido do usuário). SEM
+  SQL.** `components/billing/BoasVindasCompraModal.tsx` (AppShell, z-1160) +
+  regra pura `lib/boasVindasCompra.ts` (teste `__tests__/boasVindasCompra
+  .test.ts`). (1) PRO: "Parabéns, você é PRO!" + benefícios + "vale até
+  DD/MM/AAAA" (maior data entre perfil e `unlimitedUntil` da loja; sem data =
+  "não tem data para acabar"). UMA vez por conta (localStorage
+  `boasvindas_pro_visto_<uid>`): renovação mensal NÃO repete; a marca só é
+  apagada quando o perfil carregado diz que deixou de ser PRO (nova
+  assinatura depois de vencer avisa de novo). Admin nunca vê. Os PRO que já
+  existem (manuais) também verão uma vez. (2) Créditos: quando o saldo SOBE
+  em relação ao último visto no aparelho → "Seu pacote chegou! Você comprou N
+  pacote(s) Iniciante (40 créditos)" ou "N créditos" + total disponível.
+  Gastar só atualiza a marca. PRO tem prioridade se os dois coincidirem.
+
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
   "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:
