@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boasVindasAgora, pacotesIniciante, type EntradaBoasVindas } from '@/lib/boasVindasCompra';
+import { boasVindasAgora, type EntradaBoasVindas } from '@/lib/boasVindasCompra';
 
 const futuro = new Date(Date.now() + 20 * 864e5).toISOString();
 const base: EntradaBoasVindas = {
@@ -50,11 +50,3 @@ describe('boasVindasAgora', () => {
   });
 });
 
-describe('pacotesIniciante', () => {
-  it('conta pacotes de 40', () => {
-    expect(pacotesIniciante(40)).toBe(1);
-    expect(pacotesIniciante(80)).toBe(2);
-    expect(pacotesIniciante(1)).toBeNull();
-    expect(pacotesIniciante(41)).toBeNull();
-  });
-});

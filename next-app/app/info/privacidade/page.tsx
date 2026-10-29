@@ -144,7 +144,7 @@ export default function PrivacidadePage() {
         </li>
       </ul>
       <LegalP>
-        <b>Compras no aplicativo.</b> Créditos e a assinatura PRO são pagos
+        <b>Compras no aplicativo.</b> Pacotes e a assinatura PRO são pagos
         pela <b>Google Play</b> ou pela <b>App Store</b>: os dados do seu
         pagamento (cartão, endereço de cobrança) ficam com a loja e{' '}
         <b>nunca chegam até nós</b>. Para confirmar a compra usamos a{' '}

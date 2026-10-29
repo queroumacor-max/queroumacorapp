@@ -150,7 +150,7 @@ export function TopNav({ proStatus }: TopNavProps) {
           data-tour="nav-plano"
           className="flex items-center text-xs font-extrabold px-3 py-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--color-white-fixed)_15%,transparent)] text-[color:var(--color-white-fixed)] tracking-widest cursor-pointer border-none"
           style={{ fontFamily: 'var(--font-display)' }}
-          aria-label={badge === 'GRÁTIS' && comprasNoApp ? 'Ver planos e créditos' : 'Ver plano PRO'}
+          aria-label={badge === 'GRÁTIS' && comprasNoApp ? 'Ver planos e pacotes' : 'Ver plano PRO'}
           onClick={(e) => {
             if (badge === 'GRÁTIS' && comprasNoApp) {
               e.preventDefault();

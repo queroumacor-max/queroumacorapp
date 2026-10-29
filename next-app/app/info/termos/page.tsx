@@ -140,17 +140,16 @@ export default function TermosPage() {
         na Gestão de Obras. Um orçamento é contado quando você o grava; uma
         obra, quando você a cria (editar não conta). Depois disso, no
         aplicativo instalado pela Google Play ou pela App Store, é possível
-        comprar <b>créditos</b> (avulso, com 1 crédito, ou o pacote
-        Iniciante, com 40) ou assinar o <b>Plano PRO</b>, que libera
+        comprar <b>pacotes</b> (1 pacote ou 40 pacotes) ou assinar o <b>Plano PRO</b>, que libera
         orçamentos, obras e as ferramentas com inteligência artificial sem
-        limite enquanto a assinatura estiver ativa. Cada crédito vale 1
-        orçamento, 1 obra ou 1 uso de uma ferramenta com inteligência
-        artificial. Créditos não vencem.
+        limite enquanto a assinatura estiver ativa. Cada pacote vale 1
+        orçamento ou 1 obra; também pode pagar 1 uso de uma ferramenta com
+        inteligência artificial. Pacotes não vencem.
       </LegalP>
       <LegalP>
         Quem não é PRO pode experimentar cada ferramenta com inteligência
         artificial gratuitamente, em quantidade limitada, uma vez por conta.
-        Depois do teste, cada uso gasta 1 crédito.
+        Depois do teste, cada uso gasta 1 pacote.
       </LegalP>
       <LegalP>
         <b>Os preços são os exibidos pela loja de aplicativos</b> no momento
@@ -159,7 +158,7 @@ export default function TermosPage() {
         <b> renova automaticamente</b> até você cancelar nas configurações de
         assinaturas da loja; o cancelamento vale ao fim do período já pago.
         Reembolsos seguem a política da loja em que a compra foi feita; um
-        crédito ou período reembolsado deixa de valer no aplicativo. Use
+        pacote ou período reembolsado deixa de valer no aplicativo. Use
         &quot;Restaurar compras&quot; na tela de planos para recuperar compras
         feitas na mesma conta da loja.
       </LegalP>

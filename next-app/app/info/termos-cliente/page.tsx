@@ -36,7 +36,7 @@ export default function TermosClientePage() {
         cliente e profissional, fora do aplicativo, e é de responsabilidade
         exclusiva das partes. Os pedidos feitos na loja são fechados
         diretamente com a Cali Colors, também fora do aplicativo. As únicas
-        compras dentro do app são os créditos e a assinatura PRO das
+        compras dentro do app são os pacotes e a assinatura PRO das
         ferramentas (item 13 dos Termos de Uso gerais), cobrados pela Google
         Play ou pela App Store.
       </LegalP>
@@ -49,7 +49,7 @@ export default function TermosClientePage() {
 
       <LegalH>4. Direito de arrependimento</LegalH>
       <LegalP>
-        Compras feitas dentro do aplicativo (créditos e assinatura PRO) são
+        Compras feitas dentro do aplicativo (pacotes e assinatura PRO) são
         processadas pela Google Play ou pela App Store, e o reembolso segue a
         política da loja em que a compra foi feita.
         As compras feitas diretamente com a loja Cali Colors, fora do

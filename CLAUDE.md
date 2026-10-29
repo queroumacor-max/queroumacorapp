@@ -165,6 +165,18 @@
   "Worker exceeded resource limits" no preview — página não tocada, as
   outras 4 rotas OK; refazer passou). SQL passado no chat.
 
+- **NA TELA O CRÉDITO SE CHAMA "PACOTE" (2026-10-29, correção do usuário:
+  "ou um pacote, ou 40 pacotes, ou ilimitado"). SEM SQL.** 1 pacote = 1
+  orçamento OU 1 obra (gestão de obra). Paywall: "1 pacote" / "40 pacotes" /
+  "Ilimitado (PRO)", título "Planos e pacotes", "Seus pacotes: N";
+  boas-vindas "Você comprou N pacotes / pacotes disponíveis"; /pro, TopNav,
+  ajuda, termos, termos-cliente, privacidade e disputas trocaram "crédito"
+  por "pacote". `textoCreditos` agora devolve "N pacote(s)". **Banco e código
+  NÃO mudaram de nome** (`quote_credits`, IDs `quote_1`/`quote_pack_40`/
+  `quotes_unlimited`). A IA continua gastando 1 pacote depois do teste grátis
+  (a regra de 28/10 segue) — a tela diz isso como "também paga 1 uso de IA";
+  se o usuário quiser IA fora dos pacotes, é mudança no `gateProAI`/SQL.
+
 - **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
   usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar
   no selo GRÁTIS do `TopNav` chama `abrirPaywall('planos')` (folha "Planos e

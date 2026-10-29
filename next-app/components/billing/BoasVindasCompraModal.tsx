@@ -20,7 +20,6 @@ import {
   jaViuBoasVindasPro,
   marcarBoasVindasPro,
   marcarCreditosVistos,
-  pacotesIniciante,
   ultimosCreditosVistos,
   type BoasVindas,
 } from '@/lib/boasVindasCompra';
@@ -178,22 +177,19 @@ function ConteudoPro({ fim }: { fim: number | null }) {
 }
 
 function ConteudoCreditos({ total, ganhou }: { total: number; ganhou: number }) {
-  const pacotes = pacotesIniciante(ganhou);
-  const compra = pacotes
-    ? `${pacotes} ${pacotes === 1 ? 'pacote' : 'pacotes'} Iniciante (${ganhou} créditos)`
-    : `${ganhou} ${ganhou === 1 ? 'crédito' : 'créditos'}`;
+  const compra = `${ganhou} ${ganhou === 1 ? 'pacote' : 'pacotes'}`;
   return (
     <>
-      <Titulo emoji="🎁" kicker="Compra confirmada">Seu pacote chegou!</Titulo>
+      <Titulo emoji="🎁" kicker="Compra confirmada">{ganhou === 1 ? 'Seu pacote chegou!' : 'Seus pacotes chegaram!'}</Titulo>
       <p className="mt-3 text-sm text-center" style={{ color: 'var(--color-ink2)' }}>
         Você comprou <b style={{ color: 'var(--color-ink)' }}>{compra}</b>.
       </p>
       <p className="mt-4 rounded-xl p-3 text-center" style={{ background: 'var(--color-bg)', color: 'var(--color-ink)' }}>
         <span className="block text-3xl font-extrabold" style={{ fontFamily: 'var(--font-display)' }}>{total}</span>
-        <span className="text-sm">{total === 1 ? 'crédito disponível' : 'créditos disponíveis'}</span>
+        <span className="text-sm">{total === 1 ? 'pacote disponível' : 'pacotes disponíveis'}</span>
       </p>
       <p className="mt-3 text-xs text-center" style={{ color: 'var(--color-muted)' }}>
-        Cada crédito vale 1 orçamento, 1 obra ou 1 uso de IA.
+        Cada pacote vale 1 orçamento ou 1 obra (gestão de obra).
       </p>
     </>
   );
