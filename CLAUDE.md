@@ -189,6 +189,16 @@
   X de fechar no canto (pedido do usuário, conferido por print do
   Playwright); a parte visual virou `BoasVindasDialog` (sem hooks de dados).
 
+- **ORÇAMENTO ABRE PRA CONTA GRÁTIS (2026-10-29, print do usuário: conta
+  grátis via "Orçamento IA é PRO" ao gerar orçamento). SEM SQL.** O
+  `QuoteWizard` barrava não-PRO enquanto `billing_config.enforce` estivesse
+  desligado (regra antiga). Trava removida: orçamento é freemium pra todos (o
+  banco conta no `create_painter_draft` quando `enforce` ligar) e escopo/preço
+  do Seu Zé já passam pelo servidor (`gateProAI`: teste grátis → crédito →
+  403 `pro_required` → paywall). Teste `__tests__/quoteWizardSemTravaPro
+  .test.ts`. Ficaram como estão (são IA, regra "o que chama IA é PRO"): logo
+  IA e OCR de recibo.
+
 - **SEM "COBRADO PELA LOJA" NA TELA (2026-10-26, pedido do usuário: Apple/
   Google podem achar que cobramos por fora).** /pro e paywall não dizem mais
   "cobrado pela loja"/"cancele na loja" — "loja" no app é a Cali Colors. Agora:
