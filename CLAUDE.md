@@ -196,7 +196,8 @@
   em uso". Correção: a checagem ignora o próprio id (`ignorarUserId`), a @ já
   gravada volta no campo, a releitura tem teto de 5s e o `onSuccess` do
   `useProfile` grava o perfil salvo no cache mesmo quando era `null`. Teste
-  `__tests__/completarPerfilTravado.test.ts`.
+  `__tests__/completarPerfilTravado.test.ts`. **NO AR: PR #502 (squash
+  `4d62c7f`), deploy run #791 `success`.** Não confirmado no aparelho.
 
 - **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
   usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar
