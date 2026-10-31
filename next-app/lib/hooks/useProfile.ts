@@ -68,7 +68,15 @@ export function useProfile(): UseProfileResult {
         qc.setQueryData(['profile', user?.id], c.previous);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_void, patch) => {
+      // O otimista acima não faz nada quando o cache é null (linha de perfil
+      // que não existia e acabou de ser CRIADA pelo updateProfile). Sem isso o
+      // cache seguia "sem perfil" até a releitura chegar — e na WebView ela
+      // pode não chegar: o guarda do AppShell devolvia a pessoa pro
+      // /completar-perfil com o perfil já gravado no banco.
+      qc.setQueryData<Profile | null>(['profile', user?.id], (old) =>
+        ({ ...(old ?? { id: user!.id }), ...patch }) as Profile,
+      );
       qc.invalidateQueries({ queryKey: ['profile', user?.id] });
     },
   });
