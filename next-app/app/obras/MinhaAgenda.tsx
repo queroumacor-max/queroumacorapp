@@ -7,7 +7,8 @@ import { showToast } from '@/lib/toast';
 import { abrirLinkExterno } from '@/lib/native';
 import { ymdBrt } from '@/lib/utils';
 import { deYmd, rotuloDia, ymd } from '@/lib/obras';
-import { confirmarPresenca, meusConvites, minhaAgenda, responderConvite } from '@/lib/services/obras';
+import { confirmarPresenca, meusConvites, minhaAgenda, minhasEquipes, responderConvite, sairDaEquipe } from '@/lib/services/obras';
+import { useDialog } from '@/components/Dialog';
 import { Botao, ErroObras, cls } from './ui';
 
 export function MinhaAgenda({ uid }: { uid: string }) {
@@ -30,6 +31,25 @@ export function MinhaAgenda({ uid }: { uid: string }) {
     },
     onError: (e) => showToast((e as Error).message, 'error'),
   });
+  const dialog = useDialog();
+  const equipes = useQuery({ queryKey: ['minhas-equipes', uid], queryFn: minhasEquipes, enabled: !!uid, retry: false });
+  const sair = useMutation({
+    mutationFn: (id: string) => sairDaEquipe(id),
+    onSuccess: () => {
+      showToast('Você saiu da equipe', 'success');
+      qc.invalidateQueries({ queryKey: ['minhas-equipes', uid] });
+      qc.invalidateQueries({ queryKey: ['minha-agenda', uid] });
+    },
+    onError: (e) => showToast((e as Error).message, 'error'),
+  });
+  async function pedirSaida(id: string, nome: string) {
+    const ok = await dialog.confirm(`Sair da equipe de ${nome}? Você deixa de ver as obras e a escala dele. Ele pode te convidar de novo depois.`, {
+      title: 'Sair da equipe',
+      okLabel: 'Sair',
+      danger: true,
+    });
+    if (ok) sair.mutate(id);
+  }
   const presenca = useMutation({
     mutationFn: (x: { id: string; confirmar: boolean }) => confirmarPresenca(x.id, x.confirmar),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['minha-agenda', uid] }),
@@ -73,6 +93,34 @@ export function MinhaAgenda({ uid }: { uid: string }) {
           </div>
         </section>
       ))}
+
+      {(equipes.data ?? []).length > 0 ? (
+        <section>
+          <h3 className={cls.sec}>Equipes em que você está</h3>
+          <div className="flex flex-col gap-2">
+            {(equipes.data ?? []).map((e) => {
+              const nome = e.gestor_nome || (e.gestor_tag ? `@${e.gestor_tag}` : 'um profissional');
+              return (
+                <div key={e.id} className={`${cls.card} flex items-center justify-between gap-2`}>
+                  <span className="text-sm min-w-0" style={{ overflowWrap: 'anywhere' }}>
+                    <b>{nome}</b>{e.gestor_tag && e.gestor_nome ? ` (@${e.gestor_tag})` : ''}
+                    {e.funcao ? ` · ${e.funcao}` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={sair.isPending}
+                    onClick={() => pedirSaida(e.id, nome)}
+                    className="shrink-0 text-sm font-bold text-[color:var(--color-danger)] px-2"
+                    style={{ minHeight: 40 }}
+                  >
+                    Sair da equipe
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h3 className={cls.sec}>Próximos 21 dias</h3>

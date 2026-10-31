@@ -304,10 +304,38 @@ export async function convidarPorTag(uid: string, tagBruta: string, extra: Omit<
     diaria: extra.diaria != null && Number.isFinite(extra.diaria) ? Math.max(0, extra.diaria) : null,
   }).select(EQUIPE_COLS);
   if (error) {
-    if (error.code === '23505') throw new ValidationError('Essa pessoa já está na sua equipe.');
+    if (error.code === '23505') return reconvidar(uid, alvo.id, extra);
     falha(error);
   }
   return (data ?? [])[0] as MembroEquipe;
+}
+
+/**
+ * A pessoa já tem linha na equipe (UNIQUE gestor+membro). A frase antiga,
+ * "já está na sua equipe", mentia quando a linha era de quem SAIU ou
+ * RECUSOU — ela fica escondida em "Fora da equipe" e o gestor via
+ * "0 ativos" (relato de 31/10). Agora: saiu/recusado → convida de novo
+ * (mesma transição do botão "Convidar de novo", que o trigger permite);
+ * convidado → diz que está esperando o aceite; ativo → aí sim, já está.
+ */
+async function reconvidar(uid: string, membroId: string, extra: Omit<MembroInput, 'nome'>): Promise<MembroEquipe> {
+  const { data: atual, error: e1 } = await db().from('obra_equipe').select(EQUIPE_COLS)
+    .eq('gestor_id', uid).eq('membro_id', membroId).limit(1);
+  if (e1) falha(e1);
+  const m = (atual ?? [])[0] as MembroEquipe | undefined;
+  if (!m) throw new ValidationError('Essa pessoa já está na sua equipe.');
+  if (m.status === 'ativo') throw new ValidationError('Essa pessoa já está na sua equipe.');
+  if (m.status === 'convidado') {
+    throw new ValidationError('Você já convidou essa pessoa. Falta ela aceitar em Gestão de Obras › Minha agenda.');
+  }
+  const patch: Record<string, unknown> = { status: 'convidado' };
+  if (txt(extra.funcao, 60)) patch.funcao = txt(extra.funcao, 60);
+  if (extra.diaria != null && Number.isFinite(extra.diaria)) patch.diaria = Math.max(0, extra.diaria);
+  const { data, error } = await db().from('obra_equipe').update(patch).eq('id', m.id).select(EQUIPE_COLS);
+  if (error) falha(error);
+  const novo = (data ?? [])[0] as MembroEquipe | undefined;
+  if (!novo || novo.status !== 'convidado') throw new ValidationError('Não consegui convidar de novo. Tente em "Fora da equipe".');
+  return novo;
 }
 
 export async function atualizarMembro(
@@ -428,6 +456,27 @@ export async function meusConvites(): Promise<Convite[]> {
 export async function responderConvite(id: string, aceitar: boolean): Promise<void> {
   const { error } = await db().rpc('responder_convite_equipe', { p_id: id, p_aceitar: aceitar });
   if (error) falha(error);
+}
+
+export interface MinhaEquipe {
+  id: string;
+  gestor_nome: string | null;
+  gestor_tag: string | null;
+  funcao: string | null;
+}
+
+/**
+ * Equipes de que a pessoa FAZ PARTE (ativo). `null` = SQL
+ * `2026-10-31-minhas-equipes-obras.sql` ainda não rodou: a tela só esconde
+ * a seção, em vez de mostrar erro.
+ */
+export async function minhasEquipes(): Promise<MinhaEquipe[] | null> {
+  const { data, error } = await db().rpc('minhas_equipes_obras');
+  if (error) {
+    if (['42883', 'PGRST202'].includes(error.code ?? '')) return null;
+    falha(error);
+  }
+  return (data ?? []) as MinhaEquipe[];
 }
 
 export async function sairDaEquipe(id: string): Promise<void> {

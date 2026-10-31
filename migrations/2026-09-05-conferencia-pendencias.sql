@@ -132,3 +132,6 @@ SELECT 'billing: crédito único (debit_ai_credit + usage_debits aceita ai) — 
 
 -- 2026-10-31 (role acompanha a categoria escolhida).
 SELECT 'perfil: role segue user_type (sync_role_from_user_type nova) — 2026-10-31' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='sync_role_from_user_type' AND prosrc LIKE '%IS DISTINCT FROM OLD.user_type%') AS ok;
+
+-- 2026-10-31 (funcionário vê as equipes em que está e pode sair).
+SELECT 'obras: minhas_equipes_obras existe — 2026-10-31' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='minhas_equipes_obras') AS ok;
