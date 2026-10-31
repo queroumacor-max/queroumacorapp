@@ -50,7 +50,16 @@ export interface SignupResult {
  * Não estoura — qualquer erro de rede vira `true` (fail-open, mesmo
  * comportamento do vanilla `checkTagAvailability` em signup-tag.js).
  */
-export async function checkTagAvailability(tag: string): Promise<boolean> {
+export async function checkTagAvailability(
+  tag: string,
+  /**
+   * Dono que NÃO conta como conflito. Sem isso, quem já gravou a própria @tag
+   * (1ª tentativa salvou e a tela não saiu) toca de novo em "Concluir" e leva
+   * "Esse @ já está em uso" — da PRÓPRIA conta. Era o "travado, só sai
+   * fechando o app" do /completar-perfil (2026-10-31).
+   */
+  ignorarUserId?: string | null,
+): Promise<boolean> {
   const normalized = tag.trim().toLowerCase();
   if (!normalized) return false;
   try {
@@ -59,9 +68,12 @@ export async function checkTagAvailability(tag: string): Promise<boolean> {
       .from('profiles_public')
       .select('id')
       .eq('tag', normalized)
-      .limit(1);
+      .limit(2);
     if (error) return true; // fail-open
-    return !data || data.length === 0;
+    const outros = (data ?? []).filter(
+      (r: { id?: string | null }) => !ignorarUserId || r?.id !== ignorarUserId,
+    );
+    return outros.length === 0;
   } catch {
     return true;
   }

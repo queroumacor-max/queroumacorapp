@@ -47,6 +47,9 @@ const ROLES: RoleOption[] = ROLE_OPTIONS.map((o) => ({
   label: o.label,
 }));
 
+/** Teto da releitura do perfil depois de salvar (ver handleSubmit). */
+export const RELEITURA_TETO_MS = 5000;
+
 export function CompleteProfileForm() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -107,6 +110,14 @@ export function CompleteProfileForm() {
     const papel = texto(p?.user_type) || texto(p?.role);
     if (papel && ROLES.some((r) => r.value === papel)) {
       setCategory(papel as UserRole);
+    }
+
+    // @tag já gravada (1ª tentativa salvou e a tela não saiu): volta no campo
+    // e trava a sugestão pelo nome — senão o nome reescreveria a @ da pessoa.
+    const tagSalva = texto(p?.tag) || texto(p?.username);
+    if (tagSalva) {
+      setTag(limparTag(tagSalva));
+      setTagTocada(true);
     }
 
     const tel = texto(p?.phone);
@@ -174,7 +185,9 @@ export function CompleteProfileForm() {
     }
 
     setCheckingTag(true);
-    const available = await checkTagAvailability(normalizedTag);
+    // A própria conta não conta como "em uso": quem tenta de novo depois de
+    // uma 1ª gravação que não saiu da tela ficava preso aqui.
+    const available = await checkTagAvailability(normalizedTag, user?.id);
     setCheckingTag(false);
     if (!available) {
       setError('Esse @ já está em uso. Escolha outro.');
@@ -195,7 +208,14 @@ export function CompleteProfileForm() {
       });
       // Aguarda o cache refetch completar antes de navegar — senão o AppShell
       // vê perfil ainda incompleto (stale cache) e redireciona de volta
-      await qc.refetchQueries({ queryKey: ['profile', user?.id] });
+      // COM TETO: na WebView uma releitura pendurada não rejeita, e sem teto o
+      // botão ficava sem fazer nada com o perfil JÁ GRAVADO — a pessoa só
+      // saía fechando o app. O update otimista do useProfile já pôs o perfil
+      // completo no cache, então seguir pro feed sem a releitura é seguro.
+      await Promise.race([
+        qc.refetchQueries({ queryKey: ['profile', user?.id] }),
+        new Promise((r) => setTimeout(r, RELEITURA_TETO_MS)),
+      ]).catch(() => undefined);
       router.replace('/feed');
       router.refresh();
     } catch (err) {

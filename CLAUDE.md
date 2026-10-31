@@ -187,6 +187,17 @@
     mostra SEMPRE "Seus pacotes: N" (grátis só quando o plano é grátis).
     SEM SQL. **NO AR: PR #501 (squash `9240e7c`), deploy run #790 `success`.**
 
+- **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
+  de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
+  tela não saía (releitura do perfil sem teto pendurada na WebView, ou cache
+  `null` quando a linha acabou de ser criada — o otimista do `useProfile` não
+  age em `null`, e o guarda do AppShell devolvia pra cá). Ao tocar de novo,
+  `checkTagAvailability` achava a @ da PRÓPRIA conta e dizia "Esse @ já está
+  em uso". Correção: a checagem ignora o próprio id (`ignorarUserId`), a @ já
+  gravada volta no campo, a releitura tem teto de 5s e o `onSuccess` do
+  `useProfile` grava o perfil salvo no cache mesmo quando era `null`. Teste
+  `__tests__/completarPerfilTravado.test.ts`.
+
 - **SELO "GRÁTIS" ABRE AS OPÇÕES DE COMPRA DIRETO (2026-10-29, pedido do
   usuário: "uma tela só"). SEM SQL.** No app com o plugin `Purchases`, tocar
   no selo GRÁTIS do `TopNav` chama `abrirPaywall('planos')` (folha "Planos e

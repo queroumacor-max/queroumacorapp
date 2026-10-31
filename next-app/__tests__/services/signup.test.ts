@@ -115,6 +115,16 @@ describe('checkTagAvailability', () => {
     expect(r).toBe(false);
   });
 
+  it('a própria @tag não conta como conflito (ignorarUserId)', async () => {
+    __setSupabaseForTests(
+      makeFakeClient({
+        tables: { profiles_public: { selectResult: { data: [{ id: 'eu' }], error: null } } },
+      }),
+    );
+    expect(await checkTagAvailability('joaopintor', 'eu')).toBe(true);
+    expect(await checkTagAvailability('joaopintor', 'outro')).toBe(false);
+  });
+
   it('tag vazia → false (sem ir pra rede)', async () => {
     __setSupabaseForTests(makeFakeClient());
     const r = await checkTagAvailability('   ');
