@@ -19,6 +19,7 @@ import {
   type ProfilePatch,
 } from '@/lib/services/profile';
 import type { Profile } from '@/lib/types';
+import { normalizeRole } from '@/lib/roles';
 
 export interface UseProfileResult {
   profile: Profile | null;
@@ -27,6 +28,21 @@ export interface UseProfileResult {
   update: (patch: ProfilePatch) => Promise<void>;
   isUpdating: boolean;
   updateError: Error | null;
+}
+
+/**
+ * Aplica o patch no cache e, quando a categoria muda, faz `role` acompanhar —
+ * espelho do trigger `sync_role_from_user_type` (2026-10-31). O app lê `role`
+ * em quase todo lugar: sem isso, quem escolhia Pintor seguia como cliente até
+ * a releitura chegar. Admin nunca muda.
+ */
+export function comPapel(old: Profile, patch: ProfilePatch): Profile {
+  const novo = { ...old, ...patch } as Profile;
+  const papel = normalizeRole(patch.user_type ?? '');
+  if (papel && (old as { role?: string | null }).role !== 'admin') {
+    (novo as { role?: string | null }).role = papel;
+  }
+  return novo;
 }
 
 export function useProfile(): UseProfileResult {
@@ -57,7 +73,7 @@ export function useProfile(): UseProfileResult {
       const previous = qc.getQueryData<Profile | null>(['profile', user?.id]);
       qc.setQueryData<Profile | null>(['profile', user?.id], (old) => {
         if (!old) return old;
-        return { ...old, ...patch } as Profile;
+        return comPapel(old, patch);
       });
       return { previous };
     },
@@ -75,7 +91,7 @@ export function useProfile(): UseProfileResult {
       // pode não chegar: o guarda do AppShell devolvia a pessoa pro
       // /completar-perfil com o perfil já gravado no banco.
       qc.setQueryData<Profile | null>(['profile', user?.id], (old) =>
-        ({ ...(old ?? { id: user!.id }), ...patch }) as Profile,
+        comPapel((old ?? { id: user!.id }) as Profile, patch),
       );
       qc.invalidateQueries({ queryKey: ['profile', user?.id] });
     },

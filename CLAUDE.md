@@ -187,6 +187,25 @@
     mostra SEMPRE "Seus pacotes: N" (grátis só quando o plano é grátis).
     SEM SQL. **NO AR: PR #501 (squash `9240e7c`), deploy run #790 `success`.**
 
+- **CATEGORIA ESCOLHIDA NÃO VIRAVA PAPEL — "escolhe pintor e fica pintor"
+  (2026-10-31, pedido do usuário). SQL
+  `migrations/2026-10-31-role-segue-user-type.sql` — PENDENTE (passado no
+  chat).** Quem entra por Google/Apple nasce `user_type='cliente'` +
+  `role='cliente'` (padrão do `handle_new_user`). No /completar-perfil a
+  pessoa escolhe Pintor: o app grava `user_type`, mas `role` ficava
+  'cliente' — o `sync_role_from_user_type` só preenchia role VAZIO e o
+  `protect_profile_columns` (que funciona desde 25/10) reverte role mudado
+  pelo usuário. O app lê `role` em quase tudo (tiles, selo, busca, feed).
+  **Reproduzido em Postgres 16 local** (pintor/cliente) e corrigido: role
+  segue `user_type` sempre que ele muda, só pros 5 papéis comuns (nunca
+  'admin'), e role='admin' nunca é tocado; backfill de quem ficou dividido.
+  Testado: user_type='admin' não escala, role='admin' direto segue barrado,
+  admin trocando categoria segue admin, idempotente. App: cache do
+  `useProfile` faz role acompanhar (`comPapel`) e o prefill do
+  /completar-perfil normaliza sinônimo ('funileiro' caía calado em
+  'pintor'). Teste `__tests__/roleSegueUserType.test.ts`. Linha na
+  `2026-09-05-conferencia-pendencias.sql`.
+
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
   tela não saía (releitura do perfil sem teto pendurada na WebView, ou cache
