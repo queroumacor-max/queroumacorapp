@@ -224,6 +224,7 @@
   `__tests__/obrasEquipeSairEReconvidar.test.ts`. Esclarecido ao usuário:
   equipe é do GESTOR, não da obra — quem liga pessoa a obra é a Escala;
   opção "obra no convite" oferecida, sem resposta ainda.
+  **CÓDIGO NO AR: PR #504 (squash `3a06d84`), deploy run #793 `success`.**
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
