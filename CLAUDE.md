@@ -204,7 +204,8 @@
   `useProfile` faz role acompanhar (`comPapel`) e o prefill do
   /completar-perfil normaliza sinônimo ('funileiro' caía calado em
   'pintor'). Teste `__tests__/roleSegueUserType.test.ts`. Linha na
-  `2026-09-05-conferencia-pendencias.sql`.
+  `2026-09-05-conferencia-pendencias.sql`. **CÓDIGO NO AR: PR #503 (squash
+  `de22076`), deploy run #792 `success`.**
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
