@@ -129,3 +129,6 @@ SELECT 'pontos: redeem_pro_with_points sem EXECUTE pra authenticated — 2026-10
 
 -- 2026-10-28 (crédito único: orçamento, obra e IA no mesmo saldo).
 SELECT 'billing: crédito único (debit_ai_credit + usage_debits aceita ai) — 2026-10-28' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='debit_ai_credit') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='usage_debits_kind_check' AND pg_get_constraintdef(oid) LIKE '%ai%') AS ok;
+
+-- 2026-10-31 (role acompanha a categoria escolhida).
+SELECT 'perfil: role segue user_type (sync_role_from_user_type nova) — 2026-10-31' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='sync_role_from_user_type' AND prosrc LIKE '%IS DISTINCT FROM OLD.user_type%') AS ok;

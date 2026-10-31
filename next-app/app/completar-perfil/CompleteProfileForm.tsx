@@ -1,6 +1,6 @@
 'use client';
 
-import { ROLE_OPTIONS } from '@/lib/roles';
+import { ROLE_OPTIONS, normalizeRole } from '@/lib/roles';
 // CompleteProfileForm — onboarding pós-OAuth (Google/Apple). Quem loga social
 // cai aqui (redirectTo do signInWithOAuth). Se o perfil já está completo
 // (tem categoria + @tag), manda direto pro /feed. Senão, pede o mínimo pra
@@ -107,7 +107,9 @@ export function CompleteProfileForm() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
     if (inicialNome) setName(inicialNome);
 
-    const papel = texto(p?.user_type) || texto(p?.role);
+    // normalizeRole: 'funileiro'/'engenheiro' antigos não batem com as opções
+    // e o formulário caía calado no padrão 'pintor' — salvar trocava o papel.
+    const papel = normalizeRole(texto(p?.user_type) || texto(p?.role));
     if (papel && ROLES.some((r) => r.value === papel)) {
       setCategory(papel as UserRole);
     }
