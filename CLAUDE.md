@@ -204,7 +204,26 @@
   `useProfile` faz role acompanhar (`comPapel`) e o prefill do
   /completar-perfil normaliza sinônimo ('funileiro' caía calado em
   'pintor'). Teste `__tests__/roleSegueUserType.test.ts`. Linha na
-  `2026-09-05-conferencia-pendencias.sql`.
+  `2026-09-05-conferencia-pendencias.sql`. **CÓDIGO NO AR: PR #503 (squash
+  `de22076`), deploy run #792 `success`.**
+
+- **GESTÃO DE OBRAS: "já está na equipe, mas não" + funcionário sem como
+  SAIR (2026-10-31, relato do Fabio via WhatsApp). SQL
+  `migrations/2026-10-31-minhas-equipes-obras.sql` — PENDENTE (passado no
+  chat).** (1) Convidar quem já tinha linha (UNIQUE gestor+membro) dava
+  sempre "Essa pessoa já está na sua equipe" — mentira quando a linha era
+  `saiu`/`recusado` (fica escondida em "Fora da equipe", e a tela mostrava 0
+  ativos). Agora `reconvidar`: saiu/recusado → volta a `convidado` (mesma
+  transição do "Convidar de novo"); convidado → "falta ela aceitar"; ativo →
+  "já está". (2) `sair_da_equipe` existia desde 24/09 mas nenhuma tela
+  chamava: o funcionário não lê `obra_equipe` e não tinha como listar as
+  equipes em que está. RPC nova `minhas_equipes_obras()` (só ativas do
+  próprio usuário, sem diária/telefone, sem anon) + seção "Equipes em que
+  você está" com "Sair da equipe" (confirmação) em Minha agenda. Sem o SQL a
+  seção só some. Testado em Postgres 16 local (2x). Teste
+  `__tests__/obrasEquipeSairEReconvidar.test.ts`. Esclarecido ao usuário:
+  equipe é do GESTOR, não da obra — quem liga pessoa a obra é a Escala;
+  opção "obra no convite" oferecida, sem resposta ainda.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
