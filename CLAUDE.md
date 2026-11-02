@@ -242,7 +242,8 @@
   (2x, obra alheia recusada no insert e update, reconvite leva a obra,
   apagar obra → NULL, anon barrado). Teste
   `__tests__/obrasConviteComObra.test.ts`. **CÓDIGO NO AR: PR #505 (squash
-  `46e99e3`), deploy run #794 `success`.**
+  `46e99e3`), deploy run #794 `success`.** **CONFIRMADO PELO USUÁRIO NO APP
+  (2026-11-02): "testei, funcionou".** Caso fechado.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
