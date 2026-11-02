@@ -227,8 +227,9 @@
   **CÓDIGO NO AR: PR #504 (squash `3a06d84`), deploy run #793 `success`.**
 
 - **GESTÃO DE OBRAS: OBRA NO CONVITE (2026-11-02, decisão do usuário: "faz a
-  opção 1"). SQL `migrations/2026-11-02-convite-com-obra.sql` — PENDENTE
-  (passado no chat).** A equipe continua sendo do GESTOR; o convite (e o
+  opção 1"). SQL `migrations/2026-11-02-convite-com-obra.sql` — JÁ RODADO
+  (2026-11-02, print do usuário: as 4 linhas da conferência `true`). Não
+  pedir pra rodar de novo.** A equipe continua sendo do GESTOR; o convite (e o
   funcionário sem conta) ganhou "Pra qual obra (opcional)" →
   `obra_equipe.obra_id` (FK obras, ON DELETE SET NULL; trigger
   `trg_check_equipe_obra` só aceita obra do próprio gestor). O aviso diz "te
