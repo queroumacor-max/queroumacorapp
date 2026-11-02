@@ -189,8 +189,8 @@
 
 - **CATEGORIA ESCOLHIDA NÃO VIRAVA PAPEL — "escolhe pintor e fica pintor"
   (2026-10-31, pedido do usuário). SQL
-  `migrations/2026-10-31-role-segue-user-type.sql` — PENDENTE (passado no
-  chat).** Quem entra por Google/Apple nasce `user_type='cliente'` +
+  `migrations/2026-10-31-role-segue-user-type.sql` — JÁ RODADO (2026-11-02,
+  print do usuário: conferência `ok=true`). Não pedir pra rodar de novo.** Quem entra por Google/Apple nasce `user_type='cliente'` +
   `role='cliente'` (padrão do `handle_new_user`). No /completar-perfil a
   pessoa escolhe Pintor: o app grava `user_type`, mas `role` ficava
   'cliente' — o `sync_role_from_user_type` só preenchia role VAZIO e o
@@ -209,8 +209,8 @@
 
 - **GESTÃO DE OBRAS: "já está na equipe, mas não" + funcionário sem como
   SAIR (2026-10-31, relato do Fabio via WhatsApp). SQL
-  `migrations/2026-10-31-minhas-equipes-obras.sql` — PENDENTE (passado no
-  chat).** (1) Convidar quem já tinha linha (UNIQUE gestor+membro) dava
+  `migrations/2026-10-31-minhas-equipes-obras.sql` — JÁ RODADO (2026-11-02,
+  print do usuário: conferência `ok=true`). Não pedir pra rodar de novo.** (1) Convidar quem já tinha linha (UNIQUE gestor+membro) dava
   sempre "Essa pessoa já está na sua equipe" — mentira quando a linha era
   `saiu`/`recusado` (fica escondida em "Fora da equipe", e a tela mostrava 0
   ativos). Agora `reconvidar`: saiu/recusado → volta a `convidado` (mesma
