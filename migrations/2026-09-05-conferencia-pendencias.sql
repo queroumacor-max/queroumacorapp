@@ -135,3 +135,6 @@ SELECT 'perfil: role segue user_type (sync_role_from_user_type nova) — 2026-10
 
 -- 2026-10-31 (funcionário vê as equipes em que está e pode sair).
 SELECT 'obras: minhas_equipes_obras existe — 2026-10-31' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='minhas_equipes_obras') AS ok;
+
+-- 2026-11-02 (obra no convite da equipe).
+SELECT 'obras: obra_equipe.obra_id + trava do gestor — 2026-11-02' AS item, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_check_equipe_obra' AND NOT tgisinternal) AS ok;

@@ -63,6 +63,9 @@ export interface MembroEquipe {
   funcao: string | null;
   diaria: number | null;
   status: 'convidado' | 'ativo' | 'recusado' | 'saiu';
+  /** Obra pra qual a pessoa foi chamada (opcional). Ausente = qualquer obra
+   *  — ou SQL `2026-11-02-convite-com-obra.sql` ainda não rodou. */
+  obra_id?: string | null;
 }
 
 export interface DiaEscala {
@@ -82,6 +85,7 @@ export interface Convite {
   gestor_tag: string | null;
   funcao: string | null;
   created_at: string;
+  obra_nome?: string | null;
 }
 
 export interface MeuDia {
@@ -112,7 +116,14 @@ const OBRA_COLS_BASE = 'id, owner_id, nome, cliente, endereco, status, inicio, f
 // padrão do Financeiro com `categoria`/`obra_id`).
 const OBRA_COLS = `${OBRA_COLS_BASE}, client_id`;
 const colunaAusente = (code?: string) => code === '42703';
-const EQUIPE_COLS = 'id, gestor_id, membro_id, nome, telefone, funcao, diaria, status';
+const EQUIPE_COLS_BASE = 'id, gestor_id, membro_id, nome, telefone, funcao, diaria, status';
+// obra_id é de 2026-11-02 (obra no convite). Coluna ausente → refaz sem
+// ela: a equipe não pode sumir da tela por SQL pendente.
+const EQUIPE_COLS = `${EQUIPE_COLS_BASE}, obra_id`;
+
+/** Escolheu obra no convite mas o SQL da coluna não rodou: avisar em vez de
+ *  convidar "pra qualquer obra" calado. */
+const SEM_COLUNA_OBRA = 'Pra escolher a obra no convite, falta rodar o SQL 2026-11-02-convite-com-obra.sql. Ou deixe "Qualquer obra".';
 const ESCALA_COLS = 'id, obra_id, equipe_id, dia, hora_inicio, hora_fim, tarefa, presenca';
 
 const txt = (v: unknown, max: number) => {
@@ -228,10 +239,12 @@ export async function apagarObra(uid: string, id: string): Promise<void> {
 
 export async function listEquipe(uid: string): Promise<MembroEquipe[]> {
   if (!uid) return [];
-  const { data, error } = await db().from('obra_equipe').select(EQUIPE_COLS).eq('gestor_id', uid)
+  const consulta = (cols: string) => db().from('obra_equipe').select(cols).eq('gestor_id', uid)
     .order('nome', { ascending: true }).limit(200);
+  let { data, error } = await consulta(EQUIPE_COLS);
+  if (error && colunaAusente(error.code)) ({ data, error } = await consulta(EQUIPE_COLS_BASE));
   if (error) falha(error);
-  return (data ?? []) as MembroEquipe[];
+  return (data ?? []) as unknown as MembroEquipe[];
 }
 
 export interface MembroInput {
@@ -239,19 +252,29 @@ export interface MembroInput {
   telefone?: string | null;
   funcao?: string | null;
   diaria?: number | null;
+  /** Obra do convite; null/vazio = qualquer obra. */
+  obraId?: string | null;
 }
+
+const obraDe = (v: unknown) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
 
 /** Funcionário SEM conta no app (recebe a escala por WhatsApp). */
 export async function adicionarSemConta(uid: string, input: MembroInput): Promise<MembroEquipe> {
   const nome = txt(input.nome, 80);
   if (!nome) throw new ValidationError('Informe o nome.');
   const tel = String(input.telefone ?? '').replace(/\D/g, '').slice(0, 15) || null;
-  const { data, error } = await db().from('obra_equipe').insert({
+  const obraId = obraDe(input.obraId);
+  const linha: Record<string, unknown> = {
     gestor_id: uid, nome, telefone: tel, funcao: txt(input.funcao, 60),
     diaria: input.diaria != null && Number.isFinite(input.diaria) ? Math.max(0, input.diaria) : null,
-  }).select(EQUIPE_COLS);
-  if (error) falha(error);
-  return (data ?? [])[0] as MembroEquipe;
+  };
+  if (obraId) linha.obra_id = obraId;
+  const { data, error } = await db().from('obra_equipe').insert(linha).select(obraId ? EQUIPE_COLS : EQUIPE_COLS_BASE);
+  if (error) {
+    if (colunaAusente(error.code)) throw new ValidationError(SEM_COLUNA_OBRA);
+    falha(error);
+  }
+  return (data ?? [])[0] as unknown as MembroEquipe;
 }
 
 export interface PessoaSeguida {
@@ -298,16 +321,20 @@ export async function convidarPorTag(uid: string, tagBruta: string, extra: Omit<
   const alvo = (perfis ?? [])[0] as { id: string; name: string | null } | undefined;
   if (!alvo) throw new ValidationError(`Não achei ninguém com a @${tag} no app.`);
   if (alvo.id === uid) throw new ValidationError('Você não pode se convidar.');
-  const { data, error } = await db().from('obra_equipe').insert({
+  const obraId = obraDe(extra.obraId);
+  const linha: Record<string, unknown> = {
     gestor_id: uid, membro_id: alvo.id, nome: txt(alvo.name, 80) || `@${tag}`,
     funcao: txt(extra.funcao, 60),
     diaria: extra.diaria != null && Number.isFinite(extra.diaria) ? Math.max(0, extra.diaria) : null,
-  }).select(EQUIPE_COLS);
+  };
+  if (obraId) linha.obra_id = obraId;
+  const { data, error } = await db().from('obra_equipe').insert(linha).select(obraId ? EQUIPE_COLS : EQUIPE_COLS_BASE);
   if (error) {
     if (error.code === '23505') return reconvidar(uid, alvo.id, extra);
+    if (colunaAusente(error.code)) throw new ValidationError(SEM_COLUNA_OBRA);
     falha(error);
   }
-  return (data ?? [])[0] as MembroEquipe;
+  return (data ?? [])[0] as unknown as MembroEquipe;
 }
 
 /**
@@ -319,7 +346,7 @@ export async function convidarPorTag(uid: string, tagBruta: string, extra: Omit<
  * convidado → diz que está esperando o aceite; ativo → aí sim, já está.
  */
 async function reconvidar(uid: string, membroId: string, extra: Omit<MembroInput, 'nome'>): Promise<MembroEquipe> {
-  const { data: atual, error: e1 } = await db().from('obra_equipe').select(EQUIPE_COLS)
+  const { data: atual, error: e1 } = await db().from('obra_equipe').select(EQUIPE_COLS_BASE)
     .eq('gestor_id', uid).eq('membro_id', membroId).limit(1);
   if (e1) falha(e1);
   const m = (atual ?? [])[0] as MembroEquipe | undefined;
@@ -331,8 +358,14 @@ async function reconvidar(uid: string, membroId: string, extra: Omit<MembroInput
   const patch: Record<string, unknown> = { status: 'convidado' };
   if (txt(extra.funcao, 60)) patch.funcao = txt(extra.funcao, 60);
   if (extra.diaria != null && Number.isFinite(extra.diaria)) patch.diaria = Math.max(0, extra.diaria);
-  const { data, error } = await db().from('obra_equipe').update(patch).eq('id', m.id).select(EQUIPE_COLS);
-  if (error) falha(error);
+  // Reconvite leva a obra escolhida agora (o aviso sai com o nome dela).
+  const obraId = obraDe(extra.obraId);
+  if (obraId) patch.obra_id = obraId;
+  const { data, error } = await db().from('obra_equipe').update(patch).eq('id', m.id).select(EQUIPE_COLS_BASE);
+  if (error) {
+    if (colunaAusente(error.code)) throw new ValidationError(SEM_COLUNA_OBRA);
+    falha(error);
+  }
   const novo = (data ?? [])[0] as MembroEquipe | undefined;
   if (!novo || novo.status !== 'convidado') throw new ValidationError('Não consegui convidar de novo. Tente em "Fora da equipe".');
   return novo;
@@ -341,10 +374,13 @@ async function reconvidar(uid: string, membroId: string, extra: Omit<MembroInput
 export async function atualizarMembro(
   uid: string,
   id: string,
-  patch: Partial<Pick<MembroEquipe, 'funcao' | 'diaria' | 'telefone' | 'status'>>,
+  patch: Partial<Pick<MembroEquipe, 'funcao' | 'diaria' | 'telefone' | 'status' | 'obra_id'>>,
 ): Promise<void> {
   const { data, error } = await db().from('obra_equipe').update(patch).eq('id', id).eq('gestor_id', uid).select('id, status');
-  if (error) falha(error);
+  if (error) {
+    if ('obra_id' in patch && colunaAusente(error.code)) throw new ValidationError(SEM_COLUNA_OBRA);
+    falha(error);
+  }
   if (!data?.length) throw new NetworkError('Pessoa não encontrada na sua equipe.');
 }
 

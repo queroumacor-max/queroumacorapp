@@ -67,7 +67,8 @@ export function MinhaAgenda({ uid }: { uid: string }) {
         <section key={c.id} className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'var(--color-ink-fixed)', color: 'var(--color-white-fixed)' }}>
           <p className="text-sm">
             <b>{c.gestor_nome || 'Um profissional'}</b>
-            {c.gestor_tag ? ` (@${c.gestor_tag})` : ''} te convidou pra equipe de obras
+            {c.gestor_tag ? ` (@${c.gestor_tag})` : ''} te convidou
+            {c.obra_nome ? <> pra obra <b>{c.obra_nome}</b></> : ' pra equipe de obras'}
             {c.funcao ? ` como ${c.funcao}` : ''}.
           </p>
           <p className="text-xs" style={{ opacity: 0.85 }}>Aceitando, você passa a ver aqui as obras e os dias em que for escalado.</p>

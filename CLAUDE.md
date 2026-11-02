@@ -223,8 +223,24 @@
   seção só some. Testado em Postgres 16 local (2x). Teste
   `__tests__/obrasEquipeSairEReconvidar.test.ts`. Esclarecido ao usuário:
   equipe é do GESTOR, não da obra — quem liga pessoa a obra é a Escala;
-  opção "obra no convite" oferecida, sem resposta ainda.
+  opção "obra no convite" escolhida em 02/11 (ver entrada própria).
   **CÓDIGO NO AR: PR #504 (squash `3a06d84`), deploy run #793 `success`.**
+
+- **GESTÃO DE OBRAS: OBRA NO CONVITE (2026-11-02, decisão do usuário: "faz a
+  opção 1"). SQL `migrations/2026-11-02-convite-com-obra.sql` — PENDENTE
+  (passado no chat).** A equipe continua sendo do GESTOR; o convite (e o
+  funcionário sem conta) ganhou "Pra qual obra (opcional)" →
+  `obra_equipe.obra_id` (FK obras, ON DELETE SET NULL; trigger
+  `trg_check_equipe_obra` só aceita obra do próprio gestor). O aviso diz "te
+  convidou pra obra X"; `meus_convites_equipe` devolve `obra_nome` (só o
+  nome); na Escala quem é da obra aparece em "Desta obra" (o resto da equipe
+  continua escalável); o cartão da equipe troca a obra; o detalhe da obra
+  lista "Equipe desta obra". Sem o SQL: a lista da equipe refaz o select sem
+  a coluna e o campo some; escolher obra dá erro explícito
+  (`SEM_COLUNA_OBRA`), nunca convida calado. Testado em Postgres 16 local
+  (2x, obra alheia recusada no insert e update, reconvite leva a obra,
+  apagar obra → NULL, anon barrado). Teste
+  `__tests__/obrasConviteComObra.test.ts`.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a

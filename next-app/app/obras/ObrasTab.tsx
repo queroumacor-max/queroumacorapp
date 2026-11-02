@@ -321,6 +321,9 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
   const nomeDe = new Map((equipe.data ?? []).map((m) => [m.id, m.nome]));
   const hoje = ymdBrt(); // regra do app: "hoje" é o de Brasília
   const proximos = (escala.data ?? []).filter((e) => e.dia >= hoje).slice(0, 12);
+  // Quem foi chamado pra esta obra no convite (aba Equipe). É só a lista de
+  // referência: quem vai em cada dia continua sendo a Escala.
+  const daObra = (equipe.data ?? []).filter((m) => m.obra_id === obra.id && (m.status === 'ativo' || m.status === 'convidado'));
 
   return (
     <div className="flex flex-col gap-4">
@@ -443,6 +446,20 @@ function ObraDetalhe({ uid, obra, onVoltar }: { uid: string; obra: Obra; onVolta
           )}
         </div>
       </section>
+
+      {daObra.length ? (
+        <section>
+          <h4 className={cls.sec}>Equipe desta obra</h4>
+          <div className={`${cls.card} flex flex-col gap-1 text-sm`}>
+            {daObra.map((m) => (
+              <div key={m.id} className="flex justify-between gap-2">
+                <span style={{ overflowWrap: 'anywhere' }}>{m.nome}{m.funcao ? ` · ${m.funcao}` : ''}</span>
+                <span className="text-[color:var(--color-muted)] shrink-0">{m.status === 'convidado' ? 'convite enviado' : 'ativo'}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section>
         <h4 className={cls.sec}>Próximos dias escalados</h4>

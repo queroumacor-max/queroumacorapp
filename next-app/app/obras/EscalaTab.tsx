@@ -126,6 +126,10 @@ export function EscalaTab({ uid }: { uid: string }) {
       {ativas.map((o) => {
         const aqui = doDia.filter((e) => e.obra_id === o.id);
         const livres = ativos.filter((m) => !aqui.some((e) => e.equipe_id === m.id));
+        // Quem foi chamado PRA ESTA obra vem primeiro; o resto da equipe
+        // continua disponível (a equipe é do gestor, não da obra).
+        const daObra = livres.filter((m) => m.obra_id === o.id);
+        const outros = livres.filter((m) => m.obra_id !== o.id);
         return (
           <section key={o.id} className={cls.card}>
             <div className="font-bold" style={{ fontFamily: 'var(--font-display)' }}>{o.nome}</div>
@@ -151,7 +155,20 @@ export function EscalaTab({ uid }: { uid: string }) {
                     style={{ minHeight: 36 }}
                   >
                     <option value="">+ Escalar</option>
-                    {livres.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                    {daObra.length ? (
+                      <>
+                        <optgroup label="Desta obra">
+                          {daObra.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </optgroup>
+                        {outros.length ? (
+                          <optgroup label="Resto da equipe">
+                            {outros.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                          </optgroup>
+                        ) : null}
+                      </>
+                    ) : (
+                      outros.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)
+                    )}
                   </select>
                 </>
               ) : null}

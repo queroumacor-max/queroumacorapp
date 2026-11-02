@@ -13,6 +13,7 @@ import {
   atualizarMembro,
   convidarPorTag,
   listEquipe,
+  listObras,
   normalizarTag,
   pessoasQueSigo,
   type MembroEquipe,
@@ -31,8 +32,12 @@ export function EquipeTab({ uid }: { uid: string }) {
   const dialog = useDialog();
   const q = useQuery({ queryKey: ['obra-equipe', uid], queryFn: () => listEquipe(uid), enabled: !!uid });
   const seguindo = useQuery({ queryKey: ['pessoas-que-sigo', uid], queryFn: () => pessoasQueSigo(uid), enabled: !!uid });
+  // Mesma chave da aba Escala/Obras: a lista já costuma estar no cache.
+  const obras = useQuery({ queryKey: ['obras', uid], queryFn: () => listObras(uid), enabled: !!uid });
+  const obrasAbertas = (obras.data ?? []).filter((o) => o.status !== 'concluida');
+  const nomeDaObra = new Map((obras.data ?? []).map((o) => [o.id, o.nome]));
   const [modo, setModo] = useState<'app' | 'sem'>('app');
-  const [f, setF] = useState({ tag: '', nome: '', telefone: '', funcao: '', diaria: '' });
+  const [f, setF] = useState({ tag: '', nome: '', telefone: '', funcao: '', diaria: '', obra: '' });
   const [sugestoesAbertas, setSugestoesAbertas] = useState(false);
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
 
@@ -44,14 +49,20 @@ export function EquipeTab({ uid }: { uid: string }) {
   const adicionar = useMutation({
     mutationFn: () => {
       const diaria = f.diaria.trim() ? parseBRL(f.diaria) : null;
-      const extra = { funcao: f.funcao, diaria: Number.isFinite(diaria as number) ? diaria : null };
+      const extra = { funcao: f.funcao, diaria: Number.isFinite(diaria as number) ? diaria : null, obraId: f.obra || null };
       return modo === 'app'
         ? convidarPorTag(uid, f.tag, extra)
         : adicionarSemConta(uid, { ...extra, nome: f.nome, telefone: f.telefone });
     },
     onSuccess: () => {
-      showToast(modo === 'app' ? 'Convite enviado — a pessoa aceita no app dela' : 'Funcionário adicionado', 'success');
-      setF({ tag: '', nome: '', telefone: '', funcao: '', diaria: '' });
+      const obra = f.obra ? nomeDaObra.get(f.obra) : null;
+      showToast(
+        modo === 'app'
+          ? `Convite enviado${obra ? ` pra obra ${obra}` : ''} — a pessoa aceita no app dela`
+          : `Funcionário adicionado${obra ? ` na obra ${obra}` : ''}`,
+        'success',
+      );
+      setF({ tag: '', nome: '', telefone: '', funcao: '', diaria: '', obra: f.obra });
       qc.invalidateQueries({ queryKey: ['obra-equipe', uid] });
     },
     onError: (e) => showToast((e as Error).message, 'error'),
@@ -102,7 +113,26 @@ export function EquipeTab({ uid }: { uid: string }) {
     }
   }
 
+  async function trocarObra(m: MembroEquipe, obraId: string) {
+    const chave = ['obra-equipe', uid];
+    const antes = qc.getQueryData<MembroEquipe[]>(chave);
+    const novo = obraId || null;
+    qc.setQueryData<MembroEquipe[]>(chave, (l) => (l ?? []).map((x) => (x.id === m.id ? { ...x, obra_id: novo } : x)));
+    try {
+      await atualizarMembro(uid, m.id, { obra_id: novo });
+      showToast(novo ? `${m.nome} agora é da obra ${nomeDaObra.get(novo) ?? ''}` : `${m.nome} serve pra qualquer obra`, 'success');
+    } catch (e) {
+      qc.setQueryData(chave, antes);
+      showToast(`Não deu certo: ${(e as Error).message}`, 'error');
+    } finally {
+      qc.invalidateQueries({ queryKey: chave });
+    }
+  }
+
   const lista = q.data ?? [];
+  // A coluna obra_id só vem depois do SQL de 2026-11-02; sem ela o campo
+  // nem aparece (escolher obra e ver o convite sair sem ela seria mentira).
+  const temColunaObra = lista.length === 0 || lista.some((m) => 'obra_id' in m);
   // Quem saiu ou recusou não é mais equipe: fica numa seção fechada embaixo,
   // senão a lista de verdade some no meio de gente que já foi embora.
   const naEquipe = lista.filter((m) => m.status === 'ativo' || m.status === 'convidado');
@@ -122,7 +152,28 @@ export function EquipeTab({ uid }: { uid: string }) {
           </div>
           <Chip tom={m.status}>{ROTULO_STATUS[m.status]}</Chip>
         </div>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {temColunaObra && (m.status === 'ativo' || m.status === 'convidado') && obrasAbertas.length > 0 ? (
+            <label className="flex items-center gap-1 text-xs font-bold min-w-0">
+              <span aria-hidden>🏗️</span>
+              <span className="sr-only">Obra de {m.nome}</span>
+              <select
+                value={m.obra_id ?? ''}
+                disabled={ocupado}
+                onChange={(e) => trocarObra(m, e.target.value)}
+                className="rounded-xl border border-[color:var(--color-border)] bg-white px-2 text-xs font-bold max-w-[11rem]"
+                style={{ minHeight: 40 }}
+              >
+                <option value="">Qualquer obra</option>
+                {obrasAbertas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                {m.obra_id && !obrasAbertas.some((o) => o.id === m.obra_id) ? (
+                  <option value={m.obra_id}>{nomeDaObra.get(m.obra_id) ?? 'Obra concluída'}</option>
+                ) : null}
+              </select>
+            </label>
+          ) : m.obra_id && nomeDaObra.get(m.obra_id) ? (
+            <span className="text-xs text-[color:var(--color-muted)]">🏗️ {nomeDaObra.get(m.obra_id)}</span>
+          ) : <span />}
           {m.status === 'convidado' ? (
             <button type="button" disabled={ocupado} onClick={() => mudar(m, 'saiu')} className={`${botao} text-[color:var(--color-danger)]`} style={{ minHeight: 40 }}>
               Cancelar convite
@@ -218,6 +269,14 @@ export function EquipeTab({ uid }: { uid: string }) {
             </Campo>
           </>
         )}
+        {temColunaObra && obrasAbertas.length > 0 ? (
+          <Campo id="eq-obra" label="Pra qual obra (opcional)">
+            <select id="eq-obra" className={cls.input} value={f.obra} onChange={(e) => set('obra', e.target.value)}>
+              <option value="">Qualquer obra</option>
+              {obrasAbertas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+            </select>
+          </Campo>
+        ) : null}
         <div className="grid grid-cols-2 gap-3">
           <Campo id="eq-fun" label="Função">
             <input id="eq-fun" className={cls.input} value={f.funcao} onChange={(e) => set('funcao', e.target.value)} maxLength={60} placeholder="Pintor, ajudante" />
@@ -230,6 +289,7 @@ export function EquipeTab({ uid }: { uid: string }) {
           {modo === 'app'
             ? 'A pessoa recebe um convite no app e só entra na equipe se aceitar.'
             : 'Sem conta, a escala vai pelo seu WhatsApp. A diária serve pra estimar a mão de obra da obra.'}
+          {' '}Quem vai em cada dia você marca na aba Escala{f.obra ? '; essa pessoa aparece primeiro nessa obra.' : '.'}
         </p>
         <Botao primario type="submit" disabled={adicionar.isPending}>
           {adicionar.isPending ? 'Enviando…' : modo === 'app' ? 'Enviar convite' : 'Adicionar funcionário'}
