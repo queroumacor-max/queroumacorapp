@@ -138,3 +138,6 @@ SELECT 'obras: minhas_equipes_obras existe — 2026-10-31' AS item, EXISTS (SELE
 
 -- 2026-11-02 (obra no convite da equipe).
 SELECT 'obras: obra_equipe.obra_id + trava do gestor — 2026-11-02' AS item, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_check_equipe_obra' AND NOT tgisinternal) AS ok;
+
+-- 2026-11-04 (PRO grátis 30 dias pra profissional novo).
+SELECT 'pro trial: trg_grant_pro_trial ligado — 2026-11-04' AS item, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_grant_pro_trial' AND NOT tgisinternal) AS ok;
