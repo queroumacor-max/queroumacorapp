@@ -261,7 +261,9 @@
   conversa" (evento `portal:abrir-chat` → tela Chats 3-Way abre a conversa).
   Orçamento anterior a 04/11 não tem a marca: a gaveta lista as últimas
   mensagens "🧾 Pedido de orçamento de material" do pintor, sem afirmar de
-  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`.
+  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`. **NO AR: PR #507
+  (squash `b052459`), deploy run #795 `success` (2ª tentativa — a 1ª caiu no
+  soluço da fonte do Google).** Não conferido no portal pelo usuário ainda.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
