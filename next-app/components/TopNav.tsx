@@ -1,6 +1,6 @@
 // TopNav — navbar superior escura espelhando o vanilla (index.html linha
 // ~227 + styles.css `.top-nav`). Fundo ink, logo Quero[Uma]Cor com
-// "Uma" laranja, badge PRO/GRÁTIS à direita + ícone chat com badge dot.
+// "Uma" laranja, badge PRO/GRÁTIS à direita + sino de avisos com contador.
 //
 // O badge agora é derivado do profile do user (via useProfile):
 //   - profile.is_admin || profile.portal_access → "ADMIN"
@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessageCount';
+import { useUnreadNotificationCount } from '@/lib/hooks/useUnreadNotificationCount';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
 import { situacaoDoPlano, type Plano } from '@/lib/billingBalance';
 import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
@@ -30,7 +30,7 @@ const ROTULO_DO_PLANO: Record<Plano, 'GRÁTIS' | 'PRO' | 'ADMIN'> = { admin: 'AD
 // Telas-raiz (as 5 abas da BottomNav): nelas não há "de onde voltar".
 // Nas DEMAIS, o TopNav ganha um ← — importante no app Android, onde o
 // botão voltar nativo do wrapper fecha o app em vez de navegar.
-const ROOT_PATHS = new Set(['/', '/feed', '/search', '/loja', '/notificacoes', '/perfil']);
+const ROOT_PATHS = new Set(['/', '/feed', '/search', '/loja', '/chat', '/perfil']);
 
 interface TopNavProps {
   /** Override do badge — usado em telas onde a regra de derivação não
@@ -42,7 +42,7 @@ interface TopNavProps {
 export function TopNav({ proStatus }: TopNavProps) {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
-  const unreadChat = useUnreadMessageCount();
+  const unreadNotif = useUnreadNotificationCount();
   const router = useRouter();
   const pathname = usePathname();
   const showBack = !!pathname && !ROOT_PATHS.has(pathname);
@@ -164,11 +164,13 @@ export function TopNav({ proStatus }: TopNavProps) {
           {badge}
         </Link>
 
+        {/* Sino de avisos (subiu da BottomNav em 04/11/2026; Mensagens
+            desceu pro lugar dele lá embaixo). */}
         <Link
-          href="/chat"
-          data-tour="nav-chat"
+          href="/notificacoes"
+          data-tour="nav-notif"
           aria-label={
-            unreadChat > 0 ? `Chat (${unreadChat} não lidas)` : 'Chat'
+            unreadNotif > 0 ? `Avisos (${unreadNotif} não lidos)` : 'Avisos'
           }
           className="relative w-11 h-11 flex items-center justify-center rounded-full"
         >
@@ -183,9 +185,10 @@ export function TopNav({ proStatus }: TopNavProps) {
             strokeLinejoin="round"
             aria-hidden="true"
           >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          {unreadChat > 0 && (
+          {unreadNotif > 0 && (
             <span
               className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-[color:var(--color-white-fixed)]"
               style={{
@@ -194,7 +197,7 @@ export function TopNav({ proStatus }: TopNavProps) {
                 lineHeight: 1,
               }}
             >
-              {unreadChat > 99 ? '99+' : unreadChat}
+              {unreadNotif > 99 ? '99+' : unreadNotif}
             </span>
           )}
         </Link>

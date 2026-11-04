@@ -279,9 +279,27 @@
   (squash `d7bbbad`), deploy run #796 `success`.** Ainda não conferido com
   um cadastro real.
 
+- **MENU DE BAIXO COM NOME + SINO ↔ MENSAGENS + "POSTE HOJE" NO STORY
+  (2026-11-04, pedidos do usuário com prévia aprovada). SEM SQL.** Menu de
+  baixo: **Início · Procurar · Loja · Mensagens · Empresa**, nome embaixo do
+  ícone (some a bolinha; ativo = ícone+nome laranja), mesma altura de 60px.
+  O sino de avisos SUBIU pro TopNav (`/notificacoes`, contador de avisos) e
+  Mensagens DESCEU (`/chat`, contador de não lidas). `/chat` virou tela-raiz
+  (sem seta de voltar); `/notificacoes` ganhou a seta. Tutorial reordenado
+  (embaixo primeiro, sino depois). "Seu story" sem story nas últimas 24h:
+  anel laranja tracejado girando (`.story-chamada`, para com
+  prefers-reduced-motion) + legenda "Poste hoje" (sem estrela, decisão do
+  usuário). Teste `__tests__/navLegendasETroca.test.ts`. **Conferido com
+  Playwright no Worker local (OpenNext + wrangler dev, login simulado)** em
+  360px e 412px: 5 nomes cabem (64px cada, sem corte), sem rolagem lateral,
+  sino abre avisos, Mensagens abre o chat e fica ativo. `next start` puro
+  NÃO serve pra esse teste (erro React #412 até no /login) — usar
+  `build:cf` + `wrangler dev --env preview`.
+
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"
   (`app/calculadora/CalcView.tsx`); o link segue pro catálogo da loja.
+  **NO AR: PR #510 (squash `0720583`), deploy run #798 `success`.**
 
 - **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
   (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
