@@ -294,7 +294,8 @@
   360px e 412px: 5 nomes cabem (64px cada, sem corte), sem rolagem lateral,
   sino abre avisos, Mensagens abre o chat e fica ativo. `next start` puro
   NÃO serve pra esse teste (erro React #412 até no /login) — usar
-  `build:cf` + `wrangler dev --env preview`.
+  `build:cf` + `wrangler dev --env preview`. **NO AR: PR #511 (squash
+  `732d1e3`), deploy run #799 `success`.**
 
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"
