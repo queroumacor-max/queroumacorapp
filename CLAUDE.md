@@ -247,8 +247,9 @@
 
 - **PRO GRÁTIS 30 DIAS PRA PROFISSIONAL NOVO (2026-11-04, decisão do
   usuário: "1 profissionais / 2 novas / 3 se apagar e criar outra não"). SQL
-  `migrations/2026-11-04-pro-trial-profissionais.sql` — PASSADO NO CHAT,
-  AINDA NÃO CONFIRMADO RODADO.** Gatilho `trg_grant_pro_trial` (AFTER INSERT
+  `migrations/2026-11-04-pro-trial-profissionais.sql` — JÁ RODADO
+  (2026-11-04, usuário: "rodei, deu tudo true" — as 4 linhas da conferência).
+  Não pedir pra rodar de novo. Vale pra conta criada a partir desse momento.** Gatilho `trg_grant_pro_trial` (AFTER INSERT
   OR UPDATE OF role, user_type em profiles, SECURITY DEFINER): conta criada
   em `auth.users` DEPOIS de `pro_trial_config.desde` (= hora em que o SQL
   rodou) que vira pintor/grafiteiro/automotivo/arquiteto ganha `is_pro=true`
