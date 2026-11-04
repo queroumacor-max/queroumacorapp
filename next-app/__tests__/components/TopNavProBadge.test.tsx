@@ -31,8 +31,8 @@ const mockSaldo: { data: Record<string, unknown> | null } = { data: null };
 vi.mock('@/lib/hooks/useBillingBalance', () => ({
   useBillingBalance: () => ({ data: mockSaldo.data }),
 }));
-vi.mock('@/lib/hooks/useUnreadMessageCount', () => ({
-  useUnreadMessageCount: () => ({ count: 0 }),
+vi.mock('@/lib/hooks/useUnreadNotificationCount', () => ({
+  useUnreadNotificationCount: () => 0,
 }));
 
 import { TopNav } from '@/components/TopNav';

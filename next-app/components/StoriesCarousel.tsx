@@ -140,13 +140,19 @@ function SelfStoryAvatar({
         style={{
           background: hasOwnStory
             ? 'conic-gradient(var(--color-p1), var(--color-p2), var(--color-p3), var(--color-p1))'
-            : 'rgba(255,255,255,.2)',
+            : 'transparent',
           border: 'none',
           cursor: 'pointer',
         }}
       >
+        {/* Sem story nas últimas 24h: anel laranja tracejado girando,
+            chamando pra postar (pedido do usuário, 04/11/2026). Postou,
+            volta o anel colorido normal. */}
+        {!hasOwnStory && (
+          <span aria-hidden="true" className="story-chamada absolute inset-0 rounded-full" />
+        )}
         <div
-          className="w-full h-full rounded-full flex items-center justify-center overflow-hidden"
+          className="relative w-full h-full rounded-full flex items-center justify-center overflow-hidden"
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
           {ownStoryAvatar ? (
@@ -190,12 +196,18 @@ function SelfStoryAvatar({
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>
-      <span
-        className="text-[11px] text-white/85 max-w-[64px] truncate"
-        title={ownTag ? '@' + ownTag : 'Seu story'}
-      >
-        {ownTag ? '@' + ownTag : 'Seu story'}
-      </span>
+      {hasOwnStory ? (
+        <span
+          className="text-[11px] text-white/85 max-w-[64px] truncate"
+          title={ownTag ? '@' + ownTag : 'Seu story'}
+        >
+          {ownTag ? '@' + ownTag : 'Seu story'}
+        </span>
+      ) : (
+        <span className="text-[11px] font-bold max-w-[64px] truncate" style={{ color: '#ffbe0b' }}>
+          Poste hoje
+        </span>
+      )}
     </div>
   );
 }

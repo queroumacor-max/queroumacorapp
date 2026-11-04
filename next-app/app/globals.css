@@ -266,3 +266,16 @@ html,
 body {
   overscroll-behavior-y: contain;
 }
+
+/* Anel tracejado girando no "Seu story" quando a pessoa não tem story nas
+   últimas 24h (StoriesCarousel, 04/11/2026). */
+.story-chamada {
+  border: 2.5px dashed var(--color-p1);
+  animation: story-chamada-gira 8s linear infinite;
+}
+@keyframes story-chamada-gira {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-chamada { animation: none; }
+}

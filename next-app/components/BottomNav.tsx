@@ -1,6 +1,8 @@
-// BottomNav — navbar inferior fixa escura espelhando o vanilla (index.html
-// linha ~2630 + styles.css `.bot-nav`). 5 botões: Feed, Search, Loja,
-// Notif, Perfil. Ícone ativo em laranja (var(--color-p1)) com dot abaixo.
+// BottomNav — navbar inferior fixa escura. 5 botões com NOME embaixo do
+// ícone (pedido do usuário, 04/11/2026): Início, Procurar, Loja, Mensagens,
+// Empresa. A aba ativa fica laranja (ícone + nome) com fundo laranja claro.
+// Mensagens desceu pra cá e o sino de avisos subiu pro TopNav (troca pedida
+// na mesma data) — o badge daqui é o de mensagens não lidas.
 //
 // Detecta a rota atual via usePathname pra marcar ativo. Replica exato o
 // comportamento do `showScreen()` vanilla que ativava bn-* via bnMap.
@@ -9,7 +11,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { useUnreadNotificationCount } from '@/lib/hooks/useUnreadNotificationCount';
+import { useUnreadMessageCount } from '@/lib/hooks/useUnreadMessageCount';
 import { useAuthGate } from '@/components/AuthGate';
 import { hapticSelection } from '@/lib/native';
 
@@ -32,7 +34,7 @@ const ITEMS: NavItem[] = [
   {
     href: '/feed',
     tourId: 'nav-feed',
-    label: 'Feed',
+    label: 'Início',
     match: (p) => p === '/feed' || p === '/',
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -44,7 +46,7 @@ const ITEMS: NavItem[] = [
   {
     href: '/search',
     tourId: 'nav-search',
-    label: 'Buscar',
+    label: 'Procurar',
     match: (p) => p.startsWith('/search') || p.startsWith('/explore'),
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -67,23 +69,22 @@ const ITEMS: NavItem[] = [
     ),
   },
   {
-    href: '/notificacoes',
-    tourId: 'nav-notif',
-    label: 'Notificações',
+    href: '/chat',
+    tourId: 'nav-chat',
+    label: 'Mensagens',
     requiresAuth: true,
-    gateAction: 'ver suas notificações',
-    match: (p) => p.startsWith('/notificacoes'),
+    gateAction: 'ver suas mensagens',
+    match: (p) => p.startsWith('/chat'),
     icon: (
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
     ),
   },
   {
     href: '/perfil',
     tourId: 'nav-perfil',
-    label: 'Perfil',
+    label: 'Empresa',
     requiresAuth: true,
     gateAction: 'acessar seu perfil',
     match: (p) => p.startsWith('/perfil') || p.startsWith('/pedidos') || p.startsWith('/orcamentos') || p.startsWith('/agenda') || p.startsWith('/crm') || p.startsWith('/financeiro'),
@@ -98,13 +99,13 @@ const ITEMS: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
-  const unreadNotif = useUnreadNotificationCount();
+  const unreadChat = useUnreadMessageCount();
   const { requireAuth } = useAuthGate();
 
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[430px] z-[300] bg-[color:var(--color-ink-fixed)] flex items-center justify-around px-2"
+      className="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-[430px] z-[300] bg-[color:var(--color-ink-fixed)] flex items-center justify-around gap-1 px-2"
       style={{
         height: 'calc(60px + env(safe-area-inset-bottom))',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -113,9 +114,9 @@ export function BottomNav() {
     >
       {ITEMS.map((item) => {
         const active = item.match(pathname);
-        const isNotif = item.href === '/notificacoes';
-        const showBadge = isNotif && unreadNotif > 0;
-        const badgeLabel = unreadNotif > 99 ? '99+' : String(unreadNotif);
+        const isChat = item.href === '/chat';
+        const showBadge = isChat && unreadChat > 0;
+        const badgeLabel = unreadChat > 99 ? '99+' : String(unreadChat);
         return (
           <Link
             key={item.href}
@@ -131,23 +132,22 @@ export function BottomNav() {
               if (!active) hapticSelection();
             }}
             aria-label={
-              showBadge ? `${item.label} (${unreadNotif} não lidas)` : item.label
+              showBadge ? `${item.label} (${unreadChat} não lidas)` : item.label
             }
             aria-current={active ? 'page' : undefined}
-            className="relative flex flex-col items-center justify-center w-12 h-12 rounded-xl gap-1 transition-colors"
+            className="relative flex flex-col items-center justify-center flex-1 max-w-16 min-w-0 h-[52px] rounded-xl gap-[3px] transition-colors"
             style={{
               background: active ? 'rgba(255,107,53,.15)' : 'transparent',
-              color: active ? 'var(--color-p1)' : 'rgba(255,255,255,.33)',
+              color: active ? 'var(--color-p1)' : 'rgba(255,255,255,.5)',
             }}
           >
             {item.icon}
             <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{
-                background: active ? 'var(--color-p1)' : 'transparent',
-              }}
               aria-hidden="true"
-            />
+              className="text-[10px] leading-none font-semibold whitespace-nowrap"
+            >
+              {item.label}
+            </span>
             {item.showDot && (
               <span
                 aria-hidden="true"
@@ -157,7 +157,7 @@ export function BottomNav() {
             )}
             {showBadge && (
               <span
-                className="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-[color:var(--color-white-fixed)]"
+                className="absolute top-0 right-2 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-[color:var(--color-white-fixed)]"
                 style={{ background: 'var(--color-p4)', lineHeight: 1 }}
               >
                 {badgeLabel}
