@@ -262,7 +262,9 @@
   atualizado (04/11/2026). Testado em Postgres 16 local (2x; antiga não,
   nova pintor sim, OAuth cliente→pintor sim, cliente não, apagar+recriar
   com o mesmo e-mail não, trocar categoria não estende, PATCH 2099 segue
-  barrado). Teste `__tests__/proTrialProfissionais.test.ts`.
+  barrado). Teste `__tests__/proTrialProfissionais.test.ts`. **Termos NO AR: PR #508
+  (squash `d7bbbad`), deploy run #796 `success`.** Ainda não conferido com
+  um cadastro real.
 
 - **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
   (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
