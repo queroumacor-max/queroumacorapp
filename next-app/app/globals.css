@@ -276,6 +276,21 @@ body {
 @keyframes story-chamada-gira {
   to { transform: rotate(360deg); }
 }
+/* Publicação em segundo plano (04/11/2026): o MESMO anel tracejado girando
+   rápido enquanto envia — só o anel gira, a foto do avatar fica parada. */
+.story-enviando {
+  border: 2.5px dashed var(--color-p1);
+  animation: story-chamada-gira 1.2s linear infinite;
+}
+/* Falhou: anel vermelho parado; tocar tenta de novo. */
+.story-falhou {
+  border: 2.5px solid #e63946;
+}
 @media (prefers-reduced-motion: reduce) {
   .story-chamada { animation: none; }
+  /* Sem rodar, o envio ainda precisa parecer vivo: pulsa a opacidade. */
+  .story-enviando { animation: story-enviando-pulsa 1.6s ease-in-out infinite; }
+}
+@keyframes story-enviando-pulsa {
+  50% { opacity: .35; }
 }

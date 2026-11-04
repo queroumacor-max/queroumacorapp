@@ -14,6 +14,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import type { StoryGroup } from '@/lib/services/stories';
 import { StoryViewer } from './StoryViewer';
+import { usePublicacao, tentarDeNovo, type EstadoPublicacao } from '@/lib/publicacaoFila';
 
 export interface StoriesCarouselProps {
   followingIds: string[];
@@ -27,6 +28,7 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
   const { user } = useAuth();
   const { profile } = useProfile();
   const [viewerOpenAt, setViewerOpenAt] = useState<number | null>(null);
+  const publicacao = usePublicacao();
 
   // Só grupos com story ATIVO (24h) entram no carrossel — assim TODO avatar
   // abre o StoryViewer ao clicar. Antes mostrávamos também seguidos sem story
@@ -63,7 +65,14 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
           hasOwnStory={hasOwnStory}
           ownStoryAvatar={selfAvatar}
           ownTag={(profile as { tag?: string | null } | null)?.tag ?? null}
+          publicacao={publicacao}
           onView={() => {
+            // Falhou a publicação em segundo plano: o toque no círculo tenta
+            // de novo, com as mesmas fotos.
+            if (publicacao.status === 'erro') {
+              tentarDeNovo();
+              return;
+            }
             if (hasOwnStory) setViewerOpenAt(ownStoryIdx);
             else if (onCreateStory) onCreateStory();
           }}
@@ -118,6 +127,8 @@ interface SelfStoryAvatarProps {
   onView: () => void;
   /** Click no badge "+": sempre abre publisher pra criar nova publicação. */
   onCreate: () => void;
+  /** Publicação em segundo plano (lib/publicacaoFila.ts). */
+  publicacao?: EstadoPublicacao;
 }
 
 function SelfStoryAvatar({
@@ -126,7 +137,14 @@ function SelfStoryAvatar({
   ownTag,
   onView,
   onCreate,
+  publicacao,
 }: SelfStoryAvatarProps) {
+  // Enviando: SÓ o anel tracejado gira (rápido); a foto fica parada — girar o
+  // círculo inteiro deixaria o rosto de cabeça pra baixo (pedido do usuário,
+  // 04/11/2026). Falhou: anel vermelho parado, toque tenta de novo.
+  const enviando = publicacao?.status === 'enviando';
+  const falhou = publicacao?.status === 'erro';
+  const anelColorido = hasOwnStory && !enviando && !falhou;
   return (
     <div
       className="flex flex-col items-center gap-1 flex-shrink-0 p-1 relative"
@@ -135,10 +153,18 @@ function SelfStoryAvatar({
       <button
         type="button"
         onClick={onView}
-        aria-label={hasOwnStory ? 'Ver seu story' : 'Criar story'}
+        aria-label={
+          enviando
+            ? 'Enviando sua publicação'
+            : falhou
+              ? 'A publicação falhou. Tocar pra tentar de novo'
+              : hasOwnStory
+                ? 'Ver seu story'
+                : 'Criar story'
+        }
         className="relative w-16 h-16 rounded-full p-[2px] flex items-center justify-center focus:outline-none"
         style={{
-          background: hasOwnStory
+          background: anelColorido
             ? 'conic-gradient(var(--color-p1), var(--color-p2), var(--color-p3), var(--color-p1))'
             : 'transparent',
           border: 'none',
@@ -148,9 +174,13 @@ function SelfStoryAvatar({
         {/* Sem story nas últimas 24h: anel laranja tracejado girando,
             chamando pra postar (pedido do usuário, 04/11/2026). Postou,
             volta o anel colorido normal. */}
-        {!hasOwnStory && (
+        {enviando ? (
+          <span aria-hidden="true" className="story-enviando absolute inset-0 rounded-full" />
+        ) : falhou ? (
+          <span aria-hidden="true" className="story-falhou absolute inset-0 rounded-full" />
+        ) : !hasOwnStory ? (
           <span aria-hidden="true" className="story-chamada absolute inset-0 rounded-full" />
-        )}
+        ) : null}
         <div
           className="relative w-full h-full rounded-full flex items-center justify-center overflow-hidden"
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
@@ -196,7 +226,15 @@ function SelfStoryAvatar({
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>
-      {hasOwnStory ? (
+      {enviando ? (
+        <span className="text-[11px] font-bold max-w-[64px] truncate" style={{ color: '#ffbe0b' }} role="status">
+          Enviando…
+        </span>
+      ) : falhou ? (
+        <span className="text-[11px] font-bold max-w-[64px] truncate" style={{ color: '#ff8a8a' }} role="alert">
+          Tentar de novo
+        </span>
+      ) : hasOwnStory ? (
         <span
           className="text-[11px] text-white/85 max-w-[64px] truncate"
           title={ownTag ? '@' + ownTag : 'Seu story'}

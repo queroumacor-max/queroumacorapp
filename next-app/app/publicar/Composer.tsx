@@ -30,7 +30,7 @@ import {
   ENQUADRAMENTO_PADRAO,
   type Enquadramento as EnquadramentoState,
 } from '@/lib/enquadramento';
-import { usePublishPost } from '@/lib/hooks/usePublishPost';
+import { iniciarPublicacao, publicandoAgora } from '@/lib/publicacaoFila';
 import { useAutosave, writeDraft } from '@/lib/hooks/useAutosave';
 import {
   uploadMedia,
@@ -112,8 +112,7 @@ export interface ComposerProps {
 export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: ComposerProps = {}) {
   const portfolio = modo === 'portfolio';
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
-  const publish = usePublishPost();
+  const { user, loading: authLoading, emailVerified } = useAuth();
   const policyUser = usePolicyUser();
 
   // ?forSale=1 vem de deep-links tipo "Arte pra venda → Publicar nova arte".
@@ -252,21 +251,34 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
     }
   }, [user, files, caption]);
 
-  // Trava de clique duplo. O `publish.reset()` logo abaixo ZERA o isPending
-  // da mutation — então um 2º toque com a 1ª publicação ainda em voo passava
-  // direto e publicava o post duas vezes. A ref é checada ANTES do reset, de
-  // forma síncrona, e só solta quando a publicação termina (sucesso ou erro).
+  // Trava de clique duplo: dois toques no mesmo frame entregariam duas
+  // publicações antes de o estado limpar a tela. A fila também recusa uma
+  // segunda publicação com outra em andamento (`publicandoAgora`).
   const publicandoRef = useRef(false);
 
   const handleSubmit = useCallback(() => {
     if (publicandoRef.current) return;
     setValidationError(null);
-    publish.reset();
 
     // Mídia obrigatória pra publicar (post/story/portfólio são visuais). Sem
     // foto/vídeo, dá feedback claro em vez de o clique não fazer nada (BUG10).
     if (files.length === 0) {
       setValidationError('Selecione uma foto ou vídeo para publicar.');
+      return;
+    }
+    if (!user) {
+      setValidationError('Faça login para publicar.');
+      return;
+    }
+    // Checado AQUI, com a tela ainda aberta: depois que ela fecha, o erro
+    // apareceria num aviso solto, longe de onde a pessoa pode resolver.
+    if (emailVerified === false) {
+      setValidationError('Confirme seu email antes de publicar (link enviado no cadastro).');
+      return;
+    }
+    // Uma publicação por vez (o anel do "Seu story" mostra o andamento).
+    if (publicandoAgora()) {
+      setValidationError('Espere a publicação anterior terminar de enviar.');
       return;
     }
 
@@ -286,51 +298,49 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
     const price = forSaleFinal ? parseBRL(priceText) : 0;
 
     publicandoRef.current = true;
-    publish.publishAsync({
-      files,
-      // Story vai sem legenda: o campo não existe mais nessa aba, e sem
-      // isto um rascunho antigo restaurado pelo autosave mandaria texto que
-      // a pessoa não tem mais como ver nem editar.
-      caption: postType === 'story' ? '' : caption.trim(),
-      mediaType,
-      forSale: forSaleFinal,
-      price: forSaleFinal ? price : null,
-      artType: forSaleFinal ? artType : null,
-      // Story deixou de ter link "ver mais" (01/09/2026). A coluna
-      // `posts.link_url` e o CTA do StoryViewer continuam existindo pros
-      // stories antigos — só não há mais como criar novos.
-      linkUrl: null,
-      // Story é tela cheia e vídeo não passa pelo canvas: o enquadramento
-      // só vale pra publicação de foto.
-      enquadramento: mediaType === 'image' ? enquadramento : undefined,
-    })
-      .then(() => {
-        // Limpa estado. Em embedded (modal), só chama onPublishSuccess pra
-        // o caller fechar o sheet; em standalone, navega pro feed.
-        setFiles([]);
-        setCaption('');
-        setEnquadramento(ENQUADRAMENTO_PADRAO);
-        setForSale(false);
-        setPriceText('');
-        // P6: faltavam os dois. No modo `embedded` (modal, sem navegação) o
-        // story seguinte reaproveitava o link do anterior.
-        setArtType(ART_TYPES[0].value);
-        autosave.clear();
-        setDraftSavedAt(0);
-        if (embedded) {
-          onPublishSuccess?.();
-        } else {
-          router.push('/feed');
-        }
-      })
-      .catch(() => {
-        // Erro já fica em publish.error — pintamos no banner abaixo.
-      })
-      .finally(() => {
-        publicandoRef.current = false;
-      });
+    // PUBLICAÇÃO EM SEGUNDO PLANO (2026-11-04): o envio continua em
+    // `lib/publicacaoFila.ts` e a tela fecha AGORA. O andamento aparece no
+    // anel do "Seu story" (feed); pronto/falha vira aviso em qualquer tela,
+    // e a falha guarda as fotos pra tentar de novo.
+    iniciarPublicacao(
+      {
+        files,
+        // Story vai sem legenda: o campo não existe mais nessa aba, e sem
+        // isto um rascunho antigo restaurado pelo autosave mandaria texto que
+        // a pessoa não tem mais como ver nem editar.
+        caption: postType === 'story' ? '' : caption.trim(),
+        mediaType,
+        forSale: forSaleFinal,
+        price: forSaleFinal ? price : null,
+        artType: forSaleFinal ? artType : null,
+        // Story deixou de ter link "ver mais" (01/09/2026). A coluna
+        // `posts.link_url` e o CTA do StoryViewer continuam existindo pros
+        // stories antigos — só não há mais como criar novos.
+        linkUrl: null,
+        // Story é tela cheia e vídeo não passa pelo canvas: o enquadramento
+        // só vale pra publicação de foto.
+        enquadramento: mediaType === 'image' ? enquadramento : undefined,
+      },
+      { userId: user.id, emailVerified },
+    );
+
+    setFiles([]);
+    setCaption('');
+    setEnquadramento(ENQUADRAMENTO_PADRAO);
+    setForSale(false);
+    setPriceText('');
+    setArtType(ART_TYPES[0].value);
+    autosave.clear();
+    setDraftSavedAt(0);
+    publicandoRef.current = false;
+    if (embedded) {
+      onPublishSuccess?.();
+    } else {
+      router.push('/feed');
+    }
   }, [
-    publish,
+    user,
+    emailVerified,
     postType,
     files,
     caption,
@@ -381,7 +391,9 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
   const isVideoMode =
     files.length > 0 && getMediaType(files[0]) === 'video';
   const canAddMore = !isVideoMode && files.length < MAX_IMAGES;
-  const submitting = publish.isPending;
+  // O envio roda em segundo plano (lib/publicacaoFila.ts): a tela nunca fica
+  // presa em "Publicando…", então nada aqui é travado durante o envio.
+  const submitting = false;
 
   return (
     <div className="flex flex-col gap-4">
@@ -563,14 +575,6 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
         </div>
       ) : null}
 
-      {publish.error ? (
-        <div
-          role="alert"
-          className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800"
-        >
-          {publish.error.message || 'Não foi possível publicar.'}
-        </div>
-      ) : null}
 
       <button
         type="button"
@@ -583,7 +587,7 @@ export function Composer({ embedded, onPublishSuccess, modo = 'publicar' }: Comp
         data-testid="publish-btn"
         className="w-full py-3 rounded-2xl bg-[color:var(--color-p1)] text-white font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
       >
-        {submitting ? 'Publicando…' : portfolio ? 'Publicar no portfólio' : 'Publicar'}
+        {portfolio ? 'Publicar no portfólio' : 'Publicar'}
       </button>
 
       {draftSavedAt > 0 ? (

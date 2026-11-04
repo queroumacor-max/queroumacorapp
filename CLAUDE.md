@@ -297,6 +297,30 @@
   `build:cf` + `wrangler dev --env preview`. **NO AR: PR #511 (squash
   `732d1e3`), deploy run #799 `success`.**
 
+- **PUBLICAR EM SEGUNDO PLANO + ANEL GIRANDO NO "SEU STORY" (2026-11-04,
+  pedido do usuário com render aprovado: "clique, ele some e faz o loading em
+  background"; "só o anel tracejado rodando, não a bola girar e ficar de
+  cabeça pra baixo"). SEM SQL.** O composer ficava em "Publicando…" de 15 a
+  30s com 5 fotos. Agora `Composer` valida (mídia, login, e-mail confirmado,
+  outra publicação em voo) COM A TELA ABERTA, entrega o pedido a
+  `lib/publicacaoFila.ts` e fecha na hora. O fluxo inteiro saiu do
+  `usePublishPost` pra `lib/services/publicarPost.ts`
+  (`executarPublicacao`, com `aoProgredir`) — o hook continua existindo e
+  usa a mesma função. A fila (estado de módulo + `useSyncExternalStore`):
+  uma publicação por vez, `pronto` some em 4s, `erro` GUARDA o pedido e
+  `tentarDeNovo()` reenvia as mesmas fotos. Anel: `.story-enviando` (o
+  mesmo tracejado do "Poste hoje", 1,2s por volta; com reduced-motion pulsa
+  em vez de girar) é um `<span>` SEPARADO da foto, então só ele gira;
+  `.story-falhou` = anel vermelho parado, tocar no círculo tenta de novo.
+  `components/PublicacaoAviso.tsx` (AppShell) dá o toast de pronto/falha em
+  qualquer tela, atualiza feed/perfil/stories e grava `publish-fail` no
+  /admin/errors. **Limite:** fechar o app no meio para o envio (o post
+  pendente nunca aparece; a varredura `posts-sweep-pending` cuida do resto)
+  e a falha guardada não sobrevive a reabrir o app. Testes:
+  `__tests__/publicacaoFila.test.ts`, `__tests__/components/
+  StoriesAnelEnviando.test.tsx`, `Composer.test.tsx`. Não conferido com
+  Playwright (só testes de componente).
+
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
   estava aberta"). SEM SQL. PRECISA DE AAB NOVO.** O `<input type=file>` cai
