@@ -496,7 +496,7 @@ export function CalcView() {
           fontSize: 14,
         }}
       >
-        Comprar na Cali Colors
+        Comprar
       </Link>
     </div>
   );
