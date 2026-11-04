@@ -282,6 +282,7 @@
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"
   (`app/calculadora/CalcView.tsx`); o link segue pro catálogo da loja.
+  **NO AR: PR #510 (squash `0720583`), deploy run #798 `success`.**
 
 - **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
   (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
