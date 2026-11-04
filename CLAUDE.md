@@ -274,6 +274,7 @@
     queimado). "Todos" do print = profissionais (decisão anterior mantida).
     Testado em Postgres local (2x; nov→30, jan→7, virou pintor tarde→nada,
     virou pintor 10 dias depois→20). Termos item 13 com as duas faixas.
+    **Termos NO AR: PR #509 (squash `733d72f`), deploy run #797 `success`.**
   **Termos NO AR: PR #508
   (squash `d7bbbad`), deploy run #796 `success`.** Ainda não conferido com
   um cadastro real.
