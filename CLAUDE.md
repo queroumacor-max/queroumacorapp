@@ -245,6 +245,25 @@
   `46e99e3`), deploy run #794 `success`.** **CONFIRMADO PELO USUÁRIO NO APP
   (2026-11-02): "testei, funcionou".** Caso fechado.
 
+- **PRO GRÁTIS 30 DIAS PRA PROFISSIONAL NOVO (2026-11-04, decisão do
+  usuário: "1 profissionais / 2 novas / 3 se apagar e criar outra não"). SQL
+  `migrations/2026-11-04-pro-trial-profissionais.sql` — JÁ RODADO
+  (2026-11-04, usuário: "rodei, deu tudo true" — as 4 linhas da conferência).
+  Não pedir pra rodar de novo. Vale pra conta criada a partir desse momento.** Gatilho `trg_grant_pro_trial` (AFTER INSERT
+  OR UPDATE OF role, user_type em profiles, SECURITY DEFINER): conta criada
+  em `auth.users` DEPOIS de `pro_trial_config.desde` (= hora em que o SQL
+  rodou) que vira pintor/grafiteiro/automotivo/arquiteto ganha `is_pro=true`
+  + `pro_expires_at = now()+30d`. Uma vez por e-mail pra sempre:
+  `pro_trial_grants` (md5 do e-mail, SEM FK — sobrevive à exclusão). Quem já
+  é PRO não ganha. Desligar: `UPDATE pro_trial_config SET ativo=false`.
+  Falha nunca derruba cadastro. **No `audit_events` a concessão aparece como
+  `pro_change` com actor = target** (o gatilho roda na sessão do usuário) —
+  NÃO é auto-concessão; conferir contra `pro_trial_grants`. Termos item 13
+  atualizado (04/11/2026). Testado em Postgres 16 local (2x; antiga não,
+  nova pintor sim, OAuth cliente→pintor sim, cliente não, apagar+recriar
+  com o mesmo e-mail não, trocar categoria não estende, PATCH 2099 segue
+  barrado). Teste `__tests__/proTrialProfissionais.test.ts`.
+
 - **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
   (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
   proposta). SEM SQL. Portal v=20261104a.** (1) Clicar na linha abre gaveta
@@ -261,7 +280,9 @@
   conversa" (evento `portal:abrir-chat` → tela Chats 3-Way abre a conversa).
   Orçamento anterior a 04/11 não tem a marca: a gaveta lista as últimas
   mensagens "🧾 Pedido de orçamento de material" do pintor, sem afirmar de
-  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`.
+  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`. **NO AR: PR #507
+  (squash `b052459`), deploy run #795 `success` (2ª tentativa — a 1ª caiu no
+  soluço da fonte do Google).** Não conferido no portal pelo usuário ainda.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a

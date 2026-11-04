@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function TermosPage() {
   return (
     <InfoSubPage title="Termos de Uso">
-      <LegalUpd>Última atualização: 28 de outubro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 4 de novembro de 2026</LegalUpd>
 
       <LegalH>1. Aceitação dos termos</LegalH>
       <LegalP>
@@ -145,6 +145,14 @@ export default function TermosPage() {
         limite enquanto a assinatura estiver ativa. Cada pacote vale 1
         orçamento ou 1 obra; também pode pagar 1 uso de uma ferramenta com
         inteligência artificial. Pacotes não vencem.
+      </LegalP>
+      <LegalP>
+        Contas de <b>profissional</b> (pintor, grafiteiro, funileiro,
+        arquiteto ou engenheiro) criadas a partir de 4 de novembro de 2026
+        ganham <b>30 dias de Plano PRO grátis</b>, uma única vez por e-mail
+        (apagar a conta e criar outra com o mesmo e-mail não dá direito a um
+        novo período). Ao fim dos 30 dias o PRO grátis acaba sozinho, sem
+        cobrança e sem renovação automática; a conta volta às regras acima.
       </LegalP>
       <LegalP>
         Quem não é PRO pode experimentar cada ferramenta com inteligência
