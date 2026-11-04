@@ -12,10 +12,12 @@ const mockAuth = { user: { id: 'u1' } as { id: string } | null, loading: false }
 const mockPolicyUser = {
   value: { id: 'u1', role: 'pintor' } as Record<string, unknown> | null,
 };
-const publishAsync =
-  vi.fn<(input: Record<string, unknown>) => Promise<{ id: string }>>(() =>
-    Promise.resolve({ id: 'p1' }),
-  );
+// A publicação roda em SEGUNDO PLANO (lib/publicacaoFila.ts): o Composer só
+// entrega o pedido. `publishAsync` é o espião desse pedido.
+const publishAsync = vi.fn<(input: Record<string, unknown>, ctx?: unknown) => boolean>(
+  () => true,
+);
+const publicando = { valor: false };
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -29,14 +31,9 @@ vi.mock('@/lib/hooks/usePolicyUser', () => ({
   usePolicyUser: () => mockPolicyUser.value,
 }));
 
-vi.mock('@/lib/hooks/usePublishPost', () => ({
-  usePublishPost: () => ({
-    publishAsync,
-    reset: vi.fn(),
-    isPending: false,
-    error: null,
-    progress: null,
-  }),
+vi.mock('@/lib/publicacaoFila', () => ({
+  iniciarPublicacao: (input: Record<string, unknown>, ctx: unknown) => publishAsync(input, ctx),
+  publicandoAgora: () => publicando.valor,
 }));
 
 vi.mock('@/lib/hooks/useAutosave', () => ({
@@ -62,6 +59,7 @@ beforeEach(() => {
   URL.createObjectURL = () => 'blob:preview';
   URL.revokeObjectURL = () => {};
   publishAsync.mockClear();
+  publicando.valor = false;
   mockAuth.user = { id: 'u1' };
   mockPolicyUser.value = { id: 'u1', role: 'pintor' };
 });
@@ -210,5 +208,49 @@ describe('Composer — Enquadramento', () => {
     });
     const payload = publishAsync.mock.calls[0][0];
     expect(payload.enquadramento).toBeUndefined();
+  });
+});
+
+describe('Composer — publicação em segundo plano (04/11/2026)', () => {
+  it('entrega o pedido e LIMPA a tela na hora, sem ficar em "Publicando…"', async () => {
+    const onDone = vi.fn();
+    render(<Composer embedded onPublishSuccess={onDone} />);
+    attachPhoto();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('publish-btn'));
+    });
+    expect(publishAsync).toHaveBeenCalledTimes(1);
+    expect(publishAsync.mock.calls[0][1]).toMatchObject({ userId: 'u1' });
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Publicando/)).toBeNull();
+    expect(screen.getByTestId('publish-btn').textContent).toBe('Publicar');
+  });
+
+  it('com outra publicação enviando, não entrega um segundo pedido', async () => {
+    publicando.valor = true;
+    const onDone = vi.fn();
+    render(<Composer embedded onPublishSuccess={onDone} />);
+    attachPhoto();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('publish-btn'));
+    });
+    expect(publishAsync).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.getByText(/Espere a publicação anterior/)).toBeTruthy();
+  });
+
+  it('e-mail não confirmado é barrado com a tela ainda aberta', async () => {
+    (mockAuth as Record<string, unknown>).emailVerified = false;
+    try {
+      render(<Composer embedded onPublishSuccess={vi.fn()} />);
+      attachPhoto();
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('publish-btn'));
+      });
+      expect(publishAsync).not.toHaveBeenCalled();
+      expect(screen.getByText(/Confirme seu email/)).toBeTruthy();
+    } finally {
+      delete (mockAuth as Record<string, unknown>).emailVerified;
+    }
   });
 });

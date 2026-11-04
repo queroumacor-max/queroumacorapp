@@ -31,6 +31,7 @@ vi.mock('@/components/NativeBadge', () => ({ NativeBadge: () => null }));
 vi.mock('@/components/RealtimeBindings', () => ({ RealtimeBindings: () => null }));
 vi.mock('@/components/AppTour', () => ({ AppTour: () => null }));
 vi.mock('@/components/billing/BoasVindasCompraModal', () => ({ BoasVindasCompraModal: () => null }));
+vi.mock('@/components/PublicacaoAviso', () => ({ PublicacaoAviso: () => null }));
 
 import { AppShell } from '@/components/AppShell';
 

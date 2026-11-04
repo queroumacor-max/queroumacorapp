@@ -29,6 +29,7 @@ import { ProExpirandoModal } from './ProExpirandoModal';
 import { PaywallHost } from './billing/PaywallHost';
 import { BoasVindasCompraModal } from './billing/BoasVindasCompraModal';
 import { PickerRecovery } from './PickerRecovery';
+import { PublicacaoAviso } from './PublicacaoAviso';
 import { BackGuard } from './BackGuard';
 import { SplashMascotes } from './SplashMascotes';
 import type { ReactNode } from 'react';
@@ -226,6 +227,8 @@ export function AppShell({
           pessoa pra tela onde ela estava, em vez de largá-la no feed sem a
           foto e sem explicação. Ver components/PickerRecovery.tsx. */}
       <PickerRecovery />
+      {/* Publicação em segundo plano: aviso de pronto/falha em qualquer tela. */}
+      <PublicacaoAviso />
       {/* Botão VOLTAR do Android: sem isto ele fecha o app do meio de
           qualquer tela quando o histórico está vazio (deep link, ou a
           re-navegação depois que o Android mata o renderizador da WebView).
