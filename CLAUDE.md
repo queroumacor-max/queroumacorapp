@@ -263,6 +263,20 @@
   nova pintor sim, OAuth cliente→pintor sim, cliente não, apagar+recriar
   com o mesmo e-mail não, trocar categoria não estende, PATCH 2099 segue
   barrado). Teste `__tests__/proTrialProfissionais.test.ts`.
+  - **30 DIAS ATÉ 31/12, 7 DIAS A PARTIR DE JANEIRO (2026-11-04, decisão do
+    usuário com print: "Todos que se cadastrarem até 31/12 receberão 30 dias
+    a contar da data de cadastro... A partir de janeiro, 7 dias").** SQL
+    `migrations/2026-11-04-b-pro-trial-30-depois-7.sql` — PASSADO NO CHAT,
+    AINDA NÃO CONFIRMADO RODADO. `pro_trial_config.troca_em` (default
+    2027-01-01 00:00 -03) + `dias_depois` (7); o período sai de
+    `auth.users.created_at` e o prazo CONTA DELA (cliente que vira pintor
+    depois ganha só o que sobra; se já passou, nada, e o e-mail NÃO é
+    queimado). "Todos" do print = profissionais (decisão anterior mantida).
+    Testado em Postgres local (2x; nov→30, jan→7, virou pintor tarde→nada,
+    virou pintor 10 dias depois→20). Termos item 13 com as duas faixas.
+  **Termos NO AR: PR #508
+  (squash `d7bbbad`), deploy run #796 `success`.** Ainda não conferido com
+  um cadastro real.
 
 - **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
   (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra

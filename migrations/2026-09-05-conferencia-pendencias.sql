@@ -141,3 +141,6 @@ SELECT 'obras: obra_equipe.obra_id + trava do gestor — 2026-11-02' AS item, EX
 
 -- 2026-11-04 (PRO grátis 30 dias pra profissional novo).
 SELECT 'pro trial: trg_grant_pro_trial ligado — 2026-11-04' AS item, EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='trg_grant_pro_trial' AND NOT tgisinternal) AS ok;
+
+-- 2026-11-04 (PRO grátis: 30 dias até 31/12, depois 7).
+SELECT 'pro trial: 30 dias ate 31/12, 7 depois — 2026-11-04' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='grant_pro_trial' AND prosrc LIKE '%c.dias_depois%') AS ok;
