@@ -227,8 +227,9 @@
   **CÓDIGO NO AR: PR #504 (squash `3a06d84`), deploy run #793 `success`.**
 
 - **GESTÃO DE OBRAS: OBRA NO CONVITE (2026-11-02, decisão do usuário: "faz a
-  opção 1"). SQL `migrations/2026-11-02-convite-com-obra.sql` — PENDENTE
-  (passado no chat).** A equipe continua sendo do GESTOR; o convite (e o
+  opção 1"). SQL `migrations/2026-11-02-convite-com-obra.sql` — JÁ RODADO
+  (2026-11-02, print do usuário: as 4 linhas da conferência `true`). Não
+  pedir pra rodar de novo.** A equipe continua sendo do GESTOR; o convite (e o
   funcionário sem conta) ganhou "Pra qual obra (opcional)" →
   `obra_equipe.obra_id` (FK obras, ON DELETE SET NULL; trigger
   `trg_check_equipe_obra` só aceita obra do próprio gestor). O aviso diz "te
@@ -240,7 +241,27 @@
   (`SEM_COLUNA_OBRA`), nunca convida calado. Testado em Postgres 16 local
   (2x, obra alheia recusada no insert e update, reconvite leva a obra,
   apagar obra → NULL, anon barrado). Teste
-  `__tests__/obrasConviteComObra.test.ts`.
+  `__tests__/obrasConviteComObra.test.ts`. **CÓDIGO NO AR: PR #505 (squash
+  `46e99e3`), deploy run #794 `success`.** **CONFIRMADO PELO USUÁRIO NO APP
+  (2026-11-02): "testei, funcionou".** Caso fechado.
+
+- **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
+  (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
+  proposta). SEM SQL. Portal v=20261104a.** (1) Clicar na linha abre gaveta
+  lateral (`OrcamentoDrawer`): pessoas, serviços com itens (qtd, unit.,
+  subtotal), soma, desconto, valor total, prazo, escopo. Lê os 3 formatos de
+  `quote_data` (servicos com itens, itens soltos de 07/09, `itens` {desc,
+  valor} do vanilla). Sem PDF no portal. (2) Valor sempre com 2 casas
+  (`fmtValorOrc`, era "R$ 301,4") e `nowrap` (o "R$" quebrava a linha).
+  (3) **O app passou a gravar `quote_data.lojaItens` {enviado_em,
+  conversation_id}** quando o pintor diz "Sim" à pergunta da loja
+  (`marcarItensEnviadosALoja`; refs no QuoteWizard porque "Sim" e "Gravar"
+  correm juntos; `updateQuoteContent` preserva a marca; editar um orçamento
+  marcado não pergunta de novo). Portal mostra 🛒 na linha e "💬 Abrir
+  conversa" (evento `portal:abrir-chat` → tela Chats 3-Way abre a conversa).
+  Orçamento anterior a 04/11 não tem a marca: a gaveta lista as últimas
+  mensagens "🧾 Pedido de orçamento de material" do pintor, sem afirmar de
+  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`.
 
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a

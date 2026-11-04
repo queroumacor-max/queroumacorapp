@@ -24,7 +24,7 @@
 'use client';
 
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
@@ -33,10 +33,12 @@ import { useProfile } from '@/lib/hooks/useProfile';
 import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
 import { BalanceEmptyError } from '@/lib/billingBalance';
 import { abrirPaywall } from '@/lib/paywallEvents';
-import { saveQuote, fetchQuotes, fetchQuote, updateQuoteContent } from '@/lib/services/pipeline';
+import { saveQuote, fetchQuotes, fetchQuote, updateQuoteContent, marcarItensEnviadosALoja } from '@/lib/services/pipeline';
 import {
   acharModelo,
   formularioDeQuoteData,
+  lojaItensDe,
+  type EnvioDeItensALoja,
   type FormularioDoOrcamento,
   type ModoDeReabrir,
 } from '@/lib/orcamentoModelo';
@@ -170,6 +172,14 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
   const [acaoPendente, setAcaoPendente] = useState<null | (() => void)>(null);
   const [saving, setSaving] = useState(false);
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
+  // Lista mandada à loja (quote_data.lojaItens) e o id do orçamento gravado,
+  // em REF: o "Sim" e o "Gravar" correm juntos, e quem terminar por último
+  // é que grava a marca — closure de render veria o valor antigo.
+  const envioLojaRef = useRef<EnvioDeItensALoja | null>(null);
+  const quoteIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    quoteIdRef.current = savedQuoteId;
+  }, [savedQuoteId]);
   // Editar / duplicar / modelo — ver lib/orcamentoModelo.ts.
   const [modelo, setModelo] = useState<Quote | null>(null);
   const [origem, setOrigem] = useState<{ titulo: string; modo: ModoDeReabrir } | null>(null);
@@ -188,7 +198,16 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
         setForm((f) => ({ ...f, ...formularioDeQuoteData(q.quote_data, modo) }));
         setOrigem({ titulo: q.client_name || q.title || 'orçamento', modo });
         // Editar = o próximo "Gravar" atualiza ESTE orçamento.
-        if (modo === 'editar') setSavedQuoteId(q.id);
+        if (modo === 'editar') {
+          setSavedQuoteId(q.id);
+          quoteIdRef.current = q.id;
+          // Já mandou a lista desse orçamento pra loja: não pergunta de novo.
+          const envio = lojaItensDe(q.quote_data);
+          if (envio) {
+            envioLojaRef.current = envio;
+            setRespostaLoja('sim');
+          }
+        }
       } catch (e) {
         if (!cancel) showToast((e as Error).message || 'Erro ao abrir o orçamento', 'error');
       }
@@ -348,6 +367,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       scope: form.scope,
       rich: richDescription,
       price_suggestion: priceResult,
+      ...(envioLojaRef.current ? { lojaItens: envioLojaRef.current } : {}),
     };
   }
 
@@ -402,6 +422,10 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       }
       const { quoteId } = await saveQuote(dados);
       setSavedQuoteId(quoteId);
+      quoteIdRef.current = quoteId;
+      // O envio pra loja pode ter terminado durante o saveQuote, depois do
+      // quote_data já montado: grava a marca agora.
+      if (envioLojaRef.current && !lojaItensDe(dados.quote_data)) void marcarNoOrcamento(quoteId);
       void saldo.refetch();
       showToast('Orçamento salvo no pipeline ✅', 'success');
       return quoteId;
@@ -507,10 +531,22 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       });
       const msg = await sendMessage(convId, user.id, lojaId, texto);
       pedirModeracao(msg.id);
+      envioLojaRef.current = { enviado_em: new Date().toISOString(), conversation_id: convId };
+      if (quoteIdRef.current) void marcarNoOrcamento(quoteIdRef.current);
       showToast('Itens enviados para a Cali Colors ✅ A resposta chega no chat.', 'success');
     } catch (e) {
       showToast((e as Error).message || 'Não deu para enviar os itens à loja', 'error');
       setRespostaLoja(null);
+    }
+  }
+
+  /** Grava a marca de "lista enviada à loja" no orçamento já gravado. Best-effort. */
+  async function marcarNoOrcamento(quoteId: string) {
+    if (!user?.id || !envioLojaRef.current) return;
+    try {
+      await marcarItensEnviadosALoja(quoteId, user.id, envioLojaRef.current);
+    } catch {
+      // Sem a marca a loja ainda recebeu a lista no chat; só o selo do portal falta.
     }
   }
 

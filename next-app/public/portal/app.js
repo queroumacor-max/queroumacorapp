@@ -4631,6 +4631,21 @@ const Chats = () => {
     loadConversations();
   }, []);
 
+  // Atalho vindo de outra tela (Orçamentos → "Abrir conversa"): a conversa
+  // pedida abre mesmo se não estiver entre as 200 mensagens mais recentes.
+  useEffect(() => {
+    const abrir = id => {
+      if (id) {
+        window._chatPendente = null;
+        openChat(id);
+      }
+    };
+    abrir(window._chatPendente);
+    const onAbrir = e => abrir(e.detail && e.detail.conversationId);
+    window.addEventListener('portal:abrir-chat', onAbrir);
+    return () => window.removeEventListener('portal:abrir-chat', onAbrir);
+  }, []);
+
   // NAO LIDAS: mensagem que chegou depois da ultima vez que o portal abriu
   // esta conversa, tirando o que o proprio operador mandou.
   const naoLidasConv = conv => {
@@ -9863,6 +9878,442 @@ const quoteStatusStyle = s => {
 };
 // Mantido por compat: STATUS_MAP[status] devolve so o label.
 const STATUS_MAP = Object.fromEntries(Object.entries(QUOTE_STATUS).map(([k, v]) => [k, v.label]));
+
+// [teste:orc-inicio]
+// Funções puras da tela de Orçamentos (testadas em
+// __tests__/portalOrcamentos.test.ts). Só JS aqui dentro — sem JSX.
+// Valor sempre com duas casas: toLocaleString cru dava "R$ 301,4".
+const fmtValorOrc = n => {
+  const v = Number(n);
+  if (n === null || n === undefined || n === '' || !Number.isFinite(v)) return '—';
+  return 'R$ ' + v.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+// Texto digitado no app ("1.616,00", "35", "12.5") → número. Mesma regra
+// do parseBRL: vírgula é decimal; ponto é decimal com 1-2 casas.
+const numBR = t => {
+  if (typeof t === 'number') return Number.isFinite(t) ? t : null;
+  if (typeof t !== 'string') return null;
+  let s = t.replace(/[^\d.,-]/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');else if (/\.\d{3}(\.|$)/.test(s) && !/^0\./.test(s)) s = s.replace(/\./g, '');
+  const v = Number(s);
+  return Number.isFinite(v) ? v : null;
+};
+const UNIDADE_ORC = {
+  m2: 'm²',
+  metro_linear: 'm linear',
+  unidade: 'unid.',
+  diaria: 'diária',
+  km: 'km',
+  rolo: 'rolo'
+};
+// Serviços + itens gravados em quote_data. Aceita os 3 formatos que já
+// existiram: servicos[] com itens (atual), itens soltos em servicos[]
+// (1ª versão de 07/09) e itens[] {desc, valor} (app antigo).
+const servicosDoOrcamento = qd => {
+  const topo = qd && typeof qd === 'object' && !Array.isArray(qd) ? qd : {};
+  const item = r => {
+    if (!r || typeof r !== 'object') return null;
+    const nome = typeof r.servico === 'string' ? r.servico.trim() : typeof r.desc === 'string' ? r.desc.trim() : '';
+    if (!nome) return null;
+    const qtd = numBR(r.quantidade);
+    const unit = numBR(r.valorUnitario != null ? r.valorUnitario : null);
+    const legado = r.valorUnitario == null && r.valor != null ? numBR(r.valor) : null;
+    const q = qtd && qtd > 0 ? qtd : 1;
+    return {
+      nome,
+      detalhe: typeof r.detalhe === 'string' ? r.detalhe : '',
+      quantidade: legado !== null ? null : q,
+      unidade: UNIDADE_ORC[r.unidade] || r.unidade || '',
+      valorUnitario: legado !== null ? null : unit,
+      subtotal: legado !== null ? legado : unit !== null ? Math.round(unit * q * 100) / 100 : null
+    };
+  };
+  const out = [];
+  const soltos = [];
+  (Array.isArray(topo.servicos) ? topo.servicos : []).forEach(r => {
+    if (!r || typeof r !== 'object') return;
+    if (Array.isArray(r.itens) || typeof r.tipo === 'string') {
+      const itens = (Array.isArray(r.itens) ? r.itens : []).map(item).filter(Boolean);
+      const det = [r.areaM2 ? r.areaM2 + ' m²' : '', r.comodos ? r.comodos + ' cômodo(s)' : '', r.superficie || '', r.acesso || '', r.tinta || '', r.cor ? 'cor ' + r.cor : '', r.demaos ? r.demaos + ' demão(s)' : ''].filter(Boolean).join(' · ');
+      out.push({
+        titulo: r.tipo || itens[0] && itens[0].nome || 'Serviço',
+        detalhes: det,
+        itens
+      });
+    } else {
+      const it = item(r);
+      if (it) soltos.push(it);
+    }
+  });
+  if (soltos.length) out.push({
+    titulo: topo.serviceType || 'Serviço',
+    detalhes: '',
+    itens: soltos
+  });
+  const legados = (Array.isArray(topo.itens) ? topo.itens : []).map(item).filter(Boolean);
+  if (legados.length) out.push({
+    titulo: 'Itens',
+    detalhes: '',
+    itens: legados
+  });
+  return out;
+};
+// Marca gravada pelo app quando o pintor responde "Sim" à pergunta da loja.
+const envioLojaDe = qd => {
+  const v = qd && typeof qd === 'object' ? qd.lojaItens : null;
+  if (!v || typeof v !== 'object' || typeof v.enviado_em !== 'string') return null;
+  return {
+    enviadoEm: v.enviado_em,
+    conversationId: typeof v.conversation_id === 'string' ? v.conversation_id : null
+  };
+};
+// Atalho de outras telas pra uma conversa de "Chats 3-Way".
+const PREFIXO_LISTA_LOJA = '🧾 Pedido de orçamento de material';
+const abrirConversaNoPortal = conversationId => {
+  if (!conversationId) return;
+  window._chatPendente = conversationId;
+  try {
+    window.dispatchEvent(new CustomEvent('portal:abrir-chat', {
+      detail: {
+        conversationId
+      }
+    }));
+  } catch (_) {}
+};
+// [teste:orc-fim]
+
+const fmtDataHoraOrc = iso => iso ? new Date(iso).toLocaleString('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+}) : '—';
+const OrcamentoDrawer = ({
+  orc,
+  onClose
+}) => {
+  const qd = orc.quote_data && typeof orc.quote_data === 'object' ? orc.quote_data : {};
+  const servicos = servicosDoOrcamento(qd);
+  const envio = envioLojaDe(qd);
+  const stInfo = quoteStatusInfo(orc.status);
+  const [listas, setListas] = useState(null); // só pra orçamento sem a marca
+
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  useEffect(() => {
+    let vivo = true;
+    setListas(null);
+    if (envio || !orc.painter_id) return;
+    supa.from('messages').select('id, conversation_id, created_at').eq('sender_id', orc.painter_id).like('content', PREFIXO_LISTA_LOJA + '%').is('deleted_at', null).order('created_at', {
+      ascending: false
+    }).limit(5).then(({
+      data
+    }) => {
+      if (vivo) setListas(data || []);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [orc.id]);
+  const somaItens = servicos.reduce((acc, s) => acc + s.itens.reduce((a, it) => a + (it.subtotal || 0), 0), 0);
+  const linha = (rotulo, valor) => valor ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      fontSize: 13,
+      padding: '3px 0'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      minWidth: 110
+    }
+  }, rotulo), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.ink,
+      flex: 1,
+      minWidth: 0,
+      overflowWrap: 'anywhere',
+      whiteSpace: 'pre-wrap'
+    }
+  }, valor)) : null;
+  const endereco = (() => {
+    const c = qd.cliente && typeof qd.cliente === 'object' ? qd.cliente : {};
+    return [c.rua, c.bairro, c.complemento, [c.cidade, c.uf].filter(Boolean).join('/'), c.cep].filter(Boolean).join(', ') || orc.address || '';
+  })();
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    onClick: onClose,
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,.18)',
+      zIndex: 899
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: 520,
+      maxWidth: '100%',
+      background: C.white,
+      boxShadow: '-10px 0 34px rgba(0,0,0,.16)',
+      borderLeft: '3px solid ' + C.p1,
+      zIndex: 900,
+      display: 'flex',
+      flexDirection: 'column',
+      animation: 'drawerIn .22s cubic-bezier(.32,.72,0,1)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px 20px',
+      borderBottom: '1px solid ' + C.border,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      color: C.ink,
+      fontSize: 16,
+      overflowWrap: 'anywhere'
+    }
+  }, orc.title || orc.service_type || 'Orçamento'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginTop: 4,
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: quoteStatusStyle(orc.status)
+  }, stInfo.label), qd.numero ? /*#__PURE__*/React.createElement("span", null, "n\xBA ", qd.numero) : null, /*#__PURE__*/React.createElement("span", null, fmtDataHoraOrc(orc.created_at)))), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    title: "Fechar (Esc)",
+    style: {
+      background: 'none',
+      border: 'none',
+      fontSize: 22,
+      cursor: 'pointer',
+      color: C.muted,
+      lineHeight: 1
+    }
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '14px 20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: envio ? C.p6 + '14' : C.bg,
+      border: '1px solid ' + (envio ? C.p6 + '55' : C.border),
+      borderRadius: 12,
+      padding: '10px 12px',
+      marginBottom: 14
+    }
+  }, envio ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 13,
+      color: C.ink
+    }
+  }, "\uD83D\uDED2 ", /*#__PURE__*/React.createElement("b", null, "Lista de itens enviada \xE0 loja"), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 12
+    }
+  }, "em ", fmtDataHoraOrc(envio.enviadoEm))), envio.conversationId ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => abrirConversaNoPortal(envio.conversationId),
+    style: {
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 8,
+      padding: '7px 12px',
+      fontWeight: 700,
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\uD83D\uDCAC Abrir conversa") : null) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "O pintor n\xE3o mandou a lista deste or\xE7amento pra loja (ou o or\xE7amento \xE9 anterior a 04/11/2026, quando o app passou a registrar isso).", listas && listas.length > 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 4
+    }
+  }, "Listas que este pintor mandou \xE0 loja (n\xE3o d\xE1 pra ligar a um or\xE7amento espec\xEDfico):"), listas.map(l => /*#__PURE__*/React.createElement("button", {
+    key: l.id,
+    onClick: () => abrirConversaNoPortal(l.conversation_id),
+    style: {
+      display: 'block',
+      background: 'none',
+      border: 'none',
+      padding: '2px 0',
+      color: C.p1,
+      cursor: 'pointer',
+      fontSize: 12,
+      textAlign: 'left'
+    }
+  }, "\uD83D\uDCAC ", fmtDataHoraOrc(l.created_at)))) : null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 12,
+      color: C.muted,
+      textTransform: 'uppercase',
+      margin: '6px 0'
+    }
+  }, "Pessoas"), linha('Pintor', orc.painter?.name || '—'), linha('Cliente', orc.client?.name || orc.client_name || '—'), linha('Telefone', orc.client_phone || ''), linha('Endereço', endereco), linha('Visita técnica', qd.visitaTecnica ? String(qd.visitaTecnica).replace('T', ' ') : ''), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 12,
+      color: C.muted,
+      textTransform: 'uppercase',
+      margin: '16px 0 6px'
+    }
+  }, "O que foi or\xE7ado"), servicos.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted
+    }
+  }, orc.description ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      whiteSpace: 'pre-wrap',
+      color: C.ink
+    }
+  }, orc.description) : 'Sem itens gravados neste orçamento.') : servicos.map((s, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      border: '1px solid ' + C.border,
+      borderRadius: 12,
+      padding: '10px 12px',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: C.ink,
+      fontSize: 14
+    }
+  }, servicos.length > 1 ? i + 1 + ') ' : '', s.titulo), s.detalhes ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginTop: 2
+    }
+  }, s.detalhes) : null, s.itens.length > 0 ? /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: 12,
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      color: C.muted,
+      textAlign: 'left'
+    }
+  }, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '4px 4px',
+      fontWeight: 600
+    }
+  }, "Item"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '4px 4px',
+      fontWeight: 600,
+      textAlign: 'right'
+    }
+  }, "Qtd"), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '4px 4px',
+      fontWeight: 600,
+      textAlign: 'right'
+    }
+  }, "Unit."), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '4px 4px',
+      fontWeight: 600,
+      textAlign: 'right'
+    }
+  }, "Subtotal"))), /*#__PURE__*/React.createElement("tbody", null, s.itens.map((it, j) => /*#__PURE__*/React.createElement("tr", {
+    key: j,
+    style: {
+      borderTop: '1px solid ' + C.border
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '5px 4px',
+      color: C.ink
+    }
+  }, it.nome, it.detalhe ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 11
+    }
+  }, it.detalhe) : null), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '5px 4px',
+      textAlign: 'right',
+      whiteSpace: 'nowrap'
+    }
+  }, it.quantidade !== null ? it.quantidade.toLocaleString('pt-BR') + ' ' + it.unidade : '—'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '5px 4px',
+      textAlign: 'right',
+      whiteSpace: 'nowrap'
+    }
+  }, fmtValorOrc(it.valorUnitario)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '5px 4px',
+      textAlign: 'right',
+      whiteSpace: 'nowrap',
+      fontWeight: 700
+    }
+  }, fmtValorOrc(it.subtotal)))))) : null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 12,
+      color: C.muted,
+      textTransform: 'uppercase',
+      margin: '16px 0 6px'
+    }
+  }, "Valores"), somaItens > 0 ? linha('Soma dos itens', fmtValorOrc(somaItens)) : null, linha('Desconto', qd.desconto ? String(qd.desconto) : ''), linha('Valor total', fmtValorOrc(orc.price)), linha('Prazo', qd.durationDays ? qd.durationDays + ' dias' : ''), linha('Garantia', qd.warranty || ''), linha('Pagamento', Array.isArray(qd.pagamento) ? qd.pagamento.join(', ') : ''), linha('Escopo', qd.scope || ''), linha('Laudo técnico', qd.laudoTecnico || ''), linha('Observações', qd.observacoes || qd.notes || ''))));
+};
 const Orcamentos = () => {
   const {
     data,
@@ -9871,6 +10322,8 @@ const Orcamentos = () => {
     ascending: false
   }), []);
   const orcamentos = data || [];
+  const [aberto, setAberto] = useState(null);
+  const fechar = React.useCallback(() => setAberto(null), []);
   if (loading) return /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 20,
@@ -9887,10 +10340,16 @@ const Orcamentos = () => {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontWeight: 700,
-      marginBottom: 16,
+      marginBottom: 4,
       color: C.ink
     }
-  }, "\uD83D\uDCCB Or\xE7amentos"), /*#__PURE__*/React.createElement("table", {
+  }, "\uD83D\uDCCB Or\xE7amentos"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 14
+    }
+  }, "Clique num or\xE7amento pra ver o que foi or\xE7ado. \uD83D\uDED2 = o pintor mandou a lista de itens pra loja."), /*#__PURE__*/React.createElement("table", {
     style: {
       width: '100%',
       borderCollapse: 'collapse',
@@ -9923,16 +10382,20 @@ const Orcamentos = () => {
       day: '2-digit',
       month: '2-digit'
     }) : '—';
+    const envio = envioLojaDe(o.quote_data);
     return /*#__PURE__*/React.createElement("tr", {
       key: o.id || i,
+      onClick: () => setAberto(o),
       style: {
-        borderBottom: '1px solid ' + C.border
+        borderBottom: '1px solid ' + C.border,
+        cursor: 'pointer',
+        background: aberto && aberto.id === o.id ? C.p1 + '10' : 'transparent'
       }
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px'
       }
-    }, o.client?.name || '—'), /*#__PURE__*/React.createElement("td", {
+    }, o.client?.name || o.client_name || '—'), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px'
       }
@@ -9941,12 +10404,18 @@ const Orcamentos = () => {
         padding: '10px 12px',
         color: C.muted
       }
-    }, o.service_type || o.title || '—'), /*#__PURE__*/React.createElement("td", {
+    }, envio ? /*#__PURE__*/React.createElement("span", {
+      title: 'Lista enviada à loja em ' + fmtDataHoraOrc(envio.enviadoEm),
+      style: {
+        marginRight: 6
+      }
+    }, "\uD83D\uDED2") : null, o.service_type || o.title || '—'), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px',
-        fontWeight: 700
+        fontWeight: 700,
+        whiteSpace: 'nowrap'
       }
-    }, o.price != null ? 'R$ ' + Number(o.price).toLocaleString('pt-BR') : '—'), /*#__PURE__*/React.createElement("td", {
+    }, fmtValorOrc(o.price)), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: '10px 12px'
       }
@@ -9958,7 +10427,10 @@ const Orcamentos = () => {
         color: C.muted
       }
     }, data));
-  }))));
+  }))), aberto ? /*#__PURE__*/React.createElement(OrcamentoDrawer, {
+    orc: aberto,
+    onClose: fechar
+  }) : null);
 };
 const ClientesList = () => {
   const {
@@ -18711,6 +19183,12 @@ function App() {
   const currentPage = React.useMemo(() => PAGES.find(p => p.id === page), [PAGES, page]);
   const sections = React.useMemo(() => [...new Set(PAGES.map(p => p.section))], [PAGES]);
   const handleNav = React.useCallback(id => setPage(id), []);
+  // Outras telas pedem uma conversa de Chats 3-Way (ver abrirConversaNoPortal).
+  useEffect(() => {
+    const onAbrir = () => setPage('chats');
+    window.addEventListener('portal:abrir-chat', onAbrir);
+    return () => window.removeEventListener('portal:abrir-chat', onAbrir);
+  }, []);
   if (authChecking) return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: '100vh',

@@ -123,6 +123,26 @@ export function ehModelo(quoteData: unknown): boolean {
   return objeto(quoteData)?.modelo === true;
 }
 
+/**
+ * Lista de itens mandada pra Cali Colors cotar o material (2026-11-04).
+ * Gravada em `quote_data.lojaItens` quando o pintor responde "Sim" à
+ * pergunta da loja — é o que o portal lê pra mostrar o selo e abrir a
+ * conversa. Orçamento anterior a isso não tem a marca.
+ */
+export interface EnvioDeItensALoja {
+  enviado_em: string;
+  conversation_id: string | null;
+}
+
+export function lojaItensDe(quoteData: unknown): EnvioDeItensALoja | null {
+  const v = objeto(objeto(quoteData)?.lojaItens);
+  if (!v || typeof v.enviado_em !== 'string') return null;
+  return {
+    enviado_em: v.enviado_em,
+    conversation_id: typeof v.conversation_id === 'string' ? v.conversation_id : null,
+  };
+}
+
 /** O modelo do pintor numa lista de orçamentos (o mais recente, se houver mais de um). */
 export function acharModelo<T extends { quote_data?: unknown }>(quotes: readonly T[]): T | null {
   return quotes.find((q) => ehModelo(q.quote_data)) ?? null;
