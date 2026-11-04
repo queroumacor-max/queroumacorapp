@@ -245,6 +245,24 @@
   `46e99e3`), deploy run #794 `success`.** **CONFIRMADO PELO USUÁRIO NO APP
   (2026-11-02): "testei, funcionou".** Caso fechado.
 
+- **PORTAL › ORÇAMENTOS: ver o que foi orçado + selo "lista enviada à loja"
+  (2026-11-04, pedido do usuário: "como vejo o que foi quotado?" e "sim" pra
+  proposta). SEM SQL. Portal v=20261104a.** (1) Clicar na linha abre gaveta
+  lateral (`OrcamentoDrawer`): pessoas, serviços com itens (qtd, unit.,
+  subtotal), soma, desconto, valor total, prazo, escopo. Lê os 3 formatos de
+  `quote_data` (servicos com itens, itens soltos de 07/09, `itens` {desc,
+  valor} do vanilla). Sem PDF no portal. (2) Valor sempre com 2 casas
+  (`fmtValorOrc`, era "R$ 301,4") e `nowrap` (o "R$" quebrava a linha).
+  (3) **O app passou a gravar `quote_data.lojaItens` {enviado_em,
+  conversation_id}** quando o pintor diz "Sim" à pergunta da loja
+  (`marcarItensEnviadosALoja`; refs no QuoteWizard porque "Sim" e "Gravar"
+  correm juntos; `updateQuoteContent` preserva a marca; editar um orçamento
+  marcado não pergunta de novo). Portal mostra 🛒 na linha e "💬 Abrir
+  conversa" (evento `portal:abrir-chat` → tela Chats 3-Way abre a conversa).
+  Orçamento anterior a 04/11 não tem a marca: a gaveta lista as últimas
+  mensagens "🧾 Pedido de orçamento de material" do pintor, sem afirmar de
+  qual orçamento são. Teste `__tests__/portalOrcamentos.test.ts`.
+
 - **/completar-perfil "TRAVADO, SÓ SAI FECHANDO O APP" (2026-10-31, relato
   de usuário via WhatsApp). SEM SQL.** A 1ª tentativa GRAVAVA o perfil, mas a
   tela não saía (releitura do perfil sem teto pendurada na WebView, ou cache

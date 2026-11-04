@@ -30,7 +30,7 @@ import type { Json } from '@/lib/database.types';
 import { ymdBrt } from '@/lib/utils';
 
 import { fetchGated } from './fetchGated';
-import { ehModelo } from '@/lib/orcamentoModelo';
+import { ehModelo, lojaItensDe, type EnvioDeItensALoja } from '@/lib/orcamentoModelo';
 import { ehErroSemSaldo, BalanceEmptyError } from '@/lib/billingBalance';
 // QUOTE_STATUS — const tipada que define vocabulário + label/cor por status.
 // Mesmas chaves que modules/pipeline.js (linha 19), mesma ordem (ciclo de
@@ -232,8 +232,13 @@ export async function updateQuoteContent(
   const atual = await sb.from('quotes').select('quote_data').eq('id', id).eq('painter_id', painterId).maybeSingle();
   if (atual.error) throw new NetworkError(atual.error.message, atual.error);
   if (!atual.data) throw new AuthorizationError('Orçamento não encontrado ou não é seu.');
-  const eraModelo = ehModelo((atual.data as { quote_data?: unknown }).quote_data);
-  const qd = (input.quote_data && typeof input.quote_data === 'object' ? input.quote_data : {}) as Record<string, unknown>;
+  const qdAtual = (atual.data as { quote_data?: unknown }).quote_data;
+  const eraModelo = ehModelo(qdAtual);
+  const qd = { ...((input.quote_data && typeof input.quote_data === 'object' ? input.quote_data : {}) as Record<string, unknown>) };
+  // A marca de "lista enviada à loja" não vive no formulário: regravar o
+  // orçamento não pode apagá-la.
+  const envio = lojaItensDe(qdAtual);
+  if (envio && !lojaItensDe(qd)) qd.lojaItens = envio;
   const { data, error } = await sb
     .from('quotes')
     .update({
@@ -251,6 +256,33 @@ export async function updateQuoteContent(
   if (!data || data.length === 0) {
     throw new AuthorizationError('Não foi possível salvar: orçamento não encontrado ou sem permissão.');
   }
+}
+
+/**
+ * Registra no orçamento que os itens dele foram mandados pra Cali Colors
+ * (`quote_data.lojaItens`). O portal usa isso pro selo "lista enviada à
+ * loja" e pro atalho da conversa. Sem SQL: `quote_data` já é jsonb.
+ */
+export async function marcarItensEnviadosALoja(
+  id: string,
+  painterId: string,
+  envio: EnvioDeItensALoja,
+): Promise<void> {
+  if (!id || !painterId) return;
+  const sb = getSupabase();
+  const atual = await sb.from('quotes').select('quote_data').eq('id', id).eq('painter_id', painterId).maybeSingle();
+  if (atual.error) throw new NetworkError(atual.error.message, atual.error);
+  if (!atual.data) throw new AuthorizationError('Orçamento não encontrado ou não é seu.');
+  const qdBruto = (atual.data as { quote_data?: unknown }).quote_data;
+  const qd = qdBruto && typeof qdBruto === 'object' && !Array.isArray(qdBruto) ? (qdBruto as Record<string, unknown>) : {};
+  const { data, error } = await sb
+    .from('quotes')
+    .update({ quote_data: { ...qd, lojaItens: envio } as unknown as Json })
+    .eq('id', id)
+    .eq('painter_id', painterId)
+    .select('id');
+  if (error) throw new NetworkError(error.message, error);
+  if (!data || data.length === 0) throw new AuthorizationError('Orçamento não encontrado ou não é seu.');
 }
 
 /**
