@@ -319,7 +319,8 @@
   e a falha guardada não sobrevive a reabrir o app. Testes:
   `__tests__/publicacaoFila.test.ts`, `__tests__/components/
   StoriesAnelEnviando.test.tsx`, `Composer.test.tsx`. Não conferido com
-  Playwright (só testes de componente).
+  Playwright (só testes de componente). **NO AR: PR #513 (squash
+  `b00edd1`), deploy run #801 `success`.** Não confirmado no aparelho.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
@@ -343,7 +344,9 @@
   **Não compilado aqui (sem Android SDK)** — só checagem de sintaxe com
   `javac`; a validação é a build do Codemagic + aparelho. Avatar (perfil/
   cadastro) ainda NÃO usa o plugin. Teste em
-  `__tests__/components/MediaUploaderPicker.test.tsx`.
+  `__tests__/components/MediaUploaderPicker.test.tsx`. **Site NO AR: PR #512
+  (squash `24527d6`), deploy run #800 `success`** (sem o plugin nada muda);
+  AAB pelo Codemagic (disparo do usuário), release planejada pras 22h.
 
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"
