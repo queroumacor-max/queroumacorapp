@@ -297,6 +297,30 @@
   `build:cf` + `wrangler dev --env preview`. **NO AR: PR #511 (squash
   `732d1e3`), deploy run #799 `success`.**
 
+- **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
+  (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
+  estava aberta"). SEM SQL. PRECISA DE AAB NOVO.** O `<input type=file>` cai
+  no `onShowFileChooser` do Capacitor (`fileChooserParams.createIntent()` =
+  galeria em tela cheia → app vai pro fundo → Android mata o processo) e o
+  `ValueCallback` morre junto. O `pickImages` do plugin Camera TAMBÉM perde:
+  registra o launcher na hora da chamada (conferido no fonte, 8.2.4). Plugin
+  PRÓPRIO `GaleriaSegura` (`android/app/src/main/java/br/com/queroumacor/app/
+  GaleriaSeguraPlugin.java`, registrado no `MainActivity` ANTES do
+  `super.onCreate`): abre o Photo Picker por `startActivityForResult` do
+  Capacitor (`@ActivityCallback` = launcher registrado na criação da activity,
+  então o resultado chega mesmo na activity recriada), COPIA os arquivos pro
+  cache do app e grava a lista em SharedPreferences antes de responder.
+  Métodos: `escolher({limite, video})`, `recuperar()` (lê e apaga, janela de
+  10 min), `confirmar()`. Web: `lib/native/galeria.ts` (lê pela URL
+  `/_capacitor_file_/` da ponte); o `MediaUploader` do /publicar usa o seletor
+  nativo quando o plugin existe (senão o `<input>` de sempre — navegador,
+  iPhone e AAB antigo seguem iguais) e, ao montar, `recuperar()` devolve as
+  fotos ("suas N fotos foram recuperadas") em vez do aviso de perda.
+  **Não compilado aqui (sem Android SDK)** — só checagem de sintaxe com
+  `javac`; a validação é a build do Codemagic + aparelho. Avatar (perfil/
+  cadastro) ainda NÃO usa o plugin. Teste em
+  `__tests__/components/MediaUploaderPicker.test.tsx`.
+
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"
   (`app/calculadora/CalcView.tsx`); o link segue pro catálogo da loja.

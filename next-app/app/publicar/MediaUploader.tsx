@@ -51,6 +51,13 @@ export function MediaUploader({
   const [dragOver, setDragOver] = useState(false);
   const [reiniciou, setReiniciou] = useState(false);
   const [camAberta, setCamAberta] = useState(false);
+  const [recuperou, setRecuperou] = useState(0);
+  const [erroGaleria, setErroGaleria] = useState<string | null>(null);
+  // onFiles muda a cada render do pai; o efeito de recuperação roda uma vez.
+  const onFilesRef = useRef(onFiles);
+  useEffect(() => {
+    onFilesRef.current = onFiles;
+  });
 
   // P7 (01/09/2026): sem isto os ouvintes de visibilidade/foco armados pelo
   // `armarSelecao` ficavam vivos após a tela sair, E a marca de recuperação
@@ -65,12 +72,30 @@ export function MediaUploader({
   useEffect(() => {
     // Sincroniza com localStorage (sistema externo) — leitura só existe no
     // browser, no mount, não é derivável no render/SSR.
-    if (!consumirEscolhaPendente('publicar')) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentário acima
-    setReiniciou(true);
-    reportFailure('picker-restart', new Error('app reiniciou com a galeria aberta'), {
-      ctx: 'publicar',
+    const pendente = consumirEscolhaPendente('publicar');
+    let vivo = true;
+    // GaleriaSegura (2026-11-04): o plugin nativo guarda o que a pessoa
+    // escolheu mesmo com o app morto. Se tiver, as fotos voltam sozinhas e
+    // não há o que avisar.
+    native.galeria.recuperar().then((files) => {
+      if (!vivo) return;
+      if (files.length > 0) {
+        setRecuperou(files.length);
+        onFilesRef.current(files);
+        reportFailure('picker-restart', new Error(`app reiniciou com a galeria aberta — ${files.length} recuperada(s)`), {
+          ctx: 'publicar',
+        });
+        return;
+      }
+      if (!pendente) return;
+      setReiniciou(true);
+      reportFailure('picker-restart', new Error('app reiniciou com a galeria aberta'), {
+        ctx: 'publicar',
+      });
     });
+    return () => {
+      vivo = false;
+    };
   }, []);
 
   // Só faz sentido com câmera de verdade (celular) e quando foto é aceita:
@@ -84,6 +109,22 @@ export function MediaUploader({
     // 5s): daqui pra frente o processo pode morrer a qualquer momento.
     onAntesDeAbrir?.();
     cancelarAviso.current = armarSelecao({ rota: '/publicar', ctx: 'publicar' });
+    setErroGaleria(null);
+    // Android com o plugin GaleriaSegura: seletor nativo que sobrevive ao
+    // app ser morto. Sem ele (navegador, iPhone, AAB antigo), o <input>.
+    if (native.galeria.isAvailable()) {
+      const soVideo = !accept.includes('image');
+      native.galeria.escolher(soVideo ? 1 : 5, accept.includes('video')).then((r) => {
+        cancelarAviso.current?.();
+        if (r.status === 'ok') onFiles(r.files);
+        else if (r.status === 'unavailable') inputRef.current?.click();
+        else if (r.status === 'error') {
+          setErroGaleria(r.message);
+          reportFailure('publish-fail', new Error('galeria nativa: ' + r.message), { ctx: 'publicar' });
+        }
+      });
+      return;
+    }
     inputRef.current?.click();
   }
 
@@ -209,6 +250,33 @@ export function MediaUploader({
           a foto se perdeu, a legenda não. Aviso em linha, dispensável —
           não é modal, porque aqui não há nada que a pessoa PRECISE decidir,
           só escolher a foto de novo. */}
+      {recuperou > 0 && (
+        <div
+          className="mt-2 px-3 py-2 rounded-xl bg-[color:var(--color-p2-soft,#fff4e5)] text-xs text-[color:var(--color-ink)] flex items-start gap-2"
+          role="status"
+        >
+          <span aria-hidden="true">↻</span>
+          <span className="flex-1">
+            O app fechou enquanto a galeria estava aberta, mas{' '}
+            {recuperou === 1 ? 'sua foto foi recuperada' : `suas ${recuperou} fotos foram recuperadas`}.
+          </span>
+          <button
+            type="button"
+            onClick={() => setRecuperou(0)}
+            className="font-semibold text-[color:var(--color-muted)]"
+            aria-label="Dispensar aviso"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {erroGaleria && (
+        <div className="mt-2 px-3 py-2 rounded-xl bg-red-50 text-xs text-red-700" role="alert">
+          Não consegui ler os arquivos escolhidos. Tente de novo. ({erroGaleria})
+        </div>
+      )}
+
       {reiniciou && (
         <div
           className="mt-2 px-3 py-2 rounded-xl bg-[color:var(--color-p2-soft,#fff4e5)] text-xs text-[color:var(--color-ink)] flex items-start gap-2"

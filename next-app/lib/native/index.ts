@@ -53,6 +53,8 @@ export { isOnlineNow, onNetworkChange } from './network';
 export { copyToClipboard } from './clipboard';
 export { openExternal, abrirLinkExterno } from './browser';
 export { getDeviceInfo } from './device';
+export { escolherDaGaleria, recuperarGaleria, isGaleriaNativaDisponivel } from './galeria';
+export type { GaleriaResult } from './galeria';
 export type { NativeDeviceInfo } from './device';
 export { setAppBadge } from './badge';
 export { isPurchasesAvailable } from './purchases';
@@ -95,6 +97,8 @@ import {
   restoreStorePurchases,
 } from './purchases';
 
+import { escolherDaGaleria, recuperarGaleria, isGaleriaNativaDisponivel } from './galeria';
+
 /** Fachada única — preferir `native.x()` nos call sites. */
 export const native = {
   isNative: isNativePlatform,
@@ -106,6 +110,11 @@ export const native = {
     takePhoto: takePhotoNative,
     isPickerAvailable: isNativePickerAvailable,
     pickImages: pickImagesNative,
+  },
+  galeria: {
+    isAvailable: isGaleriaNativaDisponivel,
+    escolher: escolherDaGaleria,
+    recuperar: recuperarGaleria,
   },
   share: shareNative,
   push: {

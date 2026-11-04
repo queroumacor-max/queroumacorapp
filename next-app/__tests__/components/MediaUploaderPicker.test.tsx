@@ -31,13 +31,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('MediaUploader — seletor de arquivos', () => {
-  it('app morto com a galeria aberta: a tela renasce EXPLICANDO', () => {
+  it('app morto com a galeria aberta: a tela renasce EXPLICANDO', async () => {
     // O que o Android deixou pra trás quando matou o processo. Continua
     // real — mas agora é um aviso EM LINHA, dispensável, não um modal: não
     // há decisão a tomar, só escolher a foto de novo.
     marcarEscolhaPendente('/publicar', 'publicar');
     render(<MediaUploader onFiles={vi.fn()} />);
-    expect(screen.getByText(/a galeria estava aberta e a foto se perdeu/i)).toBeTruthy();
+    expect(await screen.findByText(/a galeria estava aberta e a foto se perdeu/i)).toBeTruthy();
     // E NUNCA a folha "A galeria não abriu", removida em 2026-09-05: ela
     // culpava a galeria, que hoje abre normalmente na casca Capacitor.
     expect(screen.queryByText(/A galeria não abriu/)).toBeNull();
@@ -88,5 +88,81 @@ describe('MediaUploader — seletor de arquivos', () => {
     // Abrir a câmera não pode deixar marca de escolha pendente — ela não
     // passa pelo seletor, então o app não corre risco de morrer no meio.
     expect(lerEscolhaPendente()).toBeNull();
+  });
+
+  // GaleriaSegura (2026-11-04): com o plugin nativo, o que a pessoa escolheu
+  // sobrevive ao app morrer — as fotos voltam sozinhas em vez do aviso.
+  describe('com o plugin nativo GaleriaSegura (Android)', () => {
+    function instalarCasca(plugin: Record<string, unknown>) {
+      (window as unknown as { Capacitor: unknown }).Capacitor = {
+        isNativePlatform: () => true,
+        getPlatform: () => 'android',
+        Plugins: { GaleriaSegura: plugin },
+      };
+    }
+    const fetchOriginal = globalThis.fetch;
+    beforeEach(() => {
+      globalThis.fetch = vi.fn(async () => new Response(new Blob(['x'], { type: 'image/jpeg' }))) as typeof fetch;
+    });
+    afterEach(() => {
+      delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+      globalThis.fetch = fetchOriginal;
+    });
+
+    it('fotos guardadas pelo plugin voltam pro composer, sem o aviso de perda', async () => {
+      marcarEscolhaPendente('/publicar', 'publicar');
+      instalarCasca({
+        escolher: vi.fn(),
+        confirmar: vi.fn(async () => {}),
+        recuperar: vi.fn(async () => ({
+          itens: [
+            { url: 'https://www.queroumacor.com.br/_capacitor_file_/a.jpg', mimeType: 'image/jpeg', name: 'a.jpg' },
+            { url: 'https://www.queroumacor.com.br/_capacitor_file_/b.jpg', mimeType: 'image/jpeg', name: 'b.jpg' },
+          ],
+        })),
+      });
+      const onFiles = vi.fn();
+      render(<MediaUploader onFiles={onFiles} />);
+      expect(await screen.findByText(/suas 2 fotos foram recuperadas/i)).toBeTruthy();
+      expect(onFiles).toHaveBeenCalledTimes(1);
+      const files = onFiles.mock.calls[0][0] as File[];
+      expect(files.map((f) => f.name)).toEqual(['a.jpg', 'b.jpg']);
+      expect(files[0].type).toBe('image/jpeg');
+      expect(screen.queryByText(/a foto se perdeu/i)).toBeNull();
+    });
+
+    it('tocar na área abre o seletor NATIVO (não o <input>) e entrega os arquivos', async () => {
+      const escolher = vi.fn(async () => ({
+        itens: [{ url: 'https://www.queroumacor.com.br/_capacitor_file_/c.mp4', mimeType: 'video/mp4', name: 'c.mp4' }],
+      }));
+      const confirmar = vi.fn(async () => {});
+      instalarCasca({ escolher, confirmar, recuperar: vi.fn(async () => ({})) });
+      const onFiles = vi.fn();
+      render(<MediaUploader onFiles={onFiles} />);
+      const clickInput = vi.spyOn(HTMLInputElement.prototype, 'click');
+      fireEvent.click(screen.getByTestId('media-uploader'));
+      await vi.waitFor(() => expect(onFiles).toHaveBeenCalled());
+      expect(escolher).toHaveBeenCalledWith({ limite: 5, video: true });
+      expect(clickInput).not.toHaveBeenCalled();
+      expect((onFiles.mock.calls[0][0] as File[])[0].type).toBe('video/mp4');
+      expect(confirmar).toHaveBeenCalled();
+      clickInput.mockRestore();
+    });
+
+    it('cancelar no seletor nativo não faz nada nem abre o <input>', async () => {
+      const escolher = vi.fn(async () => {
+        throw Object.assign(new Error('cancelado'), { code: 'CANCELLED' });
+      });
+      instalarCasca({ escolher, confirmar: vi.fn(), recuperar: vi.fn(async () => ({})) });
+      const onFiles = vi.fn();
+      render(<MediaUploader onFiles={onFiles} />);
+      const clickInput = vi.spyOn(HTMLInputElement.prototype, 'click');
+      fireEvent.click(screen.getByTestId('media-uploader'));
+      await vi.waitFor(() => expect(escolher).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(onFiles).not.toHaveBeenCalled();
+      expect(clickInput).not.toHaveBeenCalled();
+      clickInput.mockRestore();
+    });
   });
 });
