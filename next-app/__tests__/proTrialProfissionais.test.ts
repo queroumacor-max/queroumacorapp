@@ -33,8 +33,28 @@ describe('PRO grátis 30 dias', () => {
     expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.grant_pro_trial\(\) FROM PUBLIC, anon, authenticated/);
     expect(sql).toMatch(/AFTER INSERT OR UPDATE OF role, user_type ON public\.profiles/);
   });
-  it('os Termos dizem a regra', () => {
-    expect(termos).toMatch(/30 dias de Plano PRO grátis/);
-    expect(termos).toMatch(/uma única vez por e-mail/);
+  it('os Termos dizem a regra (30 dias até 31/12, 7 dias a partir de janeiro)', () => {
+    expect(termos).toMatch(/<b>30 dias<\/b>/);
+    expect(termos).toMatch(/<b>7 dias<\/b>/);
+    expect(termos).toMatch(/1º de janeiro de 2027/);
+    expect(termos).toMatch(/uma\s+única vez por e-mail/);
+  });
+});
+
+const sqlB = readFileSync(join(__dirname, '../../migrations/2026-11-04-b-pro-trial-30-depois-7.sql'), 'utf8')
+  .split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+
+describe('30 dias até 31/12, 7 dias a partir de janeiro', () => {
+  it('corte em 01/01/2027 de Brasília e 7 dias depois', () => {
+    expect(sqlB).toMatch(/troca_em timestamptz NOT NULL DEFAULT '2027-01-01 00:00:00-03'/);
+    expect(sqlB).toMatch(/dias_depois int NOT NULL DEFAULT 7/);
+  });
+  it('o período sai da DATA DE CADASTRO e conta a partir dela', () => {
+    expect(sqlB).toMatch(/CASE WHEN u\.created_at < c\.troca_em THEN c\.dias ELSE c\.dias_depois END/);
+    expect(sqlB).toMatch(/v_ate := u\.created_at \+ make_interval\(days => v_dias\)/);
+    expect(sqlB).toMatch(/IF v_ate <= now\(\) THEN RETURN NEW/);
+  });
+  it('a marca de "já ganhou" só é gravada depois de saber que há prazo', () => {
+    expect(sqlB.indexOf('IF v_ate <= now()')).toBeLessThan(sqlB.indexOf('INSERT INTO public.pro_trial_grants'));
   });
 });

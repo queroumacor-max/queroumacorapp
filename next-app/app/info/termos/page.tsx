@@ -148,11 +148,14 @@ export default function TermosPage() {
       </LegalP>
       <LegalP>
         Contas de <b>profissional</b> (pintor, grafiteiro, funileiro,
-        arquiteto ou engenheiro) criadas a partir de 4 de novembro de 2026
-        ganham <b>30 dias de Plano PRO grátis</b>, uma única vez por e-mail
-        (apagar a conta e criar outra com o mesmo e-mail não dá direito a um
-        novo período). Ao fim dos 30 dias o PRO grátis acaba sozinho, sem
-        cobrança e sem renovação automática; a conta volta às regras acima.
+        arquiteto ou engenheiro) ganham um período de <b>Plano PRO
+        grátis</b> contado da data de cadastro: <b>30 dias</b> para quem se
+        cadastrar de 4 de novembro a 31 de dezembro de 2026, e <b>7 dias</b>
+        para quem se cadastrar a partir de 1º de janeiro de 2027. Vale uma
+        única vez por e-mail (apagar a conta e criar outra com o mesmo e-mail
+        não dá direito a um novo período). Ao fim do período o PRO grátis
+        acaba sozinho, sem cobrança e sem renovação automática; a conta volta
+        às regras acima.
       </LegalP>
       <LegalP>
         Quem não é PRO pode experimentar cada ferramenta com inteligência
