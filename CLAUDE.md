@@ -340,6 +340,32 @@
   `__tests__/avisosComMidia.test.ts`. **NO AR: PR #514 (squash
   `8174883`), deploy run #802 `success`.** Não conferido no app/portal pelo usuário ainda.
 
+- **AVISOS: BOTÃO "📲 ENVIAR PUSH" COM ESCOLHA DE QUEM RECEBE (2026-11-06,
+  pedido do usuário). SEM SQL. Portal v=20261106b.** Cada aviso ATIVO na
+  tela Avisos ganhou "📲 Enviar push" → modal com dropdown de caixinhas
+  (Todos / Pintores / Grafiteiros / Automotivo-Funileiros /
+  Arquitetos-Engenheiros / Clientes; "Todos" engole o resto), contagem
+  antes de enviar ("N pessoas com notificação ativada, de M nesse
+  público", por `dryRun`), confirmação e resultado (enviados de X
+  aparelhos). Rota `POST /api/admin/announce-push` (`ensurePortalAdmin`,
+  rate limit 10/min, audit `admin.announcement.push`): lê o aviso (recusa
+  desativado), escolhe perfis por `role` (com os sinônimos de
+  `lib/roles.ts`: funileiro, engenheiro, graffiti) que tenham linha em
+  `push_device_tokens` OU `push_subscriptions`, e manda em lotes de 100,
+  teto de 1500 pessoas por envio. Push: título do aviso, começo da
+  mensagem (≤160), abre `/notificacoes`, tag `aviso-<id>`.
+  - **NÃO grava `notifications` por pessoa, de propósito:** cada INSERT
+    dispara o trigger de push, que chama `/api/push-notify` uma vez por
+    pessoa pelo pg_net — e essa rota aceita 60/min por IP. Um envio pra
+    centenas perderia a maioria calado. O aviso já aparece no app pelo
+    `<AvisosDaLoja>`.
+  - O código de envio (VAPID + FCM) SAIU de `app/api/push-notify/route.ts`
+    pra `lib/api/_services/push-send.ts` (`enviarPush`); a rota antiga só
+    chama a função — os 45 testes de push seguiram verdes.
+  - Testes `__tests__/announcePush.test.ts`. Modal conferido com
+    Playwright no portal local (rota de push simulada). **Não testado com
+    push real chegando no aparelho.**
+
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
   a logo era `whitespace-nowrap` sem `min-w-0` (item de flex não encolhe) e
@@ -352,7 +378,7 @@
   login simulado com o Supabase respondido por `page.route`)**: 17 telas ×
   320/360/412px sem rolagem lateral nem elemento passando da borda (dados
   vazios — corte causado por CONTEÚDO longo não foi testado, só o aviso
-  longo do /notificacoes). Teste `__tests__/topNavNaoCorta.test.ts`.
+  longo do /notificacoes). Teste `__tests__/topNavNaoCorta.test.ts`. **NO AR: PR #515 (squash `f5c3962`), deploy run #803 `success`.** Não confirmado no aparelho.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
