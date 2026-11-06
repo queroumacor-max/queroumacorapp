@@ -380,7 +380,9 @@
     `profiles` por `name`/`tag` ilike (portal, admin lê pela RLS), até 20
     escolhidas em chips. Rota aceita `pessoas` (uuids, `pessoasValidas`) e
     usa `destinatariosPorId`; sem push → mensagem explicando. PR #518
-    (squash `e3cc8d9`).
+    (squash `e3cc8d9`). **NO AR (deploy `success`). CONFIRMADO PELO USUÁRIO
+    (2026-11-06): "funcionou"** — push pra pessoa específica testado no
+    portal; é o 1º push de aviso confirmado em uso real.
   - **RELATO EM ABERTO (2026-11-06, Fabio via WhatsApp): "no cadastro todos
     vão para cliente, mesmo selecionando pintor".** Lido no código: o
     signup manda `user_type` no metadata e no UPDATE pós-signup;
