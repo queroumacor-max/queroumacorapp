@@ -414,7 +414,8 @@
   `__tests__/components/perfAvatarVideo.test.tsx`. **Não medido em
   aparelho real.** Não mexido: MP4 de celular com `moov` no fim (exige
   baixar o fim do arquivo antes de tocar) — só se resolve re-encodando no
-  upload.
+  upload. **NO AR: PR #519 (squash `f84aebf`), deploy run #808 `success`.**
+  Não confirmado no aparelho.
 
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
