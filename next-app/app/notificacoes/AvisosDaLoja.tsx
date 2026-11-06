@@ -25,7 +25,7 @@ function MidiaDoAviso({ a }: { a: Aviso }) {
         playsInline
         preload="metadata"
         className="w-full rounded-lg bg-black mt-2"
-        style={{ maxHeight: 360 }}
+        style={{ maxHeight: '75vh' }}
       />
     );
   }
@@ -36,7 +36,7 @@ function MidiaDoAviso({ a }: { a: Aviso }) {
       alt={a.title || 'Imagem do aviso'}
       loading="lazy"
       className="w-full rounded-lg mt-2 object-contain bg-[color:var(--color-bg)]"
-      style={{ maxHeight: 360 }}
+      style={{ maxHeight: '75vh' }}
     />
   );
 }

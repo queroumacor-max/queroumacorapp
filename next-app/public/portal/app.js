@@ -317,6 +317,11 @@ const announcementsService = {
     }).eq('id', id);
     if (r.error) throw r.error;
   },
+  update: async (id, patch) => {
+    const r = await supa.from('announcements').update(patch).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data || !r.data.length) throw new Error('Aviso não encontrado');
+  },
   remove: async id => {
     const r = await supa.from('announcements').delete().eq('id', id);
     if (r.error) throw r.error;
@@ -11755,6 +11760,82 @@ function mimeDoAviso(f, tipo) {
 }
 // [teste:aviso-midia-fim]
 
+// [teste:aviso-agenda-inicio]
+// Avisos agendados (2026-11-06): dia + hora digitados em horário de Brasília.
+// Brasília é UTC-3 fixo (o Brasil acabou com o horário de verão em 2019).
+// O aviso agendado grava publish_at E created_at = a hora de sair, assim o app
+// ordena e mostra a data certa; a RLS (announcements_public_read) e o app
+// escondem o aviso até publish_at.
+const AVISO_TZ = 'America/Sao_Paulo';
+function brasiliaParaISO(dia, hora) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || '') || !/^\d{2}:\d{2}$/.test(hora || '')) return null;
+  const d = new Date(dia + 'T' + hora + ':00-03:00');
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+function isoParaBrasilia(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d.getTime())) return {
+    dia: '',
+    hora: ''
+  };
+  const p = {};
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: AVISO_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(d).forEach(x => {
+    p[x.type] = x.value;
+  });
+  return {
+    dia: p.year + '-' + p.month + '-' + p.day,
+    hora: p.hour + ':' + p.minute
+  };
+}
+function quandoBrasilia(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d.getTime())) return '';
+  const sem = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: AVISO_TZ,
+    weekday: 'short'
+  }).format(d).replace('.', '');
+  const b = isoParaBrasilia(iso);
+  return sem + ', ' + b.dia.slice(8, 10) + '/' + b.dia.slice(5, 7) + '/' + b.dia.slice(0, 4) + ' às ' + b.hora;
+}
+function faltaQuanto(iso, agora) {
+  const ms = new Date(iso).getTime() - agora;
+  if (!(ms > 0)) return 'saindo agora';
+  const min = Math.ceil(ms / 60000);
+  if (min < 60) return 'em ' + min + ' min';
+  const h = Math.round(min / 60);
+  if (h < 48) return 'em ' + h + ' h';
+  return 'em ' + Math.round(h / 24) + ' dias';
+}
+function avisoAgendado(a, agora) {
+  return !!(a && a.active && a.publish_at && new Date(a.publish_at).getTime() > agora);
+}
+function separarAvisos(lista, agora) {
+  const agendados = [],
+    publicados = [];
+  (lista || []).forEach(a => (avisoAgendado(a, agora) ? agendados : publicados).push(a));
+  agendados.sort((x, y) => new Date(x.publish_at) - new Date(y.publish_at));
+  return {
+    agendados,
+    publicados
+  };
+}
+function amanhaNoveBrasilia(agora) {
+  const b = isoParaBrasilia(new Date(agora + 24 * 3600 * 1000).toISOString());
+  return {
+    dia: b.dia,
+    hora: '09:00'
+  };
+}
+// [teste:aviso-agenda-fim]
+
 const MidiaDoAviso = ({
   url,
   tipo
@@ -11804,6 +11885,22 @@ const Avisos = () => {
   // pública em announcements.media_url + media_type.
   const [midia, setMidia] = useState(null); // { url, tipo }
   const [midiaBusy, setMidiaBusy] = useState(false);
+  // Agendar (2026-11-06): 'agora' publica na hora; 'agendar' grava publish_at.
+  const [modo, setModo] = useState('agora');
+  const [agDia, setAgDia] = useState(() => amanhaNoveBrasilia(Date.now()).dia);
+  const [agHora, setAgHora] = useState('09:00');
+  const [agora, setAgora] = useState(Date.now());
+  const [editando, setEditando] = useState(null); // { id, dia, hora }
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const {
+    agendados,
+    publicados
+  } = separarAvisos(avisos, agora);
+  const faltaSqlAgenda = e => e && (e.code === '42703' || e.code === 'PGRST204' || /publish_at/.test(e.message || ''));
+  const MSG_SQL_AGENDA = 'Falta rodar o SQL /migrations/2026-11-06-announcements-schedule.sql no Supabase pra agendar avisos.';
   const enviarMidia = async f => {
     const tipo = tipoDeMidiaDoAviso(f);
     if (!tipo) {
@@ -11853,6 +11950,18 @@ const Avisos = () => {
       alert('Preencha a mensagem');
       return;
     }
+    let quando = null;
+    if (modo === 'agendar') {
+      quando = brasiliaParaISO(agDia, agHora);
+      if (!quando) {
+        alert('Escolha o dia e o horário (Brasília).');
+        return;
+      }
+      if (new Date(quando).getTime() < Date.now() + 60000) {
+        alert('Escolha um horário no futuro (Brasília).');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const {
@@ -11871,12 +11980,21 @@ const Avisos = () => {
         linha.media_url = midia.url;
         linha.media_type = midia.tipo;
       }
+      if (quando) {
+        linha.publish_at = quando;
+        linha.created_at = quando;
+      }
       await announcementsService.insert(linha);
       setTitle('');
       setMessage('');
       setMidia(null);
       loadAvisos();
     } catch (e) {
+      if (quando && faltaSqlAgenda(e)) {
+        alert(MSG_SQL_AGENDA);
+        setSaving(false);
+        return;
+      }
       const semColuna = e && (e.code === '42703' || e.code === 'PGRST204' || /media_(url|type)/.test(e.message || ''));
       alert(semColuna ? 'Falta rodar o SQL /migrations/2026-11-06-announcements-media.sql no Supabase pra salvar foto/vídeo no aviso.' : 'Erro: ' + (e.message || 'tente novamente'));
     }
@@ -11891,8 +12009,42 @@ const Avisos = () => {
       console.warn('toggleAviso error:', e);
     }
   };
-  const deleteAviso = async id => {
-    if (!confirm('Tem certeza que deseja excluir este aviso?')) return;
+  const reagendar = async (id, dia, hora) => {
+    const iso = brasiliaParaISO(dia, hora);
+    if (!iso) {
+      alert('Escolha o dia e o horário (Brasília).');
+      return;
+    }
+    if (new Date(iso).getTime() < Date.now() + 60000) {
+      alert('Escolha um horário no futuro (Brasília).');
+      return;
+    }
+    try {
+      await announcementsService.update(id, {
+        publish_at: iso,
+        created_at: iso
+      });
+      setEditando(null);
+      loadAvisos();
+    } catch (e) {
+      alert(faltaSqlAgenda(e) ? MSG_SQL_AGENDA : 'Erro: ' + (e.message || 'tente novamente'));
+    }
+  };
+  const publicarAgora = async id => {
+    if (!confirm('Publicar este aviso agora?')) return;
+    const iso = new Date().toISOString();
+    try {
+      await announcementsService.update(id, {
+        publish_at: iso,
+        created_at: iso
+      });
+      loadAvisos();
+    } catch (e) {
+      alert('Erro: ' + (e.message || 'tente novamente'));
+    }
+  };
+  const deleteAviso = async (id, agendado) => {
+    if (!confirm(agendado ? 'Cancelar este aviso agendado? Ele não vai sair.' : 'Tem certeza que deseja excluir este aviso?')) return;
     try {
       await announcementsService.remove(id);
       loadAvisos();
@@ -12017,7 +12169,70 @@ const Avisos = () => {
   }, /*#__PURE__*/React.createElement(MidiaDoAviso, {
     url: midia.url,
     tipo: midia.tipo
-  })) : null), /*#__PURE__*/React.createElement("button", {
+  })) : null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 6
+    }
+  }, "Quando publicar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      marginBottom: modo === 'agendar' ? 10 : 0
+    }
+  }, [['agora', '🚀 Publicar agora'], ['agendar', '📅 Agendar']].map(([k, rot]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: () => setModo(k),
+    style: {
+      padding: '8px 14px',
+      borderRadius: 10,
+      fontSize: 13,
+      fontWeight: 600,
+      cursor: 'pointer',
+      border: '1px solid ' + (modo === k ? C.p1 : C.border),
+      background: modo === k ? C.p1 + '1a' : C.white,
+      color: modo === k ? C.p1 : C.ink
+    }
+  }, rot))), modo === 'agendar' ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: agDia,
+    onChange: e => setAgDia(e.target.value),
+    style: {
+      padding: '9px 12px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      fontSize: 14
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "time",
+    value: agHora,
+    onChange: e => setAgHora(e.target.value),
+    style: {
+      padding: '9px 12px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      fontSize: 14
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: C.muted
+    }
+  }, "Hor\xE1rio de Bras\xEDlia", brasiliaParaISO(agDia, agHora) ? ' · sai ' + quandoBrasilia(brasiliaParaISO(agDia, agHora)) : '')) : null), /*#__PURE__*/React.createElement("button", {
     disabled: saving || midiaBusy,
     onClick: saveAviso,
     style: {
@@ -12031,13 +12246,185 @@ const Avisos = () => {
       cursor: saving || midiaBusy ? 'wait' : 'pointer',
       opacity: saving || midiaBusy ? .7 : 1
     }
-  }, saving ? 'Salvando...' : midiaBusy ? 'Aguarde o envio…' : 'Publicar Aviso'), /*#__PURE__*/React.createElement("div", {
+  }, saving ? 'Salvando...' : midiaBusy ? 'Aguarde o envio…' : modo === 'agendar' ? '📅 Agendar Aviso' : 'Publicar Aviso'), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: C.muted,
       marginTop: 8
     }
-  }, "Este aviso aparecera na aba de notificacoes do app para todos os usuarios.")), /*#__PURE__*/React.createElement("div", {
+  }, modo === 'agendar' ? 'O aviso fica na lista "Agendados" abaixo e, no dia e horário escolhidos (Brasília), aparece no app e manda um push para todos.' : 'Este aviso aparece na aba de notificações do app e manda um push para todos os usuários com notificação ligada.')), agendados.length > 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      borderRadius: 16,
+      padding: 20,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      marginBottom: 4,
+      color: C.ink
+    }
+  }, "\u23F0 Agendados (", agendados.length, ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 10
+    }
+  }, "V\xE3o sair no app nesta ordem \u2014 hor\xE1rio de Bras\xEDlia."), agendados.map(a => /*#__PURE__*/React.createElement("div", {
+    key: a.id,
+    style: {
+      borderBottom: '1px solid ' + C.border,
+      padding: '14px 0',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 12,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 24
+    }
+  }, "\uD83D\uDCC5"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 220
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'inline-block',
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.p1,
+      background: C.p1 + '14',
+      borderRadius: 8,
+      padding: '3px 8px',
+      marginBottom: 6
+    }
+  }, "Sai ", quandoBrasilia(a.publish_at), " \xB7 ", faltaQuanto(a.publish_at, agora)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 14,
+      color: C.ink
+    }
+  }, a.title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: '#555',
+      marginTop: 2,
+      whiteSpace: 'pre-wrap'
+    }
+  }, a.message), a.media_url ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(MidiaDoAviso, {
+    url: a.media_url,
+    tipo: a.media_type
+  })) : null, editando && editando.id === a.id ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: editando.dia,
+    onChange: e => setEditando({
+      ...editando,
+      dia: e.target.value
+    }),
+    style: {
+      padding: '7px 10px',
+      borderRadius: 8,
+      border: '1px solid ' + C.border,
+      fontSize: 13
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "time",
+    value: editando.hora,
+    onChange: e => setEditando({
+      ...editando,
+      hora: e.target.value
+    }),
+    style: {
+      padding: '7px 10px',
+      borderRadius: 8,
+      border: '1px solid ' + C.border,
+      fontSize: 13
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => reagendar(a.id, editando.dia, editando.hora),
+    style: {
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 8,
+      padding: '6px 12px',
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, "\uD83D\uDCBE Salvar hor\xE1rio"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditando(null),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      padding: '6px 12px',
+      fontSize: 12,
+      cursor: 'pointer',
+      color: C.muted
+    }
+  }, "Voltar")) : null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditando({
+      id: a.id,
+      ...isoParaBrasilia(a.publish_at)
+    }),
+    style: {
+      background: C.p1 + '1a',
+      border: 'none',
+      borderRadius: 8,
+      padding: '4px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: 'pointer',
+      color: C.p1
+    }
+  }, "\u270F\uFE0F Mudar hor\xE1rio"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => publicarAgora(a.id),
+    style: {
+      background: C.p6 + '33',
+      border: 'none',
+      borderRadius: 8,
+      padding: '4px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: 'pointer',
+      color: C.p6
+    }
+  }, "\uD83D\uDE80 Publicar agora"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => deleteAviso(a.id, true),
+    style: {
+      background: C.p4 + '22',
+      border: 'none',
+      borderRadius: 8,
+      padding: '4px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: 'pointer',
+      color: C.p4
+    }
+  }, "\uD83D\uDDD1 Cancelar"))))) : null, /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.white,
       borderRadius: 16,
@@ -12055,12 +12442,12 @@ const Avisos = () => {
       color: C.muted,
       fontSize: 13
     }
-  }, "Carregando..."), !loading && avisos.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Carregando..."), !loading && publicados.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
       fontSize: 13
     }
-  }, "Nenhum aviso publicado ainda."), avisos.map(a => /*#__PURE__*/React.createElement("div", {
+  }, "Nenhum aviso publicado ainda."), publicados.map(a => /*#__PURE__*/React.createElement("div", {
     key: a.id,
     style: {
       borderBottom: '1px solid ' + C.border,
@@ -12104,12 +12491,13 @@ const Avisos = () => {
       marginTop: 4
     }
   }, a.created_at ? new Date(a.created_at).toLocaleDateString('pt-BR', {
+    timeZone: AVISO_TZ,
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
     hour: '2-digit',
     minute: '2-digit'
-  }) : '')), /*#__PURE__*/React.createElement("div", {
+  }) + ' (Brasília)' : '', a.push_sent_at && a.push_sent_count > 0 ? ' · 📲 push enviado para ' + a.push_sent_count + (a.push_done ? '' : ' (enviando…)') : '')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       gap: 6

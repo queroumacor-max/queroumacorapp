@@ -1,5 +1,20 @@
 # Estado do projeto / convenções (não perguntar de novo)
 
+- **AVISOS AGENDADOS + PUSH GERAL (2026-11-06, pedido do usuário: "agendar dia e horário
+  de Brasília", "posso fazer vários agendados", "pode fazer push geral").** Branch
+  `claude/avisos-agendados`. Portal ▸ Avisos: "🚀 Publicar agora" / "📅 Agendar" (dia + hora
+  de Brasília, UTC-3 fixo) e a lista **⏰ Agendados** em cima de "Avisos Publicados"
+  (✏️ Mudar horário · 🚀 Publicar agora · 🗑 Cancelar). Agendado grava `publish_at` E
+  `created_at` = hora de sair (o app ordena/mostra a data certa). A RLS
+  `announcements_public_read` esconde até `publish_at`; o app também filtra (`jaNoAr`), porque
+  admin passa pela policy de escrita. **Push:** pg_cron `announcements-push` (todo minuto) →
+  `run_announcement_push()` manda 1 push por aviso que entrou no ar para todo user com
+  `push_device_tokens`/`push_subscriptions`, lotes de 100 pela `/api/push-notify` (≤40 lotes/min;
+  progresso em `push_sent_count`, fim em `push_done`). Avisos que já existiam ficam
+  `push_done = true` (nada antigo dispara). Imagem do aviso no app: até 75vh (era 360px).
+  SQL `migrations/2026-11-06-announcements-schedule-push.sql` (testado em Postgres 16 local,
+  2x, 4.150 users → 42 chamadas, cada user 1 vez) — **AINDA NÃO RODADO** quando escrito.
+
 - **COMPRAS IN-APP (ORÇAMENTOS + OBRAS + PRO) — CÓDIGO NO AR, COBRANÇA
   DESLIGADA (PR #484 squash `76a96a3`, deploy run #775 do `deploy.yml`
   terminou `success` — passou pelo portão de preview + smoke; **CONFIRMADO
