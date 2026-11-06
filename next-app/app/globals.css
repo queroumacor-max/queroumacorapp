@@ -294,3 +294,21 @@ body {
 @keyframes story-enviando-pulsa {
   50% { opacity: .35; }
 }
+
+/* Logo do TopNav (2026-11-06). O link é um container e o texto encolhe
+   pela largura que sobrou, sem passar do tamanho de antes (o clamp). Assim
+   seta de voltar + selo ADMIN + sino cabem sem cortar a logo nem empurrar
+   o sino pra fora. 11.8 ≈ largura de "QueroUmaCor" em múltiplos da fonte
+   (medido com Playwright: 199px a 17.3px). Sem suporte a container query
+   fica o clamp antigo, e o overflow:hidden do link segura o resto. */
+.topnav-logo {
+  container-type: inline-size;
+}
+.topnav-logo-txt {
+  font-size: clamp(13px, 4.2vw, 21px);
+}
+@supports (font-size: 1cqw) {
+  .topnav-logo-txt {
+    font-size: min(clamp(13px, 4.2vw, 21px), calc(100cqw / 11.8));
+  }
+}

@@ -121,21 +121,21 @@ export function TopNav({ proStatus }: TopNavProps) {
       ) : null}
       <Link
         href={user ? '/feed' : '/'}
-        className="text-[color:var(--color-white-fixed)] font-extrabold tracking-tight whitespace-nowrap"
-        style={{
-          fontFamily: 'var(--font-display)',
-          // Tamanho dinâmico — encolhe quando o badge é mais largo (ADMIN).
-          // Min 13px garante legibilidade em telas pequenas; max 21px é o
-          // teto desktop. 4.2vw escala suave entre os dois.
-          fontSize: 'clamp(13px, 4.2vw, 21px)',
-          letterSpacing: '-0.5px',
-        }}
+        // A logo é quem cede espaço (06/11, print do /notificacoes: seta de
+        // voltar + selo ADMIN empurravam o SINO pra fora da tela). O link
+        // ocupa a sobra (flex-1/min-w-0) e é um container: `.topnav-logo-txt`
+        // (globals.css) encolhe a fonte pela largura disponível em vez de
+        // cortar o texto. Sino e selo nunca encolhem.
+        className="topnav-logo flex-1 min-w-0 overflow-hidden text-[color:var(--color-white-fixed)] font-extrabold tracking-tight whitespace-nowrap"
+        style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.5px' }}
         aria-label="Ir para o início"
       >
-        Quero<span className="text-[color:var(--color-p1)]">Uma</span>Cor
+        <span className="topnav-logo-txt">
+          Quero<span className="text-[color:var(--color-p1)]">Uma</span>Cor
+        </span>
       </Link>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {!user ? (
           // Modo visitante: botão de login no lugar do badge + chat.
           <Link
@@ -151,7 +151,7 @@ export function TopNav({ proStatus }: TopNavProps) {
         <Link
           href="/pro"
           data-tour="nav-plano"
-          className="flex items-center text-xs font-extrabold px-3 py-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--color-white-fixed)_15%,transparent)] text-[color:var(--color-white-fixed)] tracking-widest cursor-pointer border-none"
+          className="flex items-center whitespace-nowrap text-xs font-extrabold px-2.5 py-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--color-white-fixed)_15%,transparent)] text-[color:var(--color-white-fixed)] tracking-wider cursor-pointer border-none"
           style={{ fontFamily: 'var(--font-display)' }}
           aria-label={badge === 'GRÁTIS' && comprasNoApp ? 'Ver planos e pacotes' : 'Ver plano PRO'}
           onClick={(e) => {
@@ -172,7 +172,7 @@ export function TopNav({ proStatus }: TopNavProps) {
           aria-label={
             unreadNotif > 0 ? `Avisos (${unreadNotif} não lidos)` : 'Avisos'
           }
-          className="relative w-11 h-11 flex items-center justify-center rounded-full"
+          className="relative w-10 h-10 shrink-0 flex items-center justify-center rounded-full"
         >
           <svg
             viewBox="0 0 24 24"
