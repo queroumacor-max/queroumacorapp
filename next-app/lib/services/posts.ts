@@ -188,6 +188,10 @@ export async function uploadMedia(
     sb.storage.from('posts').upload(destino, file, {
       contentType: mime,
       upsert: false,
+      // Caminho é único por upload (nunca sobrescrito), então a mídia pode
+      // ficar no cache do aparelho/CDN por 1 ano em vez de 1h (default do
+      // Supabase) — voltar ao feed não baixa o vídeo de novo.
+      cacheControl: '31536000',
     });
 
   // Wave 29: SHA-256 do binário ANTES do upload. Calcula em paralelo

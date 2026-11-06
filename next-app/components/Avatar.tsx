@@ -21,6 +21,9 @@ export interface AvatarProps {
   size?: number;
   // Classe adicional pra layout (ex.: `flex-shrink-0`).
   className?: string;
+  // Avatar que aparece logo na abertura (topo do feed, stories): baixa já,
+  // sem esperar o lazy-load do navegador decidir que ele está na tela.
+  eager?: boolean;
 }
 
 // Cores de fallback — paleta do app (var(--p1..p5)). Função determinística:
@@ -43,7 +46,7 @@ function initialOf(profile: AvatarProps['profile']): string {
   return first || '?';
 }
 
-export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
+export function Avatar({ profile, size = 40, className = '', eager = false }: AvatarProps) {
   // Local state pra controlar fallback quando a img estoura (URL quebrada,
   // 403, etc.). Sem estado, browser deixa o broken-image ícone aparecer.
   const [imgError, setImgError] = useState(false);
@@ -78,7 +81,8 @@ export function Avatar({ profile, size = 40, className = '' }: AvatarProps) {
         alt={profile?.name ?? profile?.tag ?? 'Avatar'}
         width={size}
         height={size}
-        loading="lazy"
+        loading={eager ? 'eager' : 'lazy'}
+        fetchPriority={eager ? 'high' : undefined}
         decoding="async"
         onError={handleImgError}
         className={`rounded-full object-cover ${className}`}

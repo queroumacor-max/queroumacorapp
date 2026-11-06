@@ -374,12 +374,47 @@
   Agora fica dentro do modal (empurra o resto), tem "✓ Pronto", fecha ao
   tocar em outro ponto do cartão, e o cartão rola (`maxHeight:90vh`).
   Conferido com Playwright. **NO AR: PR #517 (squash `9449b57`).**
+  - **PUSH PRA PESSOA ESPECÍFICA (2026-11-06, pedido do usuário: "escolher
+    um usuário só… escrever e aparecer a pessoa, o tag"). SEM SQL. Portal
+    v=20261106d.** Modal ganhou "👥 Grupo / 👤 Pessoa específica": busca
+    `profiles` por `name`/`tag` ilike (portal, admin lê pela RLS), até 20
+    escolhidas em chips. Rota aceita `pessoas` (uuids, `pessoasValidas`) e
+    usa `destinatariosPorId`; sem push → mensagem explicando. PR #518
+    (squash `e3cc8d9`). **NO AR (deploy `success`). CONFIRMADO PELO USUÁRIO
+    (2026-11-06): "funcionou"** — push pra pessoa específica testado no
+    portal; é o 1º push de aviso confirmado em uso real.
   - **RELATO EM ABERTO (2026-11-06, Fabio via WhatsApp): "no cadastro todos
     vão para cliente, mesmo selecionando pintor".** Lido no código: o
     signup manda `user_type` no metadata e no UPDATE pós-signup;
     `sync_role_from_user_type` (31/10) e `protect_profile_columns` (25/10)
     estão certos no repo. Causa NÃO achada no código — falta ver o banco
     (consulta passada no chat: últimos perfis × `raw_user_meta_data`).
+
+- **DESEMPENHO: AVATAR DO "SEU STORY" + VÍDEO DO FEED (2026-11-06, pedido
+  do usuário: "a bolinha tem delay" e "o vídeo fica 3-4s preto com o play").
+  SEM SQL.** (1) O círculo esperava a leitura do perfil e depois baixava a
+  foto ORIGINAL com `loading=lazy`. Agora `lib/avatarCache.ts` guarda a URL
+  (pública, só https, chave por conta) e o círculo nasce com ela; o perfil
+  continua mandando (troca ou apaga). Os círculos usam `<Avatar>` (cfImg
+  w=56 + srcset, `eager` + `fetchPriority=high`; prop nova `eager`). Stories
+  de outros sem foto mostram a inicial — saiu o fallback pra mídia do story
+  (podia ser vídeo) e pro dicebear (terceiro). (2) `PostMedia`: vídeo
+  perto da tela (600px) troca `preload` pra `auto` e começa a baixar antes
+  de aparecer; fases `fora/carregando/tocando/parado/bloqueado` — carregando
+  = spinner `.video-carregando`, ▶ só quando o autoplay é recusado (catch ou
+  4s pausado, pra WebView que nunca rejeita a promessa) ou a pessoa pausou.
+  (3) Upload de post com `cacheControl: 31536000` (path único); não conferido
+  se a cópia pra `approved/` herda (o storage costuma copiar o metadado).
+  (4) 2º `preconnect` ao Supabase SEM crossOrigin (mídia não usa CORS).
+  **Playwright no Worker local** (build:cf + wrangler dev, Supabase/mídia
+  simulados): avatar pintado em ~390ms com cache × ~1400ms sem; vídeo com 4s
+  de atraso de rede começou a baixar antes da rolagem e tocou ~1,5s depois
+  de entrar na tela, com spinner (nunca ▶) no meio; autoplay recusado e
+  autoplay pendurado mostram o ▶ (o pendurado aos 4s). Teste
+  `__tests__/components/perfAvatarVideo.test.tsx`. **Não medido em
+  aparelho real.** Não mexido: MP4 de celular com `moov` no fim (exige
+  baixar o fim do arquivo antes de tocar) — só se resolve re-encodando no
+  upload.
 
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:

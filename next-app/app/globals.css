@@ -295,6 +295,17 @@ body {
   50% { opacity: .35; }
 }
 
+/* Vídeo do feed carregando (PostMedia, 2026-11-06): no lugar do ▶ gigante,
+   que parecia "toque pra tocar" enquanto o vídeo só estava baixando. */
+.video-carregando {
+  border: 3px solid rgba(255, 255, 255, .25);
+  border-top-color: #fff;
+  animation: story-chamada-gira .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-carregando { animation: story-enviando-pulsa 1.6s ease-in-out infinite; }
+}
+
 /* Logo do TopNav (2026-11-06). O link é um container e o texto encolhe
    pela largura que sobrou, sem passar do tamanho de antes (o clamp). Assim
    seta de voltar + selo ADMIN + sino cabem sem cortar a logo nem empurrar
