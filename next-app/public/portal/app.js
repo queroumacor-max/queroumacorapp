@@ -11731,6 +11731,62 @@ const MarketingPage = () => {
 };
 
 // ══ AVISOS (Announcements) ══
+// [teste:aviso-midia-inicio]
+// Decide se o arquivo é foto ou vídeo pelo tipo declarado e, se faltar, pela
+// extensão. Devolve null quando não é nenhum dos dois.
+const AVISO_EXT_IMG = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+const AVISO_EXT_VID = ['mp4', 'mov', 'webm', 'm4v'];
+function tipoDeMidiaDoAviso(f) {
+  const t = f && f.type || '';
+  if (/^image\/(jpeg|png|webp|gif)$/.test(t)) return 'image';
+  if (/^video\/(mp4|quicktime|webm)$/.test(t)) return 'video';
+  if (t && t !== 'application/octet-stream') return null;
+  const ext = String(f && f.name || '').split('.').pop().toLowerCase();
+  if (AVISO_EXT_IMG.includes(ext)) return 'image';
+  if (AVISO_EXT_VID.includes(ext)) return 'video';
+  return null;
+}
+function mimeDoAviso(f, tipo) {
+  const t = f && f.type || '';
+  if (t && t !== 'application/octet-stream') return t;
+  const ext = String(f && f.name || '').split('.').pop().toLowerCase();
+  if (tipo === 'video') return ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4';
+  return ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+}
+// [teste:aviso-midia-fim]
+
+const MidiaDoAviso = ({
+  url,
+  tipo
+}) => {
+  const video = tipo === 'video' || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url || '');
+  return video ? /*#__PURE__*/React.createElement("video", {
+    src: url,
+    controls: true,
+    playsInline: true,
+    preload: "metadata",
+    style: {
+      width: '100%',
+      maxWidth: 360,
+      maxHeight: 240,
+      borderRadius: 10,
+      background: '#000',
+      display: 'block'
+    }
+  }) : /*#__PURE__*/React.createElement("img", {
+    src: url,
+    alt: "",
+    style: {
+      width: '100%',
+      maxWidth: 360,
+      maxHeight: 240,
+      objectFit: 'contain',
+      borderRadius: 10,
+      background: C.cream,
+      display: 'block'
+    }
+  });
+};
 const Avisos = () => {
   const {
     data,
@@ -11743,6 +11799,51 @@ const Avisos = () => {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  // Foto ou vídeo opcional (2026-11-06). Sobe no bucket `posts` em
+  // <uid>/avisos/ (a Wave 27 exige o path começando no uid) e grava a URL
+  // pública em announcements.media_url + media_type.
+  const [midia, setMidia] = useState(null); // { url, tipo }
+  const [midiaBusy, setMidiaBusy] = useState(false);
+  const enviarMidia = async f => {
+    const tipo = tipoDeMidiaDoAviso(f);
+    if (!tipo) {
+      alert('Escolha uma foto (JPG, PNG, WEBP) ou um vídeo (MP4, MOV, WEBM).');
+      return;
+    }
+    const max = tipo === 'video' ? 50 : 10;
+    if (f.size > max * 1024 * 1024) {
+      alert((tipo === 'video' ? 'Vídeo' : 'Foto') + ' grande demais (máx ' + max + 'MB).');
+      return;
+    }
+    setMidiaBusy(true);
+    try {
+      const {
+        data: {
+          user
+        }
+      } = await supa.auth.getUser();
+      if (!user) throw new Error('Sessao expirada — entre de novo.');
+      const nome = (f.name || 'aviso.' + (tipo === 'video' ? 'mp4' : 'jpg')).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = user.id + '/avisos/' + Date.now() + '-' + nome;
+      const {
+        error
+      } = await supa.storage.from('posts').upload(path, f, {
+        upsert: false,
+        contentType: mimeDoAviso(f, tipo)
+      });
+      if (error) throw error;
+      const {
+        data
+      } = supa.storage.from('posts').getPublicUrl(path);
+      setMidia({
+        url: data && data.publicUrl || '',
+        tipo
+      });
+    } catch (err) {
+      alert('Erro ao enviar ' + (tipo === 'video' ? 'vídeo' : 'foto') + ': ' + (err.message || err));
+    }
+    setMidiaBusy(false);
+  };
   const saveAviso = async () => {
     if (!title.trim()) {
       alert('Preencha o titulo');
@@ -11759,18 +11860,25 @@ const Avisos = () => {
           session
         }
       } = await supa.auth.getSession();
-      await announcementsService.insert({
+      const linha = {
         title: title.trim(),
         message: message.trim(),
         active: true,
         created_by: session?.user?.id || null,
         created_at: new Date().toISOString()
-      });
+      };
+      if (midia && midia.url) {
+        linha.media_url = midia.url;
+        linha.media_type = midia.tipo;
+      }
+      await announcementsService.insert(linha);
       setTitle('');
       setMessage('');
+      setMidia(null);
       loadAvisos();
     } catch (e) {
-      alert('Erro: ' + (e.message || 'tente novamente'));
+      const semColuna = e && (e.code === '42703' || e.code === 'PGRST204' || /media_(url|type)/.test(e.message || ''));
+      alert(semColuna ? 'Falta rodar o SQL /migrations/2026-11-06-announcements-media.sql no Supabase pra salvar foto/vídeo no aviso.' : 'Erro: ' + (e.message || 'tente novamente'));
     }
     setSaving(false);
   };
@@ -11853,8 +11961,64 @@ const Avisos = () => {
       resize: 'vertical',
       fontFamily: 'DM Sans, sans-serif'
     }
-  })), /*#__PURE__*/React.createElement("button", {
-    disabled: saving,
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 4
+    }
+  }, "Foto ou v\xEDdeo (opcional)"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm",
+    disabled: midiaBusy || saving,
+    onChange: e => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (f) enviarMidia(f);
+    },
+    style: {
+      fontSize: 12,
+      flex: 1,
+      minWidth: 200
+    }
+  }), midiaBusy ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      whiteSpace: 'nowrap'
+    }
+  }, "Enviando\u2026") : null, midia && !midiaBusy ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setMidia(null),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      padding: '6px 12px',
+      fontSize: 12,
+      cursor: 'pointer',
+      color: C.muted
+    }
+  }, "Remover") : null), midia && midia.url ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement(MidiaDoAviso, {
+    url: midia.url,
+    tipo: midia.tipo
+  })) : null), /*#__PURE__*/React.createElement("button", {
+    disabled: saving || midiaBusy,
     onClick: saveAviso,
     style: {
       padding: '10px 24px',
@@ -11864,9 +12028,10 @@ const Avisos = () => {
       borderRadius: 10,
       fontSize: 14,
       fontWeight: 700,
-      cursor: 'pointer'
+      cursor: saving || midiaBusy ? 'wait' : 'pointer',
+      opacity: saving || midiaBusy ? .7 : 1
     }
-  }, saving ? 'Salvando...' : 'Publicar Aviso'), /*#__PURE__*/React.createElement("div", {
+  }, saving ? 'Salvando...' : midiaBusy ? 'Aguarde o envio…' : 'Publicar Aviso'), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: C.muted,
@@ -11922,9 +12087,17 @@ const Avisos = () => {
     style: {
       fontSize: 13,
       color: '#555',
-      marginTop: 2
+      marginTop: 2,
+      whiteSpace: 'pre-wrap'
     }
-  }, a.message), /*#__PURE__*/React.createElement("div", {
+  }, a.message), a.media_url ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement(MidiaDoAviso, {
+    url: a.media_url,
+    tipo: a.media_type
+  })) : null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: C.muted,

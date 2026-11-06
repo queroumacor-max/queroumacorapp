@@ -319,7 +319,24 @@
   e a falha guardada não sobrevive a reabrir o app. Testes:
   `__tests__/publicacaoFila.test.ts`, `__tests__/components/
   StoriesAnelEnviando.test.tsx`, `Composer.test.tsx`. Não conferido com
-  Playwright (só testes de componente).
+  Playwright (só testes de componente). **NO AR: PR #513 (squash
+  `b00edd1`), deploy run #801 `success`.** Não confirmado no aparelho.
+
+- **AVISOS DO PORTAL COM FOTO/VÍDEO + O APP PASSOU A MOSTRÁ-LOS
+  (2026-11-06, pedido do usuário com print da tela Avisos). SQL
+  `migrations/2026-11-06-announcements-media.sql` (4 linhas + conferência)
+  — PENDENTE de rodar.** **Achado no caminho: o app NÃO mostrava os avisos
+  em lugar nenhum** — o vanilla juntava `announcements` nas notificações e a
+  migração pro Next só leu `notifications`; o portal dizia "aparecerá na aba
+  de notificações" e não aparecia. Agora `<AvisosDaLoja>` (topo de
+  /notificacoes, lê `announcements_public` com `active=true`, 20 mais novos)
+  mostra título, mensagem e a mídia (vídeo com controles, foto inteira). Sem
+  o SQL: o app refaz a consulta sem as colunas (avisos aparecem, sem mídia)
+  e o portal avisa qual SQL rodar ao publicar com mídia. Portal
+  (v=20261106a): campo "Foto ou vídeo (opcional)", sobe no bucket `posts`
+  em `<uid>/avisos/` (foto ≤10MB, vídeo ≤50MB, tipo pelo `type` ou pela
+  extensão), prévia antes de publicar e mídia na lista. Teste
+  `__tests__/avisosComMidia.test.ts`.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
@@ -343,7 +360,9 @@
   **Não compilado aqui (sem Android SDK)** — só checagem de sintaxe com
   `javac`; a validação é a build do Codemagic + aparelho. Avatar (perfil/
   cadastro) ainda NÃO usa o plugin. Teste em
-  `__tests__/components/MediaUploaderPicker.test.tsx`.
+  `__tests__/components/MediaUploaderPicker.test.tsx`. **Site NO AR: PR #512
+  (squash `24527d6`), deploy run #800 `success`** (sem o plugin nada muda);
+  AAB pelo Codemagic (disparo do usuário), release planejada pras 22h.
 
 - **CALCULADORA: botão final virou só "Comprar" (2026-11-04, pedido via
   WhatsApp: "tira o calicolors"). SEM SQL.** Era "Comprar na Cali Colors"

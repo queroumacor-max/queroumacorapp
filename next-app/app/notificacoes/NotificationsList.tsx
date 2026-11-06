@@ -6,7 +6,9 @@
 //  - cache + revalidação delegada ao TanStack Query via useNotifications();
 //  - "marcar como lida" é UI-driven (botão por linha + "Marcar todas") em vez
 //    do auto-clear de badge ao abrir a tela (pattern do sininho desktop);
-//  - sem fontes extras (likes/comments/announcements) — só lê de
+//  - avisos do portal (`announcements`) entram no topo via <AvisosDaLoja>
+//    (2026-11-06 — antes o app não os mostrava em lugar nenhum);
+//  - sem fontes extras (likes/comments) — só lê de
 //    `notifications`. As outras fontes que o vanilla agregava no client
 //    devem ser gravadas via `notify_user()` (RPC) pra aparecerem aqui. Esse
 //    é o caminho que a feature já tá tomando (eventos `post.liked` etc.
@@ -20,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 import type { Notification } from '@/lib/types';
+import { AvisosDaLoja } from './AvisosDaLoja';
 
 // Destino ao tocar na notificação (2026-08-28 — antes o toque só marcava
 // como lida e não levava a lugar nenhum). Mapeia por tipo; tipo sem
@@ -248,6 +251,8 @@ export function NotificationsList() {
 
   if (error) {
     return (
+      <>
+      <AvisosDaLoja />
       <div className="text-center py-10 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
         <div className="text-4xl mb-3" aria-hidden="true">
           ⚠️
@@ -256,11 +261,14 @@ export function NotificationsList() {
           Não foi possível carregar as notificações. Tente de novo.
         </p>
       </div>
+      </>
     );
   }
 
   if (notifications.length === 0) {
     return (
+      <>
+      <AvisosDaLoja />
       <div className="text-center py-12 px-4 rounded-xl bg-white border border-[color:var(--color-border)]">
         <div className="text-5xl mb-3" aria-hidden="true">
           🔔
@@ -270,11 +278,13 @@ export function NotificationsList() {
           Você está em dia. Curtidas, comentários e mensagens aparecem aqui.
         </p>
       </div>
+      </>
     );
   }
 
   return (
     <div>
+      <AvisosDaLoja />
       {unreadCount > 0 ? (
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm text-[color:var(--color-muted)]">
