@@ -11834,23 +11834,47 @@ const chamarAnnouncePush = async payload => {
   if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
   return res;
 };
+
+// Busca de pessoa por nome ou @tag pro push individual. Tira os caracteres
+// que quebram o filtro `or` do PostgREST (vírgula, parênteses, curingas).
+const buscarPessoasPush = async texto => {
+  const q = String(texto || '').replace(/^@/, '').replace(/[,()%*\\]/g, ' ').trim();
+  if (q.length < 2) return [];
+  const {
+    data,
+    error
+  } = await supa.from('profiles').select('id,name,tag,role,city,avatar_url').or('name.ilike.%' + q + '%,tag.ilike.%' + q + '%').order('name').limit(8);
+  if (error) throw error;
+  return data || [];
+};
 const PushAvisoModal = ({
   aviso,
   onClose
 }) => {
+  const [modo, setModo] = useState('grupo'); // 'grupo' | 'pessoa'
+  const [pessoas, setPessoas] = useState([]); // [{id,name,tag}]
+  const [busca, setBusca] = useState('');
+  const [achados, setAchados] = useState([]);
+  const [buscando, setBuscando] = useState(false);
   const [publicos, setPublicos] = useState(['todos']);
   const [aberto, setAberto] = useState(false);
   const [contagem, setContagem] = useState(null); // {perfis, comPush} | {erro}
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState(null);
+  const alvo = modo === 'pessoa' ? {
+    pessoas: pessoas.map(p => p.id)
+  } : {
+    publicos
+  };
+  const alvoVazio = modo === 'pessoa' ? pessoas.length === 0 : publicos.length === 0;
   useEffect(() => {
     let vivo = true;
     setContagem(null);
-    if (publicos.length === 0) return;
+    if (alvoVazio) return;
     const t = setTimeout(() => {
       chamarAnnouncePush({
         announcementId: aviso.id,
-        publicos,
+        ...alvo,
         dryRun: true
       }).then(r => {
         if (vivo) setContagem({
@@ -11867,7 +11891,38 @@ const PushAvisoModal = ({
       vivo = false;
       clearTimeout(t);
     };
-  }, [publicos.join(','), aviso.id]);
+  }, [modo, publicos.join(','), pessoas.map(p => p.id).join(','), aviso.id]);
+  useEffect(() => {
+    let vivo = true;
+    if (modo !== 'pessoa' || busca.replace(/^@/, '').trim().length < 2) {
+      setAchados([]);
+      return;
+    }
+    setBuscando(true);
+    const t = setTimeout(() => {
+      buscarPessoasPush(busca).then(r => {
+        if (vivo) setAchados(r);
+      }).catch(() => {
+        if (vivo) setAchados([]);
+      }).finally(() => {
+        if (vivo) setBuscando(false);
+      });
+    }, 250);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [busca, modo]);
+  const escolherPessoa = p => {
+    setResultado(null);
+    setPessoas(atual => atual.some(x => x.id === p.id) || atual.length >= 20 ? atual : [...atual, p]);
+    setBusca('');
+    setAchados([]);
+  };
+  const tirarPessoa = id => {
+    setResultado(null);
+    setPessoas(atual => atual.filter(x => x.id !== id));
+  };
   const alternar = key => {
     setResultado(null);
     setPublicos(atual => {
@@ -11884,7 +11939,7 @@ const PushAvisoModal = ({
     try {
       const r = await chamarAnnouncePush({
         announcementId: aviso.id,
-        publicos,
+        ...alvo,
         dryRun: false
       });
       setResultado({
@@ -11946,6 +12001,32 @@ const PushAvisoModal = ({
       marginBottom: 4
     }
   }, "Quem recebe"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      marginBottom: 10
+    }
+  }, [['grupo', '👥 Grupo'], ['pessoa', '👤 Pessoa específica']].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    type: "button",
+    onClick: e => {
+      e.stopPropagation();
+      setModo(k);
+      setResultado(null);
+      setAberto(false);
+    },
+    style: {
+      flex: 1,
+      padding: '8px 10px',
+      borderRadius: 10,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: 'pointer',
+      border: '1px solid ' + (modo === k ? C.p1 : C.border),
+      background: modo === k ? C.p1 + '18' : C.white,
+      color: modo === k ? C.p1 : C.muted
+    }
+  }, l))), modo === 'grupo' ? /*#__PURE__*/React.createElement("div", {
     onClick: e => e.stopPropagation(),
     style: {
       marginBottom: 12
@@ -12010,18 +12091,133 @@ const PushAvisoModal = ({
       fontSize: 14,
       cursor: 'pointer'
     }
-  }, "\u2713 Pronto"))), /*#__PURE__*/React.createElement("div", {
+  }, "\u2713 Pronto"))) : /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      marginBottom: 12
+    }
+  }, pessoas.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 8
+    }
+  }, pessoas.map(p => /*#__PURE__*/React.createElement("span", {
+    key: p.id,
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '5px 6px 5px 10px',
+      borderRadius: 999,
+      background: C.p1 + '18',
+      color: C.ink,
+      fontSize: 13
+    }
+  }, p.name || 'Sem nome', p.tag ? ' · @' + p.tag : '', /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => tirarPessoa(p.id),
+    "aria-label": "Tirar",
+    style: {
+      border: 'none',
+      background: 'none',
+      cursor: 'pointer',
+      fontSize: 14,
+      color: C.muted,
+      padding: '0 4px'
+    }
+  }, "\xD7")))), /*#__PURE__*/React.createElement("input", {
+    value: busca,
+    onChange: e => setBusca(e.target.value),
+    placeholder: "Digite o nome ou @tag (ex.: @jacksongraffiti)",
+    autoFocus: true,
+    style: {
+      width: '100%',
+      boxSizing: 'border-box',
+      padding: '10px 14px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      fontSize: 14
+    }
+  }), busca.replace(/^@/, '').trim().length >= 2 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 4,
+      border: '1px solid ' + C.border,
+      borderRadius: 10,
+      padding: 4
+    }
+  }, buscando && achados.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 10px',
+      fontSize: 13,
+      color: C.muted
+    }
+  }, "Buscando\u2026") : achados.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '8px 10px',
+      fontSize: 13,
+      color: C.muted
+    }
+  }, "Ningu\xE9m com esse nome ou @tag.") : achados.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p.id,
+    type: "button",
+    onClick: () => escolherPessoa(p),
+    style: {
+      display: 'flex',
+      width: '100%',
+      textAlign: 'left',
+      alignItems: 'center',
+      gap: 10,
+      padding: '8px 10px',
+      borderRadius: 8,
+      border: 'none',
+      background: 'none',
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 30,
+      height: 30,
+      borderRadius: '50%',
+      background: C.border,
+      flexShrink: 0,
+      backgroundImage: p.avatar_url ? 'url(' + p.avatar_url + ')' : 'none',
+      backgroundSize: 'cover'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'block',
+      fontSize: 14,
+      fontWeight: 700,
+      color: C.ink
+    }
+  }, p.name || 'Sem nome'), /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'block',
+      fontSize: 12,
+      color: C.muted
+    }
+  }, p.tag ? '@' + p.tag : 'sem @tag', p.role ? ' · ' + p.role : '', p.city ? ' · ' + p.city : '')))))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: C.ink,
       minHeight: 20,
       marginBottom: 14
     }
-  }, publicos.length === 0 ? 'Marque pelo menos um grupo.' : !contagem ? 'Contando…' : contagem.erro ? /*#__PURE__*/React.createElement("span", {
+  }, alvoVazio ? modo === 'pessoa' ? 'Busque e escolha a pessoa.' : 'Marque pelo menos um grupo.' : !contagem ? 'Contando…' : contagem.erro ? /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.p4
     }
-  }, contagem.erro) : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, contagem.comPush), " pessoa(s) com notifica\xE7\xE3o ativada, de ", contagem.perfis, " nesse p\xFAblico.")), resultado && /*#__PURE__*/React.createElement("div", {
+  }, contagem.erro) : modo === 'pessoa' ? contagem.comPush === 0 ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.p4
+    }
+  }, pessoas.length === 1 ? 'Essa pessoa não está' : 'Nenhuma delas está', " com as notifica\xE7\xF5es ativadas no celular \u2014 n\xE3o tem para onde mandar.") : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, contagem.comPush), " de ", pessoas.length, " escolhida(s) com notifica\xE7\xE3o ativada.") : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, contagem.comPush), " pessoa(s) com notifica\xE7\xE3o ativada, de ", contagem.perfis, " nesse p\xFAblico.")), resultado && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       padding: '10px 12px',
