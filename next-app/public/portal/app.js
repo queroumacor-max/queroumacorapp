@@ -11912,13 +11912,18 @@ const PushAvisoModal = ({
       padding: 16
     }
   }, /*#__PURE__*/React.createElement("div", {
-    onClick: e => e.stopPropagation(),
+    onClick: e => {
+      e.stopPropagation();
+      setAberto(false);
+    },
     style: {
       background: C.white,
       borderRadius: 16,
       padding: 22,
       width: '100%',
       maxWidth: 440,
+      maxHeight: '90vh',
+      overflowY: 'auto',
       boxShadow: '0 12px 40px rgba(0,0,0,.25)'
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -11941,8 +11946,8 @@ const PushAvisoModal = ({
       marginBottom: 4
     }
   }, "Quem recebe"), /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
     style: {
-      position: 'relative',
       marginBottom: 12
     }
   }, /*#__PURE__*/React.createElement("button", {
@@ -11969,15 +11974,10 @@ const PushAvisoModal = ({
     }
   }, rotulo), /*#__PURE__*/React.createElement("span", null, aberto ? '▴' : '▾')), aberto && /*#__PURE__*/React.createElement("div", {
     style: {
-      position: 'absolute',
-      top: 'calc(100% + 4px)',
-      left: 0,
-      right: 0,
+      marginTop: 4,
       background: C.white,
       border: '1px solid ' + C.border,
       borderRadius: 10,
-      boxShadow: '0 8px 24px rgba(0,0,0,.12)',
-      zIndex: 2,
       padding: 6
     }
   }, PUSH_PUBLICOS.map(p => /*#__PURE__*/React.createElement("label", {
@@ -11995,7 +11995,22 @@ const PushAvisoModal = ({
     type: "checkbox",
     checked: publicos.includes(p.key),
     onChange: () => alternar(p.key)
-  }), p.label)))), /*#__PURE__*/React.createElement("div", {
+  }), p.label)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setAberto(false),
+    style: {
+      width: '100%',
+      marginTop: 4,
+      padding: '9px 12px',
+      borderRadius: 8,
+      border: 'none',
+      background: C.ink,
+      color: '#fff',
+      fontWeight: 700,
+      fontSize: 14,
+      cursor: 'pointer'
+    }
+  }, "\u2713 Pronto"))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: C.ink,

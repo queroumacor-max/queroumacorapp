@@ -364,7 +364,8 @@
     chama a função — os 45 testes de push seguiram verdes.
   - Testes `__tests__/announcePush.test.ts`. Modal conferido com
     Playwright no portal local (rota de push simulada). **Não testado com
-    push real chegando no aparelho.**
+    push real chegando no aparelho.** **NO AR: PR #516 (squash `0a6bdd2`),
+    deploy run #804 `success`.**
 
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
