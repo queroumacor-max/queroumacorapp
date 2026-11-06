@@ -325,7 +325,8 @@
 - **AVISOS DO PORTAL COM FOTO/VÍDEO + O APP PASSOU A MOSTRÁ-LOS
   (2026-11-06, pedido do usuário com print da tela Avisos). SQL
   `migrations/2026-11-06-announcements-media.sql` (4 linhas + conferência)
-  — PENDENTE de rodar.** **Achado no caminho: o app NÃO mostrava os avisos
+  — JÁ RODADO (2026-11-06, usuário: "done"). Não pedir pra rodar de
+  novo.** **Achado no caminho: o app NÃO mostrava os avisos
   em lugar nenhum** — o vanilla juntava `announcements` nas notificações e a
   migração pro Next só leu `notifications`; o portal dizia "aparecerá na aba
   de notificações" e não aparecia. Agora `<AvisosDaLoja>` (topo de
@@ -337,7 +338,7 @@
   em `<uid>/avisos/` (foto ≤10MB, vídeo ≤50MB, tipo pelo `type` ou pela
   extensão), prévia antes de publicar e mídia na lista. Teste
   `__tests__/avisosComMidia.test.ts`. **NO AR: PR #514 (squash
-  `8174883`), deploy run #802 `success`.** SQL ainda não rodado.
+  `8174883`), deploy run #802 `success`.** Não conferido no app/portal pelo usuário ainda.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
