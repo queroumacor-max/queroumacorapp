@@ -6041,24 +6041,25 @@ const PushAvisoModal = ({ aviso, onClose }) => {
 
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:1200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background:C.white, borderRadius:16, padding:22, width:'100%', maxWidth:440, boxShadow:'0 12px 40px rgba(0,0,0,.25)' }}>
+      <div onClick={(e) => { e.stopPropagation(); setAberto(false); }} style={{ background:C.white, borderRadius:16, padding:22, width:'100%', maxWidth:440, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 12px 40px rgba(0,0,0,.25)' }}>
         <div style={{ fontWeight:800, fontSize:16, color:C.ink, marginBottom:4 }}>📲 Enviar push</div>
         <div style={{ fontSize:13, color:C.muted, marginBottom:16 }}>"{aviso.title}" — aparece como notificação no celular e leva para a aba de notificações do app.</div>
 
         <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>Quem recebe</div>
-        <div style={{ position:'relative', marginBottom:12 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ marginBottom:12 }}>
           <button type="button" onClick={() => setAberto((v) => !v)} style={{ width:'100%', textAlign:'left', padding:'10px 14px', borderRadius:10, border:'1px solid '+C.border, background:C.white, fontSize:14, cursor:'pointer', display:'flex', justifyContent:'space-between', gap:8 }}>
             <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{rotulo}</span>
             <span>{aberto ? '▴' : '▾'}</span>
           </button>
           {aberto && (
-            <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:C.white, border:'1px solid '+C.border, borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:2, padding:6 }}>
+            <div style={{ marginTop:4, background:C.white, border:'1px solid '+C.border, borderRadius:10, padding:6 }}>
               {PUSH_PUBLICOS.map((p) => (
                 <label key={p.key} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, cursor:'pointer', fontSize:14 }}>
                   <input type="checkbox" checked={publicos.includes(p.key)} onChange={() => alternar(p.key)} />
                   {p.label}
                 </label>
               ))}
+              <button type="button" onClick={() => setAberto(false)} style={{ width:'100%', marginTop:4, padding:'9px 12px', borderRadius:8, border:'none', background:C.ink, color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>✓ Pronto</button>
             </div>
           )}
         </div>
