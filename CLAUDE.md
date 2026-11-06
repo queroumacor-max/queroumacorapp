@@ -352,7 +352,7 @@
   login simulado com o Supabase respondido por `page.route`)**: 17 telas ×
   320/360/412px sem rolagem lateral nem elemento passando da borda (dados
   vazios — corte causado por CONTEÚDO longo não foi testado, só o aviso
-  longo do /notificacoes). Teste `__tests__/topNavNaoCorta.test.ts`.
+  longo do /notificacoes). Teste `__tests__/topNavNaoCorta.test.ts`. **NO AR: PR #515 (squash `f5c3962`), deploy run #803 `success`.** Não confirmado no aparelho.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
