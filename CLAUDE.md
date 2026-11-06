@@ -325,7 +325,8 @@
 - **AVISOS DO PORTAL COM FOTO/VÍDEO + O APP PASSOU A MOSTRÁ-LOS
   (2026-11-06, pedido do usuário com print da tela Avisos). SQL
   `migrations/2026-11-06-announcements-media.sql` (4 linhas + conferência)
-  — PENDENTE de rodar.** **Achado no caminho: o app NÃO mostrava os avisos
+  — JÁ RODADO (2026-11-06, usuário: "done"). Não pedir pra rodar de
+  novo.** **Achado no caminho: o app NÃO mostrava os avisos
   em lugar nenhum** — o vanilla juntava `announcements` nas notificações e a
   migração pro Next só leu `notifications`; o portal dizia "aparecerá na aba
   de notificações" e não aparecia. Agora `<AvisosDaLoja>` (topo de
@@ -336,7 +337,22 @@
   (v=20261106a): campo "Foto ou vídeo (opcional)", sobe no bucket `posts`
   em `<uid>/avisos/` (foto ≤10MB, vídeo ≤50MB, tipo pelo `type` ou pela
   extensão), prévia antes de publicar e mídia na lista. Teste
-  `__tests__/avisosComMidia.test.ts`.
+  `__tests__/avisosComMidia.test.ts`. **NO AR: PR #514 (squash
+  `8174883`), deploy run #802 `success`.** Não conferido no app/portal pelo usuário ainda.
+
+- **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
+  usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
+  a logo era `whitespace-nowrap` sem `min-w-0` (item de flex não encolhe) e
+  empurrava o sino pra fora. Agora o link da logo é `flex-1 min-w-0` e
+  container (`.topnav-logo` em globals.css); o texto `.topnav-logo-txt`
+  usa `min(clamp(13px,4.2vw,21px), 100cqw/11.8)` — encolhe só quando falta
+  espaço e nunca passa do tamanho antigo (no feed fica igual). Selo
+  `px-2.5`/`tracking-wider`, sino `w-10 shrink-0`, grupo `gap-1.5`.
+  **Conferido com Playwright no Worker local (build:cf + wrangler dev,
+  login simulado com o Supabase respondido por `page.route`)**: 17 telas ×
+  320/360/412px sem rolagem lateral nem elemento passando da borda (dados
+  vazios — corte causado por CONTEÚDO longo não foi testado, só o aviso
+  longo do /notificacoes). Teste `__tests__/topNavNaoCorta.test.ts`.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
