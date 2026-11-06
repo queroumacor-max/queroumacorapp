@@ -129,3 +129,33 @@ export async function enviarEmLotes(
   }
   return soma;
 }
+
+/** Teto de pessoas escolhidas uma a uma (o modo "pessoa específica"). */
+export const MAX_PESSOAS_ESCOLHIDAS = 20;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Normaliza a lista de pessoas do portal: só UUID, sem repetição, até o teto. */
+export function pessoasValidas(entrada: unknown): string[] {
+  if (!Array.isArray(entrada)) return [];
+  const set = new Set<string>();
+  for (const v of entrada) {
+    if (typeof v === 'string' && UUID_RE.test(v)) set.add(v.toLowerCase());
+    if (set.size >= MAX_PESSOAS_ESCOLHIDAS) break;
+  }
+  return [...set];
+}
+
+/** Destinatários escolhidos pelo id: quantos perfis existem e quais têm push. */
+export async function destinatariosPorId(rest: Rest, pessoas: string[]): Promise<Destinatarios> {
+  if (pessoas.length === 0) return { perfis: 0, ids: [] };
+  const lista = `in.(${pessoas.join(',')})`;
+  const [perfis, tokens, subs] = await Promise.all([
+    lerTudo(rest, `profiles?select=id&id=${lista}&order=id`),
+    lerTudo(rest, `push_device_tokens?select=user_id&user_id=${lista}&order=user_id`),
+    lerTudo(rest, `push_subscriptions?select=user_id&user_id=${lista}&order=user_id`),
+  ]);
+  const comPush = new Set<string>();
+  for (const r of [...tokens, ...subs]) if (typeof r.user_id === 'string') comPush.add(r.user_id);
+  const ids = perfis.map((p) => p.id).filter((id): id is string => typeof id === 'string' && comPush.has(id));
+  return { perfis: perfis.length, ids };
+}

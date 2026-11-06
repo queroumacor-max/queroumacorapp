@@ -8,6 +8,9 @@ import {
   rolesDoPublico,
   payloadDoAviso,
   escolherDestinatarios,
+  pessoasValidas,
+  destinatariosPorId,
+  MAX_PESSOAS_ESCOLHIDAS,
 } from '@/lib/api/_services/announce-push';
 
 describe('publicosValidos', () => {
@@ -69,12 +72,39 @@ describe('escolherDestinatarios', () => {
   });
 });
 
+describe('pessoa específica', () => {
+  const A = '11111111-1111-4111-8111-111111111111';
+  const B = '22222222-2222-4222-8222-222222222222';
+  it('pessoasValidas só aceita uuid, sem repetir, até o teto', () => {
+    expect(pessoasValidas([A, A.toUpperCase(), 'x; drop', 5, B])).toEqual([A, B]);
+    expect(pessoasValidas('abc')).toEqual([]);
+    const muitos = Array.from({ length: 30 }, (_, i) => `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`);
+    expect(pessoasValidas(muitos)).toHaveLength(MAX_PESSOAS_ESCOLHIDAS);
+  });
+  it('destinatariosPorId filtra por id e só devolve quem tem push', async () => {
+    const chamadas: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      chamadas.push(url);
+      const body = url.includes('/profiles?') ? [{ id: A }, { id: B }] : url.includes('push_device_tokens') ? [{ user_id: B }] : [];
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = await destinatariosPorId({ supabaseUrl: 'https://x.supabase.co', serviceKey: 'k', fetchImpl }, [A, B]);
+    expect(r).toEqual({ perfis: 2, ids: [B] });
+    expect(chamadas.every((u) => u.includes(`in.(${A},${B})`))).toBe(true);
+  });
+});
+
 describe('portal', () => {
   const src = readFileSync(join(process.cwd(), 'public/portal/app.jsx'), 'utf8');
   it('cada aviso tem o botão e o modal chama a rota de admin', () => {
     expect(src).toContain('📲 Enviar push');
     expect(src).toContain("fetch('/api/admin/announce-push'");
     expect(existsSync(join(process.cwd(), 'app/api/admin/announce-push/route.ts'))).toBe(true);
+  });
+  it('tem o modo pessoa específica com busca por nome ou @tag', () => {
+    expect(src).toContain('👤 Pessoa específica');
+    expect(src).toContain("'name.ilike.%' + q + '%,tag.ilike.%' + q + '%'");
+    expect(src).toContain('pessoas: pessoas.map((p) => p.id)');
   });
   it('a lista do dropdown bate com os públicos do servidor', async () => {
     const { PUBLICOS_PUSH } = await import('@/lib/api/_services/announce-push');

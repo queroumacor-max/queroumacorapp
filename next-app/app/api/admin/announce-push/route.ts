@@ -4,6 +4,8 @@
 //   - dryRun=true só CONTA (quantos perfis batem e quantos têm push ativo) —
 //     o portal mostra isso antes de confirmar.
 //   - publicos: 'todos' | 'pintor' | 'grafiteiro' | 'automotivo' | 'arquiteto' | 'cliente'
+//   - pessoas: string[] (uuids, até 20) — "pessoa específica"; quando vem,
+//     substitui `publicos`.
 // Só admin do portal (allowlist OU portal_access OU role=admin). Detalhes em
 // lib/api/_services/announce-push.ts.
 
@@ -28,6 +30,8 @@ import {
   MAX_PESSOAS_POR_ENVIO,
   payloadDoAviso,
   publicosValidos,
+  pessoasValidas,
+  destinatariosPorId,
 } from '@/lib/api/_services/announce-push';
 
 export const runtime = 'nodejs';
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest) {
   const serviceKey = getServiceKey();
   if (!serviceKey) return jsonResponse({ error: 'Push não configurado (falta a chave de serviço)' }, 503);
 
-  let body: { accessToken?: unknown; announcementId?: unknown; publicos?: unknown; dryRun?: unknown };
+  let body: { accessToken?: unknown; announcementId?: unknown; publicos?: unknown; pessoas?: unknown; dryRun?: unknown };
   try {
     body = (await readBody(request, { maxBytes: 16 * 1024 })) as typeof body;
   } catch (e) {
@@ -55,8 +59,9 @@ export async function POST(request: NextRequest) {
 
     const id = typeof body.announcementId === 'string' ? body.announcementId : '';
     if (!UUID.test(id)) return jsonResponse({ error: 'Aviso inválido' }, 400);
-    const publicos = publicosValidos(body.publicos);
-    if (publicos.length === 0) return jsonResponse({ error: 'Escolha quem vai receber' }, 400);
+    const pessoas = pessoasValidas(body.pessoas);
+    const publicos = pessoas.length > 0 ? [] : publicosValidos(body.publicos);
+    if (pessoas.length === 0 && publicos.length === 0) return jsonResponse({ error: 'Escolha quem vai receber' }, 400);
     const dryRun = body.dryRun === true;
 
     const supabaseUrl = getSupabaseUrl();
@@ -71,12 +76,16 @@ export async function POST(request: NextRequest) {
     if (!aviso) return jsonResponse({ error: 'Aviso não encontrado' }, 404);
     if (!aviso.active) return jsonResponse({ error: 'Esse aviso está desativado. Ative antes de mandar o push.' }, 409);
 
-    const dest = await escolherDestinatarios(rest, publicos);
-    const resumo = { perfis: dest.perfis, comPush: dest.ids.length, publicos };
+    const dest = pessoas.length > 0
+      ? await destinatariosPorId(rest, pessoas)
+      : await escolherDestinatarios(rest, publicos);
+    const resumo = { perfis: dest.perfis, comPush: dest.ids.length, publicos, pessoas: pessoas.length };
     if (dryRun) return jsonResponse({ ok: true, dryRun: true, ...resumo });
 
     if (dest.ids.length === 0) {
-      return jsonResponse({ error: 'Ninguém desse público está com as notificações ativadas.' }, 400);
+      return jsonResponse({ error: pessoas.length > 0
+        ? 'Essa pessoa não está com as notificações ativadas no celular (nunca permitiu, ou desinstalou o app).'
+        : 'Ninguém desse público está com as notificações ativadas.' }, 400);
     }
     if (dest.ids.length > MAX_PESSOAS_POR_ENVIO) {
       return jsonResponse(
@@ -105,7 +114,7 @@ export async function POST(request: NextRequest) {
       action: 'admin.announcement.push',
       targetTable: 'announcements',
       targetId: id,
-      changes: { publicos, pessoas: dest.ids.length, enviados: r.sent, aparelhos: r.total },
+      changes: { publicos, escolhidos: pessoas, pessoas: dest.ids.length, enviados: r.sent, aparelhos: r.total },
       request,
     }).catch(() => {});
 
