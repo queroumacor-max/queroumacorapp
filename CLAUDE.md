@@ -374,6 +374,13 @@
   Agora fica dentro do modal (empurra o resto), tem "✓ Pronto", fecha ao
   tocar em outro ponto do cartão, e o cartão rola (`maxHeight:90vh`).
   Conferido com Playwright. **NO AR: PR #517 (squash `9449b57`).**
+  - **PUSH PRA PESSOA ESPECÍFICA (2026-11-06, pedido do usuário: "escolher
+    um usuário só… escrever e aparecer a pessoa, o tag"). SEM SQL. Portal
+    v=20261106d.** Modal ganhou "👥 Grupo / 👤 Pessoa específica": busca
+    `profiles` por `name`/`tag` ilike (portal, admin lê pela RLS), até 20
+    escolhidas em chips. Rota aceita `pessoas` (uuids, `pessoasValidas`) e
+    usa `destinatariosPorId`; sem push → mensagem explicando. PR #518
+    (squash `e3cc8d9`).
   - **RELATO EM ABERTO (2026-11-06, Fabio via WhatsApp): "no cadastro todos
     vão para cliente, mesmo selecionando pintor".** Lido no código: o
     signup manda `user_type` no metadata e no UPDATE pós-signup;
