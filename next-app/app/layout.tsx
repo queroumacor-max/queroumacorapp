@@ -113,6 +113,10 @@ export default function RootLayout({
         {SUPABASE_HOST ? (
           <>
             <link rel="preconnect" href={`https://${SUPABASE_HOST}`} crossOrigin="anonymous" />
+            {/* Segunda conexão SEM crossOrigin: <video>/<img> do Storage não
+                usam CORS e o navegador separa os dois tipos de conexão — a
+                de cima só aquece o supabase-js, não a mídia. */}
+            <link rel="preconnect" href={`https://${SUPABASE_HOST}`} />
             <link rel="dns-prefetch" href={`https://${SUPABASE_HOST}`} />
           </>
         ) : null}

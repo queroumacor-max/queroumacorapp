@@ -390,6 +390,32 @@
     estão certos no repo. Causa NÃO achada no código — falta ver o banco
     (consulta passada no chat: últimos perfis × `raw_user_meta_data`).
 
+- **DESEMPENHO: AVATAR DO "SEU STORY" + VÍDEO DO FEED (2026-11-06, pedido
+  do usuário: "a bolinha tem delay" e "o vídeo fica 3-4s preto com o play").
+  SEM SQL.** (1) O círculo esperava a leitura do perfil e depois baixava a
+  foto ORIGINAL com `loading=lazy`. Agora `lib/avatarCache.ts` guarda a URL
+  (pública, só https, chave por conta) e o círculo nasce com ela; o perfil
+  continua mandando (troca ou apaga). Os círculos usam `<Avatar>` (cfImg
+  w=56 + srcset, `eager` + `fetchPriority=high`; prop nova `eager`). Stories
+  de outros sem foto mostram a inicial — saiu o fallback pra mídia do story
+  (podia ser vídeo) e pro dicebear (terceiro). (2) `PostMedia`: vídeo
+  perto da tela (600px) troca `preload` pra `auto` e começa a baixar antes
+  de aparecer; fases `fora/carregando/tocando/parado/bloqueado` — carregando
+  = spinner `.video-carregando`, ▶ só quando o autoplay é recusado (catch ou
+  4s pausado, pra WebView que nunca rejeita a promessa) ou a pessoa pausou.
+  (3) Upload de post com `cacheControl: 31536000` (path único); não conferido
+  se a cópia pra `approved/` herda (o storage costuma copiar o metadado).
+  (4) 2º `preconnect` ao Supabase SEM crossOrigin (mídia não usa CORS).
+  **Playwright no Worker local** (build:cf + wrangler dev, Supabase/mídia
+  simulados): avatar pintado em ~390ms com cache × ~1400ms sem; vídeo com 4s
+  de atraso de rede começou a baixar antes da rolagem e tocou ~1,5s depois
+  de entrar na tela, com spinner (nunca ▶) no meio; autoplay recusado e
+  autoplay pendurado mostram o ▶ (o pendurado aos 4s). Teste
+  `__tests__/components/perfAvatarVideo.test.tsx`. **Não medido em
+  aparelho real.** Não mexido: MP4 de celular com `moov` no fim (exige
+  baixar o fim do arquivo antes de tocar) — só se resolve re-encodando no
+  upload.
+
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
   a logo era `whitespace-nowrap` sem `min-w-0` (item de flex não encolhe) e

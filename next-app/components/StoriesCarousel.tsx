@@ -8,12 +8,14 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStories } from '@/lib/hooks/useStories';
 import { useAuth } from '@/components/AuthProvider';
 import { useProfile } from '@/lib/hooks/useProfile';
 import type { StoryGroup } from '@/lib/services/stories';
 import { StoryViewer } from './StoryViewer';
+import { Avatar } from './Avatar';
+import { guardarAvatar, lerAvatarGuardado } from '@/lib/avatarCache';
 import { usePublicacao, tentarDeNovo, type EstadoPublicacao } from '@/lib/publicacaoFila';
 
 export interface StoriesCarouselProps {
@@ -26,7 +28,7 @@ export interface StoriesCarouselProps {
 export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarouselProps) {
   const { groups, loading } = useStories(followingIds);
   const { user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, loading: profileLoading } = useProfile();
   const [viewerOpenAt, setViewerOpenAt] = useState<number | null>(null);
   const publicacao = usePublicacao();
 
@@ -45,9 +47,20 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
   // Avatar exibido no slot "Seu story":
   // - Se tem story → avatar do story (sincronizado com o que aparece pros outros)
   // - Senão → avatar do profile (foto que o user setou em /perfil/editar)
+  // - Perfil ainda chegando → o último avatar guardado no aparelho, pra o
+  //   círculo não nascer vazio (lib/avatarCache.ts).
+  const [avatarGuardado] = useState(() => lerAvatarGuardado(user?.id));
+  const perfilAvatar = profile
+    ? ((profile.avatar_url as string | null) ?? null)
+    : profileLoading
+      ? avatarGuardado
+      : null;
+  useEffect(() => {
+    if (profile && user?.id) guardarAvatar(user.id, (profile.avatar_url as string | null) ?? null);
+  }, [profile, user?.id]);
   const selfAvatar = hasOwnStory
-    ? items[ownStoryIdx]?.profile.avatar_url ?? null
-    : (profile?.avatar_url as string | null) ?? null;
+    ? items[ownStoryIdx]?.profile.avatar_url ?? perfilAvatar
+    : perfilAvatar;
 
   return (
     <>
@@ -64,6 +77,7 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
         <SelfStoryAvatar
           hasOwnStory={hasOwnStory}
           ownStoryAvatar={selfAvatar}
+          ownId={user?.id ?? null}
           ownTag={(profile as { tag?: string | null } | null)?.tag ?? null}
           publicacao={publicacao}
           onView={() => {
@@ -99,6 +113,7 @@ export function StoriesCarousel({ followingIds, onCreateStory }: StoriesCarousel
             <StoryAvatar
               key={g.user_id}
               group={g}
+              eager={idx < 6}
               onClick={() => setViewerOpenAt(idx)}
             />
           )
@@ -121,6 +136,8 @@ interface SelfStoryAvatarProps {
   hasOwnStory: boolean;
   /** Avatar URL do próprio user — exibido no círculo se já tem story. */
   ownStoryAvatar: string | null;
+  /** id da conta — só pra cor/inicial do Avatar; a foto é ownStoryAvatar. */
+  ownId?: string | null;
   /** @tag do user pra mostrar embaixo (em vez de "Seu story" genérico). */
   ownTag: string | null;
   /** Click no AVATAR: abre viewer (se tem story) ou publisher (se não tem). */
@@ -134,6 +151,7 @@ interface SelfStoryAvatarProps {
 function SelfStoryAvatar({
   hasOwnStory,
   ownStoryAvatar,
+  ownId,
   ownTag,
   onView,
   onCreate,
@@ -186,11 +204,14 @@ function SelfStoryAvatar({
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
           {ownStoryAvatar ? (
-            <img
-              src={ownStoryAvatar}
-              alt=""
-              className="w-full h-full object-cover"
-              loading="lazy"
+            // Avatar: imagem redimensionada pro tamanho do círculo (antes
+            // baixava a foto original, às vezes de MBs) e sem lazy-load —
+            // é a primeira coisa que aparece no feed.
+            <Avatar
+              key={ownStoryAvatar}
+              profile={{ id: ownId ?? '', name: null, tag: ownTag, avatar_url: ownStoryAvatar }}
+              size={56}
+              eager
             />
           ) : (
             <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -254,18 +275,16 @@ function SelfStoryAvatar({
 
 interface StoryAvatarProps {
   group: StoryGroup;
+  /** Os primeiros da fila aparecem na abertura: baixa sem lazy-load. */
+  eager?: boolean;
   onClick: () => void;
 }
 
-function StoryAvatar({ group, onClick }: StoryAvatarProps) {
+function StoryAvatar({ group, eager = false, onClick }: StoryAvatarProps) {
   const p = group.profile;
   const displayName = p.tag
     ? '@' + p.tag
     : (p.name || 'User').split(' ')[0] || 'User';
-  const avatarSrc =
-    p.avatar_url ||
-    group.stories[0]?.media_url ||
-    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(p.name || 'U')}`;
 
   // Anel: gradient colorido quando o grupo tem story não-visto; cinza quando
   // já visto OU quando o seguido não publicou nenhum story (`stories.length === 0`).
@@ -293,11 +312,13 @@ function StoryAvatar({ group, onClick }: StoryAvatarProps) {
           className="w-full h-full rounded-full flex items-center justify-center overflow-hidden"
           style={{ background: 'var(--color-ink)', border: '2px solid var(--color-ink)' }}
         >
-          <img
-            src={avatarSrc}
-            alt=""
-            className="w-full h-full rounded-full object-cover"
-            loading="lazy"
+          {/* Avatar redimensionado (cfImg). Sem foto → inicial colorida; a
+              versão antiga caía na mídia do story (que pode ser VÍDEO, e
+              <img> de vídeo quebra) ou num serviço de terceiro (dicebear). */}
+          <Avatar
+            profile={{ id: group.user_id, name: p.name ?? null, tag: p.tag ?? null, avatar_url: p.avatar_url ?? null }}
+            size={56}
+            eager={eager}
           />
         </div>
       </div>

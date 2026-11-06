@@ -50,7 +50,18 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
   // porque abre com um toque. Aqui: um seek mínimo pinta o primeiro quadro
   // (mata o placeholder do sistema) e o botão ▶ nosso dá o gesto que
   // destrava o play.
-  const [tocando, setTocando] = useState(false);
+  //
+  // fase (2026-11-06): o ▶ aparecia também enquanto o vídeo só estava
+  // CARREGANDO — 3-4s de quadro preto com o botão de play, parecendo que
+  // era pra tocar. Agora são cinco estados: 'fora' (abaixo), 'parado'
+  // (pausado pela pessoa), 'carregando' (entrou na tela e o play foi pedido →
+  // spinner discreto), 'tocando' (quadros saindo de verdade, evento
+  // `playing`) e 'bloqueado' (o aparelho recusou o autoplay → ▶, que vira o
+  // gesto que destrava).
+  // 'fora' = fora da tela (ou ainda não sabemos): nada por cima. Sem isso o
+  // ▶ aparecia no vídeo entrando na tela até o observer decidir tocar.
+  // 'parado' fica só pra quem a PESSOA pausou.
+  const [fase, setFase] = useState<'fora' | 'parado' | 'carregando' | 'tocando' | 'bloqueado'>('fora');
   // imgError: idem Avatar — fallback gracioso se a img der erro 403/404 em
   // vez de mostrar o ícone de imagem quebrada do browser.
   const [imgError, setImgError] = useState(false);
@@ -82,14 +93,33 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
     if (!isVideo) return;
     const el = videoRef.current;
     if (!el) return;
-    if (typeof IntersectionObserver === 'undefined') return; // SSR / older
+    // Sem observer (navegador muito antigo) não há autoplay; tocar no vídeo
+    // continua dando play pelo onClick.
+    if (typeof IntersectionObserver === 'undefined') return;
     const obs = new IntersectionObserver(
       (entries) => {
         for (const en of entries) {
           if (en.isIntersecting && en.intersectionRatio >= 0.55) {
+            if (!el.paused) continue;
+            setFase('carregando');
             const p = el.play();
-            if (p) p.catch(() => { /* autoplay bloqueado pelo browser — ok */ });
+            if (p) {
+              p.catch(() => {
+                // Autoplay recusado: aí sim o ▶ (o toque é o gesto que falta).
+                setFase((f) => (f === 'carregando' ? 'bloqueado' : f));
+              });
+            }
+            // Rede de segurança: WebView que recusa o autoplay sem rejeitar a
+            // promessa deixaria o spinner girando pra sempre. Se depois de
+            // 4s o vídeo segue pausado (buffering de verdade deixa
+            // `paused=false`), mostra o ▶.
+            window.setTimeout(() => {
+              if (el.paused) setFase((f) => (f === 'carregando' ? 'bloqueado' : f));
+            }, 4000);
           } else {
+            // 'fora' antes do pause: o evento `pause` chega depois e o
+            // onPause respeita o 'fora' (não foi a pessoa que pausou).
+            setFase('fora');
             el.pause();
           }
         }
@@ -97,8 +127,25 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
       { threshold: [0, 0.55, 1] },
     );
     obs.observe(el);
+    // Vídeo chegando perto da tela começa a baixar ANTES de aparecer: com
+    // preload="metadata" o buffer só começava no play(), e era daí que vinha
+    // a espera. Só os vizinhos da tela trocam pra "auto" — o resto do feed
+    // continua baixando só os metadados.
+    const perto = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          if (en.isIntersecting && el.preload !== 'auto') {
+            el.preload = 'auto';
+            perto.disconnect();
+          }
+        }
+      },
+      { rootMargin: '600px 0px' },
+    );
+    perto.observe(el);
     return () => {
       obs.disconnect();
+      perto.disconnect();
       // Pause no unmount pra não vazar áudio quando navegar (especialmente
       // se o user vier do feed muted=false e mudar de página).
       el.pause();
@@ -130,8 +177,11 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
               if (v.currentTime === 0) v.currentTime = 0.001;
             } catch { /* seek indisponível — segue sem poster */ }
           }}
-          onPlay={() => setTocando(true)}
-          onPause={() => setTocando(false)}
+          onPlaying={() => setFase('tocando')}
+          onWaiting={(e) => {
+            if (!e.currentTarget.paused) setFase('carregando');
+          }}
+          onPause={() => setFase((f) => (f === 'fora' ? 'fora' : 'parado'))}
           onError={(e) => {
             // Vídeo que não carrega vira caixa preta com play morto — sem
             // isto, a falha morre na tela (foi o que escondeu o bloqueio de
@@ -148,18 +198,26 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
           onClick={(e) => {
             const v = e.currentTarget;
             if (v.paused) {
+              setFase('carregando');
               const p = v.play();
-              if (p) p.catch(() => { /* autoplay bloqueado — ignora */ });
+              if (p) p.catch(() => setFase('bloqueado'));
             } else {
               v.pause();
             }
           }}
           className="w-full h-full object-cover block cursor-pointer"
         />
-        {!tocando && (
+        {fase === 'carregando' && (
+          <span
+            role="status"
+            aria-label="Carregando vídeo"
+            className="video-carregando absolute inset-0 m-auto w-10 h-10 rounded-full pointer-events-none"
+          />
+        )}
+        {(fase === 'parado' || fase === 'bloqueado') && (
           // Overlay ▶ enquanto o vídeo está parado: no wrapper o autoplay é
           // bloqueado, e este toque É um gesto — o play sai na hora. Nos
-          // browsers em que o autoplay funciona, o onPlay esconde o botão.
+          // browsers em que o autoplay funciona, o `playing` esconde o botão.
           <button
             type="button"
             aria-label="Tocar vídeo"
@@ -167,8 +225,9 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
               e.stopPropagation();
               const v = videoRef.current;
               if (!v) return;
+              setFase('carregando');
               const p = v.play();
-              if (p) p.catch(() => { /* sem permissão nem com gesto — raro */ });
+              if (p) p.catch(() => setFase('bloqueado'));
             }}
             className="absolute inset-0 m-auto w-16 h-16 rounded-full border-0 bg-black/45 text-white flex items-center justify-center cursor-pointer"
           >
