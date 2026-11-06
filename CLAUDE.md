@@ -336,7 +336,8 @@
   (v=20261106a): campo "Foto ou vídeo (opcional)", sobe no bucket `posts`
   em `<uid>/avisos/` (foto ≤10MB, vídeo ≤50MB, tipo pelo `type` ou pela
   extensão), prévia antes de publicar e mídia na lista. Teste
-  `__tests__/avisosComMidia.test.ts`.
+  `__tests__/avisosComMidia.test.ts`. **NO AR: PR #514 (squash
+  `8174883`), deploy run #802 `success`.** SQL ainda não rodado.
 
 - **GALERIA DO ANDROID NÃO PERDE MAIS AS FOTOS QUANDO O APP É MORTO
   (2026-11-04, print do usuário com o aviso "O app fechou enquanto a galeria
