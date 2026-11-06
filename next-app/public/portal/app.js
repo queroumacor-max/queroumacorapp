@@ -11787,6 +11787,271 @@ const MidiaDoAviso = ({
     }
   });
 };
+
+// [push-aviso] "📲 Enviar push" de um aviso (2026-11-06). Quem escolhe os
+// destinatários e envia é o servidor (/api/admin/announce-push), em lote —
+// gravar um aviso por pessoa estouraria o limite do /api/push-notify.
+const PUSH_PUBLICOS = [{
+  key: 'todos',
+  label: 'Todos'
+}, {
+  key: 'pintor',
+  label: 'Pintores'
+}, {
+  key: 'grafiteiro',
+  label: 'Grafiteiros'
+}, {
+  key: 'automotivo',
+  label: 'Automotivo / Funileiros'
+}, {
+  key: 'arquiteto',
+  label: 'Arquitetos / Engenheiros'
+}, {
+  key: 'cliente',
+  label: 'Clientes'
+}];
+const chamarAnnouncePush = async payload => {
+  const {
+    data: {
+      session
+    }
+  } = await supa.auth.getSession();
+  if (!session) throw new Error('Sessao expirada. Entre novamente.');
+  const r = await fetch('/api/admin/announce-push', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      accessToken: session.access_token,
+      ...payload
+    })
+  });
+  let res = {};
+  try {
+    res = await r.json();
+  } catch (_) {}
+  if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
+  return res;
+};
+const PushAvisoModal = ({
+  aviso,
+  onClose
+}) => {
+  const [publicos, setPublicos] = useState(['todos']);
+  const [aberto, setAberto] = useState(false);
+  const [contagem, setContagem] = useState(null); // {perfis, comPush} | {erro}
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    setContagem(null);
+    if (publicos.length === 0) return;
+    const t = setTimeout(() => {
+      chamarAnnouncePush({
+        announcementId: aviso.id,
+        publicos,
+        dryRun: true
+      }).then(r => {
+        if (vivo) setContagem({
+          perfis: r.perfis,
+          comPush: r.comPush
+        });
+      }).catch(e => {
+        if (vivo) setContagem({
+          erro: e.message
+        });
+      });
+    }, 300);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [publicos.join(','), aviso.id]);
+  const alternar = key => {
+    setResultado(null);
+    setPublicos(atual => {
+      if (key === 'todos') return atual.includes('todos') ? [] : ['todos'];
+      const sem = atual.filter(k => k !== 'todos');
+      return sem.includes(key) ? sem.filter(k => k !== key) : [...sem, key];
+    });
+  };
+  const rotulo = publicos.length === 0 ? 'Escolha quem recebe' : publicos.map(k => (PUSH_PUBLICOS.find(p => p.key === k) || {}).label).join(', ');
+  const enviar = async () => {
+    if (!contagem || !contagem.comPush) return;
+    if (!confirm('Mandar o push "' + aviso.title + '" para ' + contagem.comPush + ' pessoa(s) agora?\n\nNao da pra desfazer.')) return;
+    setEnviando(true);
+    try {
+      const r = await chamarAnnouncePush({
+        announcementId: aviso.id,
+        publicos,
+        dryRun: false
+      });
+      setResultado({
+        ok: true,
+        texto: 'Enviado: ' + r.sent + ' de ' + r.total + ' aparelho(s), para ' + r.comPush + ' pessoa(s).' + (r.removed ? ' ' + r.removed + ' aparelho(s) desativado(s) foram limpos.' : '')
+      });
+    } catch (e) {
+      setResultado({
+        ok: false,
+        texto: e.message
+      });
+    }
+    setEnviando(false);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    onClick: onClose,
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,.45)',
+      zIndex: 1200,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: e => e.stopPropagation(),
+    style: {
+      background: C.white,
+      borderRadius: 16,
+      padding: 22,
+      width: '100%',
+      maxWidth: 440,
+      boxShadow: '0 12px 40px rgba(0,0,0,.25)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: 16,
+      color: C.ink,
+      marginBottom: 4
+    }
+  }, "\uD83D\uDCF2 Enviar push"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 16
+    }
+  }, "\"", aviso.title, "\" \u2014 aparece como notifica\xE7\xE3o no celular e leva para a aba de notifica\xE7\xF5es do app."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 4
+    }
+  }, "Quem recebe"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setAberto(v => !v),
+    style: {
+      width: '100%',
+      textAlign: 'left',
+      padding: '10px 14px',
+      borderRadius: 10,
+      border: '1px solid ' + C.border,
+      background: C.white,
+      fontSize: 14,
+      cursor: 'pointer',
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    }
+  }, rotulo), /*#__PURE__*/React.createElement("span", null, aberto ? '▴' : '▾')), aberto && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: 'calc(100% + 4px)',
+      left: 0,
+      right: 0,
+      background: C.white,
+      border: '1px solid ' + C.border,
+      borderRadius: 10,
+      boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+      zIndex: 2,
+      padding: 6
+    }
+  }, PUSH_PUBLICOS.map(p => /*#__PURE__*/React.createElement("label", {
+    key: p.key,
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '8px 10px',
+      borderRadius: 8,
+      cursor: 'pointer',
+      fontSize: 14
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: publicos.includes(p.key),
+    onChange: () => alternar(p.key)
+  }), p.label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.ink,
+      minHeight: 20,
+      marginBottom: 14
+    }
+  }, publicos.length === 0 ? 'Marque pelo menos um grupo.' : !contagem ? 'Contando…' : contagem.erro ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.p4
+    }
+  }, contagem.erro) : /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, contagem.comPush), " pessoa(s) com notifica\xE7\xE3o ativada, de ", contagem.perfis, " nesse p\xFAblico.")), resultado && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      padding: '10px 12px',
+      borderRadius: 10,
+      marginBottom: 14,
+      background: resultado.ok ? C.p6 + '22' : C.p4 + '22',
+      color: resultado.ok ? C.ink : C.p4
+    }
+  }, resultado.texto), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClose,
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 10,
+      padding: '9px 18px',
+      fontSize: 13,
+      cursor: 'pointer',
+      color: C.muted
+    }
+  }, resultado && resultado.ok ? 'Fechar' : 'Cancelar'), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: enviando || !contagem || !contagem.comPush || resultado && resultado.ok,
+    onClick: enviar,
+    style: {
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 10,
+      padding: '9px 18px',
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: enviando ? 'wait' : 'pointer',
+      opacity: enviando || !contagem || !contagem.comPush || resultado && resultado.ok ? .6 : 1
+    }
+  }, enviando ? 'Enviando…' : contagem && contagem.comPush ? 'Enviar para ' + contagem.comPush : 'Enviar'))));
+};
+// [/push-aviso]
+
 const Avisos = () => {
   const {
     data,
@@ -11804,6 +12069,8 @@ const Avisos = () => {
   // pública em announcements.media_url + media_type.
   const [midia, setMidia] = useState(null); // { url, tipo }
   const [midiaBusy, setMidiaBusy] = useState(false);
+  const [pushDe, setPushDe] = useState(null); // aviso aberto no modal de push
+
   const enviarMidia = async f => {
     const tipo = tipoDeMidiaDoAviso(f);
     if (!tipo) {
@@ -12112,9 +12379,26 @@ const Avisos = () => {
   }) : '')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: 6
+      gap: 6,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end'
     }
   }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPushDe(a),
+    disabled: !a.active,
+    title: a.active ? 'Mandar notificação no celular' : 'Ative o aviso pra mandar push',
+    style: {
+      background: C.p1 + '22',
+      border: 'none',
+      borderRadius: 8,
+      padding: '4px 10px',
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: a.active ? 'pointer' : 'not-allowed',
+      color: C.p1,
+      opacity: a.active ? 1 : .5
+    }
+  }, "\uD83D\uDCF2 Enviar push"), /*#__PURE__*/React.createElement("button", {
     onClick: () => toggleAviso(a.id, a.active),
     style: {
       background: a.active ? C.p7 + '33' : C.p6 + '33',
@@ -12138,7 +12422,10 @@ const Avisos = () => {
       cursor: 'pointer',
       color: C.p4
     }
-  }, "Excluir"))))));
+  }, "Excluir"))))), pushDe && /*#__PURE__*/React.createElement(PushAvisoModal, {
+    aviso: pushDe,
+    onClose: () => setPushDe(null)
+  }));
 };
 
 // ══ PEDIDOS DA LOJA (Orders) ══
