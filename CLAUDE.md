@@ -367,6 +367,20 @@
     push real chegando no aparelho.** **NO AR: PR #516 (squash `0a6bdd2`),
     deploy run #804 `success`.**
 
+- **MODAL DO PUSH: A LISTA "QUEM RECEBE" COBRIA O BOTÃO ENVIAR (2026-11-06,
+  print do usuário no celular: "não tô conseguindo sair pra clicar no
+  botão"). SEM SQL. Portal v=20261106c.** A lista era `position:absolute`
+  por cima da contagem e dos botões, e tocar fora fechava o modal inteiro.
+  Agora fica dentro do modal (empurra o resto), tem "✓ Pronto", fecha ao
+  tocar em outro ponto do cartão, e o cartão rola (`maxHeight:90vh`).
+  Conferido com Playwright. **NO AR: PR #517 (squash `9449b57`).**
+  - **RELATO EM ABERTO (2026-11-06, Fabio via WhatsApp): "no cadastro todos
+    vão para cliente, mesmo selecionando pintor".** Lido no código: o
+    signup manda `user_type` no metadata e no UPDATE pós-signup;
+    `sync_role_from_user_type` (31/10) e `protect_profile_columns` (25/10)
+    estão certos no repo. Causa NÃO achada no código — falta ver o banco
+    (consulta passada no chat: últimos perfis × `raw_user_meta_data`).
+
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:
   a logo era `whitespace-nowrap` sem `min-w-0` (item de flex não encolhe) e
