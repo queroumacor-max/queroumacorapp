@@ -395,8 +395,10 @@
     `protect_profile_columns`) que roda DEPOIS do
     `trg_sync_role_from_user_type` (ordem alfabética) e desfaz o role que o
     sync escreveu. Fix: `migrations/2026-11-09-drop-zz-protect-profile-columns
-    .sql` (DROP da zz + backfill dos divididos + conferência). **PASSADO NO
-    CHAT, AINDA NÃO CONFIRMADO RODADO.** REGRA: trigger que "precisa rodar
+    .sql` (DROP da zz + backfill dos divididos + conferência). **JÁ RODADO
+    (2026-11-09, print do usuário: "zz removida" e "ninguém dividido" =
+    true). Não pedir pra rodar de novo.** Falta o Fabio testar um cadastro
+    novo (Google/Apple escolhendo Funileiro + e-mail escolhendo Grafiteiro). REGRA: trigger que "precisa rodar
     por último" não se resolve com nome `zz_` — ele vira dono da palavra
     final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
     antes de concluir que o banco é igual ao repo.
