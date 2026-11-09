@@ -389,6 +389,17 @@
     `sync_role_from_user_type` (31/10) e `protect_profile_columns` (25/10)
     estão certos no repo. Causa NÃO achada no código — falta ver o banco
     (consulta passada no chat: últimos perfis × `raw_user_meta_data`).
+    **CAUSA ACHADA NO BANCO (2026-11-09, prints do usuário):** João Victor
+    ficou `user_type=automotivo`, `role=cliente`. Existe uma 2ª trava
+    `zz_protect_profile_columns` (criada FORA do repo, mesma função
+    `protect_profile_columns`) que roda DEPOIS do
+    `trg_sync_role_from_user_type` (ordem alfabética) e desfaz o role que o
+    sync escreveu. Fix: `migrations/2026-11-09-drop-zz-protect-profile-columns
+    .sql` (DROP da zz + backfill dos divididos + conferência). **PASSADO NO
+    CHAT, AINDA NÃO CONFIRMADO RODADO.** REGRA: trigger que "precisa rodar
+    por último" não se resolve com nome `zz_` — ele vira dono da palavra
+    final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
+    antes de concluir que o banco é igual ao repo.
 
 - **DESEMPENHO: AVATAR DO "SEU STORY" + VÍDEO DO FEED (2026-11-06, pedido
   do usuário: "a bolinha tem delay" e "o vídeo fica 3-4s preto com o play").
