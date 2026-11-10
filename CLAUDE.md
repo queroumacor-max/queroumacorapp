@@ -471,7 +471,7 @@
       `migrations/2026-11-10-d-oportunidade-fontes-catalogo.sql` — JÁ RODADO
       (2026-11-10, usuário: "rodei o 5 e o 6, deu true": 82 cadastrados, 52
       ativos, cron de 4 em 4 horas). Não pedir pra rodar de novo. Código: PR
-      #524 (squash `676aca7`), deploy disparado.** Entram 78 (os 4 primeiros já
+      #524 (squash `676aca7`), **NO AR: deploy run #812 `success`**.** Entram 78 (os 4 primeiros já
       existem; NÃO recadastrar a mesma página com `www` diferente — a chave
       do anúncio inclui a URL da fonte e duplicaria os pedidos): 48 com
       anúncios ATIVOS, 30 vazios PAUSADOS. Cron passou pra `17 */4 * * *`;
