@@ -156,3 +156,7 @@ SELECT 'oportunidade_fontes + cron oportunidades-varredura — 2026-11-10' AS it
 
 -- 2026-11-10 (catálogo de 82 murais + cron de 4 em 4 horas).
 SELECT 'murais: 82 cadastrados e cron 17 */4 — 2026-11-10' AS item, ((SELECT count(*) FROM public.oportunidade_fontes) >= 82 AND EXISTS (SELECT 1 FROM cron.job WHERE jobname='oportunidades-varredura' AND schedule='17 */4 * * *')) AS ok;
+
+-- 2026-11-10 (vagas só pra PRO + mais 8 murais).
+SELECT 'oportunidades: vaga ativa so pra PRO — 2026-11-10' AS item, EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='oportunidades' AND policyname='oportunidades_vaga_ativa_select' AND qual LIKE '%is_pro_active%') AS ok;
+SELECT 'murais: 90 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 90 AS ok;
