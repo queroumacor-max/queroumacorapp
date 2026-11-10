@@ -113,6 +113,17 @@ describe('portal', () => {
     expect(r.contato).toBe('11 97261-0001');
     expect(r.whatsapp).toBe(false);
   });
+  it('anúncio de mural só com e-mail: o e-mail vira o contato', () => {
+    const r = h.lerAnuncio('Procuro pintor para apartamento de 36 m2. Contato: fulano.silva@exemplo.com');
+    expect(r.tipo).toBe('pedido');
+    expect(r.contato).toBe('fulano.silva@exemplo.com');
+  });
+  it('murais de condomínio são links pra abrir à mão; não existe leitura automática deles', () => {
+    expect(jsx).toContain('OPORT_MURAIS');
+    expect(jsx).toMatch(/Disallow: \//);
+    const rotas = ler('lib/pedidoPintor.ts') + ler('lib/services/vagas.ts');
+    expect(rotas).not.toMatch(/classificados/);
+  });
   it('texto sem pista não chuta classificação', () => {
     expect(h.lerAnuncio('Bom dia a todos').tipo).toBe('');
   });

@@ -19619,7 +19619,24 @@ const OPORT_REGIMES = [{
   label: 'Pedido de orçamento'
 }];
 // Buscas prontas pra achar anuncio novo (a equipe abre, le e cadastra a mao).
-const OPORT_BUSCAS = ['site:infojobs.com.br/vaga-de "pintor predial" "WhatsApp" "Guarulhos"', 'site:empregos.com.br "pintor" "temporária" "WhatsApp" "São Paulo"', '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo', '"pintor" "MEI" "WhatsApp" "Guarulhos"', '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly'];
+const OPORT_BUSCAS = ['site:infojobs.com.br/vaga-de "pintor predial" "WhatsApp" "Guarulhos"', 'site:empregos.com.br "pintor" "temporária" "WhatsApp" "São Paulo"', '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo', '"pintor" "MEI" "WhatsApp" "Guarulhos"', '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly', '"classificados" "ver outros classificados" "Guarulhos/São Paulo" condomínio', '"classificados" "ver outros classificados" "São Paulo/São Paulo" condomínio'];
+// Murais de classificados de condominio onde moradores pedem pintor. A equipe
+// ABRE e le a mao. NAO ha leitura automatica: o robots.txt desses sites
+// (conferido em 10/11/2026) termina em "User-agent: * / Disallow: /" — o
+// operador nao quer robo. Pessoa abrindo a pagina e outra coisa.
+const OPORT_MURAIS = [{
+  nome: 'Parque Santa Clara · Vila Alzira, Guarulhos',
+  url: 'https://parquesantaclara.com.br/classificados'
+}, {
+  nome: 'Costa do Sol · Jardim das Vertentes, São Paulo',
+  url: 'https://costadosolbutanta.com.br/classificados'
+}, {
+  nome: 'Vivaz Prime · Limão, São Paulo',
+  url: 'https://vivazprimecachoeirinha.com.br/classificados'
+}, {
+  nome: 'Condomínio França · Vila Guilherme, São Paulo',
+  url: 'https://condominiofrancasp.com.br/classificados'
+}];
 
 // [teste:oportunidades-inicio]
 // Le o texto colado de um anuncio e SUGERE tipo, telefone, remuneracao e se o
@@ -19636,10 +19653,12 @@ const lerAnuncio = texto => {
   const regime = tipo === 'pedido' ? 'orcamento' : /\bdiaria\b/.test(baixo) ? 'diaria' : /temporari/.test(baixo) ? 'temporario' : /\bclt\b/.test(baixo) ? 'clt' : /\b(pj|mei)\b/.test(baixo) ? 'pj' : '';
   const fone = t.match(/\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/);
   const grana = t.match(/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s?(?:a|até|-)\s?R\$\s?\d[\d.]*(?:,\d{2})?)?(?:\s?(?:\/|por)\s?(?:m[eê]s|dia|hora|semana))?/i);
+  // Mural de condominio costuma trazer so e-mail: sem telefone, ele vira o contato.
+  const email = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   return {
     tipo,
     regime,
-    contato: fone ? fone[0].trim() : '',
+    contato: fone ? fone[0].trim() : email ? email[0].slice(0, 40) : '',
     remuneracao: grana ? grana[0].trim() : '',
     whatsapp: /whats|zap|wpp/.test(baixo)
   };
@@ -19995,10 +20014,10 @@ const Oportunidades = () => {
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: rot
-  }, "Telefone de contato"), /*#__PURE__*/React.createElement("input", {
+  }, "Telefone ou e-mail de contato"), /*#__PURE__*/React.createElement("input", {
     value: form.contato,
     onChange: e => set('contato', e.target.value),
-    placeholder: "(11) 91234-5678",
+    placeholder: "(11) 91234-5678 ou e-mail",
     style: inputStyle,
     maxLength: 40
   })), /*#__PURE__*/React.createElement("label", {
@@ -20104,7 +20123,34 @@ const Oportunidades = () => {
       color: C.muted,
       marginBottom: 10
     }
-  }, "Buscas prontas no Google. Abra o an\xFAncio, confira de quem \xE9 o telefone, o local, o valor e a data, e cadastre acima."), OPORT_BUSCAS.map(b => /*#__PURE__*/React.createElement("div", {
+  }, "Buscas prontas no Google. Abra o an\xFAncio, confira de quem \xE9 o telefone, o local, o valor e a data, e cadastre acima."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.ink,
+      margin: '4px 0 6px'
+    }
+  }, "Murais de condom\xEDnio (abrir e ler \xE0 m\xE3o)"), OPORT_MURAIS.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.url,
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    href: urlSegura(m.url),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontSize: 12,
+      color: C.p1
+    }
+  }, m.nome, " \u2197"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.ink,
+      margin: '12px 0 6px'
+    }
+  }, "Buscas no Google"), OPORT_BUSCAS.map(b => /*#__PURE__*/React.createElement("div", {
     key: b,
     style: {
       marginBottom: 6

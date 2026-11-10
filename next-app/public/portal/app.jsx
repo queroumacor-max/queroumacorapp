@@ -9931,6 +9931,18 @@ const OPORT_BUSCAS = [
   '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo',
   '"pintor" "MEI" "WhatsApp" "Guarulhos"',
   '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly',
+  '"classificados" "ver outros classificados" "Guarulhos/São Paulo" condomínio',
+  '"classificados" "ver outros classificados" "São Paulo/São Paulo" condomínio',
+];
+// Murais de classificados de condominio onde moradores pedem pintor. A equipe
+// ABRE e le a mao. NAO ha leitura automatica: o robots.txt desses sites
+// (conferido em 10/11/2026) termina em "User-agent: * / Disallow: /" — o
+// operador nao quer robo. Pessoa abrindo a pagina e outra coisa.
+const OPORT_MURAIS = [
+  { nome: 'Parque Santa Clara · Vila Alzira, Guarulhos', url: 'https://parquesantaclara.com.br/classificados' },
+  { nome: 'Costa do Sol · Jardim das Vertentes, São Paulo', url: 'https://costadosolbutanta.com.br/classificados' },
+  { nome: 'Vivaz Prime · Limão, São Paulo', url: 'https://vivazprimecachoeirinha.com.br/classificados' },
+  { nome: 'Condomínio França · Vila Guilherme, São Paulo', url: 'https://condominiofrancasp.com.br/classificados' },
 ];
 
 // [teste:oportunidades-inicio]
@@ -9951,10 +9963,12 @@ const lerAnuncio = (texto) => {
     : /\b(pj|mei)\b/.test(baixo) ? 'pj' : '';
   const fone = t.match(/\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/);
   const grana = t.match(/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s?(?:a|até|-)\s?R\$\s?\d[\d.]*(?:,\d{2})?)?(?:\s?(?:\/|por)\s?(?:m[eê]s|dia|hora|semana))?/i);
+  // Mural de condominio costuma trazer so e-mail: sem telefone, ele vira o contato.
+  const email = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   return {
     tipo,
     regime,
-    contato: fone ? fone[0].trim() : '',
+    contato: fone ? fone[0].trim() : (email ? email[0].slice(0, 40) : ''),
     remuneracao: grana ? grana[0].trim() : '',
     whatsapp: /whats|zap|wpp/.test(baixo),
   };
@@ -10097,7 +10111,7 @@ const Oportunidades = () => {
         </div>
         <div style={{ marginBottom: 12 }}><div style={rot}>Descrição</div><textarea value={form.descricao} onChange={e => set('descricao', e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} maxLength={1500} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 2fr', gap: 12, marginBottom: 12, alignItems: 'end' }}>
-          <div><div style={rot}>Telefone de contato</div><input value={form.contato} onChange={e => set('contato', e.target.value)} placeholder="(11) 91234-5678" style={inputStyle} maxLength={40} /></div>
+          <div><div style={rot}>Telefone ou e-mail de contato</div><input value={form.contato} onChange={e => set('contato', e.target.value)} placeholder="(11) 91234-5678 ou e-mail" style={inputStyle} maxLength={40} /></div>
           <label style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', paddingBottom: 9 }}><input type="checkbox" checked={!!form.contato_whatsapp} onChange={e => set('contato_whatsapp', e.target.checked)} /> é WhatsApp</label>
           <div><div style={rot}>Como se candidatar (aparece no app)</div><input value={form.contato_obs} onChange={e => set('contato_obs', e.target.value)} placeholder='Ex.: enviar currículo e citar "Pintor Predial #14024"' style={inputStyle} maxLength={160} /></div>
         </div>
@@ -10120,6 +10134,13 @@ const Oportunidades = () => {
         <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
           Buscas prontas no Google. Abra o anúncio, confira de quem é o telefone, o local, o valor e a data, e cadastre acima.
         </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, margin: '4px 0 6px' }}>Murais de condomínio (abrir e ler à mão)</div>
+        {OPORT_MURAIS.map(m => (
+          <div key={m.url} style={{ marginBottom: 6 }}>
+            <a href={urlSegura(m.url)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.p1 }}>{m.nome} ↗</a>
+          </div>
+        ))}
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, margin: '12px 0 6px' }}>Buscas no Google</div>
         {OPORT_BUSCAS.map(b => (
           <div key={b} style={{ marginBottom: 6 }}>
             <a href={urlSegura('https://www.google.com/search?q=' + encodeURIComponent(b))} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.p1, overflowWrap: 'anywhere' }}>{b} ↗</a>

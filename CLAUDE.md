@@ -415,7 +415,7 @@
     é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
     equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
     na tela.
-  - Portal v=20261110d: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+  - Portal v=20261110e: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
     conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
     remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
     publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
@@ -429,6 +429,21 @@
     e portal TOLERAM a ausência (refazem sem as duas colunas); aviso de
     DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
     procurar" com as buscas prontas do Google.
+  - **BUSCA AUTOMÁTICA EM MURAL DE CONDOMÍNIO — PEDIDA E NÃO FEITA
+    (2026-11-10, "o negócio é fazer buscas automáticas em sites de
+    condomínios").** Os 4 murais (plataforma Vida de Síndico:
+    parquesantaclara / costadosolbutanta / vivazprimecachoeirinha /
+    condominiofrancasp `.com.br/classificados`) têm o MESMO robots.txt,
+    conferido nesse dia: bloco gerenciado da Cloudflare (`Allow: /`,
+    `Content-Signal: search=yes, ai-train=no`) e, no FIM, o bloco do próprio
+    site `User-agent: *` / `Disallow: /`. Pela letra da RFC 9309 o empate
+    favorece o Allow, mas a intenção do operador é clara (nenhum robô) — não
+    construir coletor em cima disso sem autorização da plataforma. No lugar:
+    os 4 murais + 2 buscas de descoberta viraram LINKS na caixa "Onde
+    procurar" do portal (pessoa abre e lê), `lerAnuncio` passou a aceitar
+    e-mail como contato. Caminho pra automatizar de verdade = pedir
+    permissão/parceria à Vida de Síndico ou aos síndicos. Ambiente de nuvem
+    `queroumacorapp` criado nesse dia só com esses 8 hosts (pra ler o robots).
   - **A carga dos 10 anúncios NÃO está no repo** (telefone não vai pro git —
     lição dos 986 contatos): foi passada no chat como INSERT, tudo em
     `status='conferir'` (nada aparece no app até alguém conferir). Os dados
