@@ -415,7 +415,7 @@
     é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
     equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
     na tela.
-  - Portal v=20261110e: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+  - Portal v=20261110f: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
     conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
     remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
     publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
@@ -429,21 +429,42 @@
     e portal TOLERAM a ausência (refazem sem as duas colunas); aviso de
     DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
     procurar" com as buscas prontas do Google.
-  - **BUSCA AUTOMÁTICA EM MURAL DE CONDOMÍNIO — PEDIDA E NÃO FEITA
-    (2026-11-10, "o negócio é fazer buscas automáticas em sites de
-    condomínios").** Os 4 murais (plataforma Vida de Síndico:
-    parquesantaclara / costadosolbutanta / vivazprimecachoeirinha /
-    condominiofrancasp `.com.br/classificados`) têm o MESMO robots.txt,
-    conferido nesse dia: bloco gerenciado da Cloudflare (`Allow: /`,
-    `Content-Signal: search=yes, ai-train=no`) e, no FIM, o bloco do próprio
-    site `User-agent: *` / `Disallow: /`. Pela letra da RFC 9309 o empate
-    favorece o Allow, mas a intenção do operador é clara (nenhum robô) — não
-    construir coletor em cima disso sem autorização da plataforma. No lugar:
-    os 4 murais + 2 buscas de descoberta viraram LINKS na caixa "Onde
-    procurar" do portal (pessoa abre e lê), `lerAnuncio` passou a aceitar
-    e-mail como contato. Caminho pra automatizar de verdade = pedir
-    permissão/parceria à Vida de Síndico ou aos síndicos. Ambiente de nuvem
-    `queroumacorapp` criado nesse dia só com esses 8 hosts (pra ler o robots).
+  - **LEITURA AUTOMÁTICA DOS MURAIS DE CONDOMÍNIO (2026-11-10). SQL
+    `migrations/2026-11-10-c-oportunidades-fontes.sql` — PASSADO NO CHAT,
+    AINDA NÃO CONFIRMADO RODADO.** Histórico da decisão: os 4 murais
+    (plataforma Vida de Síndico: parquesantaclara / costadosolbutanta /
+    vivazprimecachoeirinha / condominiofrancasp `.com.br/classificados`) têm o
+    MESMO robots.txt, que termina em `User-agent: *` / `Disallow: /`. Por isso
+    a 1ª resposta foi NÃO construir. **O usuário então informou que a
+    plataforma JÁ AUTORIZOU ("já me autorizaram") — é com base nessa palavra
+    dele que o leitor existe; não foi conferido por mim e vale pedir a
+    autorização por escrito.** REGRA: mural novo só entra com autorização (o
+    portal pergunta ao cadastrar).
+    - `oportunidade_fontes` (portal cadastra/pausa) + `oportunidades.chave`
+      (sha256 de fonte+texto, UNIQUE) pra anúncio visto não voltar nem perder
+      o status dado pela equipe. Cron `oportunidades-varredura` 11:17 UTC
+      (08:17 Brasília) → `run_oportunidades_varredura()` → `POST
+      /api/oportunidades/varrer` com `x-internal-secret` =
+      `PUSH_INTERNAL_SECRET` (mesmo padrão do `run_posts_sweep`). O botão "▶
+      Ler agora" do portal chama a mesma rota com token de admin. Rate limit 4/min.
+    - `lib/api/_services/mural-condominio.ts`: `extrairAnuncios` (cartões
+      `.anuncio_conteudo`), `ehPedidoDePintor` (procura × oferta; na dúvida
+      fica de fora), grava só `tipo='pedido'`, `status='conferir'` — NUNCA no
+      app. User-Agent identificado (`QueroUmaCorBot`), 1 leitura/dia, teto de
+      4 MB e 12 s, ssrf-guard inclusive no destino do redirect.
+    - **NÃO decodifica o e-mail do morador** (o site entrega ofuscado pela
+      Cloudflare, `data-cfemail`): o registro leva o link do mural e a pessoa
+      vê o e-mail lá. Telefone só quando está em texto aberto. Tem teste
+      travando isso. A descrição vem cortada pelo próprio site (~100 chars).
+    - Conferido contra as páginas REAIS em 10/11 (baixadas e apagadas, nada de
+      morador no repo): Parque Santa Clara 105 anúncios → 3 pedidos; França 49
+      → 1; as 2 ofertas ("Pinturas em geral") ficaram de fora. Teste com HTML
+      sintético em `__tests__/muralCondominio.test.ts`.
+    - Portal v=20261110f (caixa "🤖 Leitura automática dos murais"). Ambiente
+      de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
+    - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
+      etc.): PROPOSTA, aguardando o usuário criar a conta/chave. Google Custom
+      Search está fechado pra conta nova.
   - **A carga dos 10 anúncios NÃO está no repo** (telefone não vai pro git —
     lição dos 986 contatos): foi passada no chat como INSERT, tudo em
     `status='conferir'` (nada aparece no app até alguém conferir). Os dados

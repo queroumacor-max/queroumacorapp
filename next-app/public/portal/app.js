@@ -19599,6 +19599,327 @@ const OPORT_STATUS = [{
   label: 'Encerrada',
   cor: '#6b6457'
 }];
+
+// Murais lidos sozinhos 1x/dia (tabela `oportunidade_fontes`,
+// migrations/2026-11-10-c-oportunidades-fontes.sql). "Ler agora" chama a
+// mesma rota do cron, com o token do admin.
+const fontesDeMuralService = {
+  insert: async f => {
+    const r = await supa.from('oportunidade_fontes').insert(f);
+    if (r.error) throw r.error;
+  },
+  update: async (id, patch) => {
+    const r = await supa.from('oportunidade_fontes').update(patch).eq('id', id);
+    if (r.error) throw r.error;
+  },
+  remove: async id => {
+    const r = await supa.from('oportunidade_fontes').delete().eq('id', id);
+    if (r.error) throw r.error;
+  },
+  lerAgora: async () => {
+    const {
+      data: {
+        session
+      }
+    } = await supa.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Entre novamente.');
+    const r = await fetch('/api/oportunidades/varrer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        accessToken: session.access_token
+      })
+    });
+    let res = {};
+    try {
+      res = await r.json();
+    } catch (_) {}
+    if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
+    return res;
+  }
+};
+const FontesDeMural = ({
+  aoLer
+}) => {
+  const {
+    data,
+    loading,
+    error,
+    refetch
+  } = useSupabaseQuery(sb => sb.from('oportunidade_fontes').select('*').order('created_at'), []);
+  const fontes = data || [];
+  const semTabela = error && /oportunidade_fontes|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
+  const [nova, setNova] = useState({
+    nome: '',
+    url: '',
+    cidade: '',
+    bairro: ''
+  });
+  const [lendo, setLendo] = useState(false);
+  const [aviso, setAviso] = useState('');
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid ' + C.border,
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: 'DM Sans, sans-serif'
+  };
+  const box = {
+    background: C.white,
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    marginBottom: 20
+  };
+  const ler = async () => {
+    setLendo(true);
+    setAviso('');
+    try {
+      const r = await fontesDeMuralService.lerAgora();
+      setAviso(r.novos + ' pedido(s) novo(s) de ' + r.pedidos + ' encontrados em ' + r.fontes + ' mural(is)' + (r.falhas ? ' · ' + r.falhas + ' falharam' : '') + '.');
+      refetch();
+      if (aoLer) aoLer();
+    } catch (e) {
+      setAviso('Não deu: ' + (e.message || 'tente de novo'));
+    } finally {
+      setLendo(false);
+    }
+  };
+  const adicionar = async () => {
+    if (nova.nome.trim().length < 2) {
+      alert('Informe o nome do condomínio.');
+      return;
+    }
+    if (!/^https:\/\/\S+$/i.test(nova.url.trim())) {
+      alert('O endereço do mural precisa começar com https://');
+      return;
+    }
+    if (!confirm('Só cadastre mural que AUTORIZOU a leitura automática. Esse autorizou?')) return;
+    try {
+      await fontesDeMuralService.insert({
+        nome: nova.nome.trim(),
+        url: nova.url.trim(),
+        cidade: nova.cidade.trim() || null,
+        bairro: nova.bairro.trim() || null
+      });
+      setNova({
+        nome: '',
+        url: '',
+        cidade: '',
+        bairro: ''
+      });
+      refetch();
+    } catch (e) {
+      alert('Erro ao cadastrar: ' + (e.message || 'tente novamente'));
+    }
+  };
+  const alternar = async f => {
+    try {
+      await fontesDeMuralService.update(f.id, {
+        ativo: !f.ativo
+      });
+      refetch();
+    } catch (e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  };
+  const tirar = async f => {
+    if (!confirm('Tirar "' + f.nome + '" da leitura automática?')) return;
+    try {
+      await fontesDeMuralService.remove(f.id);
+      refetch();
+    } catch (e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  };
+  if (semTabela) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: box
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        marginBottom: 8,
+        color: C.ink
+      }
+    }, "\uD83E\uDD16 Leitura autom\xE1tica dos murais"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: C.muted
+      }
+    }, "Ainda n\xE3o ligada. Rode a migration ", /*#__PURE__*/React.createElement("code", null, "migrations/2026-11-10-c-oportunidades-fontes.sql"), " no SQL Editor do Supabase."));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: C.ink
+    }
+  }, "\uD83E\uDD16 Leitura autom\xE1tica dos murais"), /*#__PURE__*/React.createElement("button", {
+    disabled: lendo,
+    onClick: ler,
+    style: {
+      marginLeft: 'auto',
+      padding: '8px 16px',
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 8,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, lendo ? 'Lendo...' : '▶ Ler agora')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 12
+    }
+  }, "Todo dia \xE0s 8h17 o sistema l\xEA estes murais e traz s\xF3 os an\xFAncios de quem PROCURA pintor, como \"A conferir\". O e-mail do morador n\xE3o \xE9 copiado: abra o link do an\xFAncio para ver."), aviso && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600,
+      color: C.ink,
+      background: C.bg,
+      borderRadius: 8,
+      padding: '8px 12px',
+      marginBottom: 12
+    }
+  }, aviso), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "Carregando..."), fontes.map(f => /*#__PURE__*/React.createElement("div", {
+    key: f.id,
+    style: {
+      borderTop: '1px solid ' + C.border,
+      padding: '10px 0',
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 200
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 13,
+      color: f.ativo ? C.ink : C.muted
+    }
+  }, f.nome, f.ativo ? '' : ' (pausado)', " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 400,
+      color: C.muted
+    }
+  }, "\xB7 ", [f.bairro, f.cidade].filter(Boolean).join(', '))), /*#__PURE__*/React.createElement("a", {
+    href: urlSegura(f.url),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontSize: 12,
+      color: C.p1,
+      overflowWrap: 'anywhere'
+    }
+  }, f.url, " \u2197"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginTop: 2
+    }
+  }, f.lida_em ? 'Última leitura: ' + new Date(f.lida_em).toLocaleString() + ' · ' + (f.resultado || '') : 'Ainda não lido.')), /*#__PURE__*/React.createElement("button", {
+    onClick: () => alternar(f),
+    style: {
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      padding: '4px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, f.ativo ? 'Pausar' : 'Reativar'), /*#__PURE__*/React.createElement("button", {
+    onClick: () => tirar(f),
+    style: {
+      background: 'none',
+      border: 'none',
+      color: '#e63946',
+      fontSize: 11,
+      cursor: 'pointer'
+    }
+  }, "Tirar"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 2fr 1fr 1fr auto',
+      gap: 8,
+      marginTop: 12,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: nova.nome,
+    onChange: e => setNova(n => ({
+      ...n,
+      nome: e.target.value
+    })),
+    placeholder: "Condom\xEDnio",
+    style: inputStyle,
+    maxLength: 120
+  }), /*#__PURE__*/React.createElement("input", {
+    value: nova.url,
+    onChange: e => setNova(n => ({
+      ...n,
+      url: e.target.value
+    })),
+    placeholder: "https://.../classificados",
+    style: inputStyle,
+    maxLength: 300
+  }), /*#__PURE__*/React.createElement("input", {
+    value: nova.cidade,
+    onChange: e => setNova(n => ({
+      ...n,
+      cidade: e.target.value
+    })),
+    placeholder: "Cidade",
+    style: inputStyle,
+    maxLength: 80
+  }), /*#__PURE__*/React.createElement("input", {
+    value: nova.bairro,
+    onChange: e => setNova(n => ({
+      ...n,
+      bairro: e.target.value
+    })),
+    placeholder: "Bairro",
+    style: inputStyle,
+    maxLength: 80
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: adicionar,
+    style: {
+      padding: '8px 14px',
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, "+ Mural")));
+};
 const OPORT_REGIMES = [{
   id: '',
   label: 'Não informado'
@@ -19620,10 +19941,10 @@ const OPORT_REGIMES = [{
 }];
 // Buscas prontas pra achar anuncio novo (a equipe abre, le e cadastra a mao).
 const OPORT_BUSCAS = ['site:infojobs.com.br/vaga-de "pintor predial" "WhatsApp" "Guarulhos"', 'site:empregos.com.br "pintor" "temporária" "WhatsApp" "São Paulo"', '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo', '"pintor" "MEI" "WhatsApp" "Guarulhos"', '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly', '"classificados" "ver outros classificados" "Guarulhos/São Paulo" condomínio', '"classificados" "ver outros classificados" "São Paulo/São Paulo" condomínio'];
-// Murais de classificados de condominio onde moradores pedem pintor. A equipe
-// ABRE e le a mao. NAO ha leitura automatica: o robots.txt desses sites
-// (conferido em 10/11/2026) termina em "User-agent: * / Disallow: /" — o
-// operador nao quer robo. Pessoa abrindo a pagina e outra coisa.
+// Murais de classificados de condominio onde moradores pedem pintor. O
+// robots.txt desses sites (conferido em 10/11/2026) termina em "User-agent: *
+// / Disallow: /"; a leitura automatica (componente FontesDeMural) so foi
+// ligada porque o usuario informou, no mesmo dia, que a plataforma autorizou.
 const OPORT_MURAIS = [{
   nome: 'Parque Santa Clara · Vila Alzira, Guarulhos',
   url: 'https://parquesantaclara.com.br/classificados'
@@ -20109,7 +20430,9 @@ const Oportunidades = () => {
       fontSize: 13,
       cursor: 'pointer'
     }
-  }, "Cancelar"))), /*#__PURE__*/React.createElement("div", {
+  }, "Cancelar"))), /*#__PURE__*/React.createElement(FontesDeMural, {
+    aoLer: refetch
+  }), /*#__PURE__*/React.createElement("div", {
     style: box
   }, /*#__PURE__*/React.createElement("div", {
     style: {

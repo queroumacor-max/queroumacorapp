@@ -118,11 +118,10 @@ describe('portal', () => {
     expect(r.tipo).toBe('pedido');
     expect(r.contato).toBe('fulano.silva@exemplo.com');
   });
-  it('murais de condomínio são links pra abrir à mão; não existe leitura automática deles', () => {
+  it('os murais seguem como links, e o código registra que a leitura automática depende de autorização', () => {
     expect(jsx).toContain('OPORT_MURAIS');
     expect(jsx).toMatch(/Disallow: \//);
-    const rotas = ler('lib/pedidoPintor.ts') + ler('lib/services/vagas.ts');
-    expect(rotas).not.toMatch(/classificados/);
+    expect(jsx).toMatch(/plataforma autorizou/);
   });
   it('texto sem pista não chuta classificação', () => {
     expect(h.lerAnuncio('Bom dia a todos').tipo).toBe('');

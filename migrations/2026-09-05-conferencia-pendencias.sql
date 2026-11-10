@@ -150,3 +150,6 @@ SELECT 'pedidos_pintor: tabela com RLS e sem policy de INSERT — 2026-11-10' AS
 
 -- 2026-11-10 (vagas e oportunidades classificadas pelo portal).
 SELECT 'oportunidades: tabela + usuario comum so le vaga ativa — 2026-11-10' AS item, (to_regclass('public.oportunidades') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='oportunidades' AND policyname='oportunidades_vaga_ativa_select')) AS ok;
+
+-- 2026-11-10 (leitura automática dos murais de condomínio).
+SELECT 'oportunidade_fontes + cron oportunidades-varredura — 2026-11-10' AS item, (to_regclass('public.oportunidade_fontes') IS NOT NULL AND EXISTS (SELECT 1 FROM cron.job WHERE jobname='oportunidades-varredura')) AS ok;
