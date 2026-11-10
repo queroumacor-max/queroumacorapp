@@ -403,6 +403,37 @@
     final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
     antes de concluir que o banco é igual ao repo.
 
+- **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
+  pedido do usuário depois de colar uma lista de 10 anúncios achados em
+  InfoJobs/Empregos.com.br/classificado de condomínio). SQL
+  `migrations/2026-11-10-b-oportunidades.sql` — PASSADO NO CHAT, AINDA NÃO
+  CONFIRMADO RODADO.** Cadastro MANUAL pelo portal (nada de robô: os sites de
+  origem proíbem coleta automática), com classificação:
+  `tipo='vaga'` (empresa contratando pintor) × `tipo='pedido'` (pessoa
+  procurando pintor); `status` conferir → ativa → encerrada.
+  - **REGRA: só VAGA ATIVA vai pro app. Pedido de cliente NUNCA** — o telefone
+    é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
+    equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
+    na tela.
+  - Portal v=20261110c: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+    conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
+    remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
+    publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
+  - App: tile **💼 Vagas** (todo papel MENOS cliente) + rota `/vagas`
+    (`VagasView`): cartão com empresa, local, remuneração, "Chamar no
+    WhatsApp" (wa.me com mensagem citando a vaga, por `abrirLinkExterno`),
+    "Ver anúncio", data e fonte, e o aviso de que a contratação é com quem
+    anunciou. Tabela ausente → lista vazia. Passo novo no tour (`p-vagas`).
+  - **A carga dos 10 anúncios NÃO está no repo** (telefone não vai pro git —
+    lição dos 986 contatos): foi passada no chat como INSERT, tudo em
+    `status='conferir'` (nada aparece no app até alguém conferir). Os dados
+    vieram de pesquisa colada pelo usuário e NÃO foram conferidos por mim.
+  - Avisar os pintores de vaga nova = Avisos + push do portal (não há push
+    automático por vaga).
+  - Testes `__tests__/vagasOportunidades.test.ts` e
+    `__tests__/components/VagasView.test.tsx`. Telas NÃO conferidas no
+    navegador (exigem login).
+
 - **"PRECISA DE PINTOR?" — PÁGINA PÚBLICA /pedir + TELA NO PORTAL
   (2026-11-10, pedido do usuário: trazer clientes procurando pintor; "pode
   fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — PASSADO NO CHAT,

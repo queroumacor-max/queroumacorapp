@@ -79,6 +79,9 @@ const QualsSection = lazy(() =>
 const ClickRuaView = lazy(() =>
   import('@/app/click-rua/ClickRuaView').then((m) => ({ default: m.ClickRuaView })),
 );
+const VagasView = lazy(() =>
+  import('@/app/vagas/VagasView').then((m) => ({ default: m.VagasView })),
+);
 const ArteVendaView = lazy(() =>
   import('@/app/arte-venda/ArteVendaView').then((m) => ({ default: m.ArteVendaView })),
 );
@@ -91,6 +94,7 @@ type SheetKey =
   | 'portfolio'
   | 'calculadora'
   | 'frete'
+  | 'vagas'
   | 'tabela-precos'
   | 'agenda'
   | 'gestao-obras'
@@ -129,6 +133,7 @@ const SHEETS: Partial<Record<SheetKey, SheetConfig>> = {
   portfolio: { label: 'Meu Portfólio', Component: Composer as ComponentType, props: { modo: 'portfolio' } },
   calculadora: { label: 'Calculadora', Component: CalcView as ComponentType },
   frete: { label: 'Calculadora de Frete', Component: FreteView as ComponentType },
+  vagas: { label: 'Vagas para pintor', Component: VagasView as ComponentType },
   'tabela-precos': { label: 'Tabela de Preços', Component: TabelaPrecosView as ComponentType },
   agenda: { label: 'Agenda', Component: AgendaCalendar as ComponentType },
   'gestao-obras': { label: 'Gestão de Obras', Component: GestaoObras as ComponentType },
@@ -164,6 +169,9 @@ const TILES: readonly Tile[] = [
   { sheet: 'calculadora', emoji: '🧮', title: 'Calculadora', subtitle: 'Tinta e material' },
   // Profissional que vai até a obra; cliente não vê (filtro em visibleTiles).
   { sheet: 'frete', emoji: '🚚', title: 'Frete', subtitle: 'Km/L × preço do litro' },
+  // Vagas de emprego que a loja achou e conferiu (portal › Oportunidades).
+  // Cliente não vê (filtro em visibleTiles).
+  { sheet: 'vagas', emoji: '💼', title: 'Vagas', subtitle: 'Trabalho na região' },
   // Só pintor (e admin) enxerga — filtrado em `visibleTiles` logo abaixo.
   { sheet: 'tabela-precos', emoji: '📊', title: 'Tabela de Preços', subtitle: '' },
   { sheet: 'agenda', emoji: '📅', title: 'Agenda', subtitle: 'Meus projetos' },
@@ -271,6 +279,7 @@ export function BusinessGrid() {
     if (t.sheet === 'gestao-obras')
       return showAdmin || userRole === 'pintor' || userRole === 'grafiteiro' || userRole === 'automotivo';
     if (t.sheet === 'frete') return showAdmin || userRole !== 'cliente';
+    if (t.sheet === 'vagas') return showAdmin || userRole !== 'cliente';
     if (t.sheet === 'tabela-precos')
       return showAdmin || userRole === 'pintor' || userRole === 'arquiteto';
     if (t.sheet === 'seu-ze') {

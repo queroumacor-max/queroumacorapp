@@ -214,6 +214,19 @@ const pedidosPintorService = {
   remove: async (id) => { const r = await supa.from('pedidos_pintor').delete().eq('id', id); if (r.error) throw r.error; }
 };
 
+// Oportunidades achadas FORA do app (site de emprego, classificado de
+// condominio, grupo de moradores), cadastradas a mao e classificadas aqui.
+// Tabela `oportunidades` (migrations/2026-11-10-b-oportunidades.sql).
+const oportunidadesService = {
+  insert: async (o) => { const r = await supa.from('oportunidades').insert(o); if (r.error) throw r.error; },
+  update: async (id, patch) => {
+    const r = await supa.from('oportunidades').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data || r.data.length === 0) throw new Error('nenhuma linha alterada (sem permissão ou registro não existe)');
+  },
+  remove: async (id) => { const r = await supa.from('oportunidades').delete().eq('id', id); if (r.error) throw r.error; }
+};
+
 const postsService = {
   setStatus: async (id, status) => {
     // .select('id'): update que não acha linha (RLS) volta SUCESSO com zero
@@ -9877,6 +9890,229 @@ const PedidosPintor = () => {
   );
 };
 
+// ══ OPORTUNIDADES (vagas e pedidos achados fora do app) ══
+// A equipe cola o anuncio, o portal SUGERE a classificacao e quem decide e a
+// pessoa. Vaga ativa aparece no app (tile "Vagas"); pedido de cliente NUNCA
+// vai pro app — o telefone e de pessoa fisica, fica so aqui pra equipe
+// responder. Cadastro manual de proposito: os sites de origem proibem robo.
+const OPORT_TIPOS = [
+  { id: 'vaga', label: '💼 Vaga (empresa contratando pintor)' },
+  { id: 'pedido', label: '🏠 Pedido (pessoa procurando pintor)' },
+];
+const OPORT_STATUS = [
+  { id: 'conferir', label: 'A conferir', cor: '#b8860b' },
+  { id: 'ativa', label: 'Ativa', cor: '#16a34a' },
+  { id: 'encerrada', label: 'Encerrada', cor: '#6b6457' },
+];
+
+// [teste:oportunidades-inicio]
+// Le o texto colado de um anuncio e SUGERE tipo, telefone, remuneracao e se o
+// contato e WhatsApp. E so sugestao: os campos continuam editaveis.
+const lerAnuncio = (texto) => {
+  const t = String(texto || '');
+  const baixo = t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const sinaisVaga = ['vaga', 'salario', 'clt', 'curriculo', 'contrata', 'temporario', 'beneficios', 'vale-transporte', 'vale transporte', 'pj', 'mei', 'candidat'];
+  const sinaisPedido = ['procuro pintor', 'preciso de pintor', 'preciso de um pintor', 'procuro um pintor', 'alguem indica', 'indicacao de pintor', 'indicam pintor', 'orcamento para pintar', 'quero pintar', 'pintar minha', 'pintar meu', 'morador', 'moradora'];
+  const conta = (lista) => lista.reduce((n, s) => n + (baixo.includes(s) ? 1 : 0), 0);
+  const nVaga = conta(sinaisVaga), nPedido = conta(sinaisPedido);
+  const tipo = nPedido > nVaga ? 'pedido' : (nVaga > 0 ? 'vaga' : '');
+  const fone = t.match(/\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/);
+  const grana = t.match(/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s?(?:a|até|-)\s?R\$\s?\d[\d.]*(?:,\d{2})?)?(?:\s?(?:\/|por)\s?(?:m[eê]s|dia|hora|semana))?/i);
+  return {
+    tipo,
+    contato: fone ? fone[0].trim() : '',
+    remuneracao: grana ? grana[0].trim() : '',
+    whatsapp: /whats|zap|wpp/.test(baixo),
+  };
+};
+// So https vira link clicavel (a URL e digitada por quem cadastra).
+const fonteUrlValida = (u) => { const s = String(u || '').trim(); return s === '' || /^https:\/\/\S+$/i.test(s); };
+const oportunidadeVisivelNoApp = (o) => !!o && o.tipo === 'vaga' && o.status === 'ativa';
+// [teste:oportunidades-fim]
+
+const Oportunidades = () => {
+  const [fTipo, setFTipo] = useState('todos');
+  const [fStatus, setFStatus] = useState('conferir');
+  const { data, loading, error, refetch } = useSupabaseQuery((sb) => {
+    let q = sb.from('oportunidades').select('*');
+    if (fTipo !== 'todos') q = q.eq('tipo', fTipo);
+    if (fStatus !== 'todos') q = q.eq('status', fStatus);
+    return q.order('created_at', { ascending: false }).limit(300);
+  }, [fTipo, fStatus]);
+  const itens = data || [];
+  const tableMissing = error && /oportunidades|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
+
+  const vazio = { tipo: '', titulo: '', empresa: '', cidade: 'Guarulhos', bairro: '', descricao: '', remuneracao: '', contato: '', contato_whatsapp: true, contato_obs: '', fonte: '', fonte_url: '', anuncio_em: '', status: 'conferir' };
+  const [form, setForm] = useState(vazio);
+  const [editId, setEditId] = useState(null);
+  const [colado, setColado] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid ' + C.border, fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif' };
+  const box = { background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 20 };
+  const rot = { fontSize: 12, color: C.muted, marginBottom: 4 };
+  const chip = (on) => ({ padding: '5px 12px', borderRadius: 999, border: '1px solid ' + (on ? C.ink : C.border), background: on ? C.ink : 'none', color: on ? '#fff' : C.ink, fontSize: 12, fontWeight: 600, cursor: 'pointer' });
+
+  const aplicarColado = () => {
+    const r = lerAnuncio(colado);
+    setForm(f => ({
+      ...f,
+      tipo: r.tipo || f.tipo,
+      contato: f.contato || r.contato,
+      remuneracao: f.remuneracao || r.remuneracao,
+      contato_whatsapp: r.contato ? r.whatsapp : f.contato_whatsapp,
+      descricao: f.descricao || colado.trim().slice(0, 1500),
+    }));
+  };
+
+  const salvar = async () => {
+    if (!form.tipo) { alert('Classifique: é vaga ou pedido de cliente?'); return; }
+    if (form.titulo.trim().length < 3) { alert('Informe um título (ex.: "Pintor predial — Grupo VRS").'); return; }
+    if (!fonteUrlValida(form.fonte_url)) { alert('O link do anúncio precisa começar com https://'); return; }
+    const linha = {
+      tipo: form.tipo, status: form.status, titulo: form.titulo.trim(),
+      empresa: form.empresa.trim() || null, cidade: form.cidade.trim() || null, bairro: form.bairro.trim() || null,
+      descricao: form.descricao.trim() || null, remuneracao: form.remuneracao.trim() || null,
+      contato: form.contato.trim() || null, contato_whatsapp: !!form.contato_whatsapp, contato_obs: form.contato_obs.trim() || null,
+      fonte: form.fonte.trim() || null, fonte_url: form.fonte_url.trim() || null, anuncio_em: form.anuncio_em || null,
+    };
+    setSalvando(true);
+    try {
+      if (editId) await oportunidadesService.update(editId, linha);
+      else await oportunidadesService.insert(linha);
+      setForm(vazio); setEditId(null); setColado(''); refetch();
+    } catch (e) { alert('Erro ao salvar: ' + (e.message || 'tente novamente')); }
+    finally { setSalvando(false); }
+  };
+
+  const editar = (o) => {
+    setEditId(o.id);
+    setForm({ ...vazio, ...Object.fromEntries(Object.keys(vazio).map(k => [k, o[k] === null || o[k] === undefined ? vazio[k] : o[k]])) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const mudarStatus = async (o, status) => {
+    try { await oportunidadesService.update(o.id, { status }); refetch(); }
+    catch (e) { alert('Erro ao mudar status: ' + (e.message || 'tente novamente')); }
+  };
+  const excluir = async (o) => {
+    if (!confirm('Apagar "' + o.titulo + '"?')) return;
+    try { await oportunidadesService.remove(o.id); refetch(); }
+    catch (e) { alert('Erro ao apagar: ' + (e.message || 'tente novamente')); }
+  };
+
+  if (tableMissing) {
+    return (
+      <div style={box}>
+        <div style={{ fontWeight: 700, marginBottom: 8, color: C.ink }}>💼 Oportunidades</div>
+        <div style={{ fontSize: 13, color: C.muted }}>
+          A tabela <code>oportunidades</code> ainda não existe. Rode a migration <code>migrations/2026-11-10-b-oportunidades.sql</code> no SQL Editor do Supabase.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={box}>
+        <div style={{ fontWeight: 700, marginBottom: 6, color: C.ink }}>{editId ? '✏️ Editar oportunidade' : '➕ Nova oportunidade'}</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+          Cole o texto do anúncio e toque em "Ler anúncio": o portal sugere a classificação, o telefone e o valor. Confira antes de salvar.
+          <b> Vaga</b> marcada como <b>Ativa</b> aparece para os pintores no app. <b>Pedido de cliente</b> fica só aqui.
+        </div>
+        {!editId && (
+          <div style={{ marginBottom: 14 }}>
+            <textarea value={colado} onChange={e => setColado(e.target.value)} rows={3} placeholder="Cole aqui o texto do anúncio (opcional)" style={{ ...inputStyle, resize: 'vertical' }} />
+            <button onClick={aplicarColado} disabled={!colado.trim()} style={{ marginTop: 6, padding: '6px 14px', background: 'none', border: '1px solid ' + C.border, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: colado.trim() ? 'pointer' : 'default' }}>🔎 Ler anúncio</button>
+          </div>
+        )}
+        <div style={rot}>Classificação</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {OPORT_TIPOS.map(t => <button key={t.id} onClick={() => set('tipo', t.id)} style={chip(form.tipo === t.id)}>{t.label}</button>)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div><div style={rot}>Título</div><input value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex.: Pintor predial (temporário)" style={inputStyle} maxLength={120} /></div>
+          <div><div style={rot}>Empresa / quem anunciou</div><input value={form.empresa} onChange={e => set('empresa', e.target.value)} style={inputStyle} maxLength={120} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div><div style={rot}>Cidade</div><input value={form.cidade} onChange={e => set('cidade', e.target.value)} style={inputStyle} maxLength={80} /></div>
+          <div><div style={rot}>Bairro</div><input value={form.bairro} onChange={e => set('bairro', e.target.value)} style={inputStyle} maxLength={80} /></div>
+          <div><div style={rot}>Remuneração</div><input value={form.remuneracao} onChange={e => set('remuneracao', e.target.value)} placeholder="R$ 2.600/mês" style={inputStyle} maxLength={80} /></div>
+        </div>
+        <div style={{ marginBottom: 12 }}><div style={rot}>Descrição</div><textarea value={form.descricao} onChange={e => set('descricao', e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} maxLength={1500} /></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 2fr', gap: 12, marginBottom: 12, alignItems: 'end' }}>
+          <div><div style={rot}>Telefone de contato</div><input value={form.contato} onChange={e => set('contato', e.target.value)} placeholder="(11) 91234-5678" style={inputStyle} maxLength={40} /></div>
+          <label style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', paddingBottom: 9 }}><input type="checkbox" checked={!!form.contato_whatsapp} onChange={e => set('contato_whatsapp', e.target.checked)} /> é WhatsApp</label>
+          <div><div style={rot}>Como se candidatar (aparece no app)</div><input value={form.contato_obs} onChange={e => set('contato_obs', e.target.value)} placeholder='Ex.: enviar currículo e citar "Pintor Predial #14024"' style={inputStyle} maxLength={160} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div><div style={rot}>Fonte</div><input value={form.fonte} onChange={e => set('fonte', e.target.value)} placeholder="InfoJobs" style={inputStyle} maxLength={60} /></div>
+          <div><div style={rot}>Link do anúncio (https://)</div><input value={form.fonte_url} onChange={e => set('fonte_url', e.target.value)} style={inputStyle} maxLength={500} /></div>
+          <div><div style={rot}>Data do anúncio</div><input type="date" value={form.anuncio_em || ''} onChange={e => set('anuncio_em', e.target.value)} style={inputStyle} /></div>
+          <div><div style={rot}>Situação</div>
+            <select value={form.status} onChange={e => set('status', e.target.value)} style={inputStyle}>{OPORT_STATUS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button disabled={salvando} onClick={salvar} style={{ padding: '10px 24px', background: C.p1, color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{salvando ? 'Salvando...' : (editId ? 'Salvar alterações' : '+ Cadastrar')}</button>
+          {editId && <button onClick={() => { setEditId(null); setForm(vazio); }} style={{ padding: '10px 18px', background: 'none', border: '1px solid ' + C.border, borderRadius: 10, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>}
+        </div>
+      </div>
+
+      <div style={box}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontWeight: 700, color: C.ink, marginRight: 8 }}>💼 Oportunidades</div>
+          <button onClick={() => setFTipo('todos')} style={chip(fTipo === 'todos')}>Tudo</button>
+          <button onClick={() => setFTipo('vaga')} style={chip(fTipo === 'vaga')}>💼 Vagas</button>
+          <button onClick={() => setFTipo('pedido')} style={chip(fTipo === 'pedido')}>🏠 Pedidos</button>
+          <button onClick={refetch} style={{ marginLeft: 'auto', background: 'none', border: '1px solid ' + C.border, borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}>↻ Atualizar</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {OPORT_STATUS.map(st => <button key={st.id} onClick={() => setFStatus(st.id)} style={chip(fStatus === st.id)}>{st.label}</button>)}
+          <button onClick={() => setFStatus('todos')} style={chip(fStatus === 'todos')}>Todas as situações</button>
+        </div>
+        {loading && <div style={{ color: C.muted, fontSize: 13 }}>Carregando...</div>}
+        {!loading && error && !tableMissing && <div style={{ color: '#e63946', fontSize: 13 }}>Erro ao carregar: {error.message || String(error)}</div>}
+        {!loading && !error && itens.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nada aqui com esses filtros.</div>}
+        {itens.map(o => {
+          const st = OPORT_STATUS.find(x => x.id === o.status) || OPORT_STATUS[0];
+          const fone = String(o.contato || '').replace(/\D/g, '');
+          const link = urlSegura(o.fonte_url);
+          return (
+            <div key={o.id} style={{ borderTop: '1px solid ' + C.border, padding: '14px 0', display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: C.ink }}>
+                  {o.tipo === 'vaga' ? '💼' : '🏠'} {o.titulo}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: st.cor, borderRadius: 6, padding: '2px 7px', marginLeft: 6 }}>{st.label}</span>
+                  {oportunidadeVisivelNoApp(o) && <span style={{ fontSize: 11, fontWeight: 700, color: C.p1, marginLeft: 6 }}>● no app</span>}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                  {[o.empresa, [o.bairro, o.cidade].filter(Boolean).join(', '), o.remuneracao].filter(Boolean).join(' · ')}
+                </div>
+                {o.descricao && <div style={{ fontSize: 13, color: C.ink, marginTop: 6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{o.descricao}</div>}
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>
+                  {o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato'}
+                  {o.contato_obs ? ' · ' + o.contato_obs : ''}
+                  {o.fonte ? ' · Fonte: ' + o.fonte : ''}
+                  {o.anuncio_em ? ' · Anúncio de ' + String(o.anuncio_em).split('-').reverse().join('/') : ''}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                {o.status !== 'ativa' && <button onClick={() => mudarStatus(o, 'ativa')} style={{ padding: '6px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{o.tipo === 'vaga' ? '✓ Conferida: publicar no app' : '✓ Conferido'}</button>}
+                {o.status !== 'encerrada' && <button onClick={() => mudarStatus(o, 'encerrada')} style={{ padding: '6px 12px', background: 'none', border: '1px solid ' + C.border, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Encerrar</button>}
+                {fone && o.contato_whatsapp && <a href={'https://wa.me/' + (fone.length <= 11 ? '55' + fone : fone)} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: '#25d366', color: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none', textAlign: 'center' }}>📱 Abrir WhatsApp</a>}
+                {link && <a href={urlSegura(o.fonte_url)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, textAlign: 'center', color: C.p1 }}>Ver anúncio ↗</a>}
+                <button onClick={() => editar(o)} style={{ background: 'none', border: '1px solid ' + C.border, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+                <button onClick={() => excluir(o)} style={{ background: 'none', border: 'none', color: '#e63946', fontSize: 11, cursor: 'pointer' }}>Apagar</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const PAGES_DEF = [
   { id:'dashboard', icon:'📊', label:'Dashboard', section:'PRINCIPAL', component:<Dashboard /> },
   { id:'avisos', icon:'📢', label:'Avisos / Notificacoes', section:'PRINCIPAL', component:<Avisos /> },
@@ -9890,6 +10126,7 @@ const PAGES_DEF = [
   { id:'clientes', icon:'👥', label:'Clientes', section:'PESSOAS', badgeKey:'clientes', component:<ClientesList /> },
   { id:'portal-users', icon:'🔐', label:'Portal', section:'PESSOAS', badgeKey:'portalUsers', component:<PortalUsersList /> },
   { id:'pedidos-pintor', icon:'🧰', label:'Pedidos de pintor', section:'PRINCIPAL', badgeKey:'pedidosPintor', component:<PedidosPintor /> },
+  { id:'oportunidades', icon:'💼', label:'Vagas e oportunidades', section:'PRINCIPAL', badgeKey:'oportunidades', component:<Oportunidades /> },
   { id:'leads', icon:'🧲', label:'Leads', section:'LOJA', badgeKey:'leads', component:<Leads /> },
   { id:'lojas', icon:'🏬', label:'Lojas', section:'LOJA', component:<LojasList /> },
   { id:'pedidos-loja', icon:'🛒', label:'Pedidos da Loja', section:'LOJA', component:<PedidosLoja /> },
@@ -10044,7 +10281,7 @@ function App() {
     try {
       const sb = supa;
       if(!sb) return;
-      const [quotesRes, profiles, leadsRes, pendRes, pedPintorRes] = await Promise.all([
+      const [quotesRes, profiles, leadsRes, pendRes, pedPintorRes, oportRes] = await Promise.all([
         sb.from('quotes').select('id', { count: 'exact', head: true }),
         profilesService.list({ fields: 'role, user_type, profession, portal_access' }),
         sb.from('leads').select('id', { count: 'exact', head: true }),
@@ -10052,6 +10289,7 @@ function App() {
         // Pedidos de pintor ainda nao atendidos. Tabela ausente (SQL pendente)
         // devolve erro no objeto, nao lanca: count fica undefined -> 0.
         sb.from('pedidos_pintor').select('id', { count: 'exact', head: true }).eq('status', 'novo'),
+        sb.from('oportunidades').select('id', { count: 'exact', head: true }).eq('status', 'conferir'),
       ]);
       // Mescla em vez de substituir: o badge do WhatsApp e carregado
       // por outro caminho (loadWaBadge) e nao pode ser apagado aqui.
@@ -10067,6 +10305,7 @@ function App() {
         leads: leadsRes.count || 0,
         postsPendentes: pendRes.count || 0,
         pedidosPintor: (pedPintorRes && pedPintorRes.count) || 0,
+        oportunidades: (oportRes && oportRes.count) || 0,
         clientes: profiles.filter(isClienteProfile).length,
         portalUsers: profiles.filter(p => p.portal_access === true).length,
       }));
