@@ -408,8 +408,8 @@
   o vídeo não tem quadro, a WebView desenha a arte do player do sistema e o
   nosso spinner girava em cima dela. `PostMedia` ganhou `poster={POSTER_VAZIO}`
   (GIF 1×1 transparente, o mesmo truque do StoryViewer): aparece o fundo preto
-  do quadro + spinner. Teste em `perfAvatarVideo.test.tsx`. Não conferido no
-  aparelho. As miniaturas das grades (Em alta, hashtag, perfil) NÃO foram
+  do quadro + spinner. Teste em `perfAvatarVideo.test.tsx`. **NO AR: PR #527
+  (squash `149b969`), deploy run #815 `success`.** Não conferido no aparelho. As miniaturas das grades (Em alta, hashtag, perfil) NÃO foram
   mexidas — lá o seek mínimo pinta o 1º quadro.
 
 - **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
