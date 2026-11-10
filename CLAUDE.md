@@ -460,6 +460,7 @@
       morador no repo): Parque Santa Clara 105 anúncios → 3 pedidos; França 49
       → 1; as 2 ofertas ("Pinturas em geral") ficaram de fora. Teste com HTML
       sintético em `__tests__/muralCondominio.test.ts`.
+    - **NO AR: PR #523 (squash `4abc81f`), deploy run #811 `success`.**
     - Portal v=20261110f (caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
@@ -479,8 +480,13 @@
 
 - **"PRECISA DE PINTOR?" — PÁGINA PÚBLICA /pedir + TELA NO PORTAL
   (2026-11-10, pedido do usuário: trazer clientes procurando pintor; "pode
-  fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — PASSADO NO CHAT,
-  AINDA NÃO CONFIRMADO RODADO.** Contexto da decisão: raspar Facebook/GetNinjas
+  fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — JÁ RODADO
+  (2026-11-10, print do usuário: as 3 linhas da conferência `true`). Não
+  pedir pra rodar de novo.** ATENÇÃO: o usuário tem DOIS projetos Supabase
+  abertos — a 1ª tentativa rodou no errado ("JR Vision Management", org JR
+  Design Build; tabela criada lá foi apagada). O certo aparece como
+  "queroumacor@gmail.com's Project". Antes de passar SQL, mandar conferir
+  com `SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname='is_portal_admin')`. Contexto da decisão: raspar Facebook/GetNinjas
   foi DESCARTADO (termos dos sites, risco pro número do WhatsApp, LGPD); nenhum
   site (GetNinjas, Cronoshare, Workfly, Clique Local) autoriza replicar pedidos.
   O caminho é ter um link próprio pra colar em grupo de moradores, QR da loja e
