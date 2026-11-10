@@ -488,9 +488,11 @@
       `migrations/2026-11-10-e-oportunidades-so-pro.sql` (policy com
       `is_pro_active(auth.uid())`; admin lê pela policy de admin) — PASSADO NO
       CHAT, AINDA NÃO CONFIRMADO RODADO. Sem ele, não-PRO ainda lê pela API.
+      **Código NO AR: PR #525 (squash `551e566`), deploy run #813 `success`.**
     - **MAIS 8 MURAIS (2026-11-10, 2º JSON do usuário, 92 murais).** SQL
       `migrations/2026-11-10-f-oportunidade-fontes-mais-8.sql` (5 ativos, 3
-      vazios pausados; total 90) — PASSADO NO CHAT, NÃO CONFIRMADO RODADO. Os
+      vazios pausados; total 90) — **JÁ RODADO (2026-11-10, junto do `-g`). Não
+      pedir pra rodar de novo.** Os
       2 da plataforma Canal Condomínio (`ccportal.com.br`) ficaram DE FORA:
       outro formato de página e outra autorização. Pendente novo: Residencial
       Floriza II (502). O cadastro NÃO tem endereço dos condomínios: só nome,
@@ -499,8 +501,10 @@
       logradouro/bairro/CEP).** SQL
       `migrations/2026-11-10-g-oportunidade-fontes-enderecos.sql` (colunas
       `endereco`/`cep` + UPDATE dos 90 murais por URL; corrige o Duetto Damebe
-      pra Mogi das Cruzes) — PASSADO NO CHAT, NÃO CONFIRMADO RODADO; rodar
-      DEPOIS do `-f`. Portal mostra endereço e CEP na linha do mural (tolera a
+      pra Mogi das Cruzes) — **JÁ RODADO (2026-11-10, print do usuário: 82/82
+      com endereço; depois os 8 novos entraram por um INSERT do chat já com
+      endereço e a conferência `>= 90` voltou true: "agora sim"). Não pedir
+      pra rodar de novo.** Portal mostra endereço e CEP na linha do mural (tolera a
       coluna ausente). O bairro do mural passa a ir no pedido lido. É endereço
       do PRÉDIO (público), não de morador.
     - Portal v=20261110h (caixa "🤖 Leitura automática dos murais"). Ambiente
