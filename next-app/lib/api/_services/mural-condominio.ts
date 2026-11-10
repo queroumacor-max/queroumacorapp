@@ -36,11 +36,13 @@ function texto(html: string): string {
   return html
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;|&#160;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#0?39;|&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    // `&amp;` por ÚLTIMO: decodificado antes, "&amp;lt;" viraria "<" (duas
+    // decodificações do mesmo texto).
+    .replace(/&amp;/g, '&')
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

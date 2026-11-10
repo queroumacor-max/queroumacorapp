@@ -172,6 +172,10 @@ describe('achados do Codex no #523', () => {
     expect(cancelado).toBe(true);
     expect(await lerComTeto(new Response('olá mundo'), 2500)).toBe('olá mundo');
   });
+  it('entidade HTML é decodificada uma vez só (&amp;lt; não vira "<")', () => {
+    const html = '<div class="anuncio_conteudo"><div class="titulo_int">Tom &amp;amp; Jerry &amp;lt;b&amp;gt;</div><div class="descricao_int">x</div><div class="clearfix"></div>';
+    expect(extrairAnuncios(html)[0].titulo).toBe('Tom &amp; Jerry &lt;b&gt;');
+  });
   it('as fontes entram em rodízio: a há mais tempo sem ler vem primeiro', () => {
     const src = readFileSync(join(__dirname, '..', 'lib/api/_services/mural-condominio.ts'), 'utf8');
     expect(src).toContain('order=lida_em.asc.nullsfirst,created_at.asc');
