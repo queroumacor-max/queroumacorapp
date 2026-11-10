@@ -468,8 +468,10 @@
     - **NO AR: PR #523 (squash `4abc81f`), deploy run #811 `success`.**
     - **CATÁLOGO AMPLIADO PRA 82 MURAIS (2026-11-10, arquivo JSON enviado
       pelo usuário, todos Vida de Síndico). SQL
-      `migrations/2026-11-10-d-oportunidade-fontes-catalogo.sql` — PASSADO NO
-      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram 78 (os 4 primeiros já
+      `migrations/2026-11-10-d-oportunidade-fontes-catalogo.sql` — JÁ RODADO
+      (2026-11-10, usuário: "rodei o 5 e o 6, deu true": 82 cadastrados, 52
+      ativos, cron de 4 em 4 horas). Não pedir pra rodar de novo. Código: PR
+      #524 (squash `676aca7`), deploy disparado.** Entram 78 (os 4 primeiros já
       existem; NÃO recadastrar a mesma página com `www` diferente — a chave
       do anúncio inclui a URL da fonte e duplicaria os pedidos): 48 com
       anúncios ATIVOS, 30 vazios PAUSADOS. Cron passou pra `17 */4 * * *`;
