@@ -172,9 +172,35 @@ async function baixar(url: string): Promise<string> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const tamanho = Number(res.headers.get('content-length') || 0);
   if (tamanho > TETO_BYTES) throw new Error('página grande demais');
-  const html = await res.text();
-  if (html.length > TETO_BYTES) throw new Error('página grande demais');
-  return html;
+  return lerComTeto(res, TETO_BYTES);
+}
+
+/**
+ * Lê o corpo AOS PEDAÇOS e para no teto. `res.text()` carregaria tudo antes
+ * de conferir o tamanho — resposta chunked ou comprimida não tem
+ * Content-Length confiável, e várias fontes baixam ao mesmo tempo no Worker.
+ */
+export async function lerComTeto(res: Response, teto: number): Promise<string> {
+  if (!res.body) {
+    const t = await res.text();
+    if (t.length > teto) throw new Error('página grande demais');
+    return t;
+  }
+  const leitor = res.body.getReader();
+  const dec = new TextDecoder();
+  let total = 0;
+  let html = '';
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > teto) {
+      await leitor.cancel().catch(() => undefined);
+      throw new Error('página grande demais');
+    }
+    html += dec.decode(value, { stream: true });
+  }
+  return html + dec.decode();
 }
 
 export interface ResultadoDaVarredura {
@@ -224,10 +250,13 @@ export async function varrerMurais(b: Banco): Promise<ResultadoDaVarredura> {
   const base = b.supaUrl.replace(/\/$/, '');
   const banco = { ...b, supaUrl: base };
   const r = await fetch(
-    `${base}/rest/v1/oportunidade_fontes?select=id,nome,url,cidade,bairro&ativo=eq.true&order=created_at.asc&limit=${MAX_FONTES}`,
+    `${base}/rest/v1/oportunidade_fontes?select=id,nome,url,cidade,bairro&ativo=eq.true&order=lida_em.asc.nullsfirst,created_at.asc&limit=${MAX_FONTES}`,
     { headers: cabecalhos(banco), signal: AbortSignal.timeout(8000) },
   );
   if (!r.ok) throw new Error(`não consegui ler as fontes (${r.status})`);
+  // Ordem = a que está há mais tempo sem ler primeiro (nunca lida na frente).
+  // Com mais fontes ativas do que MAX_FONTES, cada leitura pega as seguintes
+  // da fila em vez de repetir sempre as mesmas e deixar o resto sem ler.
   const fontes = (await r.json()) as FonteDeMural[];
   const total: ResultadoDaVarredura = { fontes: fontes.length, anuncios: 0, pedidos: 0, novos: 0, falhas: 0 };
 

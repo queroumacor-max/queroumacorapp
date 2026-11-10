@@ -9,6 +9,7 @@ import {
   chaveDoAnuncio,
   ehPedidoDePintor,
   extrairAnuncios,
+  lerComTeto,
   linhaDaOportunidade,
   precoUtil,
 } from '@/lib/api/_services/mural-condominio';
@@ -156,6 +157,25 @@ describe('POST /api/oportunidades/varrer', () => {
     });
     const res = await chamar({ 'x-internal-secret': 'segredo-interno' });
     expect(await res.json()).toMatchObject({ ok: true, falhas: 1, novos: 0 });
+  });
+});
+
+describe('achados do Codex no #523', () => {
+  it('lerComTeto para no teto mesmo sem Content-Length (corpo em pedaços)', async () => {
+    let cancelado = false;
+    const pedaco = new TextEncoder().encode('x'.repeat(1000));
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(c) { c.enqueue(pedaco); },
+      cancel() { cancelado = true; },
+    });
+    await expect(lerComTeto(new Response(corpo), 2500)).rejects.toThrow(/grande demais/);
+    expect(cancelado).toBe(true);
+    expect(await lerComTeto(new Response('olá mundo'), 2500)).toBe('olá mundo');
+  });
+  it('as fontes entram em rodízio: a há mais tempo sem ler vem primeiro', () => {
+    const src = readFileSync(join(__dirname, '..', 'lib/api/_services/mural-condominio.ts'), 'utf8');
+    expect(src).toContain('order=lida_em.asc.nullsfirst,created_at.asc');
+    expect(src).not.toMatch(/await res\.text\(\);\n\s*if \(html\.length/);
   });
 });
 
