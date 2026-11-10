@@ -516,6 +516,8 @@
       pra rodar de novo.** Portal mostra endereço e CEP na linha do mural (tolera a
       coluna ausente). O bairro do mural passa a ir no pedido lido. É endereço
       do PRÉDIO (público), não de morador.
+    - **Endereço, filtro e palavras-chave NO AR: PR #526 (squash `64cb298`),
+      deploy run #814 `success`.** Telas não conferidas no portal logado.
     - Portal v=20261110i (filtro Todos/Ativos/Pausados + busca na lista de murais; caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
