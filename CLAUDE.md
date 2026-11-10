@@ -497,6 +497,15 @@
       outro formato de página e outra autorização. Pendente novo: Residencial
       Floriza II (502). O cadastro NÃO tem endereço dos condomínios: só nome,
       cidade e (nos 4 primeiros) bairro; o JSON também não traz.
+    - **PALAVRAS-CHAVE AMPLIADAS (2026-11-10, decisão do usuário: "tudo que
+      pode estar relacionado a pintura deve estar lá").** `ehPedidoDePintor`
+      aceita variações (repintura, pintando, pintada), serviços vizinhos
+      (textura, grafiato, massa corrida, verniz, laca, epóxi, tinta,
+      impermeabilização, grafite) e mais formas de pedir ("alguém conhece",
+      "indicam", "recomendam", "quem faz", "contratar"). Continua exigindo
+      sinal de PROCURA e nenhum de OFERTA. Cada mural é UMA página só: a
+      plataforma entrega todos os anúncios em `/classificados` sem paginação
+      (conferido em 10/11: Costa do Sol 449 cartões em 1,8 MB; teto é 4 MB).
     - **ENDEREÇO DOS CONDOMÍNIOS (2026-11-10, 3º JSON do usuário, com
       logradouro/bairro/CEP).** SQL
       `migrations/2026-11-10-g-oportunidade-fontes-enderecos.sql` (colunas
