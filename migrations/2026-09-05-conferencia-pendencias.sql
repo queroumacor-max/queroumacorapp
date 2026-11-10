@@ -161,3 +161,4 @@ SELECT 'murais: 82 cadastrados e cron 17 */4 — 2026-11-10' AS item, ((SELECT c
 SELECT 'oportunidades: vaga ativa so pra PRO — 2026-11-10' AS item, EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='oportunidades' AND policyname='oportunidades_vaga_ativa_select' AND qual LIKE '%is_pro_active%') AS ok;
 SELECT 'murais: 90 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 90 AS ok;
 SELECT 'murais: endereco preenchido (>= 82) — 2026-11-10' AS item, coalesce((SELECT count(*) FROM public.oportunidade_fontes WHERE to_jsonb(oportunidade_fontes) ->> 'endereco' IS NOT NULL), 0) >= 82 AS ok;
+SELECT 'murais: 117 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 117 AS ok;
