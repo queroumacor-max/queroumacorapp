@@ -9946,6 +9946,11 @@ const FontesDeMural = ({ aoLer }) => {
   const [nova, setNova] = useState({ nome: '', url: '', cidade: '', bairro: '' });
   const [lendo, setLendo] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [filtro, setFiltro] = useState('todos');
+  const [buscaMural, setBuscaMural] = useState('');
+  const termo = buscaMural.trim().toLowerCase();
+  const visiveis = fontes.filter(f => (filtro === 'todos' || (filtro === 'ativos' ? f.ativo : !f.ativo))
+    && (!termo || [f.nome, f.endereco, f.bairro, f.cidade, f.cep, f.url].filter(Boolean).join(' ').toLowerCase().includes(termo)));
   const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid ' + C.border, fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif' };
   const box = { background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 20 };
 
@@ -9989,7 +9994,14 @@ const FontesDeMural = ({ aoLer }) => {
       </div>
       {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, background: C.bg, borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>{aviso}</div>}
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Carregando...</div>}
-      {fontes.map(f => (
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+        {[['todos', 'Todos', fontes.length], ['ativos', 'Ativos', fontes.filter(f => f.ativo).length], ['pausados', 'Pausados', fontes.filter(f => !f.ativo).length]].map(([k, rotulo, n]) => (
+          <button key={k} onClick={() => setFiltro(k)} style={{ padding: '5px 12px', borderRadius: 999, border: '1px solid ' + (filtro === k ? C.p1 : C.border), background: filtro === k ? C.p1 : 'none', color: filtro === k ? '#fff' : C.ink, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{rotulo} ({n})</button>
+        ))}
+        <input value={buscaMural} onChange={e => setBuscaMural(e.target.value)} placeholder="Buscar condomínio, bairro ou cidade…" style={{ ...inputStyle, width: 'auto', flex: 1, minWidth: 200, padding: '6px 12px', fontSize: 12 }} />
+      </div>
+      {!loading && visiveis.length === 0 && <div style={{ color: C.muted, fontSize: 13, padding: '8px 0' }}>Nenhum mural nesse filtro.</div>}
+      {visiveis.map(f => (
         <div key={f.id} style={{ borderTop: '1px solid ' + C.border, padding: '10px 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: f.ativo ? C.ink : C.muted }}>{f.nome}{f.ativo ? '' : ' (pausado)'} <span style={{ fontWeight: 400, color: C.muted }}>· {[f.endereco, f.bairro, f.cidade, f.cep ? 'CEP ' + f.cep : null].filter(Boolean).join(', ')}</span></div>

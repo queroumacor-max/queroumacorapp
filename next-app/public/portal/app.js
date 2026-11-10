@@ -19659,6 +19659,10 @@ const FontesDeMural = ({
   });
   const [lendo, setLendo] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [filtro, setFiltro] = useState('todos');
+  const [buscaMural, setBuscaMural] = useState('');
+  const termo = buscaMural.trim().toLowerCase();
+  const visiveis = fontes.filter(f => (filtro === 'todos' || (filtro === 'ativos' ? f.ativo : !f.ativo)) && (!termo || [f.nome, f.endereco, f.bairro, f.cidade, f.cep, f.url].filter(Boolean).join(' ').toLowerCase().includes(termo)));
   const inputStyle = {
     width: '100%',
     padding: '8px 12px',
@@ -19808,7 +19812,46 @@ const FontesDeMural = ({
       color: C.muted,
       fontSize: 13
     }
-  }, "Carregando..."), fontes.map(f => /*#__PURE__*/React.createElement("div", {
+  }, "Carregando..."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginBottom: 10
+    }
+  }, [['todos', 'Todos', fontes.length], ['ativos', 'Ativos', fontes.filter(f => f.ativo).length], ['pausados', 'Pausados', fontes.filter(f => !f.ativo).length]].map(([k, rotulo, n]) => /*#__PURE__*/React.createElement("button", {
+    key: k,
+    onClick: () => setFiltro(k),
+    style: {
+      padding: '5px 12px',
+      borderRadius: 999,
+      border: '1px solid ' + (filtro === k ? C.p1 : C.border),
+      background: filtro === k ? C.p1 : 'none',
+      color: filtro === k ? '#fff' : C.ink,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, rotulo, " (", n, ")")), /*#__PURE__*/React.createElement("input", {
+    value: buscaMural,
+    onChange: e => setBuscaMural(e.target.value),
+    placeholder: "Buscar condom\xEDnio, bairro ou cidade\u2026",
+    style: {
+      ...inputStyle,
+      width: 'auto',
+      flex: 1,
+      minWidth: 200,
+      padding: '6px 12px',
+      fontSize: 12
+    }
+  })), !loading && visiveis.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13,
+      padding: '8px 0'
+    }
+  }, "Nenhum mural nesse filtro."), visiveis.map(f => /*#__PURE__*/React.createElement("div", {
     key: f.id,
     style: {
       borderTop: '1px solid ' + C.border,
