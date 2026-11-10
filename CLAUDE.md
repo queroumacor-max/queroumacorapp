@@ -465,6 +465,9 @@
     'novo'): gerador do link com cidade/origem, filtros por status, "Falar com
     o cliente" (wa.me), "Copiar para o pintor", campo "Encaminhado para" (muda
     pra 'encaminhado' sozinho) e apagar. Encaminhar é MANUAL.
+  - **NO AR: PR #521 (squash `e69df66`), deploy run #809 `success` na 2ª
+    tentativa** (a 1ª caiu no soluço da fonte do Google). Não confirmado pelo
+    usuário; o envio do formulário só funciona depois do SQL.
   - Teste `__tests__/pedidoPintor.test.ts`. Conferido com Playwright em 360px
     no `next start` (PRECISA de `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY` de teste
     no build — sem elas o AuthProvider entra em loop de recarga; e matar o
