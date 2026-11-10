@@ -471,6 +471,8 @@
     vieram de pesquisa colada pelo usuário e NÃO foram conferidos por mim.
   - Avisar os pintores de vaga nova = Avisos + push do portal (não há push
     automático por vaga).
+  - **NO AR: PR #522 (squash `cce1ac9`), deploy run #810 `success`.** Não
+    conferido no app/portal pelo usuário; depende do SQL `-b`.
   - Testes `__tests__/vagasOportunidades.test.ts` e
     `__tests__/components/VagasView.test.tsx`. Telas NÃO conferidas no
     navegador (exigem login).
