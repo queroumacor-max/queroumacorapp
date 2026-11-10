@@ -486,8 +486,8 @@
       (→ /pro) e nem busca quando `canSeeProFeature` é falso; o tile segue
       visível. Quem barra de verdade é a RLS: SQL
       `migrations/2026-11-10-e-oportunidades-so-pro.sql` (policy com
-      `is_pro_active(auth.uid())`; admin lê pela policy de admin) — PASSADO NO
-      CHAT, AINDA NÃO CONFIRMADO RODADO. Sem ele, não-PRO ainda lê pela API.
+      `is_pro_active(auth.uid())`; admin lê pela policy de admin) — **JÁ RODADO
+      (2026-11-10, usuário: "rodei, deu true"). Não pedir pra rodar de novo.**
       **Código NO AR: PR #525 (squash `551e566`), deploy run #813 `success`.**
     - **MAIS 8 MURAIS (2026-11-10, 2º JSON do usuário, 92 murais).** SQL
       `migrations/2026-11-10-f-oportunidade-fontes-mais-8.sql` (5 ativos, 3
