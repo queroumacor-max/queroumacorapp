@@ -19834,7 +19834,7 @@ const FontesDeMural = ({
       fontWeight: 400,
       color: C.muted
     }
-  }, "\xB7 ", [f.bairro, f.cidade].filter(Boolean).join(', '))), /*#__PURE__*/React.createElement("a", {
+  }, "\xB7 ", [f.endereco, f.bairro, f.cidade, f.cep ? 'CEP ' + f.cep : null].filter(Boolean).join(', '))), /*#__PURE__*/React.createElement("a", {
     href: urlSegura(f.url),
     target: "_blank",
     rel: "noopener noreferrer",

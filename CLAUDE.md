@@ -495,7 +495,15 @@
       outro formato de página e outra autorização. Pendente novo: Residencial
       Floriza II (502). O cadastro NÃO tem endereço dos condomínios: só nome,
       cidade e (nos 4 primeiros) bairro; o JSON também não traz.
-    - Portal v=20261110g (caixa "🤖 Leitura automática dos murais"). Ambiente
+    - **ENDEREÇO DOS CONDOMÍNIOS (2026-11-10, 3º JSON do usuário, com
+      logradouro/bairro/CEP).** SQL
+      `migrations/2026-11-10-g-oportunidade-fontes-enderecos.sql` (colunas
+      `endereco`/`cep` + UPDATE dos 90 murais por URL; corrige o Duetto Damebe
+      pra Mogi das Cruzes) — PASSADO NO CHAT, NÃO CONFIRMADO RODADO; rodar
+      DEPOIS do `-f`. Portal mostra endereço e CEP na linha do mural (tolera a
+      coluna ausente). O bairro do mural passa a ir no pedido lido. É endereço
+      do PRÉDIO (público), não de morador.
+    - Portal v=20261110h (caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
       etc.): PROPOSTA, aguardando o usuário criar a conta/chave. Google Custom

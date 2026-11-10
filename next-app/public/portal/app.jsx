@@ -9992,7 +9992,7 @@ const FontesDeMural = ({ aoLer }) => {
       {fontes.map(f => (
         <div key={f.id} style={{ borderTop: '1px solid ' + C.border, padding: '10px 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: f.ativo ? C.ink : C.muted }}>{f.nome}{f.ativo ? '' : ' (pausado)'} <span style={{ fontWeight: 400, color: C.muted }}>· {[f.bairro, f.cidade].filter(Boolean).join(', ')}</span></div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: f.ativo ? C.ink : C.muted }}>{f.nome}{f.ativo ? '' : ' (pausado)'} <span style={{ fontWeight: 400, color: C.muted }}>· {[f.endereco, f.bairro, f.cidade, f.cep ? 'CEP ' + f.cep : null].filter(Boolean).join(', ')}</span></div>
             <a href={urlSegura(f.url)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: C.p1, overflowWrap: 'anywhere' }}>{f.url} ↗</a>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{f.lida_em ? 'Última leitura: ' + new Date(f.lida_em).toLocaleString() + ' · ' + (f.resultado || '') : 'Ainda não lido.'}</div>
           </div>
