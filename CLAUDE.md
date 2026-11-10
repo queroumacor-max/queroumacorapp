@@ -403,6 +403,15 @@
     final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
     antes de concluir que o banco é igual ao repo.
 
+- **FEED: ▶ CINZA GIGANTE DO ANDROID NO VÍDEO CARREGANDO (2026-11-10, print
+  do usuário: "não pode ficar assim nem por um segundo"). SEM SQL.** Enquanto
+  o vídeo não tem quadro, a WebView desenha a arte do player do sistema e o
+  nosso spinner girava em cima dela. `PostMedia` ganhou `poster={POSTER_VAZIO}`
+  (GIF 1×1 transparente, o mesmo truque do StoryViewer): aparece o fundo preto
+  do quadro + spinner. Teste em `perfAvatarVideo.test.tsx`. Não conferido no
+  aparelho. As miniaturas das grades (Em alta, hashtag, perfil) NÃO foram
+  mexidas — lá o seek mínimo pinta o 1º quadro.
+
 - **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
   pedido do usuário depois de colar uma lista de 10 anúncios achados em
   InfoJobs/Empregos.com.br/classificado de condomínio). SQL

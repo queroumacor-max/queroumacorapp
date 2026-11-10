@@ -19,6 +19,14 @@ import { isVideoPost } from '@/lib/utils';
 import { cfImg, cfImgSrcSet } from '@/lib/cfImg';
 import { reportFailure } from '@/lib/utils/reportFailure';
 
+// GIF 1×1 transparente. Sem `poster`, a WebView do Android desenha a arte do
+// player do sistema (círculo cinza com ▶ gigante) enquanto o vídeo não tem
+// quadro nenhum pra mostrar — e o nosso spinner girava EM CIMA dela (print
+// do usuário, 2026-11-10). Com o poster vazio aparece o fundo preto do
+// quadro. Mesmo truque do StoryViewer.
+export const POSTER_VAZIO =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 export interface PostMediaProps {
   url: string;
   mediaType?: string | null;
@@ -167,6 +175,7 @@ export function PostMedia({ url, mediaType, mediaWidth, mediaHeight, aspectRatio
           loop
           playsInline
           preload="metadata"
+          poster={POSTER_VAZIO}
           onLoadedMetadata={(e) => {
             // WebView Android não pinta o primeiro quadro de um vídeo parado
             // — fica o play cinza do sistema. Um seek mínimo força a pintura
