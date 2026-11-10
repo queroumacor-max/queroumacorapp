@@ -153,3 +153,6 @@ SELECT 'oportunidades: tabela + usuario comum so le vaga ativa — 2026-11-10' A
 
 -- 2026-11-10 (leitura automática dos murais de condomínio).
 SELECT 'oportunidade_fontes + cron oportunidades-varredura — 2026-11-10' AS item, (to_regclass('public.oportunidade_fontes') IS NOT NULL AND EXISTS (SELECT 1 FROM cron.job WHERE jobname='oportunidades-varredura')) AS ok;
+
+-- 2026-11-10 (catálogo de 82 murais + cron de 4 em 4 horas).
+SELECT 'murais: 82 cadastrados e cron 17 */4 — 2026-11-10' AS item, ((SELECT count(*) FROM public.oportunidade_fontes) >= 82 AND EXISTS (SELECT 1 FROM cron.job WHERE jobname='oportunidades-varredura' AND schedule='17 */4 * * *')) AS ok;

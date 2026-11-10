@@ -19767,7 +19767,13 @@ const FontesDeMural = ({
       fontWeight: 700,
       color: C.ink
     }
-  }, "\uD83E\uDD16 Leitura autom\xE1tica dos murais"), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83E\uDD16 Leitura autom\xE1tica dos murais ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 400,
+      color: C.muted,
+      fontSize: 12
+    }
+  }, "\xB7 ", fontes.filter(f => f.ativo).length, " ativos de ", fontes.length)), /*#__PURE__*/React.createElement("button", {
     disabled: lendo,
     onClick: ler,
     style: {
@@ -19787,7 +19793,7 @@ const FontesDeMural = ({
       color: C.muted,
       marginBottom: 12
     }
-  }, "Todo dia \xE0s 8h17 o sistema l\xEA estes murais e traz s\xF3 os an\xFAncios de quem PROCURA pintor, como \"A conferir\". O e-mail do morador n\xE3o \xE9 copiado: abra o link do an\xFAncio para ver."), aviso && /*#__PURE__*/React.createElement("div", {
+  }, "De 4 em 4 horas o sistema l\xEA 12 murais em rod\xEDzio (o que est\xE1 h\xE1 mais tempo sem ler vem primeiro) e traz s\xF3 os an\xFAncios de quem PROCURA pintor, como \"A conferir\". \"Ler agora\" l\xEA os pr\xF3ximos 12. O e-mail do morador n\xE3o \xE9 copiado: abra o link do an\xFAncio para ver."), aviso && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,

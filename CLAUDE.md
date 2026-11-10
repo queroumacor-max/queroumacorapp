@@ -406,8 +406,11 @@
 - **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
   pedido do usuário depois de colar uma lista de 10 anúncios achados em
   InfoJobs/Empregos.com.br/classificado de condomínio). SQL
-  `migrations/2026-11-10-b-oportunidades.sql` — PASSADO NO CHAT, AINDA NÃO
-  CONFIRMADO RODADO.** Cadastro MANUAL pelo portal (nada de robô: os sites de
+  `migrations/2026-11-10-b-oportunidades.sql` — JÁ RODADO (2026-11-10,
+  usuário: "rodei tudo, deu true" — conferência final das 6 linhas; no chat
+  foi passada uma versão com `regime`/`conferido_em`/`chave` já dentro do
+  CREATE TABLE, + a carga das 9 vagas em `status='conferir'`). Não pedir pra
+  rodar de novo.** Cadastro MANUAL pelo portal (nada de robô: os sites de
   origem proíbem coleta automática), com classificação:
   `tipo='vaga'` (empresa contratando pintor) × `tipo='pedido'` (pessoa
   procurando pintor); `status` conferir → ativa → encerrada.
@@ -415,7 +418,7 @@
     é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
     equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
     na tela.
-  - Portal v=20261110f: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+  - Portal v=20261110g: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
     conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
     remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
     publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
@@ -430,8 +433,10 @@
     DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
     procurar" com as buscas prontas do Google.
   - **LEITURA AUTOMÁTICA DOS MURAIS DE CONDOMÍNIO (2026-11-10). SQL
-    `migrations/2026-11-10-c-oportunidades-fontes.sql` — PASSADO NO CHAT,
-    AINDA NÃO CONFIRMADO RODADO.** Histórico da decisão: os 4 murais
+    `migrations/2026-11-10-c-oportunidades-fontes.sql` — JÁ RODADO
+    (2026-11-10, usuário: "rodei tudo, deu true": 4 murais, chave única e
+    cron `oportunidades-varredura`). Não pedir pra rodar de novo. Falta o
+    usuário testar o "▶ Ler agora" no portal (1ª leitura contra o banco real).** Histórico da decisão: os 4 murais
     (plataforma Vida de Síndico: parquesantaclara / costadosolbutanta /
     vivazprimecachoeirinha / condominiofrancasp `.com.br/classificados`) têm o
     MESMO robots.txt, que termina em `User-agent: *` / `Disallow: /`. Por isso
@@ -460,7 +465,21 @@
       morador no repo): Parque Santa Clara 105 anúncios → 3 pedidos; França 49
       → 1; as 2 ofertas ("Pinturas em geral") ficaram de fora. Teste com HTML
       sintético em `__tests__/muralCondominio.test.ts`.
-    - Portal v=20261110f (caixa "🤖 Leitura automática dos murais"). Ambiente
+    - **NO AR: PR #523 (squash `4abc81f`), deploy run #811 `success`.**
+    - **CATÁLOGO AMPLIADO PRA 82 MURAIS (2026-11-10, arquivo JSON enviado
+      pelo usuário, todos Vida de Síndico). SQL
+      `migrations/2026-11-10-d-oportunidade-fontes-catalogo.sql` — PASSADO NO
+      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram 78 (os 4 primeiros já
+      existem; NÃO recadastrar a mesma página com `www` diferente — a chave
+      do anúncio inclui a URL da fonte e duplicaria os pedidos): 48 com
+      anúncios ATIVOS, 30 vazios PAUSADOS. Cron passou pra `17 */4 * * *`;
+      cada rodada lê `MAX_FONTES=12` em blocos de 4 (limite de 50
+      subrequisições do Worker gratuito + memória; não se sabe qual plano de
+      Workers a conta tem). Pendentes fora do cadastro: Villaggio di Verona
+      (Class Condo, outro formato) e Vivaz Jardim Prudência (502). O JSON
+      também lista plataformas/parcerias (Cronoshare, Triider, obra.help,
+      administradoras) — só referência, nada automatizado.
+    - Portal v=20261110g (caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
       etc.): PROPOSTA, aguardando o usuário criar a conta/chave. Google Custom
@@ -479,8 +498,13 @@
 
 - **"PRECISA DE PINTOR?" — PÁGINA PÚBLICA /pedir + TELA NO PORTAL
   (2026-11-10, pedido do usuário: trazer clientes procurando pintor; "pode
-  fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — PASSADO NO CHAT,
-  AINDA NÃO CONFIRMADO RODADO.** Contexto da decisão: raspar Facebook/GetNinjas
+  fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — JÁ RODADO
+  (2026-11-10, print do usuário: as 3 linhas da conferência `true`). Não
+  pedir pra rodar de novo.** ATENÇÃO: o usuário tem DOIS projetos Supabase
+  abertos — a 1ª tentativa rodou no errado ("JR Vision Management", org JR
+  Design Build; tabela criada lá foi apagada). O certo aparece como
+  "queroumacor@gmail.com's Project". Antes de passar SQL, mandar conferir
+  com `SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname='is_portal_admin')`. Contexto da decisão: raspar Facebook/GetNinjas
   foi DESCARTADO (termos dos sites, risco pro número do WhatsApp, LGPD); nenhum
   site (GetNinjas, Cronoshare, Workfly, Clique Local) autoriza replicar pedidos.
   O caminho é ter um link próprio pra colar em grupo de moradores, QR da loja e

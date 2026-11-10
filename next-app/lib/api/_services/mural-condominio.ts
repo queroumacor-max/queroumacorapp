@@ -21,7 +21,12 @@ export const USER_AGENT_DA_VARREDURA =
   'QueroUmaCorBot/1.0 (+https://www.queroumacor.com.br; loja@calicolors.com.br)';
 const TETO_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 12_000;
-const MAX_FONTES = 20;
+// 12 por rodada, 4 de cada vez: cada mural custa até 3 chamadas (página,
+// gravação, carimbo) e páginas chegam a ~2 MB — 20 em paralelo passaria do
+// limite de subrequisições do plano gratuito do Worker (50) e pesaria na
+// memória. O cron roda de 4 em 4 horas e o rodízio cobre o resto.
+const MAX_FONTES = 12;
+const EM_PARALELO = 4;
 
 export interface AnuncioDoMural {
   titulo: string;
@@ -262,8 +267,7 @@ export async function varrerMurais(b: Banco): Promise<ResultadoDaVarredura> {
   const fontes = (await r.json()) as FonteDeMural[];
   const total: ResultadoDaVarredura = { fontes: fontes.length, anuncios: 0, pedidos: 0, novos: 0, falhas: 0 };
 
-  await Promise.all(
-    fontes.map(async (fonte) => {
+  const lerECarimbar = async (fonte: FonteDeMural) => {
       let resultado: string;
       try {
         const x = await lerUmaFonte(banco, fonte);
@@ -282,7 +286,9 @@ export async function varrerMurais(b: Banco): Promise<ResultadoDaVarredura> {
         body: JSON.stringify({ lida_em: new Date().toISOString(), resultado }),
         signal: AbortSignal.timeout(5000),
       }).catch(() => undefined);
-    }),
-  );
+  };
+  for (let i = 0; i < fontes.length; i += EM_PARALELO) {
+    await Promise.all(fontes.slice(i, i + EM_PARALELO).map(lerECarimbar));
+  }
   return total;
 }
