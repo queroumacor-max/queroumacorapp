@@ -418,7 +418,7 @@
     é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
     equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
     na tela.
-  - Portal v=20261110f: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+  - Portal v=20261110g: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
     conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
     remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
     publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
@@ -466,7 +466,20 @@
       → 1; as 2 ofertas ("Pinturas em geral") ficaram de fora. Teste com HTML
       sintético em `__tests__/muralCondominio.test.ts`.
     - **NO AR: PR #523 (squash `4abc81f`), deploy run #811 `success`.**
-    - Portal v=20261110f (caixa "🤖 Leitura automática dos murais"). Ambiente
+    - **CATÁLOGO AMPLIADO PRA 82 MURAIS (2026-11-10, arquivo JSON enviado
+      pelo usuário, todos Vida de Síndico). SQL
+      `migrations/2026-11-10-d-oportunidade-fontes-catalogo.sql` — PASSADO NO
+      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram 78 (os 4 primeiros já
+      existem; NÃO recadastrar a mesma página com `www` diferente — a chave
+      do anúncio inclui a URL da fonte e duplicaria os pedidos): 48 com
+      anúncios ATIVOS, 30 vazios PAUSADOS. Cron passou pra `17 */4 * * *`;
+      cada rodada lê `MAX_FONTES=12` em blocos de 4 (limite de 50
+      subrequisições do Worker gratuito + memória; não se sabe qual plano de
+      Workers a conta tem). Pendentes fora do cadastro: Villaggio di Verona
+      (Class Condo, outro formato) e Vivaz Jardim Prudência (502). O JSON
+      também lista plataformas/parcerias (Cronoshare, Triider, obra.help,
+      administradoras) — só referência, nada automatizado.
+    - Portal v=20261110g (caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs
       etc.): PROPOSTA, aguardando o usuário criar a conta/chave. Google Custom

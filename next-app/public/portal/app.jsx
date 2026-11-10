@@ -9981,11 +9981,11 @@ const FontesDeMural = ({ aoLer }) => {
   return (
     <div style={box}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-        <div style={{ fontWeight: 700, color: C.ink }}>🤖 Leitura automática dos murais</div>
+        <div style={{ fontWeight: 700, color: C.ink }}>🤖 Leitura automática dos murais <span style={{ fontWeight: 400, color: C.muted, fontSize: 12 }}>· {fontes.filter(f => f.ativo).length} ativos de {fontes.length}</span></div>
         <button disabled={lendo} onClick={ler} style={{ marginLeft: 'auto', padding: '8px 16px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{lendo ? 'Lendo...' : '▶ Ler agora'}</button>
       </div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
-        Todo dia às 8h17 o sistema lê estes murais e traz só os anúncios de quem PROCURA pintor, como "A conferir". O e-mail do morador não é copiado: abra o link do anúncio para ver.
+        De 4 em 4 horas o sistema lê 12 murais em rodízio (o que está há mais tempo sem ler vem primeiro) e traz só os anúncios de quem PROCURA pintor, como "A conferir". "Ler agora" lê os próximos 12. O e-mail do morador não é copiado: abra o link do anúncio para ver.
       </div>
       {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, background: C.bg, borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>{aviso}</div>}
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Carregando...</div>}

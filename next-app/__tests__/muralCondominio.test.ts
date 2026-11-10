@@ -183,6 +183,30 @@ describe('achados do Codex no #523', () => {
   });
 });
 
+describe('catálogo ampliado (82 murais)', () => {
+  const cat = readFileSync(join(__dirname, '..', '..', 'migrations', '2026-11-10-d-oportunidade-fontes-catalogo.sql'), 'utf8');
+  it('não recadastra os 4 primeiros com outra URL (duplicaria os pedidos)', () => {
+    for (const h of ['parquesantaclara', 'costadosolbutanta', 'vivazprimecachoeirinha', 'condominiofrancasp']) {
+      expect(cat.split('INSERT INTO')[1]).not.toContain(h);
+    }
+  });
+  it('78 murais, todos https e /classificados, sem URL repetida; vazios entram pausados', () => {
+    const urls = [...cat.matchAll(/'(https:\/\/[^']+)'/g)].map((m) => m[1]);
+    expect(urls).toHaveLength(78);
+    expect(new Set(urls.map((u) => u.replace('://www.', '://'))).size).toBe(78);
+    expect(urls.every((u) => u.endsWith('/classificados'))).toBe(true);
+    expect((cat.match(/, true\)/g) || []).length).toBe(48);
+    expect((cat.match(/, false\)/g) || []).length).toBe(30);
+    expect(cat).toContain('ON CONFLICT (url) DO NOTHING');
+  });
+  it('o cron passa pra de 4 em 4 horas e a rodada lê 12 em blocos de 4', () => {
+    expect(cat).toMatch(/cron\.schedule\('oportunidades-varredura', '17 \*\/4 \* \* \*'/);
+    const src = readFileSync(join(__dirname, '..', 'lib/api/_services/mural-condominio.ts'), 'utf8');
+    expect(src).toContain('const MAX_FONTES = 12;');
+    expect(src).toContain('const EM_PARALELO = 4;');
+  });
+});
+
 describe('SQL das fontes', () => {
   const sql = readFileSync(join(__dirname, '..', '..', 'migrations', '2026-11-10-c-oportunidades-fontes.sql'), 'utf8');
   it('fontes só pra admin, chave única e cron diário pela rota certa', () => {
