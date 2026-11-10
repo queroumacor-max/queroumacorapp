@@ -216,4 +216,30 @@ describe('SQL das fontes', () => {
     expect(sql).toMatch(/cron\.schedule\('oportunidades-varredura', '17 11 \* \* \*'/);
     expect(sql).toContain('REVOKE ALL ON FUNCTION public.run_oportunidades_varredura() FROM PUBLIC, anon, authenticated');
   });
+
+  describe('variações e serviços vizinhos (10/11/2026)', () => {
+    it.each([
+      ['Repintura', 'Preciso de repintura da sala'],
+      ['Parede', 'Procuro quem faz parede pintada com efeito'],
+      ['Textura', 'Preciso de alguém para aplicar textura na varanda'],
+      ['Grafiato', 'Alguém indica profissional de grafiato?'],
+      ['Massa', 'Procuro quem passe massa corrida no apartamento'],
+      ['Verniz', 'Preciso de verniz nas portas'],
+      ['Quarto', 'Estou pintando e preciso de ajuda para terminar'],
+      ['Tinta', 'Alguém conhece quem aplica tinta epóxi na garagem?'],
+      ['Laqueação', 'Indicam alguém para laquear portas?'],
+      ['Impermeabilização', 'Preciso impermeabilizar a laje'],
+      ['Grafite', 'Procuro grafiteiro para o muro do playground'],
+      ['Cimento queimado', 'Quem faz efeito cimento queimado? Recomendam alguém?'],
+    ])('aceita "%s"', (t, d) => expect(ehPedidoDePintor(t, d)).toBe(true));
+
+    it.each([
+      ['Textura e grafiato', 'Aplico textura e grafiato, orçamento sem compromisso'],
+      ['Repintura', 'Fazemos repintura de fachadas'],
+      ['Vendo verniz', 'Lata de verniz fechada, R$ 50'],
+      ['Vendo tinta', 'Duas latas de tinta acrílica, sobra de obra'],
+      ['Impermeabilização', 'Somos especialistas em impermeabilização, faça já seu orçamento'],
+      ['Sofá', 'Procuro sofá de 3 lugares'],
+    ])('recusa "%s"', (t, d) => expect(ehPedidoDePintor(t, d)).toBe(false));
+  });
 });
