@@ -8,6 +8,9 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchVagasAtivas } from '@/lib/services/vagas';
 import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga, rotuloDoRegime, type Vaga } from '@/lib/vagas';
 import { abrirLinkExterno } from '@/lib/native/browser';
+import { useRouter } from 'next/navigation';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { canSeeProFeature } from '@/lib/policies';
 
 function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
   const local = localDaVaga(vaga);
@@ -80,12 +83,42 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
 }
 
 export function VagasView() {
+  // Vagas é recurso do PRO (decisão de 10/11/2026). A tela só esconde; quem
+  // barra de verdade é a RLS (migration 2026-11-10-e), então nem buscamos.
+  const policyUser = usePolicyUser();
+  const isPro = canSeeProFeature(policyUser);
+  const router = useRouter();
   const q = useQuery<Vaga[], Error>({
     queryKey: ['vagas-ativas'],
     queryFn: fetchVagasAtivas,
     staleTime: 5 * 60 * 1000,
+    enabled: isPro,
   });
   const vagas = q.data ?? [];
+
+  if (!isPro) {
+    return (
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-display)' }}>
+          💼 Vagas para pintor
+        </h2>
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-white)] p-5 text-center">
+          <p className="text-3xl" aria-hidden>🔒</p>
+          <p className="font-bold mt-2">As vagas são exclusivas do Plano PRO</p>
+          <p className="text-sm text-[color:var(--color-muted)] mt-1 leading-relaxed">
+            Vagas de trabalho na região, encontradas e conferidas pela Cali Colors.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/pro')}
+            className="mt-4 rounded-xl bg-[color:var(--color-p1-button)] text-[color:var(--color-white-fixed)] font-bold text-sm px-5 py-3"
+          >
+            Conhecer o PRO
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-3">

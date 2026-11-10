@@ -481,6 +481,20 @@
       (Class Condo, outro formato) e Vivaz Jardim Prudência (502). O JSON
       também lista plataformas/parcerias (Cronoshare, Triider, obra.help,
       administradoras) — só referência, nada automatizado.
+    - **VAGAS SÓ PRA PRO (2026-11-10, decisão do usuário: "para ver as vagas
+      tem que ser PRO").** `VagasView` mostra o bloqueio com "Conhecer o PRO"
+      (→ /pro) e nem busca quando `canSeeProFeature` é falso; o tile segue
+      visível. Quem barra de verdade é a RLS: SQL
+      `migrations/2026-11-10-e-oportunidades-so-pro.sql` (policy com
+      `is_pro_active(auth.uid())`; admin lê pela policy de admin) — PASSADO NO
+      CHAT, AINDA NÃO CONFIRMADO RODADO. Sem ele, não-PRO ainda lê pela API.
+    - **MAIS 8 MURAIS (2026-11-10, 2º JSON do usuário, 92 murais).** SQL
+      `migrations/2026-11-10-f-oportunidade-fontes-mais-8.sql` (5 ativos, 3
+      vazios pausados; total 90) — PASSADO NO CHAT, NÃO CONFIRMADO RODADO. Os
+      2 da plataforma Canal Condomínio (`ccportal.com.br`) ficaram DE FORA:
+      outro formato de página e outra autorização. Pendente novo: Residencial
+      Floriza II (502). O cadastro NÃO tem endereço dos condomínios: só nome,
+      cidade e (nos 4 primeiros) bairro; o JSON também não traz.
     - Portal v=20261110g (caixa "🤖 Leitura automática dos murais"). Ambiente
       de nuvem `queroumacorapp` criado nesse dia só com os 8 hosts dos murais.
     - Busca diária por serviço de busca (Brave) pros outros sites (InfoJobs

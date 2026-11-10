@@ -9,6 +9,11 @@ const abrirLinkExterno = vi.fn();
 vi.mock('@/lib/services/vagas', () => ({ fetchVagasAtivas: () => fetchVagasAtivas() }));
 vi.mock('@/lib/native/browser', () => ({ abrirLinkExterno: (u: string) => abrirLinkExterno(u) }));
 
+const policy = { atual: { id: 'u1', is_pro: true } as Record<string, unknown> | null };
+const push = vi.fn();
+vi.mock('@/lib/hooks/usePolicyUser', () => ({ usePolicyUser: () => policy.atual }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 import { VagasView } from '@/app/vagas/VagasView';
 
 const vaga: Vaga = {
@@ -42,6 +47,18 @@ describe('VagasView', () => {
   beforeEach(() => {
     fetchVagasAtivas.mockReset();
     abrirLinkExterno.mockReset();
+    push.mockReset();
+    policy.atual = { id: 'u1', is_pro: true };
+  });
+
+  it('quem não é PRO vê o bloqueio e a tela nem busca as vagas', () => {
+    policy.atual = { id: 'u1', is_pro: false };
+    fetchVagasAtivas.mockResolvedValue([vaga]);
+    montar();
+    expect(screen.getByText('As vagas são exclusivas do Plano PRO')).toBeTruthy();
+    fireEvent.click(screen.getByText('Conhecer o PRO'));
+    expect(push).toHaveBeenCalledWith('/pro');
+    expect(fetchVagasAtivas).not.toHaveBeenCalled();
   });
 
   it('mostra a vaga e abre o WhatsApp do anúncio pelo helper da casca', async () => {
