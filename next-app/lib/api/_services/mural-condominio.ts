@@ -114,13 +114,19 @@ const semAcento = (s: string) =>
  */
 export function ehPedidoDePintor(titulo: string, descricao: string): boolean {
   const t = semAcento(`${titulo} ${descricao}`);
-  if (!/\bpint(or|ora|ores|ar|ura|uras)\b/.test(t)) return false;
+  // Variações e serviços vizinhos pedidos pelo usuário em 10/11/2026
+  // ("pintei", "repintura", textura, grafiato, massa corrida, verniz).
+  const falaDePintura =
+    /\b(re)?pint(or|ora|ores|ar|ura|uras|ei|ando|ada|adas|ado|ados)\b/.test(t) ||
+    // "Tudo que pode estar relacionado a pintura" (decisão do usuário).
+    /\b(texturas?|texturizad[oa]s?|grafiato|marmorato|cimento queimado|massa corrida|massa acrilica|emass(ar|amento)|lix(ar|amento)|selador|verniz|enverniz(ar|amento)|stain|esmalte|laca|laque(ar|acao|ado|ada)|epoxi|latex|tintas?|demaos?|cai(ar|acao)|retoques?|grafit(e|es|eiro|eira|agem)|impermeabiliz(ar|acao|ante))\b/.test(t);
+  if (!falaDePintura) return false;
   const oferta =
-    /\b(faco|fazemos|ofereco|oferecemos|realizo|realizamos|trabalho com|trabalhamos|faca ja|orcamento conosco|sem compromisso|pinturas em geral|servicos de pintura|sou pintor|somos)\b/.test(
+    /\b(faco|fazemos|ofereco|oferecemos|aplico|aplicamos|realizo|realizamos|trabalho com|trabalhamos|faca ja|orcamento conosco|sem compromisso|pinturas em geral|servicos de pintura|sou pintor|somos)\b/.test(
       t,
     );
   const procura =
-    /\b(procuro|procura-se|procurando|preciso|precisando|precisamos|necessito|alguem indica|indicacao|indiquem|quero pintar|gostaria de pintar|busco)\b/.test(
+    /\b(procuro|procura-se|procurando|preciso|precisando|precisamos|necessito|alguem indica|indicacao|indicacoes|indiquem|indicam|indica|conhece|conhecem|recomenda|recomendam|recomendacao|quem faz|quem faca|contratar|quero pintar|gostaria de pintar|busco)\b/.test(
       t,
     );
   return procura && !oferta;
