@@ -425,7 +425,7 @@
     `lib/pedidoPintor.ts` (tela e rota), grava com service role. Tabela
     `pedidos_pintor`: RLS, SEM policy de INSERT, admin lê/altera/apaga. Sem a
     tabela a rota responde 503 amigável e o portal mostra qual SQL rodar.
-  - Portal v=20261110a: "🧰 Pedidos de pintor" (PRINCIPAL, badge = status
+  - Portal v=20261110b: "🧰 Pedidos de pintor" (PRINCIPAL, badge = status
     'novo'): gerador do link com cidade/origem, filtros por status, "Falar com
     o cliente" (wa.me), "Copiar para o pintor", campo "Encaminhado para" (muda
     pra 'encaminhado' sozinho) e apagar. Encaminhar é MANUAL.

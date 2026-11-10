@@ -19086,6 +19086,7 @@ const PEDIDO_STATUS = [{
   cor: '#6b6457'
 }];
 const LINK_PEDIR = 'https://www.queroumacor.com.br/pedir';
+const PEDIDOS_LIMITE = 300;
 
 // [teste:pedido-pintor-inicio]
 const textoDoPedidoParaPintor = p => {
@@ -19096,6 +19097,7 @@ const textoDoPedidoParaPintor = p => {
   linhas.push('Cliente: ' + (p.nome || '—') + (fone ? ' · wa.me/' + fone : ''));
   return linhas.join('\n');
 };
+const gravouRascunho = patch => !!patch && ('encaminhado_para' in patch || 'observacao' in patch);
 const linkPedirComOrigem = (cidade, origem) => {
   const q = [];
   const c = String(cidade || '').trim();
@@ -19107,17 +19109,45 @@ const linkPedirComOrigem = (cidade, origem) => {
 // [teste:pedido-pintor-fim]
 
 const PedidosPintor = () => {
+  const [filtro, setFiltro] = useState('novo');
+  // O filtro de status vai NA CONSULTA, antes do limite: filtrando em memoria
+  // depois de `limit`, um pedido novo antigo sumiria da tela (e o badge do
+  // menu seguiria contando ele) assim que 300 mais recentes passassem na frente.
   const {
     data,
     loading,
     error,
-    refetch
-  } = useSupabaseQuery(sb => sb.from('pedidos_pintor').select('*').order('created_at', {
-    ascending: false
-  }).limit(300), []);
+    refetch: recarregarLista
+  } = useSupabaseQuery(sb => {
+    let q = sb.from('pedidos_pintor').select('*');
+    if (filtro !== 'todos') q = q.eq('status', filtro);
+    return q.order('created_at', {
+      ascending: false
+    }).limit(PEDIDOS_LIMITE);
+  }, [filtro]);
+  // Contagens por status direto do banco (head + count), nao da lista limitada.
+  const {
+    data: contagens,
+    refetch: recarregarContagens
+  } = useSupabaseQuery(async sb => {
+    const rs = await Promise.all(PEDIDO_STATUS.map(st => sb.from('pedidos_pintor').select('id', {
+      count: 'exact',
+      head: true
+    }).eq('status', st.id)));
+    const out = {};
+    PEDIDO_STATUS.forEach((st, i) => {
+      out[st.id] = rs[i] && rs[i].count || 0;
+    });
+    return {
+      data: out
+    };
+  }, []);
+  const refetch = () => {
+    recarregarLista();
+    recarregarContagens();
+  };
   const pedidos = data || [];
   const tableMissing = error && /pedidos_pintor|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
-  const [filtro, setFiltro] = useState('novo');
   const [edit, setEdit] = useState({});
   const [salvando, setSalvando] = useState(null);
   const [linkCidade, setLinkCidade] = useState('Guarulhos');
@@ -19150,7 +19180,10 @@ const PedidosPintor = () => {
     setSalvando(p.id);
     try {
       await pedidosPintorService.update(p.id, patch);
-      setEdit(e => {
+      // So descarta o rascunho quando ELE foi gravado. Trocar o status pelo
+      // select manda so { status } — apagar o rascunho ali perderia o
+      // "Encaminhado para" e a observacao que a pessoa ainda nao salvou.
+      if (gravouRascunho(patch)) setEdit(e => {
         const n = {
           ...e
         };
@@ -19189,8 +19222,9 @@ const PedidosPintor = () => {
       }
     }, "A tabela ", /*#__PURE__*/React.createElement("code", null, "pedidos_pintor"), " ainda n\xE3o existe. Rode a migration ", /*#__PURE__*/React.createElement("code", null, "migrations/2026-11-10-pedidos-pintor.sql"), " no SQL Editor do Supabase."));
   }
-  const contagem = id => pedidos.filter(p => p.status === id).length;
-  const lista = filtro === 'todos' ? pedidos : pedidos.filter(p => p.status === filtro);
+  const contagem = id => contagens && contagens[id] || 0;
+  const totalGeral = PEDIDO_STATUS.reduce((n, st) => n + contagem(st.id), 0);
+  const lista = pedidos;
   const link = linkPedirComOrigem(linkCidade, linkOrigem);
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: box
@@ -19306,7 +19340,7 @@ const PedidosPintor = () => {
       fontWeight: 600,
       cursor: 'pointer'
     }
-  }, "Todos (", pedidos.length, ")"), /*#__PURE__*/React.createElement("button", {
+  }, "Todos (", totalGeral, ")"), /*#__PURE__*/React.createElement("button", {
     onClick: refetch,
     style: {
       marginLeft: 'auto',
@@ -19332,7 +19366,13 @@ const PedidosPintor = () => {
       color: C.muted,
       fontSize: 13
     }
-  }, "Nenhum pedido aqui ainda."), lista.map(p => {
+  }, "Nenhum pedido aqui ainda."), !loading && lista.length >= PEDIDOS_LIMITE && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 12,
+      marginBottom: 8
+    }
+  }, "Mostrando os ", PEDIDOS_LIMITE, " mais recentes deste filtro. Feche ou descarte os atendidos para ver os mais antigos."), lista.map(p => {
     const st = PEDIDO_STATUS.find(x => x.id === p.status) || PEDIDO_STATUS[0];
     const fone = String(p.telefone || '').replace(/\D/g, '');
     const e = edit[p.id] || {};

@@ -178,15 +178,32 @@ describe('página /pedir e SQL', () => {
   it('helpers do portal: texto pro pintor e link com origem', () => {
     const jsx = ler('public/portal/app.jsx');
     const trecho = jsx.split('// [teste:pedido-pintor-inicio]')[1].split('// [teste:pedido-pintor-fim]')[0];
-    const fn = new Function("const LINK_PEDIR='https://www.queroumacor.com.br/pedir';" + trecho + ';return {textoDoPedidoParaPintor, linkPedirComOrigem};');
+    const fn = new Function("const LINK_PEDIR='https://www.queroumacor.com.br/pedir';" + trecho + ';return {textoDoPedidoParaPintor, linkPedirComOrigem, gravouRascunho};');
     const h = fn() as {
       textoDoPedidoParaPintor: (p: Record<string, string>) => string;
       linkPedirComOrigem: (c: string, o: string) => string;
+      gravouRascunho: (p: Record<string, unknown>) => boolean;
     };
     expect(h.linkPedirComOrigem('São Paulo', 'QR Loja!')).toBe('https://www.queroumacor.com.br/pedir?cidade=S%C3%A3o%20Paulo&o=qrloja');
     expect(h.linkPedirComOrigem('', '')).toBe('https://www.queroumacor.com.br/pedir');
     const t = h.textoDoPedidoParaPintor({ servico: 'Pintura interna', cidade: 'Guarulhos', bairro: 'Pimentas', descricao: 'Apto', nome: 'Maria', telefone: '5511912345678' });
     expect(t).toContain('Pimentas, Guarulhos');
     expect(t).toContain('wa.me/5511912345678');
+  });
+  it('trocar só o status NÃO descarta o rascunho de encaminhamento (Codex, #521)', () => {
+    const jsx = ler('public/portal/app.jsx');
+    const trecho = jsx.split('// [teste:pedido-pintor-inicio]')[1].split('// [teste:pedido-pintor-fim]')[0];
+    const { gravouRascunho } = new Function(trecho + ';return {gravouRascunho};')() as {
+      gravouRascunho: (p: Record<string, unknown>) => boolean;
+    };
+    expect(gravouRascunho({ status: 'fechado' })).toBe(false);
+    expect(gravouRascunho({ encaminhado_para: 'Léo', observacao: null })).toBe(true);
+    expect(jsx).toMatch(/if \(gravouRascunho\(patch\)\) setEdit/);
+  });
+  it('o filtro de status vai na consulta, antes do limite (Codex, #521)', () => {
+    const jsx = ler('public/portal/app.jsx');
+    const tela = jsx.split('const PedidosPintor = () => {')[1].split('const PAGES_DEF')[0];
+    expect(tela).toMatch(/q = q\.eq\('status', filtro\)[\s\S]*\.limit\(PEDIDOS_LIMITE\)/);
+    expect(tela).not.toMatch(/pedidos\.filter\(p => p\.status/);
   });
 });
