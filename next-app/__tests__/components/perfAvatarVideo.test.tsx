@@ -85,6 +85,12 @@ describe('vídeo do feed', () => {
   const montar = () =>
     render(<PostMedia url="https://x/v.mp4" mediaType="video" muted onToggleMute={() => {}} />);
 
+  it('nasce com poster vazio: a WebView nunca desenha o ▶ cinza do sistema', () => {
+    const { container } = montar();
+    const poster = container.querySelector('video')!.getAttribute('poster') ?? '';
+    expect(poster.startsWith('data:image/gif;base64,')).toBe(true);
+  });
+
   it('entrou na tela → spinner, nunca o ▶ enquanto carrega', async () => {
     const { container } = montar();
     expect(container.querySelector('[aria-label="Tocar vídeo"]')).toBeNull();
