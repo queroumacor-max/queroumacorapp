@@ -406,8 +406,11 @@
 - **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
   pedido do usuário depois de colar uma lista de 10 anúncios achados em
   InfoJobs/Empregos.com.br/classificado de condomínio). SQL
-  `migrations/2026-11-10-b-oportunidades.sql` — PASSADO NO CHAT, AINDA NÃO
-  CONFIRMADO RODADO.** Cadastro MANUAL pelo portal (nada de robô: os sites de
+  `migrations/2026-11-10-b-oportunidades.sql` — JÁ RODADO (2026-11-10,
+  usuário: "rodei tudo, deu true" — conferência final das 6 linhas; no chat
+  foi passada uma versão com `regime`/`conferido_em`/`chave` já dentro do
+  CREATE TABLE, + a carga das 9 vagas em `status='conferir'`). Não pedir pra
+  rodar de novo.** Cadastro MANUAL pelo portal (nada de robô: os sites de
   origem proíbem coleta automática), com classificação:
   `tipo='vaga'` (empresa contratando pintor) × `tipo='pedido'` (pessoa
   procurando pintor); `status` conferir → ativa → encerrada.
@@ -430,8 +433,10 @@
     DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
     procurar" com as buscas prontas do Google.
   - **LEITURA AUTOMÁTICA DOS MURAIS DE CONDOMÍNIO (2026-11-10). SQL
-    `migrations/2026-11-10-c-oportunidades-fontes.sql` — PASSADO NO CHAT,
-    AINDA NÃO CONFIRMADO RODADO.** Histórico da decisão: os 4 murais
+    `migrations/2026-11-10-c-oportunidades-fontes.sql` — JÁ RODADO
+    (2026-11-10, usuário: "rodei tudo, deu true": 4 murais, chave única e
+    cron `oportunidades-varredura`). Não pedir pra rodar de novo. Falta o
+    usuário testar o "▶ Ler agora" no portal (1ª leitura contra o banco real).** Histórico da decisão: os 4 murais
     (plataforma Vida de Síndico: parquesantaclara / costadosolbutanta /
     vivazprimecachoeirinha / condominiofrancasp `.com.br/classificados`) têm o
     MESMO robots.txt, que termina em `User-agent: *` / `Disallow: /`. Por isso
