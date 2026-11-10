@@ -6,7 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { fetchVagasAtivas } from '@/lib/services/vagas';
-import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga, type Vaga } from '@/lib/vagas';
+import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga, rotuloDoRegime, type Vaga } from '@/lib/vagas';
 import { abrirLinkExterno } from '@/lib/native/browser';
 
 function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
@@ -14,6 +14,8 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
   const link = linkDoContato(vaga);
   const fonte = fonteSegura(vaga.fonte_url);
   const data = dataDoAnuncio(vaga.anuncio_em);
+  const regime = rotuloDoRegime(vaga.regime);
+  const conferida = dataDoAnuncio(vaga.conferido_em);
   return (
     <article className="rounded-2xl bg-[color:var(--color-white)] border border-[color:var(--color-border)] p-4">
       <h3 className="font-bold text-base leading-snug" style={{ overflowWrap: 'anywhere' }}>
@@ -24,9 +26,18 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
           {[vaga.empresa, local].filter(Boolean).join(' · ')}
         </p>
       )}
-      {vaga.remuneracao && (
-        <p className="mt-2 inline-block rounded-md bg-[color:var(--color-bg)] px-2 py-1 text-xs font-bold">
-          {vaga.remuneracao}
+      {(vaga.remuneracao || regime) && (
+        <p className="mt-2 flex flex-wrap gap-1.5">
+          {regime && (
+            <span className="rounded-md bg-[color:var(--color-ink-fixed)] text-[color:var(--color-white-fixed)] px-2 py-1 text-xs font-bold">
+              {regime}
+            </span>
+          )}
+          {vaga.remuneracao && (
+            <span className="rounded-md bg-[color:var(--color-bg)] px-2 py-1 text-xs font-bold">
+              {vaga.remuneracao}
+            </span>
+          )}
         </p>
       )}
       {vaga.descricao && (
@@ -60,7 +71,7 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
         )}
       </div>
       <p className="text-[11px] text-[color:var(--color-muted)] mt-2">
-        {[data ? `Anúncio de ${data}` : null, vaga.fonte ? `Fonte: ${vaga.fonte}` : null]
+        {[data ? `Anúncio de ${data}` : null, conferida ? `Conferida em ${conferida}` : null, vaga.fonte ? `Fonte: ${vaga.fonte}` : null]
           .filter(Boolean)
           .join(' · ')}
       </p>

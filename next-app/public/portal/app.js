@@ -371,15 +371,30 @@ const pedidosPintorService = {
 // condominio, grupo de moradores), cadastradas a mao e classificadas aqui.
 // Tabela `oportunidades` (migrations/2026-11-10-b-oportunidades.sql).
 const oportunidadesService = {
+  // `regime`/`conferido_em` vieram num ALTER depois da tabela. Banco sem elas
+  // recusa a escrita (42703/PGRST204): refaz sem as duas, pra o cadastro nao
+  // parar por SQL pendente.
+  semColunasNovas: o => {
+    const n = {
+      ...o
+    };
+    delete n.regime;
+    delete n.conferido_em;
+    return n;
+  },
+  faltaColunaNova: e => !!e && (e.code === '42703' || e.code === 'PGRST204') && /regime|conferido_em/.test(e.message || ''),
   insert: async o => {
-    const r = await supa.from('oportunidades').insert(o);
+    let r = await supa.from('oportunidades').insert(o);
+    if (oportunidadesService.faltaColunaNova(r.error)) r = await supa.from('oportunidades').insert(oportunidadesService.semColunasNovas(o));
     if (r.error) throw r.error;
   },
   update: async (id, patch) => {
-    const r = await supa.from('oportunidades').update({
+    const linha = {
       ...patch,
       updated_at: new Date().toISOString()
-    }).eq('id', id).select('id');
+    };
+    let r = await supa.from('oportunidades').update(linha).eq('id', id).select('id');
+    if (oportunidadesService.faltaColunaNova(r.error)) r = await supa.from('oportunidades').update(oportunidadesService.semColunasNovas(linha)).eq('id', id).select('id');
     if (r.error) throw r.error;
     if (!r.data || r.data.length === 0) throw new Error('nenhuma linha alterada (sem permissão ou registro não existe)');
   },
@@ -19584,6 +19599,27 @@ const OPORT_STATUS = [{
   label: 'Encerrada',
   cor: '#6b6457'
 }];
+const OPORT_REGIMES = [{
+  id: '',
+  label: 'Não informado'
+}, {
+  id: 'diaria',
+  label: 'Diária'
+}, {
+  id: 'temporario',
+  label: 'Temporário'
+}, {
+  id: 'clt',
+  label: 'CLT'
+}, {
+  id: 'pj',
+  label: 'PJ / MEI'
+}, {
+  id: 'orcamento',
+  label: 'Pedido de orçamento'
+}];
+// Buscas prontas pra achar anuncio novo (a equipe abre, le e cadastra a mao).
+const OPORT_BUSCAS = ['site:infojobs.com.br/vaga-de "pintor predial" "WhatsApp" "Guarulhos"', 'site:empregos.com.br "pintor" "temporária" "WhatsApp" "São Paulo"', '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo', '"pintor" "MEI" "WhatsApp" "Guarulhos"', '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly'];
 
 // [teste:oportunidades-inicio]
 // Le o texto colado de um anuncio e SUGERE tipo, telefone, remuneracao e se o
@@ -19597,10 +19633,12 @@ const lerAnuncio = texto => {
   const nVaga = conta(sinaisVaga),
     nPedido = conta(sinaisPedido);
   const tipo = nPedido > nVaga ? 'pedido' : nVaga > 0 ? 'vaga' : '';
+  const regime = tipo === 'pedido' ? 'orcamento' : /\bdiaria\b/.test(baixo) ? 'diaria' : /temporari/.test(baixo) ? 'temporario' : /\bclt\b/.test(baixo) ? 'clt' : /\b(pj|mei)\b/.test(baixo) ? 'pj' : '';
   const fone = t.match(/\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/);
   const grana = t.match(/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s?(?:a|até|-)\s?R\$\s?\d[\d.]*(?:,\d{2})?)?(?:\s?(?:\/|por)\s?(?:m[eê]s|dia|hora|semana))?/i);
   return {
     tipo,
+    regime,
     contato: fone ? fone[0].trim() : '',
     remuneracao: grana ? grana[0].trim() : '',
     whatsapp: /whats|zap|wpp/.test(baixo)
@@ -19612,6 +19650,14 @@ const fonteUrlValida = u => {
   return s === '' || /^https:\/\/\S+$/i.test(s);
 };
 const oportunidadeVisivelNoApp = o => !!o && o.tipo === 'vaga' && o.status === 'ativa';
+// Mesmo anuncio aparece em mais de um site (a vaga do Grupo VRS estava no
+// InfoJobs e no Curriculum). Duplicata = mesmo telefone (8 ultimos digitos),
+// tirando o proprio registro em edicao.
+const duplicatasDe = (contato, lista, ignorarId) => {
+  const fim = String(contato || '').replace(/\D/g, '').slice(-8);
+  if (fim.length < 8) return [];
+  return (lista || []).filter(o => o.id !== ignorarId && String(o.contato || '').replace(/\D/g, '').slice(-8) === fim);
+};
 // [teste:oportunidades-fim]
 
 const Oportunidades = () => {
@@ -19632,7 +19678,15 @@ const Oportunidades = () => {
   }, [fTipo, fStatus]);
   const itens = data || [];
   const tableMissing = error && /oportunidades|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
+
+  // Telefones de TUDO que ja esta cadastrado (qualquer filtro), pra avisar
+  // de duplicata antes de salvar.
+  const {
+    data: todosContatos,
+    refetch: recarregarContatos
+  } = useSupabaseQuery(sb => sb.from('oportunidades').select('id, titulo, contato, status').not('contato', 'is', null).limit(2000), []);
   const vazio = {
+    regime: '',
     tipo: '',
     titulo: '',
     empresa: '',
@@ -19692,6 +19746,7 @@ const Oportunidades = () => {
     setForm(f => ({
       ...f,
       tipo: r.tipo || f.tipo,
+      regime: f.regime || r.regime,
       contato: f.contato || r.contato,
       remuneracao: f.remuneracao || r.remuneracao,
       contato_whatsapp: r.contato ? r.whatsapp : f.contato_whatsapp,
@@ -19711,10 +19766,17 @@ const Oportunidades = () => {
       alert('O link do anúncio precisa começar com https://');
       return;
     }
+    const repetidas = duplicatasDe(form.contato, todosContatos, editId);
+    if (repetidas.length && !confirm('Já existe cadastro com esse telefone: "' + repetidas[0].titulo + '". Salvar mesmo assim?')) return;
     const linha = {
       tipo: form.tipo,
       status: form.status,
       titulo: form.titulo.trim(),
+      regime: form.regime || null,
+      // "Ativa" = alguem acabou de confirmar que vale: carimba a checagem.
+      ...(form.status === 'ativa' ? {
+        conferido_em: new Date().toISOString()
+      } : {}),
       empresa: form.empresa.trim() || null,
       cidade: form.cidade.trim() || null,
       bairro: form.bairro.trim() || null,
@@ -19734,6 +19796,7 @@ const Oportunidades = () => {
       setEditId(null);
       setColado('');
       refetch();
+      recarregarContatos();
     } catch (e) {
       alert('Erro ao salvar: ' + (e.message || 'tente novamente'));
     } finally {
@@ -19753,7 +19816,10 @@ const Oportunidades = () => {
   };
   const mudarStatus = async (o, status) => {
     try {
-      await oportunidadesService.update(o.id, {
+      await oportunidadesService.update(o.id, status === 'ativa' ? {
+        status,
+        conferido_em: new Date().toISOString()
+      } : {
         status
       });
       refetch();
@@ -19840,6 +19906,20 @@ const Oportunidades = () => {
     onClick: () => set('tipo', t.id),
     style: chip(form.tipo === t.id)
   }, t.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12,
+      maxWidth: 260
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Regime"), /*#__PURE__*/React.createElement("select", {
+    value: form.regime || '',
+    onChange: e => set('regime', e.target.value),
+    style: inputStyle
+  }, OPORT_REGIMES.map(x => /*#__PURE__*/React.createElement("option", {
+    key: x.id,
+    value: x.id
+  }, x.label)))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '2fr 1fr',
@@ -20014,6 +20094,34 @@ const Oportunidades = () => {
     style: box
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      fontWeight: 700,
+      marginBottom: 6,
+      color: C.ink
+    }
+  }, "\uD83D\uDD0E Onde procurar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 10
+    }
+  }, "Buscas prontas no Google. Abra o an\xFAncio, confira de quem \xE9 o telefone, o local, o valor e a data, e cadastre acima."), OPORT_BUSCAS.map(b => /*#__PURE__*/React.createElement("div", {
+    key: b,
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    href: urlSegura('https://www.google.com/search?q=' + encodeURIComponent(b)),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontSize: 12,
+      color: C.p1,
+      overflowWrap: 'anywhere'
+    }
+  }, b, " \u2197")))), /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       display: 'flex',
       gap: 8,
       flexWrap: 'wrap',
@@ -20137,7 +20245,7 @@ const Oportunidades = () => {
         color: C.muted,
         marginTop: 6
       }
-    }, o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato', o.contato_obs ? ' · ' + o.contato_obs : '', o.fonte ? ' · Fonte: ' + o.fonte : '', o.anuncio_em ? ' · Anúncio de ' + String(o.anuncio_em).split('-').reverse().join('/') : '')), /*#__PURE__*/React.createElement("div", {
+    }, o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato', o.contato_obs ? ' · ' + o.contato_obs : '', o.fonte ? ' · Fonte: ' + o.fonte : '', o.anuncio_em ? ' · Anúncio de ' + String(o.anuncio_em).split('-').reverse().join('/') : '', o.regime ? ' · ' + ((OPORT_REGIMES.find(x => x.id === o.regime) || {}).label || o.regime) : '', o.conferido_em ? ' · Conferida em ' + new Date(o.conferido_em).toLocaleDateString() : '')), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         flexDirection: 'column',

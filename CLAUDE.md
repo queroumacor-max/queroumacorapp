@@ -415,7 +415,7 @@
     é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
     equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
     na tela.
-  - Portal v=20261110c: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+  - Portal v=20261110d: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
     conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
     remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
     publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
@@ -424,6 +424,11 @@
     WhatsApp" (wa.me com mensagem citando a vaga, por `abrirLinkExterno`),
     "Ver anúncio", data e fonte, e o aviso de que a contratação é com quem
     anunciou. Tabela ausente → lista vazia. Passo novo no tour (`p-vagas`).
+  - 2ª leva no mesmo PR (#522): `regime` (diaria/temporario/clt/pj/orcamento)
+    e `conferido_em` (carimbado ao marcar Ativa) por ALTER idempotente — app
+    e portal TOLERAM a ausência (refazem sem as duas colunas); aviso de
+    DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
+    procurar" com as buscas prontas do Google.
   - **A carga dos 10 anúncios NÃO está no repo** (telefone não vai pro git —
     lição dos 986 contatos): foi passada no chat como INSERT, tudo em
     `status='conferir'` (nada aparece no app até alguém conferir). Os dados

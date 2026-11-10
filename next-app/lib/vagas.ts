@@ -19,6 +19,9 @@ export interface Vaga {
   fonte_url: string | null;
   anuncio_em: string | null;
   created_at: string;
+  /** Colunas de 10/11 (2ª leva): ausentes se o ALTER ainda não rodou. */
+  regime?: string | null;
+  conferido_em?: string | null;
 }
 
 export function localDaVaga(v: Pick<Vaga, 'cidade' | 'bairro'>): string {
@@ -53,4 +56,16 @@ export function fonteSegura(url: string | null | undefined): string | null {
 export function dataDoAnuncio(ymd: string | null | undefined): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd ?? '');
   return m ? `${m[3]}/${m[2]}/${m[1]}` : null;
+}
+
+const ROTULO_REGIME: Record<string, string> = {
+  diaria: 'Diária',
+  temporario: 'Temporário',
+  clt: 'CLT',
+  pj: 'PJ / MEI',
+};
+
+/** Rótulo do regime pra tela; valor desconhecido ou vazio → null. */
+export function rotuloDoRegime(regime: string | null | undefined): string | null {
+  return (regime && ROTULO_REGIME[regime]) || null;
 }

@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga } from '@/lib/vagas';
+import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga, rotuloDoRegime } from '@/lib/vagas';
 import { ehTabelaAusente } from '@/lib/services/vagas';
 
 const raiz = join(__dirname, '..');
@@ -32,6 +32,11 @@ describe('lib/vagas', () => {
     expect(dataDoAnuncio(null)).toBe(null);
     expect(localDaVaga({ bairro: 'Vila Aeroporto', cidade: 'Guarulhos' })).toBe('Vila Aeroporto, Guarulhos');
   });
+  it('regime vira rótulo; desconhecido ou vazio não aparece', () => {
+    expect(rotuloDoRegime('clt')).toBe('CLT');
+    expect(rotuloDoRegime('orcamento')).toBe(null);
+    expect(rotuloDoRegime(null)).toBe(null);
+  });
   it('tabela ausente é reconhecida (a tela fica vazia em vez de quebrar)', () => {
     expect(ehTabelaAusente({ code: '42P01', message: 'x' })).toBe(true);
     expect(ehTabelaAusente({ code: 'PGRST205', message: 'x' })).toBe(true);
@@ -58,6 +63,15 @@ describe('SQL de oportunidades', () => {
   });
 });
 
+describe('colunas da 2ª leva (regime, conferido_em)', () => {
+  it('entram por ALTER idempotente e o serviço refaz a consulta sem elas', () => {
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS regime');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS conferido_em');
+    const svc = ler('lib/services/vagas.ts');
+    expect(svc).toContain('consultar(COLUNAS_BASE)');
+  });
+});
+
 describe('app', () => {
   it('o serviço filtra vaga ativa mesmo pra admin (que a RLS deixa ver tudo)', () => {
     const svc = ler('lib/services/vagas.ts');
@@ -77,8 +91,9 @@ describe('app', () => {
 describe('portal', () => {
   const jsx = ler('public/portal/app.jsx');
   const trecho = jsx.split('// [teste:oportunidades-inicio]')[1].split('// [teste:oportunidades-fim]')[0];
-  const h = new Function(trecho + ';return {lerAnuncio, fonteUrlValida, oportunidadeVisivelNoApp};')() as {
-    lerAnuncio: (t: string) => { tipo: string; contato: string; remuneracao: string; whatsapp: boolean };
+  const h = new Function(trecho + ';return {lerAnuncio, fonteUrlValida, oportunidadeVisivelNoApp, duplicatasDe};')() as {
+    lerAnuncio: (t: string) => { tipo: string; regime: string; contato: string; remuneracao: string; whatsapp: boolean };
+    duplicatasDe: (c: string, l: { id: string; contato: string }[], ign?: string | null) => { id: string }[];
     fonteUrlValida: (u: string) => boolean;
     oportunidadeVisivelNoApp: (o: { tipo: string; status: string }) => boolean;
   };
@@ -86,6 +101,7 @@ describe('portal', () => {
   it('anúncio de emprego é sugerido como vaga, com telefone, salário e WhatsApp', () => {
     const r = h.lerAnuncio('Vaga temporária de Pintor Predial. Salário R$ 2.612,74 por mês, vale-transporte. Envie o currículo pelo WhatsApp (11) 96655-8012.');
     expect(r.tipo).toBe('vaga');
+    expect(r.regime).toBe('temporario');
     expect(r.contato).toBe('(11) 96655-8012');
     expect(r.remuneracao).toContain('R$ 2.612,74');
     expect(r.whatsapp).toBe(true);
@@ -93,6 +109,7 @@ describe('portal', () => {
   it('morador pedindo indicação é sugerido como pedido', () => {
     const r = h.lerAnuncio('Moradora do bloco B: alguém indica pintor? Preciso de pintor para a sala. Tel 11 97261-0001');
     expect(r.tipo).toBe('pedido');
+    expect(r.regime).toBe('orcamento');
     expect(r.contato).toBe('11 97261-0001');
     expect(r.whatsapp).toBe(false);
   });
@@ -103,6 +120,16 @@ describe('portal', () => {
     expect(h.oportunidadeVisivelNoApp({ tipo: 'vaga', status: 'ativa' })).toBe(true);
     expect(h.oportunidadeVisivelNoApp({ tipo: 'vaga', status: 'conferir' })).toBe(false);
     expect(h.oportunidadeVisivelNoApp({ tipo: 'pedido', status: 'ativa' })).toBe(false);
+  });
+  it('avisa de duplicata pelo telefone, mesmo com máscara diferente, sem contar o próprio registro', () => {
+    const lista = [{ id: 'a', contato: '(11) 96655-8012' }, { id: 'b', contato: '11 91348-4655' }];
+    expect(h.duplicatasDe('5511966558012', lista).map((o) => o.id)).toEqual(['a']);
+    expect(h.duplicatasDe('(11) 96655-8012', lista, 'a')).toEqual([]);
+    expect(h.duplicatasDe('', lista)).toEqual([]);
+  });
+  it('publicar carimba a data da checagem, e a escrita sobrevive ao banco sem as colunas novas', () => {
+    expect(jsx).toMatch(/status === 'ativa' \? \{ status, conferido_em: new Date\(\)\.toISOString\(\) \}/);
+    expect(jsx).toContain('oportunidadesService.faltaColunaNova(r.error)');
   });
   it('link do anúncio: vazio ou https', () => {
     expect(h.fonteUrlValida('')).toBe(true);

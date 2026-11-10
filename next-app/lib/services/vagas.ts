@@ -10,8 +10,9 @@ import { getSupabase } from '@/lib/supabase';
 import { NetworkError } from '@/lib/errors';
 import type { Vaga } from '@/lib/vagas';
 
-const COLUNAS =
+const COLUNAS_BASE =
   'id, titulo, empresa, cidade, bairro, descricao, remuneracao, contato, contato_whatsapp, contato_obs, fonte, fonte_url, anuncio_em, created_at';
+const COLUNAS = `${COLUNAS_BASE}, regime, conferido_em`;
 
 interface Resposta {
   data: Vaga[] | null;
@@ -40,14 +41,23 @@ export function ehTabelaAusente(error: { message?: string; code?: string } | nul
   return error.code === '42P01' || error.code === 'PGRST205' || /oportunidades.*(does not exist|schema cache)/i.test(error.message ?? '');
 }
 
-export async function fetchVagasAtivas(): Promise<Vaga[]> {
-  const { data, error } = await cliente()
+function consultar(colunas: string) {
+  return cliente()
     .from('oportunidades')
-    .select(COLUNAS)
+    .select(colunas)
     .eq('tipo', 'vaga')
     .eq('status', 'ativa')
     .order('created_at', { ascending: false })
     .limit(100);
+}
+
+export async function fetchVagasAtivas(): Promise<Vaga[]> {
+  let { data, error } = await consultar(COLUNAS);
+  // `regime`/`conferido_em` vieram num ALTER depois: sem eles (42703) a lista
+  // sai sem o selo, em vez de a tela inteira falhar por SQL pendente.
+  if (error && (error.code === '42703' || /regime|conferido_em/.test(error.message ?? ''))) {
+    ({ data, error } = await consultar(COLUNAS_BASE));
+  }
   if (error) {
     if (ehTabelaAusente(error)) return [];
     throw new NetworkError('Não consegui carregar as vagas.', error);
