@@ -525,6 +525,19 @@
       pra rodar de novo.** Portal mostra endereço e CEP na linha do mural (tolera a
       coluna ausente). O bairro do mural passa a ir no pedido lido. É endereço
       do PRÉDIO (público), não de morador.
+    - **MAIS 27 MURAIS (2026-11-10, 4º JSON do usuário, 121 murais).** SQL
+      `migrations/2026-11-10-h-oportunidade-fontes-mais-27.sql` (22 ativos, 5
+      vazios pausados, já com endereço/bairro/CEP; total 117) — **PASSADO NO
+      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram cidades novas (Birigui,
+      Cajamar, Cotia, Diadema, Jundiaí, Mairiporã, Santo André, SBC, São
+      Caetano, Sorocaba, Sumaré…). DE FORA: 2 Canal Condomínio, 1 Class Condo
+      (Villaggio di Verona) e o site próprio da Alphaville Bauru (outro
+      formato/autorização). Pendentes do JSON (7, não cadastrados): Vivaz
+      Jardim Prudência e Floriza II (502), Pin Internacional Guarulhos (sem
+      link de mural), Vila das Castanheiras e Edge (redirecionam pro site da
+      plataforma), Contrata Tiradentes (outra plataforma), Aruã Brisas (não
+      verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
+      é lido a cada ~1,5 dia. SEM mudança de código.
     - **Endereço, filtro e palavras-chave NO AR: PR #526 (squash `64cb298`),
       deploy run #814 `success`.** Telas não conferidas no portal logado.
     - Portal v=20261110i (filtro Todos/Ativos/Pausados + busca na lista de murais; caixa "🤖 Leitura automática dos murais"). Ambiente
