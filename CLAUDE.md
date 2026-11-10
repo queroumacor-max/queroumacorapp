@@ -389,6 +389,51 @@
     `sync_role_from_user_type` (31/10) e `protect_profile_columns` (25/10)
     estão certos no repo. Causa NÃO achada no código — falta ver o banco
     (consulta passada no chat: últimos perfis × `raw_user_meta_data`).
+    **CAUSA ACHADA NO BANCO (2026-11-09, prints do usuário):** João Victor
+    ficou `user_type=automotivo`, `role=cliente`. Existe uma 2ª trava
+    `zz_protect_profile_columns` (criada FORA do repo, mesma função
+    `protect_profile_columns`) que roda DEPOIS do
+    `trg_sync_role_from_user_type` (ordem alfabética) e desfaz o role que o
+    sync escreveu. Fix: `migrations/2026-11-09-drop-zz-protect-profile-columns
+    .sql` (DROP da zz + backfill dos divididos + conferência). **JÁ RODADO
+    (2026-11-09, print do usuário: "zz removida" e "ninguém dividido" =
+    true). Não pedir pra rodar de novo.** Falta o Fabio testar um cadastro
+    novo (Google/Apple escolhendo Funileiro + e-mail escolhendo Grafiteiro). REGRA: trigger que "precisa rodar
+    por último" não se resolve com nome `zz_` — ele vira dono da palavra
+    final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
+    antes de concluir que o banco é igual ao repo.
+
+- **"PRECISA DE PINTOR?" — PÁGINA PÚBLICA /pedir + TELA NO PORTAL
+  (2026-11-10, pedido do usuário: trazer clientes procurando pintor; "pode
+  fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — PASSADO NO CHAT,
+  AINDA NÃO CONFIRMADO RODADO.** Contexto da decisão: raspar Facebook/GetNinjas
+  foi DESCARTADO (termos dos sites, risco pro número do WhatsApp, LGPD); nenhum
+  site (GetNinjas, Cronoshare, Workfly, Clique Local) autoriza replicar pedidos.
+  O caminho é ter um link próprio pra colar em grupo de moradores, QR da loja e
+  anúncio. O "Mural de Pedidos" completo (push pros pintores, responder gasta 1
+  pacote, limite de 5 respostas — prévia aprovada em imagem) NÃO foi feito:
+  fica pra quando houver volume; as 4 decisões dele (limite, custo, raio,
+  categorias) seguem em aberto.
+  - `/pedir` (SEM AppShell, sem login; `?cidade=` troca o título, `?o=` marca a
+    origem; lê a query no SERVIDOR pra o formulário sair no HTML): serviço,
+    descrição, cidade/bairro, prazo, nome, WhatsApp e checkbox de autorização
+    de repassar o contato a pintores parceiros. SEM FOTO de propósito (upload
+    anônimo cairia fora da moderação de mídia). Sitemap + Política de
+    Privacidade (10/11/2026) atualizados.
+  - `POST /api/pedidos-pintor`: teto 16 KB, rate limit 5/min por IP, campo-isca
+    `site` (preenchido → responde ok e não grava), validação única em
+    `lib/pedidoPintor.ts` (tela e rota), grava com service role. Tabela
+    `pedidos_pintor`: RLS, SEM policy de INSERT, admin lê/altera/apaga. Sem a
+    tabela a rota responde 503 amigável e o portal mostra qual SQL rodar.
+  - Portal v=20261110b: "🧰 Pedidos de pintor" (PRINCIPAL, badge = status
+    'novo'): gerador do link com cidade/origem, filtros por status, "Falar com
+    o cliente" (wa.me), "Copiar para o pintor", campo "Encaminhado para" (muda
+    pra 'encaminhado' sozinho) e apagar. Encaminhar é MANUAL.
+  - Teste `__tests__/pedidoPintor.test.ts`. Conferido com Playwright em 360px
+    no `next start` (PRECISA de `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY` de teste
+    no build — sem elas o AuthProvider entra em loop de recarga; e matar o
+    servidor com `pkill -f next-server`, senão o teste roda na build velha).
+    Tela do portal NÃO conferida no navegador.
 
 - **DESEMPENHO: AVATAR DO "SEU STORY" + VÍDEO DO FEED (2026-11-06, pedido
   do usuário: "a bolinha tem delay" e "o vídeo fica 3-4s preto com o play").
@@ -414,7 +459,8 @@
   `__tests__/components/perfAvatarVideo.test.tsx`. **Não medido em
   aparelho real.** Não mexido: MP4 de celular com `moov` no fim (exige
   baixar o fim do arquivo antes de tocar) — só se resolve re-encodando no
-  upload.
+  upload. **NO AR: PR #519 (squash `f84aebf`), deploy run #808 `success`.**
+  Não confirmado no aparelho.
 
 - **TOPNAV: O SINO SAÍA DA TELA NO /notificacoes (2026-11-06, print do
   usuário). SEM SQL.** Seta de voltar + logo + selo ADMIN + sino não cabiam:

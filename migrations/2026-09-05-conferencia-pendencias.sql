@@ -144,3 +144,6 @@ SELECT 'pro trial: trg_grant_pro_trial ligado — 2026-11-04' AS item, EXISTS (S
 
 -- 2026-11-04 (PRO grátis: 30 dias até 31/12, depois 7).
 SELECT 'pro trial: 30 dias ate 31/12, 7 depois — 2026-11-04' AS item, EXISTS (SELECT 1 FROM pg_proc WHERE proname='grant_pro_trial' AND prosrc LIKE '%c.dias_depois%') AS ok;
+
+-- 2026-11-10 (pedidos de pintor pela página pública /pedir).
+SELECT 'pedidos_pintor: tabela com RLS e sem policy de INSERT — 2026-11-10' AS item, (to_regclass('public.pedidos_pintor') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='pedidos_pintor' AND cmd IN ('INSERT','ALL'))) AS ok;

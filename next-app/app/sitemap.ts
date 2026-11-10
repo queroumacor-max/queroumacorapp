@@ -40,6 +40,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Entrada / cadastro (públicas)
     entry('/login', 'monthly', 0.5),
     entry('/signup', 'monthly', 0.6),
+    // Pedido de pintor sem login (2026-11-10) — a porta de entrada do cliente.
+    entry('/pedir', 'weekly', 0.9),
 
     // Institucional / legal (públicas)
     entry('/info', 'monthly', 0.5),
