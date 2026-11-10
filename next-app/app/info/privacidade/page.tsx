@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacidadePage() {
   return (
     <InfoSubPage title="Política de Privacidade">
-      <LegalUpd>Última atualização: 25 de outubro de 2026</LegalUpd>
+      <LegalUpd>Última atualização: 10 de novembro de 2026</LegalUpd>
       <LegalP>
         Esta Política de Privacidade explica como o QueroUmaCor coleta, usa,
         compartilha e protege os seus dados pessoais, em conformidade com a Lei
@@ -39,6 +39,13 @@ export default function PrivacidadePage() {
         cidade e estado, @usuário, tipo de usuário (cliente ou profissional) e
         foto de perfil (opcional). Se você entrar com Google ou Apple, recebemos
         desses serviços o seu nome e e-mail.
+        <br />
+        <b>Pedido de pintor sem cadastro:</b> quem preenche a página
+        &quot;Precisa de pintor?&quot; informa nome, telefone, cidade, bairro
+        e a descrição do serviço. Com a sua autorização, dada no próprio
+        formulário, a equipe da Cali Colors repassa esses dados a pintores
+        parceiros somente para aquele orçamento. Você pode pedir a exclusão
+        a qualquer momento pelos canais do item 1.
         <br />
         <b>Dados do perfil profissional:</b> especialidades, raio de atendimento,
         formação, cursos, logotipo, links de Instagram/site e fotos e vídeos do

@@ -345,6 +345,27 @@ const storesService = {
     if (r.error) throw r.error;
   }
 };
+
+// Pedidos de pintor — vem da pagina PUBLICA /pedir do app (quem procura
+// pintor preenche sem login). Tabela `pedidos_pintor`
+// (migrations/2026-11-10-pedidos-pintor.sql): so admin le/altera; quem
+// insere e a rota /api/pedidos-pintor, com service role.
+const pedidosPintorService = {
+  update: async (id, patch) => {
+    // .select('id'): update que nao acha linha (RLS) volta SUCESSO com zero
+    // linhas — sem conferir, a tela diria que salvou e nada mudava.
+    const r = await supa.from('pedidos_pintor').update({
+      ...patch,
+      updated_at: new Date().toISOString()
+    }).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data || r.data.length === 0) throw new Error('nenhuma linha alterada (sem permissão ou pedido não existe)');
+  },
+  remove: async id => {
+    const r = await supa.from('pedidos_pintor').delete().eq('id', id);
+    if (r.error) throw r.error;
+  }
+};
 const postsService = {
   setStatus: async (id, status) => {
     // .select('id'): update que não acha linha (RLS) volta SUCESSO com zero
@@ -19041,6 +19062,440 @@ const ComprasApp = () => {
     }
   }, "DESLIGADA")) : null))) : null);
 };
+
+// ══ PEDIDOS DE PINTOR (pagina publica /pedir) ══
+// Quem procura pintor preenche o formulario sem login; o pedido cai aqui e a
+// equipe encaminha a um pintor a mao. A pessoa autorizou passar o contato
+// "a pintores parceiros, so para este orcamento" — por isso o botao de
+// copiar leva nome e telefone, e por isso NAO ha exportacao em massa.
+const PEDIDO_STATUS = [{
+  id: 'novo',
+  label: 'Novo',
+  cor: '#e63946'
+}, {
+  id: 'encaminhado',
+  label: 'Encaminhado',
+  cor: '#b8860b'
+}, {
+  id: 'fechado',
+  label: 'Fechou obra',
+  cor: '#16a34a'
+}, {
+  id: 'descartado',
+  label: 'Descartado',
+  cor: '#6b6457'
+}];
+const LINK_PEDIR = 'https://www.queroumacor.com.br/pedir';
+
+// [teste:pedido-pintor-inicio]
+const textoDoPedidoParaPintor = p => {
+  const fone = String(p.telefone || '').replace(/\D/g, '');
+  const linhas = ['🎨 Pedido de orçamento — QueroUmaCor', 'Serviço: ' + (p.servico || '—'), 'Local: ' + [p.bairro, p.cidade].filter(Boolean).join(', ')];
+  if (p.prazo) linhas.push('Prazo: ' + p.prazo);
+  linhas.push('Descrição: ' + (p.descricao || '—'));
+  linhas.push('Cliente: ' + (p.nome || '—') + (fone ? ' · wa.me/' + fone : ''));
+  return linhas.join('\n');
+};
+const linkPedirComOrigem = (cidade, origem) => {
+  const q = [];
+  const c = String(cidade || '').trim();
+  const o = String(origem || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (c) q.push('cidade=' + encodeURIComponent(c));
+  if (o) q.push('o=' + o);
+  return LINK_PEDIR + (q.length ? '?' + q.join('&') : '');
+};
+// [teste:pedido-pintor-fim]
+
+const PedidosPintor = () => {
+  const {
+    data,
+    loading,
+    error,
+    refetch
+  } = useSupabaseQuery(sb => sb.from('pedidos_pintor').select('*').order('created_at', {
+    ascending: false
+  }).limit(300), []);
+  const pedidos = data || [];
+  const tableMissing = error && /pedidos_pintor|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
+  const [filtro, setFiltro] = useState('novo');
+  const [edit, setEdit] = useState({});
+  const [salvando, setSalvando] = useState(null);
+  const [linkCidade, setLinkCidade] = useState('Guarulhos');
+  const [linkOrigem, setLinkOrigem] = useState('facebook');
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid ' + C.border,
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: 'DM Sans, sans-serif'
+  };
+  const box = {
+    background: C.white,
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    marginBottom: 20
+  };
+  const copiar = async (texto, aviso) => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      alert(aviso);
+    } catch (e) {
+      window.prompt('Copie o texto:', texto);
+    }
+  };
+  const salvar = async (p, patch) => {
+    setSalvando(p.id);
+    try {
+      await pedidosPintorService.update(p.id, patch);
+      setEdit(e => {
+        const n = {
+          ...e
+        };
+        delete n[p.id];
+        return n;
+      });
+      refetch();
+    } catch (e) {
+      alert('Erro ao salvar: ' + (e.message || 'tente novamente'));
+    } finally {
+      setSalvando(null);
+    }
+  };
+  const excluir = async p => {
+    if (!confirm('Apagar o pedido de ' + (p.nome || 'cliente') + '? Isso remove o nome e o telefone dele do sistema.')) return;
+    try {
+      await pedidosPintorService.remove(p.id);
+      refetch();
+    } catch (e) {
+      alert('Erro ao apagar: ' + (e.message || 'tente novamente'));
+    }
+  };
+  if (tableMissing) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: box
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        marginBottom: 8,
+        color: C.ink
+      }
+    }, "\uD83E\uDDF0 Pedidos de pintor"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: C.muted
+      }
+    }, "A tabela ", /*#__PURE__*/React.createElement("code", null, "pedidos_pintor"), " ainda n\xE3o existe. Rode a migration ", /*#__PURE__*/React.createElement("code", null, "migrations/2026-11-10-pedidos-pintor.sql"), " no SQL Editor do Supabase."));
+  }
+  const contagem = id => pedidos.filter(p => p.status === id).length;
+  const lista = filtro === 'todos' ? pedidos : pedidos.filter(p => p.status === filtro);
+  const link = linkPedirComOrigem(linkCidade, linkOrigem);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      marginBottom: 6,
+      color: C.ink
+    }
+  }, "\uD83D\uDD17 Link para divulgar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 12
+    }
+  }, "Cole este link em grupos de moradores, no status do WhatsApp e no QR do balc\xE3o. Quem preencher aparece na lista abaixo."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 12,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 4
+    }
+  }, "Cidade do t\xEDtulo"), /*#__PURE__*/React.createElement("input", {
+    value: linkCidade,
+    onChange: e => setLinkCidade(e.target.value),
+    style: inputStyle,
+    maxLength: 80
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: C.muted,
+      marginBottom: 4
+    }
+  }, "Onde vai divulgar (aparece em \"origem\")"), /*#__PURE__*/React.createElement("input", {
+    value: linkOrigem,
+    onChange: e => setLinkOrigem(e.target.value),
+    placeholder: "facebook, qr-loja, instagram",
+    style: inputStyle,
+    maxLength: 40
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("code", {
+    style: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 12,
+      background: C.bg,
+      padding: '8px 10px',
+      borderRadius: 8,
+      overflowWrap: 'anywhere'
+    }
+  }, link), /*#__PURE__*/React.createElement("button", {
+    onClick: () => copiar(link, 'Link copiado!'),
+    style: {
+      padding: '8px 16px',
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 8,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, "Copiar link"))), /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: C.ink,
+      marginRight: 8
+    }
+  }, "\uD83E\uDDF0 Pedidos de pintor"), PEDIDO_STATUS.map(st => /*#__PURE__*/React.createElement("button", {
+    key: st.id,
+    onClick: () => setFiltro(st.id),
+    style: {
+      padding: '5px 12px',
+      borderRadius: 999,
+      border: '1px solid ' + (filtro === st.id ? C.ink : C.border),
+      background: filtro === st.id ? C.ink : 'none',
+      color: filtro === st.id ? '#fff' : C.ink,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, st.label, " (", contagem(st.id), ")")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFiltro('todos'),
+    style: {
+      padding: '5px 12px',
+      borderRadius: 999,
+      border: '1px solid ' + (filtro === 'todos' ? C.ink : C.border),
+      background: filtro === 'todos' ? C.ink : 'none',
+      color: filtro === 'todos' ? '#fff' : C.ink,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer'
+    }
+  }, "Todos (", pedidos.length, ")"), /*#__PURE__*/React.createElement("button", {
+    onClick: refetch,
+    style: {
+      marginLeft: 'auto',
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      padding: '5px 10px',
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\u21BB Atualizar")), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "Carregando..."), !loading && error && !tableMissing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#e63946',
+      fontSize: 13
+    }
+  }, "Erro ao carregar: ", error.message || String(error)), !loading && !error && lista.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "Nenhum pedido aqui ainda."), lista.map(p => {
+    const st = PEDIDO_STATUS.find(x => x.id === p.status) || PEDIDO_STATUS[0];
+    const fone = String(p.telefone || '').replace(/\D/g, '');
+    const e = edit[p.id] || {};
+    const para = e.encaminhado_para !== undefined ? e.encaminhado_para : p.encaminhado_para || '';
+    const obs = e.observacao !== undefined ? e.observacao : p.observacao || '';
+    const mudou = e.encaminhado_para !== undefined || e.observacao !== undefined;
+    const set = (k, v) => setEdit(all => ({
+      ...all,
+      [p.id]: {
+        ...(all[p.id] || {}),
+        [k]: v
+      }
+    }));
+    return /*#__PURE__*/React.createElement("div", {
+      key: p.id,
+      style: {
+        borderTop: '1px solid ' + C.border,
+        padding: '16px 0'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 10,
+        alignItems: 'flex-start',
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 220
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 14,
+        color: C.ink
+      }
+    }, p.servico, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#fff',
+        background: st.cor,
+        borderRadius: 6,
+        padding: '2px 7px',
+        marginLeft: 6
+      }
+    }, st.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.muted,
+        marginTop: 3
+      }
+    }, [p.bairro, p.cidade].filter(Boolean).join(', '), p.prazo ? ' · ' + p.prazo : '', " \xB7 ", new Date(p.created_at).toLocaleString(), p.origem ? ' · origem: ' + p.origem : ''), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: C.ink,
+        marginTop: 8,
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere'
+      }
+    }, p.descricao), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        marginTop: 8
+      }
+    }, /*#__PURE__*/React.createElement("b", null, p.nome), " \xB7 ", fmtWaPhone ? fmtWaPhone(fone) : fone)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        flexShrink: 0
+      }
+    }, /*#__PURE__*/React.createElement("a", {
+      href: 'https://wa.me/' + fone + '?text=' + encodeURIComponent('Olá ' + (p.nome || '') + '! Aqui é da Cali Colors. Recebemos seu pedido de ' + String(p.servico || 'pintura').toLowerCase() + ' pelo QueroUmaCor.'),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        padding: '6px 12px',
+        background: '#25d366',
+        color: '#fff',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        textDecoration: 'none',
+        textAlign: 'center'
+      }
+    }, "\uD83D\uDCF1 Falar com o cliente"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => copiar(textoDoPedidoParaPintor(p), 'Pedido copiado! Cole na conversa com o pintor.'),
+      style: {
+        padding: '6px 12px',
+        background: 'none',
+        border: '1px solid ' + C.border,
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "\uD83D\uDCCB Copiar para o pintor"), /*#__PURE__*/React.createElement("select", {
+      value: p.status,
+      disabled: salvando === p.id,
+      onChange: ev => salvar(p, {
+        status: ev.target.value
+      }),
+      style: {
+        ...inputStyle,
+        padding: '6px 8px',
+        fontSize: 12
+      }
+    }, PEDIDO_STATUS.map(x => /*#__PURE__*/React.createElement("option", {
+      key: x.id,
+      value: x.id
+    }, x.label))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => excluir(p),
+      style: {
+        background: 'none',
+        border: 'none',
+        color: '#e63946',
+        fontSize: 11,
+        cursor: 'pointer'
+      }
+    }, "Apagar pedido"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr auto',
+        gap: 8,
+        marginTop: 10,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      value: para,
+      onChange: ev => set('encaminhado_para', ev.target.value),
+      placeholder: "Encaminhado para (nome ou @ do pintor)",
+      style: inputStyle,
+      maxLength: 120
+    }), /*#__PURE__*/React.createElement("input", {
+      value: obs,
+      onChange: ev => set('observacao', ev.target.value),
+      placeholder: "Observa\xE7\xE3o da equipe",
+      style: inputStyle,
+      maxLength: 1000
+    }), /*#__PURE__*/React.createElement("button", {
+      disabled: !mudou || salvando === p.id,
+      onClick: () => salvar(p, {
+        encaminhado_para: para.trim() || null,
+        observacao: obs.trim() || null,
+        ...(p.status === 'novo' && para.trim() ? {
+          status: 'encaminhado'
+        } : {})
+      }),
+      style: {
+        padding: '8px 14px',
+        background: mudou ? C.p1 : C.border,
+        color: '#fff',
+        border: 'none',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: mudou ? 'pointer' : 'default'
+      }
+    }, salvando === p.id ? 'Salvando...' : 'Salvar')));
+  })));
+};
 const PAGES_DEF = [{
   id: 'dashboard',
   icon: '📊',
@@ -19140,6 +19595,13 @@ const PAGES_DEF = [{
   section: 'PESSOAS',
   badgeKey: 'portalUsers',
   component: /*#__PURE__*/React.createElement(PortalUsersList, null)
+}, {
+  id: 'pedidos-pintor',
+  icon: '🧰',
+  label: 'Pedidos de pintor',
+  section: 'PRINCIPAL',
+  badgeKey: 'pedidosPintor',
+  component: /*#__PURE__*/React.createElement(PedidosPintor, null)
 }, {
   id: 'leads',
   icon: '🧲',
@@ -19707,7 +20169,7 @@ function App() {
     try {
       const sb = supa;
       if (!sb) return;
-      const [quotesRes, profiles, leadsRes, pendRes] = await Promise.all([sb.from('quotes').select('id', {
+      const [quotesRes, profiles, leadsRes, pendRes, pedPintorRes] = await Promise.all([sb.from('quotes').select('id', {
         count: 'exact',
         head: true
       }), profilesService.list({
@@ -19718,7 +20180,13 @@ function App() {
       }), sb.from('posts').select('id', {
         count: 'exact',
         head: true
-      }).eq('status', 'pending').is('deleted_at', null)]);
+      }).eq('status', 'pending').is('deleted_at', null),
+      // Pedidos de pintor ainda nao atendidos. Tabela ausente (SQL pendente)
+      // devolve erro no objeto, nao lanca: count fica undefined -> 0.
+      sb.from('pedidos_pintor').select('id', {
+        count: 'exact',
+        head: true
+      }).eq('status', 'novo')]);
       // Mescla em vez de substituir: o badge do WhatsApp e carregado
       // por outro caminho (loadWaBadge) e nao pode ser apagado aqui.
       setBadges(b => ({
@@ -19732,6 +20200,7 @@ function App() {
         arquitetos: profiles.filter(p => isProProfile(p) && (currentRoleKey(p) === 'arquiteto' || currentRoleKey(p) === 'engenheiro')).length,
         leads: leadsRes.count || 0,
         postsPendentes: pendRes.count || 0,
+        pedidosPintor: pedPintorRes && pedPintorRes.count || 0,
         clientes: profiles.filter(isClienteProfile).length,
         portalUsers: profiles.filter(p => p.portal_access === true).length
       }));
