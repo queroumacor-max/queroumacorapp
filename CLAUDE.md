@@ -403,6 +403,57 @@
     final sobre tudo que roda antes; conferir `pg_trigger` (lista, não nome)
     antes de concluir que o banco é igual ao repo.
 
+- **VAGAS E OPORTUNIDADES — "vamos trazer tudo e classificar" (2026-11-10,
+  pedido do usuário depois de colar uma lista de 10 anúncios achados em
+  InfoJobs/Empregos.com.br/classificado de condomínio). SQL
+  `migrations/2026-11-10-b-oportunidades.sql` — PASSADO NO CHAT, AINDA NÃO
+  CONFIRMADO RODADO.** Cadastro MANUAL pelo portal (nada de robô: os sites de
+  origem proíbem coleta automática), com classificação:
+  `tipo='vaga'` (empresa contratando pintor) × `tipo='pedido'` (pessoa
+  procurando pintor); `status` conferir → ativa → encerrada.
+  - **REGRA: só VAGA ATIVA vai pro app. Pedido de cliente NUNCA** — o telefone
+    é de pessoa física que não pediu pra aparecer aqui; fica só no portal pra
+    equipe responder. Está na RLS (`oportunidades_vaga_ativa_select`), não só
+    na tela.
+  - Portal v=20261110e: "💼 Vagas e oportunidades" (PRINCIPAL, badge = a
+    conferir). Cola o texto do anúncio → `lerAnuncio` SUGERE tipo, telefone,
+    remuneração e se é WhatsApp (quem decide é a pessoa); "✓ Conferida:
+    publicar no app"; editar, encerrar, apagar. Link do anúncio só https.
+  - App: tile **💼 Vagas** (todo papel MENOS cliente) + rota `/vagas`
+    (`VagasView`): cartão com empresa, local, remuneração, "Chamar no
+    WhatsApp" (wa.me com mensagem citando a vaga, por `abrirLinkExterno`),
+    "Ver anúncio", data e fonte, e o aviso de que a contratação é com quem
+    anunciou. Tabela ausente → lista vazia. Passo novo no tour (`p-vagas`).
+  - 2ª leva no mesmo PR (#522): `regime` (diaria/temporario/clt/pj/orcamento)
+    e `conferido_em` (carimbado ao marcar Ativa) por ALTER idempotente — app
+    e portal TOLERAM a ausência (refazem sem as duas colunas); aviso de
+    DUPLICATA pelo telefone (8 últimos dígitos) antes de salvar; caixa "Onde
+    procurar" com as buscas prontas do Google.
+  - **BUSCA AUTOMÁTICA EM MURAL DE CONDOMÍNIO — PEDIDA E NÃO FEITA
+    (2026-11-10, "o negócio é fazer buscas automáticas em sites de
+    condomínios").** Os 4 murais (plataforma Vida de Síndico:
+    parquesantaclara / costadosolbutanta / vivazprimecachoeirinha /
+    condominiofrancasp `.com.br/classificados`) têm o MESMO robots.txt,
+    conferido nesse dia: bloco gerenciado da Cloudflare (`Allow: /`,
+    `Content-Signal: search=yes, ai-train=no`) e, no FIM, o bloco do próprio
+    site `User-agent: *` / `Disallow: /`. Pela letra da RFC 9309 o empate
+    favorece o Allow, mas a intenção do operador é clara (nenhum robô) — não
+    construir coletor em cima disso sem autorização da plataforma. No lugar:
+    os 4 murais + 2 buscas de descoberta viraram LINKS na caixa "Onde
+    procurar" do portal (pessoa abre e lê), `lerAnuncio` passou a aceitar
+    e-mail como contato. Caminho pra automatizar de verdade = pedir
+    permissão/parceria à Vida de Síndico ou aos síndicos. Ambiente de nuvem
+    `queroumacorapp` criado nesse dia só com esses 8 hosts (pra ler o robots).
+  - **A carga dos 10 anúncios NÃO está no repo** (telefone não vai pro git —
+    lição dos 986 contatos): foi passada no chat como INSERT, tudo em
+    `status='conferir'` (nada aparece no app até alguém conferir). Os dados
+    vieram de pesquisa colada pelo usuário e NÃO foram conferidos por mim.
+  - Avisar os pintores de vaga nova = Avisos + push do portal (não há push
+    automático por vaga).
+  - Testes `__tests__/vagasOportunidades.test.ts` e
+    `__tests__/components/VagasView.test.tsx`. Telas NÃO conferidas no
+    navegador (exigem login).
+
 - **"PRECISA DE PINTOR?" — PÁGINA PÚBLICA /pedir + TELA NO PORTAL
   (2026-11-10, pedido do usuário: trazer clientes procurando pintor; "pode
   fazer"). SQL `migrations/2026-11-10-pedidos-pintor.sql` — PASSADO NO CHAT,
@@ -429,6 +480,9 @@
     'novo'): gerador do link com cidade/origem, filtros por status, "Falar com
     o cliente" (wa.me), "Copiar para o pintor", campo "Encaminhado para" (muda
     pra 'encaminhado' sozinho) e apagar. Encaminhar é MANUAL.
+  - **NO AR: PR #521 (squash `e69df66`), deploy run #809 `success` na 2ª
+    tentativa** (a 1ª caiu no soluço da fonte do Google). Não confirmado pelo
+    usuário; o envio do formulário só funciona depois do SQL.
   - Teste `__tests__/pedidoPintor.test.ts`. Conferido com Playwright em 360px
     no `next start` (PRECISA de `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY` de teste
     no build — sem elas o AuthProvider entra em loop de recarga; e matar o

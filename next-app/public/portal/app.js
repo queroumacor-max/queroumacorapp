@@ -366,6 +366,43 @@ const pedidosPintorService = {
     if (r.error) throw r.error;
   }
 };
+
+// Oportunidades achadas FORA do app (site de emprego, classificado de
+// condominio, grupo de moradores), cadastradas a mao e classificadas aqui.
+// Tabela `oportunidades` (migrations/2026-11-10-b-oportunidades.sql).
+const oportunidadesService = {
+  // `regime`/`conferido_em` vieram num ALTER depois da tabela. Banco sem elas
+  // recusa a escrita (42703/PGRST204): refaz sem as duas, pra o cadastro nao
+  // parar por SQL pendente.
+  semColunasNovas: o => {
+    const n = {
+      ...o
+    };
+    delete n.regime;
+    delete n.conferido_em;
+    return n;
+  },
+  faltaColunaNova: e => !!e && (e.code === '42703' || e.code === 'PGRST204') && /regime|conferido_em/.test(e.message || ''),
+  insert: async o => {
+    let r = await supa.from('oportunidades').insert(o);
+    if (oportunidadesService.faltaColunaNova(r.error)) r = await supa.from('oportunidades').insert(oportunidadesService.semColunasNovas(o));
+    if (r.error) throw r.error;
+  },
+  update: async (id, patch) => {
+    const linha = {
+      ...patch,
+      updated_at: new Date().toISOString()
+    };
+    let r = await supa.from('oportunidades').update(linha).eq('id', id).select('id');
+    if (oportunidadesService.faltaColunaNova(r.error)) r = await supa.from('oportunidades').update(oportunidadesService.semColunasNovas(linha)).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data || r.data.length === 0) throw new Error('nenhuma linha alterada (sem permissão ou registro não existe)');
+  },
+  remove: async id => {
+    const r = await supa.from('oportunidades').delete().eq('id', id);
+    if (r.error) throw r.error;
+  }
+};
 const postsService = {
   setStatus: async (id, status) => {
     // .select('id'): update que não acha linha (RLS) volta SUCESSO com zero
@@ -19536,6 +19573,800 @@ const PedidosPintor = () => {
     }, salvando === p.id ? 'Salvando...' : 'Salvar')));
   })));
 };
+
+// ══ OPORTUNIDADES (vagas e pedidos achados fora do app) ══
+// A equipe cola o anuncio, o portal SUGERE a classificacao e quem decide e a
+// pessoa. Vaga ativa aparece no app (tile "Vagas"); pedido de cliente NUNCA
+// vai pro app — o telefone e de pessoa fisica, fica so aqui pra equipe
+// responder. Cadastro manual de proposito: os sites de origem proibem robo.
+const OPORT_TIPOS = [{
+  id: 'vaga',
+  label: '💼 Vaga (empresa contratando pintor)'
+}, {
+  id: 'pedido',
+  label: '🏠 Pedido (pessoa procurando pintor)'
+}];
+const OPORT_STATUS = [{
+  id: 'conferir',
+  label: 'A conferir',
+  cor: '#b8860b'
+}, {
+  id: 'ativa',
+  label: 'Ativa',
+  cor: '#16a34a'
+}, {
+  id: 'encerrada',
+  label: 'Encerrada',
+  cor: '#6b6457'
+}];
+const OPORT_REGIMES = [{
+  id: '',
+  label: 'Não informado'
+}, {
+  id: 'diaria',
+  label: 'Diária'
+}, {
+  id: 'temporario',
+  label: 'Temporário'
+}, {
+  id: 'clt',
+  label: 'CLT'
+}, {
+  id: 'pj',
+  label: 'PJ / MEI'
+}, {
+  id: 'orcamento',
+  label: 'Pedido de orçamento'
+}];
+// Buscas prontas pra achar anuncio novo (a equipe abre, le e cadastra a mao).
+const OPORT_BUSCAS = ['site:infojobs.com.br/vaga-de "pintor predial" "WhatsApp" "Guarulhos"', 'site:empregos.com.br "pintor" "temporária" "WhatsApp" "São Paulo"', '"pintor" "diária" "WhatsApp" "São Paulo" -automotivo', '"pintor" "MEI" "WhatsApp" "Guarulhos"', '"procuro pintor" "pintura" "Guarulhos" -getninjas -cronoshare -pinterest -workfly', '"classificados" "ver outros classificados" "Guarulhos/São Paulo" condomínio', '"classificados" "ver outros classificados" "São Paulo/São Paulo" condomínio'];
+// Murais de classificados de condominio onde moradores pedem pintor. A equipe
+// ABRE e le a mao. NAO ha leitura automatica: o robots.txt desses sites
+// (conferido em 10/11/2026) termina em "User-agent: * / Disallow: /" — o
+// operador nao quer robo. Pessoa abrindo a pagina e outra coisa.
+const OPORT_MURAIS = [{
+  nome: 'Parque Santa Clara · Vila Alzira, Guarulhos',
+  url: 'https://parquesantaclara.com.br/classificados'
+}, {
+  nome: 'Costa do Sol · Jardim das Vertentes, São Paulo',
+  url: 'https://costadosolbutanta.com.br/classificados'
+}, {
+  nome: 'Vivaz Prime · Limão, São Paulo',
+  url: 'https://vivazprimecachoeirinha.com.br/classificados'
+}, {
+  nome: 'Condomínio França · Vila Guilherme, São Paulo',
+  url: 'https://condominiofrancasp.com.br/classificados'
+}];
+
+// [teste:oportunidades-inicio]
+// Le o texto colado de um anuncio e SUGERE tipo, telefone, remuneracao e se o
+// contato e WhatsApp. E so sugestao: os campos continuam editaveis.
+const lerAnuncio = texto => {
+  const t = String(texto || '');
+  const baixo = t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const sinaisVaga = ['vaga', 'salario', 'clt', 'curriculo', 'contrata', 'temporario', 'beneficios', 'vale-transporte', 'vale transporte', 'pj', 'mei', 'candidat'];
+  const sinaisPedido = ['procuro pintor', 'preciso de pintor', 'preciso de um pintor', 'procuro um pintor', 'alguem indica', 'indicacao de pintor', 'indicam pintor', 'orcamento para pintar', 'quero pintar', 'pintar minha', 'pintar meu', 'morador', 'moradora'];
+  const conta = lista => lista.reduce((n, s) => n + (baixo.includes(s) ? 1 : 0), 0);
+  const nVaga = conta(sinaisVaga),
+    nPedido = conta(sinaisPedido);
+  const tipo = nPedido > nVaga ? 'pedido' : nVaga > 0 ? 'vaga' : '';
+  const regime = tipo === 'pedido' ? 'orcamento' : /\bdiaria\b/.test(baixo) ? 'diaria' : /temporari/.test(baixo) ? 'temporario' : /\bclt\b/.test(baixo) ? 'clt' : /\b(pj|mei)\b/.test(baixo) ? 'pj' : '';
+  const fone = t.match(/\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b/);
+  const grana = t.match(/R\$\s?\d[\d.]*(?:,\d{2})?(?:\s?(?:a|até|-)\s?R\$\s?\d[\d.]*(?:,\d{2})?)?(?:\s?(?:\/|por)\s?(?:m[eê]s|dia|hora|semana))?/i);
+  // Mural de condominio costuma trazer so e-mail: sem telefone, ele vira o contato.
+  const email = t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  return {
+    tipo,
+    regime,
+    contato: fone ? fone[0].trim() : email ? email[0].slice(0, 40) : '',
+    remuneracao: grana ? grana[0].trim() : '',
+    whatsapp: /whats|zap|wpp/.test(baixo)
+  };
+};
+// So https vira link clicavel (a URL e digitada por quem cadastra).
+const fonteUrlValida = u => {
+  const s = String(u || '').trim();
+  return s === '' || /^https:\/\/\S+$/i.test(s);
+};
+const oportunidadeVisivelNoApp = o => !!o && o.tipo === 'vaga' && o.status === 'ativa';
+// Mesmo anuncio aparece em mais de um site (a vaga do Grupo VRS estava no
+// InfoJobs e no Curriculum). Duplicata = mesmo telefone (8 ultimos digitos),
+// tirando o proprio registro em edicao.
+const duplicatasDe = (contato, lista, ignorarId) => {
+  const fim = String(contato || '').replace(/\D/g, '').slice(-8);
+  if (fim.length < 8) return [];
+  return (lista || []).filter(o => o.id !== ignorarId && String(o.contato || '').replace(/\D/g, '').slice(-8) === fim);
+};
+// [teste:oportunidades-fim]
+
+const Oportunidades = () => {
+  const [fTipo, setFTipo] = useState('todos');
+  const [fStatus, setFStatus] = useState('conferir');
+  const {
+    data,
+    loading,
+    error,
+    refetch
+  } = useSupabaseQuery(sb => {
+    let q = sb.from('oportunidades').select('*');
+    if (fTipo !== 'todos') q = q.eq('tipo', fTipo);
+    if (fStatus !== 'todos') q = q.eq('status', fStatus);
+    return q.order('created_at', {
+      ascending: false
+    }).limit(300);
+  }, [fTipo, fStatus]);
+  const itens = data || [];
+  const tableMissing = error && /oportunidades|42P01|PGRST205/i.test((error.message || '') + ' ' + (error.code || '') + ' ' + String(error));
+
+  // Telefones de TUDO que ja esta cadastrado (qualquer filtro), pra avisar
+  // de duplicata antes de salvar.
+  const {
+    data: todosContatos,
+    refetch: recarregarContatos
+  } = useSupabaseQuery(sb => sb.from('oportunidades').select('id, titulo, contato, status').not('contato', 'is', null).limit(2000), []);
+  const vazio = {
+    regime: '',
+    tipo: '',
+    titulo: '',
+    empresa: '',
+    cidade: 'Guarulhos',
+    bairro: '',
+    descricao: '',
+    remuneracao: '',
+    contato: '',
+    contato_whatsapp: true,
+    contato_obs: '',
+    fonte: '',
+    fonte_url: '',
+    anuncio_em: '',
+    status: 'conferir'
+  };
+  const [form, setForm] = useState(vazio);
+  const [editId, setEditId] = useState(null);
+  const [colado, setColado] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const set = (k, v) => setForm(f => ({
+    ...f,
+    [k]: v
+  }));
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid ' + C.border,
+    fontSize: 13,
+    outline: 'none',
+    fontFamily: 'DM Sans, sans-serif'
+  };
+  const box = {
+    background: C.white,
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    marginBottom: 20
+  };
+  const rot = {
+    fontSize: 12,
+    color: C.muted,
+    marginBottom: 4
+  };
+  const chip = on => ({
+    padding: '5px 12px',
+    borderRadius: 999,
+    border: '1px solid ' + (on ? C.ink : C.border),
+    background: on ? C.ink : 'none',
+    color: on ? '#fff' : C.ink,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer'
+  });
+  const aplicarColado = () => {
+    const r = lerAnuncio(colado);
+    setForm(f => ({
+      ...f,
+      tipo: r.tipo || f.tipo,
+      regime: f.regime || r.regime,
+      contato: f.contato || r.contato,
+      remuneracao: f.remuneracao || r.remuneracao,
+      contato_whatsapp: r.contato ? r.whatsapp : f.contato_whatsapp,
+      descricao: f.descricao || colado.trim().slice(0, 1500)
+    }));
+  };
+  const salvar = async () => {
+    if (!form.tipo) {
+      alert('Classifique: é vaga ou pedido de cliente?');
+      return;
+    }
+    if (form.titulo.trim().length < 3) {
+      alert('Informe um título (ex.: "Pintor predial — Grupo VRS").');
+      return;
+    }
+    if (!fonteUrlValida(form.fonte_url)) {
+      alert('O link do anúncio precisa começar com https://');
+      return;
+    }
+    const repetidas = duplicatasDe(form.contato, todosContatos, editId);
+    if (repetidas.length && !confirm('Já existe cadastro com esse telefone: "' + repetidas[0].titulo + '". Salvar mesmo assim?')) return;
+    const linha = {
+      tipo: form.tipo,
+      status: form.status,
+      titulo: form.titulo.trim(),
+      regime: form.regime || null,
+      // "Ativa" = alguem acabou de confirmar que vale: carimba a checagem.
+      ...(form.status === 'ativa' ? {
+        conferido_em: new Date().toISOString()
+      } : {}),
+      empresa: form.empresa.trim() || null,
+      cidade: form.cidade.trim() || null,
+      bairro: form.bairro.trim() || null,
+      descricao: form.descricao.trim() || null,
+      remuneracao: form.remuneracao.trim() || null,
+      contato: form.contato.trim() || null,
+      contato_whatsapp: !!form.contato_whatsapp,
+      contato_obs: form.contato_obs.trim() || null,
+      fonte: form.fonte.trim() || null,
+      fonte_url: form.fonte_url.trim() || null,
+      anuncio_em: form.anuncio_em || null
+    };
+    setSalvando(true);
+    try {
+      if (editId) await oportunidadesService.update(editId, linha);else await oportunidadesService.insert(linha);
+      setForm(vazio);
+      setEditId(null);
+      setColado('');
+      refetch();
+      recarregarContatos();
+    } catch (e) {
+      alert('Erro ao salvar: ' + (e.message || 'tente novamente'));
+    } finally {
+      setSalvando(false);
+    }
+  };
+  const editar = o => {
+    setEditId(o.id);
+    setForm({
+      ...vazio,
+      ...Object.fromEntries(Object.keys(vazio).map(k => [k, o[k] === null || o[k] === undefined ? vazio[k] : o[k]]))
+    });
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+  const mudarStatus = async (o, status) => {
+    try {
+      await oportunidadesService.update(o.id, status === 'ativa' ? {
+        status,
+        conferido_em: new Date().toISOString()
+      } : {
+        status
+      });
+      refetch();
+    } catch (e) {
+      alert('Erro ao mudar status: ' + (e.message || 'tente novamente'));
+    }
+  };
+  const excluir = async o => {
+    if (!confirm('Apagar "' + o.titulo + '"?')) return;
+    try {
+      await oportunidadesService.remove(o.id);
+      refetch();
+    } catch (e) {
+      alert('Erro ao apagar: ' + (e.message || 'tente novamente'));
+    }
+  };
+  if (tableMissing) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: box
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        marginBottom: 8,
+        color: C.ink
+      }
+    }, "\uD83D\uDCBC Oportunidades"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: C.muted
+      }
+    }, "A tabela ", /*#__PURE__*/React.createElement("code", null, "oportunidades"), " ainda n\xE3o existe. Rode a migration ", /*#__PURE__*/React.createElement("code", null, "migrations/2026-11-10-b-oportunidades.sql"), " no SQL Editor do Supabase."));
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      marginBottom: 6,
+      color: C.ink
+    }
+  }, editId ? '✏️ Editar oportunidade' : '➕ Nova oportunidade'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 12
+    }
+  }, "Cole o texto do an\xFAncio e toque em \"Ler an\xFAncio\": o portal sugere a classifica\xE7\xE3o, o telefone e o valor. Confira antes de salvar.", /*#__PURE__*/React.createElement("b", null, " Vaga"), " marcada como ", /*#__PURE__*/React.createElement("b", null, "Ativa"), " aparece para os pintores no app. ", /*#__PURE__*/React.createElement("b", null, "Pedido de cliente"), " fica s\xF3 aqui."), !editId && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: colado,
+    onChange: e => setColado(e.target.value),
+    rows: 3,
+    placeholder: "Cole aqui o texto do an\xFAncio (opcional)",
+    style: {
+      ...inputStyle,
+      resize: 'vertical'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: aplicarColado,
+    disabled: !colado.trim(),
+    style: {
+      marginTop: 6,
+      padding: '6px 14px',
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: colado.trim() ? 'pointer' : 'default'
+    }
+  }, "\uD83D\uDD0E Ler an\xFAncio")), /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Classifica\xE7\xE3o"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      marginBottom: 12
+    }
+  }, OPORT_TIPOS.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    onClick: () => set('tipo', t.id),
+    style: chip(form.tipo === t.id)
+  }, t.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12,
+      maxWidth: 260
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Regime"), /*#__PURE__*/React.createElement("select", {
+    value: form.regime || '',
+    onChange: e => set('regime', e.target.value),
+    style: inputStyle
+  }, OPORT_REGIMES.map(x => /*#__PURE__*/React.createElement("option", {
+    key: x.id,
+    value: x.id
+  }, x.label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '2fr 1fr',
+      gap: 12,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "T\xEDtulo"), /*#__PURE__*/React.createElement("input", {
+    value: form.titulo,
+    onChange: e => set('titulo', e.target.value),
+    placeholder: "Ex.: Pintor predial (tempor\xE1rio)",
+    style: inputStyle,
+    maxLength: 120
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Empresa / quem anunciou"), /*#__PURE__*/React.createElement("input", {
+    value: form.empresa,
+    onChange: e => set('empresa', e.target.value),
+    style: inputStyle,
+    maxLength: 120
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: 12,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Cidade"), /*#__PURE__*/React.createElement("input", {
+    value: form.cidade,
+    onChange: e => set('cidade', e.target.value),
+    style: inputStyle,
+    maxLength: 80
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Bairro"), /*#__PURE__*/React.createElement("input", {
+    value: form.bairro,
+    onChange: e => set('bairro', e.target.value),
+    style: inputStyle,
+    maxLength: 80
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Remunera\xE7\xE3o"), /*#__PURE__*/React.createElement("input", {
+    value: form.remuneracao,
+    onChange: e => set('remuneracao', e.target.value),
+    placeholder: "R$ 2.600/m\xEAs",
+    style: inputStyle,
+    maxLength: 80
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Descri\xE7\xE3o"), /*#__PURE__*/React.createElement("textarea", {
+    value: form.descricao,
+    onChange: e => set('descricao', e.target.value),
+    rows: 3,
+    style: {
+      ...inputStyle,
+      resize: 'vertical'
+    },
+    maxLength: 1500
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr auto 2fr',
+      gap: 12,
+      marginBottom: 12,
+      alignItems: 'end'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Telefone ou e-mail de contato"), /*#__PURE__*/React.createElement("input", {
+    value: form.contato,
+    onChange: e => set('contato', e.target.value),
+    placeholder: "(11) 91234-5678 ou e-mail",
+    style: inputStyle,
+    maxLength: 40
+  })), /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: 12,
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      paddingBottom: 9
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!form.contato_whatsapp,
+    onChange: e => set('contato_whatsapp', e.target.checked)
+  }), " \xE9 WhatsApp"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Como se candidatar (aparece no app)"), /*#__PURE__*/React.createElement("input", {
+    value: form.contato_obs,
+    onChange: e => set('contato_obs', e.target.value),
+    placeholder: "Ex.: enviar curr\xEDculo e citar \"Pintor Predial #14024\"",
+    style: inputStyle,
+    maxLength: 160
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 2fr 1fr 1fr',
+      gap: 12,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Fonte"), /*#__PURE__*/React.createElement("input", {
+    value: form.fonte,
+    onChange: e => set('fonte', e.target.value),
+    placeholder: "InfoJobs",
+    style: inputStyle,
+    maxLength: 60
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Link do an\xFAncio (https://)"), /*#__PURE__*/React.createElement("input", {
+    value: form.fonte_url,
+    onChange: e => set('fonte_url', e.target.value),
+    style: inputStyle,
+    maxLength: 500
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Data do an\xFAncio"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: form.anuncio_em || '',
+    onChange: e => set('anuncio_em', e.target.value),
+    style: inputStyle
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: rot
+  }, "Situa\xE7\xE3o"), /*#__PURE__*/React.createElement("select", {
+    value: form.status,
+    onChange: e => set('status', e.target.value),
+    style: inputStyle
+  }, OPORT_STATUS.map(x => /*#__PURE__*/React.createElement("option", {
+    key: x.id,
+    value: x.id
+  }, x.label))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    disabled: salvando,
+    onClick: salvar,
+    style: {
+      padding: '10px 24px',
+      background: C.p1,
+      color: '#fff',
+      border: 'none',
+      borderRadius: 10,
+      fontSize: 14,
+      fontWeight: 700,
+      cursor: 'pointer'
+    }
+  }, salvando ? 'Salvando...' : editId ? 'Salvar alterações' : '+ Cadastrar'), editId && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setEditId(null);
+      setForm(vazio);
+    },
+    style: {
+      padding: '10px 18px',
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 10,
+      fontSize: 13,
+      cursor: 'pointer'
+    }
+  }, "Cancelar"))), /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      marginBottom: 6,
+      color: C.ink
+    }
+  }, "\uD83D\uDD0E Onde procurar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: C.muted,
+      marginBottom: 10
+    }
+  }, "Buscas prontas no Google. Abra o an\xFAncio, confira de quem \xE9 o telefone, o local, o valor e a data, e cadastre acima."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.ink,
+      margin: '4px 0 6px'
+    }
+  }, "Murais de condom\xEDnio (abrir e ler \xE0 m\xE3o)"), OPORT_MURAIS.map(m => /*#__PURE__*/React.createElement("div", {
+    key: m.url,
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    href: urlSegura(m.url),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontSize: 12,
+      color: C.p1
+    }
+  }, m.nome, " \u2197"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: C.ink,
+      margin: '12px 0 6px'
+    }
+  }, "Buscas no Google"), OPORT_BUSCAS.map(b => /*#__PURE__*/React.createElement("div", {
+    key: b,
+    style: {
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    href: urlSegura('https://www.google.com/search?q=' + encodeURIComponent(b)),
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      fontSize: 12,
+      color: C.p1,
+      overflowWrap: 'anywhere'
+    }
+  }, b, " \u2197")))), /*#__PURE__*/React.createElement("div", {
+    style: box
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      color: C.ink,
+      marginRight: 8
+    }
+  }, "\uD83D\uDCBC Oportunidades"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFTipo('todos'),
+    style: chip(fTipo === 'todos')
+  }, "Tudo"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFTipo('vaga'),
+    style: chip(fTipo === 'vaga')
+  }, "\uD83D\uDCBC Vagas"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFTipo('pedido'),
+    style: chip(fTipo === 'pedido')
+  }, "\uD83C\uDFE0 Pedidos"), /*#__PURE__*/React.createElement("button", {
+    onClick: refetch,
+    style: {
+      marginLeft: 'auto',
+      background: 'none',
+      border: '1px solid ' + C.border,
+      borderRadius: 8,
+      padding: '5px 10px',
+      fontSize: 12,
+      cursor: 'pointer'
+    }
+  }, "\u21BB Atualizar")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap',
+      marginBottom: 16
+    }
+  }, OPORT_STATUS.map(st => /*#__PURE__*/React.createElement("button", {
+    key: st.id,
+    onClick: () => setFStatus(st.id),
+    style: chip(fStatus === st.id)
+  }, st.label)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFStatus('todos'),
+    style: chip(fStatus === 'todos')
+  }, "Todas as situa\xE7\xF5es")), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "Carregando..."), !loading && error && !tableMissing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#e63946',
+      fontSize: 13
+    }
+  }, "Erro ao carregar: ", error.message || String(error)), !loading && !error && itens.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.muted,
+      fontSize: 13
+    }
+  }, "Nada aqui com esses filtros."), itens.map(o => {
+    const st = OPORT_STATUS.find(x => x.id === o.status) || OPORT_STATUS[0];
+    const fone = String(o.contato || '').replace(/\D/g, '');
+    const link = urlSegura(o.fonte_url);
+    return /*#__PURE__*/React.createElement("div", {
+      key: o.id,
+      style: {
+        borderTop: '1px solid ' + C.border,
+        padding: '14px 0',
+        display: 'flex',
+        gap: 10,
+        alignItems: 'flex-start',
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 220
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontWeight: 700,
+        fontSize: 14,
+        color: C.ink
+      }
+    }, o.tipo === 'vaga' ? '💼' : '🏠', " ", o.titulo, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#fff',
+        background: st.cor,
+        borderRadius: 6,
+        padding: '2px 7px',
+        marginLeft: 6
+      }
+    }, st.label), oportunidadeVisivelNoApp(o) && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.p1,
+        marginLeft: 6
+      }
+    }, "\u25CF no app")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.muted,
+        marginTop: 3
+      }
+    }, [o.empresa, [o.bairro, o.cidade].filter(Boolean).join(', '), o.remuneracao].filter(Boolean).join(' · ')), o.descricao && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: C.ink,
+        marginTop: 6,
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere'
+      }
+    }, o.descricao), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: C.muted,
+        marginTop: 6
+      }
+    }, o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato', o.contato_obs ? ' · ' + o.contato_obs : '', o.fonte ? ' · Fonte: ' + o.fonte : '', o.anuncio_em ? ' · Anúncio de ' + String(o.anuncio_em).split('-').reverse().join('/') : '', o.regime ? ' · ' + ((OPORT_REGIMES.find(x => x.id === o.regime) || {}).label || o.regime) : '', o.conferido_em ? ' · Conferida em ' + new Date(o.conferido_em).toLocaleDateString() : '')), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        flexShrink: 0
+      }
+    }, o.status !== 'ativa' && /*#__PURE__*/React.createElement("button", {
+      onClick: () => mudarStatus(o, 'ativa'),
+      style: {
+        padding: '6px 12px',
+        background: '#16a34a',
+        color: '#fff',
+        border: 'none',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer'
+      }
+    }, o.tipo === 'vaga' ? '✓ Conferida: publicar no app' : '✓ Conferido'), o.status !== 'encerrada' && /*#__PURE__*/React.createElement("button", {
+      onClick: () => mudarStatus(o, 'encerrada'),
+      style: {
+        padding: '6px 12px',
+        background: 'none',
+        border: '1px solid ' + C.border,
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "Encerrar"), fone && o.contato_whatsapp && /*#__PURE__*/React.createElement("a", {
+      href: 'https://wa.me/' + (fone.length <= 11 ? '55' + fone : fone),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        padding: '6px 12px',
+        background: '#25d366',
+        color: '#fff',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        textDecoration: 'none',
+        textAlign: 'center'
+      }
+    }, "\uD83D\uDCF1 Abrir WhatsApp"), link && /*#__PURE__*/React.createElement("a", {
+      href: urlSegura(o.fonte_url),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        fontSize: 12,
+        textAlign: 'center',
+        color: C.p1
+      }
+    }, "Ver an\xFAncio \u2197"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => editar(o),
+      style: {
+        background: 'none',
+        border: '1px solid ' + C.border,
+        borderRadius: 8,
+        padding: '4px 10px',
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: 'pointer'
+      }
+    }, "\u270F\uFE0F Editar"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => excluir(o),
+      style: {
+        background: 'none',
+        border: 'none',
+        color: '#e63946',
+        fontSize: 11,
+        cursor: 'pointer'
+      }
+    }, "Apagar")));
+  })));
+};
 const PAGES_DEF = [{
   id: 'dashboard',
   icon: '📊',
@@ -19642,6 +20473,13 @@ const PAGES_DEF = [{
   section: 'PRINCIPAL',
   badgeKey: 'pedidosPintor',
   component: /*#__PURE__*/React.createElement(PedidosPintor, null)
+}, {
+  id: 'oportunidades',
+  icon: '💼',
+  label: 'Vagas e oportunidades',
+  section: 'PRINCIPAL',
+  badgeKey: 'oportunidades',
+  component: /*#__PURE__*/React.createElement(Oportunidades, null)
 }, {
   id: 'leads',
   icon: '🧲',
@@ -20209,7 +21047,7 @@ function App() {
     try {
       const sb = supa;
       if (!sb) return;
-      const [quotesRes, profiles, leadsRes, pendRes, pedPintorRes] = await Promise.all([sb.from('quotes').select('id', {
+      const [quotesRes, profiles, leadsRes, pendRes, pedPintorRes, oportRes] = await Promise.all([sb.from('quotes').select('id', {
         count: 'exact',
         head: true
       }), profilesService.list({
@@ -20226,7 +21064,10 @@ function App() {
       sb.from('pedidos_pintor').select('id', {
         count: 'exact',
         head: true
-      }).eq('status', 'novo')]);
+      }).eq('status', 'novo'), sb.from('oportunidades').select('id', {
+        count: 'exact',
+        head: true
+      }).eq('status', 'conferir')]);
       // Mescla em vez de substituir: o badge do WhatsApp e carregado
       // por outro caminho (loadWaBadge) e nao pode ser apagado aqui.
       setBadges(b => ({
@@ -20241,6 +21082,7 @@ function App() {
         leads: leadsRes.count || 0,
         postsPendentes: pendRes.count || 0,
         pedidosPintor: pedPintorRes && pedPintorRes.count || 0,
+        oportunidades: oportRes && oportRes.count || 0,
         clientes: profiles.filter(isClienteProfile).length,
         portalUsers: profiles.filter(p => p.portal_access === true).length
       }));
