@@ -565,6 +565,14 @@
       "Conferida" no portal; NÃO aparecem no app (a RLS só libera `tipo='vaga'`).
       `anuncio_em` ainda NULL nos 7: foram lidos antes do deploy #816; a data
       entra na próxima leitura de cada mural.
+    - **CARTÃO DA VAGA SEM "Fonte: …" (2026-11-11, print do usuário no app:
+      "tire a fonte daqui"). SEM SQL.** O rodapé do cartão em `VagasView`
+      mostra só "Anúncio de …" e "Conferida em …"; o nome do site de origem
+      (InfoJobs, LinkedIn…) saiu. O botão "Ver anúncio" (link) NÃO foi mexido.
+      O mesmo print CONFIRMA: admin vê as vagas (cadeado sumiu) e as vagas
+      aprovadas aparecem no app. Observação passada ao usuário: a descrição
+      de algumas vagas traz nota interna ("Datas divergentes na página",
+      "Anúncio sem data visível") — é texto do cadastro, editável no portal.
     - **APROVAÇÃO EM MASSA (2026-11-11, pedido do usuário: "aprove todos q
       tão no portal para aprovação").** SQL passado no chat (`UPDATE
       oportunidades SET status='ativa', conferido_em=now() WHERE
