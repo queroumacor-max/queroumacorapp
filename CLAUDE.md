@@ -551,6 +551,23 @@
       fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
       Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
       os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
+    - **DATA ESTIMADA DO PEDIDO (2026-11-11, pedido do usuário: "precisamos
+      saber a data do pedido de pintor, estimate tlvz"; "somente admin vê por
+      enquanto" = pedidos seguem só no portal). SEM SQL (usa `anuncio_em`, que
+      já existia).** O mural não mostra data, mas cada anúncio tem um número
+      sequencial DA PLATAFORMA (`<a id='52135'></a>` antes do cartão).
+      `REGUA_DE_DATAS` em `mural-condominio.ts` = 22 pontos número × data,
+      medidos em 11/11 pelo `Last-Modified` das fotos de 51 anúncios do Parque
+      Santa Clara (49 de 51 em ordem; os 2 fora tiveram a foto trocada).
+      `dataEstimadaDoAnuncio` interpola; depois do último ponto (52087 =
+      22/09/2026) segue ~16 anúncios/dia sem passar de hoje; mais de 5000
+      números antes do 1º ponto → sem data. Pedido já gravado sem data ganha
+      só a data na próxima leitura (PATCH com `anuncio_em=is.null`, até 6 por
+      mural). Portal v=20261111a mostra "Anúncio de ≈ DD/MM/AAAA (data
+      estimada)" quando a fonte começa com "Mural ". **A régua envelhece:**
+      refazer a medição de tempos em tempos e acrescentar pontos no fim (o
+      host `app.vidadesindico.com.br` foi liberado no ambiente de nuvem pra
+      isso; o Worker NÃO consulta as fotos). Erro esperado: dias.
     - **Endereço, filtro e palavras-chave NO AR: PR #526 (squash `64cb298`),
       deploy run #814 `success`.** Telas não conferidas no portal logado.
     - Portal v=20261110i (filtro Todos/Ativos/Pausados + busca na lista de murais; caixa "🤖 Leitura automática dos murais"). Ambiente

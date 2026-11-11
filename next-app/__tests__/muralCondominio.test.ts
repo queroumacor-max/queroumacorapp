@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
 import {
   chaveDoAnuncio,
+  dataEstimadaDoAnuncio,
   ehPedidoDePintor,
   extrairAnuncios,
   lerComTeto,
@@ -241,5 +242,48 @@ describe('SQL das fontes', () => {
       ['Impermeabilização', 'Somos especialistas em impermeabilização, faça já seu orçamento'],
       ['Sofá', 'Procuro sofá de 3 lugares'],
     ])('recusa "%s"', (t, d) => expect(ehPedidoDePintor(t, d)).toBe(false));
+  });
+});
+
+describe('data estimada do anúncio (pelo número da plataforma)', () => {
+  const hoje = new Date('2026-11-11T12:00:00Z');
+  it('lê o número que vem antes do cartão; sem número fica null', () => {
+    const html = `<a id='1'></a>${'x'.repeat(700)}<div class="interna_lista"><a id='51863'></a>${cartao('Pintor', 'Procuro pintor')}<div class="interna_lista">${cartao('Pintor', 'Preciso de pintor')}`;
+    const as = extrairAnuncios(html);
+    expect(as.map((a) => a.numero)).toEqual([51863, null]);
+    expect(extrairAnuncios(HTML)[0].numero).toBeNull();
+  });
+  it('número da régua devolve a data medida; entre dois pontos, interpola', () => {
+    expect(dataEstimadaDoAnuncio(51863, hoje)).toBe('2026-09-07');
+    expect(dataEstimadaDoAnuncio(34975, hoje)).toBe('2023-12-06');
+    const meio = dataEstimadaDoAnuncio(51636, hoje)!;
+    expect(meio > '2026-08-08' && meio < '2026-09-07').toBe(true);
+  });
+  it('quanto maior o número, mais nova a data (nunca anda pra trás)', () => {
+    let antes = '';
+    for (let n = 33000; n <= 53500; n += 137) {
+      const d = dataEstimadaDoAnuncio(n, hoje)!;
+      expect(d >= antes).toBe(true);
+      antes = d;
+    }
+  });
+  it('depois do último ponto segue o ritmo recente, mas nunca passa de hoje', () => {
+    const d = dataEstimadaDoAnuncio(52135, hoje)!;
+    expect(d > '2026-09-22' && d < '2026-10-05').toBe(true);
+    expect(dataEstimadaDoAnuncio(99999, hoje)).toBe('2026-11-11');
+  });
+  it('sem número, zero ou número absurdo de antigo: sem data', () => {
+    expect(dataEstimadaDoAnuncio(null, hoje)).toBeNull();
+    expect(dataEstimadaDoAnuncio(0, hoje)).toBeNull();
+    expect(dataEstimadaDoAnuncio(5, hoje)).toBeNull();
+  });
+  it('o pedido gravado leva a data estimada em anuncio_em', async () => {
+    const a = { ...extrairAnuncios(HTML)[0], numero: 51863 };
+    expect((await linhaDaOportunidade(fonte, a)).anuncio_em).toBe('2026-09-07');
+    expect((await linhaDaOportunidade(fonte, { ...a, numero: null })).anuncio_em).toBeNull();
+  });
+  it('o portal marca a data de mural como estimada', () => {
+    const jsx = readFileSync(join(process.cwd(), 'public/portal/app.jsx'), 'utf8');
+    expect(jsx).toContain("' (data estimada)'");
   });
 });

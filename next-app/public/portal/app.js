@@ -20663,7 +20663,7 @@ const Oportunidades = () => {
         color: C.muted,
         marginTop: 6
       }
-    }, o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato', o.contato_obs ? ' · ' + o.contato_obs : '', o.fonte ? ' · Fonte: ' + o.fonte : '', o.anuncio_em ? ' · Anúncio de ' + String(o.anuncio_em).split('-').reverse().join('/') : '', o.regime ? ' · ' + ((OPORT_REGIMES.find(x => x.id === o.regime) || {}).label || o.regime) : '', o.conferido_em ? ' · Conferida em ' + new Date(o.conferido_em).toLocaleDateString() : '')), /*#__PURE__*/React.createElement("div", {
+    }, o.contato ? 'Contato: ' + o.contato + (o.contato_whatsapp ? ' (WhatsApp)' : '') : 'Sem contato', o.contato_obs ? ' · ' + o.contato_obs : '', o.fonte ? ' · Fonte: ' + o.fonte : '', o.anuncio_em ? ' · Anúncio de ' + (String(o.fonte || '').startsWith('Mural ') ? '≈ ' : '') + String(o.anuncio_em).split('-').reverse().join('/') + (String(o.fonte || '').startsWith('Mural ') ? ' (data estimada)' : '') : '', o.regime ? ' · ' + ((OPORT_REGIMES.find(x => x.id === o.regime) || {}).label || o.regime) : '', o.conferido_em ? ' · Conferida em ' + new Date(o.conferido_em).toLocaleDateString() : '')), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         flexDirection: 'column',
