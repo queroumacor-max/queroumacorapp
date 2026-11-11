@@ -565,6 +565,14 @@
       "Conferida" no portal; NÃO aparecem no app (a RLS só libera `tipo='vaga'`).
       `anuncio_em` ainda NULL nos 7: foram lidos antes do deploy #816; a data
       entra na próxima leitura de cada mural.
+    - **APROVAÇÃO EM MASSA (2026-11-11, pedido do usuário: "aprove todos q
+      tão no portal para aprovação").** SQL passado no chat (`UPDATE
+      oportunidades SET status='ativa', conferido_em=now() WHERE
+      status='conferir'`, com variante deixando o Parque Residence de fora);
+      usuário: "feito" — sem dizer qual variante nem mandar a contagem.
+      Efeito: as vagas da carga manual (dados de pesquisa colada, NÃO
+      conferidos por mim) passam a aparecer no app pra PRO; pedidos de
+      morador seguem só no portal (RLS). Avisado antes de rodar.
     - **Data estimada + admin nas vagas NO AR: PR #529 (squash `2f7a8dc`),
       deploy run #816 `success`.** Não conferido no portal nem no aparelho.
     - **ADMIN VIA O BLOQUEIO "exclusivas do Plano PRO" NAS VAGAS (2026-11-11,
