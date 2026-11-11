@@ -569,6 +569,9 @@
       "tire a fonte daqui"). SEM SQL.** O rodapé do cartão em `VagasView`
       mostra só "Anúncio de …" e "Conferida em …"; o nome do site de origem
       (InfoJobs, LinkedIn…) saiu. O botão "Ver anúncio" (link) NÃO foi mexido.
+      **NO AR: PR #530 (squash `9246dc3`), deploy run #817 `success`.**
+      Conferido no banco (print, 11/11): 7 pedidos + 9 vagas (3 temporárias,
+      2 CLT, 1 PJ, 3 sem regime), todos `ativa`; nada em `conferir`.
       O mesmo print CONFIRMA: admin vê as vagas (cadeado sumiu) e as vagas
       aprovadas aparecem no app. Observação passada ao usuário: a descrição
       de algumas vagas traz nota interna ("Datas divergentes na página",
