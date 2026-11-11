@@ -559,7 +559,7 @@
       TEM 90 LINHAS, NÃO 117: o SQL `-h` (27 murais) NÃO entrou**, apesar do
       "adicionou todos lá" — por isso falta o pedido do Parque San Miguel.
       INSERT repassado no chat em 4 blocos curtos (colagem pelo celular corta
-      bloco grande); **aguardando o usuário rodar e a contagem dar 117**. Os
+      bloco grande); **usuário informou "rodei tudo" (2026-11-11), SEM mandar o número da conferência — da outra vez o relato também foi "adicionou todos" e o banco tinha 90; só tratar como feito com a contagem 117 à vista**. Os
       90 estão TODOS `ativo=true` (os vazios foram reativados em algum
       momento). 6 dos 7 pedidos estão com `status='ativa'`: alguém marcou
       "Conferida" no portal; NÃO aparecem no app (a RLS só libera `tipo='vaga'`).
