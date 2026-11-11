@@ -464,7 +464,7 @@
     - `lib/api/_services/mural-condominio.ts`: `extrairAnuncios` (cartões
       `.anuncio_conteudo`), `ehPedidoDePintor` (procura × oferta; na dúvida
       fica de fora), grava só `tipo='pedido'`, `status='conferir'` — NUNCA no
-      app. User-Agent identificado (`QueroUmaCor/1.0`, só o nome: em 2026-11-11 o usuário pediu pra tirar "Bot", site e e-mail; pedidos de anonimato e de se apresentar como "Pintor buscando trabalho" foram RECUSADOS — o nome da loja FICA), 1 leitura/dia, teto de
+      app. User-Agent identificado (`Pintor buscando trabalho` desde 2026-11-11: o usuário afirma que foi o identificador COMBINADO POR TELEFONE com a Vida de Síndico — aceito na palavra dele, como a própria autorização; NÃO há registro escrito e eu não verifiquei. Antes disso recusei anonimato e esse mesmo nome enquanto era só preferência. Sem dado da loja: "QueroUmaCor não tem nada a ver com a loja", palavras dele. Fingir navegador de pessoa segue FORA), 1 leitura/dia, teto de
       4 MB e 12 s, ssrf-guard inclusive no destino do redirect.
     - **NÃO decodifica o e-mail do morador** (o site entrega ofuscado pela
       Cloudflare, `data-cfemail`): o registro leva o link do mural e a pessoa
