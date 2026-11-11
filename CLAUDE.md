@@ -540,7 +540,7 @@
       verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
       é lido a cada ~1,5 dia. SEM mudança de código.
     - **"LER TODOS AGORA" (2026-11-11, pedido do usuário: "tem que olhar todos
-      os sites na pesquisa"). SEM SQL. Portal v=20261111b.** O botão lia só os
+      os sites na pesquisa"). SEM SQL. Portal v=20261111c.** O botão lia só os
       12 da vez e o usuário entendeu (com razão) que era a pesquisa inteira.
       Agora o portal repete a rota até dar a volta nos murais ativos
       (`MURAIS_POR_RODADA` = `MAX_FONTES` = 12, travado por teste), soma e

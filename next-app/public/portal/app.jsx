@@ -9933,7 +9933,14 @@ const fontesDeMuralService = {
     });
     let res = {};
     try { res = await r.json(); } catch (_) {}
-    if (!r.ok || !res.ok) throw new Error(r.status === 429 ? '429 limite por minuto' : (res.error || ('HTTP ' + r.status)));
+    if (r.status === 429) {
+      // A rota diz quanto esperar (Retry-After / retry_after). Tentar antes
+      // disso só conta mais uma recusa na janela.
+      const e = new Error('429 limite por minuto');
+      e.espera = Math.min(90, Math.max(5, Number(res.retry_after || res.retry_after_seconds || r.headers.get('Retry-After')) || 30));
+      throw e;
+    }
+    if (!r.ok || !res.ok) throw new Error(res.error || ('HTTP ' + r.status));
     return res;
   },
 };
@@ -9962,19 +9969,25 @@ const FontesDeMural = ({ aoLer }) => {
   // somando. 429 (limite por minuto) espera e tenta de novo, não desiste.
   const ler = async () => {
     setLendo(true); setAviso('');
-    const ativos = fontes.filter(f => f.ativo).length;
+    // Conta no BANCO: clicar antes de a lista carregar deixaria `fontes` vazio
+    // e a leitura pararia na 1ª rodada dizendo que acabou.
+    let ativos = fontes.filter(f => f.ativo).length;
+    try {
+      const c = await supa.from('oportunidade_fontes').select('id', { count: 'exact', head: true }).eq('ativo', true);
+      if (!c.error && typeof c.count === 'number') ativos = c.count;
+    } catch (_) {}
     const rodadas = Math.max(1, Math.ceil(ativos / MURAIS_POR_RODADA));
     const soma = { fontes: 0, pedidos: 0, novos: 0, falhas: 0 };
     const frase = (fim) => (fim ? '' : 'Lendo... ') + soma.fontes + ' de ' + ativos + ' murais lidos · ' + soma.novos + ' pedido(s) novo(s) de ' + soma.pedidos + ' encontrados' + (soma.falhas ? ' · ' + soma.falhas + ' falharam' : '') + (fim ? '.' : '');
     try {
       for (let i = 0; i < rodadas; i++) {
         let r = null;
-        for (let tentativa = 0; tentativa < 4 && !r; tentativa++) {
+        for (let tentativa = 0; tentativa < 6 && !r; tentativa++) {
           try { r = await fontesDeMuralService.lerAgora(); }
           catch (e) {
-            if (!/429|muitas|limite|aguarde/i.test(e.message || '') || tentativa === 3) throw e;
-            setAviso(frase(false) + ' (aguardando o limite por minuto...)');
-            await new Promise(ok => setTimeout(ok, 20000));
+            if (!e.espera || tentativa === 5) throw e;
+            setAviso(frase(false) + ' (aguardando ' + e.espera + 's pelo limite por minuto...)');
+            await new Promise(ok => setTimeout(ok, (e.espera + 1) * 1000));
           }
         }
         soma.fontes += r.fontes || 0; soma.pedidos += r.pedidos || 0; soma.novos += r.novos || 0; soma.falhas += r.falhas || 0;
@@ -10009,7 +10022,7 @@ const FontesDeMural = ({ aoLer }) => {
     <div style={box}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
         <div style={{ fontWeight: 700, color: C.ink }}>🤖 Leitura automática dos murais <span style={{ fontWeight: 400, color: C.muted, fontSize: 12 }}>· {fontes.filter(f => f.ativo).length} ativos de {fontes.length}</span></div>
-        <button disabled={lendo} onClick={ler} style={{ marginLeft: 'auto', padding: '8px 16px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{lendo ? 'Lendo todos...' : '▶ Ler todos agora'}</button>
+        <button disabled={lendo || loading} onClick={ler} style={{ marginLeft: 'auto', padding: '8px 16px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{lendo ? 'Lendo todos...' : '▶ Ler todos agora'}</button>
       </div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
         De 4 em 4 horas o sistema lê 12 murais em rodízio (o que está há mais tempo sem ler vem primeiro) e traz só os anúncios de quem PROCURA pintor, como "A conferir". "Ler agora" lê TODOS os murais ativos, 12 por vez, e mostra o andamento (leva alguns minutos; não feche a página). O e-mail do morador não é copiado: abra o link do anúncio para ver.

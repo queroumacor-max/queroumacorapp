@@ -95,6 +95,9 @@ describe('portal', () => {
     expect(jsx).toContain('const MURAIS_POR_RODADA = 12;');
     expect(jsx).toMatch(/Math\.ceil\(ativos \/ MURAIS_POR_RODADA\)/);
     expect(jsx).toContain('▶ Ler todos agora');
+    // Conta os ativos no banco (não na lista da tela) e respeita o Retry-After.
+    expect(jsx).toMatch(/select\('id', \{ count: 'exact', head: true \}\)\.eq\('ativo', true\)/);
+    expect(jsx).toContain('e.espera');
     // O tamanho da rodada do portal é o MAX_FONTES do servidor.
     expect(ler('lib/api/_services/mural-condominio.ts')).toContain('const MAX_FONTES = 12;');
     // 4/min travava a leitura completa no meio.

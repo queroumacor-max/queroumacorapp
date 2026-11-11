@@ -19636,7 +19636,14 @@ const fontesDeMuralService = {
     try {
       res = await r.json();
     } catch (_) {}
-    if (!r.ok || !res.ok) throw new Error(r.status === 429 ? '429 limite por minuto' : res.error || 'HTTP ' + r.status);
+    if (r.status === 429) {
+      // A rota diz quanto esperar (Retry-After / retry_after). Tentar antes
+      // disso só conta mais uma recusa na janela.
+      const e = new Error('429 limite por minuto');
+      e.espera = Math.min(90, Math.max(5, Number(res.retry_after || res.retry_after_seconds || r.headers.get('Retry-After')) || 30));
+      throw e;
+    }
+    if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
     return res;
   }
 };
@@ -19689,7 +19696,16 @@ const FontesDeMural = ({
   const ler = async () => {
     setLendo(true);
     setAviso('');
-    const ativos = fontes.filter(f => f.ativo).length;
+    // Conta no BANCO: clicar antes de a lista carregar deixaria `fontes` vazio
+    // e a leitura pararia na 1ª rodada dizendo que acabou.
+    let ativos = fontes.filter(f => f.ativo).length;
+    try {
+      const c = await supa.from('oportunidade_fontes').select('id', {
+        count: 'exact',
+        head: true
+      }).eq('ativo', true);
+      if (!c.error && typeof c.count === 'number') ativos = c.count;
+    } catch (_) {}
     const rodadas = Math.max(1, Math.ceil(ativos / MURAIS_POR_RODADA));
     const soma = {
       fontes: 0,
@@ -19701,13 +19717,13 @@ const FontesDeMural = ({
     try {
       for (let i = 0; i < rodadas; i++) {
         let r = null;
-        for (let tentativa = 0; tentativa < 4 && !r; tentativa++) {
+        for (let tentativa = 0; tentativa < 6 && !r; tentativa++) {
           try {
             r = await fontesDeMuralService.lerAgora();
           } catch (e) {
-            if (!/429|muitas|limite|aguarde/i.test(e.message || '') || tentativa === 3) throw e;
-            setAviso(frase(false) + ' (aguardando o limite por minuto...)');
-            await new Promise(ok => setTimeout(ok, 20000));
+            if (!e.espera || tentativa === 5) throw e;
+            setAviso(frase(false) + ' (aguardando ' + e.espera + 's pelo limite por minuto...)');
+            await new Promise(ok => setTimeout(ok, (e.espera + 1) * 1000));
           }
         }
         soma.fontes += r.fontes || 0;
@@ -19811,7 +19827,7 @@ const FontesDeMural = ({
       fontSize: 12
     }
   }, "\xB7 ", fontes.filter(f => f.ativo).length, " ativos de ", fontes.length)), /*#__PURE__*/React.createElement("button", {
-    disabled: lendo,
+    disabled: lendo || loading,
     onClick: ler,
     style: {
       marginLeft: 'auto',
