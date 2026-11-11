@@ -9933,10 +9933,13 @@ const fontesDeMuralService = {
     });
     let res = {};
     try { res = await r.json(); } catch (_) {}
-    if (!r.ok || !res.ok) throw new Error(res.error || ('HTTP ' + r.status));
+    if (!r.ok || !res.ok) throw new Error(r.status === 429 ? '429 limite por minuto' : (res.error || ('HTTP ' + r.status)));
     return res;
   },
 };
+
+// Quantos murais a rota lê por chamada (MAX_FONTES em mural-condominio.ts).
+const MURAIS_POR_RODADA = 12;
 
 const FontesDeMural = ({ aoLer }) => {
   const { data, loading, error, refetch } = useSupabaseQuery((sb) => sb
@@ -9954,14 +9957,33 @@ const FontesDeMural = ({ aoLer }) => {
   const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid ' + C.border, fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif' };
   const box = { background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 20 };
 
+  // "Ler agora" lê TODOS os murais ativos: a rota lê 12 por chamada (limite do
+  // servidor), então o portal repete a chamada até dar a volta na fila e vai
+  // somando. 429 (limite por minuto) espera e tenta de novo, não desiste.
   const ler = async () => {
     setLendo(true); setAviso('');
+    const ativos = fontes.filter(f => f.ativo).length;
+    const rodadas = Math.max(1, Math.ceil(ativos / MURAIS_POR_RODADA));
+    const soma = { fontes: 0, pedidos: 0, novos: 0, falhas: 0 };
+    const frase = (fim) => (fim ? '' : 'Lendo... ') + soma.fontes + ' de ' + ativos + ' murais lidos · ' + soma.novos + ' pedido(s) novo(s) de ' + soma.pedidos + ' encontrados' + (soma.falhas ? ' · ' + soma.falhas + ' falharam' : '') + (fim ? '.' : '');
     try {
-      const r = await fontesDeMuralService.lerAgora();
-      setAviso(r.novos + ' pedido(s) novo(s) de ' + r.pedidos + ' encontrados em ' + r.fontes + ' mural(is)' + (r.falhas ? ' · ' + r.falhas + ' falharam' : '') + '.');
-      refetch(); if (aoLer) aoLer();
-    } catch (e) { setAviso('Não deu: ' + (e.message || 'tente de novo')); }
-    finally { setLendo(false); }
+      for (let i = 0; i < rodadas; i++) {
+        let r = null;
+        for (let tentativa = 0; tentativa < 4 && !r; tentativa++) {
+          try { r = await fontesDeMuralService.lerAgora(); }
+          catch (e) {
+            if (!/429|muitas|limite|aguarde/i.test(e.message || '') || tentativa === 3) throw e;
+            setAviso(frase(false) + ' (aguardando o limite por minuto...)');
+            await new Promise(ok => setTimeout(ok, 20000));
+          }
+        }
+        soma.fontes += r.fontes || 0; soma.pedidos += r.pedidos || 0; soma.novos += r.novos || 0; soma.falhas += r.falhas || 0;
+        setAviso(frase(false));
+        if ((r.fontes || 0) < MURAIS_POR_RODADA) break;
+      }
+      setAviso(frase(true));
+    } catch (e) { setAviso((soma.fontes ? frase(true) + ' Parou antes do fim: ' : 'Não deu: ') + (e.message || 'tente de novo')); }
+    finally { setLendo(false); refetch(); if (aoLer) aoLer(); }
   };
   const adicionar = async () => {
     if (nova.nome.trim().length < 2) { alert('Informe o nome do condomínio.'); return; }
@@ -9987,10 +10009,10 @@ const FontesDeMural = ({ aoLer }) => {
     <div style={box}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
         <div style={{ fontWeight: 700, color: C.ink }}>🤖 Leitura automática dos murais <span style={{ fontWeight: 400, color: C.muted, fontSize: 12 }}>· {fontes.filter(f => f.ativo).length} ativos de {fontes.length}</span></div>
-        <button disabled={lendo} onClick={ler} style={{ marginLeft: 'auto', padding: '8px 16px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{lendo ? 'Lendo...' : '▶ Ler agora'}</button>
+        <button disabled={lendo} onClick={ler} style={{ marginLeft: 'auto', padding: '8px 16px', background: C.p1, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{lendo ? 'Lendo todos...' : '▶ Ler todos agora'}</button>
       </div>
       <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
-        De 4 em 4 horas o sistema lê 12 murais em rodízio (o que está há mais tempo sem ler vem primeiro) e traz só os anúncios de quem PROCURA pintor, como "A conferir". "Ler agora" lê os próximos 12. O e-mail do morador não é copiado: abra o link do anúncio para ver.
+        De 4 em 4 horas o sistema lê 12 murais em rodízio (o que está há mais tempo sem ler vem primeiro) e traz só os anúncios de quem PROCURA pintor, como "A conferir". "Ler agora" lê TODOS os murais ativos, 12 por vez, e mostra o andamento (leva alguns minutos; não feche a página). O e-mail do morador não é copiado: abra o link do anúncio para ver.
       </div>
       {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, background: C.bg, borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>{aviso}</div>}
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Carregando...</div>}
