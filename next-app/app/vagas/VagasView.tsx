@@ -75,7 +75,7 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
         )}
       </div>
       <p className="text-[11px] text-[color:var(--color-muted)] mt-2">
-        {[data ? `Anúncio de ${data}` : null, conferida ? `Conferida em ${conferida}` : null, vaga.fonte ? `Fonte: ${vaga.fonte}` : null]
+        {[data ? `Anúncio de ${data}` : null, conferida ? `Conferida em ${conferida}` : null]
           .filter(Boolean)
           .join(' · ')}
       </p>

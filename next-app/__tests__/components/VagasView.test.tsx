@@ -86,7 +86,9 @@ describe('VagasView', () => {
     expect(await screen.findByText('Pintor predial (temporário)')).toBeTruthy();
     expect(screen.getByText('Grupo VRS · Vila Aeroporto, Guarulhos')).toBeTruthy();
     expect(screen.getByText('R$ 2.612,74/mês')).toBeTruthy();
-    expect(screen.getByText(/Anúncio de 05\/11\/2026 · Fonte: InfoJobs/)).toBeTruthy();
+    expect(screen.getByText(/Anúncio de 05\/11\/2026/)).toBeTruthy();
+    // O nome da fonte (InfoJobs etc.) não aparece no cartão (pedido de 11/11/2026).
+    expect(screen.queryByText(/Fonte:/)).toBeNull();
     fireEvent.click(screen.getByText('Chamar no WhatsApp'));
     expect(abrirLinkExterno.mock.calls[0][0]).toMatch(/^https:\/\/wa\.me\/5511966558012/);
     fireEvent.click(screen.getByText('Ver anúncio'));
