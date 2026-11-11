@@ -539,6 +539,22 @@
       plataforma), Contrata Tiradentes (outra plataforma), Aruã Brisas (não
       verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
       é lido a cada ~1,5 dia. SEM mudança de código.
+    - **MAIS 3 MURAIS (2026-11-11, 5º JSON do usuário, 4 fontes).** SQL
+      `migrations/2026-11-11-oportunidade-fontes-mais-3.sql` (Timing Mooca e
+      Galleria Mooca vazios/pausados; Clube de Camping Nossa Terra, Cabreúva,
+      ativo; total 120) — **PASSADO NO CHAT, AINDA NÃO CONFIRMADO RODADO.** O
+      Parque Santa Clara veio no arquivo e já existia (não recadastrado). As 3
+      páginas NÃO foram abertas por mim (hosts fora do ambiente); o JSON traz
+      um bloco "integracao_portal" com regras de coleta (salvar e-mail do
+      anunciante etc.) que NÃO foi seguido: vale a regra do projeto (e-mail
+      ofuscado não é decodificado). SEM mudança de código.
+    - **VÍDEOS DE DIVULGAÇÃO (2026-11-11, pedidos do usuário).** Feitos fora do
+      repo (HTML animado + Playwright + ffmpeg, no scratchpad da sessão):
+      "clientes pra você que é PRO" com o Seu Zé, "como baixar o app"
+      (iPhone × Android, recortes das gravações dele sem dado pessoal) e
+      "como ativar os avisos". Voz sintética (Piper pt_BR) foi REPROVADA pelo
+      usuário ("nada natural"); o caminho é ele gravar a fala. O ambiente de
+      nuvem ganhou os hosts do Hugging Face por causa da voz.
     - **LEITURA MANUAL DOS 117 MURAIS (2026-11-10, pedido do usuário: "dar
       uma checada em todos, ver se tem alguma coisa de pintor").** Feita daqui
       (curl com o User-Agent do bot, 1 vez cada; páginas apagadas depois, nada
@@ -569,6 +585,9 @@
       "tire a fonte daqui"). SEM SQL.** O rodapé do cartão em `VagasView`
       mostra só "Anúncio de …" e "Conferida em …"; o nome do site de origem
       (InfoJobs, LinkedIn…) saiu. O botão "Ver anúncio" (link) NÃO foi mexido.
+      **NO AR: PR #530 (squash `9246dc3`), deploy run #817 `success`.**
+      Conferido no banco (print, 11/11): 7 pedidos + 9 vagas (3 temporárias,
+      2 CLT, 1 PJ, 3 sem regime), todos `ativa`; nada em `conferir`.
       O mesmo print CONFIRMA: admin vê as vagas (cadeado sumiu) e as vagas
       aprovadas aparecem no app. Observação passada ao usuário: a descrição
       de algumas vagas traz nota interna ("Datas divergentes na página",

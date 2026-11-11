@@ -162,3 +162,4 @@ SELECT 'oportunidades: vaga ativa so pra PRO — 2026-11-10' AS item, EXISTS (SE
 SELECT 'murais: 90 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 90 AS ok;
 SELECT 'murais: endereco preenchido (>= 82) — 2026-11-10' AS item, coalesce((SELECT count(*) FROM public.oportunidade_fontes WHERE to_jsonb(oportunidade_fontes) ->> 'endereco' IS NOT NULL), 0) >= 82 AS ok;
 SELECT 'murais: 117 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 117 AS ok;
+SELECT 'murais: 120 cadastrados — 2026-11-11' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 120 AS ok;
