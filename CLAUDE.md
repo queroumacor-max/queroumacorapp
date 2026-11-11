@@ -551,6 +551,8 @@
       fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
       Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
       os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
+    - **Data estimada + admin nas vagas NO AR: PR #529 (squash `2f7a8dc`),
+      deploy run #816 `success`.** Não conferido no portal nem no aparelho.
     - **ADMIN VIA O BLOQUEIO "exclusivas do Plano PRO" NAS VAGAS (2026-11-11,
       print do usuário com o selo ADMIN no topo). SEM SQL.** `VagasView`
       perguntava só ao PERFIL (`canSeeProFeature`); o selo pergunta a
