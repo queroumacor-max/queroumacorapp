@@ -464,7 +464,7 @@
     - `lib/api/_services/mural-condominio.ts`: `extrairAnuncios` (cartões
       `.anuncio_conteudo`), `ehPedidoDePintor` (procura × oferta; na dúvida
       fica de fora), grava só `tipo='pedido'`, `status='conferir'` — NUNCA no
-      app. User-Agent identificado (`QueroUmaCorBot`), 1 leitura/dia, teto de
+      app. User-Agent identificado (`QueroUmaCor/1.0` + site + e-mail da loja; o "Bot" saiu do nome em 2026-11-11 a pedido do usuário, a identificação FICA), 1 leitura/dia, teto de
       4 MB e 12 s, ssrf-guard inclusive no destino do redirect.
     - **NÃO decodifica o e-mail do morador** (o site entrega ofuscado pela
       Cloudflare, `data-cfemail`): o registro leva o link do mural e a pessoa

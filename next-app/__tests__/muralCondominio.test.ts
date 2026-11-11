@@ -133,7 +133,7 @@ describe('POST /api/oportunidades/varrer', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, fontes: 1, anuncios: 5, pedidos: 3, novos: 2, falhas: 0 });
     const mural = chamadas.find((c) => c.url === fonte.url)!;
-    expect((mural.init!.headers as Record<string, string>)['User-Agent']).toMatch(/QueroUmaCorBot/);
+    expect((mural.init!.headers as Record<string, string>)['User-Agent']).toMatch(/^QueroUmaCor\/1\.0 \(\+https:\/\/www\.queroumacor\.com\.br; loja@calicolors\.com\.br\)$/);
     const gravacao = chamadas.find((c) => c.url.includes('on_conflict=chave'))!;
     expect((gravacao.init!.headers as Record<string, string>).Prefer).toContain('resolution=ignore-duplicates');
     const linhas = JSON.parse(String(gravacao.init!.body)) as { titulo: string; tipo: string; status: string }[];
