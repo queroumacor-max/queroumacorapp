@@ -18,7 +18,7 @@
 import { isPubliclyRoutableHttpsUrl } from '@/lib/api/ssrf-guard';
 
 export const USER_AGENT_DA_VARREDURA =
-  'QueroUmaCor/1.0 (+https://www.queroumacor.com.br; loja@calicolors.com.br)';
+  'QueroUmaCor/1.0';
 const TETO_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 12_000;
 // 12 por rodada, 4 de cada vez: cada mural custa até 3 chamadas (página,
