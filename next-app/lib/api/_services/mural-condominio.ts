@@ -309,7 +309,21 @@ async function lerUmaFonte(b: Banco, fonte: FonteDeMural) {
     const jaTinha = new Set(
       (Array.isArray(gravadas) ? gravadas : []).map((g) => (g as { chave?: string }).chave),
     );
-    const semData = linhas.filter((l) => l.anuncio_em && !jaTinha.has(l.chave)).slice(0, 6);
+    const candidatas = linhas.filter((l) => l.anuncio_em && !jaTinha.has(l.chave));
+    // Pergunta ao banco QUAIS ainda estão sem data antes de cortar em 6:
+    // cortar antes repetiria sempre as mesmas 6 e o resto nunca ganharia data.
+    let semData: typeof candidatas = [];
+    if (candidatas.length) {
+      const lista = candidatas.map((l) => l.chave).join(',');
+      const faltam = await fetch(
+        `${b.supaUrl}/rest/v1/oportunidades?select=chave&anuncio_em=is.null&chave=in.(${lista})`,
+        { headers: cabecalhos(b), signal: AbortSignal.timeout(5000) },
+      )
+        .then((r) => (r.ok ? (r.json() as Promise<Array<{ chave: string }>>) : []))
+        .catch(() => [] as Array<{ chave: string }>);
+      const nulas = new Set(faltam.map((f) => f.chave));
+      semData = candidatas.filter((l) => nulas.has(l.chave)).slice(0, 6);
+    }
     await Promise.all(
       semData.map((l) =>
         fetch(`${b.supaUrl}/rest/v1/oportunidades?chave=eq.${l.chave}&anuncio_em=is.null`, {

@@ -142,6 +142,28 @@ describe('POST /api/oportunidades/varrer', () => {
     expect(chamadas.some((c) => c.init?.method === 'PATCH' && c.url.includes('oportunidade_fontes?id=eq.f1'))).toBe(true);
   });
 
+  it('pedido antigo sem data: pergunta ao banco quais faltam ANTES de cortar em 6', async () => {
+    const html = Array.from({ length: 8 }, (_, i) =>
+      `<div class="interna_lista"><a id='${51000 + i}'></a>${cartao('Pintor ' + i, 'Procuro pintor ' + i)}`).join('');
+    const chaves = await Promise.all(
+      extrairAnuncios(html).map(async (a) => (await linhaDaOportunidade(fonte, a)).chave));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      chamadas.push({ url: u, init });
+      if (u.includes('/rpc/check_rate_limit')) return new Response(JSON.stringify({ allowed: true }), { status: 200 });
+      if (u.includes('/rest/v1/oportunidade_fontes?select')) return new Response(JSON.stringify([fonte]), { status: 200 });
+      if (u === fonte.url) return new Response(html, { status: 200 });
+      if (u.includes('on_conflict=chave')) return new Response('[]', { status: 201 });
+      // Só os dois ÚLTIMOS ainda estão sem data no banco.
+      if (u.includes('select=chave&anuncio_em=is.null')) return new Response(JSON.stringify(chaves.slice(6).map((chave) => ({ chave }))), { status: 200 });
+      return new Response(null, { status: 204 });
+    });
+    await chamar({ 'x-internal-secret': 'segredo-interno' });
+    const datas = chamadas.filter((c) => c.init?.method === 'PATCH' && c.url.includes('/oportunidades?chave=eq.'));
+    expect(datas.map((c) => /chave=eq\.([0-9a-f]+)/.exec(c.url)![1]).sort()).toEqual(chaves.slice(6).sort());
+    expect(datas.every((c) => c.url.includes('anuncio_em=is.null'))).toBe(true);
+  });
+
   it('sem segredo e sem token de admin: recusa e não lê mural nenhum', async () => {
     const res = await chamar({ 'x-internal-secret': 'errado' });
     expect(res.status).toBeGreaterThanOrEqual(400);
