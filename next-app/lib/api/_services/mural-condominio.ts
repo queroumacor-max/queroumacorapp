@@ -35,6 +35,45 @@ export interface AnuncioDoMural {
   anunciante: string | null;
   telefone: string | null;
   temEmail: boolean;
+  /** Número do anúncio na plataforma (`<a id='52135'>`); null se não veio. */
+  numero: number | null;
+}
+
+// DATA ESTIMADA. O mural não mostra a data do anúncio, mas cada anúncio tem
+// um número sequencial da PLATFORMA (não do condomínio), que cresce com o
+// tempo. Régua medida em 11/11/2026: 51 anúncios com foto do Parque Santa
+// Clara, número × data de envio da foto (cabeçalho Last-Modified) — subiram
+// juntos em 49 dos 51 (os 2 fora tiveram a foto trocada depois). Entre dois
+// pontos a data sai por interpolação; depois do último, pelo ritmo recente
+// (~16 anúncios/dia), nunca passando de hoje. É ESTIMATIVA (erro de dias);
+// a tela mostra com "≈". Régua envelhece: refazer a medição de tempos em
+// tempos e acrescentar pontos no fim.
+const REGUA_DE_DATAS: Array<[number, string]> = [
+  [34975, '2023-12-06'], [35659, '2024-01-21'], [36077, '2024-02-16'],
+  [37020, '2024-04-09'], [37888, '2024-06-03'], [38765, '2024-07-21'],
+  [39418, '2024-08-30'], [40236, '2024-10-21'], [41089, '2024-12-09'],
+  [41954, '2025-01-28'], [42486, '2025-02-22'], [43018, '2025-03-24'],
+  [43510, '2025-04-23'], [44918, '2025-07-19'], [46586, '2025-11-03'],
+  [47193, '2025-12-07'], [47893, '2026-01-16'], [48594, '2026-02-22'],
+  [49647, '2026-04-23'], [51409, '2026-08-08'], [51863, '2026-09-07'],
+  [52087, '2026-09-22'],
+];
+
+/** Data aproximada (AAAA-MM-DD) do anúncio pelo número dele; null sem número. */
+export function dataEstimadaDoAnuncio(numero: number | null, hoje: Date = new Date()): string | null {
+  if (!numero || !Number.isFinite(numero) || numero <= 0) return null;
+  const r = REGUA_DE_DATAS;
+  // Muito antes do 1º ponto medido (mais de ~1 ano) não há régua: chutar
+  // seria inventar data. Fica sem data.
+  if (numero < r[0][0] - 5000) return null;
+  const t = (i: number) => Date.parse(`${r[i][1]}T12:00:00Z`);
+  // Trecho que contém o número; fora da régua, usa o ritmo do trecho da ponta.
+  let i = r.findIndex(([n]) => n >= numero);
+  if (i === -1) i = r.length - 1;
+  if (i === 0) i = 1;
+  const porNumero = (t(i) - t(i - 1)) / (r[i][0] - r[i - 1][0]);
+  const ms = Math.min(t(i - 1) + (numero - r[i - 1][0]) * porNumero, hoje.getTime());
+  return new Date(ms).toISOString().slice(0, 10);
 }
 
 function texto(html: string): string {
@@ -81,8 +120,14 @@ export function precoUtil(preco: string): string | null {
 /** Cada cartão `.anuncio_conteudo` do HTML vira um anúncio. */
 export function extrairAnuncios(html: string): AnuncioDoMural[] {
   const out: AnuncioDoMural[] = [];
-  const partes = html.split('<div class="anuncio_conteudo">').slice(1);
-  for (const parte of partes) {
+  const pedacos = html.split('<div class="anuncio_conteudo">');
+  for (let i = 1; i < pedacos.length; i++) {
+    const parte = pedacos[i];
+    // O número do anúncio vem ANTES do cartão (`<a id='52135'></a>`), ou
+    // seja, no fim do pedaço anterior (só os últimos 600 caracteres: âncora perdida
+    // no resto da página não é número de anúncio).
+    const ids = pedacos[i - 1].slice(-600).match(/<a id=['"](\d{1,9})['"]>\s*<\/a>/g);
+    const numero = ids ? Number(/\d+/.exec(ids[ids.length - 1])?.[0]) : null;
     const card = parte.split('class="mostrar-menos')[0];
     const titulo = campo(card, 'titulo_int').slice(0, 120);
     const descricao = campo(card, 'descricao_int').slice(0, 1000);
@@ -98,6 +143,7 @@ export function extrairAnuncios(html: string): AnuncioDoMural[] {
       anunciante: anunciante ? anunciante.slice(0, 80) : null,
       telefone: telefone ? telefone.slice(0, 40) : null,
       temEmail: /class="label">\s*E-mail:/i.test(card),
+      numero: numero || null,
     });
   }
   return out;
@@ -169,6 +215,8 @@ export async function linhaDaOportunidade(fonte: FonteDeMural, a: AnuncioDoMural
         : 'Contato no mural: abrir o link do anúncio.',
     fonte: `Mural ${fonte.nome}`.slice(0, 60),
     fonte_url: fonte.url,
+    // Estimada pelo número do anúncio (ver REGUA_DE_DATAS).
+    anuncio_em: dataEstimadaDoAnuncio(a.numero),
     chave: await chaveDoAnuncio(fonte.url, a),
   };
 }
@@ -255,6 +303,37 @@ async function lerUmaFonte(b: Banco, fonte: FonteDeMural) {
     if (!res.ok) throw new Error(`banco recusou (${res.status})`);
     const gravadas = (await res.json().catch(() => [])) as unknown[];
     novos = Array.isArray(gravadas) ? gravadas.length : 0;
+    // Pedido que JÁ estava no banco (lido antes de existir a data estimada)
+    // ganha só a data: o filtro `anuncio_em=is.null` não toca em mais nada
+    // nem em data que a equipe digitou. Best-effort.
+    const jaTinha = new Set(
+      (Array.isArray(gravadas) ? gravadas : []).map((g) => (g as { chave?: string }).chave),
+    );
+    const candidatas = linhas.filter((l) => l.anuncio_em && !jaTinha.has(l.chave));
+    // Pergunta ao banco QUAIS ainda estão sem data antes de cortar em 6:
+    // cortar antes repetiria sempre as mesmas 6 e o resto nunca ganharia data.
+    let semData: typeof candidatas = [];
+    if (candidatas.length) {
+      const lista = candidatas.map((l) => l.chave).join(',');
+      const faltam = await fetch(
+        `${b.supaUrl}/rest/v1/oportunidades?select=chave&anuncio_em=is.null&chave=in.(${lista})`,
+        { headers: cabecalhos(b), signal: AbortSignal.timeout(5000) },
+      )
+        .then((r) => (r.ok ? (r.json() as Promise<Array<{ chave: string }>>) : []))
+        .catch(() => [] as Array<{ chave: string }>);
+      const nulas = new Set(faltam.map((f) => f.chave));
+      semData = candidatas.filter((l) => nulas.has(l.chave)).slice(0, 6);
+    }
+    await Promise.all(
+      semData.map((l) =>
+        fetch(`${b.supaUrl}/rest/v1/oportunidades?chave=eq.${l.chave}&anuncio_em=is.null`, {
+          method: 'PATCH',
+          headers: cabecalhos(b, { Prefer: 'return=minimal' }),
+          body: JSON.stringify({ anuncio_em: l.anuncio_em }),
+          signal: AbortSignal.timeout(5000),
+        }).catch(() => undefined),
+      ),
+    );
   }
   return { anuncios: anuncios.length, pedidos: pedidos.length, novos };
 }

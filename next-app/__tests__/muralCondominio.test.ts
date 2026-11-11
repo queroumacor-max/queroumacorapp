@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
 import {
   chaveDoAnuncio,
+  dataEstimadaDoAnuncio,
   ehPedidoDePintor,
   extrairAnuncios,
   lerComTeto,
@@ -141,6 +142,28 @@ describe('POST /api/oportunidades/varrer', () => {
     expect(chamadas.some((c) => c.init?.method === 'PATCH' && c.url.includes('oportunidade_fontes?id=eq.f1'))).toBe(true);
   });
 
+  it('pedido antigo sem data: pergunta ao banco quais faltam ANTES de cortar em 6', async () => {
+    const html = Array.from({ length: 8 }, (_, i) =>
+      `<div class="interna_lista"><a id='${51000 + i}'></a>${cartao('Pintor ' + i, 'Procuro pintor ' + i)}`).join('');
+    const chaves = await Promise.all(
+      extrairAnuncios(html).map(async (a) => (await linhaDaOportunidade(fonte, a)).chave));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      chamadas.push({ url: u, init });
+      if (u.includes('/rpc/check_rate_limit')) return new Response(JSON.stringify({ allowed: true }), { status: 200 });
+      if (u.includes('/rest/v1/oportunidade_fontes?select')) return new Response(JSON.stringify([fonte]), { status: 200 });
+      if (u === fonte.url) return new Response(html, { status: 200 });
+      if (u.includes('on_conflict=chave')) return new Response('[]', { status: 201 });
+      // Só os dois ÚLTIMOS ainda estão sem data no banco.
+      if (u.includes('select=chave&anuncio_em=is.null')) return new Response(JSON.stringify(chaves.slice(6).map((chave) => ({ chave }))), { status: 200 });
+      return new Response(null, { status: 204 });
+    });
+    await chamar({ 'x-internal-secret': 'segredo-interno' });
+    const datas = chamadas.filter((c) => c.init?.method === 'PATCH' && c.url.includes('/oportunidades?chave=eq.'));
+    expect(datas.map((c) => /chave=eq\.([0-9a-f]+)/.exec(c.url)![1]).sort()).toEqual(chaves.slice(6).sort());
+    expect(datas.every((c) => c.url.includes('anuncio_em=is.null'))).toBe(true);
+  });
+
   it('sem segredo e sem token de admin: recusa e não lê mural nenhum', async () => {
     const res = await chamar({ 'x-internal-secret': 'errado' });
     expect(res.status).toBeGreaterThanOrEqual(400);
@@ -241,5 +264,48 @@ describe('SQL das fontes', () => {
       ['Impermeabilização', 'Somos especialistas em impermeabilização, faça já seu orçamento'],
       ['Sofá', 'Procuro sofá de 3 lugares'],
     ])('recusa "%s"', (t, d) => expect(ehPedidoDePintor(t, d)).toBe(false));
+  });
+});
+
+describe('data estimada do anúncio (pelo número da plataforma)', () => {
+  const hoje = new Date('2026-11-11T12:00:00Z');
+  it('lê o número que vem antes do cartão; sem número fica null', () => {
+    const html = `<a id='1'></a>${'x'.repeat(700)}<div class="interna_lista"><a id='51863'></a>${cartao('Pintor', 'Procuro pintor')}<div class="interna_lista">${cartao('Pintor', 'Preciso de pintor')}`;
+    const as = extrairAnuncios(html);
+    expect(as.map((a) => a.numero)).toEqual([51863, null]);
+    expect(extrairAnuncios(HTML)[0].numero).toBeNull();
+  });
+  it('número da régua devolve a data medida; entre dois pontos, interpola', () => {
+    expect(dataEstimadaDoAnuncio(51863, hoje)).toBe('2026-09-07');
+    expect(dataEstimadaDoAnuncio(34975, hoje)).toBe('2023-12-06');
+    const meio = dataEstimadaDoAnuncio(51636, hoje)!;
+    expect(meio > '2026-08-08' && meio < '2026-09-07').toBe(true);
+  });
+  it('quanto maior o número, mais nova a data (nunca anda pra trás)', () => {
+    let antes = '';
+    for (let n = 33000; n <= 53500; n += 137) {
+      const d = dataEstimadaDoAnuncio(n, hoje)!;
+      expect(d >= antes).toBe(true);
+      antes = d;
+    }
+  });
+  it('depois do último ponto segue o ritmo recente, mas nunca passa de hoje', () => {
+    const d = dataEstimadaDoAnuncio(52135, hoje)!;
+    expect(d > '2026-09-22' && d < '2026-10-05').toBe(true);
+    expect(dataEstimadaDoAnuncio(99999, hoje)).toBe('2026-11-11');
+  });
+  it('sem número, zero ou número absurdo de antigo: sem data', () => {
+    expect(dataEstimadaDoAnuncio(null, hoje)).toBeNull();
+    expect(dataEstimadaDoAnuncio(0, hoje)).toBeNull();
+    expect(dataEstimadaDoAnuncio(5, hoje)).toBeNull();
+  });
+  it('o pedido gravado leva a data estimada em anuncio_em', async () => {
+    const a = { ...extrairAnuncios(HTML)[0], numero: 51863 };
+    expect((await linhaDaOportunidade(fonte, a)).anuncio_em).toBe('2026-09-07');
+    expect((await linhaDaOportunidade(fonte, { ...a, numero: null })).anuncio_em).toBeNull();
+  });
+  it('o portal marca a data de mural como estimada', () => {
+    const jsx = readFileSync(join(process.cwd(), 'public/portal/app.jsx'), 'utf8');
+    expect(jsx).toContain("' (data estimada)'");
   });
 });

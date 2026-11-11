@@ -527,8 +527,9 @@
       do PRÉDIO (público), não de morador.
     - **MAIS 27 MURAIS (2026-11-10, 4º JSON do usuário, 121 murais).** SQL
       `migrations/2026-11-10-h-oportunidade-fontes-mais-27.sql` (22 ativos, 5
-      vazios pausados, já com endereço/bairro/CEP; total 117) — **PASSADO NO
-      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram cidades novas (Birigui,
+      vazios pausados, já com endereço/bairro/CEP; total 117) — **JÁ RODADO
+      (2026-11-10, usuário: "adicionou todos lá"). Não pedir pra rodar de
+      novo.** Entram cidades novas (Birigui,
       Cajamar, Cotia, Diadema, Jundiaí, Mairiporã, Santo André, SBC, São
       Caetano, Sorocaba, Sumaré…). DE FORA: 2 Canal Condomínio, 1 Class Condo
       (Villaggio di Verona) e o site próprio da Alphaville Bauru (outro
@@ -538,6 +539,44 @@
       plataforma), Contrata Tiradentes (outra plataforma), Aruã Brisas (não
       verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
       é lido a cada ~1,5 dia. SEM mudança de código.
+    - **LEITURA MANUAL DOS 117 MURAIS (2026-11-10, pedido do usuário: "dar
+      uma checada em todos, ver se tem alguma coisa de pintor").** Feita daqui
+      (curl com o User-Agent do bot, 1 vez cada; páginas apagadas depois, nada
+      de morador no repo), passando por `extrairAnuncios`/`ehPedidoDePintor`:
+      117 lidos, 3150 anúncios, 38 murais sem anúncio, **8 pedidos** (França 1,
+      Costa do Sol 1, Santa Clara 3, Vivaz Prime 1, Parque San Miguel/Cajamar
+      1 e 1 FALSO POSITIVO no Parque Residence: "gostaria de deixar a
+      indicação de excelente profissional" — o filtro lê "indicação" como
+      procura; ajuste NÃO feito). 24 anúncios falam de pintura e ficaram de
+      fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
+      Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
+      os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
+    - **ADMIN VIA O BLOQUEIO "exclusivas do Plano PRO" NAS VAGAS (2026-11-11,
+      print do usuário com o selo ADMIN no topo). SEM SQL.** `VagasView`
+      perguntava só ao PERFIL (`canSeeProFeature`); o selo pergunta a
+      `situacaoDoPlano(user, saldo)`, que também vale pra conta da equipe e
+      assinatura da loja (moram no `billing_balance`). Agora a tela usa a
+      mesma função e mostra "Carregando…" enquanto o saldo não chegou. É a
+      MESMA regra de 29/10 (selo e portão perguntam à mesma função) — outras
+      telas com `canSeeProFeature` sozinho (Agenda, CRM, Anotações) podem ter
+      o mesmo defeito; não mexidas.
+    - **DATA ESTIMADA DO PEDIDO (2026-11-11, pedido do usuário: "precisamos
+      saber a data do pedido de pintor, estimate tlvz"; "somente admin vê por
+      enquanto" = pedidos seguem só no portal). SEM SQL (usa `anuncio_em`, que
+      já existia).** O mural não mostra data, mas cada anúncio tem um número
+      sequencial DA PLATAFORMA (`<a id='52135'></a>` antes do cartão).
+      `REGUA_DE_DATAS` em `mural-condominio.ts` = 22 pontos número × data,
+      medidos em 11/11 pelo `Last-Modified` das fotos de 51 anúncios do Parque
+      Santa Clara (49 de 51 em ordem; os 2 fora tiveram a foto trocada).
+      `dataEstimadaDoAnuncio` interpola; depois do último ponto (52087 =
+      22/09/2026) segue ~16 anúncios/dia sem passar de hoje; mais de 5000
+      números antes do 1º ponto → sem data. Pedido já gravado sem data ganha
+      só a data na próxima leitura (PATCH com `anuncio_em=is.null`, até 6 por
+      mural). Portal v=20261111a mostra "Anúncio de ≈ DD/MM/AAAA (data
+      estimada)" quando a fonte começa com "Mural ". **A régua envelhece:**
+      refazer a medição de tempos em tempos e acrescentar pontos no fim (o
+      host `app.vidadesindico.com.br` foi liberado no ambiente de nuvem pra
+      isso; o Worker NÃO consulta as fotos). Erro esperado: dias.
     - **Endereço, filtro e palavras-chave NO AR: PR #526 (squash `64cb298`),
       deploy run #814 `success`.** Telas não conferidas no portal logado.
     - Portal v=20261110i (filtro Todos/Ativos/Pausados + busca na lista de murais; caixa "🤖 Leitura automática dos murais"). Ambiente
