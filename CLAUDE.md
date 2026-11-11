@@ -551,6 +551,15 @@
       fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
       Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
       os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
+    - **ADMIN VIA O BLOQUEIO "exclusivas do Plano PRO" NAS VAGAS (2026-11-11,
+      print do usuário com o selo ADMIN no topo). SEM SQL.** `VagasView`
+      perguntava só ao PERFIL (`canSeeProFeature`); o selo pergunta a
+      `situacaoDoPlano(user, saldo)`, que também vale pra conta da equipe e
+      assinatura da loja (moram no `billing_balance`). Agora a tela usa a
+      mesma função e mostra "Carregando…" enquanto o saldo não chegou. É a
+      MESMA regra de 29/10 (selo e portão perguntam à mesma função) — outras
+      telas com `canSeeProFeature` sozinho (Agenda, CRM, Anotações) podem ter
+      o mesmo defeito; não mexidas.
     - **DATA ESTIMADA DO PEDIDO (2026-11-11, pedido do usuário: "precisamos
       saber a data do pedido de pintor, estimate tlvz"; "somente admin vê por
       enquanto" = pedidos seguem só no portal). SEM SQL (usa `anuncio_em`, que

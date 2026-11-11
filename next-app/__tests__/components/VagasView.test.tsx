@@ -12,6 +12,8 @@ vi.mock('@/lib/native/browser', () => ({ abrirLinkExterno: (u: string) => abrirL
 const policy = { atual: { id: 'u1', is_pro: true } as Record<string, unknown> | null };
 const push = vi.fn();
 vi.mock('@/lib/hooks/usePolicyUser', () => ({ usePolicyUser: () => policy.atual }));
+const saldo = vi.hoisted(() => ({ atual: { data: null as unknown, isLoading: false } }));
+vi.mock('@/lib/hooks/useBillingBalance', () => ({ useBillingBalance: () => saldo.atual }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
 import { VagasView } from '@/app/vagas/VagasView';
@@ -49,6 +51,7 @@ describe('VagasView', () => {
     abrirLinkExterno.mockReset();
     push.mockReset();
     policy.atual = { id: 'u1', is_pro: true };
+    saldo.atual = { data: null, isLoading: false };
   });
 
   it('quem não é PRO vê o bloqueio e a tela nem busca as vagas', () => {
@@ -59,6 +62,22 @@ describe('VagasView', () => {
     fireEvent.click(screen.getByText('Conhecer o PRO'));
     expect(push).toHaveBeenCalledWith('/pro');
     expect(fetchVagasAtivas).not.toHaveBeenCalled();
+  });
+
+  it('conta da equipe (ADMIN pelo saldo, perfil sem marca) vê as vagas, não o bloqueio', async () => {
+    policy.atual = { id: 'u1', is_pro: false };
+    saldo.atual = { data: { proActive: true, unlimitedUntil: null }, isLoading: false };
+    fetchVagasAtivas.mockResolvedValue([vaga]);
+    montar();
+    expect(screen.queryByText('As vagas são exclusivas do Plano PRO')).toBeNull();
+    await waitFor(() => expect(fetchVagasAtivas).toHaveBeenCalled());
+  });
+
+  it('saldo carregando: não afirma que a pessoa não é PRO', () => {
+    policy.atual = { id: 'u1', is_pro: false };
+    saldo.atual = { data: null, isLoading: true };
+    montar();
+    expect(screen.queryByText('As vagas são exclusivas do Plano PRO')).toBeNull();
   });
 
   it('mostra a vaga e abre o WhatsApp do anúncio pelo helper da casca', async () => {

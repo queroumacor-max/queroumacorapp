@@ -10,7 +10,8 @@ import { dataDoAnuncio, fonteSegura, linkDoContato, localDaVaga, rotuloDoRegime,
 import { abrirLinkExterno } from '@/lib/native/browser';
 import { useRouter } from 'next/navigation';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
-import { canSeeProFeature } from '@/lib/policies';
+import { situacaoDoPlano } from '@/lib/billingBalance';
+import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
 
 function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
   const local = localDaVaga(vaga);
@@ -85,8 +86,12 @@ function CartaoDaVaga({ vaga }: { vaga: Vaga }) {
 export function VagasView() {
   // Vagas é recurso do PRO (decisão de 10/11/2026). A tela só esconde; quem
   // barra de verdade é a RLS (migration 2026-11-10-e), então nem buscamos.
+  // A MESMA pergunta do selo do topo (`situacaoDoPlano`): conta da equipe e
+  // assinatura da loja moram no saldo, não só no perfil — perguntando só ao
+  // perfil, quem tinha o selo ADMIN via o bloqueio aqui (print de 11/11).
   const policyUser = usePolicyUser();
-  const isPro = canSeeProFeature(policyUser);
+  const saldo = useBillingBalance();
+  const isPro = situacaoDoPlano(policyUser, saldo.data ?? null).plano !== 'gratis';
   const router = useRouter();
   const q = useQuery<Vaga[], Error>({
     queryKey: ['vagas-ativas'],
@@ -96,6 +101,10 @@ export function VagasView() {
   });
   const vagas = q.data ?? [];
 
+  // Saldo ainda carregando: não dá pra afirmar "você não é PRO".
+  if (!isPro && saldo.isLoading) {
+    return <p className="text-sm text-[color:var(--color-muted)] p-4">Carregando…</p>;
+  }
   if (!isPro) {
     return (
       <section className="space-y-3">
