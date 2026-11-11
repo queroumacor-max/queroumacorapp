@@ -527,8 +527,9 @@
       do PRÉDIO (público), não de morador.
     - **MAIS 27 MURAIS (2026-11-10, 4º JSON do usuário, 121 murais).** SQL
       `migrations/2026-11-10-h-oportunidade-fontes-mais-27.sql` (22 ativos, 5
-      vazios pausados, já com endereço/bairro/CEP; total 117) — **PASSADO NO
-      CHAT, AINDA NÃO CONFIRMADO RODADO.** Entram cidades novas (Birigui,
+      vazios pausados, já com endereço/bairro/CEP; total 117) — **JÁ RODADO
+      (2026-11-10, usuário: "adicionou todos lá"). Não pedir pra rodar de
+      novo.** Entram cidades novas (Birigui,
       Cajamar, Cotia, Diadema, Jundiaí, Mairiporã, Santo André, SBC, São
       Caetano, Sorocaba, Sumaré…). DE FORA: 2 Canal Condomínio, 1 Class Condo
       (Villaggio di Verona) e o site próprio da Alphaville Bauru (outro
@@ -538,6 +539,18 @@
       plataforma), Contrata Tiradentes (outra plataforma), Aruã Brisas (não
       verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
       é lido a cada ~1,5 dia. SEM mudança de código.
+    - **LEITURA MANUAL DOS 117 MURAIS (2026-11-10, pedido do usuário: "dar
+      uma checada em todos, ver se tem alguma coisa de pintor").** Feita daqui
+      (curl com o User-Agent do bot, 1 vez cada; páginas apagadas depois, nada
+      de morador no repo), passando por `extrairAnuncios`/`ehPedidoDePintor`:
+      117 lidos, 3150 anúncios, 38 murais sem anúncio, **8 pedidos** (França 1,
+      Costa do Sol 1, Santa Clara 3, Vivaz Prime 1, Parque San Miguel/Cajamar
+      1 e 1 FALSO POSITIVO no Parque Residence: "gostaria de deixar a
+      indicação de excelente profissional" — o filtro lê "indicação" como
+      procura; ajuste NÃO feito). 24 anúncios falam de pintura e ficaram de
+      fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
+      Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
+      os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
     - **Endereço, filtro e palavras-chave NO AR: PR #526 (squash `64cb298`),
       deploy run #814 `success`.** Telas não conferidas no portal logado.
     - Portal v=20261110i (filtro Todos/Ativos/Pausados + busca na lista de murais; caixa "🤖 Leitura automática dos murais"). Ambiente
