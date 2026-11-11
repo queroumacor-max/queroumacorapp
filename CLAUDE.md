@@ -527,9 +527,9 @@
       do PRÉDIO (público), não de morador.
     - **MAIS 27 MURAIS (2026-11-10, 4º JSON do usuário, 121 murais).** SQL
       `migrations/2026-11-10-h-oportunidade-fontes-mais-27.sql` (22 ativos, 5
-      vazios pausados, já com endereço/bairro/CEP; total 117) — **NÃO ENTROU
-      NO BANCO (conferido em 11/11: 90 linhas; ver "CONFERIDO NO BANCO"
-      abaixo). Repassado no chat em 4 blocos.** Entram cidades novas (Birigui,
+      vazios pausados, já com endereço/bairro/CEP; total 117) — **JÁ RODADO (2026-11-11, contagem 117 conferida pelo usuário;
+      a 1ª tentativa de 10/11 não tinha entrado — o banco estava com 90).
+      Não pedir pra rodar de novo.** Entram cidades novas (Birigui,
       Cajamar, Cotia, Diadema, Jundiaí, Mairiporã, Santo André, SBC, São
       Caetano, Sorocaba, Sumaré…). DE FORA: 2 Canal Condomínio, 1 Class Condo
       (Villaggio di Verona) e o site próprio da Alphaville Bauru (outro
@@ -559,7 +559,7 @@
       TEM 90 LINHAS, NÃO 117: o SQL `-h` (27 murais) NÃO entrou**, apesar do
       "adicionou todos lá" — por isso falta o pedido do Parque San Miguel.
       INSERT repassado no chat em 4 blocos curtos (colagem pelo celular corta
-      bloco grande); **usuário informou "rodei tudo" (2026-11-11), SEM mandar o número da conferência — da outra vez o relato também foi "adicionou todos" e o banco tinha 90; só tratar como feito com a contagem 117 à vista**. Os
+      bloco grande); **JÁ RODADO E CONFERIDO (2026-11-11, usuário: a contagem deu 117). Não pedir pra rodar de novo**. Os
       90 estão TODOS `ativo=true` (os vazios foram reativados em algum
       momento). 6 dos 7 pedidos estão com `status='ativa'`: alguém marcou
       "Conferida" no portal; NÃO aparecem no app (a RLS só libera `tipo='vaga'`).
