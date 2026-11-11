@@ -547,6 +547,11 @@
       mostra o andamento; 429 espera 20s e tenta de novo. Rate limit da rota
       4 → 12/min (4 travava a leitura completa no meio). O cron de 4h NÃO
       mudou. Cada mural segue lido uma vez por volta (fila por `lida_em`).
+      Codex achou 2 P2 (contar ativos antes de a lista carregar; ignorar o
+      Retry-After), corrigidos no mesmo PR. **NO AR: PR #532 (squash
+      `10baad7`), deploy `success`.** Não conferido no portal. O usuário pediu
+      pro leitor NÃO se identificar como robô: RECUSADO (a identificação é o
+      que sustenta a autorização); oferecido só tirar "Bot" do nome.
     - **MAIS 3 MURAIS (2026-11-11, 5º JSON do usuário, 4 fontes).** SQL
       `migrations/2026-11-11-oportunidade-fontes-mais-3.sql` (Timing Mooca e
       Galleria Mooca vazios/pausados; Clube de Camping Nossa Terra, Cabreúva,
