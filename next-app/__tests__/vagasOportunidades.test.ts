@@ -90,6 +90,19 @@ describe('app', () => {
 
 describe('portal', () => {
   const jsx = ler('public/portal/app.jsx');
+
+  it('"Ler todos agora" repete a rota até dar a volta nos murais (12 por chamada)', () => {
+    expect(jsx).toContain('const MURAIS_POR_RODADA = 12;');
+    expect(jsx).toMatch(/Math\.ceil\(ativos \/ MURAIS_POR_RODADA\)/);
+    expect(jsx).toContain('▶ Ler todos agora');
+    // Conta os ativos no banco (não na lista da tela) e respeita o Retry-After.
+    expect(jsx).toMatch(/select\('id', \{ count: 'exact', head: true \}\)\.eq\('ativo', true\)/);
+    expect(jsx).toContain('e.espera');
+    // O tamanho da rodada do portal é o MAX_FONTES do servidor.
+    expect(ler('lib/api/_services/mural-condominio.ts')).toContain('const MAX_FONTES = 12;');
+    // 4/min travava a leitura completa no meio.
+    expect(ler('app/api/oportunidades/varrer/route.ts')).toContain("endpoint: 'oportunidades-varrer', limit: 12");
+  });
   const trecho = jsx.split('// [teste:oportunidades-inicio]')[1].split('// [teste:oportunidades-fim]')[0];
   const h = new Function(trecho + ';return {lerAnuncio, fonteUrlValida, oportunidadeVisivelNoApp, duplicatasDe};')() as {
     lerAnuncio: (t: string) => { tipo: string; regime: string; contato: string; remuneracao: string; whatsapp: boolean };

@@ -539,6 +539,14 @@
       plataforma), Contrata Tiradentes (outra plataforma), Aruã Brisas (não
       verificado). Com 117 murais e 12 por rodada × 6 rodadas/dia, cada mural
       é lido a cada ~1,5 dia. SEM mudança de código.
+    - **"LER TODOS AGORA" (2026-11-11, pedido do usuário: "tem que olhar todos
+      os sites na pesquisa"). SEM SQL. Portal v=20261111c.** O botão lia só os
+      12 da vez e o usuário entendeu (com razão) que era a pesquisa inteira.
+      Agora o portal repete a rota até dar a volta nos murais ativos
+      (`MURAIS_POR_RODADA` = `MAX_FONTES` = 12, travado por teste), soma e
+      mostra o andamento; 429 espera 20s e tenta de novo. Rate limit da rota
+      4 → 12/min (4 travava a leitura completa no meio). O cron de 4h NÃO
+      mudou. Cada mural segue lido uma vez por volta (fila por `lida_em`).
     - **MAIS 3 MURAIS (2026-11-11, 5º JSON do usuário, 4 fontes).** SQL
       `migrations/2026-11-11-oportunidade-fontes-mais-3.sql` (Timing Mooca e
       Galleria Mooca vazios/pausados; Clube de Camping Nossa Terra, Cabreúva,

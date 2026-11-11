@@ -6,9 +6,10 @@
 //  - o pg_cron do Supabase, 1x/dia (`run_oportunidades_varredura()`), com o
 //    header `x-internal-secret` = PUSH_INTERNAL_SECRET (mesmo segredo do
 //    /api/posts/sweep-pending);
-//  - o botão "Ler agora" do portal, com o token de um admin no corpo.
-// Rate limit baixo de propósito: ler o mural dos outros mais do que algumas
-// vezes por hora não tem motivo.
+//  - o botão "Ler todos agora" do portal, com o token de um admin no corpo.
+//    Ele repete a chamada até dar a volta nos murais ativos (12 por chamada),
+//    por isso o limite é 12/min: 4 travava a leitura completa no meio. Cada
+//    mural continua sendo lido UMA vez por volta (fila por `lida_em`).
 
 import { type NextRequest } from 'next/server';
 import { getRuntimeEnv } from '@/lib/api/env';
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       await ensurePortalAdmin({ callerId, email });
       chave = callerId || email || chave;
     }
-    const rl = await checkRateLimit({ userId: chave, endpoint: 'oportunidades-varrer', limit: 4 });
+    const rl = await checkRateLimit({ userId: chave, endpoint: 'oportunidades-varrer', limit: 12 });
     if (!rl.allowed) return rateLimitResponse(rl);
 
     const r = await varrerMurais({ supaUrl: getSupabaseUrl(), serviceKey });
