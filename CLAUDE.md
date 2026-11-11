@@ -527,9 +527,9 @@
       do PRÉDIO (público), não de morador.
     - **MAIS 27 MURAIS (2026-11-10, 4º JSON do usuário, 121 murais).** SQL
       `migrations/2026-11-10-h-oportunidade-fontes-mais-27.sql` (22 ativos, 5
-      vazios pausados, já com endereço/bairro/CEP; total 117) — **JÁ RODADO
-      (2026-11-10, usuário: "adicionou todos lá"). Não pedir pra rodar de
-      novo.** Entram cidades novas (Birigui,
+      vazios pausados, já com endereço/bairro/CEP; total 117) — **NÃO ENTROU
+      NO BANCO (conferido em 11/11: 90 linhas; ver "CONFERIDO NO BANCO"
+      abaixo). Repassado no chat em 4 blocos.** Entram cidades novas (Birigui,
       Cajamar, Cotia, Diadema, Jundiaí, Mairiporã, Santo André, SBC, São
       Caetano, Sorocaba, Sumaré…). DE FORA: 2 Canal Condomínio, 1 Class Condo
       (Villaggio di Verona) e o site próprio da Alphaville Bauru (outro
@@ -551,6 +551,20 @@
       fora corretamente (ofertas de pintor, móvel laqueado, funilaria, quadro).
       Os anúncios não trazem data. O ambiente de nuvem `queroumacorapp` ganhou
       os 113 hosts dos murais (6 aprovações do usuário) pra essa leitura.
+    - **CONFERIDO NO BANCO (2026-11-11, prints do usuário no SQL Editor do
+      projeto certo): A LEITURA AUTOMÁTICA FUNCIONA EM PRODUÇÃO** — 90 murais
+      lidos, 0 falhas, 7 pedidos gravados (Vivaz Prime 1, Santa Clara 3,
+      França 1, Costa do Sol 1 em 10/11 08:17 UTC; Parque Residence 1 em
+      11/11 00:17 = o falso positivo da "indicação"). **MAS `oportunidade_fontes`
+      TEM 90 LINHAS, NÃO 117: o SQL `-h` (27 murais) NÃO entrou**, apesar do
+      "adicionou todos lá" — por isso falta o pedido do Parque San Miguel.
+      INSERT repassado no chat em 4 blocos curtos (colagem pelo celular corta
+      bloco grande); **aguardando o usuário rodar e a contagem dar 117**. Os
+      90 estão TODOS `ativo=true` (os vazios foram reativados em algum
+      momento). 6 dos 7 pedidos estão com `status='ativa'`: alguém marcou
+      "Conferida" no portal; NÃO aparecem no app (a RLS só libera `tipo='vaga'`).
+      `anuncio_em` ainda NULL nos 7: foram lidos antes do deploy #816; a data
+      entra na próxima leitura de cada mural.
     - **Data estimada + admin nas vagas NO AR: PR #529 (squash `2f7a8dc`),
       deploy run #816 `success`.** Não conferido no portal nem no aparelho.
     - **ADMIN VIA O BLOQUEIO "exclusivas do Plano PRO" NAS VAGAS (2026-11-11,
