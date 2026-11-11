@@ -19846,7 +19846,7 @@ const FontesDeMural = ({
       color: C.muted,
       marginBottom: 12
     }
-  }, "De 4 em 4 horas o sistema l\xEA 12 murais em rod\xEDzio (o que est\xE1 h\xE1 mais tempo sem ler vem primeiro) e traz s\xF3 os an\xFAncios de quem PROCURA pintor, como \"A conferir\". \"Ler agora\" l\xEA TODOS os murais ativos, 12 por vez, e mostra o andamento (leva alguns minutos; n\xE3o feche a p\xE1gina). O e-mail do morador n\xE3o \xE9 copiado: abra o link do an\xFAncio para ver."), aviso && /*#__PURE__*/React.createElement("div", {
+  }, "A cada 2 dias, em hor\xE1rio alternado, o sistema l\xEA todos os murais ativos e traz s\xF3 os an\xFAncios de quem PROCURA pintor, como \"A conferir\". \"Ler agora\" l\xEA TODOS os murais ativos, 12 por vez, e mostra o andamento (leva alguns minutos; n\xE3o feche a p\xE1gina). O e-mail do morador n\xE3o \xE9 copiado: abra o link do an\xFAncio para ver."), aviso && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,

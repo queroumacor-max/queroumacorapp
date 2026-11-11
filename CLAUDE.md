@@ -464,7 +464,7 @@
     - `lib/api/_services/mural-condominio.ts`: `extrairAnuncios` (cartões
       `.anuncio_conteudo`), `ehPedidoDePintor` (procura × oferta; na dúvida
       fica de fora), grava só `tipo='pedido'`, `status='conferir'` — NUNCA no
-      app. User-Agent identificado (`QueroUmaCorBot`), 1 leitura/dia, teto de
+      app. User-Agent identificado (`Pintor buscando trabalho` desde 2026-11-11: o usuário afirma que foi o identificador COMBINADO POR TELEFONE com a Vida de Síndico — aceito na palavra dele, como a própria autorização; NÃO há registro escrito e eu não verifiquei. Antes disso recusei anonimato e esse mesmo nome enquanto era só preferência. Sem dado da loja: "QueroUmaCor não tem nada a ver com a loja", palavras dele. Fingir navegador de pessoa segue FORA), 1 leitura/dia, teto de
       4 MB e 12 s, ssrf-guard inclusive no destino do redirect.
     - **NÃO decodifica o e-mail do morador** (o site entrega ofuscado pela
       Cloudflare, `data-cfemail`): o registro leva o link do mural e a pessoa
@@ -547,6 +547,23 @@
       mostra o andamento; 429 espera 20s e tenta de novo. Rate limit da rota
       4 → 12/min (4 travava a leitura completa no meio). O cron de 4h NÃO
       mudou. Cada mural segue lido uma vez por volta (fila por `lida_em`).
+      Codex achou 2 P2 (contar ativos antes de a lista carregar; ignorar o
+      Retry-After), corrigidos no mesmo PR. **NO AR: PR #532 (squash
+      `10baad7`), deploy `success`.** Não conferido no portal. O usuário pediu
+      pro leitor NÃO se identificar como robô: RECUSADO (a identificação é o
+      que sustenta a autorização); oferecido só tirar "Bot" do nome.
+    - **CRON A CADA 2 DIAS, HORÁRIO ALTERNADO (2026-11-11, pedido do usuário:
+      "não faça de 4 em 4 hrs, faça a cada 2 dias em horários alternados").**
+      SQL `migrations/2026-11-11-b-oportunidades-cron-2-dias.sql` — **PASSADO
+      NO CHAT, AINDA NÃO CONFIRMADO RODADO** (até rodar, segue de 4 em 4 h).
+      O cron bate de 15 em 15 min (`7,22,37,52 * * * *`), mas
+      `run_oportunidades_varredura_alternada()` só deixa passar em dia sim,
+      dia não (a contar de 12/11/2026) e numa janela de 3 h que começa às
+      9h, 14h, 11h, 16h de Brasília, em rodízio: 12 chamadas × 12 murais =
+      até 144 por janela (hoje 120) — lê TODOS a cada 2 dias. Passou de ~144
+      murais ativos → alargar a janela. Lógica testada em Postgres 16 local
+      (calendário de 18 dias: 9 dias, 12 chamadas cada, horários certos).
+      Portal v=20261111d (só o texto da caixa).
     - **MAIS 3 MURAIS (2026-11-11, 5º JSON do usuário, 4 fontes).** SQL
       `migrations/2026-11-11-oportunidade-fontes-mais-3.sql` (Timing Mooca e
       Galleria Mooca vazios/pausados; Clube de Camping Nossa Terra, Cabreúva,

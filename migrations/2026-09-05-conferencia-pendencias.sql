@@ -163,3 +163,4 @@ SELECT 'murais: 90 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM pu
 SELECT 'murais: endereco preenchido (>= 82) — 2026-11-10' AS item, coalesce((SELECT count(*) FROM public.oportunidade_fontes WHERE to_jsonb(oportunidade_fontes) ->> 'endereco' IS NOT NULL), 0) >= 82 AS ok;
 SELECT 'murais: 117 cadastrados — 2026-11-10' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 117 AS ok;
 SELECT 'murais: 120 cadastrados — 2026-11-11' AS item, (SELECT count(*) FROM public.oportunidade_fontes) >= 120 AS ok;
+SELECT 'murais: cron a cada 2 dias em horario alternado — 2026-11-11' AS item, EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'oportunidades-varredura' AND command LIKE '%alternada%') AS ok;
