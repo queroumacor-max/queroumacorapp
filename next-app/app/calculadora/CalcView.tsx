@@ -6,8 +6,10 @@
 
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { canSeeProFeature } from '@/lib/policies';
 import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { limiteAtingido, registrarUso, semLimite, useUsosHoje, LIMITE_DIARIO_FREE } from '@/lib/freemiumDiario';
 import { showToast } from '@/lib/toast';
 import { fetchGated } from '@/lib/services/fetchGated';
 import {
@@ -159,6 +161,31 @@ export function CalcView() {
     const demandM2 = a * fator * (demaos / 2) * coverageScale(paintLine);
     return { areaM2: a, demandM2, units: combineUnits(demandM2) };
   }, [effectiveArea, fator, demaos, paintLine]);
+
+  // Grátis: 2 cálculos por dia (cada "Calcular" conta 1). PRO/admin ilimitado.
+  const router = useRouter();
+  const { usos: usosCalc, refresh: refreshCalc } = useUsosHoje('calculadora');
+  // "calculado" é DERIVADO dos inputs (evita setState-em-effect): o resultado
+  // só aparece pros inputs do último "Calcular". Mexeu em algo → some.
+  const chaveAtual = useMemo(
+    () => JSON.stringify([effectiveArea, fator, demaos, lineId]),
+    [effectiveArea, fator, demaos, lineId],
+  );
+  const [calculadoPara, setCalculadoPara] = useState<string | null>(null);
+  const [bloqueado, setBloqueado] = useState(false);
+  const calculado = calculadoPara === chaveAtual;
+
+  function handleCalcular() {
+    if (!result) return;
+    if (limiteAtingido('calculadora', policyUser)) {
+      setBloqueado(true);
+      return;
+    }
+    registrarUso('calculadora');
+    refreshCalc();
+    setBloqueado(false);
+    setCalculadoPara(chaveAtual);
+  }
 
   return (
     <div className="px-3.5 pt-4 pb-8">
@@ -426,7 +453,33 @@ export function CalcView() {
         </div>
       </div>
 
-      {result ? (
+      {bloqueado ? (
+        <div
+          className="text-white text-center"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-p1), var(--color-p4))',
+            borderRadius: 18,
+            padding: 22,
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+            Você já calculou {LIMITE_DIARIO_FREE}× hoje
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.9, marginTop: 8, lineHeight: 1.45 }}>
+            No plano grátis são {LIMITE_DIARIO_FREE} cálculos de tinta por dia. Volte amanhã
+            ou assine o PRO pra calcular sem limite.
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/pro')}
+            className="font-bold text-sm rounded-xl"
+            style={{ minHeight: 44, marginTop: 14, padding: '0 18px', background: '#fff', color: 'var(--color-p1)' }}
+          >
+            Conhecer o PRO
+          </button>
+        </div>
+      ) : calculado && result ? (
         <div
           className="text-white text-center"
           style={{
@@ -462,7 +515,24 @@ export function CalcView() {
             o modo de aplicação.
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div style={{ marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={handleCalcular}
+            disabled={!result}
+            className="block w-full text-center text-white font-bold rounded-2xl disabled:opacity-50"
+            style={{ padding: 16, background: 'var(--color-p1)' }}
+          >
+            Calcular quantidade
+          </button>
+          {!semLimite(policyUser) && (
+            <p className="text-center text-[11px]" style={{ color: 'var(--color-muted)', marginTop: 6 }}>
+              Grátis: {Math.max(0, LIMITE_DIARIO_FREE - usosCalc)} de {LIMITE_DIARIO_FREE} cálculos restantes hoje.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2" style={{ marginBottom: 14 }}>
         {[

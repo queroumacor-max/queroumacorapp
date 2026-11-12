@@ -4,10 +4,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { calcularFrete, lerNumero } from '@/lib/frete';
 import { fmtBRL } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/native';
 import { showToast } from '@/lib/toast';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { limiteAtingido, registrarUso, semLimite, useUsosHoje, LIMITE_DIARIO_FREE } from '@/lib/freemiumDiario';
 
 const brl = (n: number): string => `R$ ${fmtBRL(n)}`;
 
@@ -54,6 +57,21 @@ export function FreteView() {
   const [preco, setPreco] = useState('');
   const [extras, setExtras] = useState('');
 
+  const router = useRouter();
+  const policyUser = usePolicyUser();
+  // Grátis: 2 cálculos por dia (cada "Calcular" conta 1). PRO/admin ilimitado.
+  const { usos: usosFrete, refresh: refreshFrete } = useUsosHoje('frete');
+  // "calculado" é DERIVADO dos inputs: o resultado só aparece pros inputs do
+  // último "Calcular". Mexeu em algo → some e precisa de novo Calcular (= novo
+  // uso). Evita setState-em-effect.
+  const chaveAtual = useMemo(
+    () => JSON.stringify([km, idaEVolta, viagens, kmL, preco, extras]),
+    [km, idaEVolta, viagens, kmL, preco, extras],
+  );
+  const [calculadoPara, setCalculadoPara] = useState<string | null>(null);
+  const [bloqueado, setBloqueado] = useState(false);
+  const calculado = calculadoPara === chaveAtual;
+
   const r = useMemo(
     () =>
       calcularFrete({
@@ -66,6 +84,18 @@ export function FreteView() {
       }),
     [km, idaEVolta, viagens, kmL, preco, extras],
   );
+
+  function handleCalcular() {
+    if (!r) return;
+    if (limiteAtingido('frete', policyUser)) {
+      setBloqueado(true);
+      return;
+    }
+    registrarUso('frete');
+    refreshFrete();
+    setBloqueado(false);
+    setCalculadoPara(chaveAtual);
+  }
 
   async function copiar() {
     if (!r) return;
@@ -129,7 +159,25 @@ export function FreteView() {
         className="rounded-2xl p-4"
         style={{ background: 'var(--color-ink-fixed)', color: 'var(--color-white-fixed)' }}
       >
-        {r ? (
+        {bloqueado ? (
+          <div className="flex flex-col gap-3 text-center">
+            <div className="font-extrabold" style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>
+              Você já usou o Frete {LIMITE_DIARIO_FREE}× hoje
+            </div>
+            <p className="text-sm" style={{ opacity: 0.85 }}>
+              No plano grátis são {LIMITE_DIARIO_FREE} cálculos de frete por dia. Volte amanhã ou
+              assine o PRO pra calcular sem limite.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push('/pro')}
+              className="font-bold text-sm rounded-xl"
+              style={{ minHeight: 44, background: 'var(--color-white-fixed)', color: 'var(--color-ink-fixed)' }}
+            >
+              Conhecer o PRO
+            </button>
+          </div>
+        ) : calculado && r ? (
           <div className="flex flex-col gap-3">
             <div>
               <div className="text-[12px] uppercase tracking-wider" style={{ opacity: 0.75 }}>Custo do frete</div>
@@ -156,9 +204,25 @@ export function FreteView() {
             </button>
           </div>
         ) : (
-          <p className="text-sm" style={{ opacity: 0.85 }}>
-            Preencha a distância, o consumo (km/L) e o preço do litro pra ver o custo.
-          </p>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm" style={{ opacity: 0.85 }}>
+              Preencha a distância, o consumo (km/L) e o preço do litro e toque em Calcular.
+            </p>
+            <button
+              type="button"
+              onClick={handleCalcular}
+              disabled={!r}
+              className="font-bold text-sm rounded-xl disabled:opacity-50"
+              style={{ minHeight: 44, background: 'var(--color-white-fixed)', color: 'var(--color-ink-fixed)' }}
+            >
+              Calcular frete
+            </button>
+            {!semLimite(policyUser) && (
+              <p className="text-[11px]" style={{ opacity: 0.7 }}>
+                Grátis: {Math.max(0, LIMITE_DIARIO_FREE - usosFrete)} de {LIMITE_DIARIO_FREE} cálculos restantes hoje.
+              </p>
+            )}
+          </div>
         )}
       </section>
     </div>

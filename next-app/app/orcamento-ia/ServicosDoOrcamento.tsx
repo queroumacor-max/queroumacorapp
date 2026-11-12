@@ -55,9 +55,12 @@ import { fmtBRL } from '@/lib/utils';
 export interface ServicosDoOrcamentoProps {
   servicos: ServicoDoOrcamento[];
   onChange: (next: ServicoDoOrcamento[]) => void;
+  /** Modo manual do free (3º orçamento do dia+): esconde os valores sugeridos
+   *  da Tabela de Preços (mín/média/máx e "Usar média"). Default false. */
+  ocultarSugestoes?: boolean;
 }
 
-export function ServicosDoOrcamento({ servicos, onChange }: ServicosDoOrcamentoProps) {
+export function ServicosDoOrcamento({ servicos, onChange, ocultarSugestoes = false }: ServicosDoOrcamentoProps) {
   const [seletorAberto, setSeletorAberto] = useState(false);
   const ultimo = servicos[servicos.length - 1] ?? null;
 
@@ -95,6 +98,7 @@ export function ServicosDoOrcamento({ servicos, onChange }: ServicosDoOrcamentoP
           indice={idx}
           onChange={(patch) => atualizar(s.id, patch)}
           onRemove={() => remover(s.id)}
+          ocultarSugestoes={ocultarSugestoes}
         />
       ))}
 
@@ -150,11 +154,13 @@ function BlocoDeServico({
   indice,
   onChange,
   onRemove,
+  ocultarSugestoes = false,
 }: {
   servico: ServicoDoOrcamento;
   indice: number;
   onChange: (patch: Partial<ServicoDoOrcamento>) => void;
   onRemove: () => void;
+  ocultarSugestoes?: boolean;
 }) {
   const totais = useMemo(() => totaisDosItens(s.itens), [s.itens]);
   // Espaço/material começam FECHADOS: quem adicionou um item da tabela quer
@@ -216,6 +222,7 @@ function BlocoDeServico({
         itens={s.itens}
         onChange={(itens) => onChange({ itens })}
         acesso={s.acesso}
+        ocultarSugestoes={ocultarSugestoes}
       />
       {s.itens.length > 0 ? (
         <div
@@ -234,7 +241,7 @@ function BlocoDeServico({
               {totais.preenchido > 0 ? `R$ ${fmtBRL(totais.preenchido)}` : '—'}
             </strong>
           </div>
-          {totais.semValor > 0 && totais.sugerido > 0 ? (
+          {!ocultarSugestoes && totais.semValor > 0 && totais.sugerido > 0 ? (
             <div className="flex justify-between gap-3">
               <span>
                 Com a sugestão da tabela {totais.semValor === 1 ? 'no que falta' : `nos ${totais.semValor} que faltam`}
@@ -425,11 +432,13 @@ function ItensDoServico({
   itens,
   onChange,
   acesso,
+  ocultarSugestoes = false,
 }: {
   itens: ItemDoOrcamento[];
   onChange: (next: ItemDoOrcamento[]) => void;
   /** campo "Acesso" do serviço — só pra pré-selecionar o filtro de altura */
   acesso: string;
+  ocultarSugestoes?: boolean;
 }) {
   const [seletorAberto, setSeletorAberto] = useState(false);
 
@@ -461,6 +470,7 @@ function ItensDoServico({
               item={s}
               onChange={(patch) => atualizar(s.id, patch)}
               onRemove={() => remover(s.id)}
+              ocultarSugestoes={ocultarSugestoes}
             />
           ))}
         </ul>
@@ -517,10 +527,12 @@ function LinhaDeItem({
   item: s,
   onChange,
   onRemove,
+  ocultarSugestoes = false,
 }: {
   item: ItemDoOrcamento;
   onChange: (patch: Partial<ItemDoOrcamento>) => void;
   onRemove: () => void;
+  ocultarSugestoes?: boolean;
 }) {
   const sub = subtotalDoItem(s);
   const sugerido = subtotalSugerido(s);
@@ -606,7 +618,7 @@ function LinhaDeItem({
         </label>
       </div>
 
-      {sug ? (
+      {sug && !ocultarSugestoes ? (
         <div
           className="flex items-center justify-between gap-2"
           style={{ marginTop: 6, fontSize: 11, color: 'var(--color-muted)', lineHeight: 1.5 }}
@@ -657,7 +669,7 @@ function LinhaDeItem({
         <span>Subtotal</span>
         {sub !== null ? (
           <strong style={{ color: 'var(--color-ink)' }}>R$ {fmtBRL(sub)}</strong>
-        ) : sugerido !== null ? (
+        ) : sugerido !== null && !ocultarSugestoes ? (
           <span>
             a definir <span style={{ opacity: 0.8 }}>(sugerido R$ {fmtBRL(sugerido)})</span>
           </span>
