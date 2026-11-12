@@ -1,15 +1,39 @@
 name: Load Test (manual)
 
 # Manual-only — load test custa egress e pode disparar rate-limit de
-# Supabase/Cloudflare. Não roda automaticamente. SEM alvo padrão: informe
-# `base_url` (ou o secret LOAD_TEST_URL). O padrão antigo era
-# app2.queroumacor.com.br, removido em 2026-09-26; produção NÃO vira padrão
-# de propósito (carga no app real por engano + o WAF bloqueia IP do Actions).
+# Supabase/Cloudflare. Não roda automaticamente.
+#
+# Perfil `basic`: endpoints públicos do app. Informe `base_url` (ou o secret
+#   LOAD_TEST_URL). NÃO use produção como alvo do basic: o WAF do Cloudflare
+#   bloqueia IP de datacenter (GitHub Actions) e você mediria a página de
+#   bloqueio, não o app. Use o preview (…workers.dev).
+#
+# Perfil `completo`: feed/busca/trending/produtos direto no Supabase (REST),
+#   que NÃO passa pelo Cloudflare, então roda do runner sem bater no WAF.
+#   Carrega o Supabase de PRODUÇÃO (é o único banco) — só leitura, mas é o
+#   DB real. Precisa dos secrets: NEXT_PUBLIC_SUPABASE_URL,
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY, LOAD_TEST_EMAIL, LOAD_TEST_PASSWORD
+#   (conta de teste com e-mail confirmado).
 on:
   workflow_dispatch:
     inputs:
+      profile:
+        description: 'Perfil: basic (rotas públicas) ou completo (feed/busca no Supabase de produção)'
+        type: choice
+        options:
+          - basic
+          - completo
+        default: basic
+      vus:
+        description: 'Usuários simultâneos no platô'
+        default: '100'
+        type: string
+      duration:
+        description: 'Duração do platô (ex.: 3m)'
+        default: '3m'
+        type: string
       base_url:
-        description: 'Base URL alvo (obrigatório, se o secret LOAD_TEST_URL não existir)'
+        description: 'basic: Base URL alvo (ou secret LOAD_TEST_URL). Ignorado no completo.'
         required: false
         type: string
 
@@ -19,7 +43,7 @@ permissions:
 jobs:
   k6:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -31,10 +55,29 @@ jobs:
 
       - name: Run k6 load test
         run: |
-          if [ -z "$BASE_URL" ]; then
-            echo "::error::Informe base_url (ou configure o secret LOAD_TEST_URL)."
-            exit 1
+          if [ "$PROFILE" = "completo" ]; then
+            if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+              echo "::error::completo exige os secrets NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY."
+              exit 1
+            fi
+            if [ -z "$LOAD_TEST_EMAIL" ] || [ -z "$LOAD_TEST_PASSWORD" ]; then
+              echo "::error::completo exige os secrets LOAD_TEST_EMAIL e LOAD_TEST_PASSWORD (conta de teste)."
+              exit 1
+            fi
+          else
+            if [ -z "$BASE_URL" ]; then
+              echo "::error::basic exige base_url (ou o secret LOAD_TEST_URL)."
+              exit 1
+            fi
           fi
           k6 run scripts/load-test.js
         env:
+          PROFILE: ${{ inputs.profile }}
+          VUS: ${{ inputs.vus }}
+          DURATION: ${{ inputs.duration }}
           BASE_URL: ${{ inputs.base_url || secrets.LOAD_TEST_URL }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          LOAD_TEST_EMAIL: ${{ secrets.LOAD_TEST_EMAIL }}
+          LOAD_TEST_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+          APP_URL: ${{ secrets.LOAD_TEST_URL }}

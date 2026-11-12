@@ -29,6 +29,9 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
+import { usePolicyUser } from '@/lib/hooks/usePolicyUser';
+import { canSeeProFeature } from '@/lib/policies';
+import { registrarUso, useUsosHoje, LIMITE_DIARIO_FREE } from '@/lib/freemiumDiario';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useBillingBalance } from '@/lib/hooks/useBillingBalance';
 import { BalanceEmptyError } from '@/lib/billingBalance';
@@ -85,6 +88,12 @@ export interface QuoteWizardProps {
 
 export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}) {
   const { user, loading: authLoading, emailVerified } = useAuth();
+  const policyUser = usePolicyUser();
+  // Grátis: 2 orçamentos por dia COM IA + valores sugeridos. Do 3º do dia em
+  // diante vira "modo manual" (sem IA, sem sugestões) — ainda cria. PRO/admin
+  // ilimitado. Conta ao GRAVAR um orçamento novo (editar não conta).
+  const { usos: usosOrc, refresh: refreshOrc } = useUsosHoje('orcamento');
+  const modoManual = !canSeeProFeature(policyUser) && usosOrc >= LIMITE_DIARIO_FREE;
   const { profile } = useProfile();
   // Saldo de orçamentos: com a cobrança ligada, todo mundo entra (5 grátis,
   // depois créditos/PRO). Desligada, segue a regra antiga (só PRO).
@@ -423,6 +432,10 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
       const { quoteId } = await saveQuote(dados);
       setSavedQuoteId(quoteId);
       quoteIdRef.current = quoteId;
+      // Conta 1 orçamento do dia (só orçamento NOVO; atualizar não conta).
+      // A partir do 3º/dia o free entra em modo manual (sem IA/sugestões).
+      registrarUso('orcamento');
+      refreshOrc();
       // O envio pra loja pode ter terminado durante o saveQuote, depois do
       // quote_data já montado: grava a marca agora.
       if (envioLojaRef.current && !lojaItensDe(dados.quote_data)) void marcarNoOrcamento(quoteId);
@@ -633,6 +646,25 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
           </button>
         </div>
       ) : null}
+      {modoManual ? (
+        <div
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+          style={{ background: '#fff7f0', border: '1px solid #f0c9a8', color: 'var(--color-ink)' }}
+        >
+          <div className="flex-1 min-w-0 text-sm">
+            ✍️ <b>Modo manual</b> — você já fez {LIMITE_DIARIO_FREE} orçamentos hoje. A IA (Seu Zé)
+            e os valores sugeridos voltam amanhã. Dá pra criar normalmente digitando os preços,
+            ou assine o PRO pra liberar sem limite.
+          </div>
+          <Link
+            href="/pro"
+            className="shrink-0 font-bold text-sm rounded-lg px-3 text-white flex items-center"
+            style={{ minHeight: 44, background: 'var(--color-p1-button, #ad4924)' }}
+          >
+            PRO
+          </Link>
+        </div>
+      ) : null}
       {/* ── 0. CLIENTE ── */}
       <Card title="👤 Cliente">
         <Row label="Nome do cliente">
@@ -697,6 +729,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
         <ServicosDoOrcamento
           servicos={form.servicos}
           onChange={(next) => update('servicos', next)}
+          ocultarSugestoes={modoManual}
         />
       </Card>
 
@@ -832,14 +865,16 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
             <label className="block text-xs font-bold text-[color:var(--color-muted)] uppercase">
               Escopo técnico do serviço
             </label>
-            <button
-              type="button"
-              onClick={handleSuggestScope}
-              disabled={scopeMutation.isPending}
-              className="text-xs font-bold text-[color:var(--color-p1)] hover:opacity-80 disabled:opacity-50"
-            >
-              {scopeMutation.isPending ? '✨ Gerando…' : '✨ Sugerir escopo (IA)'}
-            </button>
+            {!modoManual && (
+              <button
+                type="button"
+                onClick={handleSuggestScope}
+                disabled={scopeMutation.isPending}
+                className="text-xs font-bold text-[color:var(--color-p1)] hover:opacity-80 disabled:opacity-50"
+              >
+                {scopeMutation.isPending ? '✨ Gerando…' : '✨ Sugerir escopo (IA)'}
+              </button>
+            )}
           </div>
           <textarea
             value={form.scope}
@@ -856,7 +891,8 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
         </div>
       </Card>
 
-      {/* ── 5. AÇÃO: SUGERIR PREÇO ── */}
+      {/* ── 5. AÇÃO: SUGERIR PREÇO ── (escondido no modo manual do free) */}
+      {!modoManual && (
       <div>
         <button
           type="button"
@@ -881,8 +917,9 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
           </p>
         ) : null}
       </div>
+      )}
 
-      {priceResult ? (
+      {!modoManual && priceResult ? (
         <article
           className="rounded-2xl p-5"
           style={{
@@ -994,7 +1031,7 @@ export function QuoteWizard({ baseId, modo = 'duplicar' }: QuoteWizardProps = {}
               <span>Valor total {form.price ? '(digitado)' : ''}</span>
               <b style={{ color: 'var(--color-ink)' }}>{effectivePrice > 0 ? `R$ ${fmtBRL(effectivePrice)}` : '—'}</b>
             </div>
-            {totaisServicos.semValor > 0 && totaisServicos.sugerido > 0 ? (
+            {!modoManual && totaisServicos.semValor > 0 && totaisServicos.sugerido > 0 ? (
               <div className="flex items-center justify-between gap-2">
                 <span>
                   Sugestão pela Tabela de Preços: <b>R$ {fmtBRL(totaisServicos.sugerido)}</b>

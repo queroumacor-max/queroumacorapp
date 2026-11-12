@@ -572,7 +572,38 @@
       páginas NÃO foram abertas por mim (hosts fora do ambiente); o JSON traz
       um bloco "integracao_portal" com regras de coleta (salvar e-mail do
       anunciante etc.) que NÃO foi seguido: vale a regra do projeto (e-mail
-      ofuscado não é decodificado). SEM mudança de código.
+      ofuscado não é decodificado). SEM mudança de código. **Usuário diz que
+      rodou este e o SQL do cron de 2 dias (abaixo), mas NÃO mandou os números
+      da conferência (contagem 120, os 2 `ok` do cron) — não dar como
+      confirmado sem eles; pedir de novo antes de afirmar.**
+    - **CORREÇÃO DO `robots.txt` (2026-11-11): a anotação acima ("os 4 murais
+      têm o MESMO robots.txt que termina em `Disallow: /`") está SUPERADA pros
+      domínios que a gente lê.** Conferido hoje por curl: `app.vidadesindico
+      .com.br` (o painel, que NÃO lemos) segue `Disallow: /`; mas os murais em
+      si (ex.: `parquesantaclara.com.br/robots.txt`) hoje têm `Allow: /`
+      (gerenciado pela Cloudflare) com `Content-Signal: search=yes,ai-train=no,
+      use=reference` — permitem leitura geral e bloqueiam só robôs de TREINO
+      de IA (ClaudeBot/GPTBot/CCBot…), que não é o nosso caso. É config de
+      Cloudflare e pode mudar de novo: reconferir por curl antes de concluir
+      qualquer coisa.
+    - **LEVANTAMENTO JURÍDICO (2026-11-11, pedido do usuário; NÃO sou advogado,
+      é risco pra levar a um — anotação interna, não aparece pra ninguém de
+      fora).** (1) Nenhum processo público da Vida de Síndico (**VDS Sistemas
+      de Informação Ltda.**, dev do app na Play) contra ninguém por scraping.
+      (2) O risco real NÃO é a plataforma processar; é a **LGPD**: coleta de
+      dado de morador (nome, pedido, às vezes telefone) em massa, sem a pessoa
+      saber, pra prospecção. ANPD trata scraping como tratamento sujeito à
+      LGPD mesmo em dado público; já houve 1ª multa por exploração comercial
+      de dado raspado; teto 2% do faturamento até R$ 50 mi/infração + mandar
+      parar/apagar. A autorização da plataforma NÃO resolve isso sozinha (dono
+      do dado é o morador). (3) Marco Civil/termos e concorrência desleal/base
+      de dados existem, mas são secundários aqui. **Recomendação: autorização
+      por escrito da Vida de Síndico (e-mail) + base legal documentada (LIA)
+      por advogado; priorizar o `/pedir`, onde o cliente consente.** O usuário
+      perguntou se dá pra esconder a origem (que aparece como
+      `queroumacor.com.br` no proxy Cloudflare), inclusive "pra fins
+      acadêmicos": RECUSADO — não ajudo a mascarar origem de acesso a dado de
+      morador; só o lado defensivo/transparência.
     - **VÍDEOS DE DIVULGAÇÃO (2026-11-11, pedidos do usuário).** Feitos fora do
       repo (HTML animado + Playwright + ffmpeg, no scratchpad da sessão):
       "clientes pra você que é PRO" com o Seu Zé, "como baixar o app"
