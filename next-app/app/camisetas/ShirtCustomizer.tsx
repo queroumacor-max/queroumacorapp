@@ -3,8 +3,9 @@
 //  1. Hero "🎽 Sua Marca Profissional"
 //  2. Gerar Logo com Seu Zé (card gradient purple): inputs nome+estilo +
 //     botão "Gerar Logo" + upload "Já tenho meu logo"
-//  3. Personalize sua camiseta: preview com logo overlay + Cali Colors logo +
-//     cor + tamanho + quantidade + total + "Pedir Agora"
+//  3. Personalize sua camiseta: preview com logo overlay (só a marca do
+//     profissional; logo de parceiros virá no futuro) + cor + tamanho +
+//     quantidade + total + "Pedir Agora"
 //
 // Logo gerado/uploadado pode ser SALVO no perfil (profile.business_logo_url)
 // e reusado automaticamente pelo preview. Usa o hook `useAiLogo` que cobre
@@ -173,7 +174,7 @@ export function ShirtCustomizer() {
           🎽 Sua Marca Profissional
         </div>
         <div style={{ fontSize: 13, color: 'var(--color-muted)', lineHeight: 1.5 }}>
-          Camisetas personalizadas com a sua marca e a da Cali Colors. Chegue com
+          Camisetas personalizadas com a sua marca. Chegue com
           identidade nos clientes.
         </div>
       </div>
@@ -518,23 +519,9 @@ export function ShirtCustomizer() {
                 SEU LOGO
               </div>
             )}
-
-            {/* Cali Colors — peito direito (vanilla right:30% top:22% width:14%) */}
-            <img
-              src="/img/cali-colors-logo.webp"
-              alt="Cali Colors"
-              loading="lazy"
-              decoding="async"
-              className="absolute pointer-events-none"
-              style={{
-                right: '30%',
-                top: '22%',
-                width: '14%',
-                height: 'auto',
-                maxHeight: '14%',
-                objectFit: 'contain',
-              }}
-            />
+            {/* Logo da Cali Colors removido da camisa (pedido do usuário,
+                12/11/2026). O peito direito fica livre pra logo de parceiros
+                no futuro. */}
           </div>
         </div>
 
@@ -550,17 +537,6 @@ export function ShirtCustomizer() {
             }}
           >
             seu_perfil
-          </span>
-          <span
-            className="text-white font-bold"
-            style={{
-              background: 'var(--color-p1)',
-              padding: '5px 12px',
-              borderRadius: 999,
-              fontSize: 11,
-            }}
-          >
-            + Cali Colors
           </span>
         </div>
       </div>
